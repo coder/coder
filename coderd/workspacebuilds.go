@@ -1123,9 +1123,10 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 	// Use system context since we've already verified authorization via template permissions.
 	// nolint:gocritic // System access required for provisioner state update.
 	err = api.Database.UpdateWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-		ID:               workspaceBuild.ID,
-		ProvisionerState: req.State,
-		UpdatedAt:        dbtime.Now(),
+		ID:                    workspaceBuild.ID,
+		ProvisionerState:      req.State,
+		ProvisionerStateKeyID: sql.NullString{}, // dbcrypt will set as required
+		UpdatedAt:             dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
