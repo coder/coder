@@ -751,6 +751,29 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 	});
 
+	it("keeps a just-added chip when removing another before the parent applies it", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		// A fixed value stands in for a parent that has not applied onChange yet.
+		render(
+			<FilterCombobox
+				value="status:running"
+				onChange={onChange}
+				categories={[statusCategory, attributesCategory]}
+				placeholder="Search and filter"
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(await screen.findByRole("option", { name: "Outdated" }));
+		expect(onChange).toHaveBeenLastCalledWith("status:running outdated:true");
+		await user.click(
+			screen.getByRole("button", { name: "Remove status:running" }),
+		);
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
+	});
+
 	it("keeps the main menu usable and focused after selecting a flyout option", async () => {
 		const { user, onChange, input, filtersButton } = setup(
 			[ownerCategory, statusCategory],
