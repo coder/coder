@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useFormik } from "formik";
+import { type FormikErrors, useFormik } from "formik";
 import { useEffect } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
@@ -57,34 +57,39 @@ const fieldSchemas: Record<CustomizationsField, Yup.StringSchema> = {
 	organization_id: Yup.string().required("Select an organization to continue."),
 };
 
-const validationSchema = Yup.object(fieldSchemas);
+const isCustomizationsField = (field: string): field is CustomizationsField =>
+	Object.hasOwn(fieldSchemas, field);
 
-/** Returns the create error's field validations that name form fields. */
 const getCreateFieldErrors = (
 	error: unknown,
-): Partial<Record<CustomizationsField, string>> => {
+): FormikErrors<CustomizationsFormValues> => {
+	const fieldErrors: FormikErrors<CustomizationsFormValues> = {};
 	if (!isApiValidationError(error)) {
-		return {};
+		return fieldErrors;
 	}
-	const fieldErrors = mapApiErrorToFieldErrors(error.response.data);
-	return Object.fromEntries(
-		Object.entries(fieldErrors).filter(([field]) => field in fieldSchemas),
-	);
+	for (const [field, detail] of Object.entries(
+		mapApiErrorToFieldErrors(error.response.data),
+	)) {
+		if (isCustomizationsField(field)) {
+			fieldErrors[field] = detail;
+		}
+	}
+	return fieldErrors;
 };
 
-/** Rejects each submitted value the create endpoint refused. */
-const rejectSubmittedValues = (
-	fieldErrors: Partial<Record<CustomizationsField, string>>,
+const getValidationSchema = (
+	fieldErrors: FormikErrors<CustomizationsFormValues>,
 	submitted: CustomizationsFormValues,
-) =>
-	validationSchema.shape(
-		Object.fromEntries(
-			Object.entries(fieldErrors).map(([field, message]) => {
-				const key = field as CustomizationsField;
-				return [key, fieldSchemas[key].notOneOf([submitted[key]], message)];
-			}),
-		),
-	);
+) => {
+	const schemas = { ...fieldSchemas };
+	for (const field of Object.keys(fieldErrors).filter(isCustomizationsField)) {
+		schemas[field] = fieldSchemas[field].notOneOf(
+			[submitted[field]],
+			fieldErrors[field],
+		);
+	}
+	return Yup.object(schemas);
+};
 
 type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
@@ -127,23 +132,23 @@ export const TemplateCustomizationsStep: React.FC<
 	};
 	// A create error stays on the field it names until that value changes.
 	const createFieldErrors = getCreateFieldErrors(createError);
+	const createErrorFields = Object.keys(createFieldErrors).filter(
+		isCustomizationsField,
+	);
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: formInitialValues,
 		initialErrors: createFieldErrors,
 		initialTouched: Object.fromEntries(
-			Object.keys(createFieldErrors).map((field) => [field, true]),
+			createErrorFields.map((field) => [field, true]),
 		),
-		validationSchema: rejectSubmittedValues(
-			createFieldErrors,
-			formInitialValues,
-		),
+		validationSchema: getValidationSchema(createFieldErrors, formInitialValues),
 		onSubmit: (values) => onCreate(values),
 	});
 	// The Organization field is not rendered while organizations fail to load,
 	// so its error moves to the alert above the form.
-	const createErrorField = (
-		Object.keys(createFieldErrors) as CustomizationsField[]
-	).find((field) => !(field === "organization_id" && showOrgsError));
+	const createErrorField = createErrorFields.find(
+		(field) => !(field === "organization_id" && showOrgsError),
+	);
 	const showCreateErrorAlert = createError != null && !createErrorField;
 	const getFieldHelpers = getFormHelpers(form);
 	const displayNameField = getFieldHelpers("display_name");
