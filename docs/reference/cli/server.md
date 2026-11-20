@@ -1216,6 +1216,15 @@ The upgrade message to display to users when a client/server mismatch is detecte
 
 Support links to display in the top right drop down menu.
 
+### --setup-token
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_SETUP_TOKEN</code> |
+
+The token that must be supplied to create the first user when the deployment is published through a try.coder.app tunnel. When empty, the server generates one and prints it at startup. It must be at least 24 characters.
+
 ### --proxy-health-interval
 
 |             |                                                  |

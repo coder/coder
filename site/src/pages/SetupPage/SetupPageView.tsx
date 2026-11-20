@@ -67,28 +67,32 @@ const usernameFromEmail = (email: string): string => {
 	}
 };
 
-const validationSchema = Yup.object({
-	email: Yup.string()
-		.trim()
-		.email(Language.emailInvalid)
-		.required(Language.emailRequired),
-	password: Yup.string().required(Language.passwordRequired),
-	username: usernameValidator,
-	trial: Yup.bool(),
-	trial_info: Yup.object().when("trial", {
-		is: true,
-		then: (schema) =>
-			schema.shape({
-				first_name: Yup.string().required(Language.firstNameRequired),
-				last_name: Yup.string().required(Language.firstNameRequired),
-				phone_number: Yup.string().required(Language.phoneNumberRequired),
-				job_title: Yup.string().required(Language.jobTitleRequired),
-				company_name: Yup.string().required(Language.companyNameRequired),
-				country: Yup.string().required(Language.countryRequired),
-				developers: Yup.string().required(Language.developersRequired),
-			}),
-	}),
-});
+const validationSchema = (setupTokenRequired: boolean) =>
+	Yup.object({
+		setup_token: setupTokenRequired
+			? Yup.string().trim().required("Please enter the setup token.")
+			: Yup.string(),
+		email: Yup.string()
+			.trim()
+			.email(Language.emailInvalid)
+			.required(Language.emailRequired),
+		password: Yup.string().required(Language.passwordRequired),
+		username: usernameValidator,
+		trial: Yup.bool(),
+		trial_info: Yup.object().when("trial", {
+			is: true,
+			then: (schema) =>
+				schema.shape({
+					first_name: Yup.string().required(Language.firstNameRequired),
+					last_name: Yup.string().required(Language.firstNameRequired),
+					phone_number: Yup.string().required(Language.phoneNumberRequired),
+					job_title: Yup.string().required(Language.jobTitleRequired),
+					company_name: Yup.string().required(Language.companyNameRequired),
+					country: Yup.string().required(Language.countryRequired),
+					developers: Yup.string().required(Language.developersRequired),
+				}),
+		}),
+	});
 
 const numberOfDevelopersOptions = [
 	"1-100",
@@ -111,9 +115,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	isLoading,
 	authMethods,
 }) => {
+	const setupTokenRequired = authMethods?.setup_token_required ?? false;
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
+				setup_token: "",
 				email: "",
 				password: "",
 				username: "",
@@ -129,8 +135,15 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					developers: "",
 				},
 			},
-			validationSchema,
-			onSubmit,
+			validationSchema: validationSchema(setupTokenRequired),
+			// An empty token is left out, so that the request to a server
+			// that requires no token stays as it was.
+			onSubmit: ({ setup_token, ...firstUser }) => {
+				const token = setup_token?.trim();
+				return onSubmit(
+					token ? { ...firstUser, setup_token: token } : firstUser,
+				);
+			},
 			// With validate on blur set to true, the form lights up red whenever
 			// you click out of it. This is a bit jarring. We instead validate
 			// on submit and change.
@@ -165,7 +178,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			</header>
 			<VerticalForm onSubmit={form.handleSubmit}>
 				<FormFields>
-					{authMethods?.github.enabled && (
+					{authMethods?.github.enabled && !setupTokenRequired && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
@@ -182,8 +195,25 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</div>
 						</>
 					)}
+					{setupTokenRequired && (
+						<TextField
+							{...getFieldHelpers("setup_token", {
+								helperText: "Printed by coder server when it starts.",
+							})}
+							type="password"
+							autoComplete="off"
+							disabled={isLoading}
+							fullWidth
+							label="Setup token"
+						/>
+					)}
 					<TextField
-						{...getFieldHelpers("email")}
+						{...getFieldHelpers("email", {
+							helperText:
+								setupTokenRequired && authMethods?.github.enabled
+									? "To switch this account to GitHub sign-in later, use your GitHub account's primary email. You switch it under Account > Security."
+									: undefined,
+						})}
 						onChange={(event) => {
 							const email = event.target.value;
 							const username = usernameFromEmail(email);
