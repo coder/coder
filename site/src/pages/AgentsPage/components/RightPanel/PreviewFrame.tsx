@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { previewSignIn } from "#/api/queries/previews";
 import type {
-	PreviewMode,
 	PreviewSignInRequest,
 	PreviewSignInResponse,
 } from "#/api/typesGenerated";
@@ -59,9 +58,6 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 					{new URL(signIn.origin).host}
 				</span>
 				{details}
-				<span className="ml-auto min-w-0 max-w-full truncate text-content-secondary">
-					{modeHint(signIn.mode)}
-				</span>
 			</div>
 			<iframe
 				srcDoc={wrapperHTML(signIn, title)}
@@ -71,17 +67,6 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 			/>
 		</div>
 	);
-};
-
-const modeHint = (mode: PreviewMode): string => {
-	switch (mode) {
-		case "strict":
-			return "Requests to other sites are blocked";
-		default: {
-			const _exhaustive: never = mode;
-			return _exhaustive;
-		}
-	}
 };
 
 // The preview's own CSP cannot stop it from navigating itself to another app,
