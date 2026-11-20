@@ -336,7 +336,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		if err != nil {
 			return nil, xerrors.Errorf("acquire request bridge: %w", err)
 		}
-		return reqBridge, nil
+		return s.reacquireRetiredBridge(ctx, current.pool, req, reqBridge), nil
 	}
 	// Proxy mode serves every request from one handler, which does not exist
 	// until the first provider snapshot arrives.
@@ -344,6 +344,49 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return http.HandlerFunc(notReadyHandler), nil
 	}
 	return current.proxyRouter, nil
+}
+
+// maxBridgeAttempts bounds how many bridges one request tries when provider
+// reloads keep retiring the bridge it acquired.
+const maxBridgeAttempts = 3
+
+// tryServer is implemented by handlers that can decline a request without
+// responding, such as a [*aibridge.RequestBridge] that has been retired.
+type tryServer interface {
+	TryServeHTTP(http.ResponseWriter, *http.Request) bool
+}
+
+// reacquireRetiredBridge serves with handler, acquiring a replacement from
+// pool when a provider reload retired handler between acquisition and
+// admission. Retirement removes the bridge from the pool first, so a new
+// acquisition returns the current generation. Requests already admitted to a
+// retired bridge keep draining on it.
+func (s *Server) reacquireRetiredBridge(ctx context.Context, pool Pooler, req Request, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for attempt := 1; ; attempt++ {
+			bridge, ok := handler.(tryServer)
+			if !ok || attempt >= maxBridgeAttempts {
+				handler.ServeHTTP(w, r)
+				return
+			}
+			if bridge.TryServeHTTP(w, r) {
+				return
+			}
+			if s.isShutdown() {
+				shuttingDownHandler(w, r)
+				return
+			}
+			next, err := pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+			if err != nil {
+				// The retired bridge refuses the request when no replacement
+				// can be built.
+				s.logger.Debug(ctx, "failed to reacquire retired request bridge", slog.Error(err))
+				handler.ServeHTTP(w, r)
+				return
+			}
+			handler = next
+		}
+	})
 }
 
 // Ready reports whether the server currently has an active DRPC connection to coderd.

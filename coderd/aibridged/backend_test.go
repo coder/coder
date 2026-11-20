@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -471,6 +472,35 @@ func TestReplaceProviders_ContextAndShutdown(t *testing.T) {
 		require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, handler, "/openai/v1/models").Code)
 		require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, acquired, "/openai/v1/models").Code)
 	})
+}
+
+// A provider reload that retires a bridge after it was acquired must not
+// refuse the request; it is served by the current generation instead.
+func TestGetRequestHandler_ReloadRetiresAcquiredBridge(t *testing.T) {
+	t.Parallel()
+
+	f := newBackendServer(t, nil, staticConfigs(noMCPConfigs()), false)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	waitReady(t, f.srv)
+	providers := []aibridge.Provider{openAIProvider("openai", singleKeyPool(t, "openai", "key"))}
+	require.NoError(t, f.srv.ReplaceProviders(ctx, providers))
+
+	handler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
+	require.NoError(t, err)
+	acquired, err := f.srv.InterceptionPoolForTest().Acquire(ctx, aibridged.Request{}, nil, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, f.srv.ReplaceProviders(ctx, providers))
+	// Retirement drains in the background; wait until the acquired bridge
+	// refuses admission.
+	require.Eventually(t, func() bool {
+		return serveHandler(t, acquired, "/openai/v1/chat/completions").Code == http.StatusServiceUnavailable
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", strings.NewReader("{}")))
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
+	require.Equal(t, "no actor found\n", rec.Body.String())
 }
 
 // Exercise serving, reloads, metrics, and shutdown together under -race.

@@ -43,7 +43,9 @@ import (
 // RequestBridge is safe for concurrent use.
 type RequestBridge struct {
 	handler http.Handler
-	logger  slog.Logger
+	// routes serves admitted requests; handler wraps it with admission.
+	routes http.Handler
+	logger slog.Logger
 
 	mcpProxy mcp.ServerProxier
 
@@ -127,7 +129,8 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(routing.RejectInvalidForwardPath(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes)))
+	b.routes = routing.RejectInvalidForwardPath(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(b.routes)
 	return b, nil
 }
 
@@ -306,6 +309,12 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	b.handler.ServeHTTP(rw, r)
+}
+
+// TryServeHTTP serves r unless the bridge has begun shutting down, in which
+// case it returns false without writing a response.
+func (b *RequestBridge) TryServeHTTP(rw http.ResponseWriter, r *http.Request) bool {
+	return b.inflight.TryServe(b.routes, rw, r)
 }
 
 // Shutdown drains requests until ctx expires, then cancels remaining requests
