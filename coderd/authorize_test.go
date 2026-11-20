@@ -313,9 +313,15 @@ func TestHTTPAuthorizer_DenialDoesNotLogSecrets(t *testing.T) {
 
 	entries := sink.Entries()
 	require.Len(t, entries, 1)
+	var actor string
 	for _, f := range entries[0].Fields {
 		v := fmt.Sprintf("%+v", f.Value)
 		require.NotContains(t, v, secret, "field %q leaks the object's secret", f.Name)
-		require.NotContains(t, v, email, "field %q leaks the actor's email", f.Name)
+		if f.Name == "actor_name" {
+			actor = v
+		}
 	}
+	// The actor's identity is kept for debugging, but not its expanded roles.
+	require.Contains(t, actor, email)
+	require.NotContains(t, actor, "Roles")
 }
