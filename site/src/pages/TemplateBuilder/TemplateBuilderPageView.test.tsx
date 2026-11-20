@@ -138,8 +138,5 @@ describe(TemplateBuilderPageView.name, () => {
 		expect(restoredId).toBeInvalid();
 		expect(restoredId).toHaveAccessibleDescription(message);
 		expect(restoredId).toHaveFocus();
-
-		await userEvent.type(restoredId, "-2");
-		expect(restoredId).toBeValid();
 	});
 });

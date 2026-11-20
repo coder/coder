@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FormikErrors, useFormik } from "formik";
+import { useFormik } from "formik";
 import { useEffect } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
@@ -41,9 +41,7 @@ const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
 const emptyOrgs: readonly Organization[] = [];
 
-type CustomizationsField = keyof CustomizationsFormValues;
-
-const fieldSchemas: Record<CustomizationsField, Yup.StringSchema> = {
+const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),
 	display_name: displayNameValidator("Display name"),
 	description: Yup.string().max(
@@ -55,41 +53,7 @@ const fieldSchemas: Record<CustomizationsField, Yup.StringSchema> = {
 	// template permission, so there is always at least one permitted org, and
 	// it is auto-selected when only one is available.
 	organization_id: Yup.string().required("Select an organization to continue."),
-};
-
-const isCustomizationsField = (field: string): field is CustomizationsField =>
-	Object.hasOwn(fieldSchemas, field);
-
-const getCreateFieldErrors = (
-	error: unknown,
-): FormikErrors<CustomizationsFormValues> => {
-	const fieldErrors: FormikErrors<CustomizationsFormValues> = {};
-	if (!isApiValidationError(error)) {
-		return fieldErrors;
-	}
-	for (const [field, detail] of Object.entries(
-		mapApiErrorToFieldErrors(error.response.data),
-	)) {
-		if (isCustomizationsField(field)) {
-			fieldErrors[field] = detail;
-		}
-	}
-	return fieldErrors;
-};
-
-const getValidationSchema = (
-	fieldErrors: FormikErrors<CustomizationsFormValues>,
-	submitted: CustomizationsFormValues,
-) => {
-	const schemas = { ...fieldSchemas };
-	for (const field of Object.keys(fieldErrors).filter(isCustomizationsField)) {
-		schemas[field] = fieldSchemas[field].notOneOf(
-			[submitted[field]],
-			fieldErrors[field],
-		);
-	}
-	return Yup.object(schemas);
-};
+});
 
 type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
@@ -123,34 +87,26 @@ export const TemplateCustomizationsStep: React.FC<
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
-	const formInitialValues = initialValues ?? {
-		organization_id: "",
-		name: state.name,
-		display_name: state.displayName,
-		description: state.description,
-		icon: state.icon,
-	};
-	// A create error stays on the field it names until that value changes.
-	const createFieldErrors = getCreateFieldErrors(createError);
-	const createErrorFields = Object.keys(createFieldErrors).filter(
-		isCustomizationsField,
-	);
+	const createFieldErrors = isApiValidationError(createError)
+		? mapApiErrorToFieldErrors(createError.response.data)
+		: {};
 	const form = useFormik<CustomizationsFormValues>({
-		initialValues: formInitialValues,
-		initialErrors: createFieldErrors,
+		initialValues: initialValues ?? {
+			organization_id: "",
+			name: state.name,
+			display_name: state.displayName,
+			description: state.description,
+			icon: state.icon,
+		},
+		// The step remounts after a failed create, so the fields it names start
+		// touched for getFormHelpers to show their errors.
 		initialTouched: Object.fromEntries(
-			createErrorFields.map((field) => [field, true]),
+			Object.keys(createFieldErrors).map((field) => [field, true]),
 		),
-		validationSchema: getValidationSchema(createFieldErrors, formInitialValues),
+		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
-	// The Organization field is not rendered while organizations fail to load,
-	// so its error moves to the alert above the form.
-	const createErrorField = createErrorFields.find(
-		(field) => !(field === "organization_id" && showOrgsError),
-	);
-	const showCreateErrorAlert = createError != null && !createErrorField;
-	const getFieldHelpers = getFormHelpers(form);
+	const getFieldHelpers = getFormHelpers(form, createError);
 	const displayNameField = getFieldHelpers("display_name");
 	const nameField = getFieldHelpers("name", {
 		helperText: "Used to identify the template in URLs and the API.",
@@ -186,6 +142,16 @@ export const TemplateCustomizationsStep: React.FC<
 			void setFieldValue("organization_id", orgOptions[0].id);
 		}
 	}, [orgOptions, organizationId, setFieldValue]);
+
+	// The Organization field is not rendered while organizations fail to load,
+	// so its error moves to the alert above the form.
+	const createErrorFields = Object.keys(createFieldErrors).filter(
+		(field) =>
+			Object.hasOwn(form.initialValues, field) &&
+			!(field === "organization_id" && showOrgsError),
+	);
+	const showCreateErrorAlert =
+		Boolean(createError) && createErrorFields.length === 0;
 
 	const handleOrgChange = (org: Organization | null) => {
 		void form.setFieldValue("organization_id", org?.id ?? "");
@@ -246,7 +212,7 @@ export const TemplateCustomizationsStep: React.FC<
 								<OrganizationAutocomplete
 									{...props}
 									required
-									autoFocus={createErrorField === "organization_id"}
+									autoFocus={createErrorFields.includes("organization_id")}
 									disabled={permittedOrgsQuery.isPending}
 									value={selectedOrg}
 									onChange={handleOrgChange}
@@ -298,7 +264,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={nameField}
 						label="ID"
 						required
-						autoFocus={createErrorField === "name"}
+						autoFocus={createErrorFields.includes("name")}
 						id="template-name"
 						placeholder="my-template"
 					/>
