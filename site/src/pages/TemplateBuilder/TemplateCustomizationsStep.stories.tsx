@@ -176,11 +176,20 @@ const mockSubmittedValues = {
 
 const mockDuplicateIdError = mockAxiosError({
 	message: "A template with this name already exists in the organization.",
+	validations: [
+		{
+			field: "name",
+			detail: "This value is already in use and should be unique.",
+		},
+	],
 	status: 409,
 });
 
 const mockOrganizationNotFoundError = mockAxiosError({
 	message: "Organization not found.",
+	validations: [
+		{ field: "organization_id", detail: "Organization not found." },
+	],
 	status: 404,
 });
 

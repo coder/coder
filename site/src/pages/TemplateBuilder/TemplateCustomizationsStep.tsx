@@ -3,7 +3,7 @@ import { useFormik } from "formik";
 import { useEffect } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 import {
 	permittedOrganizations,
 	provisionerDaemons,
@@ -41,16 +41,9 @@ const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
 const emptyOrgs: readonly Organization[] = [];
 
-// The create endpoint returns these statuses without field validations, so map
-// each one to the field the user has to change.
-const createErrorFields: Partial<
-	Record<number, keyof CustomizationsFormValues>
-> = {
-	404: "organization_id",
-	409: "name",
-};
+type CustomizationsField = keyof CustomizationsFormValues;
 
-const validationSchema = Yup.object({
+const fieldSchemas: Record<CustomizationsField, Yup.StringSchema> = {
 	name: nameValidator("Template ID"),
 	display_name: displayNameValidator("Display name"),
 	description: Yup.string().max(
@@ -62,7 +55,36 @@ const validationSchema = Yup.object({
 	// template permission, so there is always at least one permitted org, and
 	// it is auto-selected when only one is available.
 	organization_id: Yup.string().required("Select an organization to continue."),
-});
+};
+
+const validationSchema = Yup.object(fieldSchemas);
+
+/** Returns the create error's field validations that name form fields. */
+const getCreateFieldErrors = (
+	error: unknown,
+): Partial<Record<CustomizationsField, string>> => {
+	if (!isApiValidationError(error)) {
+		return {};
+	}
+	const fieldErrors = mapApiErrorToFieldErrors(error.response.data);
+	return Object.fromEntries(
+		Object.entries(fieldErrors).filter(([field]) => field in fieldSchemas),
+	);
+};
+
+/** Rejects each submitted value the create endpoint refused. */
+const rejectSubmittedValues = (
+	fieldErrors: Partial<Record<CustomizationsField, string>>,
+	submitted: CustomizationsFormValues,
+) =>
+	validationSchema.shape(
+		Object.fromEntries(
+			Object.entries(fieldErrors).map(([field, message]) => {
+				const key = field as CustomizationsField;
+				return [key, fieldSchemas[key].notOneOf([submitted[key]], message)];
+			}),
+		),
+	);
 
 type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
@@ -96,47 +118,34 @@ export const TemplateCustomizationsStep: React.FC<
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
+	const formInitialValues = initialValues ?? {
+		organization_id: "",
+		name: state.name,
+		display_name: state.displayName,
+		description: state.description,
+		icon: state.icon,
+	};
+	// A create error stays on the field it names until that value changes.
+	const createFieldErrors = getCreateFieldErrors(createError);
 	const form = useFormik<CustomizationsFormValues>({
-		initialValues: initialValues ?? {
-			organization_id: "",
-			name: state.name,
-			display_name: state.displayName,
-			description: state.description,
-			icon: state.icon,
-		},
-		validationSchema,
+		initialValues: formInitialValues,
+		initialErrors: createFieldErrors,
+		initialTouched: Object.fromEntries(
+			Object.keys(createFieldErrors).map((field) => [field, true]),
+		),
+		validationSchema: rejectSubmittedValues(
+			createFieldErrors,
+			formInitialValues,
+		),
 		onSubmit: (values) => onCreate(values),
 	});
-	// A create error sits on the field it names. When it names no field, or
-	// that field is not rendered (the Organization field while organizations
-	// fail to load), the alert above the form shows it instead.
-	const namedCreateErrorField = isApiError(createError)
-		? createErrorFields[createError.response.status]
-		: undefined;
-	const createErrorField =
-		namedCreateErrorField === "organization_id" && showOrgsError
-			? undefined
-			: namedCreateErrorField;
+	// The Organization field is not rendered while organizations fail to load,
+	// so its error moves to the alert above the form.
+	const createErrorField = (
+		Object.keys(createFieldErrors) as CustomizationsField[]
+	).find((field) => !(field === "organization_id" && showOrgsError));
 	const showCreateErrorAlert = createError != null && !createErrorField;
-	const getFormFieldHelpers = getFormHelpers(form);
-	const getFieldHelpers: typeof getFormFieldHelpers = (field, options) => {
-		const helpers = getFormFieldHelpers(field, options);
-		// Keep the create error on its field until the user changes the value.
-		if (
-			field === createErrorField &&
-			form.values[field] === form.initialValues[field]
-		) {
-			return {
-				...helpers,
-				error: true,
-				helperText: getErrorMessage(
-					createError,
-					"Unable to create the template.",
-				),
-			};
-		}
-		return helpers;
-	};
+	const getFieldHelpers = getFormHelpers(form);
 	const displayNameField = getFieldHelpers("display_name");
 	const nameField = getFieldHelpers("name", {
 		helperText: "Used to identify the template in URLs and the API.",
