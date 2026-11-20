@@ -139,24 +139,37 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 
 	t.Run("Resync", func(t *testing.T) {
 		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			err  error
+		}{
+			{name: "Success"},
+			{name: "PushUnavailable", err: agentcontext.ErrPushUnavailable},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				cm := &fakeContextManager{snapshot: agentcontext.Snapshot{Version: 3}, resyncErr: tc.err}
+				socketPath := testutil.AgentSocketPath(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				server, err := agentsocket.NewServer(
+					slog.Make().Leveled(slog.LevelDebug),
+					agentsocket.WithPath(socketPath),
+					agentsocket.WithContextManager(cm),
+				)
+				require.NoError(t, err)
+				defer server.Close()
 
-		cm := &fakeContextManager{snapshot: agentcontext.Snapshot{Version: 3}}
-		socketPath := testutil.AgentSocketPath(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		server, err := agentsocket.NewServer(
-			slog.Make().Leveled(slog.LevelDebug),
-			agentsocket.WithPath(socketPath),
-			agentsocket.WithContextManager(cm),
-		)
-		require.NoError(t, err)
-		defer server.Close()
-
-		client := newSocketClient(ctx, t, socketPath)
-
-		snap, err := client.ResyncContext(ctx)
-		require.NoError(t, err)
-		require.EqualValues(t, 3, snap.Version)
-		require.True(t, cm.resynced)
+				client := newSocketClient(ctx, t, socketPath)
+				snap, err := client.ResyncContext(ctx)
+				if tc.err != nil {
+					require.ErrorIs(t, err, tc.err)
+					return
+				}
+				require.NoError(t, err)
+				require.EqualValues(t, 3, snap.Version)
+				require.True(t, cm.resynced)
+			})
+		}
 	})
 
 	t.Run("NoManagerErrors", func(t *testing.T) {
