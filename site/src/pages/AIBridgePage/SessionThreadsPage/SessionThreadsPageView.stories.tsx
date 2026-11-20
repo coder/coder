@@ -4,6 +4,7 @@ import type { AIBridgeSessionThreadsResponse } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
 	MockAIBridgeSessionOrganization,
+	MockAIBridgeSessionOrganization2,
 	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
@@ -62,6 +63,25 @@ export const WithOrganizations: Story = {
 		session: {
 			...mockSession,
 			organizations: [MockAIBridgeSessionOrganization],
+		},
+	},
+};
+
+export const WithMultipleOrganizations: Story = {
+	args: {
+		showOrganizations: true,
+		session: {
+			...mockSession,
+			organizations: [
+				MockAIBridgeSessionOrganization,
+				{ ...MockAIBridgeSessionOrganization2, icon: "" },
+				{
+					...MockAIBridgeSessionOrganization2,
+					id: "long-name-org-id",
+					name: "platform-engineering",
+					display_name: "Platform Engineering and Developer Experience",
+				},
+			],
 		},
 	},
 };

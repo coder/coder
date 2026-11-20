@@ -195,11 +195,9 @@ export const SessionSummaryTable = ({
 							ariaLabel="How the organization is chosen"
 						>
 							<TooltipMessage>
-								Each AI request is attributed to one organization, based on how
-								it was made (from a workspace, from Coder Agents, or from the
-								user's group budgets). A session can include requests from more
-								than one organization. Sessions from before v2.39 show "Not
-								recorded".
+								Each request is attributed to one organization, based on how it
+								was made. A session can include requests from more than one
+								organization.
 								<br />
 								<Link
 									size="sm"
