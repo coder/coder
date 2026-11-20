@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
@@ -46,7 +46,7 @@ function loadPersistedWidth(): number {
 		return DEFAULT_WIDTH;
 	}
 	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
+	if (Number.isNaN(parsed) || parsed < MIN_WIDTH) {
 		return DEFAULT_WIDTH;
 	}
 	return parsed;
@@ -241,27 +241,8 @@ export const RightPanel = ({
 }: RightPanelProps) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const [preferredWidth, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
-
-	// The side-by-side limit follows the viewport and the parent panel, so
-	// clamp to it at render time and keep the width the user dragged.
-	const maxWidth = useSyncExternalStore(
-		(onChange) => {
-			const resizeObserver = new ResizeObserver(onChange);
-			const parent = panelRef.current?.parentElement;
-			if (parent) {
-				resizeObserver.observe(parent);
-			}
-			window.addEventListener("resize", onChange);
-			return () => {
-				resizeObserver.disconnect();
-				window.removeEventListener("resize", onChange);
-			};
-		},
-		() => getSideBySideMaxWidth(panelRef.current),
-	);
-	const width = Math.min(preferredWidth, maxWidth);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
@@ -297,8 +278,8 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(preferredWidth));
-	}, [preferredWidth]);
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
+	}, [width]);
 
 	useEffect(() => {
 		if (

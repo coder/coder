@@ -318,10 +318,17 @@ describe("RightPanel viewport resize", () => {
 		pointerMove(NORMAL_ZONE_X);
 		pointerUp(NORMAL_ZONE_X);
 
-		// A 600px viewport caps the panel at 420px.
 		vi.stubGlobal("innerWidth", 600);
 		fireEvent(window, new Event("resize"));
 
 		expect(persistedWidth()).toBe("600");
+	});
+
+	it("keeps a stored width wider than the current viewport allows", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, "900");
+
+		renderHarness();
+
+		expect(persistedWidth()).toBe("900");
 	});
 });
