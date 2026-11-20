@@ -119,7 +119,10 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL            *url.URL
+	AccessURL *url.URL
+	// SetupToken makes the server require this token to create the
+	// first user, as it does on a tunnel.
+	SetupToken           string
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
@@ -635,6 +638,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ChatProviderAPIKeys:               options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:                options.ChatWorkerDisabled,
 			AccessURL:                         accessURL,
+			SetupToken:                        options.SetupToken,
 			AppHostname:                       options.AppHostname,
 			AppHostnameRegex:                  appHostnameRegex,
 			Logger:                            *options.Logger,

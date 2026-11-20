@@ -202,6 +202,11 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.setupTokenRequired() && !api.setupTokenMatches(createUser.SetupToken) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, setupTokenRefused())
+		return
+	}
+
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

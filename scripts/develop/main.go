@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/serpent"
 )
 
@@ -263,6 +264,9 @@ type devConfig struct {
 	metricsPortSource portSource
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
+	// setupToken is sent to the server and with the first-user request
+	// when the server opens a tunnel.
+	setupToken string
 }
 
 type portExplicit struct {
@@ -636,6 +640,16 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 
 	ctx = group.Ctx()
 
+	// With --skip-setup the developer creates the first user by hand,
+	// and needs the token that the server prints itself.
+	if cfg.accessURL == "" && !cfg.skipSetup {
+		var err error
+		cfg.setupToken, err = cryptorand.String(32)
+		if err != nil {
+			return xerrors.Errorf("generate setup token: %w", err)
+		}
+	}
+
 	if err := startServer(cfg, group); err != nil {
 		return err
 	}
@@ -791,8 +805,18 @@ func startServer(cfg *devConfig, group *procGroup) error {
 	if cfg.debug {
 		return startServerDebug(cfg, serverArgs, group)
 	}
-	cmd := cfg.cmd(group.Ctx(), cfg.binaryPath, serverArgs...)
+	cmd := cfg.serverCmd(group.Ctx(), cfg.binaryPath, serverArgs...)
 	return group.Start("api", cmd)
+}
+
+// serverCmd builds the coder server command. The setup token is passed
+// in the environment so that it is not visible in the process list.
+func (c *devConfig) serverCmd(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	cmd := c.cmd(ctx, bin, args...)
+	if c.setupToken != "" {
+		cmd.Env = append(cmd.Env, "CODER_SETUP_TOKEN="+c.setupToken)
+	}
+	return cmd
 }
 
 func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) error {
@@ -837,7 +861,7 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 		return xerrors.Errorf("debug build: %w", err)
 	}
 
-	srvCmd := cfg.cmd(ctx, debugBin, serverArgs...)
+	srvCmd := cfg.serverCmd(ctx, debugBin, serverArgs...)
 	if err := group.Start("api", srvCmd); err != nil {
 		return err
 	}
@@ -906,10 +930,11 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 				slog.F("email", "admin@coder.com"),
 				slog.F("password", cfg.password))
 			_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-				Email:    "admin@coder.com",
-				Username: "admin",
-				Name:     "Admin User",
-				Password: cfg.password,
+				Email:      "admin@coder.com",
+				Username:   "admin",
+				Name:       "Admin User",
+				Password:   cfg.password,
+				SetupToken: cfg.setupToken,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("creating first user: %w", err)

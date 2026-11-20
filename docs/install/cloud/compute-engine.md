@@ -41,9 +41,18 @@ address. You should be redirected to a public tunnel URL.
 
 ![Coder on GCP Marketplace start](../../images/platforms/gcp/start.png)
 
-That's all! Use the UI to create your first user, template, and workspace. We
-recommend starting with a Docker template since the instance has Docker
-pre-installed.
+The setup page asks for a setup token before it creates the first user.
+To find it, connect to the instance over SSH and read the Coder service logs:
+
+```sh
+journalctl -u coder.service -b
+```
+
+Copy the token from the line that starts with `Setup token:`.
+
+That's all!
+Use the UI to create your first user, template, and workspace.
+We recommend starting with a Docker template since the instance has Docker pre-installed.
 
 ![Coder Workspace and IDE in GCP VM](../../images/platforms/aws/workspace.png)
 
