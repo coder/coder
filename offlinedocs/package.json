@@ -1,49 +1,50 @@
 {
-	"name": "coder-docs-generator",
-	"private": true,
-	"scripts": {
-		"dev": "pnpm copy-images && next dev",
-		"build": "next build",
-		"start": "next start",
-		"export": "pnpm copy-images && next build",
-		"copy-images": "sh ./scripts/copyImages.sh",
-		"lint": "pnpm run lint:types",
-		"lint:types": "tsc --noEmit",
-		"format": "biome format --write .",
-		"format:check": "biome format ."
-	},
-	"dependencies": {
-		"@chakra-ui/react": "2.10.10",
-		"@emotion/react": "11.14.0",
-		"@emotion/styled": "11.14.1",
-		"archiver": "8.0.0",
-		"framer-motion": "^10.18.0",
-		"front-matter": "4.0.2",
-		"hast-util-whitespace": "3.0.0",
-		"lodash": "4.18.1",
-		"next": "15.5.28",
-		"react": "18.3.1",
-		"react-dom": "18.3.1",
-		"react-icons": "5.7.0",
-		"react-markdown": "10.1.0",
-		"rehype-raw": "7.0.0",
-		"rehype-sanitize": "6.0.0",
-		"remark-gfm": "4.0.1",
-		"unist-util-visit": "5.2.0"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "2.6.3",
-		"@types/hast": "3.0.4",
-		"@types/lodash": "4.17.27",
-		"@types/node": "22.20.5",
-		"@types/react": "18.3.12",
-		"@types/react-dom": "18.3.1",
-		"eslint": "8.57.1",
-		"eslint-config-next": "14.2.35",
-		"typescript": "6.0.3"
-	},
-	"engines": {
-		"npm": ">=9.0.0 <10.0.0",
-		"node": ">=22.0.0 <25.0.0"
-	}
+  "name": "coder-docs-generator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "DOCS_ROOT=\"${DOCS_ROOT:-$PWD/../docs}\" node --import tsx scripts/sync-docs.mjs && fumadocs-mdx",
+    "dev": "pnpm sync && next dev",
+    "build": "pnpm sync && next build && node scripts/vendor/relocate-twins.mjs out",
+    "export": "pnpm build",
+    "typecheck": "pnpm sync && tsc -p tsconfig.json --noEmit",
+    "lint": "node scripts/engine-release.mjs && pnpm typecheck",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "test": "node --test scripts/*.test.mjs",
+    "engine:update": "node scripts/engine-release.mjs --write"
+  },
+  "dependencies": {
+    "@coder/docs-build": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-build-0.1.0.tgz",
+    "@coder/docs-config": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-config-0.1.0.tgz",
+    "@coder/docs-manifest": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-manifest-0.1.0.tgz",
+    "@coder/docs-next": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-next-0.1.0.tgz",
+    "@coder/docs-sources": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-sources-0.1.0.tgz",
+    "@coder/docs-theme": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-theme-0.1.0.tgz",
+    "@coder/docs-transforms": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-transforms-0.1.0.tgz",
+    "@coder/docs-ui": "https://github.com/coder/docs-engine/releases/download/v0.1.0/coder-docs-ui-0.1.0.tgz",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "fumadocs-core": "16.19.0",
+    "fumadocs-mdx": "15.6.0",
+    "fumadocs-ui": "16.19.0",
+    "next": "16.4.5",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/mdx": "2.0.14",
+    "@types/node": "24.19.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "oxfmt": "0.70.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  }
 }

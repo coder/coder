@@ -1248,6 +1248,11 @@ jobs:
           cd offlinedocs
           pnpm format:check
 
+      - name: Test
+        run: |
+          cd offlinedocs
+          pnpm test
+
       - name: Lint
         run: |
           cd offlinedocs

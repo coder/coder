@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "useTabs": false,
+  "tabWidth": 2,
+  "printWidth": 100,
+  "singleQuote": false,
+  "jsxSingleQuote": false,
+  "quoteProps": "as-needed",
+  "trailingComma": "all",
+  "semi": true,
+  "arrowParens": "always",
+  "bracketSameLine": false,
+  "bracketSpacing": true,
+  // Import order is load-bearing in apps/docs/lib/sources.ts; never sort imports.
+  "sortImports": false,
+  "sortPackageJson": false,
+  "sortTailwindcss": false,
+  // JS, TS, JSON, CSS, and YAML. Markdown keeps one sentence per line by hand,
+  // and pnpm rewrites its own lockfile.
+  "ignorePatterns": ["**/*.md", "**/*.mdx", "pnpm-lock.yaml", "**/dist/**"]
+}
