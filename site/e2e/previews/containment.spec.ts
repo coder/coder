@@ -60,6 +60,7 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 								agents: [
 									{
 										token,
+										displayApps: { portForwardingHelper: true },
 										apps: [
 											{
 												id: randomUUID(),
