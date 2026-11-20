@@ -16,6 +16,7 @@ import {
 import { pageTitle } from "#/utils/page";
 import { AISpendPageView } from "./AISpendPageView";
 import { defaultSpendDays, parseSpendDays, toSpendPeriod } from "./spendDays";
+import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -67,7 +68,11 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	const period = toSpendPeriod(days);
 
 	const overviewQuery = useQuery({
-		...organizationAISpendOverview(organization?.id ?? "", period),
+		...organizationAISpendOverview(
+			organization?.id ?? "",
+			period,
+			TOP_SPENDERS_COUNT,
+		),
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
@@ -103,6 +108,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				overviewError={overviewQuery.error}
 				unpricedModels={unpricedModelsQuery.data?.models}
 				isUnpricedModelsLoading={unpricedModelsQuery.isLoading}
+				canViewSessions={permissions.viewAnyAIBridgeInterception}
 			/>
 		</>
 	);

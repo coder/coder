@@ -14,6 +14,7 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import AISpendPage from "./AISpendPage";
+import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
@@ -70,7 +71,11 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 		period_end: "2026-03-13T00:00:00.000Z",
 	};
 	await waitFor(() => {
-		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(overviewSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			TOP_SPENDERS_COUNT,
+		);
 		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
 	});
 	expect(searchParam("startDate")).toBeNull();
@@ -83,10 +88,14 @@ it("writes a picked range to the URL as days and requests it", async () => {
 		"startDate=2026-03-01&endDate=2026-03-03",
 	);
 	await waitFor(() =>
-		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-03-01T00:00:00.000Z",
-			period_end: "2026-03-04T00:00:00.000Z",
-		}),
+		expect(overviewSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-01T00:00:00.000Z",
+				period_end: "2026-03-04T00:00:00.000Z",
+			},
+			TOP_SPENDERS_COUNT,
+		),
 	);
 
 	await user.click(screen.getByRole("button", { name: /Mar 1, 2026/ }));
@@ -96,7 +105,11 @@ it("writes a picked range to the URL as days and requests it", async () => {
 		period_end: "2026-03-13T00:00:00.000Z",
 	};
 	await waitFor(() => {
-		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(overviewSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			TOP_SPENDERS_COUNT,
+		);
 		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
 	});
 	expect(searchParam("startDate")).toBe("2026-02-27");
@@ -118,6 +131,7 @@ it("requests the selected organization's spend", async () => {
 		expect(overviewSpy).toHaveBeenCalledWith(
 			MockOrganization2.id,
 			expect.anything(),
+			TOP_SPENDERS_COUNT,
 		),
 	);
 	expect(searchParam("org")).toBe(MockOrganization2.name);

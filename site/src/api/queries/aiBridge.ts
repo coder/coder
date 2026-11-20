@@ -87,15 +87,29 @@ export const paginatedOrganizationAISpend = (
 	};
 };
 
-/** The organization's AI spend over `period`, in whole UTC days. */
+/**
+ * The organization's AI spend over `period`, in whole UTC days, with the
+ * first `limit` users by spend.
+ */
 export const organizationAISpendOverview = (
 	organizationId: string,
 	period: AISpendPeriodWindow,
+	limit: number,
 ) =>
 	queryOptions({
-		queryKey: ["organizations", organizationId, "aiSpendOverview", period],
+		queryKey: [
+			"organizations",
+			organizationId,
+			"aiSpendOverview",
+			period,
+			limit,
+		],
 		queryFn: () =>
-			API.experimental.getOrganizationAISpendOverview(organizationId, period),
+			API.experimental.getOrganizationAISpendOverview(
+				organizationId,
+				period,
+				limit,
+			),
 	});
 
 /** The models used in the period that still have no price. */
