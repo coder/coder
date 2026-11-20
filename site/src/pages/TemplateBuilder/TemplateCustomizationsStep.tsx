@@ -137,6 +137,10 @@ export const TemplateCustomizationsStep: React.FC<
 		}
 		return helpers;
 	};
+	const displayNameField = getFieldHelpers("display_name");
+	const nameField = getFieldHelpers("name", {
+		helperText: "Used to identify the template in URLs and the API.",
+	});
 	const descriptionField = getFieldHelpers("description");
 	const iconField = getFieldHelpers("icon");
 	const organizationField = getFieldHelpers("organization_id", {
@@ -197,7 +201,7 @@ export const TemplateCustomizationsStep: React.FC<
 				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
 					{/* Left column */}
 					<FormField
-						field={getFieldHelpers("display_name")}
+						field={displayNameField}
 						label="Display name"
 						id="template-display-name"
 						placeholder="My template"
@@ -276,9 +280,7 @@ export const TemplateCustomizationsStep: React.FC<
 
 					{/* Right column */}
 					<FormField
-						field={getFieldHelpers("name", {
-							helperText: "Used to identify the template in URLs and the API.",
-						})}
+						field={nameField}
 						label="ID"
 						required
 						autoFocus={createErrorField === "name"}
