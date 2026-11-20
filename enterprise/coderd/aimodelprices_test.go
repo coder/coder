@@ -738,19 +738,40 @@ func TestOrganizationUnpricedAIModels(t *testing.T) {
 
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		cases := []struct {
+			name string
+			page codersdk.OrganizationAISpendPage
+			want []codersdk.UnpricedAIModel
+		}{
+			{
+				name: "FirstPage",
+				page: codersdk.OrganizationAISpendPage{Limit: 1},
+				want: []codersdk.UnpricedAIModel{model},
+			},
+			{
+				name: "SecondPage",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1},
+				want: []codersdk.UnpricedAIModel{otherModel},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-		// When listing the second page of one model.
-		got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1})
+				// When listing one page of one model.
+				got, err := codersdk.NewExperimentalClient(ownerClient).OrganizationUnpricedAIModels(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{}, tc.page)
 
-		// Then only the model on that page is listed, with the count of every
-		// model.
-		require.NoError(t, err)
-		require.Equal(t, codersdk.UnpricedAIModels{
-			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
-			Count:               2,
-			Models:              []codersdk.UnpricedAIModel{otherModel},
-		}, got)
+				// Then only the model on that page is listed, with the count of
+				// every model.
+				require.NoError(t, err)
+				require.Equal(t, codersdk.UnpricedAIModels{
+					AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+					Count:               2,
+					Models:              tc.want,
+				}, got)
+			})
+		}
 	})
 
 	t.Run("Validation", func(t *testing.T) {
