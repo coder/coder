@@ -1,3 +1,7 @@
+---
+draft: true
+---
+
 # External authentication
 
 Coder integrates with any OpenID Connect provider to automate away the need for
