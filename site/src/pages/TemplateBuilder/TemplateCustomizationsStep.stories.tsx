@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	getProvisionerDaemonsKey,
 	permittedOrganizations,
@@ -10,6 +11,8 @@ import {
 	MockOrganization,
 	MockOrganization2,
 	MockProvisioner,
+	mockApiError,
+	mockAxiosError,
 } from "#/testHelpers/entities";
 import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
@@ -138,5 +141,101 @@ export const MissingNameError: Story = {
 		);
 		await canvas.findByText("Please enter a template id.");
 		await expect(args.onCreate).not.toHaveBeenCalled();
+	},
+};
+
+// The Organization field stays disabled until the permitted organizations load.
+export const OrganizationsLoading: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+// A failed organizations request replaces the field with a retryable error.
+export const OrganizationsLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockRejectedValue(
+			mockApiError({ message: "Unable to fetch organizations." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockSubmittedValues = {
+	organization_id: MockDefaultOrganization.id,
+	name: "docker",
+	display_name: "Docker Containers",
+	description: "Run workspaces as Docker containers",
+	icon: "/icon/docker.svg",
+};
+
+const mockDuplicateIdError = mockAxiosError({
+	message: "A template with this name already exists in the organization.",
+	status: 409,
+});
+
+const mockOrganizationNotFoundError = mockAxiosError({
+	message: "Organization not found.",
+	status: 404,
+});
+
+const mockCreateError = mockAxiosError({
+	message: "Internal error inserting template.",
+	status: 500,
+});
+
+// A create rejected for a duplicate ID restores the submitted values and shows
+// the error on the ID field.
+export const DuplicateIdError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockDuplicateIdError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
+	},
+};
+
+export const OrganizationNotFoundError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockOrganizationNotFoundError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
+	},
+};
+
+// Errors that no field owns stay in an alert above the form.
+export const CreateError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockCreateError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
 	},
 };

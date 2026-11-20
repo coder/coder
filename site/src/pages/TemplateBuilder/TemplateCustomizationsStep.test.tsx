@@ -56,4 +56,31 @@ describe(TemplateCustomizationsStep.name, () => {
 		);
 		expect(onCreate).not.toHaveBeenCalled();
 	});
+
+	it("offers a retry when organizations fail to load", async () => {
+		let organizationRequests = 0;
+		server.use(
+			http.get("/api/v2/organizations", () => {
+				organizationRequests++;
+				return organizationRequests === 1
+					? HttpResponse.json({ message: "Boom" }, { status: 500 })
+					: HttpResponse.json([MockOrganization]);
+			}),
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ [MockOrganization.id]: true }),
+			),
+		);
+		render(
+			<TemplateCustomizationsStep
+				state={initialWizardState}
+				onCreate={vi.fn()}
+				onProvisionerStatusChange={vi.fn()}
+			/>,
+		);
+
+		await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await screen.findByRole("combobox", { name: /^Organization/ });
+		expect(organizationRequests).toBe(2);
+	});
 });
