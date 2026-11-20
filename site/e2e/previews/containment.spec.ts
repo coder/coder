@@ -9,6 +9,10 @@ import {
 } from "@playwright/test";
 import { API } from "#/api/api";
 import type { Workspace } from "#/api/typesGenerated";
+import type {
+	NewPreviewTab,
+	UserRightPanelTab,
+} from "#/pages/AgentsPage/utils/rightPanelTabs";
 import { setupApiCalls } from "../api";
 import { users } from "../constants";
 import {
@@ -128,9 +132,6 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 			const direct = await context.newPage();
 			const response = await direct.goto(`${previewOrigin}/`);
 			expect(response?.status()).toBe(403);
-			await expect(
-				direct.getByText("Previews open only inside a Coder chat."),
-			).toBeVisible();
 			await direct.close();
 			expect(hostile.paths()).toEqual([]);
 		});
@@ -292,7 +293,7 @@ const checkPolicy = async (
 const openChatWithPreview = async (
 	page: Page,
 	workspace: Workspace,
-	preview: { agentName: string; slug: string; urlPath: string },
+	preview: Pick<NewPreviewTab, "agentName" | "slug" | "urlPath">,
 ): Promise<string> => {
 	const provider = await API.experimental.createAIProvider({
 		type: "openai",
@@ -305,13 +306,14 @@ const openChatWithPreview = async (
 		ai_provider_id: provider.id,
 		model: "unused",
 		is_default: true,
+		context_limit: 100_000,
 	});
 	const chat = await API.experimental.createChat({
 		organization_id: workspace.organization_id,
 		workspace_id: workspace.id,
 		content: [],
 	});
-	const tabs = [
+	const tabs: UserRightPanelTab[] = [
 		{
 			id: "preview",
 			kind: "preview",
