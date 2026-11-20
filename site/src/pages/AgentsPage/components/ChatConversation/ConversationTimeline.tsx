@@ -504,14 +504,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
 
-		// A render that regroups the timeline, such as a live block dissolving
-		// into its reasoning or a turn's blocks merging as it ends, can shrink
-		// it and let the browser clamp the scroll position. The scroller's own
-		// resize pass waits for the next frame, so one frame would paint the
-		// clamped position; reconcile before paint instead. Only when an item
-		// goes away, since only that can shrink the timeline: in following mode
-		// a resize pass scrolls to the end, and an appended prompt must reach
-		// the scroller's anchor handling first.
+		// Removing an item, as when a turn's blocks merge at its end, can shrink
+		// the timeline and clamp the view a frame before the scroller's resize
+		// pass; run it before paint. Appends skip it, since in following mode it
+		// scrolls to the end before the scroller anchors a new prompt.
 		const itemSignature = layout.items
 			.map((item) =>
 				item.type === "block"
