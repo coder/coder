@@ -2,31 +2,64 @@
 title: Install Coder in your infrastructure
 ---
 
-This section covers how to install and run a Coder deployment, from the first decisions to a steady-state operating environment.
-You don't have to follow it from start to finish.
-Pick the path that matches what you're doing today, and use the rest of the section as a reference when you need it.
+This section is for a Coder deployment administrator who installs and runs the Coder control plane on infrastructure they control.
+To install only the `coder` command-line client and sign in to a deployment that already exists, use the [Coder downloads page](https://coder.com/downloads).
+
+## Install the control plane now
+
+You can install the control plane before you finish planning.
+To choose a guide, answer three questions:
+
+1. Can the deployment reach the internet?
+   If it can't, also read [Deployments without internet access](#deployments-without-internet-access).
+1. Does Coder run on Kubernetes, in a container, or on a Linux host or virtual machine?
+1. Does Coder run in the cloud or on premises?
+
+Choose the guide that matches your answers, then follow it to the end.
+Each guide finishes with a deployment you can sign in to.
+
+- **[Kubernetes](./server/kubernetes/index.md)** (recommended): run Coder in containers on a Kubernetes cluster, in the cloud or on premises, with the Helm chart.
+  The guide works on most clusters, including Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), Google Kubernetes Engine (GKE), and K3s.
+  For a cluster that you manage with [Rancher](./server/rancher.md) or run on [OpenShift](./server/openshift.md), follow that guide instead.
+- **[Docker](./server/docker.md)**: run Coder in a container on one Linux host, with PostgreSQL in a container or on a separate server.
+- **[RHEL-family Linux](./server/rpm.md)**: install Coder from an RPM package and run it as a `systemd` service on one Red Hat Enterprise Linux (RHEL) family host or virtual machine.
+- **[Cloud platforms](./server/cloud/index.md)**: launch Coder from a marketplace listing or on a virtual machine in AWS, Google Cloud, or Azure.
+  To install on a cluster you already run in the cloud, use the Kubernetes guide.
+
+Kubernetes is the recommended platform for a deployment that other people depend on, and the [Coder Validated Architecture](./plan/sizing/index.md) reference designs assume it.
+Before you start, check the [installation requirements](./server/requirements.md) for the platform you choose.
+
+### Deployments without internet access
+
+All Coder features work in a network with no internet access.
+If your deployment has none, read [Air-gapped deployments](./prepare/airgap.md) before you install, and use it alongside your platform guide.
+An air-gapped deployment needs an external PostgreSQL database and a way to install the Terraform providers that your templates use without the public Terraform registry.
+
+To try an air-gapped deployment from start to finish on one machine, follow [Install Coder on K3s in an air-gapped environment](./server/kubernetes/k3s-air-gapped.md).
 
 ## Choose your path
 
-| If you want to                               | Start here                                                 | What you skip                                    |
-|----------------------------------------------|------------------------------------------------------------|--------------------------------------------------|
-| Try Coder on a single machine                | [Quickstart](../get-started/index.md)                      | Planning, prerequisites, and validation          |
-| Install on a platform you've already chosen  | [Install the control plane](./server/index.md)             | Planning, unless you need to size the deployment |
-| Deploy for a team, one step at a time        | [The five phases](#the-five-phases), starting with phase 1 | Nothing                                          |
-| Choose a platform or size a deployment       | [Plan your deployment](./plan/index.md)                    | Installation steps                               |
-| Upgrade a deployment that's already running  | [Upgrading](./operate/upgrade.md)                          | Everything except the upgrade guidance           |
-| Install only the `coder` command-line client | [Coder downloads page](https://coder.com/downloads)        | The rest of this section                         |
+| If you want to                                                           | Start here                                                                                       | What you skip                           |
+|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|-----------------------------------------|
+| Try Coder on your own machine                                            | [Quickstart](../get-started/index.md)                                                            | Planning, prerequisites, and validation |
+| Evaluate Coder in your infrastructure without internet access            | [Install Coder on K3s in an air-gapped environment](./server/kubernetes/k3s-air-gapped.md)       | Planning and prerequisites              |
+| Deploy for production, with single sign-on and sign-off from other teams | [The five phases](#the-five-phases), starting with [Plan your deployment](./plan/index.md)       | Nothing                                 |
+| Move an evaluation deployment to production                              | [Move from evaluation to production](#move-from-evaluation-to-production)                        | Reinstalling Coder                      |
+| Check whether Coder fits your infrastructure                             | [Installation requirements](./server/requirements.md) and [Architecture](./plan/architecture.md) | Installation steps                      |
+| Upgrade a deployment that's already running                              | [Upgrading](./operate/upgrade.md)                                                                | Planning and installation               |
 
-Each phase page ends with a link to the next one, so you can also enter anywhere and keep reading in order.
+## After the control plane is running
 
-## Run Coder on a single server
+- [Create your first template](../templates/creating-templates.md#from-a-starter-template) from a starter template, then create a workspace from it to confirm the deployment works end to end.
+- In a deployment without internet access, make the providers, modules, and tools your template downloads available inside your network before that first workspace build.
+  For example, the Kubernetes starter template installs code-server from the internet when a workspace starts.
+  Refer to [Air-gapped deployments](./prepare/airgap.md).
+- [Validate your deployment](./validate/index.md) before other people depend on it.
 
-The fastest way to run a Coder deployment is on one machine.
-The [Quickstart](../get-started/index.md) installs Coder, starts it, and launches a first workspace in about 10&nbsp;minutes.
-A single-server deployment fits an evaluation, a proof of concept, or a small team.
+## Move from evaluation to production
 
-The Quickstart is quick because it skips most of the planning and prerequisites that a team deployment needs.
-Coder runs on one machine, so there's nothing to size.
+An evaluation deployment skips the decisions a production deployment needs, and you don't have to start over to make them.
+The [Quickstart](../get-started/index.md), for example, runs Coder on one machine and launches a first workspace in under 10&nbsp;minutes.
 When `CODER_ACCESS_URL` isn't set, `coder server` opens a tunnel and gives you a `try.coder.app` URL, so you don't need DNS records or TLS certificates.
 Because anyone can reach that URL, the server prints a setup token in its output, and the setup page asks for the token before it creates the first account.
 You create the first account with a password and can switch it to GitHub sign-in afterward under **Account** > **Security**, so you don't set up an identity provider application, and you don't need a license.
@@ -34,65 +67,26 @@ You create the first account with a password and can switch it to GitHub sign-in
 Coder also uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
 The built-in database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.
 
-When you outgrow a single server, you don't need to start over.
-You can move the data to an external PostgreSQL database by following [Migrate from the built-in database to an external database](../admin/setup/index.md#migrate-from-the-built-in-database-to-an-external-database), then read [Plan your deployment](./plan/index.md) to decide how to grow.
+To move an evaluation deployment to production, start with the database.
+Follow [Migrate from the built-in database to an external database](../admin/setup/index.md#migrate-from-the-built-in-database-to-an-external-database), then read [Plan your deployment](./plan/index.md) and [Prepare prerequisites](./prepare/index.md) for the rest.
+Before real users depend on the deployment, harden it and test it under load in [Validate your deployment](./validate/index.md).
 
 ## The five phases
 
-For a deployment others will rely on, work through the phases in order.
+For a deployment others will rely on, the five phases cover the work in order.
 Each phase produces the information the next one needs.
+The phases are recommendations, not a gate: you can install the control plane at any point, and use the phases for what comes before and after it.
 
-| Phase                                              | What it answers                                                          | What you finish with                                                           |
-|----------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| [1. Plan your deployment](./plan/index.md)         | Which components run where, how large they need to be, who operates them | A deployment shape and a size target you can hand to an infrastructure team    |
-| [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | DNS, certificates, a database, a license, and an identity provider application |
-| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | A running Coder deployment you can sign in to                                  |
-| [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | Evidence that the deployment is ready for real users                           |
-| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | An upgrade and scaling routine, plus a removal path                            |
+| Phase                                              | What it answers                                                          | When you can skip it                                                                                        |
+|----------------------------------------------------|--------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| [1. Plan your deployment](./plan/index.md)         | Which components run where, how large they need to be, who operates them | You've already chosen a platform and you're deploying for a small number of users                           |
+| [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | A proof of concept can use the built-in database and skip the license and the identity provider application |
+| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | Never: every deployment needs this phase                                                                    |
+| [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | An evaluation, until real users depend on the deployment                                                    |
+| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | Only after the deployment is running                                                                        |
 
-Phases 1 and 2 are advisory rather than a gate.
-Nothing stops you from installing the control plane first, but the recommendations in those phases are what keep a deployment from needing to be rebuilt later.
-
-### Phase 1: Plan your deployment
-
-Planning decides the topology, size, provisioning model, and network position of the deployment.
-It's the phase to read when you don't yet know what to install, or when more than one team has to agree on the answer.
-You finish with a deployment shape and a size target.
-
-Skip it if you've already chosen a platform and you're deploying for a small number of users.
-Come back to it when the deployment grows, because topology, size, and network position are the decisions that are hardest to change after installation.
-
-### Phase 2: Prepare prerequisites
-
-Preparation gathers what Coder depends on: a hostname and DNS records, TLS certificates, a PostgreSQL database, a license, and an identity provider application.
-Most of these belong to another team, so their lead time usually sets your timeline.
-Start the slowest requests early.
-
-You can skip any item that doesn't apply to your deployment.
-A proof of concept can use the built-in database and skip the license and the identity provider application, so it needs little of this phase.
-A production deployment needs most of it.
-
-### Phase 3: Install the control plane
-
-The pages in this phase are alternatives, not sequential steps.
-Choose the platform your team already operates, then follow that page to the end.
-You finish with a deployment you can reach and sign in to.
-
-This is the one phase you can't skip.
-If you know your platform, you can start here and return to phases 1 and 2 for the details you need.
-
-### Phase 4: Validate your deployment
-
-Validation hardens the deployment, then proves it works and holds up under load.
-It's how you find out whether the size target you chose in phase 1 was right.
-
-Skip it for an evaluation.
-Do it before real users depend on the deployment.
-
-### Phase 5: Operate and maintain
-
-Day-two operations cover upgrades, provisioning capacity, and removal.
-Read it after your deployment is running, and again before each upgrade.
+Each phase page ends with a link to the next one, so you can also enter anywhere and keep reading in order.
+Most of the prerequisites in phase 2 belong to another team, so start the slowest requests early.
 
 ## Decisions worth making deliberately
 

@@ -132,6 +132,11 @@
 					"icon_path": "./images/icons/download.svg",
 					"children": [
 						{
+							"title": "Requirements",
+							"description": "Check the compute, database, platform, and network requirements for installing the Coder control plane.",
+							"path": "./install/server/requirements.md"
+						},
+						{
 							"title": "Docker",
 							"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",
 							"path": "./install/server/docker.md",
