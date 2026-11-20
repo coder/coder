@@ -57,6 +57,13 @@ type CreateWorkspaceFn func(
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, database.Chat, error)
 
+// BuildWorkspaceFn creates a workspace build as the workspace owner.
+type BuildWorkspaceFn func(
+	ctx context.Context,
+	ownerID, workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error)
+
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(
 	ctx context.Context,
