@@ -1174,6 +1174,8 @@ Interrupting a running chat that no worker owns finishes the interruption withou
 
 TODO (chat-workflows prototype): `run_workflow` starts a Starlark run in a goroutine on the replica that ran the tool call. Each step is a child subagent chat with a deterministic ID, so the steps use the subagent limit. When the run ends and no `await_workflow` call waits, chatd sends the parent a user message. Describe this here.
 
+TODO (chat-workflows prototype): `run_flow` starts the same kind of run from a JSON flow manifest (nodes, edges and CEL expressions) instead of a Starlark script. A single-cursor graph runner behind the shared `workflowEngine` interface walks the nodes and starts the steps through the same step code. Describe this here.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.

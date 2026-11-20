@@ -84,13 +84,14 @@ Rules: the script has no load(), no clock, no file access and no network. while 
 Resume: a run lives in the memory of one coderd replica. If await_workflow says that the run is not found, for example after a restart, ` +
 	`call run_workflow again with the same script (or script_path), the same args and resume_run_id. Finished steps are reused and do not run again.`
 
-const awaitWorkflowDescription = `Wait for a workflow run that run_workflow started. ` +
+const awaitWorkflowDescription = `Wait for a workflow run that run_workflow or run_flow started. ` +
 	`It returns when the run ends, or after wait_seconds (default 600, at most 780). ` +
 	`After a timeout the status is "running": call it again. ` +
-	`The result has status (running, completed or failed), result (what main returned), error, steps, and the last 50 log lines.`
+	`The result has status (running, completed or failed), result (what main returned, or the flow output), error, steps, and the last 50 log lines.`
 
 const workflowNotFoundHelp = `The run is not found on this coderd replica, for example because coderd restarted. ` +
-	`Call run_workflow again with the same script (or script_path), the same args and resume_run_id set to this run_id. Finished steps are reused.`
+	`Call the tool that started it again with resume_run_id set to this run_id: run_workflow with the same script (or script_path) and args, ` +
+	`or run_flow with the same flow (or flow_path) and args. Finished steps are reused.`
 
 type runWorkflowArgs struct {
 	Script      string `json:"script,omitempty" description:"Starlark source that defines main(args). Send this or script_path."`
@@ -139,26 +140,58 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 		!p.experimentEvaluator.Enabled(ctx, opts.chat.OwnerID, codersdk.ExperimentChatWorkflows) {
 		return nil
 	}
+	// start compiles the input of a run tool and starts the run.
+	start := func(
+		ctx context.Context, tool string, args any, resumeRunID string, compile func() (workflowEngine, error),
+	) (fantasy.ToolResponse, error) {
+		// chatd sets this ID for each call. It is stable on every retry.
+		callID, ok := workspacesdk.ToolCallIDFromContext(ctx)
+		if !ok {
+			return fantasy.NewTextErrorResponse(tool + " needs a tool call ID"), nil
+		}
+		engine, err := compile()
+		if err != nil {
+			return fantasy.NewTextErrorResponse(err.Error()), nil
+		}
+		run, err := p.startWorkflowRun(ctx, opts.chat, opts.modelConfigID, engine, args, resumeRunID, callID)
+		if err != nil {
+			return fantasy.NewTextErrorResponse(err.Error()), nil
+		}
+		return workflowJSON(run.snapshot()), nil
+	}
 	return []fantasy.AgentTool{
 		serialWorkflowTool{fantasy.NewAgentTool(
 			runWorkflowToolName,
 			runWorkflowDescription,
 			func(ctx context.Context, args runWorkflowArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				// chatd sets this ID for each call. It is stable on every retry.
-				callID, ok := workspacesdk.ToolCallIDFromContext(ctx)
-				if !ok {
-					return fantasy.NewTextErrorResponse("run_workflow needs a tool call ID"), nil
-				}
-				script, err := workflowScript(ctx, args, opts.workspaceCtx.getWorkspaceConn)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				args.Script = script
-				run, err := p.startWorkflowRun(ctx, opts.chat, opts.modelConfigID, args, callID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				return workflowJSON(run.snapshot()), nil
+				return start(ctx, runWorkflowToolName, args.Args, args.ResumeRunID, func() (workflowEngine, error) {
+					script, err := workflowScript(ctx, args, opts.workspaceCtx.getWorkspaceConn)
+					if err != nil {
+						return nil, err
+					}
+					program, err := compileWorkflow(args.ScriptPath, script)
+					if err != nil {
+						return nil, err
+					}
+					return program, nil
+				})
+			},
+		)},
+		serialWorkflowTool{fantasy.NewAgentTool(
+			runFlowToolName,
+			runFlowDescription,
+			func(ctx context.Context, args runFlowArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return start(ctx, runFlowToolName, args.Args, args.ResumeRunID, func() (workflowEngine, error) {
+					src, err := flowSource(ctx, args, opts.workspaceCtx.getWorkspaceConn)
+					if err != nil {
+						return nil, err
+					}
+					program, err := compileFlow(src)
+					if err != nil {
+						return nil, err
+					}
+					return program, nil
+				})
 			},
 		)},
 		fantasy.NewAgentTool(
@@ -179,9 +212,10 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 	}
 }
 
-// serialWorkflowTool makes chatloop run run_workflow after the other tool
-// calls of the same step. A script_path call then reads the file after a
-// write_file or edit_files call in that step has changed it.
+// serialWorkflowTool makes chatloop run run_workflow and run_flow after
+// the other tool calls of the same step. A script_path or flow_path call
+// then reads the file after a write_file or edit_files call in that step
+// has changed it.
 type serialWorkflowTool struct{ fantasy.AgentTool }
 
 func (serialWorkflowTool) SerialToolCalls() bool { return true }
@@ -201,9 +235,19 @@ func workflowScript(
 	if args.Script != "" {
 		return "", xerrors.New("send script or script_path, not both")
 	}
+	return readWorkflowFile(ctx, "script_path", path, getConn)
+}
+
+// readWorkflowFile reads the workspace file that field (script_path or
+// flow_path) names, with one read through the agent.
+func readWorkflowFile(
+	ctx context.Context,
+	field, path string,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) (string, error) {
 	conn, err := getConn(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("read script_path: %w", err)
+		return "", xerrors.Errorf("read %s: %w", field, err)
 	}
 	// One byte more than the limit tells an oversized file from a full one.
 	rc, _, err := conn.ReadFile(ctx, path, 0, maxScriptBytes+1)
@@ -213,21 +257,21 @@ func workflowScript(
 		if sdkErr.Detail != "" {
 			msg += ": " + sdkErr.Detail
 		}
-		return "", xerrors.Errorf("read script_path %q: %s", path, msg)
+		return "", xerrors.Errorf("read %s %q: %s", field, path, msg)
 	}
 	if err != nil {
-		return "", xerrors.Errorf("read script_path %q: %w", path, err)
+		return "", xerrors.Errorf("read %s %q: %w", field, path, err)
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(rc)
 	if err != nil {
-		return "", xerrors.Errorf("read script_path %q: %w", path, err)
+		return "", xerrors.Errorf("read %s %q: %w", field, path, err)
 	}
 	if len(data) > maxScriptBytes {
 		return "", xerrors.Errorf("the file %q is larger than %d bytes", path, maxScriptBytes)
 	}
 	if strings.TrimSpace(string(data)) == "" {
-		return "", xerrors.Errorf("the file %q is empty; write the script to it first", path)
+		return "", xerrors.Errorf("the file %q is empty; write the %s to it first", path, strings.TrimSuffix(field, "_path"))
 	}
 	return string(data), nil
 }
@@ -312,12 +356,18 @@ type workflowStep struct {
 	err    string
 }
 
+// workflowEngine runs the program of one run: a Starlark script or a
+// flow. It starts steps through startStep and returns the result JSON.
+type workflowEngine interface {
+	run(ctx context.Context, r *workflowRun) (json.RawMessage, error)
+}
+
 type workflowRun struct {
 	p             *Server
 	id            uuid.UUID
 	parent        database.Chat // the parent at start
 	modelConfigID uuid.UUID     // the model of the turn that started the run
-	program       *workflowProgram
+	engine        workflowEngine
 	argsJSON      string
 
 	// seen is owned by the script goroutine.
@@ -334,22 +384,20 @@ type workflowRun struct {
 	queuedNotice int64 // the queued end message, 0 if none
 }
 
+// startWorkflowRun starts engine with args, or returns the run that
+// resumeRunID names when this replica still has it.
 func (p *Server) startWorkflowRun(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfigID uuid.UUID,
-	args runWorkflowArgs,
+	engine workflowEngine,
+	args any,
+	resumeRunID string,
 	callID uuid.UUID,
 ) (*workflowRun, error) {
-	if strings.TrimSpace(args.Script) == "" {
-		return nil, xerrors.New("script is required")
-	}
-	if len(args.Script) > maxScriptBytes {
-		return nil, xerrors.Errorf("the script is %d bytes; at most %d bytes are allowed", len(args.Script), maxScriptBytes)
-	}
 	runID := workflowRunID(callID)
-	if strings.TrimSpace(args.ResumeRunID) != "" {
-		id, err := uuid.Parse(strings.TrimSpace(args.ResumeRunID))
+	if strings.TrimSpace(resumeRunID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(resumeRunID))
 		if err != nil {
 			return nil, xerrors.New("resume_run_id must be a valid UUID")
 		}
@@ -366,23 +414,19 @@ func (p *Server) startWorkflowRun(
 		return nil, err
 	}
 	argsJSON := "{}"
-	if args.Args != nil {
-		raw, err := json.Marshal(args.Args)
+	if args != nil {
+		raw, err := json.Marshal(args)
 		if err != nil {
 			return nil, xerrors.Errorf("marshal args: %w", err)
 		}
 		argsJSON = string(raw)
-	}
-	program, err := compileWorkflow(args.ScriptPath, args.Script)
-	if err != nil {
-		return nil, err
 	}
 	run, added := p.workflows.add(&workflowRun{
 		p:             p,
 		id:            runID,
 		parent:        parent,
 		modelConfigID: modelConfigID,
-		program:       program,
+		engine:        engine,
 		argsJSON:      argsJSON,
 		seen:          map[string]int{},
 		done:          make(chan struct{}),
@@ -407,9 +451,9 @@ func (p *Server) startWorkflowRun(
 	return run, nil
 }
 
-// execute runs the script and builds the final result.
+// execute runs the engine and builds the final result.
 func (r *workflowRun) execute(ctx context.Context) runWorkflowResult {
-	value, err := r.program.run(ctx, r)
+	value, err := r.engine.run(ctx, r)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	res := r.snapshotLocked()

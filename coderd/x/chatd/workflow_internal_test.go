@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -146,7 +147,23 @@ func (f *workflowFixture) start(
 	ctx context.Context, t *testing.T, parent database.Chat, args runWorkflowArgs,
 ) *workflowRun {
 	t.Helper()
-	run, err := f.server.startWorkflowRun(ctx, parent, f.model.ID, args, uuid.New())
+	program, err := compileWorkflow(args.ScriptPath, args.Script)
+	require.NoError(t, err)
+	run, err := f.server.startWorkflowRun(ctx, parent, f.model.ID, program, args.Args, args.ResumeRunID, uuid.New())
+	require.NoError(t, err)
+	return run
+}
+
+// startFlow starts an inline flow the way run_flow does.
+func (f *workflowFixture) startFlow(
+	ctx context.Context, t *testing.T, parent database.Chat, args runFlowArgs,
+) *workflowRun {
+	t.Helper()
+	src, err := flowSource(ctx, args, nil)
+	require.NoError(t, err)
+	program, err := compileFlow(src)
+	require.NoError(t, err)
+	run, err := f.server.startWorkflowRun(ctx, parent, f.model.ID, program, args.Args, args.ResumeRunID, uuid.New())
 	require.NoError(t, err)
 	return run
 }
@@ -289,7 +306,7 @@ func TestWorkflowScriptPath(t *testing.T) {
 		conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 		sdkErr := codersdk.NewTestError(404, "GET", "http://127.0.0.1:4/api/v0/read-file?path=x")
 		sdkErr.Message = "open " + path + ": no such file or directory"
-		conn.EXPECT().ReadFile(gomock.Any(), path, int64(0), int64(maxScriptBytes+1)).Return(nil, "", sdkErr).Times(2)
+		conn.EXPECT().ReadFile(gomock.Any(), path, int64(0), int64(maxScriptBytes+1)).Return(nil, "", sdkErr).Times(3)
 		getConn := func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil }
 
 		_, err := workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, getConn)
@@ -299,6 +316,10 @@ func TestWorkflowScriptPath(t *testing.T) {
 		sdkErr.Detail = "permission denied"
 		_, err = workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, getConn)
 		require.EqualError(t, err, `read script_path "/home/coder/workflow.star": open /home/coder/workflow.star: no such file or directory: permission denied`)
+
+		// run_flow reads flow_path with the same code.
+		_, err = flowSource(context.Background(), runFlowArgs{FlowPath: path}, getConn)
+		require.EqualError(t, err, `read flow_path "/home/coder/workflow.star": open /home/coder/workflow.star: no such file or directory: permission denied`)
 	})
 }
 
@@ -464,18 +485,14 @@ def main(args):
 
 	t.Run("CompileErrors", func(t *testing.T) {
 		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := f.parent(ctx, t, database.ChatStatusRunning)
-		_, err := f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{Script: "def main(args):\n  return ("}, uuid.New())
-		require.ErrorContains(t, err, "compile script")
-		_, err = f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{Script: "x = 1\n"}, uuid.New())
+		_, err := compileWorkflow("", "def main(args):\n  return (")
+		require.ErrorContains(t, err, "compile script: workflow.star:2:")
+		_, err = compileWorkflow("", "x = 1\n")
 		require.ErrorContains(t, err, "must define main(args)")
-		_, err = f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{Script: "def main(args):\n  return time.now()\n"}, uuid.New())
+		_, err = compileWorkflow("", "def main(args):\n  return time.now()\n")
 		require.ErrorContains(t, err, "undefined: time")
 		// A script from a file names the file, not workflow.star.
-		_, err = f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{
-			Script: "def main(args):\n  return (", ScriptPath: "/home/coder/review.star",
-		}, uuid.New())
+		_, err = compileWorkflow("/home/coder/review.star", "def main(args):\n  return (")
 		require.ErrorContains(t, err, "compile script: /home/coder/review.star:2:")
 		assert.NotContains(t, err.Error(), workflowFileName)
 	})
@@ -501,4 +518,257 @@ def main(args):
 		assert.Equal(t, workflowStatusRunning, res.Status)
 		assert.Len(t, res.Steps, 1)
 	})
+}
+
+func TestFlowCheck(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		flow string
+		want []string // one problem per line, in sorted order
+	}{
+		{
+			name: "UnknownFieldsAndTypes",
+			flow: `{"start": "a", "outputs": "1",
+				"nodes": {"a": {"prompt": "x", "foreach": "input.files", "max_visits": "2"}},
+				"edges": [{"from": "a", "to": "a", "next": "b"}]}`,
+			want: []string{
+				`edges[0]: unknown field "next"`,
+				`flow: unknown field "outputs"`,
+				`nodes.a.max_visits: got a JSON string, want an integer`,
+				`nodes.a: unknown field "foreach"`,
+			},
+		},
+		{
+			name: "Structure",
+			flow: `{"start": "missing",
+				"nodes": {
+					"Bad": {"prompt": "x"},
+					"a": {"prompt": " ", "type": "planner", "schema": {"type": "array"}, "max_visits": 51},
+					"b": {"prompt": "x"}},
+				"edges": [{"from": "a", "to": "ghost"}, {"to": "b"}]}`,
+			want: []string{
+				`edges[0].to: "ghost" is not a node`,
+				`edges[1].from: required`,
+				`nodes.Bad: a node ID must match ^[a-z][a-z0-9_]*$`,
+				`nodes.a.max_visits: must be from 1 to 50`,
+				`nodes.a.prompt: required`,
+				`nodes.a.schema: the step schema must have "type": "object"`,
+				`nodes.a.type: must be "general" or "explore"`,
+				`nodes: the max_visits of the nodes without for_each add up to 53`,
+				`start: "missing" is not a node`,
+			},
+		},
+		{
+			name: "CEL",
+			flow: `{"start": "a", "output": "nodes.a.valu",
+				"nodes": {
+					"a": {"prompt": "Use {{ item }} and {{ nodes.ghost.value }}.", "for_each": "'one'"},
+					"b": {"prompt": "x {{ input.x", "title": "{{ input.( }}"},
+					"c": {"prompt": "Only a for_each node has {{ item }}."}},
+				"edges": [{"from": "a", "to": "b", "when": "1"}, {"from": "a", "to": "c", "when": "valu.ok"}]}`,
+			want: []string{
+				`edges[0].when: must return bool, got int`,
+				`edges[1].when: 1:1: undeclared reference to 'valu'`,
+				`nodes.a.for_each: must return a list, got string`,
+				`nodes.a.prompt {{ nodes.ghost.value }}: nodes.ghost is not a node`,
+				`nodes.b.prompt: a {{ has no closing }}`,
+				`nodes.b.title {{ input.( }}: 1:7: Syntax error`,
+				`nodes.c.prompt {{ item }}: 1:1: undeclared reference to 'item'`,
+				`output: nodes.a.valu: a node has only value and values`,
+			},
+		},
+		{
+			name: "Unreachable",
+			flow: `{"start": "a", "nodes": {"a": {"prompt": "x"}, "b": {"prompt": "y"}}, "edges": []}`,
+			want: []string{`nodes.b: not reachable from start "a"`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := compileFlow([]byte(tc.flow))
+			require.Error(t, err)
+			lines := strings.Split(err.Error(), "\n")
+			require.Equal(t, "invalid flow:", lines[0])
+			require.Len(t, lines[1:], len(tc.want), err.Error())
+			for i, want := range tc.want {
+				assert.Contains(t, lines[i+1], want)
+			}
+		})
+	}
+
+	t.Run("NotJSON", func(t *testing.T) {
+		t.Parallel()
+		_, err := compileFlow([]byte(`{"start": `))
+		require.ErrorContains(t, err, "not valid JSON")
+	})
+}
+
+func TestFlowTemplate(t *testing.T) {
+	t.Parallel()
+	program, err := compileFlow([]byte(`{"start": "a", "nodes": {"a": {"prompt": ` +
+		`"s={{ input.name }} n={{ input.n }} m={{ input.files.transformMapEntry(i, f, {f: i}) }} ` +
+		`l={{ input.files.map(f, {'f': f, 'len': f.size()}) }} lit={{ {'k': {'v': null}} }} b={{ \"{{\" }}"}}}`))
+	require.NoError(t, err)
+	state := &flowState{
+		input:  map[string]any{"name": "a<b", "n": 3.0, "files": []any{"a.go", "bb.go"}},
+		values: map[string][]any{"a": {}},
+	}
+	got, err := program.nodes["a"].prompt.render(context.Background(), state.vars())
+	require.NoError(t, err)
+	assert.Equal(t, `s=a<b n=3 m={"a.go":0,"bb.go":1} l=[{"f":"a.go","len":4},{"f":"bb.go","len":5}] lit={"k":{"v":null}} b={{`, got)
+}
+
+func TestFlowForEach(t *testing.T) {
+	t.Parallel()
+	f := newWorkflowFixture(t)
+	ctx := chatdTestContext(t)
+	parent := f.parent(ctx, t, database.ChatStatusRunning)
+
+	// review fans out one step per file, then merge reads all reviews.
+	flow := runFlowArgs{
+		Flow: map[string]any{
+			"start": "review",
+			"nodes": map[string]any{
+				"review": map[string]any{
+					"for_each": "input.files",
+					"prompt":   "Review {{ item }} ({{ index }}).",
+					"schema":   json.RawMessage(`{"type":"object","required":["bugs"],"properties":{"bugs":{"type":"array","items":{"type":"string"}}}}`),
+				},
+				"merge": map[string]any{"prompt": "Merge {{ nodes.review.value }}."},
+			},
+			"edges": []any{map[string]any{"from": "review", "to": "merge"}},
+			"output": "{'bugs': nodes.review.value.filter(r, r != null).map(r, r.bugs).flatten(), " +
+				"'failed': nodes.review.value.filter(r, r == null).size(), 'summary': nodes.merge.value.text}",
+		},
+		Args: map[string]any{"files": []string{"a.go", "b.go", "c.go"}},
+	}
+
+	run := f.startFlow(ctx, t, parent, flow)
+	steps := f.steps(ctx, t, run, 3)
+	titles := []string{steps[0].Title, steps[1].Title, steps[2].Title}
+	assert.Equal(t, []string{"review [0]", "review [1]", "review [2]"}, titles)
+	assert.Contains(t, f.userTexts(ctx, t, uuid.MustParse(steps[1].ChatID)), "Review b.go (1).")
+
+	// The steps finish out of order. b.go stops twice without a report,
+	// so it fails. The run waits for the items in order, so b.go gets its
+	// reminder after a.go is done.
+	f.report(ctx, t, steps[2].ChatID, `{"bugs":["y"]}`)
+	f.report(ctx, t, steps[0].ChatID, `{"bugs":["x"]}`)
+	f.stopWithoutReport(ctx, t, steps[1].ChatID)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return strings.Contains(strings.Join(f.userTexts(ctx, t, uuid.MustParse(steps[1].ChatID)), "\n"), workflowReminder)
+	}, testutil.IntervalFast)
+	f.stopWithoutReport(ctx, t, steps[1].ChatID)
+
+	merge := f.steps(ctx, t, run, 4)[3]
+	assert.Equal(t, "merge", merge.Title)
+	assert.Contains(t, f.userTexts(ctx, t, uuid.MustParse(merge.ChatID)), `Merge [{"bugs":["x"]},null,{"bugs":["y"]}].`)
+	f.report(ctx, t, merge.ChatID, `{"text":"two bugs"}`)
+
+	res := run.await(ctx, testutil.WaitLong)
+	require.Equal(t, workflowStatusCompleted, res.Status, res.Error)
+	assert.JSONEq(t, `{"bugs":["x","y"],"failed":1,"summary":"two bugs"}`, string(res.Result))
+}
+
+func TestFlowLoop(t *testing.T) {
+	t.Parallel()
+	f := newWorkflowFixture(t)
+	// draft and critique alternate while the score is below 8.
+	loop := func(maxVisits int) runFlowArgs {
+		return runFlowArgs{Flow: map[string]any{
+			"start": "draft",
+			"nodes": map[string]any{
+				"draft": map[string]any{"prompt": "Draft {{ nodes.draft.values.size() + 1 }}.", "max_visits": maxVisits},
+				"critique": map[string]any{
+					"prompt":     "Score {{ nodes.draft.value.text }}.",
+					"schema":     json.RawMessage(`{"type":"object","required":["score"],"properties":{"score":{"type":"number"}}}`),
+					"max_visits": maxVisits,
+				},
+			},
+			"edges": []any{
+				map[string]any{"from": "draft", "to": "critique"},
+				map[string]any{"from": "critique", "to": "draft", "when": "value.score < 8"},
+			},
+			"output": "nodes.critique.values.map(c, c.score)",
+		}}
+	}
+	// play reports each step in turn: drafts get text, critiques a score.
+	play := func(ctx context.Context, t *testing.T, run *workflowRun, scores ...int) []stepSummary {
+		var steps []stepSummary
+		for i, score := range scores {
+			steps = f.steps(ctx, t, run, 2*i+1)
+			f.report(ctx, t, steps[2*i].ChatID, fmt.Sprintf(`{"text":"v%d"}`, i+1))
+			steps = f.steps(ctx, t, run, 2*i+2)
+			f.report(ctx, t, steps[2*i+1].ChatID, fmt.Sprintf(`{"score":%d}`, score))
+		}
+		return steps
+	}
+
+	t.Run("BackEdgeUntilWhenIsFalse", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+		parent := f.parent(ctx, t, database.ChatStatusRunning)
+		args := loop(3)
+		run := f.startFlow(ctx, t, parent, args)
+		steps := play(ctx, t, run, 5, 9)
+
+		res := run.await(ctx, testutil.WaitLong)
+		require.Equal(t, workflowStatusCompleted, res.Status, res.Error)
+		assert.JSONEq(t, `[5, 9]`, string(res.Result))
+		var titles []string
+		for _, step := range res.Steps {
+			titles = append(titles, step.Title)
+		}
+		assert.Equal(t, []string{"draft", "critique", "draft #2", "critique #2"}, titles)
+		assert.Contains(t, f.userTexts(ctx, t, uuid.MustParse(steps[3].ChatID)), "Score v2.")
+		assert.Contains(t, res.Logs, "critique visit 2 done, no edge matched, the flow ends")
+
+		// A restart loses the run. The model resumes it with the same flow,
+		// and the reused values take the same path.
+		f.server.workflows.remove(run.id)
+		args.ResumeRunID = run.id.String()
+		resumed := f.startFlow(ctx, t, parent, args)
+		res = resumed.await(ctx, testutil.WaitLong)
+		require.Equal(t, workflowStatusCompleted, res.Status, res.Error)
+		assert.JSONEq(t, `[5, 9]`, string(res.Result))
+		require.Len(t, res.Steps, 4)
+		for i, step := range res.Steps {
+			assert.True(t, step.Reused, "step %d must be reused", i)
+			assert.Equal(t, steps[i].ChatID, step.ChatID)
+		}
+	})
+
+	t.Run("MaxVisitsFailsTheRun", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+		parent := f.parent(ctx, t, database.ChatStatusRunning)
+		run := f.startFlow(ctx, t, parent, loop(2))
+		play(ctx, t, run, 5, 5)
+
+		res := run.await(ctx, testutil.WaitLong)
+		require.Equal(t, workflowStatusFailed, res.Status)
+		assert.Equal(t, "node draft ran its max_visits (2) times", res.Error)
+	})
+}
+
+// The examples in the run_flow description must pass the checks, since a
+// model copies them.
+func TestFlowDescriptionExamples(t *testing.T) {
+	t.Parallel()
+	start := strings.Index(runFlowDescription, `{"start": "review"`)
+	end := strings.Index(runFlowDescription, "\n\nLoop example")
+	require.True(t, start >= 0 && end > start)
+	_, err := compileFlow([]byte(runFlowDescription[start:end]))
+	require.NoError(t, err)
+
+	start = strings.Index(runFlowDescription, `"edges": [{"from": "draft"`)
+	end = strings.Index(runFlowDescription, "\n\nResume:")
+	require.True(t, start >= 0 && end > start)
+	_, err = compileFlow([]byte(`{"start": "draft", "nodes": {
+		"draft": {"prompt": "Write it. Feedback: {{ nodes.critique.values }}", "max_visits": 3},
+		"critique": {"prompt": "Score {{ nodes.draft.value.text }}.", "max_visits": 3,
+			"schema": {"type": "object", "required": ["score"], "properties": {"score": {"type": "number"}}}}},
+		` + runFlowDescription[start:end] + `}`))
+	require.NoError(t, err)
 }

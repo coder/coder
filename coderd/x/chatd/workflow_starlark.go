@@ -32,6 +32,12 @@ type workflowProgram struct {
 // compileWorkflow compiles script. Errors and backtraces name path, the
 // script_path of the call, or workflow.star for an inline script.
 func compileWorkflow(path, script string) (*workflowProgram, error) {
+	if strings.TrimSpace(script) == "" {
+		return nil, xerrors.New("script is required")
+	}
+	if len(script) > maxScriptBytes {
+		return nil, xerrors.Errorf("the script is %d bytes; at most %d bytes are allowed", len(script), maxScriptBytes)
+	}
 	name := strings.TrimSpace(path)
 	if name == "" {
 		name = workflowFileName
