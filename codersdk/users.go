@@ -132,6 +132,9 @@ type CreateFirstUserRequest struct {
 	Trial          bool                           `json:"trial"`
 	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
 	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
+	// SetupToken is required when AuthMethods.SetupTokenRequired is
+	// true. The server prints it at startup.
+	SetupToken string `json:"setup_token,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -448,6 +451,9 @@ type AuthMethods struct {
 	Password          AuthMethod       `json:"password"`
 	Github            GithubAuthMethod `json:"github"`
 	OIDC              OIDCAuthMethod   `json:"oidc"`
+	// SetupTokenRequired is true when the first user can only be
+	// created with a setup token.
+	SetupTokenRequired bool `json:"setup_token_required,omitempty"`
 }
 
 type AuthMethod struct {

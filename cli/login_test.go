@@ -170,6 +170,72 @@ func TestLogin(t *testing.T) {
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
+	t.Run("InitialUserSetupTokenPrompt", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		client := coderdtest.New(t, &coderdtest.Options{SetupToken: token})
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		pty := ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"first user?", "yes",
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"Setup token:", token,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
+			"trial", "no",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			pty.ExpectMatch(matches[i])
+			pty.WriteLine(matches[i+1])
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		has, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.True(t, has)
+	})
+
+	t.Run("InitialUserSetupTokenFlag", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		client := coderdtest.New(t, &coderdtest.Options{SetupToken: token})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		login := func(setupToken string) error {
+			inv, _ := clitest.New(
+				t, "login", client.URL.String(),
+				"--first-user-username", coderdtest.FirstUserParams.Username,
+				"--first-user-full-name", coderdtest.FirstUserParams.Name,
+				"--first-user-email", coderdtest.FirstUserParams.Email,
+				"--first-user-password", coderdtest.FirstUserParams.Password,
+				"--first-user-trial=false",
+				"--first-user-setup-token", setupToken,
+			)
+			return inv.WithContext(ctx).Run()
+		}
+
+		err := login("not-the-setup-token")
+		require.ErrorContains(t, err, "A setup token is required to create the first user. Find it in the output of coder server.")
+		has, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.False(t, has)
+
+		require.NoError(t, login(token))
+		has, err = client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.True(t, has)
+	})
+
 	t.Run("InitialUserTTYNameOptional", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

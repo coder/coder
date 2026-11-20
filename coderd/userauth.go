@@ -823,6 +823,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 			SignInText: signInText,
 			IconURL:    iconURL,
 		},
+		SetupTokenRequired: api.setupTokenRequired(),
 	})
 }
 
@@ -1764,6 +1765,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return xerrors.Errorf("unable to fetch user count: %w", err)
+		}
+
+		// On a tunnel the first user is created with the setup token,
+		// which an OAuth sign-in cannot carry.
+		if userCount == 0 && api.setupTokenRequired() {
+			return errSetupNotComplete()
 		}
 
 		// Allow the first user to sign up with OIDC, regardless of
