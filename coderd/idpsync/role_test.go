@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -26,7 +25,7 @@ import (
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
 
-	userClaims := jwt.MapClaims{
+	userClaims := map[string]any{
 		"roles": []string{
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
@@ -395,7 +394,7 @@ func TestNoopNoDiff(t *testing.T) {
 		SyncEntitled:  true,
 		SyncSiteWide:  true,
 		SiteWideRoles: siteRoles,
-		MergedClaims: jwt.MapClaims{
+		MergedClaims: map[string]any{
 			"roles": orgRoles,
 		},
 	})

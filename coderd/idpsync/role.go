@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -26,7 +25,7 @@ type RoleParams struct {
 	SyncSiteWide  bool
 	SiteWideRoles []string
 	// MergedClaims are passed to the organization level for syncing
-	MergedClaims jwt.MapClaims
+	MergedClaims map[string]any
 }
 
 func (AGPLIDPSync) RoleSyncEntitled() bool {
@@ -64,7 +63,7 @@ func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db d
 	return settings, nil
 }
 
-func (s AGPLIDPSync) ParseRoleClaims(_ context.Context, _ jwt.MapClaims) (RoleParams, *HTTPError) {
+func (s AGPLIDPSync) ParseRoleClaims(_ context.Context, _ map[string]any) (RoleParams, *HTTPError) {
 	return RoleParams{
 		SyncEntitled: s.RoleSyncEntitled(),
 		SyncSiteWide: s.SiteRoleSyncEnabled(),
@@ -274,7 +273,7 @@ func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, u
 	return nil
 }
 
-func (AGPLIDPSync) RolesFromClaim(field string, claims jwt.MapClaims) ([]string, error) {
+func (AGPLIDPSync) RolesFromClaim(field string, claims map[string]any) ([]string, error) {
 	rolesRow, ok := claims[field]
 	if !ok {
 		// If no claim is provided than we can assume the user is just

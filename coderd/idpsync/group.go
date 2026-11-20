@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -21,7 +20,7 @@ import (
 type GroupParams struct {
 	// SyncEntitled if false will skip syncing the user's groups
 	SyncEntitled bool
-	MergedClaims jwt.MapClaims
+	MergedClaims map[string]any
 }
 
 func (AGPLIDPSync) GroupSyncEntitled() bool {
@@ -70,7 +69,7 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 	return settings, nil
 }
 
-func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError) {
+func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, mergedClaims map[string]any) (GroupParams, *HTTPError) {
 	if s.GroupField != "" && len(s.GroupAllowList) > 0 {
 		groupsRaw, ok := mergedClaims[s.GroupField]
 		if !ok {
@@ -391,7 +390,7 @@ func (a ExpectedGroup) Equal(b ExpectedGroup) bool {
 // the group "UUID 1234" is renamed, we want to maintain the mapping.
 // We have to keep names because group sync supports syncing groups by name if
 // the external IDP group name matches the Coder one.
-func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClaims) ([]ExpectedGroup, error) {
+func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims map[string]any) ([]ExpectedGroup, error) {
 	groupsRaw, ok := mergedClaims[s.Field]
 	if !ok {
 		return []ExpectedGroup{}, nil

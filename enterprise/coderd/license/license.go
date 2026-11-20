@@ -10,12 +10,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -387,8 +389,7 @@ func LicensesEntitlements(
 	//   'Entitlements' group as a whole.
 	for _, license := range licenses {
 		claims, err := ParseClaims(license.JWT, keys)
-		var vErr *jwt.ValidationError
-		if xerrors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
+		if xerrors.Is(err, jwt.ErrNotValidYet) {
 			// The license isn't valid yet.  We don't consider any entitlements contained in it, but
 			// it's also not an error.  Just skip it silently.  This can happen if an administrator
 			// uploads a license for a new term that hasn't started yet.
@@ -415,8 +416,8 @@ func LicensesEntitlements(
 		// validity period.
 		nextLicenseValidityPeriod.ApplyClaims(claims)
 
-		usagePeriodStart := claims.NotBefore.Time // checked not-nil when validating claims
-		usagePeriodEnd := claims.ExpiresAt.Time   // checked not-nil when validating claims
+		usagePeriodStart := claims.NotBefore.Time() // checked not-nil when validating claims
+		usagePeriodEnd := claims.Expiry.Time()      // checked not-nil when validating claims
 		if usagePeriodStart.After(usagePeriodEnd) {
 			// This shouldn't be possible to be hit. You'd need to have a
 			// license with `nbf` after `exp`. Because `nbf` must be in the past
@@ -437,7 +438,7 @@ func LicensesEntitlements(
 		// If any license is a trial license, this should be set to true.
 		// The user should delete the trial license to remove this.
 		entitlements.Trial = claims.Trial
-		if now.After(claims.LicenseExpires.Time) {
+		if now.After(claims.LicenseExpires.Time()) {
 			// if the grace period were over, the validation fails, so if we are after
 			// LicenseExpires we must be in grace period.
 			entitlement = codersdk.EntitlementGracePeriod
@@ -570,7 +571,7 @@ func LicensesEntitlements(
 					Entitlement: entitlement,
 					Limit:       &featureValue,
 					UsagePeriod: &codersdk.UsagePeriod{
-						IssuedAt: claims.IssuedAt.Time,
+						IssuedAt: claims.IssuedAt.Time(),
 						Start:    usagePeriodStart,
 						End:      usagePeriodEnd,
 					},
@@ -609,7 +610,7 @@ func LicensesEntitlements(
 		}
 
 		runtimeFeature, granted, ignoredClaims := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
-			IssuedAt: claims.IssuedAt.Time,
+			IssuedAt: claims.IssuedAt.Time(),
 			Start:    usagePeriodStart,
 			End:      usagePeriodEnd,
 		})
@@ -1031,7 +1032,7 @@ const (
 const AgentRuntimeHoursUnlimitedAllocation int64 = -1
 
 var (
-	ValidMethods = []string{"EdDSA"}
+	ValidMethods = []jose.SignatureAlgorithm{jose.EdDSA}
 
 	ErrInvalidVersion        = xerrors.New("license must be version 3")
 	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
@@ -1146,9 +1147,9 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 
 // Claims is the full set of claims in a license.
 type Claims struct {
-	jwt.RegisteredClaims
+	jwtutils.RegisteredClaims
 	// LicenseExpires is the end of the legit license term, and the start of the grace period, if
-	// there is one.  The standard JWT claim "exp" (ExpiresAt in jwt.RegisteredClaims, above) is
+	// there is one.  The standard JWT claim "exp" (Expiry in RegisteredClaims, above) is
 	// the end of the grace period (identical to LicenseExpires if there is no grace period).
 	// The reason we use the standard claim for the end of the grace period is that we want JWT
 	// processing libraries to consider the token "valid" until then.
@@ -1169,116 +1170,118 @@ type Claims struct {
 	PublishUsageData bool             `json:"publish_usage_data,omitempty"`
 }
 
-var _ jwt.Claims = &Claims{}
-
 // ParseRaw consumes a license and returns the claims.
-func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
-	tok, err := jwt.Parse(
-		l,
-		keyFunc(keys),
-		jwt.WithValidMethods(ValidMethods),
+func ParseRaw(l string, keys map[string]ed25519.PublicKey) (map[string]any, error) {
+	var (
+		registered jwt.Claims
+		claims     map[string]any
 	)
-	if err != nil {
+	if err := verify(l, keys, &registered, &claims); err != nil {
 		return nil, err
 	}
-	if claims, ok := tok.Claims.(jwt.MapClaims); ok && tok.Valid {
-		version, ok := claims[VersionClaim].(float64)
-		if !ok {
-			return nil, ErrInvalidVersion
-		}
-		if int64(version) != CurrentVersion {
-			return nil, ErrInvalidVersion
-		}
-		return claims, nil
+	if err := validateTimes(registered, time.Now()); err != nil {
+		return nil, err
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	version, ok := claims[VersionClaim].(float64)
+	if !ok {
+		return nil, ErrInvalidVersion
+	}
+	if int64(version) != CurrentVersion {
+		return nil, ErrInvalidVersion
+	}
+	return claims, nil
 }
 
 // ParseClaims validates a raw JWT, and if valid, returns the claims.  If
 // unparsable or invalid, it returns an error
 func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
-	tok, err := jwt.ParseWithClaims(
-		rawJWT,
-		&Claims{},
-		keyFunc(keys),
-		jwt.WithValidMethods(ValidMethods),
-	)
-	if err != nil {
+	claims := &Claims{}
+	if err := verify(rawJWT, keys, claims); err != nil {
 		return nil, err
 	}
-	return validateClaims(tok)
+	if err := validateTimes(jwt.Claims(claims.RegisteredClaims), time.Now()); err != nil {
+		return nil, err
+	}
+	return validateClaims(claims)
 }
 
-func validateClaims(tok *jwt.Token) (*Claims, error) {
-	if claims, ok := tok.Claims.(*Claims); ok {
-		if claims.Version != uint64(CurrentVersion) {
-			return nil, ErrInvalidVersion
-		}
-		if claims.IssuedAt == nil {
-			return nil, ErrMissingIssuedAt
-		}
-		if claims.NotBefore == nil {
-			return nil, ErrMissingNotBefore
-		}
-
-		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
-		if claims.LicenseExpires == nil || claims.LicenseExpires.After(yearsHardLimit) {
-			return nil, ErrMissingLicenseExpires
-		}
-		if claims.ExpiresAt == nil {
-			return nil, ErrMissingExp
-		}
-		if claims.AccountType == "" {
-			return nil, ErrMissingAccountType
-		}
-		if claims.AccountID == "" {
-			return nil, ErrMissingAccountID
-		}
-		return claims, nil
+func validateClaims(claims *Claims) (*Claims, error) {
+	if claims.Version != uint64(CurrentVersion) {
+		return nil, ErrInvalidVersion
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	if claims.IssuedAt == nil {
+		return nil, ErrMissingIssuedAt
+	}
+	if claims.NotBefore == nil {
+		return nil, ErrMissingNotBefore
+	}
+
+	yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
+	if claims.LicenseExpires == nil || claims.LicenseExpires.Time().After(yearsHardLimit) {
+		return nil, ErrMissingLicenseExpires
+	}
+	if claims.Expiry == nil {
+		return nil, ErrMissingExp
+	}
+	if claims.AccountType == "" {
+		return nil, ErrMissingAccountType
+	}
+	if claims.AccountID == "" {
+		return nil, ErrMissingAccountID
+	}
+	return claims, nil
 }
 
 // ParseClaimsIgnoreNbf validates a raw JWT, but ignores `nbf` claim. If otherwise valid, it returns
 // the claims.  If unparsable or invalid, it returns an error. Ignoring the `nbf` (not before) is
 // useful to determine if a JWT _will_ become valid at any point now or in the future.
 func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
-	tok, err := jwt.ParseWithClaims(
-		rawJWT,
-		&Claims{},
-		keyFunc(keys),
-		jwt.WithValidMethods(ValidMethods),
-	)
-	var vErr *jwt.ValidationError
-	if xerrors.As(err, &vErr) {
-		// zero out the NotValidYet error to check if there were other problems
-		vErr.Errors &= (^jwt.ValidationErrorNotValidYet)
-		if vErr.Errors != 0 {
-			// There are other errors besides not being valid yet. We _could_ go
-			// through all the jwt.ValidationError bits and try to work out the
-			// correct error, but if we get here something very strange is
-			// going on so let's just return a generic error that says to get in
-			// touch with our support team.
-			return nil, ErrMultipleIssues
-		}
-	} else if err != nil {
-		return nil, err
+	claims := &Claims{}
+	if err := verify(rawJWT, keys, claims); err != nil {
+		// Signature and parsing problems are not worth explaining in detail
+		// here, so ask the user to get in touch with our support team.
+		return nil, ErrMultipleIssues
 	}
-	return validateClaims(tok)
+	registered := jwt.Claims(claims.RegisteredClaims)
+	registered.NotBefore = nil
+	if err := validateTimes(registered, time.Now()); err != nil {
+		return nil, ErrMultipleIssues
+	}
+	return validateClaims(claims)
 }
 
-func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, error) {
-	return func(j *jwt.Token) (interface{}, error) {
-		keyID, ok := j.Header[HeaderKeyID].(string)
-		if !ok {
-			return nil, ErrMissingKeyID
-		}
-		k, ok := keys[keyID]
-		if !ok {
-			return nil, xerrors.Errorf("no key with ID %s", keyID)
-		}
-		return k, nil
+// verify checks the signature of a raw license JWT against the key named by
+// its kid header and decodes the payload into each of dest.
+func verify(rawJWT string, keys map[string]ed25519.PublicKey, dest ...any) error {
+	tok, err := jwt.ParseSigned(rawJWT, ValidMethods)
+	if err != nil {
+		return xerrors.Errorf("parse license jwt: %w", err)
 	}
+	// Compact serialization always has exactly one signature.
+	if len(tok.Headers) != 1 {
+		return xerrors.New("license jwt must have exactly one signature")
+	}
+	keyID := tok.Headers[0].KeyID
+	if keyID == "" {
+		return ErrMissingKeyID
+	}
+	key, ok := keys[keyID]
+	if !ok {
+		return xerrors.Errorf("no key with ID %s", keyID)
+	}
+	if err := tok.Claims(key, dest...); err != nil {
+		return xerrors.Errorf("verify license jwt: %w", err)
+	}
+	return nil
+}
+
+// validateTimes checks the registered time claims (exp, nbf, iat) that are
+// present, without any clock skew leeway.
+func validateTimes(claims jwt.Claims, now time.Time) error {
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: now}, 0); err != nil {
+		return xerrors.Errorf("validate license claims: %w", err)
+	}
+	return nil
 }
 
 // licenseValidityPeriod keeps track of all license validity periods, and
@@ -1299,7 +1302,7 @@ func (p *licenseValidityPeriod) ApplyClaims(claims *Claims) {
 		// Bad data
 		return
 	}
-	p.Apply(claims.NotBefore.Time, claims.LicenseExpires.Time)
+	p.Apply(claims.NotBefore.Time(), claims.LicenseExpires.Time())
 }
 
 // Apply adds a license validity period.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -106,7 +105,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		params, err := s.ParseOrganizationClaims(ctx, jwt.MapClaims{})
+		params, err := s.ParseOrganizationClaims(ctx, map[string]any{})
 		require.Nil(t, err)
 
 		require.False(t, params.SyncEntitled)

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
@@ -129,7 +128,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 				// The IDP should not be contacted since the token is expired. An expired
 				// token with 'NoRefresh' should early abort.
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					t.Error("token was validated, but it was expired and this should never have happened.")
 					return nil, xerrors.New("should not be called")
 				}),
@@ -166,9 +165,9 @@ func TestRefreshToken(t *testing.T) {
 					t.Error("refresh on the IDP was called, but NoRefresh was set")
 					return xerrors.New("should not be called")
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validated = true
-					return jwt.MapClaims{}, nil
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -222,9 +221,9 @@ func TestRefreshToken(t *testing.T) {
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validated = true
-					return jwt.MapClaims{}, xerrors.New(staticError)
+					return map[string]any{}, xerrors.New(staticError)
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -269,7 +268,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 				// The IDP should not be contacted since the token is expired and
 				// refresh attempts will fail.
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					t.Error("token was validated, but it was expired and this should never have happened.")
 					return nil, xerrors.New("should not be called")
 				}),
@@ -612,8 +611,8 @@ func TestRefreshToken(t *testing.T) {
 					}
 					return xerrors.New("should not reach this")
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
-					return jwt.MapClaims{}, nil
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -761,9 +760,9 @@ func TestRefreshToken(t *testing.T) {
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validated = true
-					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
+					return map[string]any{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -794,13 +793,13 @@ func TestRefreshToken(t *testing.T) {
 					t.Error("refresh on the IDP was called, but the token is not expired")
 					return xerrors.New("should not be called")
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validateCalls++
 					// Make the first call return a 401, subsequent calls should return a 200.
 					if validateCalls > 1 {
-						return jwt.MapClaims{}, nil
+						return map[string]any{}, nil
 					}
-					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
+					return map[string]any{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -832,9 +831,9 @@ func TestRefreshToken(t *testing.T) {
 					t.Error("refresh on the IDP was called, but the token is not expired")
 					return xerrors.New("should not be called")
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validateCalls++
-					return jwt.MapClaims{}, nil
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -865,9 +864,9 @@ func TestRefreshToken(t *testing.T) {
 					refreshCalls++
 					return nil
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					validateCalls++
-					return jwt.MapClaims{}, nil
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -951,11 +950,11 @@ func TestRefreshToken(t *testing.T) {
 					refreshCalls.Add(1)
 					return nil
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
 					if simulateRateLimit.Load() {
-						return jwt.MapClaims{}, oidctest.StatusError(http.StatusForbidden, xerrors.New("rate limit exceeded"))
+						return map[string]any{}, oidctest.StatusError(http.StatusForbidden, xerrors.New("rate limit exceeded"))
 					}
-					return jwt.MapClaims{}, nil
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -1025,8 +1024,8 @@ func TestRefreshToken(t *testing.T) {
 					cancel()
 					return nil
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
-					return jwt.MapClaims{}, nil
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -1402,8 +1401,8 @@ func TestRefreshToken(t *testing.T) {
 					<-wait
 					return nil
 				}),
-				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
-					return jwt.MapClaims{}, nil
+				oidctest.WithDynamicUserInfo(func(_ string) (map[string]any, error) {
+					return map[string]any{}, nil
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
@@ -2288,7 +2287,7 @@ func TestConstantQueryParams(t *testing.T) {
 	// Actually run an auth request. Although it says OIDC, the flow is the same
 	// for oauth2.
 	//nolint:bodyclose
-	resp := fake.OIDCCallback(t, state, jwt.MapClaims{})
+	resp := fake.OIDCCallback(t, state, map[string]any{})
 	require.True(t, callbackCalled)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -2337,7 +2336,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 	}
 	settings.ExternalAuthOpt(config)
 
-	oauthToken, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
+	oauthToken, err := fake.GenerateAuthenticatedToken(map[string]any{
 		"email": "test@coder.com",
 	})
 	require.NoError(t, err)
