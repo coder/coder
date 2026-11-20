@@ -151,6 +151,10 @@ var expDERPOnce = sync.Once{}
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
+	// SetupToken, when not empty, must be sent to create the first user.
+	// The server command sets it only when it opened a tunnel and no user
+	// exists.
+	SetupToken string
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
 	// It will use the same scheme and port number as the access URL.
