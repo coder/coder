@@ -17,10 +17,6 @@ import (
 )
 
 const (
-	// SignInParam carries the encrypted sign-in payload that the dashboard
-	// mints for one preview host.
-	SignInParam = "coder_preview_sign_in"
-
 	maxHostnameLabelLength = 63
 	strictSandbox          = "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
 )
