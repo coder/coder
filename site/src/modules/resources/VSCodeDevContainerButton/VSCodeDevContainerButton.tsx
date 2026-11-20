@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
-import type { DisplayApp } from "#/api/typesGenerated";
+import { type DisplayApp, VSCodeCoderExtensionID } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	DropdownMenu,
@@ -147,7 +147,7 @@ const VSCodeButton: React.FC<VSCodeDevContainerButtonProps> = ({
 							query.set("agent", agentName);
 						}
 
-						location.href = `vscode://coder.coder-remote/openDevContainer?${query.toString()}`;
+						location.href = `vscode://${VSCodeCoderExtensionID}/openDevContainer?${query.toString()}`;
 					})
 					.catch((ex) => {
 						console.error(ex);
@@ -195,7 +195,7 @@ const VSCodeInsidersButton: React.FC<VSCodeDevContainerButtonProps> = ({
 							query.set("agent", agentName);
 						}
 
-						location.href = `vscode-insiders://coder.coder-remote/openDevContainer?${query.toString()}`;
+						location.href = `vscode-insiders://${VSCodeCoderExtensionID}/openDevContainer?${query.toString()}`;
 					})
 					.catch((ex) => {
 						console.error(ex);
