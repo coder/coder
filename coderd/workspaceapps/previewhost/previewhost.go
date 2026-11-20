@@ -5,7 +5,6 @@ package previewhost
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -27,29 +25,17 @@ const (
 	strictSandbox          = "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
 )
 
-// Policy holds what differs between modes. The policy is a function of the
-// host, not of the user's token, because coderd's own pages on a preview
-// host, such as sign-in and error pages, are written before authentication.
-type Policy struct {
-	// CSP is added to every response on a preview host. Empty adds none.
-	CSP string
-	// Sandbox is the iframe sandbox the dashboard frames a preview with.
-	Sandbox string
-	// CrossSiteCookie makes the preview session cookie SameSite=None,
-	// Secure and Partitioned, for previews on another site than the
-	// dashboard.
-	CrossSiteCookie bool
-}
-
 // Hosting is where one server, coderd or a workspace proxy, serves previews.
 type Hosting struct {
-	mode    codersdk.PreviewMode
 	pattern *regexp.Regexp
 	// host is the wildcard host with the serving port, such as
 	// "*.apps.example.com:8443".
 	host   string
 	scheme string
-	policy Policy
+	// csp is added to every response on a preview host.
+	csp string
+	// sandbox is the iframe sandbox the dashboard frames a preview with.
+	sandbox string
 }
 
 // Strict returns the hosting of a server that serves strict previews under
@@ -62,41 +48,24 @@ func Strict(wildcardHostname string, accessURL, dashboardURL *url.URL) (*Hosting
 		return nil, xerrors.Errorf("compile preview hostname pattern: %w", err)
 	}
 	dashboardOrigin := (&url.URL{Scheme: dashboardURL.Scheme, Host: dashboardURL.Host}).String()
+	// Every request a page makes must stay on its own host, because requests
+	// to the user's other apps carry the user's app cookie. CSP cannot stop a
+	// page from navigating its own frame, so the dashboard wraps the frame in
+	// a page whose frame-src allows only the preview.
 	return &Hosting{
-		mode:    codersdk.PreviewModeStrict,
 		pattern: pattern,
 		host:    appurl.SubdomainAppHost(wildcardHostname, accessURL),
 		scheme:  accessURL.Scheme,
-		policy:  policyFor(codersdk.PreviewModeStrict, dashboardOrigin),
+		csp: "sandbox " + strictSandbox +
+			"; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src 'self'" +
+			"; object-src 'none'; form-action 'self'; frame-ancestors 'self' " + dashboardOrigin,
+		sandbox: strictSandbox,
 	}, nil
 }
 
-func policyFor(mode codersdk.PreviewMode, dashboardOrigin string) Policy {
-	switch mode {
-	case codersdk.PreviewModeStrict:
-		// Every request a page makes must stay on its own host, because
-		// requests to the user's other apps carry the user's app cookie. CSP
-		// cannot stop a page from navigating its own frame, so the dashboard
-		// wraps the frame in a page whose frame-src allows only the preview.
-		return Policy{
-			CSP: "sandbox " + strictSandbox +
-				"; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src 'self'" +
-				"; object-src 'none'; form-action 'self'; frame-ancestors 'self' " + dashboardOrigin,
-			Sandbox: strictSandbox,
-		}
-	default:
-		panic(fmt.Sprintf("unhandled preview mode %q", mode))
-	}
-}
-
-// Mode returns how h hosts previews.
-func (h *Hosting) Mode() codersdk.PreviewMode {
-	return h.mode
-}
-
-// Policy returns the policy of h's mode.
-func (h *Hosting) Policy() Policy {
-	return h.policy
+// Sandbox returns the iframe sandbox the dashboard frames h's previews with.
+func (h *Hosting) Sandbox() string {
+	return h.sandbox
 }
 
 // Covers reports whether host is a preview host of h. It includes hosts whose
@@ -161,7 +130,7 @@ func (h *Hosting) URL(app appurl.ApplicationURL, urlPath string) (*url.URL, erro
 // when the final status is written is the only place that holds for both
 // coderd's pages and proxied ones.
 func (h *Hosting) Wrap(rw http.ResponseWriter) http.ResponseWriter {
-	return &responseWriter{ResponseWriter: rw, csp: h.policy.CSP}
+	return &responseWriter{ResponseWriter: rw, csp: h.csp}
 }
 
 type responseWriter struct {
@@ -185,9 +154,7 @@ func (w *responseWriter) WriteHeader(code int) {
 
 func (w *responseWriter) applyPolicy() {
 	h := w.Header()
-	if w.csp != "" {
-		h.Add("Content-Security-Policy", w.csp)
-	}
+	h.Add("Content-Security-Policy", w.csp)
 	h.Del("Link")
 	// Clear-Site-Data clears cookies for the whole registrable domain, and a
 	// cookie with a Domain attribute is sent to the user's other apps.
