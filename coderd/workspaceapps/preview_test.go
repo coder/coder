@@ -232,8 +232,8 @@ func TestServePreviewPolicy(t *testing.T) {
 		// The response to a successful dial has no body.
 		// nolint:bodyclose
 		conn, res, err := websocket.Dial(ctx, strings.Replace(ts.URL, "http", "ws", 1)+"/ws", &websocket.DialOptions{
-			Host:       previewHost,
-			HTTPHeader: http.Header{"Sec-Fetch-Dest": {"websocket"}},
+			// Chromium sends no fetch metadata with a WebSocket handshake.
+			Host: previewHost,
 		})
 		require.NoError(t, err)
 		defer conn.CloseNow()
