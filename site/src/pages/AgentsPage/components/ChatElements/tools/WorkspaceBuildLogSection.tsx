@@ -92,15 +92,20 @@ export const WorkspaceBuildLogSection: React.FC<
 	// first appear or when the build ID changes, not on every
 	// appended log entry.
 	const hasLogs = Boolean(logs && logs.length > 0);
-	const [timedOutBuildId, setTimedOutBuildId] = useState<string>();
+	const [timedOut, setTimedOut] = useState(false);
+	const [timeoutDeps, setTimeoutDeps] = useState({ effectiveBuildId, hasLogs });
+	if (
+		timeoutDeps.effectiveBuildId !== effectiveBuildId ||
+		timeoutDeps.hasLogs !== hasLogs
+	) {
+		setTimeoutDeps({ effectiveBuildId, hasLogs });
+		setTimedOut(false);
+	}
 	useEffect(() => {
 		if (!effectiveBuildId || hasLogs) {
 			return;
 		}
-		const timer = setTimeout(
-			() => setTimedOutBuildId(effectiveBuildId),
-			LOG_LOAD_TIMEOUT_MS,
-		);
+		const timer = setTimeout(() => setTimedOut(true), LOG_LOAD_TIMEOUT_MS);
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
@@ -116,7 +121,7 @@ export const WorkspaceBuildLogSection: React.FC<
 	let content: React.ReactNode;
 	if (fetchFailed) {
 		content = <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
-	} else if (timedOutBuildId === effectiveBuildId && !hasLogs) {
+	} else if (timedOut && !hasLogs) {
 		content = (
 			<LogNotice icon="warning">
 				Build logs are taking longer than expected.
