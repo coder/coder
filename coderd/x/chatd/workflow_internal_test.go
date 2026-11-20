@@ -284,6 +284,22 @@ func TestWorkflowScriptPath(t *testing.T) {
 		_, err := workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, connWithFile(t, big))
 		require.ErrorContains(t, err, "larger than")
 	})
+	t.Run("MissingFileHidesTheAgentURL", func(t *testing.T) {
+		t.Parallel()
+		conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+		sdkErr := codersdk.NewTestError(404, "GET", "http://127.0.0.1:4/api/v0/read-file?path=x")
+		sdkErr.Message = "open " + path + ": no such file or directory"
+		conn.EXPECT().ReadFile(gomock.Any(), path, int64(0), int64(maxScriptBytes+1)).Return(nil, "", sdkErr).Times(2)
+		getConn := func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil }
+
+		_, err := workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, getConn)
+		require.EqualError(t, err, `read script_path "/home/coder/workflow.star": open /home/coder/workflow.star: no such file or directory`)
+		assert.NotContains(t, err.Error(), "http")
+
+		sdkErr.Detail = "permission denied"
+		_, err = workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, getConn)
+		require.EqualError(t, err, `read script_path "/home/coder/workflow.star": open /home/coder/workflow.star: no such file or directory: permission denied`)
+	})
 }
 
 func TestWorkflowReplay(t *testing.T) {
@@ -456,6 +472,12 @@ def main(args):
 		require.ErrorContains(t, err, "must define main(args)")
 		_, err = f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{Script: "def main(args):\n  return time.now()\n"}, uuid.New())
 		require.ErrorContains(t, err, "undefined: time")
+		// A script from a file names the file, not workflow.star.
+		_, err = f.server.startWorkflowRun(ctx, parent, f.model.ID, runWorkflowArgs{
+			Script: "def main(args):\n  return (", ScriptPath: "/home/coder/review.star",
+		}, uuid.New())
+		require.ErrorContains(t, err, "compile script: /home/coder/review.star:2:")
+		assert.NotContains(t, err.Error(), workflowFileName)
 	})
 
 	t.Run("RuntimeErrorNamesLine", func(t *testing.T) {

@@ -207,6 +207,14 @@ func workflowScript(
 	}
 	// One byte more than the limit tells an oversized file from a full one.
 	rc, _, err := conn.ReadFile(ctx, path, 0, maxScriptBytes+1)
+	if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok {
+		// Error() names the agent's request URL, which the model must not see.
+		msg := sdkErr.Message
+		if sdkErr.Detail != "" {
+			msg += ": " + sdkErr.Detail
+		}
+		return "", xerrors.Errorf("read script_path %q: %s", path, msg)
+	}
 	if err != nil {
 		return "", xerrors.Errorf("read script_path %q: %w", path, err)
 	}
@@ -365,7 +373,7 @@ func (p *Server) startWorkflowRun(
 		}
 		argsJSON = string(raw)
 	}
-	program, err := compileWorkflow(args.Script)
+	program, err := compileWorkflow(args.ScriptPath, args.Script)
 	if err != nil {
 		return nil, err
 	}

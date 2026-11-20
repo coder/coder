@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// workflowFileName names an inline script in errors and backtraces.
 const workflowFileName = "workflow.star"
 
 // workflowFileOptions allow while loops. Recursion stays off, and load()
@@ -28,8 +29,14 @@ type workflowProgram struct {
 	program *starlark.Program
 }
 
-func compileWorkflow(script string) (*workflowProgram, error) {
-	file, program, err := starlark.SourceProgramOptions(workflowFileOptions, workflowFileName, script,
+// compileWorkflow compiles script. Errors and backtraces name path, the
+// script_path of the call, or workflow.star for an inline script.
+func compileWorkflow(path, script string) (*workflowProgram, error) {
+	name := strings.TrimSpace(path)
+	if name == "" {
+		name = workflowFileName
+	}
+	file, program, err := starlark.SourceProgramOptions(workflowFileOptions, name, script,
 		func(name string) bool { return slices.Contains(workflowBuiltinNames, name) })
 	if err != nil {
 		return nil, xerrors.Errorf("compile script: %w", err)
