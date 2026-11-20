@@ -142,12 +142,9 @@ export const Filter: React.FC<FilterProps> = ({
 	className,
 	...props
 }) => {
-	// Holds the user's in-progress query while the search box is focused, so
-	// keystrokes update the input without rippling out to the rest of the app
-	// before the debounced update lands. Outside of editing, the box shows the
-	// parent query.
+	// Holds the typed query until the input blurs, so parent query updates
+	// do not overwrite in-progress keystrokes.
 	const [draftQuery, setDraftQuery] = useState<string>();
-	const queryCopy = draftQuery ?? filter.query;
 	const textboxInputRef = useRef<HTMLInputElement>(null);
 	const errorId = useId();
 
@@ -179,7 +176,7 @@ export const Filter: React.FC<FilterProps> = ({
 						<SearchField
 							ref={textboxInputRef}
 							className="w-full"
-							value={queryCopy}
+							value={draftQuery ?? filter.query}
 							aria-label="Search"
 							aria-invalid={shouldDisplayError}
 							aria-describedby={hasError(error) ? errorId : undefined}
