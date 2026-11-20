@@ -1,3 +1,4 @@
+import { CoinsIcon, UsersIcon } from "lucide-react";
 import {
 	MaxAISpendPeriodDays,
 	type OrganizationAISpendOverview,
@@ -5,6 +6,8 @@ import {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { DateRangePicker } from "#/components/DateRangePicker/DateRangePicker";
+import { formatCostMicros } from "#/utils/currency";
+import { StatCard } from "./StatCard";
 import {
 	fromPickerValue,
 	type SpendDays,
@@ -52,6 +55,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 							unpricedModels={unpricedModels}
 							isUnpricedModelsLoading={isUnpricedModelsLoading}
 						/>
+						<div className="grid gap-6 sm:grid-cols-2">
+							<StatCard
+								icon={UsersIcon}
+								label="Active users"
+								value={overview?.count.toLocaleString("en-US")}
+							/>
+							<StatCard
+								icon={CoinsIcon}
+								label="Median spend"
+								value={
+									overview === undefined
+										? undefined
+										: formatCostMicros(overview.totals.median_spend_micros)
+								}
+							/>
+						</div>
 					</div>
 				</div>
 			)}

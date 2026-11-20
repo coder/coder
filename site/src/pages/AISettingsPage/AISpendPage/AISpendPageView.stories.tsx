@@ -47,6 +47,17 @@ export const OverviewLoading: Story = {
 	},
 };
 
+export const NoSpend: Story = {
+	args: {
+		overview: {
+			...MockOrganizationAISpendOverview,
+			count: 0,
+			totals: { spend_micros: 0, median_spend_micros: 0 },
+		},
+		unpricedModels: [],
+	},
+};
+
 export const SingleOrganization: Story = {
 	args: { organizations: [MockOrganization] },
 };
