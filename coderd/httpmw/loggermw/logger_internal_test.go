@@ -29,7 +29,7 @@ func TestRequestLogger_WriteLog(t *testing.T) {
 
 	sink := testutil.NewFakeSink(t)
 	logger := sink.Logger()
-	logCtx := NewRequestLogger(logger, "GET", time.Now())
+	logCtx := NewRequestLogger(logger, "GET", "", time.Now())
 
 	// Add custom fields
 	logCtx.WithFields(
@@ -299,7 +299,7 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 			}
 
 			ctx := context.WithValue(context.Background(), chi.RouteCtxKey, chiCtx)
-			logCtx := NewRequestLogger(logger, "GET", time.Now())
+			logCtx := NewRequestLogger(logger, "GET", "", time.Now())
 
 			// Write the log
 			logCtx.WriteLog(ctx, http.StatusOK)
@@ -407,7 +407,7 @@ func TestRequestLogger_AuthContext(t *testing.T) {
 
 	sink := testutil.NewFakeSink(t)
 	logger := sink.Logger()
-	logCtx := NewRequestLogger(logger, "GET", time.Now())
+	logCtx := NewRequestLogger(logger, "GET", "", time.Now())
 
 	logCtx.WithAuthContext(rbac.Subject{
 		ID:           "test-user-id",

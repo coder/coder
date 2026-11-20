@@ -85,7 +85,7 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
 
 	dialCtx, dialCancel := context.WithTimeout(ctx, testutil.IntervalSlow)
@@ -164,7 +164,7 @@ func TestServerTailnet_AgentConn_NotCounted(t *testing.T) {
 
 			var logs bytes.Buffer
 			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 			ctx = loggermw.WithRequestLogger(ctx, requestLogger)
 
 			dialCtx, dialCancel := tt.dialCtx(ctx)
@@ -278,7 +278,7 @@ func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 
 	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 	require.NoError(t, err)
@@ -339,7 +339,7 @@ func TestServerTailnet_ReverseProxy_TCPDialFailure(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 
 	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", testutil.RandomPort(t)))
 	require.NoError(t, err)

@@ -116,12 +116,7 @@ func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next 
 				httplog = httplog.With(queryFields...)
 			}
 
-			logContext := NewRequestLogger(httplog, r.Method, start)
-			// The path is logged in WriteLog, once route params are known and
-			// secrets in them can be masked.
-			if pl, ok := logContext.(interface{ setPath(string) }); ok {
-				pl.setPath(r.URL.Path)
-			}
+			logContext := NewRequestLogger(httplog, r.Method, r.URL.Path, start)
 
 			ctx := WithRequestLogger(r.Context(), logContext)
 
@@ -153,8 +148,6 @@ type SlogRequestLogger struct {
 	start     time.Time
 	addFields func()
 }
-
-func (c *SlogRequestLogger) setPath(p string) { c.path = p }
 
 func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
