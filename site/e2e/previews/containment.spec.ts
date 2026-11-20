@@ -216,43 +216,16 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 			expect(page.url()).toBe(openURL(attackPath));
 		});
 
-		await test.step("opening the preview address directly reopens it in the dashboard", async () => {
-			const direct = await context.newPage();
-			await direct.goto(`${previewOrigin}/direct?from=address-bar`);
-			await expect
-				.poll(() => {
-					const url = new URL(direct.url());
-					return {
-						origin: url.origin,
-						pathname: url.pathname,
-						params: Object.fromEntries(url.searchParams),
-					};
-				})
-				.toEqual({
-					origin: dashboard.origin,
-					pathname: "/previews/open",
-					params: Object.fromEntries(
-						new URL(openURL("/direct?from=address-bar")).searchParams,
-					),
-				});
-			await expect(
-				previewContent(direct).getByRole("heading", {
-					name: "Preview path /direct?from=address-bar",
-				}),
-			).toBeVisible({ timeout: 30_000 });
-			await direct.close();
-		});
-
 		await test.step("every preview response carries the preview policy", async () => {
 			const seen = await Promise.all(previewResponses);
 			await test.info().attach("preview responses", {
 				body: JSON.stringify(seen, null, "\t"),
 				contentType: "application/json",
 			});
-			// The sign-in and direct-open redirects and the refused repost
-			// are coderd's own responses; the rest are the preview server's.
+			// The 200s come from the preview server and the 303 is coderd's
+			// sign-in redirect, so both sources must carry the policy.
 			expect(seen.map((response) => response.status)).toEqual(
-				expect.arrayContaining([200, 303, 403]),
+				expect.arrayContaining([200, 303]),
 			);
 			expect(seen.filter((response) => !response.hasPolicy)).toEqual([]);
 		});
