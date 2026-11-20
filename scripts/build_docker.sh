@@ -29,7 +29,7 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DEFAULT_BASE="${CODER_BASE_IMAGE_TAG:-ghcr.io/coder/coder-base-preview:latest}"
+DEFAULT_BASE="${CODER_BASE_IMAGE_TAG:-ghcr.io/coder/coder-base:latest}"
 
 arch=""
 image_tag=""
