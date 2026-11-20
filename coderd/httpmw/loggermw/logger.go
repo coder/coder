@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,19 @@ import (
 var (
 	safeParams  = []string{"page", "limit", "offset", "path"}
 	countParams = []string{"ids", "template_ids"}
+	// secretRouteParams are route params whose values are credentials. They
+	// are masked in both the params_* fields and the logged path.
+	secretRouteParams = []string{"provisionerkey"}
 )
+
+// maskSecret keeps at most a 4 character prefix of s, enough to identify a
+// token without disclosing it.
+func maskSecret(s string) string {
+	if len(s) <= 8 {
+		return "..."
+	}
+	return s[:4] + "..."
+}
 
 func safeQueryParams(params url.Values) []slog.Field {
 	if len(params) == 0 {
@@ -87,7 +100,6 @@ func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next 
 				slog.F("user_agent", r.Header.Get("User-Agent")),
 				slog.F("host", host),
 				slog.F("received_host", r.Host),
-				slog.F("path", r.URL.Path),
 				slog.F("proto", r.Proto),
 				slog.F("remote_addr", r.RemoteAddr),
 				// Include the start timestamp in the log so that we have the
@@ -104,7 +116,7 @@ func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next 
 				httplog = httplog.With(queryFields...)
 			}
 
-			logContext := NewRequestLogger(httplog, r.Method, start)
+			logContext := NewRequestLogger(httplog, r.Method, r.URL.Path, start)
 
 			ctx := WithRequestLogger(r.Context(), logContext)
 
@@ -131,6 +143,7 @@ func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next 
 type SlogRequestLogger struct {
 	log       slog.Logger
 	written   bool
+	path      string
 	message   string
 	start     time.Time
 	addFields func()
@@ -157,20 +170,34 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 		slog.F("latency_ms", float64(end.Sub(c.start)/time.Millisecond)),
 	)
 
+	path := c.path
 	// If the request is routed, add the route parameters to the log.
 	if chiCtx := chi.RouteContext(ctx); chiCtx != nil {
 		urlParams := chiCtx.URLParams
 		routeParamsFields := make([]slog.Field, 0, len(urlParams.Keys))
 
 		for k, v := range urlParams.Keys {
-			if urlParams.Values[k] != "" {
-				routeParamsFields = append(routeParamsFields, slog.F("params_"+v, urlParams.Values[k]))
+			val := urlParams.Values[k]
+			if val == "" {
+				continue
 			}
+			// Only the top-level /provisionerkeys/{provisionerkey} route carries a
+			// secret; the org-scoped route carries a key name.
+			if slices.Contains(secretRouteParams, v) && !strings.Contains(chiCtx.RoutePattern(), "{organization}") {
+				masked := maskSecret(val)
+				path = strings.ReplaceAll(path, val, masked)
+				val = masked
+			}
+			routeParamsFields = append(routeParamsFields, slog.F("params_"+v, val))
 		}
 
 		if len(routeParamsFields) > 0 {
 			logger = logger.With(routeParamsFields...)
 		}
+	}
+
+	if path != "" {
+		logger = logger.With(slog.F("path", path))
 	}
 
 	// We already capture most of this information in the span (minus
