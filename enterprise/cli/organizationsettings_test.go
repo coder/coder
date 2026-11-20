@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -27,6 +28,7 @@ func TestUpdateGroupSync(t *testing.T) {
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
+					codersdk.FeatureTemplateRBAC:          1,
 				},
 			},
 		})
@@ -36,12 +38,15 @@ func TestUpdateGroupSync(t *testing.T) {
 		//nolint:gocritic // Using the owner, testing the cli not perms
 		clitest.SetupConfig(t, owner, root)
 
+		// Settings must name a group that exists in the organization, and the
+		// filter must match the key, so that the settings are saved as sent.
+		group := coderdtest.CreateGroup(t, owner, first.OrganizationID, "test-group")
 		expectedSettings := codersdk.GroupSyncSettings{
 			Field: "groups",
 			Mapping: map[string][]uuid.UUID{
-				"test": {first.OrganizationID},
+				"test": {group.ID},
 			},
-			RegexFilter:       regexp.MustCompile("^foo"),
+			RegexFilter:       regexp.MustCompile("^te"),
 			AutoCreateMissing: true,
 			LegacyNameMapping: nil,
 		}

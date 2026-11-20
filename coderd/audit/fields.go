@@ -12,6 +12,9 @@ type BackgroundSubsystem string
 const (
 	BackgroundSubsystemDormancy        BackgroundSubsystem = "dormancy"
 	BackgroundSubsystemChatAutoArchive BackgroundSubsystem = "chat_auto_archive"
+	// BackgroundSubsystemGroupSyncRewrite: Coder rewrote stored group sync
+	// settings into valid form when they were read.
+	BackgroundSubsystemGroupSyncRewrite BackgroundSubsystem = "group_sync_rewrite"
 )
 
 func BackgroundTaskFields(subsystem BackgroundSubsystem) map[string]string {

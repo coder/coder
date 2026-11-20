@@ -79,7 +79,7 @@ func TSMutations(ts *guts.Typescript) {
 		config.NotNullMaps,
 		FixSerpentStruct,
 		DiscriminatedChatMessagePart,
-		AgentHookRawMessages,
+		RawMessagesAsUnknown,
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
@@ -152,39 +152,61 @@ func TypeMappings(gen *guts.GoParser) error {
 	return nil
 }
 
-// AgentHookRawMessages maps agent-hook raw JSON fields to unknown instead of
-// the global object type.
-func AgentHookRawMessages(ts *guts.Typescript) {
-	if _, ok := ts.Node("AgentHookRequest"); !ok {
+// rawMessagesAsUnknown lists the json.RawMessage fields that are typed
+// unknown instead of the global mapping to Record<string, string>. Each holds
+// a JSON value whose kind varies, so unknown is the accurate type.
+//
+// GroupSyncWarning's received and accepted are typed unknown. Their kind is
+// determined by the warning's path, so a union discriminated on path or code
+// would type them exactly.
+var rawMessagesAsUnknown = []struct {
+	typeName  string
+	fieldName string
+}{
+	{"AgentHookRequest", "data"},
+	{"AgentHookUserPromptSubmitData", "parts"},
+	{"AgentHookPreToolUseData", "tool_input"},
+	{"AgentHookPostToolUseData", "tool_response"},
+	{"AgentHookPermission", "input_override"},
+	{"GroupSyncWarning", "received"},
+	{"GroupSyncWarning", "accepted"},
+}
+
+// RawMessagesAsUnknown types the fields in rawMessagesAsUnknown as unknown.
+// It does nothing when none of the listed types were generated, as with the
+// generator's test data. Otherwise it panics on a listed type or field that
+// was not generated, so a rename cannot silently restore the global mapping.
+func RawMessagesAsUnknown(ts *guts.Typescript) {
+	present := false
+	for _, f := range rawMessagesAsUnknown {
+		if _, ok := ts.Node(f.typeName); ok {
+			present = true
+			break
+		}
+	}
+	if !present {
 		return
 	}
 	unknown := bindings.KeywordUnknown
-	fields := map[string]string{
-		"AgentHookRequest":              "data",
-		"AgentHookUserPromptSubmitData": "parts",
-		"AgentHookPreToolUseData":       "tool_input",
-		"AgentHookPostToolUseData":      "tool_response",
-		"AgentHookPermission":           "input_override",
-	}
-	for typeName, fieldName := range fields {
-		node, ok := ts.Node(typeName)
+	for _, f := range rawMessagesAsUnknown {
+		node, ok := ts.Node(f.typeName)
 		if !ok {
-			panic(fmt.Sprintf("agent hook type %q was not generated", typeName))
+			panic(fmt.Sprintf("type %q was not generated", f.typeName))
 		}
 		iface, ok := node.(*bindings.Interface)
 		if !ok {
-			panic(fmt.Sprintf("agent hook type %q is not an interface", typeName))
+			panic(fmt.Sprintf("type %q is not an interface", f.typeName))
 		}
 		found := false
 		for _, field := range iface.Fields {
-			if field.Name == fieldName {
+			if field.Name == f.fieldName {
 				field.Type = &unknown
 				found = true
 				break
 			}
 		}
 		if !found {
-			panic(fmt.Sprintf("agent hook field %q.%s was not generated", typeName, fieldName))
+			panic(fmt.Sprintf("field %q.%s was not generated", f.typeName, f.fieldName))
 		}
 	}
 }
