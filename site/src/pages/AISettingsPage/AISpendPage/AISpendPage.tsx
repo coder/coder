@@ -5,6 +5,7 @@ import {
 	organizationAISpendOverview,
 } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
@@ -31,18 +32,14 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	);
 	const isSpendAvailable = isEntitled && isEnabled;
 
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchParams] = useSearchParams();
+	const updateSearchParams = useUpdateSearchParams();
 	const setSearchParamValues = (values: Record<string, string>) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				for (const [key, value] of Object.entries(values)) {
-					next.set(key, value);
-				}
-				return next;
-			},
-			{ replace: true },
-		);
+		updateSearchParams((params) => {
+			for (const [key, value] of Object.entries(values)) {
+				params.set(key, value);
+			}
+		});
 	};
 
 	const organizationsQuery = useQuery({
