@@ -112,6 +112,31 @@ export const organizationAISpendOverview = (
 			),
 	});
 
+/**
+ * The given users' spend over `period`, broken down by provider, model, and
+ * client.
+ */
+export const organizationAISpendUsers = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	userIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: [
+			"organizations",
+			organizationId,
+			"aiSpendUsers",
+			period,
+			userIds,
+		],
+		queryFn: () =>
+			API.experimental.getOrganizationAISpendUsers(organizationId, {
+				...period,
+				user_ids: userIds,
+				limit: userIds.length,
+			}),
+	});
+
 /** The models used in the period that still have no price. */
 export const organizationUnpricedAIModels = (
 	organizationId: string,

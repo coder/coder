@@ -2,6 +2,7 @@ import { CoinsIcon, UsersIcon } from "lucide-react";
 import {
 	MaxAISpendPeriodDays,
 	type OrganizationAISpendOverview,
+	type OrganizationAISpendUser,
 	type UnpricedAIModel,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,6 +27,7 @@ type OverviewTabProps = {
 	overviewError: Error | null;
 	unpricedModels: readonly UnpricedAIModel[] | undefined;
 	isUnpricedModelsLoading: boolean;
+	topSpenderDetails: readonly OrganizationAISpendUser[] | undefined;
 	canViewSessions: boolean;
 };
 
@@ -37,6 +39,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	overviewError,
 	unpricedModels,
 	isUnpricedModelsLoading,
+	topSpenderDetails,
 	canViewSessions,
 }) => {
 	return (
@@ -79,6 +82,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 					</div>
 					<TopSpendersCard
 						overview={overview}
+						topSpenderDetails={topSpenderDetails}
 						canViewSessions={canViewSessions}
 					/>
 				</div>

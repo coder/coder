@@ -4,10 +4,32 @@ import {
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendOverview,
+	MockOrganizationAISpendReport,
 	MockUnpricedAIModels,
 	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
+
+// The first user used both unpriced models, so their row warns like the total.
+const [mockSpender, ...mockOtherSpenders] = MockOrganizationAISpendReport.users;
+const mockTopSpenderDetails = [
+	{
+		...mockSpender,
+		provider_spend: mockSpender.provider_spend.map((provider) => ({
+			...provider,
+			has_unpriced_usage: true,
+		})),
+		model_spend: [
+			...mockSpender.model_spend,
+			...MockUnpricedAIModels.models.map((model) => ({
+				name: model.model,
+				cost_micros: 0,
+				has_unpriced_usage: true,
+			})),
+		],
+	},
+	...mockOtherSpenders,
+];
 
 const meta = {
 	title: "pages/AISettingsPage/AISpendPage/AISpendPageView",
@@ -27,6 +49,7 @@ const meta = {
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels.models,
 		isUnpricedModelsLoading: false,
+		topSpenderDetails: mockTopSpenderDetails,
 		canViewSessions: true,
 	},
 } satisfies Meta<typeof AISpendPageView>;
@@ -45,6 +68,7 @@ export const OverviewLoading: Story = {
 		overview: undefined,
 		unpricedModels: undefined,
 		isUnpricedModelsLoading: true,
+		topSpenderDetails: undefined,
 	},
 };
 

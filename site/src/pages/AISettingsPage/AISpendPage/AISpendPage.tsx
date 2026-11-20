@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import {
 	aiSpendOrganizations,
 	organizationAISpendOverview,
+	organizationAISpendUsers,
 	organizationUnpricedAIModels,
 } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -83,6 +84,15 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
+	// The details need the overview's user IDs, so the list renders first and
+	// the unpriced model warnings follow.
+	const topSpenderIds =
+		overviewQuery.data?.users.map((user) => user.user_id) ?? [];
+	const topSpenderDetailsQuery = useQuery({
+		...organizationAISpendUsers(organization?.id ?? "", period, topSpenderIds),
+		enabled: organization !== undefined && topSpenderIds.length > 0,
+	});
+
 	return (
 		<>
 			<title>{pageTitle("AI spend", "AI settings")}</title>
@@ -108,6 +118,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				overviewError={overviewQuery.error}
 				unpricedModels={unpricedModelsQuery.data?.models}
 				isUnpricedModelsLoading={unpricedModelsQuery.isLoading}
+				topSpenderDetails={topSpenderDetailsQuery.data?.users}
 				canViewSessions={permissions.viewAnyAIBridgeInterception}
 			/>
 		</>

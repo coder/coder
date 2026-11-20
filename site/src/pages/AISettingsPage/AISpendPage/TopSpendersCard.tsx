@@ -1,10 +1,12 @@
-import { EllipsisVerticalIcon } from "lucide-react";
+import { EllipsisVerticalIcon, TriangleAlertIcon } from "lucide-react";
 import { useId } from "react";
 import { Link } from "react-router";
 import type {
 	AISpendPeriodWindow,
+	OrganizationAISpendModel,
 	OrganizationAISpendOverview,
 	OrganizationAISpendOverviewUser,
+	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -15,21 +17,33 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link as DocsLink } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { formatCostMicros } from "#/utils/currency";
+import { docs } from "#/utils/docs";
 import { OverviewCard } from "./OverviewCard";
 import { summarizeTopSpenders, TOP_SPENDERS_COUNT } from "./topSpenders";
 
 type TopSpendersCardProps = {
 	/** Undefined while the spend loads. */
 	overview: OrganizationAISpendOverview | undefined;
+	/** The listed users' spend details, undefined while they load. */
+	topSpenderDetails: readonly OrganizationAISpendUser[] | undefined;
 	/** The sessions page needs read access to every user's sessions. */
 	canViewSessions: boolean;
 };
 
 export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 	overview,
+	topSpenderDetails,
 	canViewSessions,
 }) => {
 	const titleId = useId();
@@ -73,6 +87,9 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 						<TopSpenderRow
 							key={user.user_id}
 							user={user}
+							details={topSpenderDetails?.find(
+								(spender) => spender.user_id === user.user_id,
+							)}
 							period={overview}
 							canViewSessions={canViewSessions}
 						/>
@@ -85,16 +102,20 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 
 type TopSpenderRowProps = {
 	user: OrganizationAISpendOverviewUser;
+	details: OrganizationAISpendUser | undefined;
 	period: AISpendPeriodWindow;
 	canViewSessions: boolean;
 };
 
 const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 	user,
+	details,
 	period,
 	canViewSessions,
 }) => {
 	const displayName = user.name || user.username;
+	const unpricedModels =
+		details?.model_spend.filter((model) => model.has_unpriced_usage) ?? [];
 	const sessionsFilter = queryWithTimeRange(
 		{ initiator: user.username },
 		{
@@ -110,6 +131,15 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 			<span className="text-sm tabular-nums text-content-secondary">
 				{formatCostMicros(user.spend_micros)}
 			</span>
+			{/* A fixed slot keeps the amounts aligned in rows without a warning. */}
+			<div className="flex w-10 justify-end">
+				{unpricedModels.length > 0 && (
+					<UnpricedModelsTooltip
+						displayName={displayName}
+						models={unpricedModels}
+					/>
+				)}
+			</div>
 			{/* TODO(AIGOV-734): add Cost details once the per-user report endpoint lands. */}
 			{canViewSessions && (
 				<DropdownMenu>
@@ -134,5 +164,46 @@ const TopSpenderRow: React.FC<TopSpenderRowProps> = ({
 				</DropdownMenu>
 			)}
 		</li>
+	);
+};
+
+type UnpricedModelsTooltipProps = {
+	displayName: string;
+	models: readonly OrganizationAISpendModel[];
+};
+
+const UnpricedModelsTooltip: React.FC<UnpricedModelsTooltipProps> = ({
+	displayName,
+	models,
+}) => {
+	const isSingle = models.length === 1;
+	return (
+		<Tooltip interactive>
+			<TooltipTrigger
+				aria-label={`${models.length} ${isSingle ? "model" : "models"} without pricing`}
+				className="gap-1 text-sm tabular-nums text-content-warning"
+			>
+				<TriangleAlertIcon aria-hidden className="size-icon-sm" />
+				{models.length}
+			</TooltipTrigger>
+			<TooltipContent className="max-w-[min(20rem,var(--radix-popper-available-width))]">
+				<TooltipTitle>Model pricing missing</TooltipTitle>
+				<TooltipMessage>
+					{isSingle
+						? `${models[0].name} used by ${displayName} has no pricing configured. Its usage isn't included, so total spend may be higher.`
+						: `${models.length} models used by ${displayName} have no pricing configured. Their usage isn't included, so total spend may be higher.`}
+				</TooltipMessage>
+				<DocsLink
+					size="sm"
+					href={docs(
+						"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+					)}
+					target="_blank"
+					rel="noreferrer"
+				>
+					View docs
+				</DocsLink>
+			</TooltipContent>
+		</Tooltip>
 	);
 };
