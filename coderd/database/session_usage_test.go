@@ -459,3 +459,43 @@ func TestTemplateAppInsightsMergesBySlug(t *testing.T) {
 	require.Equal(t, "Old Name", rows[0].DisplayName)
 	require.EqualValues(t, 10*60, rows[0].UsageSeconds)
 }
+
+// TestTemplateAppInsightsIgnoresPortSlugs checks that usage names shaped like
+// ports are never reported as apps, even when an app has that slug. The app
+// proxy routes such names as ports, so the usage is port traffic.
+func TestTemplateAppInsightsIgnoresPortSlugs(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
+
+	slugs := []string{"code-server", "8080", "8443s", "0080", "99999"}
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+		for _, slug := range slugs {
+			agents[0].Apps = append(agents[0].Apps, &sdkproto.App{Slug: slug, DisplayName: slug})
+		}
+		return agents
+	}).Do()
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats
+		(start_time, end_time, template_id, user_id, usage_mins, app_usage_mins)
+		VALUES ($1, $2, $3, $4, 5, '{"code-server": 5, "8080": 5, "8443s": 5, "0080": 5, "99999": 5}')`,
+		start, start.Add(30*time.Minute), ws.Workspace.TemplateID, user.ID)
+	require.NoError(t, err)
+
+	rows, err := db.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		StartTime: start,
+		EndTime:   start.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.Slug)
+	}
+	// 99999 does not fit in a port, so it is an app.
+	require.ElementsMatch(t, []string{"code-server", "99999"}, got)
+}
