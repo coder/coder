@@ -1202,6 +1202,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/pin": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Pin chat project",
+                "operationId": "pin-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pin chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PinChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unpin chat project",
+                "operationId": "unpin-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chats/projects/{project}/skills": {
             "get": {
                 "produces": [
@@ -3372,6 +3461,12 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Only chats in this project.",
                         "name": "project_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Leave out the caller's own unpinned chats in projects the caller can use. Project pins do not change the result.",
+                        "name": "exclude_own_project_chats",
                         "in": "query"
                     }
                 ],
@@ -30322,6 +30417,15 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "$ref": "#/definitions/codersdk.RBACResource"
+                }
+            }
+        },
+        "codersdk.PinChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "pin_order": {
+                    "description": "PinOrder is the 1-based position to pin at. When omitted, a new pin\ngoes to the end and an existing pin keeps its position.",
+                    "type": "integer"
                 }
             }
         },

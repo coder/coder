@@ -396,6 +396,12 @@ CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
 );
 
+CREATE TYPE chat_project_pin_source AS ENUM (
+    'migration',
+    'default',
+    'user'
+);
+
 CREATE TYPE chat_reasoning_effort AS ENUM (
     'none',
     'minimal',
@@ -2358,6 +2364,17 @@ CREATE TABLE chat_project_memories (
 );
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
+
+CREATE TABLE chat_project_pins (
+    user_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    pin_order integer NOT NULL,
+    source chat_project_pin_source NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_pins_pin_order_check CHECK ((pin_order > 0))
+);
+
+COMMENT ON TABLE chat_project_pins IS 'Per-user pinned chat projects. Pins can outlive project access, so readers must check access.';
 
 CREATE TABLE chat_project_templates (
     project_id uuid NOT NULL,
@@ -4749,6 +4766,9 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_pkey PRIMARY KEY (user_id, project_id);
+
 ALTER TABLE ONLY chat_project_templates
     ADD CONSTRAINT chat_project_templates_pkey PRIMARY KEY (project_id, template_id);
 
@@ -5257,6 +5277,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
+CREATE INDEX idx_chat_project_pins_user_order ON chat_project_pins USING btree (user_id, pin_order);
+
 CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
@@ -5706,6 +5728,12 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_project_templates
     ADD CONSTRAINT chat_project_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;

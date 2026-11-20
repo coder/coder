@@ -462,6 +462,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param project_id query string false "Only chats in this project." format(uuid)
+// @Param exclude_own_project_chats query bool false "Leave out the caller's own unpinned chats in projects the caller can use. Project pins do not change the result."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -536,6 +537,16 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
 	}
 
+	parser := httpapi.NewQueryParamParser()
+	excludeOwnProjectChats := parser.Boolean(r.URL.Query(), false, "exclude_own_project_chats")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
 		ViewerID:            apiKey.UserID,
@@ -555,6 +566,10 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
 		ProjectID:           projectID,
+		// ExcludeOwnProjectChats counts project grants only while RBAC
+		// honors them.
+		ACLEnabled:             !api.chatSharingDisabled(),
+		ExcludeOwnProjectChats: sql.NullBool{Bool: excludeOwnProjectChats, Valid: excludeOwnProjectChats},
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

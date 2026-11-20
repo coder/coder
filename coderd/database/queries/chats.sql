@@ -619,6 +619,7 @@ ORDER BY
 -- name: GetChats :many
 WITH cursor_chat AS (
     SELECT
+        owner_id,
         pin_order,
         updated_at,
         id
@@ -657,16 +658,59 @@ WHERE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
     END
+    -- Leaves out the viewer's own unpinned chats in projects the viewer can
+    -- use, which clients list per project with project_id. Project pins do
+    -- not change the result. Filtering here, not after the query, keeps
+    -- cursor pages full.
+    AND CASE
+        WHEN sqlc.narg('exclude_own_project_chats')::boolean THEN (
+            chats_expanded.project_id IS NULL
+            OR chats_expanded.owner_id != @viewer_id::uuid
+            OR chats_expanded.pin_order > 0
+            -- A chat in a project the viewer can no longer use stays
+            -- listed: the project is missing from the viewer's projects, so
+            -- no project list reaches the chat. Same access predicate as
+            -- PinChatProject.
+            OR NOT EXISTS (
+                SELECT 1
+                FROM chat_projects cp
+                WHERE cp.id = chats_expanded.project_id
+                    AND (
+                        cp.owner_id = @viewer_id::uuid
+                        OR (
+                            @acl_enabled::boolean
+                            AND (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                                SELECT group_id::text FROM group_members WHERE user_id = @viewer_id::uuid
+                                UNION ALL
+                                SELECT organization_id::text FROM organization_members WHERE user_id = @viewer_id::uuid
+                            ))
+                            AND EXISTS (
+                                SELECT 1 FROM organization_members
+                                WHERE organization_members.user_id = @viewer_id::uuid
+                                    AND organization_members.organization_id = cp.organization_id
+                            )
+                        )
+                    )
+            )
+        )
+        ELSE true
+    END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
-        -- which lets us use a single tuple < comparison.
+        -- which lets us use a single tuple < comparison. Like the ORDER BY,
+        -- it counts a pin only on the viewer's own chats.
         WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
+            (
+                CASE WHEN chats_expanded.owner_id = @viewer_id::uuid AND chats_expanded.pin_order > 0 THEN 1 ELSE 0 END,
+                CASE WHEN chats_expanded.owner_id = @viewer_id::uuid THEN -chats_expanded.pin_order ELSE 0 END,
+                chats_expanded.updated_at,
+                chats_expanded.id
+            ) < (
                 SELECT
-                    CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
-                    -cursor_chat.pin_order,
+                    CASE WHEN cursor_chat.owner_id = @viewer_id::uuid AND cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
+                    CASE WHEN cursor_chat.owner_id = @viewer_id::uuid THEN -cursor_chat.pin_order ELSE 0 END,
                     cursor_chat.updated_at,
                     cursor_chat.id
                 FROM
@@ -840,9 +884,10 @@ ORDER BY
     -- Pinned chats (pin_order > 0) sort before unpinned ones. Within
     -- pinned chats, lower pin_order values come first. The negation
     -- trick (-pin_order) keeps all sort columns DESC so the cursor
-    -- tuple < comparison works with uniform direction.
-    CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END DESC,
-    -chats_expanded.pin_order DESC,
+    -- tuple < comparison works with uniform direction. A pin belongs to
+    -- the chat's owner, so another user's pinned chat sorts as unpinned.
+    CASE WHEN chats_expanded.owner_id = @viewer_id::uuid AND chats_expanded.pin_order > 0 THEN 1 ELSE 0 END DESC,
+    CASE WHEN chats_expanded.owner_id = @viewer_id::uuid THEN -chats_expanded.pin_order ELSE 0 END DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
 OFFSET @offset_opt

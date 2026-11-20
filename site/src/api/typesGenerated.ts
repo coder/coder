@@ -6952,6 +6952,13 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * ExcludeOwnProjectChats leaves out the caller's own unpinned chats in
+	 * projects the caller can use. List those with ProjectID. Chats shared
+	 * with the caller and chats in projects the caller can no longer use are
+	 * still included.
+	 */
+	readonly ExcludeOwnProjectChats: boolean;
 }
 
 // From codersdk/inboxnotification.go
@@ -8896,6 +8903,19 @@ export interface Permission {
 	readonly negate: boolean;
 	readonly resource_type: RBACResource;
 	readonly action: RBACAction;
+}
+
+// From codersdk/chats.go
+/**
+ * PinChatProjectRequest pins a chat project for the caller, or moves an
+ * already pinned project.
+ */
+export interface PinChatProjectRequest {
+	/**
+	 * PinOrder is the 1-based position to pin at. When omitted, a new pin
+	 * goes to the end and an existing pin keeps its position.
+	 */
+	readonly pin_order?: number;
 }
 
 // From codersdk/oauth2.go
