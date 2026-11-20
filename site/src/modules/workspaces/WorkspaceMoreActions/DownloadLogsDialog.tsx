@@ -175,9 +175,10 @@ const DownloadingItem: React.FC<DownloadingItemProps> = ({
 	file,
 	giveUpTimeMs,
 }) => {
-	const [hasGivenUp, setHasGivenUp] = useState(false);
-	const isWaiting =
-		!hasGivenUp || giveUpTimeMs === undefined || file.blob !== undefined;
+	const [isWaiting, setIsWaiting] = useState(true);
+	if (!isWaiting && (giveUpTimeMs === undefined || file.blob !== undefined)) {
+		setIsWaiting(true);
+	}
 
 	useEffect(() => {
 		if (giveUpTimeMs === undefined || file.blob !== undefined) {
@@ -185,7 +186,7 @@ const DownloadingItem: React.FC<DownloadingItemProps> = ({
 		}
 
 		const timeoutId = window.setTimeout(
-			() => setHasGivenUp(true),
+			() => setIsWaiting(false),
 			giveUpTimeMs,
 		);
 
