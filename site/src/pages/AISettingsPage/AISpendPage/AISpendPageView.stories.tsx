@@ -75,6 +75,7 @@ const meta = {
 		hasRunReport: false,
 		isReportOutdated: false,
 		onRunReport: fn(),
+		onCancelReport: fn(),
 		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,

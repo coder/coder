@@ -1,4 +1,4 @@
-import { DownloadIcon, PlayIcon } from "lucide-react";
+import { DownloadIcon, PlayIcon, XIcon } from "lucide-react";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -24,6 +24,7 @@ type DetailedReportTabProps = {
 	/** The days or filter changed since the report last ran. */
 	isReportOutdated: boolean;
 	onRunReport: () => void;
+	onCancelReport: () => void;
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
@@ -38,7 +39,12 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	hasRunReport,
 	isReportOutdated,
 	onRunReport,
+	onCancelReport,
 }) => {
+	const isReportRunning = hasRunReport && reportQuery.isFetching;
+	const runReportVariant =
+		!hasRunReport || isReportOutdated ? "default" : "outline";
+
 	return (
 		<div className="flex flex-col gap-6">
 			<section className="flex flex-col gap-2">
@@ -59,13 +65,17 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 					/>
 				)}
 				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
-				<Button
-					variant={!hasRunReport || isReportOutdated ? "default" : "outline"}
-					onClick={onRunReport}
-				>
-					<PlayIcon aria-hidden />
-					Run report
-				</Button>
+				{isReportRunning ? (
+					<Button variant="outline" onClick={onCancelReport}>
+						<XIcon aria-hidden />
+						Cancel
+					</Button>
+				) : (
+					<Button variant={runReportVariant} onClick={onRunReport}>
+						<PlayIcon aria-hidden />
+						Run report
+					</Button>
+				)}
 				{/* TODO(AIGOV-731): export the report once it has run. */}
 				<Button variant="outline" disabled className="sm:ml-auto">
 					<DownloadIcon aria-hidden />
