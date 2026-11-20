@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useEffect, useRef, useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
-import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatProject } from "#/api/typesGenerated";
 import {
@@ -11,18 +11,14 @@ import {
 	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockOrganization2,
-	MockUserMember,
-	MockUserOwner,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { hasHighlightComposerState } from "../../../utils/composerHighlight";
 import { buildAgentProjectPath } from "../../../utils/navigation";
-import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
-	readonly currentUserId?: string;
 	readonly route?: string;
 	readonly withComposer?: boolean;
 };
@@ -47,14 +43,12 @@ const projectFoldersElement = (
 	projects: readonly ChatProject[],
 	{
 		error,
-		currentUserId = MockUserOwner.id,
 		route = "/agents",
 		withComposer = false,
 	}: ProjectFoldersOptions = {},
 ) => (
 	<MemoryRouter initialEntries={[route]}>
 		<ProjectFolders
-			currentUserId={currentUserId}
 			pinnedProjects={projects.map((project) => ({
 				...MockChatProjectSummary,
 				project,
@@ -65,12 +59,11 @@ const projectFoldersElement = (
 			chatListInput={{}}
 			expandedProjectIds={{}}
 			onToggle={vi.fn()}
-			onOpenProjectDialog={vi.fn()}
+			onEdit={vi.fn()}
 			onDelete={vi.fn()}
 			emptyMessage="No chats yet"
 			isLoading={false}
 			error={error}
-			isLoadError={false}
 			onRetry={vi.fn()}
 		/>
 		{withComposer && <ComposerStandIn />}
@@ -90,13 +83,7 @@ const QueryWrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
-
 describe("ProjectFolders", () => {
-	beforeEach(() => {
-		localStorage.clear();
-	});
-
 	it("keeps cached folders usable when a refetch fails", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();
@@ -105,7 +92,6 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
-					currentUserId={MockUserOwner.id}
 					pinnedProjects={[MockChatProjectSummary]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
@@ -113,12 +99,11 @@ describe("ProjectFolders", () => {
 					chatListInput={{}}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
-					onOpenProjectDialog={vi.fn()}
+					onEdit={vi.fn()}
 					onDelete={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
-					isLoadError={false}
 					onRetry={onRetry}
 				/>
 			</MemoryRouter>,
@@ -132,23 +117,6 @@ describe("ProjectFolders", () => {
 
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps focus on the empty state's button when a refetch fails", async () => {
-		const user = userEvent.setup();
-		const { rerender } = renderProjectFolders([]);
-
-		await user.tab();
-		await user.tab();
-		const newProjectButton = screen.getByRole("button", {
-			name: "New project",
-		});
-		expect(newProjectButton).toHaveFocus();
-
-		rerender(
-			projectFoldersElement([], { error: new Error("Projects unavailable") }),
-		);
-		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
 	it("leaves focus in the composer after New chat on the project's page", async () => {
@@ -206,53 +174,6 @@ describe("ProjectFolders", () => {
 		);
 	});
 
-	it("collapses and expands the whole Projects section", async () => {
-		const user = userEvent.setup();
-		renderProjectFolders([MockChatProject]);
-
-		const sectionToggle = screen.getByRole("button", { name: "Projects" });
-		await user.click(sectionToggle);
-		expect(sectionToggle).toHaveAttribute("aria-expanded", "false");
-		expect(
-			screen.queryByRole("link", { name: MockChatProject.name }),
-		).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
-
-		await user.click(sectionToggle);
-		expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
-		expect(
-			screen.getByRole("link", { name: MockChatProject.name }),
-		).toBeVisible();
-	});
-
-	it("remembers the Projects section collapse state across mounts", async () => {
-		const user = userEvent.setup();
-		const firstMount = renderProjectFolders([]);
-
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(collapsedKey)).toBe("true");
-		firstMount.unmount();
-
-		renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(collapsedKey)).toBeNull();
-	});
-
-	it("keeps the saved collapse state separate per user", async () => {
-		const user = userEvent.setup();
-		const firstMount = renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		firstMount.unmount();
-
-		renderProjectFolders([], { currentUserId: MockUserMember.id });
-		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(
-			localStorage.getItem(
-				projectsSectionCollapsedStorageKey(MockUserMember.id),
-			),
-		).toBe("true");
-	});
-
 	it("names same-named projects by their organization", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();
@@ -265,7 +186,6 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
-					currentUserId={MockUserOwner.id}
 					pinnedProjects={[
 						MockChatProjectSummary,
 						{ ...MockChatProjectSummary, project: otherProject },
@@ -276,12 +196,11 @@ describe("ProjectFolders", () => {
 					chatListInput={{}}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
-					onOpenProjectDialog={vi.fn()}
+					onEdit={vi.fn()}
 					onDelete={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
 					error={undefined}
-					isLoadError={false}
 					onRetry={vi.fn()}
 				/>
 			</MemoryRouter>,
