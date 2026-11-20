@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useOutletContext } from "react-router";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
@@ -241,30 +241,27 @@ export const RightPanel = ({
 }: RightPanelProps) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [preferredWidth, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
-	// Clamp width when the viewport or parent panel shrinks so the
-	// persisted width matches the rendered side-by-side panel width.
-	useEffect(() => {
-		const handleResize = () => {
-			setWidth((prev) =>
-				Math.min(prev, getSideBySideMaxWidth(panelRef.current)),
-			);
-		};
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- width is user-dragged local state, not an external store snapshot.
-		handleResize();
-		const parent = panelRef.current?.parentElement;
-		const resizeObserver = new ResizeObserver(handleResize);
-		if (parent) {
-			resizeObserver.observe(parent);
-		}
-		window.addEventListener("resize", handleResize);
-		return () => {
-			resizeObserver.disconnect();
-			window.removeEventListener("resize", handleResize);
-		};
-	}, []);
+	// The side-by-side limit follows the viewport and the parent panel, so
+	// clamp to it at render time and keep the width the user dragged.
+	const maxWidth = useSyncExternalStore(
+		(onChange) => {
+			const resizeObserver = new ResizeObserver(onChange);
+			const parent = panelRef.current?.parentElement;
+			if (parent) {
+				resizeObserver.observe(parent);
+			}
+			window.addEventListener("resize", onChange);
+			return () => {
+				resizeObserver.disconnect();
+				window.removeEventListener("resize", onChange);
+			};
+		},
+		() => getSideBySideMaxWidth(panelRef.current),
+	);
+	const width = Math.min(preferredWidth, maxWidth);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
@@ -300,8 +297,8 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
-	}, [width]);
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(preferredWidth));
+	}, [preferredWidth]);
 
 	useEffect(() => {
 		if (

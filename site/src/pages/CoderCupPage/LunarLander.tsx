@@ -1,4 +1,10 @@
-import { useEffect, useId, useRef, useState } from "react";
+import {
+	useEffect,
+	useId,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { Button } from "#/components/Button/Button";
 import { ROSTER, type RosterEntry } from "./roster";
 
@@ -2047,6 +2053,29 @@ function drawRewindLabel(ctx: CanvasRenderingContext2D) {
 	ctx.restore();
 }
 
+/**
+ * Holds the game loop's rewind flag so React can read it with
+ * useSyncExternalStore while the loop runs outside React renders.
+ */
+function createRewindingStore() {
+	let rewinding = false;
+	const listeners = new Set<() => void>();
+	return {
+		get: () => rewinding,
+		set: (next: boolean) => {
+			if (next === rewinding) return;
+			rewinding = next;
+			for (const listener of listeners) listener();
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
+	};
+}
+
 export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -2056,7 +2085,11 @@ export const LunarLander: React.FC = () => {
 	const [chosenLimits, setLimits] = useState<LandingLimits | null>(null);
 	const limitsRef = useRef<LandingLimits | null>(null);
 	// Drives the screen reader announcement; the loop owns the replay.
-	const [rewinding, setRewinding] = useState(false);
+	const [rewindingStore] = useState(createRewindingStore);
+	const rewinding = useSyncExternalStore(
+		rewindingStore.subscribe,
+		rewindingStore.get,
+	);
 	const selectDifficulty = (picked: LandingLimits) => {
 		limitsRef.current = picked;
 		setLimits(picked);
@@ -2240,12 +2273,12 @@ export const LunarLander: React.FC = () => {
 				cursor: gameTime,
 				target: Math.max(history[0].time, gameTime - REWIND_SECONDS),
 			};
-			setRewinding(true);
+			rewindingStore.set(true);
 		}
 
 		function endRewind() {
 			rewind = null;
-			setRewinding(false);
+			rewindingStore.set(false);
 		}
 
 		// Replay history backwards, dropping snapshots as it passes them,
@@ -2878,7 +2911,6 @@ export const LunarLander: React.FC = () => {
 		cvs.addEventListener("wheel", onWheel, { passive: false });
 		cvs.addEventListener("click", onClick);
 
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- resize() regenerates the terrain and ends any rewind, clearing the game-owned flag behind the aria-live region; no store snapshot is read.
 		resize();
 		frameId = requestAnimationFrame(loop);
 
@@ -2892,7 +2924,7 @@ export const LunarLander: React.FC = () => {
 			cvs.removeEventListener("wheel", onWheel);
 			cvs.removeEventListener("click", onClick);
 		};
-	}, []);
+	}, [rewindingStore]);
 
 	return (
 		<div ref={containerRef} className="relative size-full bg-black">
