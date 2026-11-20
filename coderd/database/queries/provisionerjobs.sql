@@ -157,7 +157,27 @@ ORDER BY
 	fj.created_at;
 
 -- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
-WITH pending_jobs AS (
+WITH filtered_jobs AS (
+	-- Apply the filters and the limit before the joins below, which are all
+	-- at most one row per job. The newest jobs of the organization are then
+	-- read from idx_provisioner_jobs_organization_id_created_at instead of
+	-- joining every job of the organization and sorting the result.
+	SELECT
+		provisioner_jobs.id
+	FROM
+		provisioner_jobs
+	WHERE
+		provisioner_jobs.organization_id = @organization_id::uuid
+		AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR provisioner_jobs.id = ANY(@ids::uuid[]))
+		AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR provisioner_jobs.job_status = ANY(@status::provisioner_job_status[]))
+		AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(provisioner_jobs.tags::tagset, @tags::tagset))
+		AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR provisioner_jobs.initiator_id = @initiator_id::uuid)
+	ORDER BY
+		provisioner_jobs.created_at DESC
+	LIMIT
+		sqlc.narg('limit')::int
+),
+pending_jobs AS (
     SELECT
         id, initiator_id, created_at
     FROM
@@ -212,7 +232,9 @@ SELECT
 	COALESCE(pd.name, '') AS worker_name,
 	wb.transition as workspace_build_transition
 FROM
-	provisioner_jobs pj
+	filtered_jobs fj
+INNER JOIN
+	provisioner_jobs pj ON pj.id = fj.id
 LEFT JOIN
 	queue_position qp ON qp.id = pj.id
 LEFT JOIN
@@ -238,29 +260,8 @@ LEFT JOIN
 LEFT JOIN
 	-- Join to get the daemon name corresponding to the job's worker_id
 	provisioner_daemons pd ON pd.id = pj.worker_id
-WHERE
-	pj.organization_id = @organization_id::uuid
-	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
-	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
-	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
-	AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
-GROUP BY
-	pj.id,
-	qp.queue_position,
-	qs.count,
-	tv.name,
-	t.id,
-	t.name,
-	t.display_name,
-	t.icon,
-	w.id,
-	w.name,
-	pd.name,
-	wb.transition
 ORDER BY
-	pj.created_at DESC
-LIMIT
-	sqlc.narg('limit')::int;
+	pj.created_at DESC;
 
 -- name: GetProvisionerJobsCreatedAfter :many
 SELECT * FROM provisioner_jobs WHERE created_at > $1;

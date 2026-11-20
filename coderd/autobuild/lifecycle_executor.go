@@ -208,7 +208,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	//  are done. Right now, this relies on luck for the 10 goroutine workers to
 	//  overlap and keep the file reference in the cache alive.
 	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForLifecycleActionRow) int {
-		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
+		return strings.Compare(a.BuildTemplateVersionID.String(), b.BuildTemplateVersionID.String())
 	})
 
 	// We only use errgroup here for convenience of API, not for early
