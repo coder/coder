@@ -9,6 +9,7 @@ import {
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendOverview,
+	MockUnpricedAIModels,
 	MockUserMember,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
@@ -43,13 +44,15 @@ function renderAISpendPage(search = "") {
 		MockOrganization,
 		MockOrganization2,
 	]);
-	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
-		[MockOrganization.id]: true,
-		[MockOrganization2.id]: true,
-	});
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
 	const overviewSpy = vi
 		.spyOn(API.experimental, "getOrganizationAISpendOverview")
 		.mockResolvedValue(MockOrganizationAISpendOverview);
+	const unpricedModelsSpy = vi
+		.spyOn(API.experimental, "getOrganizationUnpricedAIModels")
+		.mockResolvedValue(MockUnpricedAIModels);
 	const router = createMemoryRouter(
 		[{ path, element: <AISpendPage now={now} /> }],
 		{ initialEntries: [`${path}?${search}`] },
@@ -57,24 +60,26 @@ function renderAISpendPage(search = "") {
 	renderWithRouter(router);
 	const searchParam = (key: string) =>
 		new URLSearchParams(router.state.location.search).get(key);
-	return { overviewSpy, searchParam };
+	return { overviewSpy, unpricedModelsSpy, searchParam };
 }
 
 it("requests the last 7 days as UTC days when the URL has no dates", async () => {
-	const { overviewSpy, searchParam } = renderAISpendPage();
-	await waitFor(() =>
-		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-03-06T00:00:00.000Z",
-			period_end: "2026-03-13T00:00:00.000Z",
-		}),
-	);
+	const { overviewSpy, unpricedModelsSpy, searchParam } = renderAISpendPage();
+	const period = {
+		period_start: "2026-03-06T00:00:00.000Z",
+		period_end: "2026-03-13T00:00:00.000Z",
+	};
+	await waitFor(() => {
+		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+	});
 	expect(searchParam("startDate")).toBeNull();
 	expect(searchParam("endDate")).toBeNull();
 });
 
 it("writes a picked range to the URL as days and requests it", async () => {
 	const user = userEvent.setup();
-	const { overviewSpy, searchParam } = renderAISpendPage(
+	const { overviewSpy, unpricedModelsSpy, searchParam } = renderAISpendPage(
 		"startDate=2026-03-01&endDate=2026-03-03",
 	);
 	await waitFor(() =>
@@ -86,12 +91,14 @@ it("writes a picked range to the URL as days and requests it", async () => {
 
 	await user.click(screen.getByRole("button", { name: /Mar 1, 2026/ }));
 	await user.click(screen.getByRole("button", { name: "Last 14 days" }));
-	await waitFor(() =>
-		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-02-27T00:00:00.000Z",
-			period_end: "2026-03-13T00:00:00.000Z",
-		}),
-	);
+	const period = {
+		period_start: "2026-02-27T00:00:00.000Z",
+		period_end: "2026-03-13T00:00:00.000Z",
+	};
+	await waitFor(() => {
+		expect(overviewSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+	});
 	expect(searchParam("startDate")).toBe("2026-02-27");
 	expect(searchParam("endDate")).toBe("2026-03-12");
 });
@@ -117,7 +124,8 @@ it("requests the selected organization's spend", async () => {
 });
 
 it("requests no spend for an organization the viewer cannot see", async () => {
-	const { overviewSpy } = renderAISpendPage("org=missing");
+	const { overviewSpy, unpricedModelsSpy } = renderAISpendPage("org=missing");
 	await screen.findByRole("combobox", { name: "Organization" });
 	expect(overviewSpy).not.toHaveBeenCalled();
+	expect(unpricedModelsSpy).not.toHaveBeenCalled();
 });

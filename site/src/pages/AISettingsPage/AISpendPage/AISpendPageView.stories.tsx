@@ -3,6 +3,8 @@ import { fn, userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
+	MockOrganizationAISpendOverview,
+	MockUnpricedAIModels,
 	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
@@ -21,7 +23,10 @@ const meta = {
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
+		unpricedModels: MockUnpricedAIModels.models,
+		isUnpricedModelsLoading: false,
 	},
 } satisfies Meta<typeof AISpendPageView>;
 
@@ -32,6 +37,14 @@ export const Overview: Story = {};
 
 export const Mobile: Story = {
 	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const OverviewLoading: Story = {
+	args: {
+		overview: undefined,
+		unpricedModels: undefined,
+		isUnpricedModelsLoading: true,
+	},
 };
 
 export const SingleOrganization: Story = {
@@ -45,8 +58,18 @@ export const DatePickerOpen: Story = {
 	},
 };
 
+/** A failed refetch keeps the cached spend on screen. */
+export const OverviewRefetchError: Story = {
+	args: {
+		overviewError: mockApiQueryError({
+			message: "Unable to refresh AI spend.",
+		}),
+	},
+};
+
 export const OverviewError: Story = {
 	args: {
+		overview: undefined,
 		overviewError: mockApiQueryError({ message: "Unable to load AI spend." }),
 	},
 };

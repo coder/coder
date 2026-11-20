@@ -6017,6 +6017,32 @@ export const MockOrganizationAISpendOverview: TypesGen.OrganizationAISpendOvervi
 		],
 	};
 
+const MockUnpricedAIModel: TypesGen.UnpricedAIModel = {
+	provider_name: MockAIProviderAnthropic.name,
+	provider_display_name: MockAIProviderAnthropic.display_name,
+	provider_icon: MockAIProviderAnthropic.icon,
+	provider_type: MockAIProviderAnthropic.type,
+	model: "claude-opus-4-8",
+	token_count: 1_200_000,
+};
+
+export const MockUnpricedAIModels: TypesGen.UnpricedAIModels = {
+	period_start: "2026-03-06T00:00:00Z",
+	period_end: "2026-03-13T00:00:00Z",
+	count: 2,
+	models: [
+		MockUnpricedAIModel,
+		{
+			provider_name: MockAIProviderOpenAI.name,
+			provider_display_name: MockAIProviderOpenAI.display_name,
+			provider_icon: MockAIProviderOpenAI.icon,
+			provider_type: MockAIProviderOpenAI.type,
+			model: "gpt-4-turbo",
+			token_count: 300_000,
+		},
+	],
+};
+
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,

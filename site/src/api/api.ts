@@ -3685,6 +3685,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getOrganizationUnpricedAIModels = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+	): Promise<TypesGen.UnpricedAIModels> => {
+		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
+			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
+			{ params: period },
+		);
+		return response.data;
+	};
+
 	getAIModelPrices = async (filter: {
 		provider?: string;
 		model?: string;
