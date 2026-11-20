@@ -92,13 +92,17 @@ export const WorkspaceBuildLogSection: React.FC<
 	// first appear or when the build ID changes, not on every
 	// appended log entry.
 	const hasLogs = Boolean(logs && logs.length > 0);
-	const [timedOut, setTimedOut] = useState(false);
+	const [timedOutBuildId, setTimedOutBuildId] = useState<string>();
+	const timedOut =
+		effectiveBuildId !== undefined && timedOutBuildId === effectiveBuildId;
 	useEffect(() => {
-		setTimedOut(false);
 		if (!effectiveBuildId || hasLogs) {
 			return;
 		}
-		const timer = setTimeout(() => setTimedOut(true), LOG_LOAD_TIMEOUT_MS);
+		const timer = setTimeout(
+			() => setTimedOutBuildId(effectiveBuildId),
+			LOG_LOAD_TIMEOUT_MS,
+		);
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
