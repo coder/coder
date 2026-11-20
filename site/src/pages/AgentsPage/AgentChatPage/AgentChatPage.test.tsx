@@ -766,65 +766,38 @@ describe("AgentChatPage", () => {
 			return { user: userEvent.setup(), signIn };
 		};
 
-		it.each<{
-			name: string;
-			result: { title: string } & Record<string, unknown>;
-			tab: NewPreviewTab;
-		}>([
-			{
-				name: "port",
-				result: { ...MockOpenPreviewResult, url_path: "/docs?page=2" },
-				tab: {
-					kind: "preview",
-					label: MockOpenPreviewResult.title,
-					workspaceId: MockWorkspace.id,
-					agentName: MockWorkspaceAgent.name,
-					slug: MockOpenPreviewResult.preview_slug,
-					urlPath: "/docs?page=2",
-				},
-			},
-			{
-				name: "file",
-				result: {
+		it("opens a result's tab from its row once", async () => {
+			const tab: NewPreviewTab = {
+				kind: "preview",
+				label: MockOpenPreviewResult.title,
+				workspaceId: MockWorkspace.id,
+				agentName: MockWorkspaceAgent.name,
+				slug: MockOpenPreviewResult.preview_slug,
+				urlPath: "/docs?page=2",
+			};
+			const page = renderPreviewChat({
+				messages: previewExchange(10, {
 					...MockOpenPreviewResult,
-					kind: "file",
-					port: undefined,
-					preview_slug: "preview--0123abcd",
-					url_path: "/?page=2",
-				},
-				tab: {
-					kind: "preview",
-					label: MockOpenPreviewResult.title,
-					workspaceId: MockWorkspace.id,
-					agentName: MockWorkspaceAgent.name,
-					slug: "preview--0123abcd",
-					urlPath: "/?page=2",
-				},
-			},
-		])(
-			"opens a $name result's tab from its row once",
-			async ({ result, tab }) => {
-				const page = renderPreviewChat({
-					messages: previewExchange(10, result),
-				});
-				const openButton = await screen.findByRole("button", {
-					name: "Open preview",
-				});
+					url_path: "/docs?page=2",
+				}),
+			});
+			const openButton = await screen.findByRole("button", {
+				name: "Open preview",
+			});
 
-				await page.user.click(openButton);
-				await page.user.click(openButton);
+			await page.user.click(openButton);
+			await page.user.click(openButton);
 
-				await waitFor(() =>
-					expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
-						expect.objectContaining(tab),
-					]),
-				);
-				expect(getPersistedSidebarTabId(mockPreviewChat.id)).toBe(
-					getPersistedRightPanelTabs(mockPreviewChat.id)[0]?.id,
-				);
-				expect(screen.getByRole("tab", { name: tab.label })).toHaveFocus();
-			},
-		);
+			await waitFor(() =>
+				expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([
+					expect.objectContaining(tab),
+				]),
+			);
+			expect(getPersistedSidebarTabId(mockPreviewChat.id)).toBe(
+				getPersistedRightPanelTabs(mockPreviewChat.id)[0]?.id,
+			);
+			expect(screen.getByRole("tab", { name: tab.label })).toHaveFocus();
+		});
 
 		it("opens the same preview at another URL path in its own tab", async () => {
 			const page = renderPreviewChat({

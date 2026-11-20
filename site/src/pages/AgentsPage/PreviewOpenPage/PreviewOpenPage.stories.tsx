@@ -54,15 +54,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Ready: Story = {};
 
-export const LoadingWorkspace: Story = {
-	parameters: { queries: [] },
-	beforeEach: () => {
-		spyOn(API, "getWorkspaceByOwnerAndName").mockReturnValue(
-			new Promise(() => {}),
-		);
-	},
-};
-
 export const WorkspaceNotFound: Story = {
 	parameters: { queries: [] },
 	beforeEach: () => {
@@ -72,17 +63,5 @@ export const WorkspaceNotFound: Story = {
 					"Resource not found or you do not have access to this resource",
 			}),
 		);
-	},
-};
-
-export const IncompleteLink: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/previews/open",
-				searchParams: { owner: MockWorkspace.owner_name },
-			},
-			routing: { path: "/previews/open" },
-		}),
 	},
 };

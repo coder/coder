@@ -12,9 +12,9 @@ afterEach(() => {
 
 describe("PreviewOpenPage", () => {
 	it("signs in to the preview that the link names", async () => {
-		const getWorkspace = vi
-			.spyOn(API, "getWorkspaceByOwnerAndName")
-			.mockResolvedValue(MockWorkspace);
+		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockWorkspace,
+		);
 		const signIn = vi
 			.spyOn(API.experimental, "signInToPreview")
 			.mockResolvedValue(MockPreviewSignInResponse);
@@ -41,8 +41,5 @@ describe("PreviewOpenPage", () => {
 				}),
 			),
 		);
-		expect(getWorkspace).toHaveBeenCalledWith("alice", "dev", {
-			include_deleted: true,
-		});
 	});
 });

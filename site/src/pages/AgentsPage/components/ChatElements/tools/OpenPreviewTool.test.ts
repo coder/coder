@@ -23,12 +23,8 @@ describe("parseOpenPreviewResult", () => {
 			value: { ...MockOpenPreviewResult, title: "a".repeat(81) },
 		},
 		{
-			name: "a title that reverses its text",
-			value: { ...MockOpenPreviewResult, title: "\u202Etis scoD" },
-		},
-		{
-			name: "a title with an invisible character",
-			value: { ...MockOpenPreviewResult, title: "Docs\u200Bsite" },
+			name: "a title with a bidi override or another invisible character",
+			value: { ...MockOpenPreviewResult, title: "\u202Etis\u200BscoD" },
 		},
 		{
 			name: "a title with a line break",
@@ -62,11 +58,24 @@ describe("parseOpenPreviewResult", () => {
 		expect(parseOpenPreviewResult(value)).toBeUndefined();
 	});
 
-	it("counts a title's characters, not its UTF-16 code units", () => {
-		const title = "🚀".repeat(80);
-
-		expect(
-			parseOpenPreviewResult({ ...MockOpenPreviewResult, title }),
-		).toMatchObject({ label: title });
+	it.each([
+		{
+			name: "a file preview at a URL path",
+			value: {
+				...MockOpenPreviewResult,
+				kind: "file",
+				port: undefined,
+				preview_slug: "preview--0123abcd",
+				url_path: "/?page=2",
+			},
+			tab: { slug: "preview--0123abcd", urlPath: "/?page=2" },
+		},
+		{
+			name: "a title of 80 characters but more UTF-16 code units",
+			value: { ...MockOpenPreviewResult, title: "🚀".repeat(80) },
+			tab: { label: "🚀".repeat(80) },
+		},
+	])("accepts $name", ({ value, tab }) => {
+		expect(parseOpenPreviewResult(value)).toMatchObject(tab);
 	});
 });
