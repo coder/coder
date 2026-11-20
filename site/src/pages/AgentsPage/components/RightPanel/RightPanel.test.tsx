@@ -310,3 +310,25 @@ describe("RightPanel resize drag", () => {
 		});
 	});
 });
+
+describe("RightPanel viewport resize", () => {
+	it("keeps the dragged width when the viewport narrows", () => {
+		renderHarness();
+		pointerDown();
+		pointerMove(NORMAL_ZONE_X);
+		pointerUp(NORMAL_ZONE_X);
+
+		vi.stubGlobal("innerWidth", 600);
+		fireEvent(window, new Event("resize"));
+
+		expect(persistedWidth()).toBe("600");
+	});
+
+	it("keeps a stored width wider than the current viewport allows", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, "900");
+
+		renderHarness();
+
+		expect(persistedWidth()).toBe("900");
+	});
+});

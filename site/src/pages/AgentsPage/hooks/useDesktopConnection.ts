@@ -146,6 +146,7 @@ export function useDesktopConnection({
 	useEffect(() => {
 		let visibilityObserver: ResizeObserver | null = null;
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- This effect owns the VNC connection; clipboard text is scoped to it, not read from a store.
 		setRemoteClipboardText(null);
 
 		let clipboardKeyListener: ((event: KeyboardEvent) => void) | null = null;
@@ -508,6 +509,7 @@ export function useDesktopConnection({
 		};
 
 		if (activated) {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- doConnect creates the RFB connection that setRfbInstance exposes; there is no snapshot to read.
 			doConnect();
 		}
 

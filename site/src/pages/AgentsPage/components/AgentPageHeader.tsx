@@ -9,7 +9,7 @@ import {
 	Volume2Icon,
 	VolumeOffIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
 	Link,
 	NavLink,
@@ -29,6 +29,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
@@ -63,30 +64,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	const internalWebPush = useWebpushNotifications();
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;
-	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-		return window.matchMedia("(min-width: 640px)").matches;
-	});
-
-	useEffect(() => {
-		const mediaQuery = window.matchMedia("(min-width: 640px)");
-		const onMediaChange = (event: MediaQueryListEvent) => {
-			setIsDesktop(event.matches);
-		};
-
-		setIsDesktop(mediaQuery.matches);
-		if (typeof mediaQuery.addEventListener === "function") {
-			mediaQuery.addEventListener("change", onMediaChange);
-		} else {
-			mediaQuery.addListener(onMediaChange);
-		}
-		return () => {
-			if (typeof mediaQuery.removeEventListener === "function") {
-				mediaQuery.removeEventListener("change", onMediaChange);
-			} else {
-				mediaQuery.removeListener(onMediaChange);
-			}
-		};
-	}, []);
+	const isDesktop = useMediaQuery("(min-width: 640px)");
 
 	const handleChimeToggle = () => {
 		if (onToggleChime) {
