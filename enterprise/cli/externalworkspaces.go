@@ -58,7 +58,7 @@ func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 			return nil
 		},
 		AfterCreate: func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error {
-			workspace, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
+			workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 			if err != nil {
 				return xerrors.Errorf("get workspace by name: %w", err)
 			}

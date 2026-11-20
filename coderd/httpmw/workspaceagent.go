@@ -128,7 +128,10 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				})
 				return
 			}
-			if userStatus != database.UserStatusActive {
+			// Dormant owners have only been inactive, not locked out, and users
+			// created through the API stay dormant until they first log in. Their
+			// agents must still connect, so only reject other statuses.
+			if userStatus != database.UserStatusActive && userStatus != database.UserStatusDormant {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", userStatus),
 				})
