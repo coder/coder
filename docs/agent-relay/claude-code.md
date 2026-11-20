@@ -284,6 +284,20 @@ Claude Code doesn't show it to the developer yet.
 
 Confirm that Anthropic and Coder emails match before you onboard users, especially when your identity provider uses a different primary address.
 
+## Keep sessions on self-hosted environments
+
+Agent Relay only serves sessions that a developer sends to a self-hosted environment.
+Anthropic offers settings that keep sessions on self-hosted environments, but none of them covers every Claude Code surface:
+
+- **Cloud sessions:** An Owner can hide Anthropic-hosted environments for the whole organization on the [Cloud environments](https://claude.ai/admin-settings/cloud-environments) admin page.
+  Self-hosted environments are then the only choices in the environment picker.
+- **Claude Desktop:** Set `disableDesktopLocalSessions` to `true` in managed settings to turn off Code sessions on the developer's computer.
+  This requires Claude Desktop v1.37937.0 or later.
+  SSH sessions stay available unless you also set `sshHostAllowlist` to an empty array.
+- **Claude Code CLI:** The CLI ignores `disableDesktopLocalSessions`, so developers can still run Claude Code on their own computers.
+
+Refer to Anthropic's [Deploy self-hosted environments to production](https://code.claude.com/docs/en/self-hosted-environments-deploy) and [Turn off local sessions and distribute SSH connections](https://code.claude.com/docs/en/desktop#turn-off-local-sessions-and-distribute-ssh-connections) for details.
+
 ## Source control
 
 Source control for a session has two independent sides, and you must configure both:
