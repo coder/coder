@@ -19,7 +19,6 @@ import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import { formatKiB } from "#/utils/fileSize";
 import {
 	countCharacters,
@@ -36,6 +35,7 @@ import {
 	type SkillFormValues,
 	tryParseSkillMarkdown,
 } from "../utils/skills";
+import { SettingSwitch } from "./SettingSwitch";
 
 export type SkillErrorDisplay = {
 	message: string;
@@ -596,7 +596,7 @@ export const SkillEditorProjectSettings: React.FC = () => {
 	const { form, readOnly, isBusy } = useSkillEditorContext();
 	return (
 		<>
-			<SkillSettingSwitch
+			<SettingSwitch
 				label="Show as action"
 				description="Adds a button above the composer in this project's chats that inserts the skill."
 				checked={form.values.action ?? false}
@@ -606,7 +606,7 @@ export const SkillEditorProjectSettings: React.FC = () => {
 				}
 			/>
 			{form.values.action && <SkillEditorDisplayNameField />}
-			<SkillSettingSwitch
+			<SettingSwitch
 				label="Agents can use it automatically"
 				description="When off, agents use the skill only when someone invokes it."
 				checked={form.values.modelInvocable ?? true}
@@ -634,42 +634,6 @@ const SkillEditorDisplayNameField: React.FC = () => {
 			disabled={isBusy}
 			className={cn(readOnly && "bg-surface-secondary")}
 		/>
-	);
-};
-
-type SkillSettingSwitchProps = {
-	label: string;
-	description: string;
-	checked: boolean;
-	disabled: boolean;
-	onCheckedChange: (checked: boolean) => void;
-};
-
-const SkillSettingSwitch: React.FC<SkillSettingSwitchProps> = ({
-	label,
-	description,
-	checked,
-	disabled,
-	onCheckedChange,
-}) => {
-	const switchId = useId();
-	const descriptionId = useId();
-	return (
-		<div className="flex items-start justify-between gap-4">
-			<div className="flex flex-col gap-1">
-				<Label htmlFor={switchId}>{label}</Label>
-				<p id={descriptionId} className="m-0 text-xs text-content-secondary">
-					{description}
-				</p>
-			</div>
-			<Switch
-				id={switchId}
-				aria-describedby={descriptionId}
-				checked={checked}
-				disabled={disabled}
-				onCheckedChange={onCheckedChange}
-			/>
-		</div>
 	);
 };
 

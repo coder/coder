@@ -15,6 +15,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { sanitizePromptText } from "#/utils/invisibleUnicode";
+import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 
 type ProjectInstructionsDialogProps = {
 	readonly open: boolean;
@@ -140,40 +141,19 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 					autoFocus
 				/>
 				{hasConflict && (
-					<Alert
-						severity="warning"
-						actions={
-							<div className="flex gap-2">
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									disabled={isBusy}
-									onClick={() => setBaseInstructions(instructions)}
-								>
-									Keep my draft
-								</Button>
-								<Button
-									ref={loadLatestButtonRef}
-									type="button"
-									size="sm"
-									disabled={isBusy}
-									onClick={() => {
-										setBaseInstructions(instructions);
-										setDraft(instructions);
-										onResetErrors();
-									}}
-								>
-									Load latest
-								</Button>
-							</div>
-						}
+					<ProjectEditConflictAlert
+						disabled={isBusy}
+						loadLatestButtonRef={loadLatestButtonRef}
+						onKeepDraft={() => setBaseInstructions(instructions)}
+						onLoadLatest={() => {
+							setBaseInstructions(instructions);
+							setDraft(instructions);
+							onResetErrors();
+						}}
 					>
-						<AlertDescription>
-							Someone else changed these instructions while you were editing.
-							Load the latest version, or keep your draft to replace it.
-						</AlertDescription>
-					</Alert>
+						Someone else changed these instructions while you were editing. Load
+						the latest version, or keep your draft to replace it.
+					</ProjectEditConflictAlert>
 				)}
 				<InvisibleCharactersAlert text={draft} />
 				{Boolean(error) && (
