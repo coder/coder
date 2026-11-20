@@ -130,6 +130,24 @@ export const LimitWithoutTemplates: Story = {
 	args: { project: { ...MockChatProject, limit_templates: true } },
 };
 
+/**
+ * Templates the user cannot access are attached. Only their count shows, and
+ * the limit does not warn about having no templates.
+ */
+export const HiddenTemplates: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			limit_templates: true,
+			hidden_template_count: 2,
+		},
+	},
+};
+
+export const OneHiddenTemplate: Story = {
+	args: { project: { ...MockChatProject, hidden_template_count: 1 } },
+};
+
 export const Loading: Story = {
 	parameters: { queries: [] },
 	beforeEach: () => {

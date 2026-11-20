@@ -3338,6 +3338,26 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	attachChatProjectTemplate = async (
+		organizationId: string,
+		projectId: string,
+		templateId: string,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/templates/${templateId}`,
+		);
+	};
+
+	detachChatProjectTemplate = async (
+		organizationId: string,
+		projectId: string,
+		templateId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/templates/${templateId}`,
+		);
+	};
+
 	deleteChatProject = async (
 		organizationId: string,
 		projectId: string,
