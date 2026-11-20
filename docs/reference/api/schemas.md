@@ -14381,6 +14381,46 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `validation_monotonic` | string  | false    |              |                                         |
 | `validation_regex`     | string  | false    |              | All validation attributes are optional. |
 
+## codersdk.PreviewSignInRequest
+
+```json
+{
+  "agent_name": "string",
+  "preview_slug": "string",
+  "region_id": "b85c353a-cf17-4085-995a-928552ce32d0",
+  "url_path": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                                             |
+|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `agent_name`   | string | false    |              |                                                                                         |
+| `preview_slug` | string | false    |              | Preview slug is the preview's app slug, such as "preview--0123abcd" or "preview--8080". |
+| `region_id`    | string | false    |              | Region ID picks the primary or a workspace proxy. Empty picks the primary.              |
+| `url_path`     | string | false    |              | URL path is the path and query the preview opens at. Empty opens the root.              |
+| `workspace_id` | string | false    |              |                                                                                         |
+
+## codersdk.PreviewSignInResponse
+
+```json
+{
+  "origin": "string",
+  "sandbox": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                          |
+|-----------|--------|----------|--------------|----------------------------------------------------------------------|
+| `origin`  | string | false    |              | Origin is the preview's origin, the only one its wrapper may frame.  |
+| `sandbox` | string | false    |              | Sandbox is the iframe sandbox to frame the preview with.             |
+| `url`     | string | false    |              | URL is the preview URL with a one-minute sign-in token for its host. |
+
 ## codersdk.PrometheusConfig
 
 ```json

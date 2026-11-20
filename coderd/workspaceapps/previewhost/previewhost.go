@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"golang.org/x/xerrors"
 
@@ -17,7 +18,12 @@ import (
 )
 
 const (
+	// SignInParam carries the encrypted sign-in payload that the dashboard
+	// mints for one preview host.
+	SignInParam = "coder_preview_sign_in"
+
 	maxHostnameLabelLength = 63
+	maxURLPathLength       = 2048
 	strictSandbox          = "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
 )
 
@@ -96,12 +102,15 @@ func (h *Hosting) Parse(host string) (appurl.ApplicationURL, appurl.PreviewTarge
 
 // URL returns the URL of app's preview at urlPath, a path and query such as
 // "/docs/?page=2". It errors when the hostname label is longer than the DNS
-// limit of 63 characters.
+// limit of 63 characters or when CheckURLPath refuses urlPath.
 func (h *Hosting) URL(app appurl.ApplicationURL, urlPath string) (*url.URL, error) {
 	pattern, _, _ := strings.Cut(h.host, ".")
 	label := strings.Replace(pattern, "*", app.String(), 1)
 	if len(label) > maxHostnameLabelLength {
-		return nil, xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d", label, len(label), maxHostnameLabelLength)
+		return nil, xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d; a shorter workspace or agent name fixes it", label, len(label), maxHostnameLabelLength)
+	}
+	if err := CheckURLPath(urlPath); err != nil {
+		return nil, err
 	}
 	ref, err := url.Parse(urlPath)
 	if err != nil {
@@ -118,6 +127,23 @@ func (h *Hosting) URL(app appurl.ApplicationURL, urlPath string) (*url.URL, erro
 		u.Path = "/"
 	}
 	return u, nil
+}
+
+// CheckURLPath returns an error unless p is empty or a path and query that
+// stay on the preview's host: one leading slash, no backslash, fragment or
+// control character, and at most 2048 bytes.
+func CheckURLPath(p string) error {
+	if p == "" {
+		return nil
+	}
+	if len(p) > maxURLPathLength ||
+		!strings.HasPrefix(p, "/") ||
+		strings.HasPrefix(p, "//") ||
+		strings.ContainsAny(p, `\#`) ||
+		strings.ContainsFunc(p, unicode.IsControl) {
+		return xerrors.Errorf("url_path must start with a single /, contain only a path and query, have no backslashes, fragments or control characters, and be at most %d characters", maxURLPathLength)
+	}
+	return nil
 }
 
 // Wrap returns rw with h's policy applied to every response written through

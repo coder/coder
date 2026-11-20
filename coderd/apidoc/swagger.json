@@ -1931,6 +1931,42 @@
 				}
 			}
 		},
+		"/api/experimental/previews/sign-in": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Sign in to a workspace preview",
+				"operationId": "sign-in-to-a-workspace-preview",
+				"parameters": [
+					{
+						"description": "Preview sign-in request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.PreviewSignInRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.PreviewSignInResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/users/email": {
 			"put": {
 				"consumes": ["application/json"],
@@ -28200,6 +28236,48 @@
 				},
 				"validation_regex": {
 					"description": "All validation attributes are optional.",
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.PreviewSignInRequest": {
+			"type": "object",
+			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
+				"preview_slug": {
+					"description": "PreviewSlug is the preview's app slug, such as \"preview--0123abcd\" or\n\"preview--8080\".",
+					"type": "string"
+				},
+				"region_id": {
+					"description": "RegionID picks the primary or a workspace proxy. Empty picks the\nprimary.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"url_path": {
+					"description": "URLPath is the path and query the preview opens at. Empty opens the\nroot.",
+					"type": "string"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.PreviewSignInResponse": {
+			"type": "object",
+			"properties": {
+				"origin": {
+					"description": "Origin is the preview's origin, the only one its wrapper may frame.",
+					"type": "string"
+				},
+				"sandbox": {
+					"description": "Sandbox is the iframe sandbox to frame the preview with.",
+					"type": "string"
+				},
+				"url": {
+					"description": "URL is the preview URL with a one-minute sign-in token for its host.",
 					"type": "string"
 				}
 			}

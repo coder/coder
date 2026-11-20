@@ -5,10 +5,15 @@ import (
 	"net/url"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
 
@@ -54,6 +59,13 @@ func (s *Server) servePreview(rw http.ResponseWriter, r *http.Request, host stri
 		return
 	}
 
+	// The direct-open redirect above already answered page loads, so a
+	// sign-in never runs as the top-level document.
+	if r.URL.Query().Has(previewhost.SignInParam) {
+		s.signInPreview(rw, r, host)
+		return
+	}
+
 	token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
 		Cookies:             s.cookies,
@@ -82,6 +94,35 @@ func (s *Server) servePreview(rw http.ResponseWriter, r *http.Request, host stri
 	chi.Chain(middlewares...).HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 	}).ServeHTTP(rw, r)
+}
+
+// signInPreview trades the dashboard's sign-in payload for a session cookie
+// on this preview host only, then reloads the page without the payload.
+func (s *Server) signInPreview(rw http.ResponseWriter, r *http.Request, host string) {
+	ctx := r.Context()
+	var payload PreviewSignInPayload
+	err := jwtutils.Decrypt(ctx, s.APIKeyEncryptionKeycache, r.URL.Query().Get(previewhost.SignInParam), &payload)
+	if err == nil && !appurl.HostnamesMatch(payload.Host, host) {
+		err = xerrors.Errorf("payload is for host %q", payload.Host)
+	}
+	if err != nil {
+		s.Logger.Debug(ctx, "invalid preview sign-in", slog.Error(err))
+		writePreviewError(rw, r, s.DashboardURL, http.StatusBadRequest, "This preview sign-in is invalid or expired. Reopen the preview from Coder.")
+		return
+	}
+
+	// No Domain, so the cookie stays on this preview host.
+	http.SetCookie(rw, s.CookiesConfig.Apply(&http.Cookie{
+		Name:     codersdk.PreviewSessionTokenCookie,
+		Value:    payload.APIKey,
+		Path:     "/",
+		HttpOnly: true,
+	}))
+
+	redirectURL := originLocalURL(r.URL.Path)
+	redirectURL.RawQuery, _ = stripQueryParam(r.URL.RawQuery, previewhost.SignInParam)
+	rw.Header().Set("Referrer-Policy", "no-referrer")
+	http.Redirect(rw, r, redirectURL.String(), http.StatusSeeOther)
 }
 
 func writePreviewError(rw http.ResponseWriter, r *http.Request, dashboardURL *url.URL, status int, description string) {
