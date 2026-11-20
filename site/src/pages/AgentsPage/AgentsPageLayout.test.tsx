@@ -32,6 +32,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockChatProject,
 	MockChatProjectSummary,
+	MockUserMember,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
@@ -1128,8 +1129,19 @@ describe("AgentsPageLayout project chats", () => {
 				kind: "created",
 				chat: { ...MockChat, id: "unfiled-chat", project_id: undefined },
 			});
+			publishChatWatchEvent({
+				kind: "created",
+				chat: {
+					...MockChat,
+					id: "shared-project-chat",
+					owner_id: MockUserMember.id,
+					project_id: MockChatProject.id,
+				},
+			});
 
-			await waitFor(() => expect(listedIds()).toEqual(["unfiled-chat"]));
+			await waitFor(() =>
+				expect(listedIds()).toEqual(["shared-project-chat", "unfiled-chat"]),
+			);
 		},
 	);
 
