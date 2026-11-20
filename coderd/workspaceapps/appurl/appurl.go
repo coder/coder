@@ -180,10 +180,10 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		subdomain = prefixSegments[len(prefixSegments)-1]
 	}
 
-	if rest, ok := strings.CutPrefix(subdomain, previewSlugPrefix); ok {
+	if rest, ok := strings.CutPrefix(subdomain, PreviewSlugPrefix); ok {
 		matches := appURL.FindStringSubmatch(rest)
 		if matches != nil {
-			slug := previewSlugPrefix + matches[appURL.SubexpIndex("AppSlug")]
+			slug := PreviewSlugPrefix + matches[appURL.SubexpIndex("AppSlug")]
 			agentName := matches[appURL.SubexpIndex("AgentName")]
 			if _, ok := ParsePreviewSlug(slug); ok && agentName != "" {
 				return ApplicationURL{

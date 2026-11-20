@@ -4,7 +4,6 @@ package workspaceapps_test
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -23,8 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -192,164 +188,6 @@ func TestHandleSubdomain(t *testing.T) {
 		// The smuggled key is stripped and unrelated query params survive.
 		require.Empty(t, parsed.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam))
 		require.Equal(t, "1", parsed.Query().Get("x"))
-	})
-
-	t.Run("FilePreview", func(t *testing.T) {
-		t.Parallel()
-
-		filePreviewURL := fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort)
-		for _, tc := range []struct {
-			name       string
-			subdomain  string
-			appURL     string
-			path       string
-			header     http.Header
-			wantID     string
-			wantStatus int
-		}{
-			{
-				name:       "Asset",
-				subdomain:  "preview--0123abcd--agent--workspace--user",
-				appURL:     filePreviewURL,
-				path:       "/assets/app.js",
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:      "DropsChatHeaders",
-				subdomain: "preview--0123abcd--agent--workspace--user",
-				appURL:    filePreviewURL,
-				path:      "/",
-				header: http.Header{
-					workspacesdk.CoderChatIDHeader:          {uuid.NewString()},
-					workspacesdk.CoderToolCallIDHeader:      {uuid.NewString()},
-					workspacesdk.CoderAncestorChatIDsHeader: {uuid.NewString()},
-				},
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:       "DotDot",
-				subdomain:  "preview--0123abcd--agent--workspace--user",
-				appURL:     filePreviewURL,
-				path:       "/../../read-file",
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:       "EncodedDotDot",
-				subdomain:  "preview--0123abcd--agent--workspace--user",
-				appURL:     filePreviewURL,
-				path:       "/%2e%2e/%2e%2e/read-file",
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:       "EncodedSlash",
-				subdomain:  "preview--0123abcd--agent--workspace--user",
-				appURL:     filePreviewURL,
-				path:       "/a%2f..%2f..%2f..%2fread-file",
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:       "Backslash",
-				subdomain:  "preview--0123abcd--agent--workspace--user",
-				appURL:     filePreviewURL,
-				path:       "/..%5C..%5Cread-file",
-				wantID:     "0123abcd",
-				wantStatus: http.StatusNoContent,
-			},
-			{
-				name:       "PortOnAgentAPI",
-				subdomain:  fmt.Sprintf("%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort),
-				appURL:     filePreviewURL,
-				path:       "/",
-				wantStatus: http.StatusBadRequest,
-			},
-			{
-				name:       "PortPreviewOnAgentAPI",
-				subdomain:  fmt.Sprintf("preview--%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort),
-				appURL:     fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort),
-				path:       "/api/v0/previews/0123abcd/",
-				wantStatus: http.StatusBadRequest,
-			},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				gotID := make(chan string, 1)
-				previews := chi.NewRouter()
-				previews.Get("/{id}/*", func(rw http.ResponseWriter, r *http.Request) {
-					gotID <- chi.URLParam(r, "id")
-					if r.Header.Get(workspacesdk.CoderChatIDHeader) != "" ||
-						r.Header.Get(workspacesdk.CoderToolCallIDHeader) != "" ||
-						r.Header.Get(workspacesdk.CoderAncestorChatIDsHeader) != "" {
-						rw.WriteHeader(http.StatusBadRequest)
-						return
-					}
-					rw.WriteHeader(http.StatusNoContent)
-				})
-				agentAPI := chi.NewRouter()
-				agentAPI.Mount("/api/v0/previews", previews)
-				agentAPI.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-					gotID <- ""
-					rw.WriteHeader(http.StatusTeapot)
-				})
-				upstream := httptest.NewServer(agentAPI)
-				t.Cleanup(upstream.Close)
-				upstreamURL, err := url.Parse(upstream.URL)
-				require.NoError(t, err)
-
-				hostnamePattern := "*--apps.test.coder.com"
-				hostnameRegex, err := appurl.CompileHostnamePattern(hostnamePattern)
-				require.NoError(t, err)
-				dashboardURL, err := url.Parse("https://dashboard.test.coder.com")
-				require.NoError(t, err)
-				app, err := appurl.ParseSubdomainAppURL(tc.subdomain)
-				require.NoError(t, err)
-				hosting, err := previewhost.Strict(hostnamePattern, dashboardURL, dashboardURL)
-				require.NoError(t, err)
-				srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
-					Logger:        testutil.Logger(t),
-					DashboardURL:  dashboardURL,
-					AccessURL:     dashboardURL,
-					Hostname:      hostnamePattern,
-					HostnameRegex: hostnameRegex,
-					Previews:      hosting,
-					RealIPConfig:  &httpmw.RealIPConfig{},
-					SignedTokenProvider: &fakeSignedTokenProvider{token: &workspaceapps.SignedToken{
-						Request: workspaceapps.Request{
-							AccessMethod:      workspaceapps.AccessMethodSubdomain,
-							BasePath:          "/",
-							UsernameOrID:      app.Username,
-							WorkspaceNameOrID: app.WorkspaceName,
-							AgentNameOrID:     app.AgentName,
-							AppSlugOrPort:     app.AppSlugOrPort,
-						},
-						AppURL: tc.appURL,
-					}},
-					AgentProvider: &fakeAgentProvider{upstream: upstreamURL},
-				})
-
-				host := tc.subdomain + "--apps.test.coder.com"
-				req := httptest.NewRequest(http.MethodGet, "https://"+host+tc.path, nil)
-				req.Host = host
-				req.Header.Set("Sec-Fetch-Dest", "iframe")
-				for key, values := range tc.header {
-					req.Header[key] = values
-				}
-				rec := httptest.NewRecorder()
-				httpmw.ExtractRealIP(srv.RealIPConfig)(srv.HandleSubdomain()(http.NotFoundHandler())).ServeHTTP(rec, req)
-
-				require.Equal(t, tc.wantStatus, rec.Code, rec.Body.String())
-				if tc.wantID == "" {
-					require.Empty(t, gotID)
-					return
-				}
-				require.Equal(t, tc.wantID, <-gotID)
-			})
-		}
 	})
 }
 

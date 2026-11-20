@@ -140,6 +140,7 @@ func Test_ResolveRequest(t *testing.T) {
 								Auth: &proto.Agent_Token{
 									Token: agentAuthToken,
 								},
+								DisplayApps: &proto.DisplayApps{PortForwardingHelper: true},
 								Apps: []*proto.App{
 									{
 										Slug:         appNameOwner,
@@ -791,7 +792,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.NoError(t, err)
 		siteAdmin, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
 
-		resolve := func(provider workspaceapps.SignedTokenProvider, slug string, setSession func(*http.Request)) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
+		resolve := func(provider workspaceapps.SignedTokenProvider, agent, slug string, setSession func(*http.Request)) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/", nil)
 			setSession(r)
@@ -807,7 +808,7 @@ func Test_ResolveRequest(t *testing.T) {
 					BasePath:          "/",
 					UsernameOrID:      me.Username,
 					WorkspaceNameOrID: workspace.Name,
-					AgentNameOrID:     agentName,
+					AgentNameOrID:     agent,
 					AppSlugOrPort:     slug,
 				}).Normalize(),
 			})
@@ -823,7 +824,7 @@ func Test_ResolveRequest(t *testing.T) {
 			"preview--0123abcd": fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort),
 			"preview--8080":     "http://127.0.0.1:8080",
 		} {
-			_, token, ok := resolve(api.WorkspaceAppsProvider, slug, previewCookie(client.SessionToken()))
+			_, token, ok := resolve(api.WorkspaceAppsProvider, agentName, slug, previewCookie(client.SessionToken()))
 			require.True(t, ok, slug)
 			require.Equal(t, agentID, token.AgentID)
 			require.Equal(t, wantURL, token.AppURL)
@@ -840,7 +841,7 @@ func Test_ResolveRequest(t *testing.T) {
 				r.AddCookie(&http.Cookie{Name: codersdk.SubdomainAppSessionTokenCookie + "_test", Value: client.SessionToken()})
 			},
 		} {
-			rw, token, ok := resolve(api.WorkspaceAppsProvider, "preview--8080", setSession)
+			rw, token, ok := resolve(api.WorkspaceAppsProvider, agentName, "preview--8080", setSession)
 			require.False(t, ok, name)
 			require.Nil(t, token, name)
 			require.Equal(t, http.StatusUnauthorized, rw.Code, name)
@@ -849,14 +850,23 @@ func Test_ResolveRequest(t *testing.T) {
 
 		// A site owner may connect to the workspace's apps, but a preview
 		// opens only for the workspace owner.
-		rw, token, ok := resolve(api.WorkspaceAppsProvider, "preview--8080", previewCookie(siteAdmin.SessionToken()))
+		rw, token, ok := resolve(api.WorkspaceAppsProvider, agentName, "preview--8080", previewCookie(siteAdmin.SessionToken()))
 		require.False(t, ok)
 		require.Nil(t, token)
 		require.Equal(t, http.StatusNotFound, rw.Code)
 
+		// The other agent's template hides port forwarding, so its ports have
+		// no previews. Its files do, and get as far as its offline page.
+		rw, _, ok = resolve(api.WorkspaceAppsProvider, agentNameUnhealthy, "preview--8080", previewCookie(client.SessionToken()))
+		require.False(t, ok)
+		require.Contains(t, rw.Body.String(), "Application Not Found")
+		rw, _, ok = resolve(api.WorkspaceAppsProvider, agentNameUnhealthy, "preview--0123abcd", previewCookie(client.SessionToken()))
+		require.False(t, ok)
+		require.Contains(t, rw.Body.String(), "Application Unavailable")
+
 		withoutExperiment := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
 		withoutExperiment.Experiments = nil
-		rw, token, ok = resolve(&withoutExperiment, "preview--8080", previewCookie(client.SessionToken()))
+		rw, token, ok = resolve(&withoutExperiment, agentName, "preview--8080", previewCookie(client.SessionToken()))
 		require.False(t, ok)
 		require.Nil(t, token)
 		require.Equal(t, http.StatusNotFound, rw.Code)
@@ -1478,7 +1488,10 @@ func TestPreviewHostThroughServer(t *testing.T) {
 		Name:           "site",
 		OwnerID:        me.ID,
 		OrganizationID: first.OrganizationID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].DisplayApps = &proto.DisplayApps{PortForwardingHelper: true}
+		return agents
+	}).Do()
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 

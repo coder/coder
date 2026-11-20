@@ -146,8 +146,7 @@ func (api *API) postPreviewSignIn(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PreviewSignInResponse{
 		URL:     previewURL.String(),
 		Origin:  origin.String(),
-		Sandbox: hosting.Policy().Sandbox,
-		Mode:    hosting.Mode(),
+		Sandbox: hosting.Sandbox(),
 	})
 }
 

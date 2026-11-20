@@ -55,7 +55,6 @@ func TestPreviewSignIn(t *testing.T) {
 		require.NoError(t, err)
 		host := "preview--8080--dev--" + ws.Workspace.Name + "--" + owner.Username + ".apps.test.coder.com:" + client.URL.Port()
 		require.Equal(t, "http://"+host, res.Origin)
-		require.Equal(t, codersdk.PreviewModeStrict, res.Mode)
 		require.Equal(t, "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads", res.Sandbox)
 		previewURL, err := url.Parse(res.URL)
 		require.NoError(t, err)
