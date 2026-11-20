@@ -3296,6 +3296,51 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pull_request_url` | string | false    |              |             |
 | `remote_origin`    | string | false    |              |             |
 
+## codersdk.ChatDiffErrorKind
+
+```json
+"external_auth_reauth_required"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `external_auth_reauth_required` |
+
+## codersdk.ChatDiffReauthRequired
+
+```json
+{
+  "can_reconnect": true,
+  "detail": "string",
+  "kind": "external_auth_reauth_required",
+  "message": "string",
+  "provider_display_name": "string",
+  "provider_id": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                    | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                        |
+|-------------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `can_reconnect`         | boolean                                                       | false    |              | Can reconnect is true only when the requester is the chat owner.                                                                                                                                                                   |
+| `detail`                | string                                                        | false    |              | Detail is a debug message that provides further insight into why the action failed. This information can be technical and a regular golang err.Error() text. - "database: too many open connections" - "stat: too many open files" |
+| `kind`                  | [codersdk.ChatDiffErrorKind](#codersdkchatdifferrorkind)      | false    |              | Kind is always external_auth_reauth_required.                                                                                                                                                                                      |
+| `message`               | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
+| `provider_display_name` | string                                                        | false    |              |                                                                                                                                                                                                                                    |
+| `provider_id`           | string                                                        | false    |              | Provider ID is the external auth config ID used in /external-auth/{provider}.                                                                                                                                                      |
+| `validations`           | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
+
 ## codersdk.ChatDiffStatus
 
 ```json

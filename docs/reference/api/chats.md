@@ -2642,9 +2642,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDiffContents](schemas.md#codersdkchatdiffcontents) |
+| Status | Meaning                                                               | Description                                                                                        | Schema                                                                       |
+|--------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)               | OK                                                                                                 | [codersdk.ChatDiffContents](schemas.md#codersdkchatdiffcontents)             |
+| 424    | [Failed Dependency](https://tools.ietf.org/html/rfc2518#section-10.5) | The provider rejected the chat owner's saved credentials, so the owner must reconnect the provider | [codersdk.ChatDiffReauthRequired](schemas.md#codersdkchatdiffreauthrequired) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

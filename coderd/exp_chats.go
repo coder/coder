@@ -4453,6 +4453,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Param origin query string false "Remote origin selecting the ref to diff"
 // @Param branch query string false "Git branch selecting the ref to diff"
 // @Success 200 {object} codersdk.ChatDiffContents
+// @Failure 424 {object} codersdk.ChatDiffReauthRequired "The provider rejected the chat owner's saved credentials, so the owner must reconnect the provider"
 // @Router /api/v2/chats/{chat}/diff [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -4477,6 +4478,21 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "The chat does not track that ref.",
 				Detail:  fmt.Sprintf("origin %q, branch %q", selector.RemoteOrigin, selector.GitBranch),
+			})
+			return
+		}
+		if reauthErr, ok := errors.AsType[*chatDiffReauthError](err); ok {
+			canReconnect := httpmw.APIKey(r).UserID == chat.OwnerID
+			message := fmt.Sprintf("%[1]s rejected the chat owner's saved credentials. Ask the chat owner to reconnect %[1]s.", reauthErr.DisplayName)
+			if canReconnect {
+				message = fmt.Sprintf("%[1]s rejected your saved credentials. Reconnect %[1]s to load this diff.", reauthErr.DisplayName)
+			}
+			httpapi.Write(ctx, rw, http.StatusFailedDependency, codersdk.ChatDiffReauthRequired{
+				Response:            codersdk.Response{Message: message},
+				Kind:                codersdk.ChatDiffErrorKindExternalAuthReauthRequired,
+				ProviderID:          reauthErr.ProviderID,
+				ProviderDisplayName: reauthErr.DisplayName,
+				CanReconnect:        canReconnect,
 			})
 			return
 		}
@@ -4834,7 +4850,7 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+	config, gp := api.externalAuthForOrigin(ctx, reference.RepositoryRef.RemoteOrigin)
 	if gp == nil {
 		return result, nil
 	}
@@ -4852,24 +4868,33 @@ func (api *API) resolveChatDiffContents(
 		if !ok {
 			return result, xerrors.Errorf("invalid pull request URL %q", reference.PullRequestURL)
 		}
-		diff, err := gp.FetchPullRequestDiff(ctx, *token, ref)
-		if err != nil {
-			return result, err
+		result.Diff, err = gp.FetchPullRequestDiff(ctx, *token, ref)
+	} else {
+		result.Diff, err = gp.FetchBranchDiff(ctx, *token, gitprovider.BranchRef{
+			Owner:  reference.RepositoryRef.Owner,
+			Repo:   reference.RepositoryRef.Repo,
+			Branch: reference.RepositoryRef.Branch,
+		})
+	}
+	if errors.Is(err, gitprovider.ErrTokenRejected) {
+		return result, &chatDiffReauthError{
+			ProviderID:  config.ID,
+			DisplayName: config.DisplayName,
+			err:         err,
 		}
-		result.Diff = diff
-		return result, nil
 	}
-	diff, err := gp.FetchBranchDiff(ctx, *token, gitprovider.BranchRef{
-		Owner:  reference.RepositoryRef.Owner,
-		Repo:   reference.RepositoryRef.Repo,
-		Branch: reference.RepositoryRef.Branch,
-	})
-	if err != nil {
-		return result, err
-	}
-	result.Diff = diff
-	return result, nil
+	return result, err
 }
+
+type chatDiffReauthError struct {
+	ProviderID  string
+	DisplayName string
+	err         error
+}
+
+func (e *chatDiffReauthError) Error() string { return e.err.Error() }
+
+func (e *chatDiffReauthError) Unwrap() error { return e.err }
 
 // resolveChatDiffReference builds the diff reference from the cached
 // status stored in the database. The git branch and remote origin are
@@ -5004,14 +5029,13 @@ func selectChatDiffStatus(
 	return database.ChatDiffStatus{}, false
 }
 
-// resolveExternalAuth finds the external auth config matching the
-// given remote origin URL and returns both the provider type string
-// (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
-// if no matching config is found or no provider could be constructed.
-func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
+// externalAuthForOrigin returns the first external auth config whose regex
+// matches origin and whose git provider can be constructed, with that
+// provider. It returns nil, nil when no config qualifies.
+func (api *API) externalAuthForOrigin(ctx context.Context, origin string) (*externalauth.Config, gitprovider.Provider) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
-		return "", nil
+		return nil, nil
 	}
 	for _, extAuth := range api.ExternalAuthConfigs {
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
@@ -5029,9 +5053,21 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 		if p == nil {
 			continue
 		}
-		return strings.ToLower(strings.TrimSpace(extAuth.Type)), p
+		return extAuth, p
 	}
-	return "", nil
+	return nil, nil
+}
+
+// resolveExternalAuth finds the external auth config matching the
+// given remote origin URL and returns both the provider type string
+// (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
+// if no matching config is found or no provider could be constructed.
+func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
+	config, gp := api.externalAuthForOrigin(ctx, origin)
+	if config == nil {
+		return "", nil
+	}
+	return strings.ToLower(strings.TrimSpace(config.Type)), gp
 }
 
 // resolveGitProvider finds the external auth config matching the

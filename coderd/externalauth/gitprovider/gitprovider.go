@@ -131,17 +131,25 @@ const RateLimitPadding = 5 * time.Minute
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
 var ErrDiffTooLarge = xerrors.Errorf("diff exceeds maximum size of %d bytes", MaxDiffSize)
 
+// ErrTokenRejected reports that the provider rejected the access token with
+// HTTP 401, for example because the user revoked it. Retrying with the same
+// token cannot succeed.
+var ErrTokenRejected = xerrors.New("provider rejected the access token")
+
 // Provider defines the interface that all Git hosting providers
 // implement. Each method is designed to minimize API round-trips
 // for the specific provider.
 type Provider interface {
 	// FetchPullRequestStatus retrieves the complete status of a
 	// pull request in the minimum number of API calls for this
-	// provider.
+	// provider. Returns ErrTokenRejected if the provider rejects
+	// the token with HTTP 401.
 	FetchPullRequestStatus(ctx context.Context, token string, ref PRRef) (*PRStatus, error)
 
 	// ResolveBranchPullRequest finds the open PR (if any) for
 	// the given branch. Returns nil, nil if no open PR exists.
+	// Returns ErrTokenRejected if the provider rejects the token
+	// with HTTP 401.
 	ResolveBranchPullRequest(ctx context.Context, token string, ref BranchRef) (*PRRef, error)
 
 	// FetchPullRequestDiff returns the raw unified diff for a
@@ -150,13 +158,17 @@ type Provider interface {
 	// targeting "staging" instead of "main"), so it matches what
 	// the provider shows on the PR's "Files changed" tab.
 	// Returns ErrDiffTooLarge if the diff exceeds MaxDiffSize.
+	// Returns ErrTokenRejected if the provider rejects the token
+	// with HTTP 401.
 	FetchPullRequestDiff(ctx context.Context, token string, ref PRRef) (string, error)
 
 	// FetchBranchDiff returns the diff of a branch compared
 	// against the repository's default branch. This is the
 	// fallback when no pull request exists yet (e.g. the agent
 	// pushed a branch but hasn't opened a PR). Returns
-	// ErrDiffTooLarge if the diff exceeds MaxDiffSize.
+	// ErrDiffTooLarge if the diff exceeds MaxDiffSize. Returns
+	// ErrTokenRejected if the provider rejects the token with
+	// HTTP 401.
 	FetchBranchDiff(ctx context.Context, token string, ref BranchRef) (string, error)
 
 	// ParseRepositoryOrigin parses a remote origin URL (HTTPS
@@ -234,12 +246,15 @@ func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.D
 	return 0
 }
 
-// checkRateLimitError returns a *RateLimitError when resp indicates a
-// rate limit (HTTP 403 or 429) with recognizable retry headers;
-// otherwise nil. A nil resp returns nil.
-func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
+// checkResponseError returns ErrTokenRejected when resp is HTTP 401, and a
+// *RateLimitError when resp indicates a rate limit (HTTP 403 or 429) with
+// recognizable retry headers; otherwise nil. A nil resp returns nil.
+func checkResponseError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
 	if resp == nil {
 		return nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return ErrTokenRejected
 	}
 	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
 		return nil

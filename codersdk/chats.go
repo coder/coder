@@ -2121,6 +2121,27 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
+// ChatDiffErrorKind classifies an error body from the chat diff endpoint.
+type ChatDiffErrorKind string
+
+// ChatDiffErrorKindExternalAuthReauthRequired is the kind of
+// ChatDiffReauthRequired.
+const ChatDiffErrorKindExternalAuthReauthRequired ChatDiffErrorKind = "external_auth_reauth_required"
+
+// ChatDiffReauthRequired is the error body returned with status 424 when
+// the provider rejects the chat owner's access token.
+type ChatDiffReauthRequired struct {
+	Response
+	// Kind is always external_auth_reauth_required.
+	Kind ChatDiffErrorKind `json:"kind"`
+	// ProviderID is the external auth config ID used in
+	// /external-auth/{provider}.
+	ProviderID          string `json:"provider_id"`
+	ProviderDisplayName string `json:"provider_display_name"`
+	// CanReconnect is true only when the requester is the chat owner.
+	CanReconnect bool `json:"can_reconnect"`
+}
+
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be

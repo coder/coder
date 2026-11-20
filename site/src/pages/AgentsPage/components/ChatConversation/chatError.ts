@@ -51,6 +51,17 @@ export function isChatHookDeniedResponse(
 	);
 }
 
+export function isChatDiffReauthRequired(
+	value: unknown,
+): value is TypesGen.ChatDiffReauthRequired {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"kind" in value &&
+		value.kind === "external_auth_reauth_required"
+	);
+}
+
 export const normalizeChatErrorPayload = (
 	error: TypesGen.ChatError | undefined,
 ): ChatDetailError | undefined => {

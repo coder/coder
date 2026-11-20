@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -12,6 +13,8 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { isChatDiffReauthRequired } from "../ChatConversation/chatError";
+import { ChatDiffReauthNotice } from "../DiffViewer/ChatDiffReauthNotice";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
@@ -81,6 +84,12 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
+	const diffError = diffContentsQuery.error;
+	const reauth =
+		isAxiosError(diffError) &&
+		isChatDiffReauthRequired(diffError.response?.data)
+			? diffError.response.data
+			: undefined;
 
 	const parsedFiles = parseDiffString(diffContent);
 
@@ -153,16 +162,22 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 					</div>
 				</div>
 			)}
-			<CommentableDiffViewer
-				parsedFiles={parsedFiles}
-				isExpanded={isExpanded}
-				diffStyle={diffStyle}
-				isLoading={diffContentsQuery.isLoading}
-				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
-				chatInputRef={chatInputRef}
-				scrollToFile={scrollTarget}
-				onScrollToFileComplete={handleScrollComplete}
-			/>
+			{reauth ? (
+				<ChatDiffReauthNotice chatId={chatId} reauth={reauth} />
+			) : (
+				<CommentableDiffViewer
+					parsedFiles={parsedFiles}
+					isExpanded={isExpanded}
+					diffStyle={diffStyle}
+					isLoading={diffContentsQuery.isLoading}
+					error={
+						diffContentsQuery.isError ? diffContentsQuery.error : undefined
+					}
+					chatInputRef={chatInputRef}
+					scrollToFile={scrollTarget}
+					onScrollToFileComplete={handleScrollComplete}
+				/>
+			)}
 		</div>
 	);
 };
