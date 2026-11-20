@@ -165,12 +165,13 @@ export const TemplateCustomizationsStep: React.FC<
 		onProvisionerStatusChange(hasProvisioners);
 	}, [hasProvisioners, onProvisionerStatusChange]);
 
+	const { setFieldValue } = form;
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
 		if (orgOptions.length === 1 && !organizationId) {
-			void form.setFieldValue("organization_id", orgOptions[0].id);
+			void setFieldValue("organization_id", orgOptions[0].id);
 		}
-	}, [orgOptions, organizationId, form]);
+	}, [orgOptions, organizationId, setFieldValue]);
 
 	const handleOrgChange = (org: Organization | null) => {
 		void form.setFieldValue("organization_id", org?.id ?? "");
