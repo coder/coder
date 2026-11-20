@@ -80,10 +80,11 @@ describe(TemplateBuilderPageView.name, () => {
 				HttpResponse.json([MockProvisioner]),
 			),
 		);
-		const detail = "This value is already in use and should be unique.";
+		const message =
+			"A template with this name already exists in the organization.";
 		const duplicateIdError = mockAxiosError({
-			message: "A template with this name already exists in the organization.",
-			validations: [{ field: "name", detail }],
+			message,
+			validations: [{ field: "name", detail: message }],
 			status: 409,
 		});
 
@@ -135,7 +136,7 @@ describe(TemplateBuilderPageView.name, () => {
 		const restoredId = await screen.findByRole("textbox", { name: /^ID/ });
 		expect(restoredId).toHaveValue("existing");
 		expect(restoredId).toBeInvalid();
-		expect(restoredId).toHaveAccessibleDescription(detail);
+		expect(restoredId).toHaveAccessibleDescription(message);
 		expect(restoredId).toHaveFocus();
 
 		await userEvent.type(restoredId, "-2");

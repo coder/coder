@@ -179,7 +179,7 @@ const mockDuplicateIdError = mockAxiosError({
 	validations: [
 		{
 			field: "name",
-			detail: "This value is already in use and should be unique.",
+			detail: "A template with this name already exists in the organization.",
 		},
 	],
 	status: 409,
