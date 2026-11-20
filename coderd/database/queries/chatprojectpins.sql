@@ -11,12 +11,13 @@ WHERE user_id = @user_id::uuid;
 -- Positions count the pins GetChatProjectSummariesByUserID matches and are
 -- clamped to [1, count], so callers must translate a position the user sees
 -- past matched pins that authorization hides. Pins the summaries no longer
--- match move after the others. Callers must hold the per-user pin lock so
+-- match, such as pins on archived projects, move after the others. Callers
+-- must hold the per-user pin lock so
 -- concurrent writes cannot interleave.
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
+        SELECT p.project_id, p.pin_order, cp.archived_at IS NOT NULL OR NOT (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
@@ -74,7 +75,7 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY cp.archived_at IS NOT NULL OR NOT (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
@@ -101,15 +102,15 @@ WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id
     AND EXISTS (SELECT 1 FROM deleted);
 
 -- name: GetChatProjectSummariesByUserID :many
--- Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
--- user's pin and aggregates over the user's own top-level,
+-- Returns the unarchived projects from GetChatProjectsOwnedOrSharedWithUserID
+-- with the user's pin and aggregates over the user's own top-level,
 -- non-archived chats. Entries match regardless of the actions they grant,
 -- so callers must authorize each row; pins on projects the user can no
--- longer see are never returned.
+-- longer see, or on archived projects, are never returned.
 WITH accessible AS (
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
-    WHERE owner_id = @user_id::uuid
+    WHERE archived_at IS NULL AND (owner_id = @user_id::uuid
         OR (
             -- Grant keys select candidates even while chat sharing is
             -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
@@ -124,7 +125,7 @@ WITH accessible AS (
                 WHERE organization_members.user_id = @user_id::uuid
                     AND organization_members.organization_id = chat_projects.organization_id
             )
-        )
+        ))
 ),
 -- Users who can use each project: the owner and the users its read grants
 -- reach (chat_project_read_grant_members). Counted only while project
