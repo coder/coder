@@ -70,7 +70,9 @@ func NewTunnel(
 	if err != nil {
 		return nil, err
 	}
-	uCtx, uCancel := context.WithCancel(ctx)
+	// The updater exists to send updates to the manager, so it stops when
+	// sending does.
+	uCtx, uCancel := context.WithCancel(s.sendCtx)
 	t := &Tunnel{
 		//nolint:govet // safe to copy the locks here because we haven't started the speaker
 		speaker:         *(s),
@@ -106,7 +108,10 @@ func (t *Tunnel) requestLoop() {
 		if req.msg.Rpc != nil && req.msg.Rpc.MsgId != 0 {
 			t.handleRPC(req)
 			if _, ok := req.msg.GetMsg().(*ManagerMessage_Stop); ok {
-				close(t.sendCh)
+				// sendReply has handed the Stop response to serdes, which
+				// finishes writing it before checking cancellation. Do not
+				// close sendCh: other goroutines may still be sending.
+				t.speaker.cancel()
 				return
 			}
 			continue
@@ -562,6 +567,8 @@ func (u *updater) stop() error {
 		return nil
 	}
 	err := u.conn.Close()
+	// Cancel after closing so logs the conn emits while closing reach the
+	// manager.
 	u.cancel()
 	u.conn = nil
 	return err

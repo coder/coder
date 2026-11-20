@@ -97,6 +97,9 @@ type speaker[S rpcMessage, R receivableRPCMessage[RR], RR any] struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+	// sendCtx ends with ctx or when serdes stops reading sendCh, so a sender
+	// that waits on it cannot block forever.
+	sendCtx context.Context
 
 	sendCh       chan<- S
 	recvCh       <-chan R
@@ -120,14 +123,16 @@ func newSpeaker[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	}
 	sendCh := make(chan S)
 	recvCh := make(chan R)
+	sendCtx, sendCancel := context.WithCancel(ctx)
 	s := &speaker[S, R, RR]{
-		serdes:        newSerdes(ctx, logger, conn, sendCh, recvCh),
+		serdes:        newSerdes(ctx, logger, conn, sendCh, recvCh, sendCancel),
 		logger:        logger,
 		requests:      make(chan *request[S, R]),
 		responseChans: make(map[uint64]chan R),
 		nextMsgID:     1,
 		ctx:           ctx,
 		cancel:        cancel,
+		sendCtx:       sendCtx,
 		sendCh:        sendCh,
 		recvCh:        recvCh,
 		recvLoopDone:  make(chan struct{}),
@@ -164,7 +169,7 @@ func (s *speaker[S, R, _]) recvFromSerdes() {
 				continue
 			}
 			req := &request[S, R]{
-				ctx:     s.ctx,
+				ctx:     s.sendCtx,
 				msg:     msg,
 				replyCh: s.sendCh,
 			}
@@ -191,13 +196,15 @@ func (s *speaker[_, _, _]) Close() error {
 func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err error) {
 	rpc := req.EnsureRPC()
 	msgID, respCh := s.newRPC()
+	// No response is received for msgID after this returns.
+	defer s.rmResponseChan(msgID)
 	rpc.MsgId = msgID
 	logger := s.logger.With(slog.F("msg_id", msgID))
 	select {
 	case <-ctx.Done():
 		return resp, ctx.Err()
-	case <-s.ctx.Done():
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+	case <-s.sendCtx.Done():
+		return resp, s.sendClosedErr()
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while sending request")
 		return resp, io.ErrUnexpectedEOF
@@ -206,18 +213,33 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 	}
 	select {
 	case <-ctx.Done():
-		s.rmResponseChan(msgID)
 		return resp, ctx.Err()
-	case <-s.ctx.Done():
-		s.rmResponseChan(msgID)
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+	case <-s.sendCtx.Done():
+		err = s.sendClosedErr()
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while waiting for response")
-		return resp, io.ErrUnexpectedEOF
+		err = io.ErrUnexpectedEOF
 	case resp = <-respCh:
 		logger.Debug(s.ctx, "got response", slog.F("resp", resp))
 		return resp, nil
 	}
+	// A response may already be buffered when the receive loop exits or
+	// sending ends. Prefer it, even if both cases are ready.
+	select {
+	case resp = <-respCh:
+		return resp, nil
+	default:
+		return resp, err
+	}
+}
+
+// sendClosedErr reports why sendCtx ended. When the speaker is still open,
+// the writer exited, so the connection is gone.
+func (s *speaker[_, _, _]) sendClosedErr() error {
+	if err := s.ctx.Err(); err != nil {
+		return xerrors.Errorf("vpn protocol closed: %w", err)
+	}
+	return io.ErrUnexpectedEOF
 }
 
 func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
@@ -225,7 +247,8 @@ func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	defer s.mu.Unlock()
 	msgID := s.nextMsgID
 	s.nextMsgID++
-	c := make(chan R)
+	// Delivery must not wait for a caller that may have selected cancellation.
+	c := make(chan R, 1)
 	s.responseChans[msgID] = c
 	return msgID, c
 }
