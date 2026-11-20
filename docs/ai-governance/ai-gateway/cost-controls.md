@@ -142,6 +142,7 @@ The check compares the user's spend in the current budget period with the budget
 
 - Spend below the budget: the request proceeds.
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` with a message that describes the issue.
+  The response body is a JSON error in the format of the provider API the client calls, Anthropic or OpenAI, with the error code `budget_exceeded`.
 
 Users without a budget have **unlimited spend**, so their requests proceed without enforcement.
 A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added for a group in the request's organization.
