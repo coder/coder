@@ -14,16 +14,18 @@ type TerminalCommandConsentDialogProps = {
 	command: string;
 	onConfirm: () => void;
 	onDeny: () => void;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
 export const TerminalCommandConsentDialog: React.FC<
 	TerminalCommandConsentDialogProps
-> = ({ open, command, onConfirm, onDeny }) => {
+> = ({ open, command, onConfirm, onDeny, onCloseAutoFocus }) => {
 	return (
 		<Dialog open={open}>
 			<DialogContent
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
+				onCloseAutoFocus={onCloseAutoFocus}
 				className="max-w-2xl overflow-hidden min-w-0"
 			>
 				<DialogHeader>

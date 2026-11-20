@@ -7,7 +7,11 @@ import {
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { experimentsKey } from "#/api/queries/experiments";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
-import type { Workspace, WorkspaceAgentLifecycle } from "#/api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAgentLifecycle,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import { permissionChecks } from "#/modules/permissions";
@@ -23,11 +27,32 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
 import terminalSymbolGlyphSets from "#/theme/fonts/terminal-symbols-glyphs.json";
 import { isMac } from "#/utils/platform";
 import TerminalPage from "./TerminalPage";
+
+const mockCommandApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	slug: "deploy",
+	display_name: "Deploy",
+	command: "./deploy.sh",
+};
+
+const mockWorkspaceWithCommandApp: Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{
+				...MockWorkspace.latest_build.resources[0],
+				agents: [{ ...MockWorkspaceAgent, apps: [mockCommandApp] }],
+			},
+		],
+	},
+};
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 	return {
@@ -388,5 +413,49 @@ export const CommandConfirmation: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+};
+
+export const SessionEnded: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: `@${MockWorkspace.owner_name}`,
+					workspace: MockWorkspace.name,
+				},
+				searchParams: {
+					app: mockCommandApp.slug,
+				},
+			},
+			routing: reactRouterOutlet(
+				{
+					path: "/:username/:workspace/terminal",
+				},
+				<TerminalPage />,
+			),
+		}),
+		webSocket: [
+			{
+				event: "message",
+				data: "Deploying to production...\r\nDone.\r\n",
+			},
+			{
+				event: "close",
+				code: 1000,
+			},
+		],
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: workspaceByOwnerAndNameKey(
+					MockWorkspace.owner_name,
+					MockWorkspace.name,
+				),
+				data: mockWorkspaceWithCommandApp,
+			},
+		],
 	},
 };

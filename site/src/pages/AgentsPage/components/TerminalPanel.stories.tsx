@@ -37,6 +37,8 @@ const meta = {
 		chatId: "b5a8832c-72db-4679-8393-9a48dff20a20",
 		isPending: false,
 		onReady: fn(),
+		sessionEnded: false,
+		onSessionEndedChange: fn(),
 		workspace: MockWorkspace,
 		workspaceAgent: createAgent("ready"),
 	},
@@ -95,4 +97,13 @@ export const Disconnected: Story = {
 	parameters: {
 		webSocket: [{ event: "error" }],
 	},
+};
+
+/** A tab restored after its session ended does not connect, so it is empty. */
+export const RestoredSessionEnded: Story = {
+	args: {
+		initialCommand: "./deploy.sh",
+		sessionEnded: true,
+	},
+	parameters: { pixel: { exclude: false } },
 };
