@@ -1,7 +1,9 @@
 import { BanIcon } from "lucide-react";
+import { Link as RouterLink } from "react-router";
 import type {
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeSessionNetworkDomain,
+	AIBridgeSessionOrganization,
 	MinimalUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -30,6 +32,9 @@ type SessionSummaryTableProps = {
 	initiator: MinimalUser;
 	client: string;
 	providers: readonly string[];
+	// organizations is undefined when organizations are hidden, which omits the
+	// row. An empty list renders as "Not recorded".
+	organizations?: readonly AIBridgeSessionOrganization[];
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
@@ -58,6 +63,7 @@ export const SessionSummaryTable = ({
 	initiator,
 	providers,
 	client,
+	organizations,
 	inputTokens,
 	outputTokens,
 	cacheReadTokens,
@@ -179,6 +185,61 @@ export const SessionSummaryTable = ({
 					))}
 				</dd>
 			</div>
+
+			{organizations !== undefined && (
+				<div className="flex items-start justify-between">
+					<dt className="flex shrink-0 items-center gap-1 font-normal whitespace-nowrap mt-1">
+						Organization
+						<InfoTooltip
+							size="small"
+							ariaLabel="How the organization is chosen"
+						>
+							<TooltipMessage>
+								Each request is attributed to one organization, based on how it
+								was made. A session can include requests from more than one
+								organization.
+								<br />
+								<Link
+									size="sm"
+									href={docs(
+										"/ai-governance/ai-gateway/request-organization#how-ai-gateway-chooses-the-organization",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									How the organization is chosen
+								</Link>
+							</TooltipMessage>
+						</InfoTooltip>
+					</dt>
+					<dd className="ml-4 min-w-0 text-content-primary flex flex-wrap gap-1">
+						{organizations.length === 0
+							? "Not recorded"
+							: organizations.map((org) => (
+									<Badge
+										key={org.id}
+										asChild
+										hover
+										className="max-w-full min-w-0"
+									>
+										<RouterLink to={`/organizations/${org.name}`}>
+											<Avatar
+												size="xs"
+												src={org.icon}
+												fallback={org.display_name || org.name}
+											/>
+											<span
+												className="truncate min-w-0"
+												title={org.display_name || org.name}
+											>
+												{org.display_name || org.name}
+											</span>
+										</RouterLink>
+									</Badge>
+								))}
+					</dd>
+				</div>
+			)}
 
 			<Separator />
 
