@@ -53,12 +53,12 @@ describe("organizeAgentApps", () => {
 
 describe("AgentRow", () => {
 	it("reopens the logs when the agent's lifecycle state changes", async () => {
-		const startingAgent: WorkspaceAgent = {
+		const mockStartingAgent: WorkspaceAgent = {
 			...MockWorkspaceAgentStarting,
 			logs_length: 1,
 		};
 		const Harness: React.FC = () => {
-			const [agent, setAgent] = useState(startingAgent);
+			const [agent, setAgent] = useState(mockStartingAgent);
 			return (
 				<>
 					<button
@@ -82,6 +82,7 @@ describe("AgentRow", () => {
 		renderWithAuth(<Harness />);
 		const user = userEvent.setup();
 
+		// The logs open on mount for a starting agent; collapse them.
 		await user.click(await screen.findByRole("button", { name: /^Logs/ }));
 		expect(watchWorkspaceAgentLogs).toHaveBeenCalledTimes(1);
 

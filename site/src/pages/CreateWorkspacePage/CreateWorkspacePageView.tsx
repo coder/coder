@@ -220,6 +220,7 @@ export const CreateWorkspacePageView: React.FC<
 		}
 	}, [form.submitCount, form.errors]);
 
+	// Kept stable because the preset parameter effect depends on it.
 	const presetOptions = useMemo(
 		() => [
 			{ label: "None", value: "undefined", icon: "", description: "" },
@@ -239,7 +240,8 @@ export const CreateWorkspacePageView: React.FC<
 			(option) => option.value === form.values.template_version_preset_id,
 		),
 	);
-	// Apply the URL or default preset whenever the available presets change.
+	// Apply the URL or default preset whenever the presets or the URL preset
+	// change.
 	useEffect(() => {
 		// URL preset takes precedence over default preset.
 		if (urlPreset) {
