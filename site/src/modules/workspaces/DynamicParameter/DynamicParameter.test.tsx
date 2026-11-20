@@ -497,8 +497,29 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByText("Multi-Select Parameter")).toBeInTheDocument();
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
+			expect(
+				screen.getByRole("combobox", { name: "Multi-Select Parameter" }),
+			).toBeInTheDocument();
+		});
+
+		it("does not report the highlighted option as selected", async () => {
+			const user = userEvent.setup();
+			render(
+				<DynamicParameter
+					parameter={mockMultiSelectParameter}
+					value='["option1"]'
+					onChange={mockOnChange}
+				/>,
+			);
+
+			await user.click(screen.getByRole("combobox"));
+			await user.keyboard("{ArrowDown}");
+
+			const options = screen.getAllByRole("option");
+			expect(options).toHaveLength(3);
+			for (const option of options) {
+				expect(option).toHaveAttribute("aria-selected", "false");
+			}
 		});
 
 		it("displays selected options", () => {

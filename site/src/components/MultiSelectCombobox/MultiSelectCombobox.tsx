@@ -368,6 +368,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		const Item = (
 			<CommandItem
 				value={inputValue}
+				aria-selected={false}
 				className="cursor-pointer"
 				onMouseDown={(e) => {
 					e.preventDefault();
@@ -641,6 +642,8 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 														value={option.value}
 														keywords={[option.label]}
 														disabled={option.disable}
+														// Picked options leave the list, so no listed option is selected.
+														aria-selected={false}
 														onMouseDown={(e) => {
 															e.preventDefault();
 															e.stopPropagation();

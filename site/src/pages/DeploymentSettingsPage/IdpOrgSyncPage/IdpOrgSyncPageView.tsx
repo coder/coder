@@ -279,13 +279,10 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor={`${id}-coder-org`}>
-									Coder organization
-								</Label>
+								<Label className="text-sm">Coder organization</Label>
 								<MultiSelectCombobox
-									inputProps={{
-										id: `${id}-coder-org`,
-									}}
+									// cmdk overrides the input's id, so the visible label cannot name it.
+									commandProps={{ label: "Coder organization" }}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
