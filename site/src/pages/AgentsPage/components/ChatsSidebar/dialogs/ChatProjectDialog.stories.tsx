@@ -1,14 +1,30 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { agentTemplatesKey } from "#/api/queries/templates";
+import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockTemplate,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
+const mockDockerTemplate: Template = {
+	...MockTemplate,
+	id: "template-docker",
+	name: "docker",
+	display_name: "Docker",
+};
+const mockKubernetesTemplate: Template = {
+	...MockTemplate,
+	id: "template-kubernetes",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+};
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
 	component: ChatProjectDialog,
@@ -20,6 +36,14 @@ const meta = {
 		isSubmitting: false,
 		error: undefined,
 		onSubmit: fn(),
+	},
+	parameters: {
+		queries: [MockDefaultOrganization, MockOrganization2].map(
+			(organization) => ({
+				key: agentTemplatesKey(organization.id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			}),
+		),
 	},
 } satisfies Meta<typeof ChatProjectDialog>;
 
@@ -145,4 +169,57 @@ export const Narrow: Story = {
 export const NarrowOpenOrganizationDropdown: Story = {
 	...OpenOrganizationDropdown,
 	globals: Narrow.globals,
+};
+
+/** The server rejected the templates, for example one deprecated meanwhile. */
+export const CreateTemplatesSaveError: Story = {
+	args: {
+		error: mockApiError({
+			message: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
+			validations: [
+				{
+					field: "template_ids",
+					detail: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
+				},
+			],
+		}),
+	},
+};
+
+export const LimitWithoutTemplates: Story = {
+	// Turns the limit on so the screenshot shows the warning for no templates.
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
+	},
+};
+
+export const NoEligibleTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: agentTemplatesKey(MockDefaultOrganization.id),
+				data: [],
+			},
+		],
+	},
+	// Opens the templates list so the screenshot shows its empty message.
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("combobox", { name: "Templates" }),
+		);
+	},
+};
+
+export const TemplatesLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
 };
