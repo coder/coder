@@ -1164,6 +1164,79 @@ jobs:
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
+  # Checks that a workspace preview cannot reach the user's other apps or
+  # escape its wrapper. The suite's coderd serves apps under
+  # *.coder.localhost, which Chromium and Firefox resolve to loopback
+  # themselves, so the runner needs no DNS setup.
+  test-e2e-previews:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    needs: changes
+    # Skip on forks to match test-e2e.
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
+
+      - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
+        working-directory: site
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
+
+      - run: make site/e2e/bin/coder
+        name: make coder
+
+      - run: pnpm exec playwright install --with-deps chromium firefox
+        working-directory: site
+
+      - run: pnpm playwright:test-previews --forbid-only --project=previews-chromium --project=previews-firefox
+        env:
+          DEBUG: pw:api
+        working-directory: site
+
+      - name: Upload Playwright failure artifacts
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-artifacts-test-e2e-previews-${{ github.sha }}
+          path: |
+            ./site/test-results/previews/**
+            ./site/playwright-report/previews/**
+          retention-days: 7
+
+      - name: Upload debug log
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coderd-debug-logs-test-e2e-previews-${{ github.sha }}
+          path: ./site/e2e/test-results/previews-debug.log
+          retention-days: 7
+
   storybook:
     name: Storybook
     needs: changes
@@ -1276,6 +1349,7 @@ jobs:
       - test-go-race-pg
       - test-js
       - test-e2e
+      - test-e2e-previews
       - offlinedocs
       - sqlc-vet
       - check-build
@@ -1302,6 +1376,7 @@ jobs:
           echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
+          echo "- test-e2e-previews: ${{ needs.test-e2e-previews.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
           echo "- check-build: ${{ needs.check-build.result }}"
           echo
