@@ -88,6 +88,72 @@ export const paginatedOrganizationAISpend = (
 };
 
 /**
+ * Filters a detailed AI spend report by usernames and group names, which the
+ * report resolves to the IDs the endpoint filters by.
+ */
+export type AISpendReportFilter = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "model" | "client"
+> & {
+	username?: string;
+	group_name?: string;
+};
+
+const organizationAISpendReportKey = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
+) =>
+	["organizations", organizationId, "aiSpendReport", period, filter] as const;
+
+export const paginatedOrganizationAISpendReport = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
+): UsePaginatedQueryOptions<
+	OrganizationAISpendReport,
+	AISpendReportFilter,
+	Error
+> => {
+	return {
+		queryPayload: () => filter,
+		queryKey: ({ payload, pageNumber }) => [
+			...organizationAISpendReportKey(organizationId, period, payload),
+			pageNumber,
+		],
+		queryFn: async ({
+			payload: { username, group_name, ...dimensions },
+			limit,
+			offset,
+		}) => {
+			const [user, group] = await Promise.all([
+				username ? API.getUser(username) : undefined,
+				group_name
+					? API.getGroup(organizationId, group_name, { exclude_members: true })
+					: undefined,
+			]);
+			return API.experimental.getOrganizationAISpendUsers(organizationId, {
+				...period,
+				...dimensions,
+				user_ids: user && [user.id],
+				group_id: group?.id,
+				limit,
+				offset,
+			});
+		},
+		// Every page aggregates the whole organization window.
+		prefetch: false,
+		// Only a page change keeps the previous rows while the next page loads.
+		placeholderData: (previousData, previousQuery) =>
+			previousQuery &&
+			hashKey(previousQuery.queryKey.slice(0, -1)) ===
+				hashKey(organizationAISpendReportKey(organizationId, period, filter))
+				? previousData
+				: undefined,
+	};
+};
+
+/**
  * The organization's AI spend over `period`, in whole UTC days, with the
  * first `limit` users by spend.
  */
