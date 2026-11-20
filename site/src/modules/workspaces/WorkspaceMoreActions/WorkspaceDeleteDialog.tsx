@@ -73,7 +73,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 			type="delete"
 			hideCancel={false}
 			open={isOpen}
-			title="Delete Workspace"
+			title="Delete workspace"
 			onConfirm={confirm}
 			onClose={onCancel}
 			disabled={!confirmation.confirmed}
@@ -121,11 +121,11 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 											setOrphanWorkspace(checked === true);
 										}}
 										data-testid="orphan-checkbox"
-										className="mt-0.5 border-content-warning hover:enabled:border-content-warning data-[state=checked]:bg-content-warning data-[state=checked]:border-content-warning data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-content-warning hover:data-[state=checked]:border-content-warning"
+										className="mt-0.5 border-border-warning hover:enabled:border-border-warning data-[state=checked]:bg-border-warning data-[state=checked]:border-border-warning data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-border-warning hover:data-[state=checked]:border-border-warning"
 									/>
 									<span>
 										<span className="block text-sm font-semibold">
-											Orphan Resources
+											Orphan resources
 										</span>
 										<span className="mt-1 block text-xs text-content-secondary">
 											As a Template Admin, you may skip resource cleanup to

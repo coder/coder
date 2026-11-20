@@ -41,6 +41,24 @@ export const MockOrganization2: TypesGen.Organization = {
 	default_org_member_roles: ["organization-workspace-access"],
 };
 
+export const MockAIBridgeSessionOrganization: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+		sources: ["workspace"],
+	};
+
+export const MockAIBridgeSessionOrganization2: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization2.id,
+		name: MockOrganization2.name,
+		display_name: MockOrganization2.display_name,
+		icon: MockOrganization2.icon,
+		sources: ["effective_group"],
+	};
+
 export const MockOrganization3: TypesGen.Organization = {
 	id: "my-organization-3-id",
 	name: "my-organization-3",
@@ -553,6 +571,9 @@ export const MockChatProject: TypesGen.ChatProject = {
 	name: "Launch",
 	description: "Chats for the launch work.",
 	icon: "",
+	limit_templates: false,
+	templates: [],
+	hidden_template_count: 0,
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
 	permissions: { update: true, delete: true, share: true },
@@ -603,6 +624,13 @@ export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
 	role: "use",
 };
 
+export const MockWorkspaceUserLongName: TypesGen.WorkspaceUser = {
+	...MockWorkspaceUser,
+	id: "long-name-workspace-user",
+	username: "a-long-username-for-narrow-views",
+	name: "A Member With An Unusually Long Display Name",
+};
+
 export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
 	id: MockUserOwner.id,
 	username: MockUserOwner.username,
@@ -633,6 +661,7 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_light: "light",
 	theme_dark: "dark",
 	terminal_font: "",
+	terminal_font_size: 0,
 };
 
 export const MockUserSecrets: TypesGen.UserSecret[] = [
@@ -1040,6 +1069,7 @@ export const MockTemplate: TypesGen.Template = {
 	disable_module_cache: false,
 	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
+	browser_only: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -2928,6 +2958,14 @@ export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 		},
+	}),
+};
+
+export const MockEntitlementsWithAIBridge: TypesGen.Entitlements = {
+	...MockEntitlements,
+	has_license: true,
+	features: withDefaultFeatures({
+		aibridge: { enabled: true, entitlement: "entitled" },
 	}),
 };
 
@@ -5571,6 +5609,7 @@ export const MockSession: TypesGen.AIBridgeSession = {
 			"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
 	},
 	providers: ["anthropic", "openai"],
+	organizations: [],
 	models: ["claude-opus-4-6", "gpt-5.4"],
 	client: "Xum",
 	metadata: {
@@ -5824,10 +5863,36 @@ export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	name: "Test User",
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	cost_micros: 2_500_000,
-	unpriced_usage_count: 0,
-	providers: ["anthropic", "openai"],
-	clients: ["Claude Code", "Cursor"],
-	models: ["claude-opus-4-6", "gpt-5.4"],
+	provider_spend: [
+		{
+			name: "anthropic",
+			display_name: "Anthropic",
+			icon: "",
+			type: "anthropic",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{
+			name: "openai",
+			display_name: "OpenAI",
+			icon: "",
+			type: "openai",
+			cost_micros: 1_000_000,
+			has_unpriced_usage: false,
+		},
+	],
+	model_spend: [
+		{
+			name: "claude-opus-4-6",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{ name: "gpt-5.4", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
+	client_spend: [
+		{ name: "Claude Code", cost_micros: 1_500_000, has_unpriced_usage: false },
+		{ name: "Cursor", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
 };
 
 export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
@@ -5836,7 +5901,7 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 		period_end: "2026-03-12T00:00:00Z",
 		retention_start: "2026-01-11T15:30:00Z",
 		count: 2,
-		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		totals: { cost_micros: 3_500_000, has_unpriced_usage: false },
 		users: [
 			MockOrganizationAISpendUser,
 			{
@@ -5846,9 +5911,30 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 				name: "Alice Liddell",
 				avatar_url: "",
 				cost_micros: 1_000_000,
-				providers: ["anthropic"],
-				clients: ["Unknown"],
-				models: ["claude-opus-4-6"],
+				provider_spend: [
+					{
+						name: "anthropic",
+						display_name: "Anthropic",
+						icon: "",
+						type: "anthropic",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				model_spend: [
+					{
+						name: "claude-opus-4-6",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				client_spend: [
+					{
+						name: "Unknown",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
 			},
 		],
 	};

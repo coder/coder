@@ -101,7 +101,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			message="Create a Template"
+			message="Create a template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
 		/>

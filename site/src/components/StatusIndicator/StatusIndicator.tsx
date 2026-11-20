@@ -59,7 +59,7 @@ const dotVariants = cva("rounded-full inline-block border-4", {
 			success: "bg-content-success border-surface-green",
 			failed: "bg-content-destructive border-surface-destructive",
 			inactive: "bg-content-secondary border-surface-grey",
-			warning: "bg-content-warning border-surface-orange",
+			warning: "bg-border-warning border-surface-orange",
 			pending: "bg-highlight-sky border-surface-sky",
 		},
 		size: {
@@ -133,7 +133,7 @@ export const StatusNotRegisteredIndicator: React.FC = () => {
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent>
-				Workspace Proxy has never come online and needs to be started.
+				Workspace proxy has never come online and needs to be started.
 			</TooltipContent>
 		</Tooltip>
 	);
@@ -149,7 +149,7 @@ export const StatusNotReachableIndicator: React.FC = () => {
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent>
-				Workspace Proxy not responding to http(s) requests.
+				Workspace proxy not responding to http(s) requests.
 			</TooltipContent>
 		</Tooltip>
 	);

@@ -41,23 +41,27 @@ const usernameFromEmail = (email: string): string => {
 	}
 };
 
-const validationSchema = Yup.object({
-	email: Yup.string()
-		.trim()
-		.email("Please enter a valid email address.")
-		.required("Please enter an email address."),
-	password: Yup.string().required("Please enter a password."),
-	username: usernameValidator,
-	trial: Yup.bool(),
-	trial_info: Yup.object().when("trial", {
-		is: true,
-		then: () => trialInfoValidationSchema,
-	}),
-	onboarding_info: Yup.object().shape({
-		newsletter_marketing: Yup.bool(),
-		newsletter_releases: Yup.bool(),
-	}),
-});
+const validationSchema = (setupTokenRequired: boolean) =>
+	Yup.object({
+		setup_token: setupTokenRequired
+			? Yup.string().trim().required("Please enter the setup token.")
+			: Yup.string(),
+		email: Yup.string()
+			.trim()
+			.email("Please enter a valid email address.")
+			.required("Please enter an email address."),
+		password: Yup.string().required("Please enter a password."),
+		username: usernameValidator,
+		trial: Yup.bool(),
+		trial_info: Yup.object().when("trial", {
+			is: true,
+			then: () => trialInfoValidationSchema,
+		}),
+		onboarding_info: Yup.object().shape({
+			newsletter_marketing: Yup.bool(),
+			newsletter_releases: Yup.bool(),
+		}),
+	});
 
 type SetupPageViewProps = {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
@@ -72,9 +76,11 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 	isLoading,
 	authMethods,
 }) => {
+	const setupTokenRequired = authMethods?.setup_token_required ?? false;
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
+				setup_token: "",
 				email: "",
 				password: "",
 				username: "",
@@ -94,8 +100,15 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 					newsletter_releases: false,
 				},
 			},
-			validationSchema,
-			onSubmit,
+			validationSchema: validationSchema(setupTokenRequired),
+			// An empty token is left out, so that the request to a server
+			// that requires no token stays as it was.
+			onSubmit: ({ setup_token, ...firstUser }) => {
+				const token = setup_token?.trim();
+				return onSubmit(
+					token ? { ...firstUser, setup_token: token } : firstUser,
+				);
+			},
 			validateOnBlur: false,
 			validateOnMount: true,
 		});
@@ -117,7 +130,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 				</header>
 
 				<form onSubmit={form.handleSubmit} className="flex flex-col gap-6">
-					{authMethods?.github.enabled && (
+					{authMethods?.github.enabled && !setupTokenRequired && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a
@@ -139,10 +152,27 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 						</>
 					)}
 
+					{setupTokenRequired && (
+						<FormField
+							label="Setup token"
+							type="password"
+							field={getFieldHelpers("setup_token", {
+								helperText: "Printed by coder server when it starts.",
+							})}
+							autoComplete="off"
+							disabled={isLoading}
+						/>
+					)}
+
 					{/* Email */}
 					<FormField
 						label="Email"
-						field={getFieldHelpers("email")}
+						field={getFieldHelpers("email", {
+							helperText:
+								setupTokenRequired && authMethods?.github.enabled
+									? "To switch this account to GitHub sign-in later, use your GitHub account's primary email. You switch it under Account > Security."
+									: undefined,
+						})}
 						autoComplete="email"
 						onChange={onChangeTrimmed(form, (email) => {
 							form.setFieldValue("username", usernameFromEmail(email));
@@ -340,7 +370,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 										href={CONTACT_SALES_LINK}
 										className="text-content-link hover:underline"
 									>
-										Contact Sales
+										Contact sales
 									</a>
 								</AlertDescription>
 							)}

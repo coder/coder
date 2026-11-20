@@ -130,11 +130,25 @@ export const CreateWorkspacePageView: React.FC<
 		autofillParameters.map((param) => [param.name, param]),
 	);
 
-	// Only touched fields are sent to the websocket
-	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = Object.fromEntries(
-		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
+	// Names of the parameters whose values were set by the user, autofill or a
+	// preset. Only these are sent to the websocket, and the sync from websocket
+	// responses leaves them alone. Formik's `touched` can't be used for this:
+	// it treats dots and brackets in names as paths, and it is replaced on every
+	// submit attempt.
+	const editedParameterNames = useRef(
+		new Set(
+			parameters.filter((p) => autofillByName[p.name]).map((p) => p.name),
+		),
 	);
+	const isParameterEdited = useCallback(
+		(name: string) => editedParameterNames.current.has(name),
+		[],
+	);
+	const markParameterEdited = useCallback((name: string) => {
+		editedParameterNames.current.add(name);
+	}, []);
+
+	const initialTouched: Record<string, boolean> = {};
 	if (defaultName) {
 		initialTouched.name = true;
 	}
@@ -149,11 +163,10 @@ export const CreateWorkspacePageView: React.FC<
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
-	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 2. Only edited parameters are sent to the websocket, a parameter is edited if changed by the user or set by autofill or a preset
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
 	// 4. All existing form parameters are updated to match the websocket response
-	//    in the useSyncFormParameters hook, unless they have been touched by the
-	//    user or auto-filled.
+	//    in the useSyncFormParameters hook, unless they have been edited.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -166,7 +179,7 @@ export const CreateWorkspacePageView: React.FC<
 			},
 			initialTouched,
 			validationSchema: Yup.object({
-				name: nameValidator("Workspace Name"),
+				name: nameValidator("Workspace name"),
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
@@ -181,8 +194,8 @@ export const CreateWorkspacePageView: React.FC<
 				onSubmit(request, owner);
 			},
 		});
-	// Formik keeps these stable across renders, unlike `form` itself.
-	const { setFieldValue, setFieldTouched } = form;
+	// Formik keeps this stable across renders, unlike `form` itself.
+	const { setFieldValue } = form;
 
 	useEffect(() => {
 		if (error) {
@@ -240,7 +253,7 @@ export const CreateWorkspacePageView: React.FC<
 		[],
 	);
 
-	// include any modified parameters and all touched parameters to the websocket request
+	// include any modified parameters and all edited parameters to the websocket request
 	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(
 		(
 			parameters: Array<{ parameter: PreviewParameter; value: string }>,
@@ -254,15 +267,15 @@ export const CreateWorkspacePageView: React.FC<
 				formInputs[parameter.name] = value;
 			}
 
-			for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-				if (
-					isTouched &&
-					!parameters.some((p) => p.parameter.name === fieldName)
-				) {
-					const param = formParameters.find((p) => p.name === fieldName);
-					if (param?.value) {
-						formInputs[fieldName] = param.value;
-					}
+			for (const name of editedParameterNames.current) {
+				if (parameters.some((p) => p.parameter.name === name)) {
+					continue;
+				}
+				const param = formParameters.find((p) => p.name === name);
+				// Empty values are sent too, so that a cleared field is evaluated
+				// as empty instead of falling back to its default.
+				if (param !== undefined) {
+					formInputs[name] = param.value;
 				}
 			}
 
@@ -347,7 +360,7 @@ export const CreateWorkspacePageView: React.FC<
 		if (updates.length > 0) {
 			for (const update of updates) {
 				setFieldValue(update.field, update.fieldValue);
-				setFieldTouched(update.parameter.name, true);
+				markParameterEdited(update.parameter.name);
 			}
 
 			sendDynamicParamsRequest(
@@ -362,7 +375,7 @@ export const CreateWorkspacePageView: React.FC<
 		selectedPresetIndex,
 		presets,
 		setFieldValue,
-		setFieldTouched,
+		markParameterEdited,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,
@@ -383,10 +396,10 @@ export const CreateWorkspacePageView: React.FC<
 		)?.value;
 		const isChanged = currentFormValue !== value;
 
-		// Mark the field as touched before updating its value. Otherwise a
+		// Mark the parameter as edited before updating its value. Otherwise a
 		// response arriving in between is synced over the user's new value.
 		if (isChanged) {
-			form.setFieldTouched(parameter.name, true, false);
+			markParameterEdited(parameter.name);
 		}
 
 		await form.setFieldValue(parameterField, {
@@ -403,7 +416,7 @@ export const CreateWorkspacePageView: React.FC<
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
-		touched: form.touched,
+		isParameterEdited,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -631,7 +644,7 @@ export const CreateWorkspacePageView: React.FC<
 						<section>
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">
-									External Authentication
+									External authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.

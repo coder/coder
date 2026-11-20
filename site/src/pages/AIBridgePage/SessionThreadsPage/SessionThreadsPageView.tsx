@@ -56,6 +56,7 @@ type SessionThreadsPageViewProps = {
 	onFetchNextPage: () => void;
 	isAISessionsEnabled: boolean;
 	isAISessionsEntitled: boolean;
+	showOrganizations: boolean;
 	onBackClicked: () => void;
 };
 
@@ -68,6 +69,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	onFetchNextPage,
 	isAISessionsEnabled,
 	isAISessionsEntitled,
+	showOrganizations,
 	onBackClicked,
 }) => {
 	const [searchQuery, setSearchQuery] = useState("");
@@ -171,6 +173,9 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 							}
 							initiator={session.initiator}
 							client={session.client ?? "Unknown client"}
+							organizations={
+								showOrganizations ? session.organizations : undefined
+							}
 							providers={session.providers}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}

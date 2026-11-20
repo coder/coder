@@ -123,6 +123,61 @@ func TestCorrelatingToolCallID(t *testing.T) {
 			name:    "missing call id",
 			payload: []byte(`{"input":[{"type":"function_call_output","output":"ok"}]}`),
 		},
+		{
+			name:     "tool result followed by developer message",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"custom_tool_call","call_id":"call_custom","name":"exec","input":"pwd"},{"type":"custom_tool_call_output","call_id":"call_custom","output":"/home"},{"type":"message","role":"developer","content":[{"type":"input_text","text":"Approved command prefix saved"}]}]}`),
+			wantCall: new("call_custom"),
+		},
+		{
+			name:     "tool result followed by system, developer and reasoning items",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"role":"system","content":"sys"},{"type":"reasoning","id":"rs_1","summary":[]},{"role":"developer","content":"dev"}]}`),
+			wantCall: new("call_abc"),
+		},
+		{
+			name:    "user message followed by developer message after older tool result",
+			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"role":"user","content":"hi"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "only developer and system messages",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"system","content":"sys"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "assistant message after tool result stops the walk",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "tool call after tool result stops the walk",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"type":"function_call","call_id":"call_next","name":"exec","arguments":"{}"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "tool result missing call id followed by developer message does not fall back to older result",
+			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"type":"function_call_output","output":"r2"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:     "computer_call_output",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"computer_call_output","call_id":"call_computer","output":{"type":"computer_screenshot","image_url":"data:image/png;base64,AA=="}}]}`),
+			wantCall: new("call_computer"),
+		},
+		{
+			name:     "shell_call_output followed by developer message",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"shell_call_output","call_id":"call_shell","output":[{"stdout":"/home","stderr":"","outcome":{"type":"exit","exit_code":0}}]},{"role":"developer","content":"dev"}]}`),
+			wantCall: new("call_shell"),
+		},
+		{
+			name:     "apply_patch_call_output",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"apply_patch_call_output","call_id":"call_patch","status":"completed"}]}`),
+			wantCall: new("call_patch"),
+		},
+		{
+			name:     "local_shell_call_output with call_id",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"local_shell_call_output","call_id":"call_local","output":"ok"}]}`),
+			wantCall: new("call_local"),
+		},
+		{
+			name:     "local_shell_call_output with only id",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"local_shell_call_output","id":"call_local","output":"ok"}]}`),
+			wantCall: new("call_local"),
+		},
 	}
 
 	for _, tc := range tests {

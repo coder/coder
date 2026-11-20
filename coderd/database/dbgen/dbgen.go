@@ -91,9 +91,28 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Icon:           seed.Icon,
+
+		LimitTemplates:                 seed.LimitTemplates,
+		DefaultTemplateID:              seed.DefaultTemplateID,
+		DefaultTemplateVersionPresetID: seed.DefaultTemplateVersionPresetID,
+		DefaultParameters:              pqtype.NullRawMessage{RawMessage: seed.DefaultParameters, Valid: len(seed.DefaultParameters) > 0},
 	})
 	require.NoError(t, err, "insert chat project")
 	return project
+}
+
+// ChatProjectTemplate attaches a template to a chat project.
+func ChatProjectTemplate(t testing.TB, db database.Store, seed database.ChatProjectTemplate) database.ChatProjectTemplate {
+	t.Helper()
+
+	attached, err := db.InsertChatProjectTemplates(genCtx, database.InsertChatProjectTemplatesParams{
+		ProjectID:   seed.ProjectID,
+		TemplateIDs: []uuid.UUID{seed.TemplateID},
+		CreatedBy:   takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "attach chat project template")
+	require.Len(t, attached, 1, "template was already attached or is outside the project's organization")
+	return attached[0]
 }
 
 func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
@@ -684,6 +703,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
 		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
+		BrowserOnly:                  seed.BrowserOnly,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -1658,6 +1678,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 		OAuthExtra:             *msg,
+		OAuthExtraKeyID:        takeFirst(orig.OAuthExtraKeyID, sql.NullString{}),
 	})
 
 	require.NoError(t, err, "insert external auth link")

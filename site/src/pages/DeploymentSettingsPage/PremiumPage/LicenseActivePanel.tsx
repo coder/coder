@@ -14,7 +14,7 @@ export const LicenseActivePanel: React.FC = () => {
 
 			<p className="m-0 px-8 text-sm text-content-primary">
 				This deployment already has a license. Review your entitlements on the
-				Licenses page.
+				licenses page.
 			</p>
 
 			<Button asChild className="w-full">

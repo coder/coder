@@ -71,6 +71,51 @@ func TestFirstUser(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("SetupToken", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		client := coderdtest.New(t, &coderdtest.Options{SetupToken: token})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		methods, err := client.AuthMethods(ctx)
+		require.NoError(t, err)
+		require.True(t, methods.SetupTokenRequired)
+
+		req := codersdk.CreateFirstUserRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Username: coderdtest.FirstUserParams.Username,
+			Password: coderdtest.FirstUserParams.Password,
+		}
+
+		// A missing token, a token wrong in one character and a token
+		// of the wrong length must look the same to the caller.
+		var refusals []codersdk.Response
+		for _, wrong := range []string{"", "0123456789abcdefghijklmnopqrstuX", "short"} {
+			req.SetupToken = wrong
+			_, err := client.CreateFirstUser(ctx, req)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+			refusals = append(refusals, apiErr.Response)
+		}
+		require.Equal(t, "A setup token is required to create the first user. Find it in the output of coder server.", refusals[0].Message)
+		require.Equal(t, refusals[0], refusals[1])
+		require.Equal(t, refusals[0], refusals[2])
+
+		has, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.False(t, has)
+
+		req.SetupToken = token
+		_, err = client.CreateFirstUser(ctx, req)
+		require.NoError(t, err)
+
+		_, err = client.CreateFirstUser(ctx, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -2278,6 +2323,76 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// then
 		require.Error(t, err)
+	})
+}
+
+func TestUserTerminalFontSize(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	t.Run("valid size", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Zero(t, initial.TerminalFontSize)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     codersdk.TerminalFontGeistMono,
+			TerminalFontSize: 18,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(18), updated.TerminalFontSize)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, int32(18), fetched.TerminalFontSize)
+	})
+
+	t.Run("omitted size preserves previous value", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference:  "light",
+			TerminalFont:     codersdk.TerminalFontGeistMono,
+			TerminalFontSize: 14,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(14), updated.TerminalFontSize)
+	})
+
+	t.Run("out of range size", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		for _, size := range []int32{-1, 7, 33} {
+			_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+				ThemePreference:  "light",
+				TerminalFont:     codersdk.TerminalFontGeistMono,
+				TerminalFontSize: size,
+			})
+			require.Error(t, err, "size %d", size)
+		}
 	})
 }
 

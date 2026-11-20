@@ -203,6 +203,11 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.setupTokenRequired() && !api.setupTokenMatches(createUser.SetupToken) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, setupTokenRefused())
+		return
+	}
+
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1263,11 +1268,12 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 
 func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
 	return codersdk.UserAppearanceSettings{
-		ThemePreference: settings.ThemePreference,
-		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
-		ThemeLight:      settings.ThemeLight,
-		ThemeDark:       settings.ThemeDark,
-		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
+		ThemePreference:  settings.ThemePreference,
+		ThemeMode:        codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:       settings.ThemeLight,
+		ThemeDark:        settings.ThemeDark,
+		TerminalFont:     codersdk.TerminalFontName(settings.TerminalFont),
+		TerminalFontSize: settings.TerminalFontSize,
 	}
 }
 
@@ -1380,6 +1386,16 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		if err != nil {
 			return xerrors.Errorf("update user terminal font: %w", err)
+		}
+
+		if params.TerminalFontSize != 0 {
+			_, err = tx.UpdateUserTerminalFontSize(ctx, database.UpdateUserTerminalFontSizeParams{
+				UserID:           user.ID,
+				TerminalFontSize: params.TerminalFontSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user terminal font size: %w", err)
+			}
 		}
 
 		updatedSettings, err = tx.GetUserAppearanceSettings(ctx, user.ID)

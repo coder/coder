@@ -134,7 +134,7 @@ const ProxyMessagesList: React.FC<ProxyMessagesListProps> = ({
 	titleClassName,
 	messages,
 }) => {
-	if (!messages) {
+	if (!messages?.length) {
 		return null;
 	}
 

@@ -27,6 +27,7 @@ jobs:
     environment: main
     permissions:
       pull-requests: write
+      id-token: write # Cloud KMS signs the coder-org-membership-bot App's JWT
     if: >-
       ${{
         github.event_name == 'pull_request_target' &&
@@ -36,10 +37,17 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ vars.ORG_MEMBERSHIP_APP_ID }}
-          private-key: ${{ secrets.ORG_MEMBERSHIP_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.ORG_MEMBERSHIP_APP_ID }}
+          kms-key: ${{ secrets.ORG_MEMBERSHIP_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          permissions: |
+            members: read
       - name: Add community label
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -107,13 +115,28 @@ jobs:
       }}
     permissions:
       pull-requests: write
+      id-token: write # Cloud KMS signs the coder-cla App's JWT
     steps:
+      # Writes signatures to coder/cla, which GITHUB_TOKEN can't reach.
+      - name: Generate coder-cla App token
+        id: cla_token
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_CLA_APP_ID }}
+          kms-key: ${{ secrets.CODER_CLA_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: cla
+          permissions: |
+            contents: write
+
       - name: cla
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # the below token should have repo scope and must be manually added by you in the repository's secret
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ steps.cla_token.outputs.token }}
         with:
           remote-organization-name: "coder"
           remote-repository-name: "cla"

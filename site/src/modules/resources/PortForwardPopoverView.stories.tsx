@@ -41,7 +41,9 @@ const listeningPortsWithSubstringMatch = [
 
 const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
 	userEvent.type(
-		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
+		within(
+			within(canvasElement).getByRole("group", { name: "Listening ports" }),
+		).getByRole("textbox", { name: "Port" }),
 		text,
 	);
 
@@ -133,7 +135,7 @@ export const DisabledOptions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const dropdown = canvas.getByLabelText("Sharing Level");
+		const dropdown = canvas.getByLabelText("Sharing level");
 		await userEvent.click(dropdown);
 	},
 };

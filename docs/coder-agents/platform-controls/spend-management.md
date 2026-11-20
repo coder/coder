@@ -13,9 +13,12 @@ Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway
   The deployment budget policy resolves which group budget applies when a user belongs to multiple budgeted groups, which defaults to the group with the highest budget.
 - **Per-user overrides**:
   set a custom budget for an individual user, attributed to one of their groups.
-  Per-user overrides take priority over group budgets.
+  Per-user overrides take priority over group budgets in the organization of the override's assigned group.
 
 For budget settings, limits, and how Coder picks a user's budget group, refer to [AI Governance cost control](../../ai-governance/ai-gateway/cost-controls.md).
+
+A chat uses the budgets of the chat's organization.
+For users in several organizations, refer to [Request organization](../../ai-governance/ai-gateway/request-organization.md).
 
 > [!IMPORTANT]
 > Budget controls in the Coder UI, the group budget endpoints (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting endpoints all require the AI Gateway entitlement.
@@ -38,6 +41,7 @@ The API reference documents how to [get](../../reference/api/enterprise.md#get-g
 
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
+For a user in several organizations, both can show a different budget from the one that applies to a chat, as [Where spend reports can differ](../../ai-governance/ai-gateway/request-organization.md#where-spend-reports-can-differ) explains.
 
 ### Export native cost data before you upgrade
 
@@ -78,6 +82,8 @@ Spend is shown where it is actionable:
 - **Chat summary panel**:
   the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
+- **Chat overview card**:
+  the same chat tree cost, in the card at the top right of a wide chat.
 
 For organization spend exports, refer to [AI Gateway spend export](../../ai-governance/ai-gateway/cost-controls.md#spend-export).
 
