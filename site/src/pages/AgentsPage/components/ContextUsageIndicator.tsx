@@ -415,7 +415,7 @@ export const ContextUsageIndicator: React.FC<{
 	const toneClassName = hasContextError
 		? "text-content-destructive"
 		: isDirty || hasResourceIssues
-			? "text-content-warning"
+			? "text-border-warning"
 			: getIndicatorToneClassName(percentUsed, compactionPercent);
 
 	// Group files and skills by directory so every context root is labeled,
@@ -631,7 +631,7 @@ export const ContextUsageIndicator: React.FC<{
 								<ContextResourceAccordionTrigger
 									detail={`${mcpServerItems.filter((server) => server.connected).length} of ${mcpServerItems.length} connected`}
 								>
-									MCP Servers
+									MCP servers
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent className="gap-2">
 									{hasMcp && (

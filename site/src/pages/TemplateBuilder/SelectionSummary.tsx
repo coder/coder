@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { StepId } from "./steps";
 
@@ -61,9 +61,23 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	const dividerVariant = (step: number): Variant =>
 		maxReachedStep > step ? "complete" : "current";
 	const reachable = (step: number) => step <= maxReachedStep;
+	const headingId = useId();
+	const moduleCount = selectedModules?.length ?? 0;
+	const status = [
+		selectedTemplate && `Base template: ${selectedTemplate.name}.`,
+		reachable(2) &&
+			`${moduleCount} ${moduleCount === 1 ? "module" : "modules"} selected.`,
+	]
+		.filter(Boolean)
+		.join(" ");
 	return (
-		<div>
-			<h2 className="text-xl font-semibold">Selection</h2>
+		<aside aria-labelledby={headingId}>
+			<h2 id={headingId} className="text-xl font-semibold">
+				Selection
+			</h2>
+			<p role="status" className="sr-only">
+				{status}
+			</p>
 			<ol className="text-sm">
 				<li>
 					<VariantContext.Provider value={indicatorVariant(1)}>
@@ -73,7 +87,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 								reachable(1) ? () => onNavigateStep("base-infra") : undefined
 							}
 						>
-							Base Template
+							Base template
 						</StepIndicator>
 					</VariantContext.Provider>
 					<VariantContext.Provider value={dividerVariant(1)}>
@@ -128,7 +142,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 					</VariantContext.Provider>
 				</li>
 			</ol>
-		</div>
+		</aside>
 	);
 };
 

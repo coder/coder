@@ -141,6 +141,13 @@ type SidebarTabViewProps = {
 	 * close button does, so a menu toggle selects the same neighbour.
 	 */
 	addTabControl?: (closeTab: (tabId: string) => void) => React.ReactNode;
+	/** Each new value moves keyboard focus to the active tab. */
+	focusRequestId?: number;
+	/**
+	 * Called once focus moved for `focusRequestId`, so the owner can drop it
+	 * and a remounted view does not move focus again.
+	 */
+	onFocusRequestApplied?: (id: number) => void;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -241,7 +248,19 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	addTabControl,
+	focusRequestId,
+	onFocusRequestApplied,
 }) => {
+	const activeTabRef = useRef<HTMLButtonElement>(null);
+	const reportFocusRequestApplied = useEffectEvent((id: number) =>
+		onFocusRequestApplied?.(id),
+	);
+	useEffect(() => {
+		if (focusRequestId !== undefined) {
+			activeTabRef.current?.focus();
+			reportFocusRequestApplied(focusRequestId);
+		}
+	}, [focusRequestId]);
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
@@ -372,6 +391,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 							const isCloseable = tab.onClose !== undefined;
 							const tabButton = (
 								<Button
+									ref={isActive ? activeTabRef : undefined}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}

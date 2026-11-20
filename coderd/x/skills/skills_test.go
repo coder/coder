@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func TestParsePersonalSkillMarkdown(t *testing.T) {
@@ -316,6 +317,126 @@ func TestLookup(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.wantSource, got.Source)
 			require.Equal(t, tc.wantName, got.Name)
+		})
+	}
+}
+
+func TestWithModelInvocable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		raw            string
+		modelInvocable bool
+		// want is the returned content. Empty means the frontmatter cannot
+		// be edited, so raw comes back with ok false.
+		want string
+	}{
+		{
+			name:           "AgreeingContentIsUnchanged",
+			raw:            "---\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "AddsKey",
+			raw:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			want: "---\ndisable-model-invocation: true\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyWithCRLFAndBOM",
+			raw:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			want: "\xef\xbb\xbf---\r\ndisable-model-invocation: true\r\nname: my-skill\r\n---\r\nBody.\r\n",
+		},
+		{
+			name: "AddsKeyWithFirstKeyIndentation",
+			raw:  "---\n# Skill.\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+			want: "---\n# Skill.\n  disable-model-invocation: true\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+		},
+		{
+			name:           "ReplacesTrue",
+			raw:            "---\nname: my-skill\ndisable-model-invocation: true # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndisable-model-invocation: false # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "ReplacesFalse",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// A second key would make the frontmatter unparsable.
+			name:           "ReplacesValueOfQuotedKey",
+			raw:            "---\nname: my-skill\n\"disable-model-invocation\" : true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n\"disable-model-invocation\" : false\n---\nBody.\n",
+		},
+		{
+			// Only YAML booleans count, so the quoted string reads as unset.
+			name: "ReplacesQuotedString",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// YAML counts columns in characters, not bytes, so the accented
+			// letter before the key matters.
+			name:           "ReplacesInFlowStyle",
+			raw:            "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: true, license: MIT}\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: false, license: MIT}\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyInFlowStyle",
+			raw:  "---\n{name: my-skill, description: Does a thing}\n---\nBody.\n",
+			want: "---\n{disable-model-invocation: true, name: my-skill, description: Does a thing}\n---\nBody.\n",
+		},
+		{
+			// A quoted value can wrap onto a line that looks like the key.
+			name:           "WrappedValueIsKept",
+			raw:            "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// YAML ends a line at U+2028, so the key is on its fourth line.
+			name:           "UnicodeLineBreakBeforeKey",
+			raw:            "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// The value comes from a merge, so there is no key to replace.
+			// A key in the mapping itself overrides the merged one.
+			name:           "MergedKeyIsOverridden",
+			raw:            "---\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndisable-model-invocation: false\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "ListValueCannotBeEdited",
+			raw:  "---\nname: my-skill\ndisable-model-invocation:\n  - nested\n---\nBody.\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, ok := skills.WithModelInvocable(tt.raw, tt.modelInvocable)
+			if tt.want == "" {
+				require.False(t, ok)
+				require.Equal(t, tt.raw, content)
+				return
+			}
+			require.True(t, ok)
+			require.Equal(t, tt.want, content)
+
+			// The edit changes nothing but the setting.
+			require.Equal(t, !tt.modelInvocable, workspacesdk.SkillDisablesModelInvocation(content))
+			before, err := skills.ParsePersonalSkillMarkdown([]byte(tt.raw))
+			require.NoError(t, err)
+			after, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			require.NoError(t, err)
+			require.Equal(t, before, after)
 		})
 	}
 }

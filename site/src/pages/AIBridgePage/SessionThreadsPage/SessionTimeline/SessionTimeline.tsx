@@ -56,12 +56,12 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	highlight,
 	expandToMatch = false,
 }) => {
-	const contentRef = useRef<HTMLParagraphElement>(null);
+	const contentRef = useRef<HTMLQuoteElement>(null);
 	// Only user toggles are stored, so expansion follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isExpanded = userToggled ?? expandToMatch;
 
-	// The paragraph always renders its full text, so one scrollHeight
+	// The quote always renders its full text, so one scrollHeight
 	// measurement suffices for the collapse toggle.
 	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
@@ -82,7 +82,9 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 	return (
 		<div className="relative">
-			<p
+			{/* Prompt and thinking text is verbatim user or model output, so it is
+				quoted as written instead of parsed into lists or headings. */}
+			<blockquote
 				ref={contentRef}
 				style={
 					isExpandable && !isExpanded
@@ -94,7 +96,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
 				<HighlightText text={text} highlight={highlight ?? ""} />
-			</p>
+			</blockquote>
 			{isExpandable && (
 				<div
 					className={cn(
@@ -375,7 +377,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 										<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 									</TooltipTrigger>
 									<TooltipContent
-										className="max-w-96 text-sm font-normal"
+										className="max-w-[min(24rem,var(--radix-popper-available-width))] text-sm font-normal"
 										align="start"
 										side="top"
 									>
@@ -610,7 +612,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 						</TooltipTrigger>
 						<TooltipContent
-							className="max-w-80 text-sm font-normal"
+							className="max-w-[min(20rem,var(--radix-popper-available-width))] text-sm font-normal"
 							align="end"
 							side="top"
 						>
