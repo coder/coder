@@ -96,6 +96,8 @@ func (api *API) handleServe(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
+	// Serving a large file can outlast the agent server's 20s WriteTimeout.
+	_ = http.NewResponseController(rw).SetWriteDeadline(time.Now().Add(5 * time.Minute))
 	http.ServeContent(rw, r, name, time.Time{}, f)
 }
 
