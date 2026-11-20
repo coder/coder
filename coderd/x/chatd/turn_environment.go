@@ -2585,8 +2585,6 @@ func (p *Server) appendRootChatTools(
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
 			Hosting:             p.previewHosting,
 			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
-			DB:                  p.db,
-			OwnerID:             opts.chat.OwnerID,
 		}))
 	}
 

@@ -10,24 +10,16 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
-	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -36,7 +28,6 @@ func TestOpenPreview(t *testing.T) {
 
 	workspaceID := uuid.New()
 	agent := database.WorkspaceAgent{
-		ID:          uuid.New(),
 		Name:        "main",
 		DisplayApps: []database.DisplayApp{database.DisplayAppPortForwardingHelper},
 	}
@@ -156,7 +147,7 @@ func TestOpenPreview(t *testing.T) {
 		{
 			name:      "PortForwardingDisabled",
 			input:     `{"title":"App","port":3000}`,
-			agent:     &database.WorkspaceAgent{ID: agent.ID, Name: agent.Name},
+			agent:     &database.WorkspaceAgent{Name: agent.Name},
 			wantError: "does not allow port forwarding",
 		},
 	} {
@@ -246,58 +237,9 @@ func TestOpenPreviewURLPath(t *testing.T) {
 	}
 }
 
-func TestOpenPreviewApp(t *testing.T) {
-	t.Parallel()
-
-	db, owner, build := setupPreviewWorkspace(t,
-		&sdkproto.App{Slug: "code-server", Url: "http://localhost:8080", Subdomain: true},
-		&sdkproto.App{Slug: "path-app", Url: "http://localhost:8082"},
-		&sdkproto.App{Slug: "hidden", Url: "http://localhost:8081", Subdomain: true, Hidden: true},
-		&sdkproto.App{Slug: "docs", Url: "https://coder.com", External: true},
-		&sdkproto.App{Slug: "shell", Command: "bash"},
-	)
-	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		Hosting: testPreviewHosting(t, "*.apps.example.com"),
-		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
-			return chattool.PreviewWorkspace{
-				WorkspaceID:   build.Workspace.ID,
-				WorkspaceName: build.Workspace.Name,
-				OwnerName:     owner.Username,
-				Agent:         database.WorkspaceAgent{ID: build.Agents[0].ID, Name: build.Agents[0].Name},
-			}, nil
-		},
-		DB:      db,
-		OwnerID: owner.ID,
-	})
-
-	response := runOpenPreview(t, tool, `{"title":"Editor","app":"code-server","url_path":"/?folder=/home/coder"}`)
-	require.False(t, response.IsError, response.Content)
-	var result chattool.OpenPreviewResult
-	require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
-	require.Equal(t, chattool.OpenPreviewResult{
-		Kind:        chattool.OpenPreviewKindApp,
-		Title:       "Editor",
-		WorkspaceID: build.Workspace.ID,
-		AgentName:   build.Agents[0].Name,
-		AppSlug:     "code-server",
-		URLPath:     "/?folder=/home/coder",
-	}, result)
-
-	for _, slug := range []string{"hidden", "path-app", "missing"} {
-		response := runOpenPreview(t, tool, `{"title":"Editor","app":"`+slug+`"}`)
-		require.True(t, response.IsError, slug)
-		require.Contains(t, response.Content, `apps it can open: code-server`, slug)
-		require.NotContains(t, response.Content, "docs", slug)
-		require.NotContains(t, response.Content, "shell", slug)
-	}
-}
-
 func TestOpenPreviewHostnameTooLong(t *testing.T) {
 	t.Parallel()
 
-	db, owner, build := setupPreviewWorkspace(t,
-		&sdkproto.App{Slug: "code-server", Url: "http://localhost:8080", Subdomain: true},
-	)
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 	conn.EXPECT().OpenPreview(gomock.Any(), gomock.Any()).
 		Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: "/home/coder/output"}, nil)
@@ -306,24 +248,20 @@ func TestOpenPreviewHostnameTooLong(t *testing.T) {
 		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 			return chattool.PreviewWorkspace{
 				Conn:          conn,
-				WorkspaceID:   build.Workspace.ID,
+				WorkspaceID:   uuid.New(),
 				WorkspaceName: strings.Repeat("w", 50),
-				OwnerName:     owner.Username,
+				OwnerName:     "alice",
 				Agent: database.WorkspaceAgent{
-					ID:          build.Agents[0].ID,
-					Name:        build.Agents[0].Name,
+					Name:        "main",
 					DisplayApps: []database.DisplayApp{database.DisplayAppPortForwardingHelper},
 				},
 			}, nil
 		},
-		DB:      db,
-		OwnerID: owner.ID,
 	})
 
 	for _, input := range []string{
 		`{"title":"App","port":3000}`,
 		`{"title":"Docs","path":"/home/coder/output"}`,
-		`{"title":"Editor","app":"code-server"}`,
 	} {
 		response := runOpenPreview(t, tool, input)
 		require.True(t, response.IsError, input)
@@ -365,31 +303,4 @@ func runOpenPreview(t *testing.T, tool fantasy.AgentTool, input string) fantasy.
 	})
 	require.NoError(t, err)
 	return response
-}
-
-func setupPreviewWorkspace(t *testing.T, apps ...*sdkproto.App) (database.Store, database.User, dbfake.WorkspaceResponse) {
-	t.Helper()
-
-	db, _ := dbtestutil.NewDB(t)
-	owner := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         owner.ID,
-		OrganizationID: org.ID,
-	})
-	build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner.ID,
-		OrganizationID: org.ID,
-	}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
-		agents[0].Apps = apps
-		return agents
-	}).Do()
-
-	authzDB := dbauthz.New(
-		db,
-		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
-		slogtest.Make(t, nil),
-		testAccessControlStorePointer(),
-	)
-	return authzDB, owner, build
 }
