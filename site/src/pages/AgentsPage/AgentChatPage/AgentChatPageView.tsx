@@ -30,10 +30,6 @@ import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedF
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import {
-	getPreviewPanelContextValue,
-	PreviewPanelContext,
-} from "../components/ChatElements/tools/PreviewPanelContext";
-import {
 	ChatOverviewCard,
 	type ChatOverviewToggleProps,
 } from "../components/ChatOverviewCard";
@@ -76,10 +72,9 @@ import {
 } from "../utils/rightPanelTabStorage";
 import {
 	isSingletonRightPanelTabId,
-	type NewFrameTab,
+	type NewPreviewTab,
 	type PortSelection,
 	type SingletonRightPanelTabId,
-	showsSameFrame,
 	singletonRightPanelTabIds,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
@@ -389,12 +384,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
-		{
-			workspace,
-			workspaceAgent,
-			wildcardHostname,
-			openPreviewEnabled,
-		},
+		{ workspace, workspaceAgent, wildcardHostname, openPreviewEnabled },
 	);
 
 	// The built-in Terminal renders like any other terminal tab. Its
@@ -423,10 +413,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
-	const requestPanelFocus = () => setPanelFocusRequestId((id) => (id ?? 0) + 1);
-
 	const openOverviewTarget = (target: OverviewTarget) => {
-		requestPanelFocus();
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
 		activateRightPanelTab(target.tabId);
 	};
 
@@ -495,9 +483,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		startPendingTab(tabId);
 	};
 
-	const openFrameTab = (target: NewFrameTab) => {
-		const existingTab = validatedUserRightPanelTabs.find((tab) =>
-			showsSameFrame(tab, target),
+	const handleOpenWorkspaceAppTab = (app: TypesGen.WorkspaceApp) => {
+		if (!workspaceAgent) {
+			return;
+		}
+
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "workspace_app" &&
+				tab.agentId === workspaceAgent.id &&
+				tab.appId === app.id,
 		);
 		if (existingTab) {
 			activateRightPanelTab(existingTab.id);
@@ -505,24 +500,15 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 
 		const tab: UserRightPanelTab = {
-			...target,
-			id: createUserRightPanelTabId(target.kind),
-		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		activateRightPanelTab(tab.id);
-	};
-
-	const handleOpenWorkspaceAppTab = (app: TypesGen.WorkspaceApp) => {
-		if (!workspaceAgent) {
-			return;
-		}
-
-		openFrameTab({
+			id: createUserRightPanelTabId("workspace_app"),
 			kind: "workspace_app",
 			label: app.display_name ?? app.slug,
 			agentId: workspaceAgent.id,
 			appId: app.id,
-		});
+		};
+
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
 	};
 
 	const handleOpenCommandAppTab = (app: TypesGen.WorkspaceApp) => {
@@ -556,16 +542,52 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			return;
 		}
 
-		openFrameTab({ kind: "port", agentId: workspaceAgent.id, ...selection });
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "port" &&
+				tab.agentId === workspaceAgent.id &&
+				tab.port === selection.port &&
+				tab.protocol === selection.protocol,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("port"),
+			kind: "port",
+			label: selection.label,
+			agentId: workspaceAgent.id,
+			port: selection.port,
+			protocol: selection.protocol,
+		};
+
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
 	};
 
-	const previewPanelCtx = getPreviewPanelContextValue({
-		enabled: openPreviewEnabled,
-		workspace,
-		workspaceAgent,
-		openFrameTab,
-		focusPanel: requestPanelFocus,
-	});
+	const openPreviewTab = (preview: NewPreviewTab) => {
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "preview" &&
+				tab.agentName === preview.agentName &&
+				tab.slug === preview.slug &&
+				tab.urlPath === preview.urlPath,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+
+		const tab: UserRightPanelTab = {
+			...preview,
+			id: createUserRightPanelTabId("preview"),
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
 
 	const handleCloseTab = (
 		tabId: string,
@@ -670,45 +692,43 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								workspaceId: workspace?.id,
 								buildId: chat.build_id,
 								agentId: chat.agent_id,
+								agentName: workspaceAgent?.name,
+								openPreview: openPreviewEnabled ? openPreviewTab : undefined,
 							}}
 						>
-							<PreviewPanelContext value={previewPanelCtx}>
-								<ChatPageTimeline
-									organizationId={organizationId}
-									store={store}
-									recordStatus={chat.status}
-									chatFiles={chat.files}
-									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-									persistedError={persistedError}
-									hasMoreMessages={hasMoreMessages}
-									isFetchingMoreMessages={isFetchingMoreMessages}
-									hasFetchMoreError={hasFetchMoreError}
-									onFetchMoreMessages={onFetchMoreMessages}
-									onEditUserMessage={
-										canBeginEdit ? editing.handleBeginHistoryEdit : undefined
-									}
-									editingMessageId={
-										editing.editingTarget?.kind === "history"
-											? editing.editingTarget.id
-											: null
-									}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										canSubmitChatTurn ? onImplementPlan : undefined
-									}
-									onSendAskUserQuestionResponse={
-										canSubmitChatTurn
-											? onSendAskUserQuestionResponse
-											: undefined
-									}
-									footer={
-										chat.queued_for_capacity ? (
-											<QueuedForCapacityCallout />
-										) : undefined
-									}
-								/>
-							</PreviewPanelContext>
+							<ChatPageTimeline
+								organizationId={organizationId}
+								store={store}
+								recordStatus={chat.status}
+								chatFiles={chat.files}
+								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+								persistedError={persistedError}
+								hasMoreMessages={hasMoreMessages}
+								isFetchingMoreMessages={isFetchingMoreMessages}
+								hasFetchMoreError={hasFetchMoreError}
+								onFetchMoreMessages={onFetchMoreMessages}
+								onEditUserMessage={
+									canBeginEdit ? editing.handleBeginHistoryEdit : undefined
+								}
+								editingMessageId={
+									editing.editingTarget?.kind === "history"
+										? editing.editingTarget.id
+										: null
+								}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+								onImplementPlan={
+									canSubmitChatTurn ? onImplementPlan : undefined
+								}
+								onSendAskUserQuestionResponse={
+									canSubmitChatTurn ? onSendAskUserQuestionResponse : undefined
+								}
+								footer={
+									chat.queued_for_capacity ? (
+										<QueuedForCapacityCallout />
+									) : undefined
+								}
+							/>
 						</ChatWorkspaceContext>
 						{!isArchived && (
 							<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">

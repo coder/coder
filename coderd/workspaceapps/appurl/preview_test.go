@@ -42,7 +42,6 @@ func TestParsePreviewSlug(t *testing.T) {
 		got, ok := appurl.ParsePreviewSlug(slug)
 		require.True(t, ok, slug)
 		require.Equal(t, want, got, slug)
-		require.Equal(t, slug, got.Slug())
 	}
 
 	// A port has one hostname, so leading zeros are refused.

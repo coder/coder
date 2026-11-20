@@ -253,7 +253,6 @@ export const MockPreviewSignInResponse: PreviewSignInResponse = {
 	origin:
 		"https://preview--3000--a-workspace-agent--test-workspace--admin.apps.example.com",
 	sandbox: "allow-scripts allow-same-origin allow-forms",
-	mode: "strict",
 };
 
 export const MockChatFileMetadata: ChatFileMetadata = {

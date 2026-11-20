@@ -329,7 +329,10 @@ describe("right-panel tab storage", () => {
 	it("ignores invalid stored values", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
-			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
+			JSON.stringify([
+				{ id: "bad-tab", kind: "port" },
+				{ ...mockPreviewTab, agentName: "" },
+			]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

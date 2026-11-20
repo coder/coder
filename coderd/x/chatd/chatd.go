@@ -38,7 +38,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
-	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
@@ -180,7 +179,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	disableCallerSuppliedTools     bool
-	previewHosting                 *previewhost.Hosting
+	previewsAvailable              bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	internalMCPServers             []InternalMCPServer
@@ -1250,10 +1249,9 @@ type Config struct {
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
-	// PreviewHosting is how the primary serves previews. It is nil without
-	// a wildcard app hostname, and open_preview then reports that previews
-	// are unavailable.
-	PreviewHosting *previewhost.Hosting
+	// PreviewsAvailable is false without a wildcard app hostname, and
+	// open_preview then reports that previews are unavailable.
+	PreviewsAvailable bool
 
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
@@ -1359,7 +1357,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
-		previewHosting:                 cfg.PreviewHosting,
+		previewsAvailable:              cfg.PreviewsAvailable,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		internalMCPServers:             cfg.InternalMCPServers,

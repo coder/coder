@@ -30487,15 +30487,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PreviewMode": {
-            "type": "string",
-            "enum": [
-                "strict"
-            ],
-            "x-enum-varnames": [
-                "PreviewModeStrict"
-            ]
-        },
         "codersdk.PreviewParameter": {
             "type": "object",
             "properties": {
@@ -30642,9 +30633,6 @@ const docTemplate = `{
         "codersdk.PreviewSignInResponse": {
             "type": "object",
             "properties": {
-                "mode": {
-                    "$ref": "#/definitions/codersdk.PreviewMode"
-                },
                 "origin": {
                     "description": "Origin is the preview's origin, the only one its wrapper may frame.",
                     "type": "string"

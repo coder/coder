@@ -1,4 +1,4 @@
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { defaultUrlTransform } from "streamdown";
@@ -30,7 +30,6 @@ import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
-import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -3049,38 +3048,25 @@ export const StopWorkspaceBuildFailed: Story = {
 	},
 };
 
-const withPreviewOpenAction: Decorator = (Story) => (
-	<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
-		<Story />
-	</PreviewPanelContext>
-);
-
-export const OpenPreviewRunning: Story = {
-	args: {
-		name: "open_preview",
-		status: "running",
-		args: { title: "Docs site", port: "3000" },
-		result: undefined,
-	},
-};
-
 export const OpenPreviewCompleted: Story = {
 	args: {
 		name: "open_preview",
 		args: { title: "Docs site", port: "3000" },
 		result: MockOpenPreviewResult,
 	},
-	decorators: [withPreviewOpenAction],
-};
-
-export const OpenPreviewFromMCPServer: Story = {
-	args: {
-		name: "open_preview",
-		mcpServerConfigId: "mcp-server-1",
-		args: { title: "Docs site", port: "3000" },
-		result: MockOpenPreviewResult,
-	},
-	decorators: [withPreviewOpenAction],
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
+					openPreview: fn(),
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
 };
 
 export const OpenPreviewError: Story = {

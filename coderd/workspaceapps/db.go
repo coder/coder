@@ -154,7 +154,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.apiKey = apiKey // Update audit request.
 
-	_, isPreview := appurl.ParsePreviewSlug(appReq.AppSlugOrPort)
+	preview, isPreview := appurl.ParsePreviewSlug(appReq.AppSlugOrPort)
 	if isPreview && (!p.Experiments.Enabled(codersdk.ExperimentOpenPreview) || appReq.AccessMethod != AccessMethodSubdomain) {
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews require the open-preview experiment and a subdomain app URL")
 		return nil, "", false
@@ -163,7 +163,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// would set the cookie for the whole app wildcard, and the wrapper's
 	// frame-src blocks its cross-origin hop anyway.
 	if isPreview && apiKey == nil {
-		writePreviewSignedOut(rw, r)
+		writePreviewError(rw, r, p.DashboardURL, http.StatusUnauthorized, "Reopen this preview from Coder to sign in again.")
 		return nil, "", false
 	}
 
@@ -188,6 +188,10 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// code as whoever opens it, so only the workspace owner may.
 	if isPreview && apiKey.UserID != dbReq.Workspace.OwnerID {
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews open only for the workspace owner")
+		return nil, "", false
+	}
+	if isPreview && preview.Port != 0 && !slices.Contains(dbReq.Agent.DisplayApps, database.DisplayAppPortForwardingHelper) {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "the workspace agent does not allow port forwarding, so its ports cannot be previewed")
 		return nil, "", false
 	}
 

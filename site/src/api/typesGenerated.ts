@@ -8986,11 +8986,6 @@ export interface PresetParameter {
 	readonly Value: string;
 }
 
-// From codersdk/previews.go
-export type PreviewMode = "strict";
-
-export const PreviewModes: PreviewMode[] = ["strict"];
-
 // From codersdk/parameters.go
 export interface PreviewParameter extends PreviewParameterData {
 	readonly value: NullHCLString;
@@ -9096,7 +9091,6 @@ export interface PreviewSignInResponse {
 	 * Sandbox is the iframe sandbox to frame the preview with.
 	 */
 	readonly sandbox: string;
-	readonly mode: PreviewMode;
 }
 
 // From codersdk/deployment.go
