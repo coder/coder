@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"charm.land/fantasy"
-	fantasygoogle "charm.land/fantasy/providers/google"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
@@ -264,7 +263,7 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 		attrs = append(attrs, semconv.GenAIResponseID(resp.ResponseID))
 	}
 	attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
-	attrs = append(attrs, usageAttributes(s.model, resp.Usage)...)
+	attrs = append(attrs, usageAttributes(resp.Usage)...)
 	s.span.SetAttributes(attrs...)
 }
 
@@ -288,16 +287,14 @@ func genAIFinishReason(reason fantasy.FinishReason) string {
 }
 
 // usageAttributes reports input tokens including cache reads and writes,
-// as the conventions require. Fantasy reports them separately, except for
-// Google, whose prompt token count already includes cached content.
-func usageAttributes(model StageModel, usage fantasy.Usage) []attribute.KeyValue {
+// as the conventions require. Every client chatd builds reports them
+// apart from InputTokens: Google providers use the OpenAI-compatible
+// client, which subtracts cached tokens from the prompt count.
+func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
 	if usage == (fantasy.Usage{}) {
 		return nil
 	}
-	input := usage.InputTokens
-	if model.Provider != fantasygoogle.Name {
-		input += usage.CacheReadTokens + usage.CacheCreationTokens
-	}
+	input := usage.InputTokens + usage.CacheReadTokens + usage.CacheCreationTokens
 	attrs := []attribute.KeyValue{
 		semconv.GenAIUsageInputTokens(int(input)),
 		semconv.GenAIUsageOutputTokens(int(usage.OutputTokens)),
