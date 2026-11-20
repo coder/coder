@@ -1,7 +1,3 @@
----
-review-personas: [accuracy, coverage, audience, structure]
----
-
 # Coder docs content guidelines
 
 > [!NOTE]
@@ -246,7 +242,7 @@ Each entry includes the reason it belongs in the docs.
 
 ## Structural rules
 
-These govern *how* content enters the docs, for both humans and the doc-check agent.
+These govern *how* content enters the docs, for both humans and agents.
 
 - **Every new page must be added to the sidebar sources in `docs/manifest/`.**
   Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
@@ -404,10 +400,6 @@ Update this section as they land.
   The direction is decided (embedded widget surfacing relevant KB articles per page or section).
   The mechanics are still under investigation.
 - **Automated screenshot generation.**
-  Today, doc-check only analyzes and comments.
-  It creates nothing.
   The repo has Playwright e2e infrastructure under `site/e2e/`, so an agent workspace generating screenshots is plausible but unproven.
   If it becomes real, revisit loosening the screenshots policy.
   Until then, the screenshot rules in [What belongs in the docs](#what-belongs-in-the-docs) govern.
-- **doc-check redirect suggestions.**
-  When doc-check detects a moved or renamed page, it should suggest the exact `docs/redirects.json` entry in a code block, so applying it is at most a copy-paste job.

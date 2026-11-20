@@ -1,7 +1,3 @@
----
-review-personas: [structure, language]
----
-
 # Procedural writing
 
 Procedural prose tells the reader what to do: the numbered steps of a how-to guide, a tutorial, or a Quickstart.

@@ -1,16 +1,12 @@
 ---
 name: write-docs
-description: Authoring workflow and guardrails for writing, moving, or restructuring Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews docs changes for accuracy, coverage, audience, and style; run doc-check on your branch before opening or updating the PR.
+description: Authoring workflow and guardrails for writing, moving, or restructuring Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation.
 ---
 
 # Documentation Authoring Skill
 
 Author or edit user-facing documentation under `docs/` so it is correct,
-correctly scoped, and approvable in as few review cycles as possible. This is
-the counterpart to the `doc-check` skill: `doc-check` reviews whether the docs
-on `main` would explain a change correctly and clearly after it merges, and
-this skill covers writing them. Run `doc-check` on your own branch before you
-open or update the PR, so CI confirms your work instead of finding it.
+correctly scoped, and approvable in as few review cycles as possible.
 
 > [!IMPORTANT]
 > The **canonical** rules live outside this skill. Read them first; this skill
@@ -100,12 +96,7 @@ style.
    Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
    rename (refer to [Structural rules to apply](#structural-rules-to-apply)).
-6. **Run `doc-check` on your branch.** Use the
-   [`doc-check` skill](../doc-check/SKILL.md) in author self-check mode
-   against your branch diff, including any code you changed. Fix every
-   blocking finding before you open or update the PR. Report the suggestions
-   you chose not to apply, with a reason, in the PR description.
-7. **Open the PR.** Write the title and description per the
+6. **Open the PR.** Write the title and description per the
    [Pull Request Description Style Guide](../../docs/PR_STYLE_GUIDE.md), which
    also covers when to open as a draft and when to mark it ready for review.
    Keep the diff reviewable (refer to [Keep PRs reviewable](#keep-prs-reviewable)).
@@ -240,8 +231,6 @@ the whole series as a single review.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 - [ ] The page names its persona, and the surface that persona uses leads.
-- [ ] `doc-check` ran on the branch in author self-check mode, and every
-      blocking finding is fixed.
 
 ## Feeding lessons back
 

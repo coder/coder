@@ -1,7 +1,3 @@
----
-review-personas: [structure, language]
----
-
 # Formatting
 
 Coder documentation uses bold for UI elements, italics for emphasis, and code font for identifiers.
