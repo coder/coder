@@ -66,7 +66,7 @@ Specifies a password to use if creating the first user for the deployment.
 
 ### --first-user-setup-token
 
-| Property    | Value                                      |
+|             |                                            |
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_FIRST_USER_SETUP_TOKEN</code> |

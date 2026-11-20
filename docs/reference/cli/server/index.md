@@ -1380,7 +1380,7 @@ Enable the default GitHub external auth provider managed by Coder.
 
 ### --setup-token
 
-| Property    | Value                           |
+|             |                                 |
 |-------------|---------------------------------|
 | Type        | <code>string</code>             |
 | Environment | <code>$CODER_SETUP_TOKEN</code> |
