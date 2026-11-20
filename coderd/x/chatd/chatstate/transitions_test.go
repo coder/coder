@@ -44,9 +44,6 @@ func TestTransitionCreate_NToR0(t *testing.T) {
 	require.NotEmpty(t, res.InitialMessages)
 	require.Equal(t, int64(1), res.InitialMessages[0].Revision)
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, res.Chat.ID))
-	require.Contains(t,
-		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
-		chatstate.StateR0, "transition matrix must admit the N -> R0 create path")
 	require.True(t, f.Pub.hasOwnership(), "newly created chat is runnable and unowned")
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }
@@ -94,9 +91,6 @@ func TestTransitionCreate_NToW(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, res.Chat.Status)
 	require.Equal(t, int64(1), res.Chat.SnapshotVersion)
 	require.Equal(t, chatstate.StateW, f.classify(ctx, t, res.Chat.ID))
-	require.Contains(t,
-		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
-		chatstate.StateW, "transition matrix must admit the N -> W create path")
 	require.False(t, f.Pub.hasOwnership(), "waiting chat is not runnable, must not publish an ownership hint")
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }

@@ -1044,20 +1044,10 @@ var allExecutionStates = []chatstate.ExecutionState{
 	chatstate.StateInvalid,
 }
 
-func allowedExecutionTransitionsFrom(from chatstate.ExecutionState) []chatstate.Transition {
-	var out []chatstate.Transition
-	for _, tr := range allExecutionTransitions {
-		if chatstate.AllowedExecutionTransitionOutputs(from, tr) != nil {
-			out = append(out, tr)
-		}
-	}
-	return out
-}
-
 func allowedInputStates(tr chatstate.Transition) []chatstate.ExecutionState {
 	var out []chatstate.ExecutionState
 	for _, from := range allExecutionStates {
-		if chatstate.AllowedExecutionTransitionOutputs(from, tr) != nil {
+		if transitionAllowed(tr, from) {
 			out = append(out, from)
 		}
 	}
