@@ -44,18 +44,6 @@ type HTTPAuthorizer struct {
 	Logger     slog.Logger
 }
 
-// actorLogFields returns the identifying fields of a subject for logging. It
-// deliberately omits the expanded roles and permissions, which logging the whole
-// subject would dump.
-func actorLogFields(s rbac.Subject) map[string]any {
-	return map[string]any{
-		"FriendlyName": s.FriendlyName,
-		"Email":        s.Email,
-		"Type":         s.Type,
-		"ID":           s.ID,
-	}
-}
-
 // Authorize will return false if the user is not authorized to do the action.
 // This function will log appropriately, but the caller must return an
 // error to the api client.
@@ -93,7 +81,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 		logger.Warn(r.Context(), "requester is not authorized to access the object",
 			slog.F("roles", roles.SafeRoleNames()),
 			slog.F("actor_id", roles.ID),
-			slog.F("actor_name", actorLogFields(roles)),
+			slog.F("actor_name", roles),
 			slog.F("scope", roles.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
@@ -125,7 +113,7 @@ func (h *HTTPAuthorizer) AuthorizeContext(ctx context.Context, action policy.Act
 		logger.Warn(ctx, "requester is not authorized to access the object",
 			slog.F("roles", roles.SafeRoleNames()),
 			slog.F("actor_id", roles.ID),
-			slog.F("actor_name", actorLogFields(roles)),
+			slog.F("actor_name", roles),
 			slog.F("scope", roles.SafeScopeName()),
 			slog.F("action", action),
 			slog.F("object", object.RBACObject()),
