@@ -33,6 +33,8 @@ While the experiment is off, the agent doesn't get the tool and Coder doesn't se
 Only root chats outside [plan mode](../index.md#plan-mode) have the `open_preview` tool.
 When the agent calls it, the tool result shows an **Open preview** button.
 Nothing opens until the user selects the button.
+The preview opens in a tab in the chat's right panel, and previews open nowhere else.
+If a user opens a preview's address directly in the browser, Coder shows an error page.
 
 The agent can open two kinds of preview:
 
