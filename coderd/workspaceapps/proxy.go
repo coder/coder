@@ -670,8 +670,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		return
 	}
 
-	preview, isPreview := appurl.ParsePreviewSlug(appToken.AppSlugOrPort)
-	isFilePreview := isPreview && preview.ID != ""
+	preview, _ := appurl.ParsePreviewSlug(appToken.AppSlugOrPort)
+	isFilePreview := preview.ID != ""
 
 	// Verify that the port is allowed. See the docs above
 	// `codersdk.MinimumListeningPort` for more details.
@@ -740,13 +740,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
-	host := httpmw.EffectiveHost(s.RealIPConfig, r)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
-		if isPreview && isRepostToOtherHost(r, host) {
-			blockRepost(r)
-			return nil
-		}
 		// If passthru behavior is set, disable our CORS header stripping.
 		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
 			return nil

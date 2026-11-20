@@ -7,14 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// PreviewMode is how a server hosts agent-authored previews.
-type PreviewMode string
-
-// PreviewModeStrict serves previews on the app wildcard hostname, the same
-// site as the user's other apps, with a policy that keeps each preview on its
-// own host.
-const PreviewModeStrict PreviewMode = "strict"
-
 // PreviewSignInRequest asks for a URL that signs the browser in to one
 // preview of a workspace the caller owns.
 type PreviewSignInRequest struct {
@@ -38,8 +30,7 @@ type PreviewSignInResponse struct {
 	// Origin is the preview's origin, the only one its wrapper may frame.
 	Origin string `json:"origin"`
 	// Sandbox is the iframe sandbox to frame the preview with.
-	Sandbox string      `json:"sandbox"`
-	Mode    PreviewMode `json:"mode"`
+	Sandbox string `json:"sandbox"`
 }
 
 // PreviewSignIn returns a URL that signs the browser in to a preview.

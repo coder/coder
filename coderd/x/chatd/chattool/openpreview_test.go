@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -15,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -125,11 +123,6 @@ func TestOpenPreview(t *testing.T) {
 			wantError: "must not contain control, format",
 		},
 		{
-			name:      "ZeroWidthTitle",
-			input:     `{"title":"Docs\u200bsite","port":3000}`,
-			wantError: "must not contain control, format",
-		},
-		{
 			name:      "TwoTargets",
 			input:     `{"title":"App","port":3000,"path":"/home/coder/output"}`,
 			wantError: "exactly one",
@@ -164,14 +157,12 @@ func TestOpenPreview(t *testing.T) {
 				workspaceAgent = *tt.agent
 			}
 			tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-				Hosting: testPreviewHosting(t, "*.apps.example.com"),
+				PreviewsAvailable: true,
 				GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 					return chattool.PreviewWorkspace{
-						Conn:          conn,
-						WorkspaceID:   workspaceID,
-						WorkspaceName: "dev",
-						OwnerName:     "alice",
-						Agent:         workspaceAgent,
+						Conn:        conn,
+						WorkspaceID: workspaceID,
+						Agent:       workspaceAgent,
 					}, nil
 				},
 			})
@@ -199,12 +190,10 @@ func TestOpenPreviewURLPath(t *testing.T) {
 	t.Parallel()
 
 	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		Hosting: testPreviewHosting(t, "*.apps.example.com"),
+		PreviewsAvailable: true,
 		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
 			return chattool.PreviewWorkspace{
-				WorkspaceID:   uuid.New(),
-				WorkspaceName: "dev",
-				OwnerName:     "alice",
+				WorkspaceID: uuid.New(),
 				Agent: database.WorkspaceAgent{
 					Name:        "main",
 					DisplayApps: []database.DisplayApp{database.DisplayAppPortForwardingHelper},
@@ -237,38 +226,6 @@ func TestOpenPreviewURLPath(t *testing.T) {
 	}
 }
 
-func TestOpenPreviewHostnameTooLong(t *testing.T) {
-	t.Parallel()
-
-	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
-	conn.EXPECT().OpenPreview(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: "/home/coder/output"}, nil)
-	tool := chattool.OpenPreview(chattool.OpenPreviewOptions{
-		Hosting: testPreviewHosting(t, "*--apps.example.com"),
-		GetPreviewWorkspace: func(context.Context) (chattool.PreviewWorkspace, error) {
-			return chattool.PreviewWorkspace{
-				Conn:          conn,
-				WorkspaceID:   uuid.New(),
-				WorkspaceName: strings.Repeat("w", 50),
-				OwnerName:     "alice",
-				Agent: database.WorkspaceAgent{
-					Name:        "main",
-					DisplayApps: []database.DisplayApp{database.DisplayAppPortForwardingHelper},
-				},
-			}, nil
-		},
-	})
-
-	for _, input := range []string{
-		`{"title":"App","port":3000}`,
-		`{"title":"Docs","path":"/home/coder/output"}`,
-	} {
-		response := runOpenPreview(t, tool, input)
-		require.True(t, response.IsError, input)
-		require.Contains(t, response.Content, "over the DNS limit of 63", input)
-	}
-}
-
 func TestOpenPreviewWithoutWildcard(t *testing.T) {
 	t.Parallel()
 
@@ -280,16 +237,6 @@ func TestOpenPreviewWithoutWildcard(t *testing.T) {
 	response := runOpenPreview(t, tool, `{"title":"App","port":3000}`)
 	require.True(t, response.IsError)
 	require.Contains(t, response.Content, "previews need a wildcard app hostname")
-}
-
-func testPreviewHosting(t *testing.T, wildcard string) *previewhost.Hosting {
-	t.Helper()
-
-	accessURL, err := url.Parse("https://coder.example.com")
-	require.NoError(t, err)
-	hosting, err := previewhost.Strict(wildcard, accessURL, accessURL)
-	require.NoError(t, err)
-	return hosting
 }
 
 func runOpenPreview(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {

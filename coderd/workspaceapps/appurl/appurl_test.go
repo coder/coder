@@ -287,27 +287,6 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
-			Name:      "Prefix---Preview--Agent--Workspace--User",
-			Subdomain: "prefix---preview--0123abcd--agent--workspace--user",
-			Expected: appurl.ApplicationURL{
-				Prefix:        "prefix---",
-				AppSlugOrPort: "preview--0123abcd",
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-			},
-		},
-		{
-			Name:      "PortPreview--Agent--Workspace--User",
-			Subdomain: "preview--8080--agent--workspace--user",
-			Expected: appurl.ApplicationURL{
-				AppSlugOrPort: "preview--8080",
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-			},
-		},
-		{
 			Name:          "Invalid_PreviewID",
 			Subdomain:     "preview--0123abc--agent--workspace--user",
 			ExpectedError: "invalid application url format",
