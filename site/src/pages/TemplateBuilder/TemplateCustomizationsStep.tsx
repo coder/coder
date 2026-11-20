@@ -107,14 +107,17 @@ export const TemplateCustomizationsStep: React.FC<
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
-	const mappedCreateErrorField = isApiError(createError)
+	// A create error sits on the field it names. When it names no field, or
+	// that field is not rendered (the Organization field while organizations
+	// fail to load), the alert above the form shows it instead.
+	const namedCreateErrorField = isApiError(createError)
 		? createErrorFields[createError.response.status]
 		: undefined;
-	// The organization error has no field to sit on while organizations fail.
 	const createErrorField =
-		mappedCreateErrorField === "organization_id" && showOrgsError
+		namedCreateErrorField === "organization_id" && showOrgsError
 			? undefined
-			: mappedCreateErrorField;
+			: namedCreateErrorField;
+	const showCreateErrorAlert = createError != null && !createErrorField;
 	const getFormFieldHelpers = getFormHelpers(form);
 	const getFieldHelpers: typeof getFormFieldHelpers = (field, options) => {
 		const helpers = getFormFieldHelpers(field, options);
@@ -176,7 +179,7 @@ export const TemplateCustomizationsStep: React.FC<
 			noValidate
 			className="min-w-163.5"
 		>
-			{createError != null && !createErrorField && (
+			{showCreateErrorAlert && (
 				<ErrorAlert error={createError} className="mb-6" />
 			)}
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
