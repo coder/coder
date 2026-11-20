@@ -225,6 +225,7 @@ func (c *Compressor) serveRef(w http.ResponseWriter, r *http.Request, headers ht
 				slog.F("cache_path", cachePath), slog.F("url_path", cref.key.urlPath), slog.Error(err))
 			// fall back to uncompressed
 			http.FileServer(c.orig).ServeHTTP(w, r)
+			return
 		}
 		defer cacheFile.Close()
 
