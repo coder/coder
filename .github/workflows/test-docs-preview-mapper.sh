@@ -1054,6 +1054,19 @@ else
 	failures=$((failures + 1))
 fi
 
+# Vercel makes a project's first deployment production, and cleanup can leave
+# the preview project with none, so the deploy names its target and never
+# promotes.
+deploy_cmd=$(grep -F 'vc deploy --prebuilt' "$deploy_workflow" || true)
+if [ "$(printf '%s\n' "$deploy_cmd" | grep -c .)" -eq 1 ] &&
+	grep -qF -- '--target=preview' <<<"$deploy_cmd" &&
+	! grep -qE -- '--prod\b|--target=production' "$deploy_workflow"; then
+	echo "PASS: every preview deploy targets preview, never production"
+else
+	echo "FAIL: a preview deploy can land as the project's production deployment"
+	failures=$((failures + 1))
+fi
+
 if [ "$failures" -gt 0 ]; then
 	echo ""
 	echo "$failures test(s) failed."
