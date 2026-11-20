@@ -394,9 +394,9 @@ func (api *API) organizationUnpricedAIModels(rw http.ResponseWriter, r *http.Req
 		PeriodStart:        period.start,
 		PeriodEnd:          period.end,
 		PriceableProviders: providers.SupportedStrings(),
-		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		// #nosec G115 - The limit is capped at maxOrganizationAISpendLimit.
 		LimitOpt: int32(page.Limit),
-		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		// #nosec G115 - The offset is parsed as a positive int32.
 		OffsetOpt: int32(page.Offset),
 	}
 	rows, err := api.Database.GetUnpricedAIModels(ctx, params)
