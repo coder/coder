@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@coder/docs-theme";
+
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* The engine's React components carry Tailwind classes in their compiled
+ * dists, which live outside Tailwind's default scan scope (node_modules), so
+ * their utilities are never generated without explicit sources. The popover
+ * file covers the primitives docs-ui composes (fumadocs-ui's preset ships
+ * pre-generated CSS only for its own layouts). */
+@source "../node_modules/@coder/docs-ui/dist/*.js";
+@source "../node_modules/@coder/docs-next/dist/*.js";
+@source "../node_modules/fumadocs-ui/dist/components/ui/popover.js";
