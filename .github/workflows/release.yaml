@@ -84,7 +84,8 @@ jobs:
     permissions:
       # Required to publish a release
       contents: write
-      # Necessary to push docker images to ghcr.io.
+      # Pushes images and charts to the ghcr.io/coder/*-staging packages only;
+      # coder/ghcr-publisher alone can write the public ones.
       packages: write
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
       # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
@@ -357,7 +358,9 @@ jobs:
             # Empty value means use the default and avoid building a fresh one.
             echo "tag=" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
+            # Releases push to the staging package; coder/ghcr-publisher copies
+            # the attested digest to ghcr.io/coder/coder-base (see "Promote").
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base-staging ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create empty base-build-context directory
@@ -418,13 +421,14 @@ jobs:
         env:
           IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
+      # coder/ghcr-publisher only promotes digests with this attestation, so a
+      # failure here must fail the release.
       - name: GitHub Attestation for Base Docker image
         id: attest_base
         if: ${{ !inputs.dry_run && steps.build_base_image.outputs.digest != '' }}
-        continue-on-error: true
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-name: ghcr.io/coder/coder-base
+          subject-name: ghcr.io/coder/coder-base-staging
           subject-digest: ${{ steps.build_base_image.outputs.digest }}
           push-to-registry: true
 
@@ -454,23 +458,15 @@ jobs:
           # For debugging, print all docker image tags
           docker images
 
-          # if the current version is equal to the highest (according to semver)
-          # version in the repo, also create a multi-arch image as ":latest" and
-          # push it
-          if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
-            latest_target="$(./scripts/image_tag.sh --version latest)"
-            # shellcheck disable=SC2046
-            ./scripts/build_docker_multiarch.sh \
-              --push \
-              --target "${latest_target}" \
-              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-            echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
-            echo "latest_target=${latest_target}" >> "$GITHUB_OUTPUT"
-          else
-            echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
-          fi
+          # ghcr.io/coder/coder:latest is moved by coder/ghcr-publisher when it
+          # promotes the highest stable version.
         env:
-          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+          # Releases push to the staging package; coder/ghcr-publisher copies
+          # the attested digest to ghcr.io/coder/coder (see "Promote").
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-staging
+          # Build on the base image just built, by digest, so nothing can swap
+          # the tag in between. Empty (no fresh base) falls back to the default.
+          CODER_BASE_IMAGE_TAG: ${{ steps.build_base_image.outputs.digest != '' && format('ghcr.io/coder/coder-base-staging@{0}', steps.build_base_image.outputs.digest) || '' }}
 
       - name: SBOM Generation and Attestation
         if: ${{ !inputs.dry_run }}
@@ -478,7 +474,6 @@ jobs:
           COSIGN_EXPERIMENTAL: '1'
           MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
           VERSION: ${{ steps.version.outputs.version }}
-          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
         run: |
           set -euxo pipefail
 
@@ -486,6 +481,8 @@ jobs:
           echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
           syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
 
+          # The attestation is stored next to the image digest; coder/ghcr-publisher
+          # copies it to ghcr.io/coder/coder along with the image.
           echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
           cosign clean --force=true "${MULTIARCH_IMAGE}"
           cosign attest --type spdxjson \
@@ -493,56 +490,25 @@ jobs:
             --yes \
             "${MULTIARCH_IMAGE}"
 
-          # If latest tag was created, also attest it
-          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
-            latest_tag="$(./scripts/image_tag.sh --version latest)"
-            echo "Generating SBOM for latest image: ${latest_tag}"
-            syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
-
-            echo "Attesting SBOM to latest image: ${latest_tag}"
-            cosign clean --force=true "${latest_tag}"
-            cosign attest --type spdxjson \
-              --predicate coder_latest_sbom.spdx.json \
-              --yes \
-              "${latest_tag}"
-          fi
-
       - name: Resolve Docker image digests for attestation
         id: docker_digests
         if: ${{ !inputs.dry_run }}
-        continue-on-error: true
         env:
           MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
-          LATEST_TARGET: ${{ steps.build_docker.outputs.latest_target }}
         run: |
           set -euxo pipefail
-          if [[ -n "${MULTIARCH_IMAGE}" ]]; then
-            multiarch_digest=$(docker buildx imagetools inspect --raw "${MULTIARCH_IMAGE}" | sha256sum | awk '{print "sha256:"$1}')
-            echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ -n "${LATEST_TARGET}" ]]; then
-            latest_digest=$(docker buildx imagetools inspect --raw "${LATEST_TARGET}" | sha256sum | awk '{print "sha256:"$1}')
-            echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
-          fi
+          multiarch_digest=$(docker buildx imagetools inspect --raw "${MULTIARCH_IMAGE}" | sha256sum | awk '{print "sha256:"$1}')
+          echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
 
+      # coder/ghcr-publisher only promotes digests with this attestation, so a
+      # failure here must fail the release.
       - name: GitHub Attestation for Docker image
         id: attest_main
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.multiarch_digest != '' }}
-        continue-on-error: true
+        if: ${{ !inputs.dry_run }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-name: ghcr.io/coder/coder
+          subject-name: ghcr.io/coder/coder-staging
           subject-digest: ${{ steps.docker_digests.outputs.multiarch_digest }}
-          push-to-registry: true
-
-      - name: GitHub Attestation for "latest" Docker image
-        id: attest_latest
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.latest_digest != '' }}
-        continue-on-error: true
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-name: ghcr.io/coder/coder
-          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
           push-to-registry: true
 
       - name: GitHub Attestation for release binaries
@@ -565,18 +531,144 @@ jobs:
       - name: Check attestation status
         if: ${{ !inputs.dry_run }}
         run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
-          if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
-            echo "::warning::GitHub attestation for base image failed"
-          fi
-          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
-            echo "::warning::GitHub attestation for main image failed"
-          fi
-          if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
-            echo "::warning::GitHub attestation for latest image failed"
-          fi
           if [[ "${{ steps.attest_binaries.outcome }}" == "failure" && "${{ steps.attest_binaries.conclusion }}" != "skipped" ]]; then
             echo "::warning::GitHub attestation for release binaries failed"
           fi
+
+      # The OCI charts go to staging like the images; coder/ghcr-publisher
+      # copies them to oci://ghcr.io/coder/chart. The .tgz files are attested
+      # above, but an OCI chart is addressed by its manifest digest, so each one
+      # is attested again below.
+      - name: Push Helm charts to staging
+        id: chart_digests
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          for chart in coder provisioner ai-gateway; do
+            out="$(helm push "build/${chart}_helm_${version}.tgz" oci://ghcr.io/coder/chart-staging 2>&1)"
+            echo "$out"
+            digest="$(sed -nE 's/^Digest: (sha256:[0-9a-f]{64})$/\1/p' <<<"$out")"
+            if [[ -z "$digest" ]]; then
+              echo "::error::helm push of ${chart} printed no digest"
+              exit 1
+            fi
+            echo "${chart//-/_}=${digest}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: GitHub Attestation for coder Helm chart
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/chart-staging/coder
+          subject-digest: ${{ steps.chart_digests.outputs.coder }}
+
+      - name: GitHub Attestation for coder-provisioner Helm chart
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/chart-staging/coder-provisioner
+          subject-digest: ${{ steps.chart_digests.outputs.provisioner }}
+
+      - name: GitHub Attestation for coder-ai-gateway Helm chart
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/chart-staging/coder-ai-gateway
+          subject-digest: ${{ steps.chart_digests.outputs.ai_gateway }}
+
+      # Only coder/ghcr-publisher can write the public images and charts. It copies
+      # each staging digest after verifying that this workflow attested it, on
+      # this branch, from the tagged commit. The token is scoped to that one
+      # repository; contents: write is all a repository_dispatch needs.
+      - name: Generate release App token for promotion
+        id: promote_app_token
+        if: ${{ !inputs.dry_run }}
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: ghcr-publisher
+          permissions: |
+            contents: write
+
+      - name: Promote images and charts
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.promote_app_token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DIGEST_CODER: ${{ steps.docker_digests.outputs.multiarch_digest }}
+          DIGEST_CODER_BASE: ${{ steps.build_base_image.outputs.digest }}
+          DIGEST_CHART_CODER: ${{ steps.chart_digests.outputs.coder }}
+          DIGEST_CHART_CODER_PROVISIONER: ${{ steps.chart_digests.outputs.provisioner }}
+          DIGEST_CHART_CODER_AI_GATEWAY: ${{ steps.chart_digests.outputs.ai_gateway }}
+        run: |
+          set -euo pipefail
+
+          gh api repos/coder/ghcr-publisher/dispatches \
+            -f event_type=promote-coder \
+            -f "client_payload[version]=v${VERSION}" \
+            -f "client_payload[coder]=${DIGEST_CODER}" \
+            -f "client_payload[coder_base]=${DIGEST_CODER_BASE}" \
+            -f "client_payload[chart_coder]=${DIGEST_CHART_CODER}" \
+            -f "client_payload[chart_coder_provisioner]=${DIGEST_CHART_CODER_PROVISIONER}" \
+            -f "client_payload[chart_coder_ai_gateway]=${DIGEST_CHART_CODER_AI_GATEWAY}"
+
+          # The token can't read the publisher's runs, so wait until every public
+          # tag serves the expected digest. The arch tags are copied last.
+          # Anonymous reads: these packages are public.
+          remote_digest() {
+            local ref="$1" repo tag token
+            repo="${ref#ghcr.io/}"
+            tag="${repo##*:}"
+            repo="${repo%:*}"
+            token="$(curl -fsS "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r .token)"
+            curl -fsS -o /dev/null -D - -I \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repo}/manifests/${tag}" |
+              tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" {print $2}'
+          }
+
+          declare -A expected=(
+            ["ghcr.io/coder/coder:v${VERSION}"]="${DIGEST_CODER}"
+            ["ghcr.io/coder/coder-base:v${VERSION}"]="${DIGEST_CODER_BASE}"
+            ["ghcr.io/coder/chart/coder:${VERSION}"]="${DIGEST_CHART_CODER}"
+            ["ghcr.io/coder/chart/coder-provisioner:${VERSION}"]="${DIGEST_CHART_CODER_PROVISIONER}"
+            ["ghcr.io/coder/chart/coder-ai-gateway:${VERSION}"]="${DIGEST_CHART_CODER_AI_GATEWAY}"
+          )
+          for arch in amd64 arm64 armv7; do
+            expected["ghcr.io/coder/coder:v${VERSION}-${arch}"]=""
+          done
+
+          deadline=$((SECONDS + 1800))
+          while true; do
+            pending=()
+            for ref in "${!expected[@]}"; do
+              if ! got="$(remote_digest "$ref" 2>/dev/null)" || [[ -z "$got" ]]; then
+                pending+=("$ref (missing)")
+                continue
+              fi
+              want="${expected[$ref]}"
+              if [[ -n "$want" && "$got" != "$want" ]]; then
+                echo "::error::${ref} is ${got}, expected ${want}"
+                exit 1
+              fi
+            done
+            if [[ ${#pending[@]} -eq 0 ]]; then
+              echo "All images and charts are promoted."
+              break
+            fi
+            if ((SECONDS > deadline)); then
+              printf '::error::Promotion did not finish in 30 minutes; still waiting for:\n' >&2
+              printf '  %s\n' "${pending[@]}" >&2
+              echo "::error::Check the latest run of https://github.com/coder/ghcr-publisher/actions/workflows/promote-coder.yaml"
+              exit 1
+            fi
+            sleep 20
+          done
 
       - name: Generate offline docs
         run: |
@@ -672,11 +764,6 @@ jobs:
             files+=("./coder_${VERSION}_sbom.spdx.json")
           fi
 
-          # Only include the latest SBOM file if it was created
-          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
-            files+=(./coder_latest_sbom.spdx.json)
-          fi
-
           ./scripts/release/publish.sh \
             "${publish_args[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
@@ -689,7 +776,6 @@ jobs:
           CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
           CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.build.outputs.release-signer-credentials-file }}
           VERSION: ${{ steps.version.outputs.version }}
-          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
       # Mark the Linear release as shipped.
       - name: Extract Linear release version
@@ -757,9 +843,7 @@ jobs:
           fi
 
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
-          helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
-          helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
-          helm push "build/ai-gateway_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          # The OCI charts (oci://ghcr.io/coder/chart) were promoted above.
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
@@ -775,14 +859,6 @@ jobs:
             ./build/*.deb
             ./build/*.rpm
             ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
-          retention-days: 7
-
-      - name: Upload latest sbom artifact to actions (if dry-run)
-        if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: latest-sbom-artifact
-          path: ./coder_latest_sbom.spdx.json
           retention-days: 7
 
   # The coder-package-publisher App (installed on coder/packages and coder/homebrew-coder) has its key only in

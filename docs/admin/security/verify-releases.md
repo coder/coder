@@ -41,8 +41,12 @@ Install the tools for the checks you plan to run:
 - [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/) version 2 or 3 for the container image SBOM.
 - On Linux and macOS, `jq` to extract the SBOM from the attestation.
 
-The commands on this page use a `VERSION` variable.
-Set it to the release you want to verify, without the leading `v` (for example, `2.38.6`):
+The commands on this page use a `VERSION` variable and a `SOURCE_REF` variable.
+Set `VERSION` to the release you want to verify, without the leading `v` (for example, `2.38.6`).
+`SOURCE_REF` is the Git ref the release was built from.
+Releases published since November 16, 2026 are built on their release branch, `release/<major>.<minor>`.
+Earlier releases were built from their tag, `refs/tags/v<version>`.
+A release candidate may also be built on `main` (`refs/heads/main`):
 
 <div class="tabs">
 
@@ -50,12 +54,18 @@ Set it to the release you want to verify, without the leading `v` (for example, 
 
 ```sh
 VERSION="<version>"
+SOURCE_REF="refs/heads/release/${VERSION%.*}"
+# For a release published before November 16, 2026:
+# SOURCE_REF="refs/tags/v${VERSION}"
 ```
 
 ### Windows
 
 ```ps1
 $VERSION = "<version>"
+$SOURCE_REF = "refs/heads/release/" + ($VERSION -replace "\.[^.]+$", "")
+# For a release published before November 16, 2026:
+# $SOURCE_REF = "refs/tags/v${VERSION}"
 ```
 
 </div>
@@ -221,7 +231,7 @@ The binaries are named `coder-<os>-<arch>`:
 
 ## Verify build provenance with the GitHub CLI
 
-A provenance attestation records which repository, workflow, and Git tag built an artifact.
+A provenance attestation records which repository, workflow, and Git ref built an artifact.
 The GitHub CLI checks that the attestation is signed and that it matches the artifact's digest.
 
 Provenance attestations can exist for the container image, the archives, the packages, the Windows installer, and the Helm charts.
@@ -232,10 +242,10 @@ The checksum file, the SBOM file, the offline docs, and the standalone CLI binar
 Run `gh attestation verify` on a file that you downloaded from the GitHub release or from `https://helm.coder.com/v2`:
 
 ```sh
-gh attestation verify "coder_${VERSION}_linux_amd64.tar.gz" --repo coder/coder --signer-workflow coder/coder/.github/workflows/release.yaml --source-ref "refs/tags/v${VERSION}"
+gh attestation verify "coder_${VERSION}_linux_amd64.tar.gz" --repo coder/coder --signer-workflow coder/coder/.github/workflows/release.yaml --source-ref "${SOURCE_REF}"
 ```
 
-When the attestation matches, the output ends with the build workflow and the release tag:
+When the attestation matches, the output ends with the build workflow and the release branch:
 
 ```txt
 ✓ Verification succeeded!
@@ -244,9 +254,9 @@ The following 1 attestation matched the policy criteria
 
 - Attestation #1
   - Build repo:..... coder/coder
-  - Build workflow:. .github/workflows/release.yaml@refs/tags/v<version>
+  - Build workflow:. .github/workflows/release.yaml@refs/heads/release/<major.minor>
   - Signer repo:.... coder/coder
-  - Signer workflow: .github/workflows/release.yaml@refs/tags/v<version>
+  - Signer workflow: .github/workflows/release.yaml@refs/heads/release/<major.minor>
 ```
 
 A Helm chart that you pull from `oci://ghcr.io/coder/chart` with `helm pull` has a different file name, such as `coder-<version>.tgz`, and the same contents.
@@ -260,19 +270,19 @@ For a file on the GitHub release, verify it with the [signed checksum file](#ver
 Pass the image reference with the `oci://` prefix:
 
 ```sh
-gh attestation verify "oci://ghcr.io/coder/coder:v${VERSION}" --repo coder/coder --signer-workflow coder/coder/.github/workflows/release.yaml --source-ref "refs/tags/v${VERSION}"
+gh attestation verify "oci://ghcr.io/coder/coder:v${VERSION}" --repo coder/coder --signer-workflow coder/coder/.github/workflows/release.yaml --source-ref "${SOURCE_REF}"
 ```
 
 The output has the same format as the output for a release file.
 The tag points to the multi-architecture image index, and the attestation covers that index digest.
 
 If the command fails with `HTTP 404: Not Found`, verify the [SBOM attestation](#verify-the-container-image-sbom-with-cosign) instead.
-Its signing certificate also identifies the Coder release workflow and the release tag.
+Its signing certificate also identifies the Coder release workflow and the release branch.
 
 ## Verify the container image SBOM with Cosign
 
 The release pipeline generates an SPDX SBOM for `ghcr.io/coder/coder:v<version>` and signs it as an attestation on the image with Sigstore keyless signing.
-The signing certificate identifies the Coder release workflow and the release tag.
+The signing certificate identifies the Coder release workflow and the release branch.
 
 1. Verify the SBOM attestation and save the SBOM.
 
@@ -287,7 +297,7 @@ The signing certificate identifies the Coder release workflow and the release ta
    cosign verify-attestation \
      --new-bundle-format=false \
      --type spdxjson \
-     --certificate-identity "https://github.com/coder/coder/.github/workflows/release.yaml@refs/tags/v${VERSION}" \
+     --certificate-identity "https://github.com/coder/coder/.github/workflows/release.yaml@${SOURCE_REF}" \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
      "ghcr.io/coder/coder:v${VERSION}" \
      | jq -r '.payload' | base64 -d | jq '.predicate' > "coder_${VERSION}_image_sbom.spdx.json"
@@ -299,7 +309,7 @@ The signing certificate identifies the Coder release workflow and the release ta
    $Envelope = cosign verify-attestation `
      --new-bundle-format=false `
      --type spdxjson `
-     --certificate-identity "https://github.com/coder/coder/.github/workflows/release.yaml@refs/tags/v${VERSION}" `
+     --certificate-identity "https://github.com/coder/coder/.github/workflows/release.yaml@${SOURCE_REF}" `
      --certificate-oidc-issuer https://token.actions.githubusercontent.com `
      "ghcr.io/coder/coder:v${VERSION}" | ConvertFrom-Json
    $Statement = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Envelope.payload)) | ConvertFrom-Json
@@ -316,7 +326,7 @@ The signing certificate identifies the Coder release workflow and the release ta
      - The cosign claims were validated
      - Existence of the claims in the transparency log was verified offline
      - The code-signing certificate was verified using trusted certificate authority certificates
-   Certificate subject: https://github.com/coder/coder/.github/workflows/release.yaml@refs/tags/v<version>
+   Certificate subject: https://github.com/coder/coder/.github/workflows/release.yaml@refs/heads/release/<major.minor>
    Certificate issuer URL: https://token.actions.githubusercontent.com
    ```
 
