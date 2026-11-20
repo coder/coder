@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -46,7 +47,10 @@ func (s *Server) servePreview(rw http.ResponseWriter, r *http.Request, host stri
 	// its own host, so it reopens inside the dashboard. Fetch metadata is
 	// missing from non-browser clients and from plain-HTTP origins other
 	// than localhost, so a request without it is treated as a page load.
-	if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
+	// Chromium sends no fetch metadata with a WebSocket handshake, which
+	// never loads a page.
+	dest := r.Header.Get("Sec-Fetch-Dest")
+	if dest == "document" || (dest == "" && !httpapi.IsWebsocketUpgrade(r)) {
 		http.Redirect(rw, r, s.previewOpenURL(app, r.URL).String(), http.StatusSeeOther)
 		return
 	}
