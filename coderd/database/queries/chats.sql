@@ -56,7 +56,8 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at
+        updated_chats.title_updated_at,
+        updated_chats.archived_with_project
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -70,6 +71,7 @@ ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, ch
 WITH updated_chats AS (
     UPDATE chats SET
         archived = false,
+        archived_with_project = false,
         updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
@@ -125,7 +127,8 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at
+        updated_chats.title_updated_at,
+        updated_chats.archived_with_project
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -1018,7 +1021,8 @@ chats_expanded AS (
         inserted_chat.context_error,
         inserted_chat.compaction_requested_at,
         inserted_chat.title_source,
-        inserted_chat.title_updated_at
+        inserted_chat.title_updated_at,
+        inserted_chat.archived_with_project
     FROM
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
@@ -1198,7 +1202,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1269,7 +1274,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1351,7 +1357,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1422,7 +1429,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1513,7 +1521,8 @@ chats_expanded AS (
         result_chat.context_error,
         result_chat.compaction_requested_at,
         result_chat.title_source,
-        result_chat.title_updated_at
+        result_chat.title_updated_at,
+        result_chat.archived_with_project
     FROM
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
@@ -1583,7 +1592,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1682,7 +1692,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1990,7 +2001,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -2258,7 +2270,8 @@ chats_expanded AS (
         locked_chat.context_error,
         locked_chat.compaction_requested_at,
         locked_chat.title_source,
-        locked_chat.title_updated_at
+        locked_chat.title_updated_at,
+        locked_chat.archived_with_project
     FROM
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
@@ -2325,7 +2338,8 @@ chats_expanded AS (
         shared_chat.context_error,
         shared_chat.compaction_requested_at,
         shared_chat.title_source,
-        shared_chat.title_updated_at
+        shared_chat.title_updated_at,
+        shared_chat.archived_with_project
     FROM
         shared_chat
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
@@ -2798,7 +2812,8 @@ chats_expanded AS (
         bumped_chat.context_error,
         bumped_chat.compaction_requested_at,
         bumped_chat.title_source,
-        bumped_chat.title_updated_at
+        bumped_chat.title_updated_at,
+        bumped_chat.archived_with_project
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
@@ -2837,6 +2852,9 @@ WITH updated_chat AS (
             ELSE retry_state
         END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
+        -- Only a project unarchive restores marked chats, so any
+        -- unarchived chat drops the marker.
+        archived_with_project = CASE WHEN @archived::boolean THEN archived_with_project ELSE false END,
         updated_at = NOW()
     WHERE id = @id::uuid
     RETURNING *
@@ -2892,7 +2910,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2962,7 +2981,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.archived_with_project
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
