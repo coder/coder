@@ -28754,6 +28754,8 @@ WHERE
 	ELSE
 		is_system = false
 	END
+ORDER BY
+	name, organization_id
 `
 
 type CustomRolesParams struct {

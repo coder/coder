@@ -1812,10 +1812,11 @@ func TestListRoles(t *testing.T) {
 	// expected from the builtin set.
 	// Always use constant strings, as if the names change, we need to write
 	// a SQL migration to change the name on the backend.
-	require.ElementsMatch(t, []string{
-		"owner",
-		"member",
+	// Roles are returned sorted by name.
+	require.Equal(t, []string{
 		"auditor",
+		"member",
+		"owner",
 		"template-admin",
 		"user-admin",
 	},
@@ -1827,14 +1828,14 @@ func TestListRoles(t *testing.T) {
 		orgRoleNames = append(orgRoleNames, role.Identifier.String())
 	}
 
-	require.ElementsMatch(t, []string{
+	require.Equal(t, []string{
+		fmt.Sprintf("agents-access:%s", orgID.String()),
 		fmt.Sprintf("organization-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-auditor:%s", orgID.String()),
-		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
-		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
+		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-access:%s", orgID.String()),
-		fmt.Sprintf("agents-access:%s", orgID.String()),
+		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
 	},
 		orgRoleNames)
 }
