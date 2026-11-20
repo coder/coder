@@ -56,7 +56,7 @@ export const OrganizationSettingsSection: React.FC<
 	>
 		{requestedOrganizationDenied && (
 			<Alert severity="warning">
-				The requested organization is not available. Showing settings for{" "}
+				You don't have access to that organization, or it doesn't exist. Showing{" "}
 				{organization.display_name || organization.name} instead.
 			</Alert>
 		)}
