@@ -44,6 +44,15 @@ const (
 	msgStillApplying    = "still applying database migration"
 	msgApplied          = "database migration applied, pending commit"
 	msgObserverFailed   = "database migration progress details unavailable"
+
+	msgOutcomeNoChange               = "database migration outcome: no change"
+	msgOutcomeCommitted              = "committed database migrations"
+	msgOutcomeRolledBack             = "migration failed, transaction rolled back, no changes saved"
+	msgOutcomeCommittedBeforeFailure = "committed database migrations before failure"
+	msgOutcomeUnknown                = "database migration commit outcome unknown"
+	msgOutcomeLockTimeout            = "gave up waiting for database migration lock"
+	msgOutcomeDirty                  = "database schema is dirty"
+	msgOutcomeFailedBeforeStart      = "database migration failed before it started"
 )
 
 type migrationRef struct {
@@ -79,11 +88,26 @@ type reporter struct {
 	// check that transaction's outcome with pg_xact_status. It is reset on
 	// every Lock, so after the batch transaction starts it identifies that
 	// transaction.
-	xid         string
-	fromVersion int
+	xid string
+	// runStart is when the run started; upStart is when Up called m.Up, so
+	// a lock timeout is measured from it. Both are set on Up's goroutine.
+	runStart      time.Time
+	upStart       time.Time
+	fromVersion   int
+	targetVersion int
+	// started is set once the version was read inside the migration
+	// transaction and the pending migrations are known. From then on the
+	// batch Lock has returned, so no abandoned Lock writes xid.
+	started     bool
 	names       map[int]string
 	total       int
 	position    int
+	stepVersion int
+	// applied counts the migrations that ran in the transaction. They are
+	// only saved if it commits.
+	applied int
+	// failed is the migration whose statement failed, if any.
+	failed *failedMigration
 
 	// hb is the heartbeat of the lock wait or of the current step. The two
 	// never overlap: the lock wait ends inside Lock. Each gets its own
@@ -114,14 +138,16 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	return &reporter{
-		logger:      logger,
-		appName:     o.appName,
-		clock:       o.clock,
-		interval:    o.heartbeatInterval,
-		observerDB:  o.observerDB,
-		runCtx:      runCtx,
-		cancel:      cancel,
-		fromVersion: database.NilVersion,
+		logger:        logger,
+		appName:       o.appName,
+		clock:         o.clock,
+		interval:      o.heartbeatInterval,
+		observerDB:    o.observerDB,
+		runCtx:        runCtx,
+		cancel:        cancel,
+		runStart:      o.clock.Now(),
+		fromVersion:   database.NilVersion,
+		targetVersion: database.NilVersion,
 	}
 }
 
@@ -175,7 +201,12 @@ func (r *reporter) versionRead(version int) {
 		names[m.version] = m.name
 	}
 
+	r.started = true
 	r.fromVersion = version
+	r.targetVersion = version
+	if len(pending) > 0 {
+		r.targetVersion = pending[len(pending)-1].version
+	}
 	r.names = names
 	r.total = len(pending)
 	r.position = 0
@@ -200,6 +231,7 @@ func (r *reporter) stepStarted(version int) {
 		return
 	}
 	r.position++
+	r.stepVersion = version
 	fields := r.stepFields(version)
 	r.logStep(msgApplying, fields...)
 	r.startHeartbeat(msgStillApplying, r.backendPID, fields...)
@@ -212,9 +244,24 @@ func (r *reporter) stepApplied(version int) {
 		return
 	}
 	duration := r.stopHeartbeat()
+	r.applied++
 
 	fields := append(r.stepFields(version), slog.F("duration_ms", duration.Milliseconds()))
 	r.logStep(msgApplied, fields...)
+}
+
+// statementFailed records which migration failed, how long it ran and the
+// driver's error. It is called while the step's heartbeat still runs.
+func (r *reporter) statementFailed(err error) {
+	var duration time.Duration
+	if r.hb != nil {
+		duration = r.clock.Since(r.hb.since)
+	}
+	r.failed = &failedMigration{
+		migrationRef: migrationRef{version: r.stepVersion, name: r.names[r.stepVersion]},
+		duration:     duration,
+		err:          err,
+	}
 }
 
 // logStep logs a step line at info, or at debug when the run started from an
