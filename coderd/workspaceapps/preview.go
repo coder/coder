@@ -1,10 +1,8 @@
 package workspaceapps
 
 import (
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -131,63 +129,4 @@ func isFromOtherPreview(r *http.Request, host string) bool {
 		return false
 	}
 	return appurl.IsPreviewHostname(origin.Hostname())
-}
-
-// isRepostToOtherHost reports whether resp makes the browser resend a request
-// that can change data, such as a form submission, to another host. The
-// browser would send it with the user's cookies for that host and with Origin
-// "null", which isFromOtherPreview cannot attribute, and Firefox checks
-// form-action only against a form's first URL.
-func isRepostToOtherHost(resp *http.Response, host string) bool {
-	method := resp.Request.Method
-	if method == http.MethodGet || method == http.MethodHead {
-		return false
-	}
-
-	// Browsers keep the method for 307 and 308. For 301 and 302 they change
-	// only POST to GET, so other methods still send their body.
-	switch resp.StatusCode {
-	case http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
-	case http.StatusMovedPermanently, http.StatusFound:
-		if method == http.MethodPost {
-			return false
-		}
-	default:
-		return false
-	}
-
-	for _, location := range resp.Header.Values("Location") {
-		if !redirectStaysOnHost(location, host) {
-			return true
-		}
-	}
-	return false
-}
-
-// redirectStaysOnHost reports whether a browser that follows a redirect to
-// location stays on host. Any location a browser might read as another host
-// counts as leaving, even where url.Parse reads it differently.
-func redirectStaysOnHost(location, host string) bool {
-	// Browsers read a backslash as a slash.
-	if strings.ContainsRune(location, '\\') {
-		return false
-	}
-	u, err := url.Parse(location)
-	if err != nil {
-		return false
-	}
-	// Browsers read a host after any number of leading slashes.
-	if u.Scheme == "" {
-		return !strings.HasPrefix(location, "//")
-	}
-	return (u.Scheme == "http" || u.Scheme == "https") && appurl.HostnamesMatch(u.Host, host)
-}
-
-func blockRepost(resp *http.Response) {
-	const msg = "Preview pages cannot redirect requests that change data to other hosts."
-	_ = resp.Body.Close()
-	resp.StatusCode = http.StatusForbidden
-	resp.Header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
-	resp.ContentLength = int64(len(msg))
-	resp.Body = io.NopCloser(strings.NewReader(msg))
 }

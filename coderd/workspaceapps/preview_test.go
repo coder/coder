@@ -48,9 +48,6 @@ func previewUpstream(t *testing.T) *url.URL {
 		rw.Header().Del("Link")
 		_, _ = rw.Write([]byte("preview"))
 	})
-	r.Post("/repost", func(rw http.ResponseWriter, r *http.Request) {
-		http.Redirect(rw, r, "https://app--workspace--user--apps.test.coder.com/", http.StatusTemporaryRedirect)
-	})
 	r.Get("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(rw, r, nil)
 		if err != nil {
@@ -125,7 +122,6 @@ func TestServePreviewPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		host         string
-		method       string
 		path         string
 		header       http.Header
 		signedOut    bool
@@ -160,7 +156,6 @@ func TestServePreviewPolicy(t *testing.T) {
 		{name: "SmuggledAPIKey", path: "/?" + workspaceapps.SubdomainProxyAPIKeyParam + "=x", wantStatus: http.StatusBadRequest},
 		{name: "SignedOut", signedOut: true, wantStatus: http.StatusUnauthorized},
 		{name: "AgentUnreachable", deadUpstream: true, wantStatus: http.StatusBadGateway},
-		{name: "RepostToOtherHost", method: http.MethodPost, path: "/repost", wantStatus: http.StatusForbidden},
 		{name: "ReservedPort", host: "preview--4--agent--workspace--user--apps.test.coder.com", wantStatus: http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -185,16 +180,12 @@ func TestServePreviewPolicy(t *testing.T) {
 			}
 			ts := newPreviewServer(t, provider, target)
 
-			method := tc.method
-			if method == "" {
-				method = http.MethodGet
-			}
 			var interim []int
 			trace := &httptrace.ClientTrace{Got1xxResponse: func(code int, _ textproto.MIMEHeader) error {
 				interim = append(interim, code)
 				return nil
 			}}
-			req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, ts.URL+tc.path, nil)
+			req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, ts.URL+tc.path, nil)
 			require.NoError(t, err)
 			req.Host = host
 			req.Header.Set("Sec-Fetch-Dest", "iframe")
