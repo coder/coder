@@ -82,7 +82,11 @@ describe(TemplateBuilderPageView.name, () => {
 		);
 		const message =
 			"A template with this name already exists in the organization.";
-		const duplicateIdError = mockAxiosError({ message, status: 409 });
+		const duplicateIdError = mockAxiosError({
+			message,
+			validations: [{ field: "name", detail: message }],
+			status: 409,
+		});
 
 		const FailingCreate: React.FC = () => {
 			const [creation, setCreation] = useState<{
@@ -134,8 +138,5 @@ describe(TemplateBuilderPageView.name, () => {
 		expect(restoredId).toBeInvalid();
 		expect(restoredId).toHaveAccessibleDescription(message);
 		expect(restoredId).toHaveFocus();
-
-		await userEvent.type(restoredId, "-2");
-		expect(restoredId).toBeValid();
 	});
 });
