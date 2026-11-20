@@ -4211,7 +4211,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
-Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
+Upgrades to a WebSocket and sends each message as a JSON array holding a batch of events. The server closes the connection if you send a message.
+After 15 seconds without another message, the server sends an empty batch, which you can skip.
 
 Each WebSocket message is a JSON array of events.
 

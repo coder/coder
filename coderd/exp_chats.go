@@ -3943,7 +3943,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
-// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
+// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of events. The server closes the connection if you send a message.
+// @Description After 15 seconds without another message, the server sends an empty batch, which you can skip.
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
