@@ -20094,6 +20094,13 @@ func TestGetUnpricedAIModels(t *testing.T) {
 			TokenCount:          tokens,
 		}
 	}
+	// withCount sets the count of every model, since each row carries it.
+	withCount := func(count int64, rows ...database.GetUnpricedAIModelsRow) []database.GetUnpricedAIModelsRow {
+		for i := range rows {
+			rows[i].Count = count
+		}
+		return rows
+	}
 
 	newFixture := func(t *testing.T) fixture {
 		db, _ := dbtestutil.NewDB(t)
@@ -20147,11 +20154,11 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
 				},
 				want: func(f fixture) []database.GetUnpricedAIModelsRow {
-					return []database.GetUnpricedAIModelsRow{
+					return withCount(3,
 						unpricedModel(f.anthropic, "model-a", 300),
 						unpricedModel(f.anthropicDev, "model-a", 100),
 						unpricedModel(f.anthropic, "model-b", 50),
-					}
+					)
 				},
 			},
 			{
@@ -20164,11 +20171,11 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
 				},
 				want: func(f fixture) []database.GetUnpricedAIModelsRow {
-					return []database.GetUnpricedAIModelsRow{
+					return withCount(3,
 						unpricedModel(f.anthropicDev, "model-a", 100),
 						unpricedModel(f.anthropic, "model-b", 100),
 						unpricedModel(f.anthropic, "Model-C", 100),
-					}
+					)
 				},
 			},
 			{
@@ -20220,7 +20227,7 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
 				},
 				want: func(f fixture) []database.GetUnpricedAIModelsRow {
-					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)}
+					return withCount(1, unpricedModel(f.anthropic, "model-x", 100))
 				},
 			},
 			{
@@ -20233,7 +20240,7 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-b")
 				},
 				want: func(f fixture) []database.GetUnpricedAIModelsRow {
-					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+					return withCount(1, unpricedModel(f.anthropic, "model-a", 100))
 				},
 			},
 			{
@@ -20255,7 +20262,7 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", startedAt: periodStart.Add(-time.Hour), createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
 				},
 				want: func(f fixture) []database.GetUnpricedAIModelsRow {
-					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+					return withCount(1, unpricedModel(f.anthropic, "model-a", 100))
 				},
 			},
 			{
@@ -20332,8 +20339,8 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
-						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						all:  withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
+						orgA: withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 						orgB: nil,
 					}
 				},
@@ -20347,7 +20354,7 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						all:  withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 						orgA: nil,
 						orgB: nil,
 					}
@@ -20380,9 +20387,9 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						all:  withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 						orgA: nil,
-						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 					}
 				},
 			},
@@ -20398,9 +20405,9 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						all:  withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 						orgA: nil,
-						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
 					}
 				},
 			},
@@ -20416,9 +20423,9 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 150)},
-						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
-						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 50)},
+						all:  withCount(1, unpricedModel(f.anthropic, "model-x", 150)),
+						orgA: withCount(1, unpricedModel(f.anthropic, "model-x", 100)),
+						orgB: withCount(1, unpricedModel(f.anthropic, "model-x", 50)),
 					}
 				},
 			},
@@ -20433,8 +20440,8 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
-						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
+						all:  withCount(1, unpricedModel(f.anthropicDev, "model-x", 100)),
+						orgA: withCount(1, unpricedModel(f.anthropicDev, "model-x", 100)),
 						orgB: nil,
 					}
 				},
@@ -20455,8 +20462,8 @@ func TestGetUnpricedAIModels(t *testing.T) {
 				},
 				want: func(f fixture) unpricedModelsByScope {
 					return unpricedModelsByScope{
-						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
-						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
+						all:  withCount(2, unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)),
+						orgA: withCount(2, unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)),
 						orgB: nil,
 					}
 				},
@@ -20486,6 +20493,63 @@ func TestGetUnpricedAIModels(t *testing.T) {
 					// Then only the expected models are listed.
 					require.Equal(t, scope.want, got, scope.name)
 				}
+			})
+		}
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		// Given three unpriced models with different token counts.
+		for _, u := range []usage{
+			{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 300, outputTokens: 300},
+			{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 200, outputTokens: 200},
+			{provider: f.anthropic, model: "model-c", createdAt: inPeriod, inputTokens: 100, outputTokens: 100},
+		} {
+			recordTokenUsage(t, f, u)
+		}
+
+		tests := []struct {
+			name   string
+			limit  int32
+			offset int32
+			want   []database.GetUnpricedAIModelsRow
+		}{
+			{
+				name:  "FirstPage",
+				limit: 2,
+				want:  withCount(3, unpricedModel(f.anthropic, "model-a", 600), unpricedModel(f.anthropic, "model-b", 400)),
+			},
+			{
+				name:   "LastPage",
+				limit:  2,
+				offset: 2,
+				want:   withCount(3, unpricedModel(f.anthropic, "model-c", 200)),
+			},
+			{
+				name:   "PastLastModel",
+				limit:  2,
+				offset: 3,
+				want:   nil,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// When listing one page of the models.
+				got, err := f.db.GetUnpricedAIModels(testutil.Context(t, testutil.WaitLong), database.GetUnpricedAIModelsParams{
+					PeriodStart:        periodStart,
+					PeriodEnd:          periodEnd,
+					PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+					LimitOpt:           tc.limit,
+					OffsetOpt:          tc.offset,
+				})
+
+				// Then only the models on that page are listed, each with the
+				// count of every model.
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
 			})
 		}
 	})
