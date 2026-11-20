@@ -290,6 +290,7 @@ jobs:
   # and ISR-revalidate the affected pages.
   algolia-and-isr:
     runs-on: ubuntu-latest
+    environment: main
     needs: changes
     steps:
       - name: Compute action and ref
@@ -518,6 +519,7 @@ jobs:
   # edits don't need this; ISR revalidate covers them.
   vercel-rebuild:
     runs-on: ubuntu-latest
+    environment: main
     needs: changes
     if: needs.changes.outputs.manifest_changed == 'true' || needs.changes.outputs.redirects_changed == 'true'
     steps:
