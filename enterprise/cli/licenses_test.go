@@ -149,6 +149,23 @@ func TestLicensesAddReal(t *testing.T) {
 		assert.Equal(t, 400, coderError.StatusCode())
 		assert.Contains(t, "Invalid license", coderError.Message)
 	})
+	t.Run("AlreadyInstalled", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{})
+		//nolint:gocritic // requires owner
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{License: lic})
+		require.NoError(t, err)
+
+		inv, conf := newCLI(t, "licenses", "add", "-l", lic)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+
+		waiter := clitest.StartWithWaiter(t, inv)
+		var coderError *codersdk.Error
+		waiter.RequireAs(&coderError)
+		assert.Equal(t, http.StatusConflict, coderError.StatusCode())
+		assert.Equal(t, "This license is already installed.", coderError.Message)
+	})
 }
 
 func TestLicensesListFake(t *testing.T) {
