@@ -3,61 +3,54 @@ title: Install Coder on K3s in an air-gapped environment
 ---
 
 This tutorial helps a Coder deployment administrator install Coder on a single-node K3s cluster with no internet access.
-You stage every artifact on an internet-connected workstation, copy the artifacts to the offline host, and finish with a running workspace.
+You stage every artifact on an internet-connected workstation, carry the artifacts to the offline host on removable storage, and finish with a running workspace.
 
-The steps were tested end to end on a Raspberry Pi 4 Model B (`arm64`) with 4&nbsp;GB of memory running Ubuntu Server 26.04 Long-Term Support (LTS).
-The staging steps were also run for `amd64`, but the installation wasn't tested on an `amd64` host.
-
-This hands-on tutorial skips some background.
+This hands-on tutorial assumes you are familiar with the principles of air-gapped computing and understand the architecture of Kubernetes clusters.
 For the concepts behind an air-gapped deployment, refer to [Air-gapped deployments](../../prepare/airgap.md).
 To install Coder on a cluster that has internet access, refer to [Install Coder on Kubernetes](./index.md).
 
 ## What you stage
 
-The host can't download anything, so you stage each of these components on the workstation and copy it to the host.
+The offline host can't download anything, so you stage each of these components on the workstation and copy it to the host.
 
-| Component                                     | Why the host needs it                                                                          | When you need it                                                                                            |
-|-----------------------------------------------|------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| K3s binary, install script, and image archive | Runs a single-node Kubernetes cluster without pulling images                                   | Always                                                                                                      |
-| Coder Helm chart                              | Installs Coder without a connection to the chart repository                                    | Always                                                                                                      |
-| Coder image with a Terraform provider mirror  | Builds templates without the public Terraform registry                                         | Always                                                                                                      |
-| PostgreSQL image                              | Runs the database that Coder needs, inside the cluster                                         | For this tutorial. A production deployment uses an [external PostgreSQL database](../external-database.md). |
-| Workspace image with code-server              | Provides the editor that the starter template otherwise downloads when a workspace starts      | When your template uses code-server                                                                         |
-| Edited Kubernetes starter template            | Uses the workspace image and removes the download from the startup script                      | Always                                                                                                      |
-| `fake-hwclock` package                        | Keeps the host clock correct across restarts, because the K3s certificates depend on the clock | Only when the host has no battery-backed clock and no time server on its network                            |
+| Component                                     | Why the host needs it                                                                     | When you need it                                                                                            |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| K3s binary, install script, and image archive | Runs a single-node Kubernetes cluster without pulling images                              | Always                                                                                                      |
+| Helm, the Coder Helm chart, and a values file | Installs and configures Coder without a connection to the chart repository                | Always                                                                                                      |
+| Coder image with a Terraform provider mirror  | Builds templates without the public Terraform registry                                    | Always                                                                                                      |
+| PostgreSQL image and manifest                 | Runs the database that Coder needs, inside the cluster                                    | For this tutorial. A production deployment uses an [external PostgreSQL database](../external-database.md). |
+| Workspace image with code-server              | Provides the editor that the starter template otherwise downloads when a workspace starts | When your template uses code-server                                                                         |
+| Edited Kubernetes starter template            | Uses the workspace image and removes the download from the startup script                 | Always                                                                                                      |
 
 ## Prerequisites
 
 You work on two machines: an internet-connected *workstation* that stages the artifacts, and an offline *host* that runs Coder.
+The host has no network connection to the workstation, so you carry the artifacts on removable storage and run the host commands on the host itself.
 
 You need:
 
-- A workstation with [Docker](https://docs.docker.com/engine/install/) that can build images for the host's architecture, `zstd`, [Helm](https://helm.sh/docs/intro/install/) 3.5 or later, `kubectl`, and the `coder` CLI.
-- An `arm64` or `amd64` host that runs Ubuntu Server 26.04 LTS, with at least 4&nbsp;GB of memory and 20&nbsp;GB of free storage.
-- SSH access from the workstation to the host as a user who has passwordless `sudo`.
-- A local network connection from the workstation to the host on ports 22 (SSH), 6443 (the Kubernetes API), and 30080 (Coder).
+- A workstation with [Docker](https://docs.docker.com/engine/install/) that can build images for the host's architecture, `zstd`, and the `coder` CLI.
+- An `arm64` or `amd64` host that runs Ubuntu Server 26.04 Long-Term Support (LTS), with at least 4&nbsp;GB of memory and 20&nbsp;GB of free storage, and a user who can run `sudo`.
+- A host clock that shows the correct time and keeps it across restarts, because the K3s certificates depend on the clock.
+  A host with no battery-backed clock and no time server on its network, such as a Raspberry Pi, loses the time when it restarts.
+- A removable storage device that you can write to on the workstation and read from on the offline host, with at least 1.5&nbsp;GB of free space.
 
 The staged artifacts total about 1.5&nbsp;GB, and the steps use about 11&nbsp;GB of storage on the host.
 
-The workstation needs internet access only while you stage the artifacts.
-If your environment doesn't allow one machine on both networks, disconnect the workstation from the internet before you connect it to the host's network.
-If the workstation can never join the host's network, you can carry the staging directory on removable media instead.
-The steps after staging then run on a machine inside the offline network, which this tutorial doesn't cover.
+## Set the variables
 
-## Set the host variables
+Run the workstation commands in this tutorial in the same shell.
+If you open a new shell on the workstation, set these variables again.
+The host loads the variables that it needs from a file that you copy to it.
 
-Run every command in this tutorial in the same workstation shell.
-If you open a new shell, set these variables again, and run the `export KUBECONFIG` command again after you create it in the "Connect to the cluster" section.
-
-1. Set the host address and the SSH user.
+1. Set the host address.
 
    ```sh
    export HOST_ADDRESS=<host-address>
-   export HOST=<user>@${HOST_ADDRESS}
    ```
 
-   Replace `<host-address>` with the host's address or host name on its local network.
-   Replace `<user>` with your SSH user on the host.
+   Replace `<host-address>` with the host's address or host name on the offline network.
+   Coder uses this address in its access URL.
 
 1. Set the host architecture and the matching K3s binary name.
 
@@ -67,7 +60,7 @@ If you open a new shell, set these variables again, and run the `export KUBECONF
    ```
 
    For an `amd64` host, set `ARCH=amd64` and `K3S_BINARY=k3s`, because the K3s release names its `amd64` binary `k3s`.
-   To check the architecture, run `ssh ${HOST} uname -m`.
+   To check the architecture, run `uname -m` on the host.
    The output `aarch64` means `arm64`, and `x86_64` means `amd64`.
 
 ## Stage artifacts on the workstation
@@ -76,12 +69,12 @@ This is the only section that needs internet access on the workstation.
 
 1. Create a directory for the artifacts and open it.
 
+   Choose a location with at least 2&nbsp;GB of free space, and stay in this directory for the rest of the workstation steps.
+
    ```sh
-   mkdir -p airgap-stage/coder-image airgap-stage/workspace-image airgap-stage/debs
+   mkdir -p airgap-stage/coder-image airgap-stage/workspace-image
    cd airgap-stage
    ```
-
-   Choose a location with at least 2&nbsp;GB of free space, and stay in this directory for the rest of the tutorial.
 
 1. Set the versions that these steps use.
 
@@ -91,6 +84,7 @@ This is the only section that needs internet access on the workstation.
    export CODER_PROVIDER_VERSION=2.19.0
    export KUBERNETES_PROVIDER_VERSION=3.5.0
    export CODE_SERVER_VERSION=4.145.0
+   export HELM_VERSION=v4.3.2
    export POSTGRES_VERSION=17.11
    export WORKSPACE_IMAGE=coder-workspace:ubuntu-cs${CODE_SERVER_VERSION}
    ```
@@ -123,6 +117,25 @@ This is the only section that needs internet access on the workstation.
    k3s-arm64: OK
    ```
 
+1. Download Helm and its checksum.
+
+   ```sh
+   curl -fsSLO https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
+   curl -fsSLO https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz.sha256sum
+   ```
+
+1. Check the Helm archive against its checksum.
+
+   ```sh
+   shasum -a 256 -c helm-${HELM_VERSION}-linux-${ARCH}.tar.gz.sha256sum
+   ```
+
+   You see `OK`, here for `arm64`:
+
+   ```txt
+   helm-v4.3.2-linux-arm64.tar.gz: OK
+   ```
+
 1. Download the Coder Helm chart.
 
    ```sh
@@ -132,7 +145,7 @@ This is the only section that needs internet access on the workstation.
 1. Check the chart version.
 
    ```sh
-   helm show chart coder_helm_${CODER_VERSION#v}.tgz | grep -E '^(appVersion|name|version):'
+   tar -xzOf coder_helm_${CODER_VERSION#v}.tgz coder/Chart.yaml | grep -E '^(appVersion|name|version):'
    ```
 
    You see the chart and application versions that match `CODER_VERSION`:
@@ -270,27 +283,6 @@ You install code-server while you build the workspace image instead.
    docker save postgres:${POSTGRES_VERSION} | zstd -T0 -10 -q -o postgres_${POSTGRES_VERSION}_${ARCH}.tar.zst
    ```
 
-### Download the clock package
-
-Many servers keep the correct time without internet access, because they have a battery-backed clock or a time server on their network.
-If your host has either one, skip this section and [Set the host clock](#set-the-host-clock).
-
-A host with neither, such as a Raspberry Pi 4, starts with the wrong time after each restart.
-With no internet, nothing corrects it, and the K3s certificates depend on the clock.
-The `fake-hwclock` package saves the time at shutdown and restores it at startup.
-
-1. Download the `fake-hwclock` package for the host's operating system.
-
-   ```sh
-   docker run --name stage-debs --platform linux/${ARCH} ubuntu:26.04 \
-     bash -c 'mkdir /out && cd /out && apt-get update -qq && apt-get download fake-hwclock'
-   docker cp stage-debs:/out/. debs
-   docker rm stage-debs
-   ```
-
-   The `apt-get` command prints a warning about an unsandboxed download, and the package still downloads.
-   The `debs` directory now holds a file named `fake-hwclock_<version>_all.deb`.
-
 ### Create the template
 
 1. Create a copy of the Kubernetes starter template.
@@ -373,178 +365,9 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    rm -f template/main.tf.bak startup-script.txt
    ```
 
-## Copy the artifacts to the host
+### Create the configuration files
 
-1. Create a checksum list for every staged file.
-
-   ```sh
-   find . -type f ! -name SHA256SUMS -print0 | xargs -0 shasum -a 256 > SHA256SUMS
-   ```
-
-1. Copy the staged files to the host.
-
-   ```sh
-   ssh ${HOST} 'mkdir -p ~/airgap'
-   scp -r ./* ${HOST}:airgap/
-   ```
-
-   The copy of about 1.5&nbsp;GB takes a few minutes.
-
-1. Check the copied files on the host.
-
-   ```sh
-   ssh ${HOST} 'cd ~/airgap && sha256sum -c SHA256SUMS'
-   ```
-
-   The command prints one line for every staged file, and every line ends with `OK`.
-   For example, on `arm64`:
-
-   ```txt
-   ./k3s-arm64: OK
-   ./k3s-airgap-images-arm64.tar.zst: OK
-   ./coder_helm_2.38.6.tgz: OK
-   ```
-
-## Set the host clock
-
-Skip this section if you skipped the clock package.
-
-1. Install the `fake-hwclock` package on the host.
-
-   ```sh
-   ssh ${HOST} 'sudo dpkg -i ~/airgap/debs/fake-hwclock_*_all.deb'
-   ```
-
-1. Set the host clock to the workstation time.
-
-   ```sh
-   ssh ${HOST} "sudo date -u -s @$(date -u +%s)"
-   ```
-
-1. Save the host clock.
-
-   ```sh
-   ssh ${HOST} 'sudo fake-hwclock save'
-   ```
-
-1. Compare the two clocks.
-
-   ```sh
-   date -u +%T; ssh ${HOST} date -u +%T
-   ```
-
-   The two times differ by only a few seconds:
-
-   ```txt
-   18:03:34
-   18:03:36
-   ```
-
-A production host needs a network time source on your internal network instead of this approach.
-
-## Install K3s
-
-1. Install the K3s binary on the host.
-
-   ```sh
-   ssh ${HOST} "sudo install -o root -g root -m 755 ~/airgap/${K3S_BINARY} /usr/local/bin/k3s"
-   ```
-
-   The install script does not download the binary when you skip the download, so the binary must be in place first.
-
-1. Copy the image archives into the K3s image directory.
-
-   ```sh
-   ssh ${HOST} 'sudo mkdir -p /var/lib/rancher/k3s/agent/images && \
-     sudo cp ~/airgap/*.tar.zst /var/lib/rancher/k3s/agent/images/'
-   ```
-
-   The directory receives the K3s archive and your three image archives.
-   K3s imports every archive in this directory when it starts.
-
-1. Run the K3s install script without downloads.
-
-   ```sh
-   ssh ${HOST} 'cd ~/airgap && sudo env INSTALL_K3S_SKIP_DOWNLOAD=true INSTALL_K3S_SKIP_SELINUX_RPM=true sh ./install.sh'
-   ```
-
-   You see the script skip the download and start the service:
-
-   ```txt
-   [INFO]  Skipping k3s download and verify
-   [INFO]  Skipping installation of SELinux RPM
-   ...
-   [INFO]  systemd: Starting k3s
-   ```
-
-1. Wait for the node to become ready.
-
-   ```sh
-   ssh ${HOST} 'until sudo k3s kubectl get nodes 2>/dev/null | grep -q " Ready"; do sleep 5; done; sudo k3s kubectl get nodes'
-   ```
-
-   K3s needs a few minutes to start, and the command prints nothing until the node is ready.
-   You see one node with the `control-plane` role:
-
-   ```txt
-   NAME        STATUS   ROLES           AGE   VERSION
-   <hostname>  Ready    control-plane   2m    v1.37.2+k3s1
-   ```
-
-1. Wait for K3s to import your three images.
-
-   ```sh
-   ssh ${HOST} 'until [ "$(sudo k3s crictl images | grep -cE "coder-airgap|coder-workspace|postgres")" -ge 3 ]; do sleep 10; done; sudo k3s crictl images | grep -E "coder-airgap|coder-workspace|postgres"'
-   ```
-
-   The import can take several minutes on a host with slow storage.
-   You see the three images:
-
-   ```txt
-   docker.io/library/coder-airgap     v2.38.6           ...
-   docker.io/library/coder-workspace  ubuntu-cs4.145.0  ...
-   docker.io/library/postgres         17.11             ...
-   ```
-
-## Connect to the cluster
-
-1. Copy the cluster configuration to your workstation.
-
-   ```sh
-   ssh ${HOST} 'sudo cat /etc/rancher/k3s/k3s.yaml' | sed "s#https://127.0.0.1:6443#https://${HOST_ADDRESS}:6443#" > k3s.yaml
-   chmod 600 k3s.yaml
-   export KUBECONFIG=$PWD/k3s.yaml
-   ```
-
-   The file contains cluster administrator credentials, so keep it private.
-
-1. List the nodes from your workstation.
-
-   ```sh
-   kubectl get nodes
-   ```
-
-   You see the same node with the status `Ready`:
-
-   ```txt
-   NAME         STATUS   ROLES           AGE   VERSION
-   <hostname>   Ready    control-plane   3m    v1.37.2+k3s1
-   ```
-
-## Install PostgreSQL
-
-Coder needs a PostgreSQL database.
-This tutorial runs the official PostgreSQL image in the cluster, which suits a proof of concept.
-
-1. Create the namespace and the secrets.
-
-   ```sh
-   kubectl create namespace coder
-   POSTGRES_PASSWORD=$(openssl rand -hex 16)
-   kubectl create secret generic postgres-credentials -n coder --from-literal=password="${POSTGRES_PASSWORD}"
-   kubectl create secret generic coder-db-url -n coder \
-     --from-literal=url="postgres://coder:${POSTGRES_PASSWORD}@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
-   ```
+You create the long configuration files on the workstation, so that you don't type them on the host.
 
 1. Create the PostgreSQL manifest.
 
@@ -625,21 +448,6 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
    The manifest sets `imagePullPolicy: IfNotPresent` so that Kubernetes uses the image that K3s imported.
 
-1. Apply the manifest and wait for the database.
-
-   ```sh
-   kubectl apply -f postgres.yaml
-   kubectl rollout status statefulset/postgresql -n coder --timeout=300s
-   ```
-
-   You see the rollout finish:
-
-   ```txt
-   partitioned roll out complete: 1 new pods have been updated...
-   ```
-
-## Install Coder
-
 1. Create the Helm values file.
 
    ```sh
@@ -686,8 +494,228 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
    - The resource requests and limits replace the chart default of 2&nbsp;CPU cores and 4&nbsp;GiB of memory, which a host with 4&nbsp;GB of memory cannot schedule.
    - The `NodePort` service avoids the ports 80 and 443 that the bundled Traefik ingress controller uses.
-   - The `CODER_ACCESS_URL` value must be reachable from your browser and from workspaces.
+   - The `CODER_ACCESS_URL` value must be reachable from workspaces and from browsers on the offline network.
    - The remaining environment variables turn off telemetry, the update check, Session Traversal Utilities for Network Address Translation (STUN), the default GitHub sign-in provider, and the template builder, and they send workspace connections through the control plane.
+
+## Copy the artifacts to the host
+
+Run the first three steps on the workstation and the rest on the offline host.
+
+1. Save the variables that the host steps use.
+
+   ```sh
+   cat > airgap.env <<EOF
+   export HOST_ADDRESS=${HOST_ADDRESS}
+   export ARCH=${ARCH}
+   export K3S_BINARY=${K3S_BINARY}
+   export CODER_VERSION=${CODER_VERSION}
+   export HELM_VERSION=${HELM_VERSION}
+   EOF
+   ```
+
+1. Create a checksum list for every staged file.
+
+   ```sh
+   find . -type f ! -name SHA256SUMS -print0 | xargs -0 shasum -a 256 > SHA256SUMS
+   ```
+
+1. Copy the staged files to removable storage.
+
+   ```sh
+   mkdir -p <removable-storage>/airgap
+   cp -r ./* <removable-storage>/airgap/
+   ```
+
+   Replace `<removable-storage>` with the path where the workstation mounts the storage device, such as `/Volumes/<name>` on macOS.
+   The copy of about 1.5&nbsp;GB takes a few minutes.
+   When it finishes, eject the storage device.
+
+1. On the offline host, insert and mount the removable storage.
+
+   If the host doesn't mount the device automatically, find it with `lsblk`, and then mount it, for example with `sudo mount /dev/sdb1 /mnt`.
+
+1. Copy the files from the removable storage to your home directory.
+
+   ```sh
+   cp -r <removable-storage>/airgap ~/airgap
+   ```
+
+   Replace `<removable-storage>` with the path where the host mounts the storage device, such as `/mnt`.
+
+1. Check the copied files.
+
+   ```sh
+   cd ~/airgap && sha256sum -c SHA256SUMS
+   ```
+
+   The command prints one line for every staged file, and every line ends with `OK`.
+   For example, on `arm64`:
+
+   ```txt
+   ./k3s-arm64: OK
+   ./k3s-airgap-images-arm64.tar.zst: OK
+   ./coder_helm_2.38.6.tgz: OK
+   ```
+
+1. Load the variables.
+
+   ```sh
+   . ./airgap.env
+   ```
+
+   Run the rest of the commands in this tutorial on the host, in the `~/airgap` directory.
+   If you open a new shell on the host, run `cd ~/airgap && . ./airgap.env` again.
+   After you create the cluster configuration in [Set up the command-line tools](#set-up-the-command-line-tools), also run its `export KUBECONFIG` command again.
+
+## Install K3s
+
+1. Check that the host has a default route.
+
+   ```sh
+   ip route show default
+   ```
+
+   K3s needs a default route to detect the node address, even when the route leads nowhere.
+   If the command prints a route, skip to the next step.
+   If it prints nothing, add a route through a virtual network interface:
+
+   ```sh
+   sudo ip link add dummy0 type dummy
+   sudo ip link set dummy0 up
+   sudo ip addr add 203.0.113.254/31 dev dummy0
+   sudo ip route add default via 203.0.113.255 dev dummy0 metric 1000
+   ```
+
+   The route doesn't persist after a restart, and K3s doesn't start without it.
+   After a restart, run these commands again, and K3s starts on its next retry.
+   To keep the route instead, add it to the host's network configuration.
+
+1. Install the K3s binary.
+
+   ```sh
+   sudo install -o root -g root -m 755 ~/airgap/${K3S_BINARY} /usr/local/bin/k3s
+   ```
+
+   The install script does not download the binary when you skip the download, so the binary must be in place first.
+
+1. Copy the image archives into the K3s image directory.
+
+   ```sh
+   sudo mkdir -p /var/lib/rancher/k3s/agent/images && \
+     sudo cp ~/airgap/*.tar.zst /var/lib/rancher/k3s/agent/images/
+   ```
+
+   The directory receives the K3s archive and your three image archives.
+   K3s imports every archive in this directory when it starts.
+
+1. Run the K3s install script without downloads.
+
+   ```sh
+   cd ~/airgap && sudo env INSTALL_K3S_SKIP_DOWNLOAD=true INSTALL_K3S_SKIP_SELINUX_RPM=true sh ./install.sh
+   ```
+
+   You see the script skip the download and start the service:
+
+   ```txt
+   [INFO]  Skipping k3s download and verify
+   [INFO]  Skipping installation of SELinux RPM
+   ...
+   [INFO]  systemd: Starting k3s
+   ```
+
+1. Wait for the node to become ready.
+
+   ```sh
+   until sudo k3s kubectl get nodes 2>/dev/null | grep -q " Ready"; do sleep 5; done; sudo k3s kubectl get nodes
+   ```
+
+   K3s needs a few minutes to start, and the command prints nothing until the node is ready.
+   You see one node with the `control-plane` role:
+
+   ```txt
+   NAME        STATUS   ROLES           AGE   VERSION
+   <hostname>  Ready    control-plane   2m    v1.37.2+k3s1
+   ```
+
+1. Wait for K3s to import your three images.
+
+   ```sh
+   until [ "$(sudo k3s crictl images | grep -cE "coder-airgap|coder-workspace|postgres")" -ge 3 ]; do sleep 10; done; sudo k3s crictl images | grep -E "coder-airgap|coder-workspace|postgres"
+   ```
+
+   The import can take several minutes on a host with slow storage.
+   You see the three images:
+
+   ```txt
+   docker.io/library/coder-airgap     v2.38.6           ...
+   docker.io/library/coder-workspace  ubuntu-cs4.145.0  ...
+   docker.io/library/postgres         17.11             ...
+   ```
+
+## Set up the command-line tools
+
+1. Install Helm.
+
+   ```sh
+   tar -xzf helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
+   sudo install -o root -g root -m 755 linux-${ARCH}/helm /usr/local/bin/helm
+   ```
+
+1. Copy the cluster configuration to your home directory.
+
+   ```sh
+   mkdir -p ~/.kube
+   sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config
+   chmod 600 ~/.kube/config
+   export KUBECONFIG=~/.kube/config
+   ```
+
+   The file contains cluster administrator credentials, so keep it private.
+   Only root can read the original file, so `kubectl` and Helm read your copy through `KUBECONFIG`.
+
+1. List the nodes without `sudo`.
+
+   ```sh
+   kubectl get nodes
+   ```
+
+   The K3s install script adds the `kubectl` command.
+   You see the same node with the status `Ready`:
+
+   ```txt
+   NAME         STATUS   ROLES           AGE   VERSION
+   <hostname>   Ready    control-plane   3m    v1.37.2+k3s1
+   ```
+
+## Install PostgreSQL
+
+Coder needs a PostgreSQL database.
+This tutorial runs the official PostgreSQL image in the cluster, which suits a proof of concept.
+
+1. Create the namespace and the secrets.
+
+   ```sh
+   kubectl create namespace coder
+   POSTGRES_PASSWORD=$(openssl rand -hex 16)
+   kubectl create secret generic postgres-credentials -n coder --from-literal=password="${POSTGRES_PASSWORD}"
+   kubectl create secret generic coder-db-url -n coder \
+     --from-literal=url="postgres://coder:${POSTGRES_PASSWORD}@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+   ```
+
+1. Apply the manifest and wait for the database.
+
+   ```sh
+   kubectl apply -f postgres.yaml
+   kubectl rollout status statefulset/postgresql -n coder --timeout=300s
+   ```
+
+   You see the rollout finish:
+
+   ```txt
+   partitioned roll out complete: 1 new pods have been updated...
+   ```
+
+## Install Coder
 
 1. Install Coder from the chart file.
 
@@ -718,12 +746,21 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
 ## Create a template and a workspace
 
-1. Create the first user in a browser, or run the command in this step.
+1. Install the Coder CLI from your deployment.
 
-   Open `http://<host-address>:30080` in a browser and complete the form.
-   Then run `coder login http://<host-address>:30080` to log in from your workstation.
+   ```sh
+   curl -fsSL http://${HOST_ADDRESS}:30080/install.sh | sh
+   ```
 
-   To create the user and log in with one command, run this command instead:
+   The script downloads the CLI from Coder instead of the internet, so the CLI version matches the server.
+   It uses `sudo` to install the CLI in `/usr/local/bin`.
+   You see that the CLI is installed:
+
+   ```txt
+   Coder v2.38.6+db7c30f installed.
+   ```
+
+1. Create the first user and log in.
 
    ```sh
    coder login http://${HOST_ADDRESS}:30080 \
@@ -741,8 +778,7 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    Welcome to Coder, <username>! You're authenticated.
    ```
 
-   If your `coder` CLI version differs from the Coder version that you installed, every command prints a version mismatch warning.
-   The commands in this tutorial still work.
+   To use the Coder dashboard, open `http://<host-address>:30080` in a browser on the offline network, and sign in as this user.
 
 1. Push the template.
 
@@ -789,12 +825,7 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
 ## Verify the air gap
 
-1. Open code-server in a browser, or check it from the command line.
-
-   Open the Coder dashboard, select **my-workspace**, and select **code-server**.
-   You see the code-server editor.
-
-   To check from the command line instead, run this command:
+1. Check that code-server runs in the workspace.
 
    ```sh
    coder ssh my-workspace -- 'wget -q -O - http://localhost:13337/healthz'
@@ -807,6 +838,8 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    ```
 
    The status `expired` is normal when no browser is connected.
+   If the command prints nothing, code-server is still starting, so wait a few seconds and run the command again.
+   To open the editor from a browser on the offline network, open the Coder dashboard, select **my-workspace**, and select **code-server**.
 
 1. Confirm that the workspace has no internet access.
 
