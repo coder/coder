@@ -17,7 +17,7 @@ const isPreviewTitle = (value: unknown): value is string => {
 	);
 };
 
-// Mirrors parseOpenPreviewArgs in coderd/x/chatd/chattool/openpreview.go,
+// Mirrors CheckURLPath in coderd/workspaceapps/previewhost/previewhost.go,
 // which limits the path to 2048 bytes.
 const isPreviewURLPath = (value: unknown): value is string =>
 	typeof value === "string" &&
@@ -60,7 +60,8 @@ export const parseOpenPreviewResult = (
 
 /**
  * Rendering for `open_preview` tool calls, with an action that opens the
- * preview's right panel tab when it belongs to the chat's workspace agent.
+ * preview's right panel tab when the chat can open previews and the result
+ * belongs to the chat's workspace agent.
  */
 export const OpenPreviewTool: React.FC<{
 	args: unknown;

@@ -55,17 +55,18 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
 				url_path: tab.urlPath,
 			}}
 			title={tab.label}
-		>
-			<Button size="icon" variant="subtle" asChild>
-				<Link
-					to={`/previews/open?${openSearch}`}
-					target="_blank"
-					rel="noreferrer"
-					aria-label="Open preview in new tab"
-				>
-					<ExternalLinkIcon />
-				</Link>
-			</Button>
-		</PreviewFrame>
+			headerContent={
+				<Button size="icon" variant="subtle" asChild>
+					<Link
+						to={`/previews/open?${openSearch}`}
+						target="_blank"
+						rel="noreferrer"
+						aria-label="Open preview in new tab"
+					>
+						<ExternalLinkIcon />
+					</Link>
+				</Button>
+			}
+		/>
 	);
 };

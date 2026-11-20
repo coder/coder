@@ -19,7 +19,7 @@ type PreviewFrameProps = {
 	/** Accessible name of the frame. */
 	title: string;
 	/** Shown after the preview's host in the header. */
-	children?: React.ReactNode;
+	headerContent?: React.ReactNode;
 };
 
 /**
@@ -30,7 +30,7 @@ type PreviewFrameProps = {
 export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 	preview,
 	title,
-	children,
+	headerContent,
 }) => {
 	const { proxy } = useProxy();
 	const [frameId, setFrameId] = useState(generateUUID);
@@ -41,13 +41,13 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 
 	return (
 		<div className="flex size-full min-h-0 flex-col">
-			<div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b bg-surface-primary px-3 py-1 text-xs">
+			<div className="flex shrink-0 flex-wrap items-center gap-x-2 border-b bg-surface-primary px-3 py-1 text-xs">
 				{signIn && (
 					<span className="min-w-0 max-w-full truncate font-medium text-content-primary">
 						{new URL(signIn.origin).host}
 					</span>
 				)}
-				{children}
+				{headerContent}
 				<Button
 					size="icon"
 					variant="subtle"

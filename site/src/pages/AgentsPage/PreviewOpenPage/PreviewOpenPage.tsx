@@ -41,11 +41,12 @@ export default function PreviewOpenPage() {
 						url_path: urlPath,
 					}}
 					title="Preview"
-				>
-					<span className="min-w-0 max-w-full truncate text-content-secondary">
-						{agentName} in {workspace.owner_name}/{workspace.name}
-					</span>
-				</PreviewFrame>
+					headerContent={
+						<span className="min-w-0 max-w-full truncate text-content-secondary">
+							{agentName} in {workspace.owner_name}/{workspace.name}
+						</span>
+					}
+				/>
 			</div>
 		);
 	}
