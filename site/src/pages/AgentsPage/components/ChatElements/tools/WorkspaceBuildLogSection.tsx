@@ -93,8 +93,6 @@ export const WorkspaceBuildLogSection: React.FC<
 	// appended log entry.
 	const hasLogs = Boolean(logs && logs.length > 0);
 	const [timedOutBuildId, setTimedOutBuildId] = useState<string>();
-	const timedOut =
-		effectiveBuildId !== undefined && timedOutBuildId === effectiveBuildId;
 	useEffect(() => {
 		if (!effectiveBuildId || hasLogs) {
 			return;
@@ -118,7 +116,7 @@ export const WorkspaceBuildLogSection: React.FC<
 	let content: React.ReactNode;
 	if (fetchFailed) {
 		content = <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
-	} else if (timedOut && !hasLogs) {
+	} else if (timedOutBuildId === effectiveBuildId && !hasLogs) {
 		content = (
 			<LogNotice icon="warning">
 				Build logs are taking longer than expected.
