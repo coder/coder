@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -2788,13 +2789,11 @@ type MockAPIInput = {
 	message?: string;
 	detail?: string;
 	validations?: FieldError[];
-	status?: number;
 };
 
 type MockAPIOutput = {
 	isAxiosError: true;
 	response: {
-		status: number | undefined;
 		data: {
 			message: string;
 			detail: string | undefined;
@@ -2807,12 +2806,10 @@ export const mockApiError = ({
 	message = "Something went wrong.",
 	detail,
 	validations,
-	status,
 }: MockAPIInput): MockAPIOutput => ({
 	// This is how axios can check if it is an axios error when calling isAxiosError
 	isAxiosError: true,
 	response: {
-		status,
 		data: {
 			message,
 			detail,
@@ -2820,6 +2817,24 @@ export const mockApiError = ({
 		},
 	},
 });
+
+/**
+ * Builds a real `AxiosError` with an API error body, for code that needs the
+ * HTTP status or an `Error` instance.
+ */
+export const mockAxiosError = ({
+	status,
+	...input
+}: MockAPIInput & { status: number }): AxiosError => {
+	const data = mockApiError(input).response.data;
+	return new AxiosError(data.message, undefined, undefined, null, {
+		status,
+		statusText: "",
+		data,
+		headers: {},
+		config: { headers: new AxiosHeaders() },
+	});
+};
 
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,

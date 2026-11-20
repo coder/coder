@@ -12,6 +12,7 @@ import {
 	MockOrganization2,
 	MockProvisioner,
 	mockApiError,
+	mockAxiosError,
 } from "#/testHelpers/entities";
 import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
@@ -173,17 +174,17 @@ const mockSubmittedValues = {
 	icon: "/icon/docker.svg",
 };
 
-const mockDuplicateIdError = mockApiError({
+const mockDuplicateIdError = mockAxiosError({
 	message: "A template with this name already exists in the organization.",
 	status: 409,
 });
 
-const mockOrganizationNotFoundError = mockApiError({
+const mockOrganizationNotFoundError = mockAxiosError({
 	message: "Organization not found.",
 	status: 404,
 });
 
-const mockCreateError = mockApiError({
+const mockCreateError = mockAxiosError({
 	message: "Internal error inserting template.",
 	status: 500,
 });

@@ -1,6 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AxiosError, AxiosHeaders } from "axios";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
 import { API } from "#/api/api";
@@ -8,7 +7,11 @@ import type {
 	TemplateBuilderBasesResponse,
 	TemplateBuilderModulesResponse,
 } from "#/api/typesGenerated";
-import { MockOrganization, MockProvisioner } from "#/testHelpers/entities";
+import {
+	MockOrganization,
+	MockProvisioner,
+	mockAxiosError,
+} from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
@@ -79,19 +82,7 @@ describe(TemplateBuilderPageView.name, () => {
 		);
 		const message =
 			"A template with this name already exists in the organization.";
-		const duplicateIdError = new AxiosError(
-			message,
-			AxiosError.ERR_BAD_REQUEST,
-			undefined,
-			null,
-			{
-				status: 409,
-				statusText: "Conflict",
-				data: { message },
-				headers: {},
-				config: { headers: new AxiosHeaders() },
-			},
-		);
+		const duplicateIdError = mockAxiosError({ message, status: 409 });
 
 		const FailingCreate: React.FC = () => {
 			const [creation, setCreation] = useState<{

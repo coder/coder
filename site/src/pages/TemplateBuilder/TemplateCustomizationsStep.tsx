@@ -68,9 +68,14 @@ type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
 	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
-	/** Replaces the defaults derived from `state`. Read only on mount. */
+	/**
+	 * Replaces the defaults derived from `state`. Formik reads it only on
+	 * mount, which works because the wizard remounts this step after a failed
+	 * create.
+	 */
 	initialValues?: CustomizationsFormValues;
-	createError?: unknown;
+	/** The last create failure, shown on the field it belongs to. */
+	createError?: Error | null;
 };
 
 export const TemplateCustomizationsStep: React.FC<
