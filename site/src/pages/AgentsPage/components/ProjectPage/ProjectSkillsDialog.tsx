@@ -24,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -43,7 +44,6 @@ import {
 	type SkillsScope,
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
-import { RetryButton } from "../RetryButton";
 import {
 	SkillEditorBodyField,
 	SkillEditorDescriptionField,

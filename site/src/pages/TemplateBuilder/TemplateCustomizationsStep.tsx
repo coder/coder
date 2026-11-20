@@ -16,8 +16,8 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { RetryButton } from "#/pages/AgentsPage/components/RetryButton";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
