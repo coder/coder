@@ -133,9 +133,11 @@ it("writes a picked range to the URL as days and requests it", async () => {
 	expect(searchParam("endDate")).toBe("2026-03-12");
 });
 
-it("requests the selected organization's spend", async () => {
+it("requests the selected organization's spend and clears the filter", async () => {
 	const user = userEvent.setup();
-	const { overviewSpy, searchParam } = renderAISpendPage();
+	const { overviewSpy, searchParam } = renderAISpendPage(
+		"filter=provider:openai",
+	);
 	await user.click(
 		await screen.findByRole("combobox", {
 			name: `Organization ${MockOrganization.display_name}`,
@@ -152,6 +154,19 @@ it("requests the selected organization's spend", async () => {
 		),
 	);
 	expect(searchParam("org")).toBe(MockOrganization2.name);
+	expect(searchParam("filter")).toBeNull();
+});
+
+it("keeps the filter when the selected organization is picked again", async () => {
+	const user = userEvent.setup();
+	const { searchParam } = renderAISpendPage("filter=provider:openai");
+	await user.click(
+		await screen.findByRole("combobox", {
+			name: `Organization ${MockOrganization.display_name}`,
+		}),
+	);
+	await user.click(await screen.findByRole("option", { selected: true }));
+	expect(searchParam("filter")).toBe("provider:openai");
 });
 
 it("requests no spend for an organization the viewer cannot see", async () => {
