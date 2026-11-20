@@ -293,18 +293,20 @@ export const PeekShowsThinking: Story = {
 };
 
 // A step a hook rewrote marks its one-line row instead of showing a badge.
+const MockRewrittenSecondStepMessage: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: MockWorkingMessages[3].content?.map((part) => ({
+		...part,
+		hook_rewritten: true,
+	})),
+};
+
 export const PeekMarksRewrittenStep: Story = {
 	args: {
 		...PeekShowsNewestSteps.args,
 		parsedMessages: parseMessagesWithMergedTools([
 			...MockWorkingMessages.slice(0, 3),
-			{
-				...MockWorkingMessages[3],
-				content: MockWorkingMessages[3].content?.map((part) => ({
-					...part,
-					hook_rewritten: true,
-				})),
-			},
+			MockRewrittenSecondStepMessage,
 			MockWorkingMessages[4],
 		]),
 	},

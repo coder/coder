@@ -91,7 +91,9 @@ type BlockRowProps = {
 	expandedHeight: number;
 	defaultExpanded?: boolean;
 	width?: number;
-	/** A live block that shows its peek while collapsed. */
+	/** Renders a live block rather than a completed one. */
+	live?: boolean;
+	/** Shows the live block's peek, which the row's height includes. */
 	peek?: boolean;
 };
 
@@ -99,9 +101,11 @@ const BlockRow: React.FC<BlockRowProps> = ({
 	expandedHeight,
 	defaultExpanded = false,
 	width,
+	live,
 	peek,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
+	// The summary row, and the peek's three rows under it.
 	const collapsedHeight = peek ? 134 : 40;
 	return (
 		<MessageScroller.Item
@@ -112,7 +116,8 @@ const BlockRow: React.FC<BlockRowProps> = ({
 			<ControlledDisclosure
 				expanded={expanded}
 				onExpandedChange={setExpanded}
-				{...(peek !== undefined && { block: mockLiveWorkingBlock, peek })}
+				{...(live && { block: mockLiveWorkingBlock })}
+				peek={peek}
 			/>
 		</MessageScroller.Item>
 	);
@@ -153,7 +158,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	setupMessageScrollerLayout();
 
 	it.each([
-		["its summary", undefined, () => summaryButton()],
+		["its summary", false, () => summaryButton()],
 		// The peek unmounts as the block expands.
 		["its peek", true, () => screen.getByText("Read src/main.ts")],
 	])(
@@ -162,7 +167,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 			const user = userEvent.setup();
 			renderTranscript([
 				history,
-				<BlockRow key="block" expandedHeight={300} peek={peek} />,
+				<BlockRow key="block" expandedHeight={300} live={peek} peek={peek} />,
 				row("answer", 100),
 			]);
 
@@ -354,7 +359,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		const turn = (peek: boolean) => [
 			history,
 			prompt,
-			<BlockRow key="block" expandedHeight={300} peek={peek} />,
+			<BlockRow key="block" expandedHeight={300} live peek={peek} />,
 			row("reply", 40),
 		];
 		await update(turn(true));

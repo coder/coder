@@ -75,7 +75,7 @@ type ToolGroupRenderBlock = {
 	ids: string[];
 };
 
-type TimelineRenderBlock = RenderBlock | ToolGroupRenderBlock;
+export type TimelineRenderBlock = RenderBlock | ToolGroupRenderBlock;
 
 export const groupSequentialReadFileBlocks = (
 	blocks: readonly RenderBlock[],
