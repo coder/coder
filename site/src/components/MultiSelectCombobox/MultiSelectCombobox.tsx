@@ -91,8 +91,9 @@ type MultiSelectComboboxProps = {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/**
-	 * Props of `Command`. Set `label` to name the input: cmdk replaces the
-	 * input's `id` and `aria-labelledby`, so a `<label htmlFor>` cannot.
+	 * Props of `Command`. Set `commandProps.label` to name the input:
+	 * `<label htmlFor>` will not be associated with the input, because cmdk
+	 * replaces the input's `id` and `aria-labelledby`.
 	 */
 	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
