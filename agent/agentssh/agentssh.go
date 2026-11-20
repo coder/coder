@@ -329,7 +329,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	// read and write operations.
 	if config.MaxTimeout >= 3*time.Second {
 		srv.ClientAliveCountMax = 3
-		srv.ClientAliveInterval = config.MaxTimeout / time.Duration(srv.ClientAliveCountMax)
+		// The connection closes after CountMax+1 intervals without a reply.
+		srv.ClientAliveInterval = config.MaxTimeout / time.Duration(srv.ClientAliveCountMax+1)
 		srv.MaxTimeout = 0
 	} else {
 		srv.MaxTimeout = config.MaxTimeout
@@ -562,6 +563,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
+	keepAlive := ctx.KeepAlive()
 	reportSession := true
 
 	if family == codersdk.AppFamilyJetBrains {
@@ -591,6 +593,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		var reportOnce sync.Once
 		report := func(reason codersdk.DisconnectReason) {
 			reportOnce.Do(func() {
+				if keepAlive.TimedOut() {
+					reason = codersdk.DisconnectReasonNetworkError
+				}
 				fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
 				if s.isClosing() {
 					if reason != "" && reason != codersdk.DisconnectReasonGraceful {
