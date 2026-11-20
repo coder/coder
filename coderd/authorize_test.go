@@ -313,8 +313,15 @@ func TestHTTPAuthorizer_DenialDoesNotLogSecrets(t *testing.T) {
 
 	entries := sink.Entries()
 	require.Len(t, entries, 1)
+	var actorName any
 	for _, f := range entries[0].Fields {
 		v := fmt.Sprintf("%+v", f.Value)
 		require.NotContains(t, v, secret, "field %q leaks the object's secret", f.Name)
+		require.NotContains(t, v, email, "field %q leaks the actor's email", f.Name)
+		if f.Name == "actor_name" {
+			actorName = f.Value
+		}
 	}
+	// actor_name is the actor's friendly name (the username), not the whole subject.
+	require.Equal(t, "synthetic", actorName)
 }
