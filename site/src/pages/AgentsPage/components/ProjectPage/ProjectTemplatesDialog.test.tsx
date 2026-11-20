@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockTemplate,
+	MockTemplateVersionParameter1,
+	MockTemplateVersionParameter2,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -31,11 +33,18 @@ const mockProjectWithDefault: ChatProject = {
 	default_template: { template_id: MockTemplate.id },
 };
 
-const renderDialog = (props: Partial<DialogProps> = {}) => {
-	vi.spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+const renderDialog = (
+	props: Partial<DialogProps> = {},
+	template: Template = MockTemplate,
+) => {
+	vi.spyOn(API, "getTemplates").mockResolvedValue([template]);
 	const getProjects = vi
 		.spyOn(API.experimental, "getChatProjects")
 		.mockResolvedValue([props.project ?? MockChatProject]);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+		MockTemplateVersionParameter1,
+		MockTemplateVersionParameter2,
+	]);
 	vi.spyOn(API, "getTemplateVersionDynamicParameters").mockResolvedValue({
 		id: 0,
 		diagnostics: [],
@@ -125,6 +134,31 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
+	it("clears a default preset that is no longer in the active version", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					preset_id: "stale-preset",
+				},
+			},
+		});
+
+		const save = await screen.findByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: { default_template: { template_id: MockTemplate.id } },
+			}),
+		);
+	});
+
 	it("clears the default template with a nil template ID", async () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		const { user, props } = renderDialog({ project: mockProjectWithDefault });
@@ -154,6 +188,30 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		},
 	};
+
+	it("drops default values for parameters a classic template no longer has", async () => {
+		const { user, props } = renderDialog(
+			{ project: mockProjectWithRemovedParameter },
+			{ ...MockTemplate, use_classic_parameter_flow: true },
+		);
+
+		const save = await screen.findByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: { [MockPreviewParameter1.name]: "kept" },
+					},
+				},
+			}),
+		);
+	});
 
 	it("keeps default values a dynamic template may still evaluate", async () => {
 		const { user, props } = renderDialog({
@@ -452,6 +510,73 @@ describe("ProjectTemplatesDialog", () => {
 		);
 		// The failed load, Retry, and the pre-save check.
 		expect(getTemplates).toHaveBeenCalledTimes(3);
+	});
+
+	it("pauses saving until the default preset list loads", async () => {
+		const getPresets = vi
+			.spyOn(API, "getTemplateVersionPresets")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
+			.mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					preset_id: "preset-id",
+				},
+			},
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: { default_template: { template_id: MockTemplate.id } },
+			}),
+		);
+		expect(getPresets).toHaveBeenCalledTimes(2);
+	});
+
+	it("ignores a failed preset list after switching to parameter values", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Network error." }),
+		);
+		const { user, props } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					preset_id: "preset-id",
+				},
+			},
+		});
+
+		await screen.findByRole("button", { name: "Retry" });
+		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
+		const first = await findParameterInput(MockPreviewParameter1.display_name);
+		await user.clear(first);
+		await user.type(first, "x");
+		const save = screen.getByRole("button", { name: /Save/ });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: { [MockPreviewParameter1.name]: "x" },
+					},
+				},
+			}),
+		);
 	});
 
 	it("saves nothing when an eligible template changes during the check", async () => {
