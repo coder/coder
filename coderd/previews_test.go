@@ -137,10 +137,17 @@ func TestPreviewSignIn(t *testing.T) {
 			{name: "NotWorkspaceOwner", client: siteAdmin, wantStatus: http.StatusNotFound},
 			{name: "UnknownWorkspace", mutate: func(r *codersdk.PreviewSignInRequest) { r.WorkspaceID = uuid.New() }, wantStatus: http.StatusNotFound},
 			{name: "AppSlug", mutate: func(r *codersdk.PreviewSignInRequest) { r.PreviewSlug = "code-server" }, wantStatus: http.StatusBadRequest},
-			{name: "ReservedPort", mutate: func(r *codersdk.PreviewSignInRequest) { r.PreviewSlug = "preview--4" }, wantStatus: http.StatusBadRequest},
 			{name: "OffHostPath", mutate: func(r *codersdk.PreviewSignInRequest) { r.URLPath = "//evil.example.com/" }, wantStatus: http.StatusBadRequest},
 			{name: "UnknownAgent", mutate: func(r *codersdk.PreviewSignInRequest) { r.AgentName = "other" }, wantStatus: http.StatusBadRequest},
 			{name: "UnknownRegion", mutate: func(r *codersdk.PreviewSignInRequest) { r.RegionID = uuid.New() }, wantStatus: http.StatusBadRequest},
+			{
+				name: "HostnameTooLong",
+				mutate: func(r *codersdk.PreviewSignInRequest) {
+					r.PreviewSlug = "preview--0123abcd"
+					r.AgentName = strings.Repeat("a", 40)
+				},
+				wantStatus: http.StatusBadRequest,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

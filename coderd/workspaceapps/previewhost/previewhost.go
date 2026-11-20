@@ -102,12 +102,15 @@ func (h *Hosting) Parse(host string) (appurl.ApplicationURL, appurl.PreviewTarge
 
 // URL returns the URL of app's preview at urlPath, a path and query such as
 // "/docs/?page=2". It errors when the hostname label is longer than the DNS
-// limit of 63 characters.
+// limit of 63 characters or when CheckURLPath refuses urlPath.
 func (h *Hosting) URL(app appurl.ApplicationURL, urlPath string) (*url.URL, error) {
 	pattern, _, _ := strings.Cut(h.host, ".")
 	label := strings.Replace(pattern, "*", app.String(), 1)
 	if len(label) > maxHostnameLabelLength {
-		return nil, xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d", label, len(label), maxHostnameLabelLength)
+		return nil, xerrors.Errorf("the hostname label %q is %d characters, over the DNS limit of %d; a shorter workspace or agent name fixes it", label, len(label), maxHostnameLabelLength)
+	}
+	if err := CheckURLPath(urlPath); err != nil {
+		return nil, err
 	}
 	ref, err := url.Parse(urlPath)
 	if err != nil {
