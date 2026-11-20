@@ -430,6 +430,30 @@ func TestAgentConnBoundsResponseBodies(t *testing.T) {
 	}
 }
 
+func TestAgentConnOpenPreviewOnOutdatedAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentTailnetConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentTailnetConn,
+	})
+	serveTailnetHTTP(t, agentTailnetConn, http.NewServeMux())
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+		AgentID: agentID,
+	})
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	_, err := conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: "/home/coder/page.html"})
+	require.ErrorIs(t, err, workspacesdk.ErrPreviewsUnsupported)
+}
+
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {
 	t.Helper()
 
