@@ -1,23 +1,4 @@
 package coderd
 
-// ChatStartWorkspace exposes chatStartWorkspace for external tests.
-//
-// chatStartWorkspace is intentionally unexported to keep symmetry with
-// its sister chatCreateWorkspace. The alias lets external tests drive
-// the RequireActiveVersion auto-update path end-to-end without
-// stubbing the entire DB layer. The proper fix is to extract a pure
-// request builder; tracked in CODAGT-292.
-var ChatStartWorkspace = (*API).chatStartWorkspace
-
-// ChatCreateWorkspace exposes chatCreateWorkspace for external tests.
-var ChatCreateWorkspace = (*API).chatCreateWorkspace
-
-// ChatStopWorkspace exposes chatStopWorkspace for external tests.
-var ChatStopWorkspace = (*API).chatStopWorkspace
-
-// ChatRenderTemplateParameters exposes chatRenderTemplateParameters for
-// external tests.
-var ChatRenderTemplateParameters = (*API).chatRenderTemplateParameters
-
 // NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
 var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference

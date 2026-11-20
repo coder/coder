@@ -31,10 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -697,71 +699,41 @@ func TestWriteChatFileErrorUnavailable(t *testing.T) {
 	require.Equal(t, "An attachment is no longer available. Upload it again and retry.", response.Detail)
 }
 
-func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
+func TestChatRenderTemplateParameters(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		resp           codersdk.Response
-		fallbackDetail string
-		wantDetail     string
-	}{
-		{
-			name: "NoValidationsAndEmptyDetail",
-			resp: codersdk.Response{
-				Message: "missing required parameter",
-			},
-			fallbackDetail: "wrapped missing required parameter",
-			wantDetail:     "missing required parameter",
-		},
-		{
-			name: "NoValidationsAndExistingDetail",
-			resp: codersdk.Response{
-				Message: "missing required parameter",
-				Detail:  "region must be set before the workspace can start",
-			},
-			fallbackDetail: "wrapped missing required parameter",
-			wantDetail:     "missing required parameter: region must be set before the workspace can start",
-		},
-		{
-			name: "ValidationsAndEmptyDetail",
-			resp: codersdk.Response{
-				Message: "missing required parameter",
-				Validations: []codersdk.ValidationError{{
-					Field:  "region",
-					Detail: "region must be set before the workspace can start",
-				}},
-			},
-			fallbackDetail: "wrapped missing required parameter",
-			wantDetail:     "wrapped missing required parameter",
-		},
-		{
-			name: "ValidationsAndExistingDetail",
-			resp: codersdk.Response{
-				Message: "missing required parameter",
-				Detail:  "region must be set before the workspace can start",
-				Validations: []codersdk.ValidationError{{
-					Field:  "region",
-					Detail: "region must be set before the workspace can start",
-				}},
-			},
-			fallbackDetail: "wrapped missing required parameter",
-			wantDetail:     "region must be set before the workspace can start",
-		},
-	}
+	db, ps := dbtestutil.NewDB(t)
+	api := &API{Options: &Options{Database: dbauthzTestStore(t, db)}}
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         owner.ID,
+	})
+	ready := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	}).Params(database.TemplateVersionParameter{Name: "region"}).Do()
+	pendingJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+		InitiatorID:    owner.ID,
+	})
+	pending := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: ready.Template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+		JobID:          pendingJob.ID,
+	})
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	const retryInstructions = "Use read_template before retrying start_workspace."
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	params, _, err := api.chatRenderTemplateParameters(ctx, owner.ID, ready.TemplateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, params, 1)
+	require.Equal(t, "region", params[0].Name)
 
-			got := rewriteChatStartWorkspaceManualUpdateResponse(tt.resp, tt.fallbackDetail, retryInstructions)
-			require.Equal(t, retryInstructions, got.Message)
-			require.Equal(t, tt.wantDetail, got.Detail)
-			require.Equal(t, tt.resp.Validations, got.Validations)
-		})
-	}
+	_, _, err = api.chatRenderTemplateParameters(ctx, owner.ID, pending.ID)
+	require.ErrorIs(t, err, dynamicparameters.ErrTemplateVersionNotReady)
 }
 
 // Every ChatModelCallConfig field must classify a config as non-zero when set,
