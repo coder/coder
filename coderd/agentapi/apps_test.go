@@ -290,16 +290,27 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		}
 
 		app := database.WorkspaceApp{
-			ID: uuid.UUID{8},
+			ID:          uuid.UUID{8},
+			AgentID:     agent.ID,
+			DisplayName: "Claude Code",
 		}
 		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
 			AgentID: agent.ID,
 			Slug:    "vscode",
 		}).Times(1).Return(app, nil)
+		// Leaving the working state bumps the deadline.
 		appStatus := database.WorkspaceAppStatus{
-			ID: uuid.UUID{6},
+			ID:    uuid.UUID{6},
+			State: database.WorkspaceAppStatusStateWorking,
 		}
 		mDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(appStatus, nil)
+		mDB.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			DeadlineSources: database.WorkspaceBuildDeadlineSources{{
+				Type:  codersdk.WorkspaceBuildDeadlineSourceTypeWorkspaceApp,
+				AppID: app.ID, AgentID: agent.ID, DisplayName: "Claude Code",
+			}},
+			WorkspaceID: workspace.ID,
+		}).Times(1).Return(nil)
 		mDB.EXPECT().InsertWorkspaceAppStatus(
 			gomock.Any(),
 			gomock.Cond(func(params database.InsertWorkspaceAppStatusParams) bool {

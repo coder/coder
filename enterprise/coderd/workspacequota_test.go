@@ -768,10 +768,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		bumpDeadline := func() {
 			err := db.InTx(func(db database.Store) error {
 				err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					Deadline:    dbtime.Now(),
-					MaxDeadline: dbtime.Now(),
-					UpdatedAt:   dbtime.Now(),
-					ID:          myWorkspace.Build.ID,
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+					Deadline:       dbtime.Now(),
+					MaxDeadline:    dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					ID:             myWorkspace.Build.ID,
 				})
 				return err
 			}, &database.TxOptions{
@@ -834,10 +835,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		bumpDeadline := func() {
 			err := db.InTx(func(db database.Store) error {
 				err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					Deadline:    dbtime.Now(),
-					MaxDeadline: dbtime.Now(),
-					UpdatedAt:   dbtime.Now(),
-					ID:          otherWorkspace.Build.ID,
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+					Deadline:       dbtime.Now(),
+					MaxDeadline:    dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					ID:             otherWorkspace.Build.ID,
 				})
 				return err
 			}, &database.TxOptions{

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/rbac"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -303,6 +304,15 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	// Capture the user changing the schedule before switching to the system
+	// actor below. Service actors leave the change unattributed.
+	var changedBy uuid.NullUUID
+	if actor, ok := dbauthz.ActorFromContext(ctx); ok && actor.Type == rbac.SubjectTypeUser {
+		if id, err := uuid.Parse(actor.ID); err == nil {
+			changedBy = uuid.NullUUID{UUID: id, Valid: true}
+		}
+	}
+
 	//nolint:gocritic // This function will retrieve all workspace builds on
 	// the template and update their max deadline to be within the new
 	// policy parameters.
@@ -317,7 +327,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	}
 
 	for _, build := range builds {
-		err := s.updateWorkspaceBuild(ctx, db, build)
+		err := s.updateWorkspaceBuild(ctx, db, build, changedBy)
 		if err != nil {
 			return xerrors.Errorf("update workspace build %q: %w", build.ID, err)
 		}
@@ -326,7 +336,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	return nil
 }
 
-func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
+func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, build database.WorkspaceBuild, changedBy uuid.NullUUID) error {
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithAttributes(attribute.String("coder.workspace_id", build.WorkspaceID.String())),
 		trace.WithAttributes(attribute.String("coder.workspace_build_id", build.ID.String())),
@@ -441,10 +451,12 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 
 	// Update the workspace build deadline.
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-		ID:          build.ID,
-		UpdatedAt:   now,
-		Deadline:    autostop.Deadline,
-		MaxDeadline: autostop.MaxDeadline,
+		ID:                build.ID,
+		UpdatedAt:         now,
+		Deadline:          autostop.Deadline,
+		MaxDeadline:       autostop.MaxDeadline,
+		DeadlineReason:    database.WorkspaceBuildDeadlineReasonTemplateSchedule,
+		DeadlineChangedBy: changedBy,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace build %q: %w", build.ID, err)

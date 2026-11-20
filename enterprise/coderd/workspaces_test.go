@@ -3125,7 +3125,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
 
 	// When: activity bump is applied to an unclaimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour), database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChat})
 
 	// Then: prebuild Deadline/MaxDeadline remain unchanged
 	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
@@ -3150,15 +3150,16 @@ func TestPrebuildActivityBump(t *testing.T) {
 
 	// Given: the claimed workspace has an expired Deadline
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-		ID:        workspace.LatestBuild.ID,
-		Deadline:  deadline,
-		UpdatedAt: clock.Now(),
+		DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+		ID:             workspace.LatestBuild.ID,
+		Deadline:       deadline,
+		UpdatedAt:      clock.Now(),
 	})
 	require.NoError(t, err)
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
 
 	// When: activity bump is applied to a claimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour), database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChat})
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)

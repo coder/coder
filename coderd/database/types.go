@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
@@ -190,6 +191,63 @@ func (a *AgentMetadataAggregate) Scan(src interface{}) error {
 
 func (a AgentMetadataAggregate) Value() (driver.Value, error) {
 	return json.Marshal(a)
+}
+
+// WorkspaceBuildDeadlineSource is the stored identity of observed activity.
+type WorkspaceBuildDeadlineSource struct {
+	Type        codersdk.WorkspaceBuildDeadlineSourceType `json:"type"`
+	AppName     string                                    `json:"app_name,omitempty"`
+	AppID       uuid.UUID                                 `json:"app_id,omitzero"`
+	AgentID     uuid.UUID                                 `json:"agent_id,omitzero"`
+	DisplayName string                                    `json:"display_name,omitempty"`
+}
+
+// WorkspaceBuildDeadlineSources stores the activity in a deadline snapshot.
+type WorkspaceBuildDeadlineSources []WorkspaceBuildDeadlineSource
+
+func (s *WorkspaceBuildDeadlineSources) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), s)
+	case []byte:
+		return json.Unmarshal(v, s)
+	case json.RawMessage:
+		return json.Unmarshal(v, s)
+	}
+	return xerrors.Errorf("unexpected deadline sources type %T", src)
+}
+
+func (s WorkspaceBuildDeadlineSources) Value() (driver.Value, error) {
+	for _, source := range s {
+		allowed := WorkspaceBuildDeadlineSource{Type: source.Type}
+		switch source.Type {
+		case codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp:
+			if source.AppName == "" || source.AppName != codersdk.NormalizeAppName(source.AppName) || source.AgentID == uuid.Nil {
+				return nil, xerrors.New("session app source requires a normalized app name and agent ID")
+			}
+			allowed.AppName, allowed.AgentID = source.AppName, source.AgentID
+		case codersdk.WorkspaceBuildDeadlineSourceTypeWorkspaceApp:
+			if source.AppID == uuid.Nil || source.AgentID == uuid.Nil || source.DisplayName == "" {
+				return nil, xerrors.New("workspace app source requires app ID, agent ID, and display name")
+			}
+			allowed.AppID, allowed.AgentID, allowed.DisplayName = source.AppID, source.AgentID, source.DisplayName
+		case codersdk.WorkspaceBuildDeadlineSourceTypeConnection:
+			if source.AgentID == uuid.Nil {
+				return nil, xerrors.New("connection source requires agent ID")
+			}
+			allowed.AgentID = source.AgentID
+		case codersdk.WorkspaceBuildDeadlineSourceTypeChat, codersdk.WorkspaceBuildDeadlineSourceTypeChatUpload:
+		default:
+			return nil, xerrors.Errorf("unknown deadline source type %q", source.Type)
+		}
+		if source != allowed {
+			return nil, xerrors.Errorf("unexpected fields for deadline source type %q", source.Type)
+		}
+	}
+	if s == nil {
+		s = WorkspaceBuildDeadlineSources{}
+	}
+	return json.Marshal(s)
 }
 
 type WorkspaceACL map[string]WorkspaceACLEntry
