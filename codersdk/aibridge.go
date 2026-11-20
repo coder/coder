@@ -711,6 +711,9 @@ type OrganizationAISpendDetailsFilter struct {
 	GroupID      uuid.UUID `json:"group_id,omitempty" format:"uuid"`
 	ProviderName string    `json:"provider_name,omitempty"`
 	Model        string    `json:"model,omitempty"`
+	// Client matches the client recorded on the intercepted request. Unknown
+	// matches usage without a recorded client.
+	Client string `json:"client,omitempty"`
 }
 
 // asRequestOption returns a function that applies the filter's query
@@ -736,15 +739,18 @@ func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
 		if f.Model != "" {
 			q.Set("model", f.Model)
 		}
+		if f.Client != "" {
+			q.Set("client", f.Client)
+		}
 		r.URL.RawQuery = q.Encode()
 	}
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
-// per-provider AI spend for the organization over the requested period. Both
-// bounds are optional and interpreted as UTC, and zero values fall back to the
-// current budget period on the server. The caller is responsible for closing
-// the returned ReadCloser.
+// per-provider, per-client AI spend for the organization over the requested
+// period. Both bounds are optional and interpreted as UTC, and zero values
+// fall back to the current budget period on the server. The caller is
+// responsible for closing the returned ReadCloser.
 func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
 	return c.ExportOrganizationAISpendWithFilter(ctx, organization, OrganizationAISpendDetailsFilter{
 		PeriodStart: opts.PeriodStart,
