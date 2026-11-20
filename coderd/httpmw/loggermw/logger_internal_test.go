@@ -2,6 +2,7 @@ package loggermw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -423,4 +424,69 @@ func TestRequestLogger_AuthContext(t *testing.T) {
 	require.Equal(t, entries[0].Fields[0].Value, "test-user-id")
 	require.Equal(t, entries[0].Fields[1].Value, "test name")
 	require.Equal(t, entries[0].Fields[2].Value, "test@coder.com")
+}
+
+func TestLoggerMiddleware_MasksSecretRouteParams(t *testing.T) {
+	t.Parallel()
+
+	const value = "synthetic0123456789secretkeyvalue" //nolint:gosec // synthetic test value
+
+	tests := []struct {
+		name       string
+		pattern    string
+		path       string
+		wantMasked bool
+	}{
+		{
+			// The top-level route carries the key secret.
+			name:       "TopLevel",
+			pattern:    "/api/v2/provisionerkeys/{provisionerkey}",
+			path:       "/api/v2/provisionerkeys/" + value,
+			wantMasked: true,
+		},
+		{
+			// The org-scoped route carries a key name, not a secret.
+			name:    "OrgScoped",
+			pattern: "/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}",
+			path:    "/api/v2/organizations/org/provisionerkeys/" + value,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sink := testutil.NewFakeSink(t)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			chiCtx := chi.NewRouteContext()
+			chiCtx.URLParams.Add("provisionerkey", value)
+			chiCtx.RoutePatterns = []string{tt.pattern}
+			ctx = context.WithValue(ctx, chi.RouteCtxKey, chiCtx)
+
+			handler := Logger(sink.Logger(), nil)(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			}))
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, tt.path, nil)
+			require.NoError(t, err)
+			handler.ServeHTTP(&tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}, req)
+
+			entries := sink.Entries()
+			require.Len(t, entries, 1)
+			fields := map[string]any{}
+			for _, f := range entries[0].Fields {
+				fields[f.Name] = f.Value
+			}
+			if tt.wantMasked {
+				for name, v := range fields {
+					require.NotContains(t, fmt.Sprint(v), value, "field %q leaks the value", name)
+				}
+				require.Equal(t, "synt...", fields["params_provisionerkey"])
+				require.Equal(t, "/api/v2/provisionerkeys/synt...", fields["path"])
+			} else {
+				require.Equal(t, value, fields["params_provisionerkey"])
+				require.Equal(t, tt.path, fields["path"])
+			}
+		})
+	}
 }
