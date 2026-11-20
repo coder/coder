@@ -99,7 +99,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Organization UUID.",
+					"description": organizationArgDescription,
 				},
 				"owner_id": map[string]any{
 					"type":        "string",
@@ -893,7 +893,7 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Organization UUID.",
+					"description": organizationArgDescription,
 				},
 			},
 			Required: []string{},
