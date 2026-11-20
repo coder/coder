@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import isNil from "lodash/isNil";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -81,7 +80,7 @@ export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 		)}
 
 		{isOrganizationAccessLoading && <Loader label="Loading organizations" />}
-		{!isNil(organizationAccessError) && (
+		{Boolean(organizationAccessError) && (
 			<ErrorAlert error={organizationAccessError} />
 		)}
 		{organization && (
@@ -118,7 +117,7 @@ const DeploymentInstructions: React.FC<DeploymentInstructionsProps> = ({
 		systemPromptData === undefined ||
 		planModeInstructionsData === undefined
 	) {
-		return !isNil(error) ? (
+		return error ? (
 			<ErrorAlert error={error} />
 		) : (
 			<Loader label="Loading deployment instructions" />
@@ -127,7 +126,7 @@ const DeploymentInstructions: React.FC<DeploymentInstructionsProps> = ({
 
 	return (
 		<>
-			{!isNil(error) && <ErrorAlert error={error} />}
+			{Boolean(error) && <ErrorAlert error={error} />}
 			<InstructionsForm
 				systemPromptData={systemPromptData}
 				planModeInstructionsData={planModeInstructionsData}

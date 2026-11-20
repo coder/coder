@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -242,7 +241,7 @@ const OrganizationAgentSettingsView: React.FC<
 
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
-	const visibleSettings = isNil(overridesLoadError)
+	const visibleSettings = !overridesLoadError
 		? settings.filter(
 				(setting) => setting.context !== "computer_use" || showComputerUse,
 			)
@@ -256,8 +255,8 @@ const OrganizationAgentSettingsView: React.FC<
 
 	return (
 		<div className="flex flex-col gap-6">
-			{!isNil(bannerError) && <ErrorAlert error={bannerError} />}
-			{enabledModels.length === 0 && !isModelsLoading && isNil(modelsError) && (
+			{Boolean(bannerError) && <ErrorAlert error={bannerError} />}
+			{enabledModels.length === 0 && !isModelsLoading && !modelsError && (
 				<p role="status" className="m-0 text-content-secondary">
 					This organization has no enabled chat models.
 				</p>

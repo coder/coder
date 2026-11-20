@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useQuery } from "react-query";
@@ -312,7 +311,7 @@ export const TemplateBuilderPageView: React.FC<
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			{!isNil(error) && <ErrorAlert error={error} />}
+			{Boolean(error) && <ErrorAlert error={error} />}
 
 			<div className="flex gap-8">
 				{/* Main content area */}

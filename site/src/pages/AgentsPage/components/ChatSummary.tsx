@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
@@ -35,7 +34,7 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 }) => {
 	const trimmedSummary = summary?.trim();
 	const hasCost =
-		showCost && !isCostLoading && !costError && !isNil(costMicros);
+		showCost && !isCostLoading && !costError && typeof costMicros === "number";
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -60,7 +59,7 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 							<Skeleton aria-label="Loading cost" className="my-1 h-4 w-16" />
 						) : costError ? (
 							<span className="text-content-secondary">Unavailable</span>
-						) : !isNil(costMicros) ? (
+						) : typeof costMicros === "number" ? (
 							<span className="inline-flex items-center gap-1.5">
 								{formatCostMicros(costMicros)}
 								<ChatCostTooltip

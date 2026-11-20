@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
@@ -93,15 +92,15 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 					onSelectOrganization={onSelectOrganization}
 					requestedOrganizationDenied={requestedOrganizationDenied}
 				>
-					{!isNil(organizationAccessError) && (
+					{Boolean(organizationAccessError) && (
 						<ErrorAlert error={organizationAccessError} />
 					)}
-					{!isNil(organizationPermissionsError) && (
+					{Boolean(organizationPermissionsError) && (
 						<ErrorAlert error={organizationPermissionsError} />
 					)}
 					{organizationSettings}
 				</OrganizationSettingsSection>
-			) : !isNil(organizationAccessError) ? (
+			) : organizationAccessError ? (
 				<ErrorAlert error={organizationAccessError} />
 			) : null}
 

@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -70,7 +69,7 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	error,
 	build,
 }) => {
-	const alert = !isNil(error) ? (
+	const alert = error ? (
 		<Alert severity="error" prominent>
 			<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
 			<AlertDescription>

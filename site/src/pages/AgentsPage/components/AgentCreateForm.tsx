@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "#/api/errors";
@@ -979,7 +978,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={createError} />
 					)
 				) : null}
-				{!isNil(workspacesError) && <ErrorAlert error={workspacesError} />}
+				{Boolean(workspacesError) && <ErrorAlert error={workspacesError} />}
 				{mcpServersQuery.data === undefined &&
 					mcpServersQuery.error !== null && (
 						<ErrorAlert error={mcpServersQuery.error} />

@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -291,7 +290,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 					<SettingsHeaderDocsLink href={docs("/coder-agents/models#models")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			{!isNil(alertError) && (
+			{Boolean(alertError) && (
 				<div className="mb-4">
 					<ErrorAlert error={alertError} />
 				</div>
@@ -368,7 +367,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
-					) : !isNil(loadError) ? null : !hasModels ? (
+					) : loadError ? null : !hasModels ? (
 						<TableEmpty
 							message="No models configured"
 							description="Configured models will appear here."

@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -96,7 +95,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	}
 
 	if (organizations.length === 0) {
-		return !isNil(organizationsError) ? (
+		return organizationsError ? (
 			<ErrorAlert error={organizationsError} />
 		) : (
 			<EmptyState
@@ -106,7 +105,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 		);
 	}
 
-	const refetchErrorAlert = !isNil(organizationsError) && (
+	const refetchErrorAlert = Boolean(organizationsError) && (
 		<ErrorAlert error={organizationsError} />
 	);
 

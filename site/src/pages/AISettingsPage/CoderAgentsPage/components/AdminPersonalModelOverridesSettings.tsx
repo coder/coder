@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -36,7 +35,7 @@ export const AdminPersonalModelOverridesSettings: React.FC<
 	isSaveAdminSettingError,
 }) => {
 	const hasLoadedAdminSettings = adminSettings !== undefined;
-	const hasAdminSettingsError = !isNil(adminSettingsError);
+	const hasAdminSettingsError = Boolean(adminSettingsError);
 	const isDisabled = isSavingAdminSetting || !hasLoadedAdminSettings;
 	const allowsUsers = adminSettings?.allow_users ?? false;
 

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import isNil from "lodash/isNil";
 import { InfoIcon } from "lucide-react";
 import { memo, useState } from "react";
 import { useQuery } from "react-query";
@@ -507,7 +506,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// Build a set of message IDs that appear after the message
 		// currently being edited so they can be visually faded.
 		const afterEditingMessageIds = new Set<number>();
-		if (!isNil(editingMessageId)) {
+		if (typeof editingMessageId === "number") {
 			let found = false;
 			for (const entry of parsedMessages) {
 				if (entry.message.id === editingMessageId) {

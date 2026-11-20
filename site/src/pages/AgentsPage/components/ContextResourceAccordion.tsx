@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import isNil from "lodash/isNil";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	Collapsible,
@@ -22,7 +21,7 @@ export const ContextResourceAccordion: React.FC<
 
 type ContextResourceAccordionTriggerProps = React.ComponentProps<
 	typeof CollapsibleTrigger
-> & { detail?: React.ReactNode };
+> & { detail?: string };
 
 /** Labels a resource section with optional detail shown while collapsed. */
 export const ContextResourceAccordionTrigger: React.FC<
@@ -47,7 +46,7 @@ export const ContextResourceAccordionTrigger: React.FC<
 				{children}
 			</span>
 		</div>
-		{!isNil(detail) && (
+		{detail !== undefined && (
 			<span className="font-medium text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
 				{detail}
 			</span>

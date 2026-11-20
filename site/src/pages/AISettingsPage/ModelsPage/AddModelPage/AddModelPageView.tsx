@@ -1,4 +1,3 @@
-import isNil from "lodash/isNil";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -100,7 +99,7 @@ const AddModelPageView: React.FC<AddModelPageViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
-			{!isNil(refetchError) && <ErrorAlert error={refetchError} />}
+			{Boolean(refetchError) && <ErrorAlert error={refetchError} />}
 			<ModelForm
 				duplicateSourceModel={duplicateSourceModel}
 				currentDefaultModel={currentDefaultModel}
