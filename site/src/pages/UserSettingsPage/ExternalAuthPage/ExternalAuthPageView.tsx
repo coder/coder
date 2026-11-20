@@ -1,7 +1,10 @@
 import { EllipsisVerticalIcon, RefreshCcwIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useQuery } from "react-query";
-import { externalAuthProvider } from "#/api/queries/externalAuth";
+import { useQuery, useQueryClient } from "react-query";
+import {
+	externalAuthProvider,
+	externalAuthsKey,
+} from "#/api/queries/externalAuth";
 import type {
 	ExternalAuthLink,
 	ExternalAuthLinkProvider,
@@ -146,7 +149,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 							</TooltipContent>
 						</Tooltip>
 					)}
-					{link?.validate_error && (
+					{!authenticated && link?.validate_error && (
 						<span>
 							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
@@ -205,6 +208,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 
 // useExternalAuth handles the polling of the auth to update the button.
 const useExternalAuth = (providerID: string, unlinked: number) => {
+	const queryClient = useQueryClient();
 	const [externalAuthPollingState, setExternalAuthPollingState] =
 		useState<ExternalAuthPollingState>("idle");
 
@@ -227,6 +231,14 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
 
 	useEffect(() => {
 		if (signedIn) {
+			if (externalAuthPollingState === "polling") {
+				// Polling only refreshes this provider, so refetch the list to
+				// pick up the new link and drop its previous validate_error.
+				void queryClient.invalidateQueries({
+					queryKey: externalAuthsKey,
+					exact: true,
+				});
+			}
 			setExternalAuthPollingState("idle");
 			return;
 		}
@@ -243,7 +255,7 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
 		return () => {
 			clearTimeout(quitPolling);
 		};
-	}, [externalAuthPollingState, signedIn]);
+	}, [externalAuthPollingState, signedIn, queryClient]);
 
 	return {
 		startPollingExternalAuth,
