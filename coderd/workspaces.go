@@ -67,7 +67,7 @@ var (
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
-// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. Refer to [Related data](#related-data)."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
@@ -299,7 +299,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param workspacename path string true "Workspace name"
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
-// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. Refer to [Related data](#related-data)."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {

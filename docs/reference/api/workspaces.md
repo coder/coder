@@ -5,6 +5,164 @@ title: Workspaces
 
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
+## Related data
+
+The [Get workspace metadata by ID](#get-workspace-metadata-by-id) and [Get workspace metadata by user and workspace name](#get-workspace-metadata-by-user-and-workspace-name) endpoints accept an `include_related` query parameter that selects which related data the server loads.
+Loading less related data makes the request cheaper.
+
+The value is a comma-separated list of paths, such as `template,latest_build.resources.agents`:
+
+- Omit `include_related` to return all related data.
+- Pass an empty value, `include_related=`, to return only the fields that are always returned.
+- Selecting a path also selects its ancestors. For example, `latest_build.job` also selects `latest_build`.
+- End a path with `.*` to select it and every path below it, or pass `*` to select everything.
+
+Fields whose related data is not selected don't hold meaningful values, so don't read them.
+Most are returned with zero values, such as `null`, an empty string, `0`, `false`, or a zero ID.
+Fields computed from related data, such as `health`, `outdated`, and `latest_build.status`, can hold values computed from the missing data.
+
+The following table lists each response field and the `include_related` paths that return it.
+A field that holds an object or array returns everything in it.
+A field that lists more than one path needs all of them.
+These endpoints never return the fields marked **Not returned**.
+
+| Response field                                                 | `include_related`                             |
+|----------------------------------------------------------------|-----------------------------------------------|
+| `allow_renames`                                                | `template`                                    |
+| `automatic_updates`                                            | Always returned                               |
+| `autostart_schedule`                                           | Always returned                               |
+| `created_at`                                                   | Always returned                               |
+| `deleting_at`                                                  | Always returned                               |
+| `dormant_at`                                                   | Always returned                               |
+| `favorite`                                                     | Always returned                               |
+| `health`                                                       | `latest_build.resources.agents`               |
+| `id`                                                           | Always returned                               |
+| `is_prebuild`                                                  | Always returned                               |
+| `last_used_at`                                                 | Always returned                               |
+| `latest_app_status`                                            | `latest_build.resources.agents.apps.statuses` |
+| `name`                                                         | Always returned                               |
+| `next_start_at`                                                | Always returned                               |
+| `organization_id`                                              | Always returned                               |
+| `organization_name`                                            | Always returned                               |
+| `outdated`                                                     | `template` and `latest_build`                 |
+| `owner_avatar_url`                                             | Always returned                               |
+| `owner_id`                                                     | Always returned                               |
+| `owner_name`                                                   | Always returned                               |
+| `shared_with`                                                  | Always returned                               |
+| `template_active_version_id`                                   | `template`                                    |
+| `template_allow_user_cancel_workspace_jobs`                    | `template`                                    |
+| `template_display_name`                                        | Always returned                               |
+| `template_icon`                                                | Always returned                               |
+| `template_id`                                                  | Always returned                               |
+| `template_name`                                                | Always returned                               |
+| `template_require_active_version`                              | `template`                                    |
+| `template_use_classic_parameter_flow`                          | `template`                                    |
+| `ttl_ms`                                                       | `template`                                    |
+| `updated_at`                                                   | Always returned                               |
+| `latest_build.build_number`                                    | `latest_build`                                |
+| `latest_build.created_at`                                      | `latest_build`                                |
+| `latest_build.daily_cost`                                      | `latest_build`                                |
+| `latest_build.deadline`                                        | `latest_build`                                |
+| `latest_build.has_external_agent`                              | `latest_build`                                |
+| `latest_build.id`                                              | `latest_build`                                |
+| `latest_build.initiator_id`                                    | `latest_build`                                |
+| `latest_build.initiator_name`                                  | `latest_build`                                |
+| `latest_build.matched_provisioners`                            | `latest_build.job`                            |
+| `latest_build.max_deadline`                                    | `latest_build`                                |
+| `latest_build.reason`                                          | `latest_build`                                |
+| `latest_build.status`                                          | `latest_build.job`                            |
+| `latest_build.template_version_id`                             | `latest_build`                                |
+| `latest_build.template_version_name`                           | `latest_build.template_version`               |
+| `latest_build.template_version_preset_id`                      | `latest_build`                                |
+| `latest_build.transition`                                      | `latest_build`                                |
+| `latest_build.updated_at`                                      | `latest_build`                                |
+| `latest_build.workspace_id`                                    | `latest_build`                                |
+| `latest_build.workspace_name`                                  | `latest_build`                                |
+| `latest_build.workspace_owner_avatar_url`                      | `latest_build`                                |
+| `latest_build.workspace_owner_id`                              | `latest_build`                                |
+| `latest_build.workspace_owner_name`                            | `latest_build`                                |
+| `latest_build.job.available_workers`                           | Not returned                                  |
+| `latest_build.job.canceled_at`                                 | `latest_build.job`                            |
+| `latest_build.job.completed_at`                                | `latest_build.job`                            |
+| `latest_build.job.created_at`                                  | `latest_build.job`                            |
+| `latest_build.job.error`                                       | `latest_build.job`                            |
+| `latest_build.job.error_code`                                  | `latest_build.job`                            |
+| `latest_build.job.file_id`                                     | `latest_build.job`                            |
+| `latest_build.job.id`                                          | `latest_build.job`                            |
+| `latest_build.job.initiator_id`                                | `latest_build.job`                            |
+| `latest_build.job.input`                                       | `latest_build.job`                            |
+| `latest_build.job.logs_overflowed`                             | `latest_build.job`                            |
+| `latest_build.job.metadata`                                    | Not returned                                  |
+| `latest_build.job.organization_id`                             | `latest_build.job`                            |
+| `latest_build.job.queue_position`                              | `latest_build.job.queue_position`             |
+| `latest_build.job.queue_size`                                  | `latest_build.job.queue_position`             |
+| `latest_build.job.started_at`                                  | `latest_build.job`                            |
+| `latest_build.job.status`                                      | `latest_build.job`                            |
+| `latest_build.job.tags`                                        | `latest_build.job`                            |
+| `latest_build.job.type`                                        | `latest_build.job`                            |
+| `latest_build.job.worker_id`                                   | `latest_build.job`                            |
+| `latest_build.job.worker_name`                                 | Not returned                                  |
+| `latest_build.resources[].created_at`                          | `latest_build.resources`                      |
+| `latest_build.resources[].daily_cost`                          | `latest_build.resources`                      |
+| `latest_build.resources[].hide`                                | `latest_build.resources`                      |
+| `latest_build.resources[].icon`                                | `latest_build.resources`                      |
+| `latest_build.resources[].id`                                  | `latest_build.resources`                      |
+| `latest_build.resources[].job_id`                              | `latest_build.resources`                      |
+| `latest_build.resources[].metadata`                            | `latest_build.resources.metadata`             |
+| `latest_build.resources[].name`                                | `latest_build.resources`                      |
+| `latest_build.resources[].type`                                | `latest_build.resources`                      |
+| `latest_build.resources[].workspace_transition`                | `latest_build.resources`                      |
+| `latest_build.resources[].agents[].api_version`                | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].architecture`               | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].connection_timeout_seconds` | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].created_at`                 | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].directory`                  | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].disconnected_at`            | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].display_apps`               | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].environment_variables`      | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].expanded_directory`         | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].first_connected_at`         | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].health`                     | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].id`                         | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].instance_id`                | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].last_connected_at`          | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].latency`                    | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].lifecycle_state`            | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].log_sources`                | `latest_build.resources.agents.log_sources`   |
+| `latest_build.resources[].agents[].logs_length`                | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].logs_overflowed`            | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].metadata`                   | Not returned                                  |
+| `latest_build.resources[].agents[].name`                       | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].operating_system`           | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].parent_id`                  | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].ready_at`                   | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].resource_id`                | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].scripts`                    | `latest_build.resources.agents.scripts`       |
+| `latest_build.resources[].agents[].started_at`                 | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].startup_script_behavior`    | `latest_build.resources.agents.scripts`       |
+| `latest_build.resources[].agents[].status`                     | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].subsystems`                 | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].troubleshooting_url`        | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].updated_at`                 | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].version`                    | `latest_build.resources.agents`               |
+| `latest_build.resources[].agents[].apps[].command`             | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].display_name`        | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].external`            | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].group`               | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].health`              | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].healthcheck`         | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].hidden`              | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].icon`                | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].id`                  | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].open_in`             | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].sharing_level`       | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].slug`                | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].statuses`            | `latest_build.resources.agents.apps.statuses` |
+| `latest_build.resources[].agents[].apps[].subdomain`           | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].subdomain_name`      | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].tooltip`             | `latest_build.resources.agents.apps`          |
+| `latest_build.resources[].agents[].apps[].url`                 | `latest_build.resources.agents.apps`          |
+
 ## Create user workspace by organization
 
 ### Code samples
@@ -437,12 +595,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                                                                                                                    |
-|-------------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------|
-| `user`            | path  | string  | true     | User ID, name, or me                                                                                                           |
-| `workspacename`   | path  | string  | true     | Workspace name                                                                                                                 |
-| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
-| `include_related` | query | string  | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
+| Name              | In    | Type    | Required | Description                                                                                                                                                            |
+|-------------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user`            | path  | string  | true     | User ID, name, or me                                                                                                                                                   |
+| `workspacename`   | path  | string  | true     | Workspace name                                                                                                                                                         |
+| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                                                            |
+| `include_related` | query | string  | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. Refer to [Related data](#related-data). |
 
 ### Example responses
 
@@ -1416,11 +1574,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                                                    |
-|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
-| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                                                                                   |
-| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
-| `include_related` | query | string       | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
+| Name              | In    | Type         | Required | Description                                                                                                                                                            |
+|-------------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                                                                                                                           |
+| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                                                            |
+| `include_related` | query | string       | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. Refer to [Related data](#related-data). |
 
 ### Example responses
 

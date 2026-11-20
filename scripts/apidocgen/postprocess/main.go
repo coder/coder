@@ -203,6 +203,14 @@ func writeDocs(sections [][]byte) error {
 		}
 		log.Printf("Write section: %s", sectionName)
 
+		if sectionName == relatedDataSectionName {
+			related, err := relatedDataSection()
+			if err != nil {
+				return xerrors.Errorf("can't render related data section: %w", err)
+			}
+			section = insertAfterHeading(section, related)
+		}
+
 		// Carry the manifest route's curated metadata into the front matter.
 		r := existingByTitle[sectionName]
 		r.Title = sectionName

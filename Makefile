@@ -1512,6 +1512,7 @@ coderd/apidoc/.gen: \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
+	$(wildcard codersdk/wsrelated/*.go) \
 	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
 	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
