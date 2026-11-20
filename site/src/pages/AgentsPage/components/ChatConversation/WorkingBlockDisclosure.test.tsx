@@ -105,7 +105,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
 	peek,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
-	// The summary row, and the peek's three rows under it.
+	// The summary row plus a full peek window.
 	const collapsedHeight = peek ? 134 : 40;
 	return (
 		<MessageScroller.Item
