@@ -88,6 +88,22 @@ var testCases = []testCase{
 		},
 	},
 	{
+		name:    "network_policy",
+		fixture: "network_policy",
+		mustNotContain: []string{
+			// Only the default Service renders alongside the policy.
+			"kind: Ingress",
+			"kind: HTTPRoute",
+		},
+	},
+	{
+		name:    "network_policy_metrics_off",
+		fixture: "network_policy_metrics_off",
+		mustNotContain: []string{
+			"port: 2112",
+		},
+	},
+	{
 		name:    "nodeport",
 		fixture: "nodeport",
 		mustNotContain: []string{

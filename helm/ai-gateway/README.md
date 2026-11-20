@@ -127,6 +127,37 @@ are optional and both route to the data-plane Service. If you enable Ingress or
 `HTTPRoute`, use a `ClusterIP` Service unless you intentionally need a second
 external entry point through a `LoadBalancer` Service.
 
+### Network policy
+
+Set `networkPolicy.enable` to create a `NetworkPolicy` for the gateway pods.
+Your CNI must enforce NetworkPolicy for it to have any effect. Ingress is limited
+to the data-plane port (4001), from the peers in `networkPolicy.ingress.from`
+(any source if empty). Prometheus metrics are also allowed, unless you set
+`CODER_PROMETHEUS_ENABLE` to `false` in `coder.env`. Restrict who can scrape with
+`networkPolicy.prometheus.from`. Open other ports with
+`networkPolicy.extraIngress`.
+
+Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
+case only DNS, the Coder server, and your `networkPolicy.extraEgress` rules are
+allowed, so you must also allow your AI providers. The Coder server defaults to
+the Coder chart's pods in any namespace; set `egress.coderServer.to` and
+`ports` if `CODER_URL` points elsewhere.
+
+```yaml
+networkPolicy:
+  enable: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  prometheus:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+```
+
 ## Scaling and resources
 
 Set `coder.replicaCount` to run multiple AI Gateway replicas. The default
@@ -185,5 +216,4 @@ reloader controller can be configured through `coder.annotations` or
 
 `extraTemplates` renders additional Kubernetes manifests as part of the Helm
 release. Entries can be YAML strings or Kubernetes objects, and can use Helm
-release values and chart helpers. Use them for small companion resources, such
-as a `NetworkPolicy`.
+release values and chart helpers. Use them for small companion resources.
