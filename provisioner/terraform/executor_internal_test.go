@@ -308,11 +308,44 @@ func TestChecksumFileCRC32(t *testing.T) {
 func TestRedactArgs(t *testing.T) {
 	t.Parallel()
 
-	args := []string{"apply", "-var", "db_password=hunter2-synthetic", "-var=token=abc-synthetic", "-no-color"}
+	args := []string{
+		"apply",
+		"-var", "db_password=hunter2-synthetic",
+		"-var=token=abc-synthetic",
+		"-var", "region=us-east-2",
+		"-var=aws_access_key_id=AKIASYNTHETIC",
+		"-no-color",
+	}
 	orig := slices.Clone(args)
+	sensitive := map[string]bool{"db_password": true, "token": true}
 
-	got := redactArgs(args)
+	got := redactArgs(args, sensitive)
 
-	require.Equal(t, []string{"apply", "-var", "db_password=<redacted>", "-var=token=<redacted>", "-no-color"}, got)
+	require.Equal(t, []string{
+		"apply",
+		"-var", "db_password=<redacted>",
+		"-var=token=<redacted>",
+		// Not flagged sensitive: logged as is, even if the name looks secret-ish.
+		"-var", "region=us-east-2",
+		"-var=aws_access_key_id=AKIASYNTHETIC",
+		"-no-color",
+	}, got)
 	require.Equal(t, orig, args, "input args must not be modified")
+
+	// With no sensitive variables, nothing is redacted.
+	require.Equal(t, args, redactArgs(args, nil))
+}
+
+func TestPlanVars_Sensitive(t *testing.T) {
+	t.Parallel()
+
+	vars, sensitive, err := planVars(&proto.PlanRequest{
+		VariableValues: []*proto.VariableValue{
+			{Name: "db_password", Value: "synthetic", Sensitive: true},
+			{Name: "region", Value: "us-east-2"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"db_password=synthetic", "region=us-east-2"}, vars, "values are passed to terraform unmodified")
+	require.Equal(t, map[string]bool{"db_password": true}, sensitive)
 }
