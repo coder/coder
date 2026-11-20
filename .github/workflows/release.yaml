@@ -660,16 +660,16 @@ jobs:
 
       # Only coder/ghcr-publisher can write the public images and charts. It copies
       # each staging digest after verifying its release attestation and that this
-      # run's `release` environment was approved. The token is scoped to that one
-      # repository; contents: write is all a repository_dispatch needs. It is
-      # revoked right after the dispatch.
-      - name: Generate release App token for promotion
+      # run's `release` environment was approved. coder-ghcr-dispatch has only
+      # contents: write, on coder/ghcr-publisher only: enough for a
+      # repository_dispatch and nothing else. The token is revoked right after.
+      - name: Generate coder-ghcr-dispatch token
         id: promote_app_token
         if: ${{ !inputs.dry_run }}
         uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          client-id: ${{ secrets.RELEASE_APP_ID }}
-          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          client-id: ${{ secrets.CODER_GHCR_DISPATCH_APP_ID }}
+          kms-key: ${{ secrets.CODER_GHCR_DISPATCH_APP_KMS_KEY }}
           workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
           owner: coder
           repositories: ghcr-publisher
