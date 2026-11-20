@@ -27,8 +27,10 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds an "Unpin" item. */
 	readonly onUnpin?: () => void;
 	readonly project: Pick<ChatProject, "permissions" | "archived_at">;
-	readonly onEdit: () => void;
-	readonly onArchive: () => void;
+	/** When omitted, an active project gets no "Edit" item. */
+	readonly onEdit?: () => void;
+	/** When omitted, an active project gets no "Archive" item. */
+	readonly onArchive?: () => void;
 	/** When omitted, an archived project gets no "Unarchive" item. */
 	readonly onUnarchive?: () => void;
 	readonly onDelete: () => void;
@@ -61,8 +63,8 @@ export const ProjectActionsMenuItems: React.FC<
 }) => {
 	const { permissions } = project;
 	const isArchived = Boolean(project.archived_at);
-	const showEdit = permissions.update && !isArchived;
-	const showArchive = permissions.archive && !isArchived;
+	const showEdit = onEdit && permissions.update && !isArchived;
+	const showArchive = onArchive && permissions.archive && !isArchived;
 	const showUnarchive = onUnarchive && permissions.archive && isArchived;
 	const hasItemsAboveDelete =
 		onPin || onUnpin || showEdit || showArchive || showUnarchive;

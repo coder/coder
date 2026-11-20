@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent, within } from "storybook/test";
 import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockChatProjectSummary,
 	MockUserMember,
@@ -122,6 +123,11 @@ const meta: Meta<typeof ProjectsPageView> = {
 		onEdit: fn(),
 		onArchive: fn(),
 		onDelete: fn(),
+		showArchivedTab: false,
+		archivedProjects: [],
+		archivedError: undefined,
+		onRetryArchived: fn(),
+		onUnarchived: fn(),
 	},
 };
 
@@ -133,6 +139,69 @@ export const YourProjects: Story = {};
 export const SharedWithYou: Story = { args: { tab: "shared" } };
 
 export const Loading: Story = { args: { projects: undefined } };
+
+const mockArchivedProjects: ChatProject[] = [
+	{
+		...MockArchivedChatProject,
+		id: "archived-release",
+		name: "Release 2.0",
+		description: "Chats from the 2.0 release.",
+	},
+	{
+		...MockArchivedChatProject,
+		id: "archived-shared",
+		name: "Shared archive",
+		description: "",
+		owner_id: MockUserMember.id,
+		permissions: { update: false, delete: false, share: false, archive: false },
+	},
+];
+
+export const Archived: Story = {
+	args: {
+		tab: "archived",
+		showArchivedTab: true,
+		archivedProjects: mockArchivedProjects,
+	},
+};
+
+export const ArchivedRefetchError: Story = {
+	args: {
+		...Archived.args,
+		archivedError: mockApiError({
+			message: "Failed to refresh archived projects.",
+		}),
+	},
+};
+
+export const YourProjectsWithArchived: Story = {
+	args: { showArchivedTab: true, archivedProjects: mockArchivedProjects },
+};
+
+export const ArchivedActionsMenuOpen: Story = {
+	args: Archived.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open project actions for Release 2.0",
+			}),
+		);
+	},
+};
+
+export const ArchivedLoading: Story = {
+	args: { ...Archived.args, archivedProjects: undefined },
+};
+
+export const ArchivedLoadError: Story = {
+	args: {
+		...Archived.args,
+		archivedProjects: undefined,
+		archivedError: mockApiError({
+			message: "Failed to load archived projects.",
+		}),
+	},
+};
 
 export const LoadError: Story = {
 	args: {
