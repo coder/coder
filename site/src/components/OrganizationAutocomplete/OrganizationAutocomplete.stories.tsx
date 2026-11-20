@@ -129,7 +129,7 @@ const mockOrganizationWithLongName: Organization = {
 		"Meridian Systems Platform Engineering and Infrastructure Europe",
 };
 
-export const NarrowViewportLongNames: Story = {
+export const LongNameTooltip: Story = {
 	args: {
 		value: null,
 		options: [MockOrganization, mockOrganizationWithLongName],
