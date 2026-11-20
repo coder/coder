@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
+	"jsPlugins": ["eslint-plugin-react-you-might-not-need-an-effect"],
 	"rules": {
 		// --- a11y (jsx-a11y) ---
 		"no-access-key": "error",
@@ -207,6 +208,9 @@
 			{ "functions": false, "classes": false, "variables": false }
 		],
 
+		// --- react-you-might-not-need-an-effect ---
+		"react-you-might-not-need-an-effect/no-pass-live-state-to-parent": "error",
+
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
 		// Each rule maps to a Biome rule, but oxlint's implementation
@@ -239,6 +243,16 @@
 		"immutability": "off", // (small)
 		"vitest/valid-expect": "off", // (small)
 		"purity": "off", // (small)
+
+		// react-you-might-not-need-an-effect rules with existing violations.
+		"react-you-might-not-need-an-effect/no-event-handler": "off", // (xl)
+		"react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "off", // (large)
+		"react-you-might-not-need-an-effect/no-pass-data-to-parent": "off", // (medium)
+		"react-you-might-not-need-an-effect/no-initialize-state": "off", // (medium)
+		"react-you-might-not-need-an-effect/no-chain-state-updates": "off", // (medium)
+		"react-you-might-not-need-an-effect/no-derived-state": "off", // (medium)
+		"react-you-might-not-need-an-effect/no-external-store-subscription": "off", // (small)
+		"react-you-might-not-need-an-effect/no-reset-all-state-on-prop-change": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",
