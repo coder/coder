@@ -444,6 +444,21 @@ type connLogRequest struct {
 	dbReq  *databaseRequest
 }
 
+// statusWriterOf returns the status writer under w. A preview host wraps it
+// in the preview policy writer.
+func statusWriterOf(w http.ResponseWriter) (*tracing.StatusWriter, bool) {
+	for {
+		if sw, ok := w.(*tracing.StatusWriter); ok {
+			return sw, true
+		}
+		u, ok := w.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return nil, false
+		}
+		w = u.Unwrap()
+	}
+}
+
 // connLogInitRequest creates a new connection log session and connect log for the
 // given request, if one does not already exist. If a connection log session
 // already exists, it will be updated with the current timestamp. A session is used to
@@ -454,7 +469,7 @@ type connLogRequest struct {
 func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
-	sw, ok := w.(*tracing.StatusWriter)
+	sw, ok := statusWriterOf(w)
 	if !ok {
 		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}

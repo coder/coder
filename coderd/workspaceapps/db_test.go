@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -1456,4 +1457,50 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		},
 		AppNameOrPort: sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
 	}))
+}
+
+// Through the real server, the preview policy writer sits above the status
+// writer that connection logging reads.
+func TestPreviewHostThroughServer(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentOpenPreview)}
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		AppHostname:      "*.test.coder.com",
+		DeploymentValues: dv,
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "site",
+		OwnerID:        me.ID,
+		OrganizationID: first.OrganizationID,
+	}).WithAgent().Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte("preview ok"))
+	}))
+	t.Cleanup(upstream.Close)
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/", nil)
+	require.NoError(t, err)
+	req.Host = fmt.Sprintf("preview--%s--dev--site--%s.test.coder.com", upstreamURL.Port(), me.Username)
+	req.Header.Set("Sec-Fetch-Dest", "iframe")
+	req.AddCookie(&http.Cookie{Name: codersdk.PreviewSessionTokenCookie, Value: client.SessionToken()})
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, res.StatusCode, string(body))
+	require.Equal(t, "preview ok", string(body))
+	require.Contains(t, res.Header.Get("Content-Security-Policy"), "frame-ancestors 'self' "+strings.TrimSuffix(api.AccessURL.String(), "/"))
 }
