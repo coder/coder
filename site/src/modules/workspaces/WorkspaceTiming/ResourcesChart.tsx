@@ -11,6 +11,7 @@ import {
 	ChartContent,
 	type ChartLegend,
 	ChartLegends,
+	ChartRowLegend,
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
@@ -112,6 +113,7 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 										</TooltipContent>
 									</Tooltip>
 									{formatTime(duration)}
+									<ChartRowLegend label={legend.label} />
 								</ChartTableRow>
 							);
 						})}
