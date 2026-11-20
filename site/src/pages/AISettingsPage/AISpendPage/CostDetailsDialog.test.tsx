@@ -40,7 +40,8 @@ it("warns on a partly priced model and shows no pricing for an unpriced one", ()
 	const models = within(screen.getByRole("region", { name: "Models" }));
 	const pricedLater = models.getByText("claude-opus-4-6").closest("li");
 	const unpriced = models.getByText("llama-4-maverick").closest("li");
-	expect(pricedLater).toHaveTextContent("Some usage has no pricing$1.50");
+	expect(pricedLater).toHaveTextContent("Some usage has no pricing");
+	expect(pricedLater).toHaveTextContent("$1.50");
 	expect(unpriced).toHaveTextContent("No pricing");
 	expect(unpriced).not.toHaveTextContent("$");
 });

@@ -53,6 +53,16 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 }) => {
 	const titleId = useId();
 	const summary = overview && summarizeTopSpenders(overview);
+	// Undefined while the details load, null when the response has no entry
+	// for the user.
+	const findUserDetails = (userId: string) => {
+		if (topSpenderDetails === undefined) {
+			return undefined;
+		}
+		return (
+			topSpenderDetails.find((spender) => spender.user_id === userId) ?? null
+		);
+	};
 
 	return (
 		<OverviewCard aria-labelledby={titleId} className="gap-6">
@@ -92,13 +102,7 @@ export const TopSpendersCard: React.FC<TopSpendersCardProps> = ({
 						<TopSpenderRow
 							key={user.user_id}
 							user={user}
-							details={
-								topSpenderDetails &&
-								(topSpenderDetails.find(
-									(spender) => spender.user_id === user.user_id,
-								) ??
-									null)
-							}
+							details={findUserDetails(user.user_id)}
 							detailsError={topSpenderDetailsError}
 							period={overview}
 							organizationName={organizationName}
