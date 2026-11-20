@@ -8,8 +8,14 @@ go 1.26.10
 // See: https://github.com/kylecarbs/chroma/commit/9e036e0631f38ef60de5ee8eec7a42e9cb7da423
 replace github.com/alecthomas/chroma/v2 => github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3
 
-// Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
-replace github.com/hashicorp/terraform-config-inspect => github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e
+// The fork adds variable validation parsing and backports
+// https://github.com/hashicorp/terraform-config-inspect/pull/146, which accepts
+// variable and local references in module source and version. It does not
+// include upstream's Terraform Stacks support.
+// TODO: Point this back at github.com/coder/terraform-config-inspect once
+// https://github.com/coder/terraform-config-inspect/pull/1 merges. That must
+// happen before this change merges.
+replace github.com/hashicorp/terraform-config-inspect => github.com/dylanhuff-at-coder/terraform-config-inspect v0.0.0-20261118154821-af21c23b54a3
 
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8

@@ -367,6 +367,69 @@ func TestParse(t *testing.T) {
 			ParseErrorContains: `"tags" attribute is required by coder_workspace_tags`,
 		},
 		{
+			// Terraform 1.15 and later allow a module source or version to
+			// reference const variables and locals.
+			Name: "module-source-and-version-references",
+			Files: map[string]string{
+				"main.tf": `variable "registry" {
+					type    = string
+					const   = true
+					default = "registry.example.com/acme"
+				}
+
+				variable "module_version" {
+					type    = string
+					const   = true
+					default = "1.2.3"
+				}
+
+				locals {
+					git_source = "git::https://example.com/acme/modules.git//dotfiles"
+				}
+
+				module "interpolated_source" {
+					source = "${var.registry}/dotfiles/coder"
+				}
+
+				module "variable_version" {
+					source  = "${var.registry}/code-server/coder"
+					version = var.module_version
+				}
+
+				module "local_source" {
+					source = local.git_source
+				}
+
+				module "static" {
+					source  = "registry.example.com/acme/jetbrains/coder"
+					version = "1.0.0"
+				}`,
+			},
+			Response: &proto.ParseComplete{
+				TemplateVariables: []*proto.TemplateVariable{
+					{
+						Name:         "registry",
+						Type:         "string",
+						DefaultValue: "registry.example.com/acme",
+					},
+					{
+						Name:         "module_version",
+						Type:         "string",
+						DefaultValue: "1.2.3",
+					},
+				},
+			},
+		},
+		{
+			Name: "module-source-wrong-type",
+			Files: map[string]string{
+				"main.tf": `module "invalid" {
+					source = ["not", "a", "string"]
+				}`,
+			},
+			ParseErrorContains: `string required`,
+		},
+		{
 			Name: "empty-main",
 			Files: map[string]string{
 				"main.tf": ``,

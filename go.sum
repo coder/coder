@@ -355,8 +355,6 @@ github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuO
 github.com/coder/ssh v0.0.0-20231128192721-70855dedb788/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30 h1:TK4MPsYs7y46V1P3ayL/lrIs7dssyTMs1vq424ZKtb4=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30/go.mod h1:VBQbGaS5sjdbJ1dBNoF19LlCcTFbiubNu15ZVReWPpw=
-github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
-github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/coder/terraform-provider-coder/v2 v2.20.0 h1:fGZydUV8TKQ8sOd9RlMOpVMwhk9QH4aTvpOQUTiFWvk=
 github.com/coder/terraform-provider-coder/v2 v2.20.0/go.mod h1:TLHOsPHY5iOdTVK2twRtdGJ7pd9lQDyW7y9OJhnlOVU=
 github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd h1:jk0mHRZDV/1Ip+ahmPxuHL1CcXW9gg+2KapjZts7b1o=
@@ -446,6 +444,8 @@ github.com/dop251/goja v0.0.0-20241024094426-79f3a7efcdbd/go.mod h1:MxLav0peU43G
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
+github.com/dylanhuff-at-coder/terraform-config-inspect v0.0.0-20261118154821-af21c23b54a3 h1:57PC7ljbmqQ0tOAomhKHggDgnYVino+HjDoz3gxDL1g=
+github.com/dylanhuff-at-coder/terraform-config-inspect v0.0.0-20261118154821-af21c23b54a3/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/ebitengine/purego v0.11.2 h1:WWiTx8rD8zYdOwSj8O/NiNbsOvSAgJMTlyV1XlbUSeU=
 github.com/ebitengine/purego v0.11.2/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/elastic/go-sysinfo v1.15.1 h1:zBmTnFEXxIQ3iwcQuk7MzaUotmKRp3OabbbWM8TdzIQ=
