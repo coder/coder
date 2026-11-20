@@ -578,6 +578,10 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// An empty result must encode as [], not null.
+	if models == nil {
+		models = []string{}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, models)
 }
@@ -630,6 +634,10 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	// An empty result must encode as [], not null.
+	if clients == nil {
+		clients = []string{}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, clients)
