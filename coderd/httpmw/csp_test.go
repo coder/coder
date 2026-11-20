@@ -69,6 +69,35 @@ func TestCSPFrameAncestors(t *testing.T) {
 	})
 }
 
+func TestCSPSkipsInvalidProxyHosts(t *testing.T) {
+	t.Parallel()
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	rw := httptest.NewRecorder()
+
+	httpmw.CSPHeaders(false, func() []*proxyhealth.ProxyHost {
+		return []*proxyhealth.ProxyHost{
+			{Host: "proxy1.example;script-src-elem", AppHost: "*.proxy1.example"},
+			{Host: "proxy2.example", AppHost: "*.proxy2.example,script-src-elem"},
+			{Host: "proxy3.example *", AppHost: "*.proxy3.example"},
+			{Host: "prøxy4.example", AppHost: "*.prøxy4.example"},
+		}
+	}, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rw, r)
+
+	csp := rw.Header().Get("Content-Security-Policy")
+	require.Contains(t, csp, "frame-src 'self' *.proxy1.example proxy2.example *.proxy3.example;")
+	require.Contains(t, csp, strings.Join([]string{
+		"connect-src", "'self'",
+		"wss://example.com", "ws://example.com",
+		"wss://proxy2.example", "ws://proxy2.example", "https://proxy2.example", "http://proxy2.example;",
+	}, " "))
+	require.NotContains(t, csp, "script-src-elem")
+	require.NotContains(t, csp, "proxy3.example *")
+	require.NotContains(t, csp, "prøxy4.example")
+}
+
 func TestCSP(t *testing.T) {
 	t.Parallel()
 
@@ -86,11 +115,16 @@ func TestCSP(t *testing.T) {
 			Host:    "example.com",
 			AppHost: "*.coder2.com",
 		},
+		{
+			// Host is added to frame-src once because it equals the app host.
+			Host:    "nowildcard.com",
+			AppHost: "nowildcard.com",
+		},
 	}
 	expectedMedia := []string{"media.com", "media2.com"}
 
 	expected := []string{
-		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
+		"frame-src 'self' *.test.com test.com *.coder.com coder.com *.coder2.com nowildcard.com;",
 		"media-src 'self' " + strings.Join(expectedMedia, " "),
 		strings.Join([]string{
 			"connect-src", "'self'",

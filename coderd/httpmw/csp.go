@@ -13,6 +13,15 @@ import (
 // All directives are semi-colon separated as a single string for the csp header.
 type cspDirectives map[CSPFetchDirective][]string
 
+// isCSPToken reports whether s can be added as one CSP source. Whitespace would
+// split it, ';' or ',' would start a new directive or policy, and bytes outside
+// visible ASCII make browsers drop the directive.
+func isCSPToken(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return r <= ' ' || r >= 0x7f || r == ';' || r == ','
+	})
+}
+
 func (s cspDirectives) Append(d CSPFetchDirective, values ...string) {
 	if _, ok := s[d]; !ok {
 		s[d] = make([]string, 0)
@@ -117,17 +126,28 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 				cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
 			}
 
-			// The terminal and iframed apps can use workspace proxies (which includes
-			// the primary).  Make sure we allow connections to healthy proxies.
+			// The terminal and iframed apps load from every registered workspace
+			// proxy, including the primary.
 			extraConnect := proxyHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
-					// Allow embedding the app host.
-					cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
+					if isCSPToken(extraHost.AppHost) {
+						// Allow embedding the app host.
+						cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
+					}
 					if extraHost.Host == "*" {
 						// '*' means all
 						cspSrcs.Append(CSPDirectiveConnectSrc, "*")
 						continue
+					}
+					if !isCSPToken(extraHost.Host) {
+						continue
+					}
+					// Frames also load the host itself: path-based apps on every
+					// region, and the app auth redirect to the primary access URL.
+					// 'self' already covers r.Host.
+					if extraHost.Host != r.Host && extraHost.Host != extraHost.AppHost {
+						cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.Host)
 					}
 					// Avoid double-adding r.Host.
 					if extraHost.Host != r.Host {

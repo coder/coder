@@ -67,3 +67,32 @@ func TestPostCSPViolations(t *testing.T) {
 		})
 	}
 }
+
+func TestCSPFrameSrcAdmitsPrimaryRegion(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		AppHostname: "*.test.coder.com",
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	regions, err := client.Regions(ctx)
+	require.NoError(t, err)
+	require.Len(t, regions, 1)
+	primary := regions[0]
+	require.Equal(t, "*.test.coder.com:"+client.URL.Port(), primary.WildcardHostname)
+
+	res, err := client.Request(ctx, http.MethodGet, "/login", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	var frameSrc []string
+	for directive := range strings.SplitSeq(res.Header.Get("Content-Security-Policy"), ";") {
+		fields := strings.Fields(directive)
+		if len(fields) > 0 && fields[0] == "frame-src" {
+			frameSrc = fields[1:]
+		}
+	}
+	require.Contains(t, frameSrc, "*.test.coder.com:"+client.URL.Port())
+}
