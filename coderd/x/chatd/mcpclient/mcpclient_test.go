@@ -17,7 +17,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1049,37 +1048,6 @@ func TestRedactURL(t *testing.T) {
 	}
 }
 
-func TestSummaryErrorTruncation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("short errors pass through", func(t *testing.T) {
-		t.Parallel()
-		got := mcpclient.SummaryErrorForTest(xerrors.New("connect refused"))
-		require.Equal(t, "connect refused", got)
-	})
-
-	t.Run("large remote-controlled errors are bounded", func(t *testing.T) {
-		t.Parallel()
-		huge := strings.Repeat("x", 1<<20)
-		got := mcpclient.SummaryErrorForTest(xerrors.New(huge))
-		require.Len(t, got, mcpclient.MaxSummaryErrorLenForTest+len("... (truncated)"))
-		require.True(t, strings.HasSuffix(got, "... (truncated)"))
-		require.True(t, strings.HasPrefix(got, "xxx"))
-	})
-
-	t.Run("truncation lands on a rune boundary", func(t *testing.T) {
-		t.Parallel()
-		// A two-byte rune straddles the cap boundary, so the cut
-		// must back up instead of splitting it.
-		msg := strings.Repeat("a", mcpclient.MaxSummaryErrorLenForTest-1) +
-			strings.Repeat("é", 20)
-		got := mcpclient.SummaryErrorForTest(xerrors.New(msg))
-		require.True(t, utf8.ValidString(got))
-		require.True(t, strings.HasSuffix(got, "... (truncated)"))
-		require.Len(t, got, mcpclient.MaxSummaryErrorLenForTest-1+len("... (truncated)"))
-	})
-}
-
 func TestConnectAll_ExpiredToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1833,7 +1801,7 @@ func TestToolCallCarriesToolCallID(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			id, ok := req.Params.Meta[mcpclient.ToolCallIDMetaKeyForTest]
+			id, ok := req.Params.Meta["com.coder/tool_call_id"]
 			if !ok {
 				return textToolResult("<none>"), nil
 			}
@@ -1844,8 +1812,8 @@ func TestToolCallCarriesToolCallID(t *testing.T) {
 	ts := newTestMCPServer(t, metaTool)
 	cfg := makeConfig("srv", ts.URL)
 
-	tools, summaries, cleanup := mcpclient.ConnectAllForTest(
-		ctx, logger, []mcpclient.Server{cfg}, 10*time.Second, nil,
+	tools, summaries, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)

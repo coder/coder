@@ -93,7 +93,7 @@ const (
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
-	return slices.Contains(chatstate.AllowedExecutionTransitionsFrom(from), tr)
+	return slices.Contains(allowedExecutionTransitionsFrom(from), tr)
 }
 
 // expectedErrorForDisallowed returns the sentinel chatstate package
@@ -447,7 +447,7 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 // readability-and-semantic suffix for the subtest name that
 // distinguishes multiple cases sharing the same coverage key.
 // Disallowed combinations are enumerated separately from
-// AllowedExecutionTransitionsFrom and AllowedExecutionTransitionOutputs.
+// allowedExecutionTransitionsFrom and AllowedExecutionTransitionOutputs.
 
 type transitionCaseResult struct {
 	setProject              chatstate.SetProjectResult
@@ -765,8 +765,8 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	// transition.go. CreateChat is intentionally excluded because
 	// it is not exercised via ChatMachine.Update.
 	expectedPositive := make(map[caseKey]struct{})
-	for _, from := range chatstate.AllExecutionStates {
-		for _, tr := range chatstate.AllowedExecutionTransitionsFrom(from) {
+	for _, from := range allExecutionStates {
+		for _, tr := range allowedExecutionTransitionsFrom(from) {
 			if tr == chatstate.TransitionCreateChat {
 				continue
 			}
@@ -779,11 +779,11 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	// Build the expected disallowed set: for each non-CreateChat
 	// transition, every state where the transition is not allowed.
 	expectedDisallowed := make(map[disallowedCaseKey]struct{})
-	for _, tr := range chatstate.AllExecutionTransitions {
+	for _, tr := range allExecutionTransitions {
 		if tr == chatstate.TransitionCreateChat {
 			continue
 		}
-		for _, from := range chatstate.AllExecutionStates {
+		for _, from := range allExecutionStates {
 			if transitionAllowed(tr, from) {
 				continue
 			}
@@ -859,21 +859,21 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	// Negative cases: one parallel subtest per (transition, from)
 	// pair where the transition is not allowed. Iterate over
 	// transitions in canonical order, and within each transition
-	// iterate states in canonical AllExecutionStates order, so
+	// iterate states in canonical allExecutionStates order, so
 	// subtest names are stable.
 	t.Run("disallowed", func(t *testing.T) {
 		t.Parallel()
 		// Sort disallowed keys for deterministic subtest names.
-		// AllExecutionTransitions and AllExecutionStates are
+		// allExecutionTransitions and allExecutionStates are
 		// already canonical, so iterate in their order.
-		for _, tr := range chatstate.AllExecutionTransitions {
+		for _, tr := range allExecutionTransitions {
 			tr := tr
 			if tr == chatstate.TransitionCreateChat {
 				continue
 			}
 			t.Run(string(tr), func(t *testing.T) {
 				t.Parallel()
-				for _, from := range chatstate.AllExecutionStates {
+				for _, from := range allExecutionStates {
 					from := from
 					if transitionAllowed(tr, from) {
 						continue

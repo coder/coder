@@ -1,5 +1,7 @@
 package chatstate
 
+import "slices"
+
 // Transition is the enumeration of transitions implemented by the
 // state machine. Values intentionally match the names of the public
 // methods on [Tx] (and [CreateChat]). The transition matrix below
@@ -226,6 +228,13 @@ func isExecutionTransitionAllowed(t Transition, from ExecutionState) bool {
 	}
 	_, ok = allowed[t]
 	return ok
+}
+
+// AllowedExecutionTransitionOutputs returns a copy of the classified
+// post-states that tr may produce from `from` per transitionMatrix. It
+// returns nil when tr is not allowed from `from`.
+func AllowedExecutionTransitionOutputs(from ExecutionState, tr Transition) []ExecutionState {
+	return slices.Clone(transitionMatrix[from][tr])
 }
 
 // requireExecutionTransition validates that t is legal from `from`

@@ -55,8 +55,8 @@ func TestConnectInline_Connects(t *testing.T) {
 	ts, mu, recorded := newHeaderRecordingServer(t)
 	cfg := makeInlineConfig("bot", ts.URL, map[string]string{"X-Bot-Key": "secret"})
 
-	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 
@@ -96,8 +96,8 @@ func TestConnectInline_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
 			ownerID := uuid.NewString()
 			coderHeaders := map[string]string{chatprovider.HeaderCoderOwnerID: ownerID}
 
-			tools, _, cleanup := mcpclient.ConnectInlineForTest(
-				ctx, logger, []mcpclient.Server{cfg}, coderHeaders, testutil.WaitLong,
+			tools, _, cleanup := mcpclient.ConnectInline(
+				ctx, logger, []mcpclient.Server{cfg}, coderHeaders, loopbackHTTPClient(),
 			)
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
@@ -127,8 +127,8 @@ func TestConnectInline_RejectsTooManyTools(t *testing.T) {
 	ts := newTestMCPServer(t, manyTools(65)...)
 	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 
@@ -156,8 +156,8 @@ func TestConnectInline_RejectsOversizedToolDefinition(t *testing.T) {
 	ts := newTestMCPServer(t, big)
 	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 
@@ -190,8 +190,8 @@ func TestConnectInline_RejectsOversizedAggregateToolDefinitions(t *testing.T) {
 	ts := newTestMCPServer(t, tools...)
 	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	got, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	got, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 
@@ -204,7 +204,7 @@ func TestConnectInline_RejectsOversizedAggregateToolDefinitions(t *testing.T) {
 func TestConnectInline_ToolResultCap(t *testing.T) {
 	t.Parallel()
 
-	const maxBytes = mcpclient.MaxInlineToolResultBytesForTest
+	const maxBytes = 256 << 10
 	for _, tc := range []struct {
 		name      string
 		result    string
@@ -244,8 +244,8 @@ func TestConnectInline_ToolResultCap(t *testing.T) {
 			ts := newTestMCPServer(t, huge)
 			cfg := makeInlineConfig("bot", ts.URL, tc.headers)
 
-			tools, _, cleanup := mcpclient.ConnectInlineForTest(
-				ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+			tools, _, cleanup := mcpclient.ConnectInline(
+				ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 			)
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
@@ -339,8 +339,8 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 		"X-Slug":        "bot-server",
 	})
 
-	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
@@ -387,8 +387,8 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	// either. The guard rejects this private IP before dialing, so the
 	// failure needs no network and reads the same on every OS.
 	brokenCfg := makeInlineConfig("broken", "http://10.0.0.1/t/pathtoken?key=querytoken", nil)
-	_, summaries, cleanup = mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{brokenCfg}, nil, testutil.WaitLong,
+	_, summaries, cleanup = mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{brokenCfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
@@ -433,8 +433,8 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 	ts := newTestMCPServer(t, account)
 	cfg := makeInlineConfig("data-bot", ts.URL, map[string]string{"X-Short": "a", "X-Key": secret})
 
-	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInline(
+		ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
@@ -459,6 +459,8 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 func TestConnectInline_BodyCap(t *testing.T) {
 	t.Parallel()
 
+	const maxBodyBytes = 1 << 20
+
 	t.Run("UnknownLength", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -467,13 +469,13 @@ func TestConnectInline_BodyCap(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(bytes.Repeat([]byte("a"), mcpclient.MaxInlineHTTPResponseBytesForTest+1))
+			_, _ = w.Write(bytes.Repeat([]byte("a"), maxBodyBytes+1))
 		}))
 		t.Cleanup(ts.Close)
 		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+		tools, summaries, cleanup := mcpclient.ConnectInline(
+			ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 		)
 		t.Cleanup(cleanup)
 		require.Empty(t, tools)
@@ -487,7 +489,7 @@ func TestConnectInline_BodyCap(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		size := mcpclient.MaxInlineHTTPResponseBytesForTest + 1
+		size := maxBodyBytes + 1
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", strconv.Itoa(size))
@@ -497,8 +499,8 @@ func TestConnectInline_BodyCap(t *testing.T) {
 		t.Cleanup(ts.Close)
 		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
-			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+		tools, summaries, cleanup := mcpclient.ConnectInline(
+			ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 		)
 		t.Cleanup(cleanup)
 		require.Empty(t, tools)
@@ -520,7 +522,7 @@ func TestConnectInline_BodyCap(t *testing.T) {
 				for i := 0; i < 5; i++ {
 					_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
 						ProgressToken: "t",
-						Message:       strings.Repeat("a", mcpclient.MaxInlineHTTPResponseBytesForTest/4),
+						Message:       strings.Repeat("a", maxBodyBytes/4),
 						Progress:      float64(i),
 					})
 				}
@@ -530,8 +532,8 @@ func TestConnectInline_BodyCap(t *testing.T) {
 		ts := newTestMCPServer(t, chatty)
 		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, _, cleanup := mcpclient.ConnectInlineForTest(
-			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+		tools, _, cleanup := mcpclient.ConnectInline(
+			ctx, logger, []mcpclient.Server{cfg}, nil, loopbackHTTPClient(),
 		)
 		t.Cleanup(cleanup)
 		require.Len(t, tools, 1)
@@ -587,8 +589,8 @@ func TestOrgConnectHasNoCaps(t *testing.T) {
 	ts := newTestMCPServer(t, manyTools(65)...)
 	cfg := makeConfig("org", ts.URL)
 
-	tools, summaries, cleanup := mcpclient.ConnectAllForTest(
-		ctx, logger, []mcpclient.Server{cfg}, testutil.WaitLong, nil,
+	tools, summaries, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient(),
 	)
 	t.Cleanup(cleanup)
 

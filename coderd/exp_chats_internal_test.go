@@ -1010,3 +1010,104 @@ func TestWorkspaceUsageReader(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, 2, reports, "empty reads must not count as usage")
 }
+
+func TestNormalizeWorkspaceFileReference(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	otherChatID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	tests := []struct {
+		name     string
+		chatID   uuid.UUID
+		path     string
+		fileName string
+		want     string
+	}{
+		{
+			name:     "LinuxPath",
+			chatID:   chatID,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "data.csv",
+			want:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+		},
+		{
+			name:     "WindowsPath",
+			chatID:   chatID,
+			path:     `C:\Users\coder\.coder\chats\00000000-0000-0000-0000-000000000001\files\data.csv`,
+			fileName: "data.csv",
+			want:     `C:\Users\coder\.coder\chats\00000000-0000-0000-0000-000000000001\files\data.csv`,
+		},
+		{
+			name:     "NilChatID",
+			chatID:   uuid.Nil,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "data.csv",
+		},
+		{
+			name:     "Traversal",
+			chatID:   chatID,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/../data.csv",
+			fileName: "data.csv",
+		},
+		{
+			name:     "MismatchedChatID",
+			chatID:   otherChatID,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "data.csv",
+		},
+		{
+			name:     "NULInPath",
+			chatID:   chatID,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data\x00.csv",
+			fileName: "data\x00.csv",
+		},
+		{
+			name:     "NameWithSeparator",
+			chatID:   chatID,
+			path:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "nested/data.csv",
+		},
+		{
+			name:     "UncleanPrefixIsCleaned",
+			chatID:   chatID,
+			path:     " /home/coder/./tmp/../.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv ",
+			fileName: "data.csv",
+			want:     "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+		},
+		{
+			name:     "WindowsUncleanPrefixIsCleaned",
+			chatID:   chatID,
+			path:     `C:\Users\coder\tmp\..\.coder\chats\00000000-0000-0000-0000-000000000001\files\data.csv`,
+			fileName: "data.csv",
+			want:     `C:\Users\coder\.coder\chats\00000000-0000-0000-0000-000000000001\files\data.csv`,
+		},
+		{
+			name:     "NewlineInPrefix",
+			chatID:   chatID,
+			path:     "/home/co\nder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "data.csv",
+		},
+		{
+			name:     "PathTooLong",
+			chatID:   chatID,
+			path:     "/" + strings.Repeat("a", 4096) + "/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+			fileName: "data.csv",
+		},
+		{
+			name:     "ArbitraryAbsolutePath",
+			chatID:   chatID,
+			path:     "/etc/passwd",
+			fileName: "passwd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := normalizeWorkspaceFileReference(tt.chatID, tt.path, tt.fileName)
+			require.Equal(t, tt.want != "", ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

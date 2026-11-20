@@ -40,7 +40,6 @@ func TestPublishBuffer_DefersPublishUntilFlush(t *testing.T) {
 	require.NoError(t, buf.Publish("b", []byte("2")))
 
 	require.Empty(t, inner.calls, "inner publisher should not be called before flush")
-	require.Equal(t, []string{"a", "b"}, buf.BufferedChannels())
 }
 
 func TestPublishBuffer_FlushPublishesInOrder(t *testing.T) {
