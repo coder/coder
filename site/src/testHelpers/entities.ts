@@ -2835,6 +2835,10 @@ export const mockApiError = ({
 	},
 });
 
+/** Like `mockApiError`, but an `Error`, as `useQuery` returns. */
+export const mockApiQueryError = (input: MockAPIInput = {}): Error =>
+	Object.assign(new Error(input.message), mockApiError(input));
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",

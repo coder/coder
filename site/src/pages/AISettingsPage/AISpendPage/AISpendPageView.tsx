@@ -31,10 +31,10 @@ type AISpendPageViewProps = {
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
 	isOrganizationsLoading: boolean;
-	organizationsError: unknown;
+	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
-	overviewError: unknown;
+	overviewError: Error | null;
 };
 
 export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
@@ -64,7 +64,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 		return <Loader />;
 	}
 
-	if (organizations.length === 0 && organizationsError != null) {
+	if (organizations.length === 0 && organizationsError !== null) {
 		return <ErrorAlert error={organizationsError} />;
 	}
 
@@ -103,7 +103,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					organization.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			{organizationsError != null && <ErrorAlert error={organizationsError} />}
+			{organizationsError !== null && <ErrorAlert error={organizationsError} />}
 			{organization === undefined ? (
 				<Alert severity="warning">
 					This organization is unavailable, or you don't have access to it.

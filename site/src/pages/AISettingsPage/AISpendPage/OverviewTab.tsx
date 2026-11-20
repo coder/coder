@@ -12,7 +12,7 @@ type OverviewTabProps = {
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
-	overviewError: unknown;
+	overviewError: Error | null;
 };
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -32,7 +32,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 					size="lg"
 				/>
 			</div>
-			{overviewError != null && <ErrorAlert error={overviewError} />}
+			{overviewError !== null && <ErrorAlert error={overviewError} />}
 		</div>
 	);
 };

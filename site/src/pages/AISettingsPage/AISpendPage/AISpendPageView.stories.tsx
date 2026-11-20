@@ -3,7 +3,7 @@ import { fn, userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
-	mockApiError,
+	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
 
@@ -47,7 +47,7 @@ export const DatePickerOpen: Story = {
 
 export const OverviewError: Story = {
 	args: {
-		overviewError: mockApiError({ message: "Unable to load AI spend." }),
+		overviewError: mockApiQueryError({ message: "Unable to load AI spend." }),
 	},
 };
 
@@ -67,7 +67,7 @@ export const OrganizationsError: Story = {
 	args: {
 		organizations: [],
 		organization: undefined,
-		organizationsError: mockApiError({
+		organizationsError: mockApiQueryError({
 			message: "Unable to load organizations.",
 		}),
 	},
@@ -75,7 +75,7 @@ export const OrganizationsError: Story = {
 
 export const OrganizationsRefetchError: Story = {
 	args: {
-		organizationsError: mockApiError({
+		organizationsError: mockApiQueryError({
 			message: "Unable to refresh organizations.",
 		}),
 	},
