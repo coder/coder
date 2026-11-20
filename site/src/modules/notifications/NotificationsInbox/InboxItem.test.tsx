@@ -62,4 +62,21 @@ describe("InboxItem", () => {
 			await screen.findByRole("link", { name: "View workspace" }),
 		).toHaveAccessibleDescription("Your workspace Testing1 was deleted.");
 	});
+
+	it("describes the mark as read button with the notification content", async () => {
+		render(
+			<InboxItem
+				notification={{
+					...MockNotification,
+					content: "Your workspace Testing1 was deleted.",
+					actions: [],
+				}}
+				onMarkNotificationAsRead={vi.fn()}
+			/>,
+		);
+
+		expect(
+			await screen.findByRole("button", { name: "Mark as read" }),
+		).toHaveAccessibleDescription("Your workspace Testing1 was deleted.");
+	});
 });

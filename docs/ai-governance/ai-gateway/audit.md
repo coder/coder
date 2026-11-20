@@ -78,6 +78,8 @@ The **Session summary** card beside the timeline shows the session's total token
 A warning next to a cost means some usage was unpriced, so the actual cost might be higher.
 To learn how Coder prices usage and how to add missing prices, refer to [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
 
+If your deployment has more than one organization, the card also lists the organizations the session's requests were attributed to, or shows `Not recorded` for older sessions.
+
 The card also reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
 
 - **Network requests** is the total number of requests the session made.
