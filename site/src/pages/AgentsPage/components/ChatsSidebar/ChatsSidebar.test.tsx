@@ -9,7 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import {
 	afterEach,
@@ -21,6 +21,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { chatEntityKey, projectChatsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -34,6 +35,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockOrganization2,
@@ -98,14 +100,15 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 type WrapperProps = React.PropsWithChildren<{
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	queryClient?: QueryClient;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	queryClient = createTestQueryClient(),
 }) => {
-	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
 		experiments: [],
@@ -159,6 +162,32 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	currentUserId: MockUserOwner.id,
 };
 
+// The sidebar lists pinned projects from their summaries. Unless a test
+// mocks the summaries, every project in the projects list is pinned.
+beforeEach(() => {
+	server.use(
+		http.get(
+			"/api/experimental/chats/projects/summaries",
+			async ({ request }) => {
+				const response = await fetch(
+					new URL("/api/experimental/chats/projects", request.url),
+				);
+				if (!response.ok) {
+					return response;
+				}
+				const projects: TypesGen.ChatProject[] = await response.json();
+				return HttpResponse.json(
+					projects.map((project, index) => ({
+						...MockChatProjectSummary,
+						project,
+						pin_order: index + 1,
+					})),
+				);
+			},
+		),
+	);
+});
+
 describe("ChatsSidebar projects", () => {
 	beforeEach(() => {
 		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
@@ -185,7 +214,103 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
 		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+		expect(requests[0].has("exclude_own_project_chats")).toBe(false);
 	});
+
+	it("opens the folder of an active chat that the sidebar's list leaves out", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+		const mockActiveProjectChat = buildChat({
+			id: "project-chat",
+			project_id: MockChatProject.id,
+		});
+		// The chat page loads the active chat into the cache.
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryDefaults(chatEntityKey(mockActiveProjectChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(
+			chatEntityKey(mockActiveProjectChat.id),
+			mockActiveProjectChat,
+		);
+
+		render(
+			<Wrapper
+				initialEntry={`/agents/${mockActiveProjectChat.id}`}
+				queryClient={queryClient}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={<ChatsSidebar {...defaultProps} chats={[]} />}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await waitFor(() =>
+			expect(requests.map((params) => params.get("project_id"))).toEqual([
+				MockChatProject.id,
+			]),
+		);
+	});
+
+	it.each(["hover", "focus"])(
+		"loads a closed folder's chats on %s, so opening it sends no request",
+		async (trigger) => {
+			const user = userEvent.setup();
+			const requests: URLSearchParams[] = [];
+			server.use(
+				http.get("/api/experimental/chats/projects", () =>
+					HttpResponse.json([MockChatProject]),
+				),
+				http.get("/api/v2/chats", ({ request }) => {
+					requests.push(new URL(request.url).searchParams);
+					return HttpResponse.json([
+						buildChat({
+							id: "folder-chat",
+							title: "Folder chat",
+							project_id: MockChatProject.id,
+						}),
+					]);
+				}),
+			);
+
+			// Test clients drop unobserved data at once, unlike the app's.
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryDefaults(projectChatsKey(MockChatProject.id), {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+
+			render(
+				<Wrapper queryClient={queryClient}>
+					<ChatsSidebar {...defaultProps} />
+				</Wrapper>,
+			);
+			const toggle = await screen.findByRole("button", {
+				name: `Expand ${MockChatProject.name}`,
+			});
+			if (trigger === "hover") {
+				await user.hover(toggle);
+			} else {
+				act(() => toggle.focus());
+			}
+			await waitFor(() => expect(requests).toHaveLength(1));
+			expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+
+			await user.click(toggle);
+			await screen.findByRole("link", { name: /Folder chat/ });
+			expect(requests).toHaveLength(1);
+		},
+	);
 
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
@@ -228,9 +353,7 @@ describe("ChatsSidebar projects", () => {
 					name: `Open project actions for ${name}`,
 				}),
 			);
-			await user.click(
-				screen.getByRole("menuitem", { name: "Delete project" }),
-			);
+			await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 			await user.type(await screen.findByRole("textbox"), name);
 		};
 
@@ -455,11 +578,34 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
+	it("counts a collapsed folder's unread chats and hides the count while open", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([{ ...MockChatProjectSummary, own_unread_count: 3 }]),
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		const projectLink = await screen.findByRole("link", {
+			name: `${MockChatProject.name}, 3 unread chats`,
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
+		);
+		expect(projectLink).toHaveAccessibleName(MockChatProject.name);
+	});
+
 	it("retries a failed projects request", async () => {
 		const user = userEvent.setup();
 		let requestCount = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () => {
+			http.get("/api/experimental/chats/projects/summaries", () => {
 				requestCount++;
 				return requestCount === 1
 					? HttpResponse.json(
@@ -559,7 +705,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -605,7 +751,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -641,7 +787,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
 		expect(
 			await screen.findByRole("dialog", {
@@ -739,6 +885,25 @@ describe("ChatsSidebar projects", () => {
 		expect(
 			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar Projects link", () => {
+	it("opens the projects page", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("link", { name: "Projects" }));
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				"/agents/projects",
+			),
+		);
 	});
 });
 
@@ -956,6 +1121,9 @@ describe("ChatsSidebar move to project", () => {
 				projectRequests += 1;
 				return HttpResponse.json([MockChatProject, mockBillingProject]);
 			}),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([MockChatProjectSummary]),
+			),
 		);
 	});
 
@@ -2673,6 +2841,9 @@ describe("ChatsSidebar read state actions", () => {
 			const user = userEvent.setup();
 			const update = vi.spyOn(API.experimental, "updateChat");
 			const errorToast = vi.spyOn(toast, "error");
+			const getSummaries = vi
+				.spyOn(API.experimental, "getChatProjectSummaries")
+				.mockResolvedValue([]);
 			if (fails) {
 				update.mockRejectedValue(new Error("Read state rejected"));
 			} else {
@@ -2692,6 +2863,7 @@ describe("ChatsSidebar read state actions", () => {
 					/>
 				</Wrapper>,
 			);
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
 			await user.click(
 				screen.getByRole("button", {
 					name: "Open actions for Read state chat",
@@ -2705,6 +2877,9 @@ describe("ChatsSidebar read state actions", () => {
 				await waitFor(() =>
 					expect(errorToast).toHaveBeenCalledWith("Read state rejected"),
 				);
+			} else {
+				// The chat's project counts its unread chats.
+				await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2));
 			}
 		},
 	);

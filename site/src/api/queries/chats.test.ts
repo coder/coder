@@ -2312,6 +2312,7 @@ describe("chatListKey shape", () => {
 		expect(key.length).toBe(chatListFamilyKey.length + 1);
 		expect(key[chatListFamilyKey.length]).toEqual({
 			archived: true,
+			excludeOwnProjectChats: false,
 			prStatuses: [],
 			status: "all",
 			statuses: [],

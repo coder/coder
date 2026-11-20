@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useEffectEvent, useState } from "react";
 import {
+	type QueryClient,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -16,6 +17,7 @@ import {
 } from "react-router";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
@@ -44,6 +46,7 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useDebouncedFunction } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -53,6 +56,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { canManageChat } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -65,6 +69,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { useActiveChatChildren } from "./hooks/useActiveChatChildren";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -84,10 +89,10 @@ export type AgentsPageOutletContext = {
 	clearChatErrorReason: (chatId: string) => void;
 	navigateAfterArchive: (chatId: string) => void;
 	/**
-	 * The active chat's children from the chat list cache, which watch
-	 * events keep fresh. The entity cache's embedded children are only a
-	 * fetch-time snapshot, so gating archive actions on them could leave
-	 * the actions disabled after a child finishes.
+	 * The active chat's children, preferably from the chat list caches, which
+	 * watch events keep fresh. The entity cache's embedded children are only
+	 * a fetch-time snapshot, so gating archive actions on them can leave the
+	 * actions disabled after a child finishes.
 	 */
 	activeChatChildren: readonly TypesGen.Chat[] | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
@@ -124,6 +129,41 @@ export const shouldInvalidateFilteredChatList = (
 	return FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 };
 
+// Project summaries count the user's chats, unread chats, and running chats.
+// A chat that pauses for input publishes only action_required.
+const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"action_required",
+	"chat_summary_change",
+	"created",
+	"deleted",
+	"project_change",
+	"status_change",
+]);
+
+const shouldInvalidateProjectSummaries = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id &&
+	PROJECT_SUMMARY_EVENT_KINDS.has(eventKind) &&
+	// A move out of a project leaves no project_id, but changes its counts.
+	(Boolean(chat.project_id) || eventKind === "project_change");
+
+// The sidebar's chat list leaves out the user's own unpinned chats in
+// projects the user can use, which the summaries list; project folders fetch
+// those. Without cached summaries, the list refetch decides.
+const isOwnProjectChat = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+	currentUserId: string,
+): boolean =>
+	canManageChat(chat, currentUserId) &&
+	Boolean(chat.project_id) &&
+	chat.pin_order === 0 &&
+	queryClient
+		.getQueryData<TypesGen.ChatProjectSummary[]>(chatProjectSummariesKey)
+		?.some((summary) => summary.project.id === chat.project_id) === true;
+
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
 	chat: TypesGen.Chat,
@@ -154,6 +194,11 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
+	// Coalesces bursts of watch events into one summaries request.
+	const { debounced: invalidateProjectSummariesSoon } = useDebouncedFunction(
+		() => queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		1000,
+	);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -187,9 +232,8 @@ const AgentsPageLayout: React.FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useInfiniteQuery(
-		infiniteChats(getSidebarChatListInput(sidebarFilters)),
-	);
+	const sidebarChatListInput = getSidebarChatListInput(sidebarFilters);
+	const chatsQuery = useInfiniteQuery(infiniteChats(sidebarChatListInput));
 	useOpenNotificationChat(chatsQuery.isLoading);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
@@ -243,6 +287,11 @@ const AgentsPageLayout: React.FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const activeChatChildren = useActiveChatChildren(
+		agentId,
+		chatList,
+		sidebarChatListInput,
+	);
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
@@ -325,7 +374,9 @@ const AgentsPageLayout: React.FC = () => {
 		});
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatSearches(queryClient);
-	}, [agentId, queryClient]);
+		// Opening the chat marks it read, which changes its project's unread count.
+		invalidateProjectSummariesSoon();
+	}, [agentId, queryClient, invalidateProjectSummariesSoon]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -350,6 +401,9 @@ const AgentsPageLayout: React.FC = () => {
 							updatedChat.id,
 							activeChatIdForWatch(),
 						);
+					}
+					if (shouldInvalidateProjectSummaries(updatedChat, chatEvent.kind)) {
+						invalidateProjectSummariesSoon();
 					}
 
 					if (chatEvent.kind === "deleted") {
@@ -407,7 +461,13 @@ const AgentsPageLayout: React.FC = () => {
 						} else {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							prependToInfiniteChatsCache(queryClient, updatedChat, {
+								isOwnProjectChat: isOwnProjectChat(
+									queryClient,
+									updatedChat,
+									user.id,
+								),
+							});
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -466,6 +526,9 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSummariesKey,
+				});
 				// Events missed while disconnected, such as
 				// diff_status_change, only reach the open chat's cache
 				// through a refetch.
@@ -476,7 +539,7 @@ const AgentsPageLayout: React.FC = () => {
 				}
 			},
 		});
-	}, [queryClient]);
+	}, [queryClient, invalidateProjectSummariesSoon, user.id]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
@@ -510,7 +573,7 @@ const AgentsPageLayout: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		navigateAfterArchive,
-		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
+		activeChatChildren,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,

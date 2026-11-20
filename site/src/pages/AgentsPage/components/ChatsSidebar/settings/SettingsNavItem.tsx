@@ -16,6 +16,7 @@ type SettingsNavItemProps = {
 	ariaKeyShortcuts?: string;
 	className?: string;
 	disabled?: boolean;
+	ref?: (element: HTMLElement | null) => void;
 	trailing?: React.ReactNode;
 	trailingIcon?: React.FC<{ className?: string }>;
 } & (
@@ -88,11 +89,13 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	disabled,
 	trailing,
 	trailingIcon,
+	ref,
 	...rest
 }) => {
 	if (rest.to != null) {
 		return (
 			<Link
+				ref={ref}
 				to={rest.to}
 				replace={rest.replace}
 				state={rest.state}
@@ -116,6 +119,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 
 	return (
 		<button
+			ref={ref}
 			type="button"
 			onClick={rest.onClick}
 			disabled={disabled}
