@@ -1054,6 +1054,18 @@ else
 	failures=$((failures + 1))
 fi
 
+# docs-engine is public, so the engine job checks it out with no App token
+# and reads no secret at all.
+if ! grep -qF 'secrets.' <<<"$engine_job" &&
+	! grep -qF 'create-github-app-token' <<<"$engine_job" &&
+	! grep -qE '^ +token:' <<<"$engine_job" &&
+	grep -qF 'persist-credentials: false' <<<"$engine_job"; then
+	echo "PASS: the engine job checks out docs-engine without a token"
+else
+	echo "FAIL: the engine job still reads a secret or passes a token to the docs-engine checkout"
+	failures=$((failures + 1))
+fi
+
 if [ "$failures" -gt 0 ]; then
 	echo ""
 	echo "$failures test(s) failed."
