@@ -1399,6 +1399,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), arg).Return(true, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatProject, policy.ActionRead).Returns(true)
 	}))
+	s.Run("RemoveChatsFromUnusableChatProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RemoveChatsFromUnusableChatProjectsParams{OwnerID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().RemoveChatsFromUnusableChatProjects(gomock.Any(), arg).Return(ids, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(ids)
+	}))
+	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForShare(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
+	s.Run("LockGroupMembersByUserIDForShare", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.LockGroupMembersByUserIDForShareParams{UserID: uuid.New(), OrganizationID: uuid.New()}
+		groupIDs := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().LockGroupMembersByUserIDForShare(gomock.Any(), arg).Return(groupIDs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroupMember.InOrg(arg.OrganizationID), policy.ActionRead).Returns(groupIDs)
+	}))
 	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByIDForUpdate(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
@@ -2390,6 +2407,12 @@ func (s *MethodTestSuite) TestGroup() {
 	s.Run("GetGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		check.Args(g.ID).Asserts(g, policy.ActionRead).Returns(g)
+	}))
+
+	s.Run("GetGroupByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		dbm.EXPECT().GetGroupByIDForUpdate(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
 		check.Args(g.ID).Asserts(g, policy.ActionRead).Returns(g)
 	}))
 

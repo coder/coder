@@ -3550,6 +3550,21 @@ func (mr *MockStoreMockRecorder) GetChatProjectByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectByID), ctx, id)
 }
 
+// GetChatProjectByIDForShare mocks base method.
+func (m *MockStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectByIDForShare", ctx, id)
+	ret0, _ := ret[0].(database.ChatProject)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectByIDForShare indicates an expected call of GetChatProjectByIDForShare.
+func (mr *MockStoreMockRecorder) GetChatProjectByIDForShare(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByIDForShare", reflect.TypeOf((*MockStore)(nil).GetChatProjectByIDForShare), ctx, id)
+}
+
 // GetChatProjectByIDForUpdate mocks base method.
 func (m *MockStore) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	m.ctrl.T.Helper()
@@ -4508,6 +4523,21 @@ func (m *MockStore) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Gr
 func (mr *MockStoreMockRecorder) GetGroupByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupByID", reflect.TypeOf((*MockStore)(nil).GetGroupByID), ctx, id)
+}
+
+// GetGroupByIDForUpdate mocks base method.
+func (m *MockStore) GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupByIDForUpdate indicates an expected call of GetGroupByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetGroupByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetGroupByIDForUpdate), ctx, id)
 }
 
 // GetGroupByOrgAndName mocks base method.
@@ -10162,6 +10192,21 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
+// LockGroupMembersByUserIDForShare mocks base method.
+func (m *MockStore) LockGroupMembersByUserIDForShare(ctx context.Context, arg database.LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockGroupMembersByUserIDForShare", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockGroupMembersByUserIDForShare indicates an expected call of LockGroupMembersByUserIDForShare.
+func (mr *MockStoreMockRecorder) LockGroupMembersByUserIDForShare(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockGroupMembersByUserIDForShare", reflect.TypeOf((*MockStore)(nil).LockGroupMembersByUserIDForShare), ctx, arg)
+}
+
 // LockOrganizationMembersByUserIDsForShare mocks base method.
 func (m *MockStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10396,6 +10441,21 @@ func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
+}
+
+// RemoveChatsFromUnusableChatProjects mocks base method.
+func (m *MockStore) RemoveChatsFromUnusableChatProjects(ctx context.Context, arg database.RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveChatsFromUnusableChatProjects", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveChatsFromUnusableChatProjects indicates an expected call of RemoveChatsFromUnusableChatProjects.
+func (mr *MockStoreMockRecorder) RemoveChatsFromUnusableChatProjects(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveChatsFromUnusableChatProjects", reflect.TypeOf((*MockStore)(nil).RemoveChatsFromUnusableChatProjects), ctx, arg)
 }
 
 // RemoveUserFromGroups mocks base method.

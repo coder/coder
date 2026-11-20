@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -787,6 +788,44 @@ func TestApplyGroupDifference(t *testing.T) {
 			require.ElementsMatch(t, append(tc.Expect, org.ID), found)
 		})
 	}
+}
+
+// Group sync that removes a user's only path to a chat project moves their
+// chats out of it.
+func TestApplyGroupDifferenceRemovesChatsFromProject(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	projectOwner := dbgen.User(t, db, database.User{})
+	user := dbgen.User(t, db, database.User{})
+	for _, u := range []database.User{projectOwner, user} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: org.ID})
+	}
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner.ID})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{group.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+	}))
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", IsDefault: true, CompressionThreshold: 80})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+
+	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), runtimeconfig.NewManager(), idpsync.FromDeploymentValues(coderdtest.DeploymentValues(t)))
+	require.NoError(t, s.ApplyGroupDifference(ctx, db, user, nil, []uuid.UUID{group.ID}))
+
+	got, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, got.ProjectID.Valid)
 }
 
 func TestExpectedGroupEqual(t *testing.T) {

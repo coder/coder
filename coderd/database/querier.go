@@ -559,6 +559,9 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	// FOR SHARE conflicts with sharing-list updates, which lock the row FOR
+	// UPDATE, so a chat attached under this lock cannot miss a removal.
+	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
@@ -706,6 +709,7 @@ type sqlcQuerier interface {
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
+	GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	// Returns each user's AI spend attributed to the queried group, on or after
@@ -1500,6 +1504,11 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the user's memberships in the organization's groups with FOR KEY
+	// SHARE for the rest of the current transaction. FOR KEY SHARE conflicts with
+	// DELETE, so the user cannot leave one of these groups, or have one deleted,
+	// until the transaction ends.
+	LockGroupMembersByUserIDForShare(ctx context.Context, arg LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error)
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
 	// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
 	// cannot be removed until the transaction ends, and a removal committed
@@ -1544,6 +1553,14 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// Moves chats out of projects their owners can no longer use. Callers run it
+	// after any change that can remove project access, narrowed by whichever of
+	// project, owner, and organization the change affects. The access check must
+	// match IsChatProjectUsableByUserID (migration 000644 copies it for a one-time
+	// backfill). Only root chats have a project_id, and
+	// updated_at is not touched, matching UpdateChatProjectIDByID. Rows are locked
+	// in id order so concurrent removals cannot deadlock each other.
+	RemoveChatsFromUnusableChatProjects(ctx context.Context, arg RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never
