@@ -105,8 +105,7 @@ export const AttachmentFoldsIntoLiveBlock: Story = {
 };
 
 // After a tool result the stream reopens empty before the next call streams.
-// That moment is the same block still working, so nothing appears under its
-// summary.
+// That moment is the same block still working, so no row appears after it.
 export const NextStepStartsInsideBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -268,7 +267,10 @@ export const PromptlessLiveBlock: Story = {
 	play: expandBlock("Working for at least 12s (2 steps or more)"),
 };
 
-// A collapsed live block shows its newest steps under its summary.
+export const PeekShowsFirstStep: Story = {
+	args: StreamingFirstStep.args,
+};
+
 export const PeekShowsNewestSteps: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -288,6 +290,24 @@ export const PeekShowsNewestSteps: Story = {
 
 export const PeekShowsThinking: Story = {
 	args: NextStepStartsInsideBlock.args,
+};
+
+// A step a hook rewrote marks its one-line row instead of showing a badge.
+export const PeekMarksRewrittenStep: Story = {
+	args: {
+		...PeekShowsNewestSteps.args,
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			{
+				...MockWorkingMessages[3],
+				content: MockWorkingMessages[3].content?.map((part) => ({
+					...part,
+					hook_rewritten: true,
+				})),
+			},
+			MockWorkingMessages[4],
+		]),
+	},
 };
 
 // The answer replaces the peek as soon as its text renders.

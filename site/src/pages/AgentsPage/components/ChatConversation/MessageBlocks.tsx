@@ -11,7 +11,7 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall, useToolCallSummary } from "../ChatElements/tools/ToolCall";
+import { ToolCall, useInToolCallSummary } from "../ChatElements/tools/ToolCall";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -49,6 +49,12 @@ const ReadFileTimelineBlock = memo<{
 		/>
 	);
 });
+
+/** Whether a block renders in one-line summaries: reasoning and tools. */
+export const isSummaryRowBlock = (block: { type: string }): boolean =>
+	block.type === "thinking" ||
+	block.type === "tool" ||
+	block.type === "tool-group";
 
 export type BlockListProps = {
 	organizationId: string;
@@ -110,9 +116,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
-	// One-line summaries keep only the step rows: reasoning and tools.
-	const summary = useToolCallSummary();
-	const desktopPreviews = showDesktopPreviews && !summary;
+	const inSummary = useInToolCallSummary();
+	const desktopPreviews = showDesktopPreviews && !inSummary;
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -140,12 +145,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	return (
 		<>
 			{displayBlocks.map((block, index) => {
-				if (
-					summary &&
-					block.type !== "thinking" &&
-					block.type !== "tool" &&
-					block.type !== "tool-group"
-				) {
+				if (inSummary && !isSummaryRowBlock(block)) {
 					return null;
 				}
 				switch (block.type) {

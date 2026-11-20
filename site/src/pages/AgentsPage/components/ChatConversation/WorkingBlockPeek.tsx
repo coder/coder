@@ -11,13 +11,11 @@ const RAIL_GAP = 6;
 const ROW_INK_INSET = (ROW_HEIGHT - 16) / 2;
 /** Two full rows and a third, older one fading out at the top. */
 const MAX_HEIGHT = RAIL_GAP + 3 * ROW_HEIGHT + 2 * ROW_GAP;
-const TWO_ROWS = RAIL_GAP + 2 * ROW_HEIGHT + ROW_GAP;
+const TWO_ROWS_HEIGHT = RAIL_GAP + 2 * ROW_HEIGHT + ROW_GAP;
 /**
- * Rows dissolve by position as they slide past the window's edges, while
- * rows at rest stay at full contrast. The fades take no space of their own:
- * the top fade spans the gap above the first row and that row's empty top
- * margin, or the whole third row once one shows, and the bottom fade spans
- * the last row's empty bottom margin. `--peek-top` is the top fade's height.
+ * Rows fade as they slide past the window's edges, in the rows' empty
+ * margins, so rows at rest keep full contrast. `--peek-top` is the top
+ * fade's height, which covers the whole third row once one shows.
  */
 const TOP_FADE = RAIL_GAP + ROW_INK_INSET;
 const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${ROW_INK_INSET}px), transparent)`;
@@ -57,8 +55,6 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	// Where each rendered slice sat in the track at the last placement.
 	const sliceTops = useRef(new Map<HTMLElement, number>());
 
-	// Rows also resize on their own state (a label, streaming reasoning), so
-	// a resize observer places the window too.
 	const place = useEffectEvent(() => {
 		const track = trackRef.current;
 		if (!track) {
@@ -68,21 +64,27 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		// The content's top margin alone is not a row.
 		const windowHeight = full <= RAIL_GAP ? 0 : Math.min(full, MAX_HEIGHT);
 		const offset = windowHeight - full;
-		const fade = `${full > TWO_ROWS ? TOP_FADE + ROW_PITCH : TOP_FADE}px`;
+		const fade = `${full > TWO_ROWS_HEIGHT ? TOP_FADE + ROW_PITCH : TOP_FADE}px`;
 		const previous = placed.current;
 		placed.current = { height: windowHeight, y: offset, fade };
+
 		// Older slices stop rendering from above the window, so the slices
 		// that stay keep their place on screen.
 		const slices = [...(track.firstElementChild?.children ?? [])].filter(
 			(slice) => slice instanceof HTMLElement,
 		);
-		const kept = slices.find((slice) => sliceTops.current.has(slice));
-		const shift = kept
-			? kept.offsetTop - (sliceTops.current.get(kept) ?? kept.offsetTop)
-			: 0;
+		let shift = 0;
+		for (const slice of slices) {
+			const top = sliceTops.current.get(slice);
+			if (top !== undefined) {
+				shift = slice.offsetTop - top;
+				break;
+			}
+		}
 		sliceTops.current = new Map(
 			slices.map((slice) => [slice, slice.offsetTop]),
 		);
+
 		if (!previous) {
 			y.jump(offset);
 			topFade.jump(fade);
@@ -113,9 +115,11 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		place();
 	});
 
+	// Rows also resize on their own state (a label, streaming reasoning), so
+	// a resize observer places the window too.
 	useEffect(() => {
 		const track = trackRef.current;
-		if (!track || typeof ResizeObserver === "undefined") {
+		if (!track) {
 			return;
 		}
 		const observer = new ResizeObserver(() => place());
