@@ -373,9 +373,6 @@ const AgentEmbedPage = lazy(
 const DesktopPopoutPage = lazy(
 	() => import("./pages/AgentsPage/DesktopPopoutPage/DesktopPopoutPage"),
 );
-const PreviewOpenPage = lazy(
-	() => import("./pages/AgentsPage/PreviewOpenPage/PreviewOpenPage"),
-);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
@@ -953,18 +950,6 @@ export const router = createBrowserRouter(
 							}
 						>
 							<DesktopPopoutPage />
-						</Suspense>
-					}
-				/>
-				<Route
-					path="/previews/open"
-					element={
-						<Suspense
-							fallback={
-								<div className="flex h-screen w-screen items-center justify-center" />
-							}
-						>
-							<PreviewOpenPage />
 						</Suspense>
 					}
 				/>

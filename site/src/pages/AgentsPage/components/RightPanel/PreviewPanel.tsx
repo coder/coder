@@ -1,24 +1,16 @@
-import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
-import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { PreviewFrame } from "./PreviewFrame";
 
 type PreviewPanelProps = {
-	workspace: Workspace;
 	agent: WorkspaceAgent;
 	tab: Extract<UserRightPanelTab, { kind: "preview" }>;
 };
 
 /** Shows a port or file preview that the agent opened with `open_preview`. */
-export const PreviewPanel: React.FC<PreviewPanelProps> = ({
-	workspace,
-	agent,
-	tab,
-}) => {
+export const PreviewPanel: React.FC<PreviewPanelProps> = ({ agent, tab }) => {
 	const { isActive, isPanelOpen } = useTabPanelState();
 	// Sign in once the tab is first shown, so restored tabs do not each sign
 	// in on page load. The frame then stays mounted to keep its state.
@@ -38,14 +30,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
 		return null;
 	}
 
-	const openSearch = new URLSearchParams({
-		owner: workspace.owner_name,
-		workspace: workspace.name,
-		agent: tab.agentName,
-		slug: tab.slug,
-		...(tab.urlPath && { path: tab.urlPath }),
-	});
-
 	return (
 		<PreviewFrame
 			preview={{
@@ -55,18 +39,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
 				url_path: tab.urlPath,
 			}}
 			title={tab.label}
-			headerContent={
-				<Button size="icon" variant="subtle" asChild>
-					<Link
-						to={`/previews/open?${openSearch}`}
-						target="_blank"
-						rel="noreferrer"
-						aria-label="Open preview in new tab"
-					>
-						<ExternalLinkIcon />
-					</Link>
-				</Button>
-			}
 		/>
 	);
 };

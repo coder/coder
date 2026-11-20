@@ -24,7 +24,6 @@ const meta = {
 	title: "pages/AgentsPage/components/RightPanel/PreviewPanel",
 	component: PreviewPanel,
 	args: {
-		workspace: MockWorkspace,
 		agent: MockWorkspaceAgent,
 		tab: mockPreviewTab,
 	},

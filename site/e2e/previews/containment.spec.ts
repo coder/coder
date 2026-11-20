@@ -8,6 +8,7 @@ import {
 	test,
 } from "@playwright/test";
 import { API } from "#/api/api";
+import type { Workspace } from "#/api/typesGenerated";
 import { setupApiCalls } from "../api";
 import { users } from "../constants";
 import {
@@ -85,23 +86,11 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 
 		const owner = users.owner.username;
 		const previewSlug = `preview--${hostile.port}`;
-		const previewOrigin = `${dashboard.protocol}//${previewSlug}--${agentName}--${workspace}--${owner}.${dashboard.host}`;
+		const previewOrigin = `${dashboard.protocol}//${previewSlug}--${agentName}--${workspace.name}--${owner}.${dashboard.host}`;
 		const previewPolicy =
 			"sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-downloads; " +
 			"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src 'self'; " +
 			`object-src 'none'; form-action 'self'; frame-ancestors 'self' ${dashboard.origin}`;
-		const openURL = (path: string) => {
-			const url = new URL("/previews/open", dashboard);
-			url.search = new URLSearchParams({
-				owner,
-				workspace,
-				agent: agentName,
-				slug: previewSlug,
-				path,
-			}).toString();
-			return url.toString();
-		};
-
 		// Read each policy as the response arrives, because Playwright cannot
 		// read the headers of a response once its page has closed.
 		const previewResponses: Promise<PolicyCheck>[] = [];
@@ -115,7 +104,7 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 			await test.step("the canary counts a request sent with the user's credentials", async () => {
 				const control = await context.newPage();
 				const response = await control.goto(
-					`${dashboard.protocol}//canary--${agentName}--${workspace}--${owner}.${dashboard.host}/control`,
+					`${dashboard.protocol}//canary--${agentName}--${workspace.name}--${owner}.${dashboard.host}/control`,
 				);
 				await expect(
 					control.getByRole("heading", { name: "Canary app" }),
@@ -135,9 +124,24 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 			});
 		const attackPath = `/?${new URLSearchParams({ canary: canaryOrigin })}`;
 
+		await test.step("opening the preview's address directly shows an error page", async () => {
+			const direct = await context.newPage();
+			const response = await direct.goto(`${previewOrigin}/`);
+			expect(response?.status()).toBe(403);
+			await expect(
+				direct.getByText("Previews open only inside a Coder chat."),
+			).toBeVisible();
+			await direct.close();
+			expect(hostile.paths()).toEqual([]);
+		});
+
+		const chatURL = await openChatWithPreview(page, workspace, {
+			agentName,
+			slug: previewSlug,
+			urlPath: attackPath,
+		});
 		const preview =
 			await test.step("the preview signs in inside its wrapper", async () => {
-				await page.goto(openURL(attackPath));
 				await expect(
 					previewContent(page).getByRole("heading", {
 						name: "Hostile preview fixture",
@@ -180,7 +184,7 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 		});
 
 		await test.step("the wrapper keeps the preview and the dashboard in place", async () => {
-			expect.soft(page.url()).toBe(openURL(attackPath));
+			expect.soft(page.url()).toBe(chatURL);
 			expect.soft(context.pages()).toHaveLength(1);
 			expect
 				.soft(new URL((await previewFrame(page)).url()).origin)
@@ -214,7 +218,7 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 			});
 			expect(new URL(preview.url()).origin).not.toBe(canaryOrigin);
 			expect(canary.hits).toEqual([]);
-			expect(page.url()).toBe(openURL(attackPath));
+			expect(page.url()).toBe(chatURL);
 		});
 
 		await test.step("every preview response carries the preview policy", async () => {
@@ -223,10 +227,11 @@ test("a strict preview cannot reach the user's other apps or leave its wrapper",
 				body: JSON.stringify(seen, null, "\t"),
 				contentType: "application/json",
 			});
-			// The 200s come from the preview server and the 303 is coderd's
-			// sign-in redirect, so both sources must carry the policy.
+			// The 200s come from the preview server, and the 303 and 403 are
+			// coderd's sign-in redirect and direct-open page, so both sources
+			// must carry the policy.
 			expect(seen.map((response) => response.status)).toEqual(
-				expect.arrayContaining([200, 303]),
+				expect.arrayContaining([200, 303, 403]),
 			);
 			expect(seen.filter((response) => !response.hasPolicy)).toEqual([]);
 		});
@@ -280,15 +285,63 @@ const checkPolicy = async (
 });
 
 /**
+ * openChatWithPreview opens an idle chat on workspace with the preview
+ * restored in its right panel, shows the preview, and returns the chat's URL.
+ * The chat never runs, so its model's provider needs no server.
+ */
+const openChatWithPreview = async (
+	page: Page,
+	workspace: Workspace,
+	preview: { agentName: string; slug: string; urlPath: string },
+): Promise<string> => {
+	const provider = await API.experimental.createAIProvider({
+		type: "openai",
+		name: randomName("previews"),
+		enabled: true,
+		base_url: "http://127.0.0.1:1",
+		api_keys: ["unused"],
+	});
+	await API.experimental.createChatModel(workspace.organization_id, {
+		ai_provider_id: provider.id,
+		model: "unused",
+		is_default: true,
+	});
+	const chat = await API.experimental.createChat({
+		organization_id: workspace.organization_id,
+		workspace_id: workspace.id,
+		content: [],
+	});
+	const tabs = [
+		{
+			id: "preview",
+			kind: "preview",
+			label: "Preview",
+			workspaceId: workspace.id,
+			...preview,
+		},
+	];
+	await page.evaluate(
+		([chatId, tabsJSON]) => {
+			localStorage.setItem("agents.right-panel-open", "true");
+			localStorage.setItem(`agents.right-panel-tabs.${chatId}`, tabsJSON);
+		},
+		[chat.id, JSON.stringify(tabs)],
+	);
+	await page.goto(`/agents/${chat.id}`);
+	await page.getByRole("tab", { name: "Preview" }).click();
+	return page.url();
+};
+
+/**
  * createWorkspaceFromEcho creates a template from echo provisioner responses
  * and a workspace from it through the API, opens the workspace page, and
- * returns the workspace name.
+ * returns the workspace.
  * The template upload form fails in WebKit, and the form is not under test.
  */
 const createWorkspaceFromEcho = async (
 	page: Page,
 	responses: Parameters<typeof createTemplateVersionTar>[0],
-): Promise<string> => {
+): Promise<Workspace> => {
 	await setupApiCalls(page);
 	const me = await API.getAuthenticatedUser();
 	const organization = me.organization_ids[0];
@@ -325,5 +378,5 @@ const createWorkspaceFromEcho = async (
 	await API.waitForBuild(workspace.latest_build);
 	// startAgent watches the workspace page for the agent to connect.
 	await page.goto(`/@${me.username}/${workspace.name}`);
-	return workspace.name;
+	return workspace;
 };
