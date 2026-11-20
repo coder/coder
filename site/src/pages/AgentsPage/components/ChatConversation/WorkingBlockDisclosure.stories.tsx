@@ -14,6 +14,7 @@ const meta = {
 	args: {
 		block: MockWorkingBlock,
 		expanded: false,
+		peek: false,
 		onExpandedChange: fn(),
 		children: (
 			<ul aria-label="Steps">

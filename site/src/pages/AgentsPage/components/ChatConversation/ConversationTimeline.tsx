@@ -15,6 +15,7 @@ import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { useToolCallSummary } from "../ChatElements/tools/ToolCall";
 import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import { ImageLightbox } from "../ImageLightbox";
 import { LightboxHost, useLightbox } from "../LightboxHost";
@@ -113,6 +114,13 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+/**
+ * The slices a collapsed live block's peek renders. Each holds at least one
+ * step row, so they fill the peek's three rows while a long block's cost
+ * stays flat.
+ */
+const PEEK_SLICES = 4;
+
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
@@ -193,6 +201,8 @@ const ChatMessageItem = memo<{
 		showDesktopPreviews,
 	}) => {
 		const isUser = message?.role === "user";
+		// In a working block's peek, a slice shows only its step rows.
+		const summary = useToolCallSummary();
 		const messageId = message?.id;
 
 		const { openLightbox } = useLightbox();
@@ -258,6 +268,17 @@ const ChatMessageItem = memo<{
 				: undefined;
 
 		if (displayState?.shouldHide) {
+			return null;
+		}
+		// A summary slice without a step row would only add a gap. The live
+		// slice that ends the row can still show the Thinking row.
+		if (
+			summary &&
+			!outputLiveStatus &&
+			!blocks.some(
+				(block) => block.type === "thinking" || block.type === "tool",
+			)
+		) {
 			return null;
 		}
 
@@ -347,14 +368,15 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{parsed?.hookNotices.map((notice, index) => (
-					<LifecycleHookNotice
-						key={`${renderKey}-hook-notice-${index}`}
-						urlTransform={urlTransform}
-					>
-						{notice}
-					</LifecycleHookNotice>
-				))}
+				{!summary &&
+					parsed?.hookNotices.map((notice, index) => (
+						<LifecycleHookNotice
+							key={`${renderKey}-hook-notice-${index}`}
+							urlTransform={urlTransform}
+						>
+							{notice}
+						</LifecycleHookNotice>
+					))}
 				{isUser ? (
 					<UserMessageActions
 						message={message}
@@ -372,6 +394,7 @@ const ChatMessageItem = memo<{
 						turnAttachments={sliceTurnAttachments}
 						sources={hideSliceActions ? undefined : turnSources}
 						keepsSpacing={
+							!summary &&
 							Boolean(displayState?.needsAssistantBottomSpacer) &&
 							!isLastMessage
 						}
@@ -611,6 +634,22 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		// A reply after a live block takes over from its peek. A whole live row
+		// without text is a status row, such as a retry, not a reply.
+		const lastReplyIndex = layout.items.findLastIndex((item) => {
+			if (item.type !== "slice") {
+				return false;
+			}
+			const row = renderRows[item.slice.rowIndex];
+			if (row.type === "live") {
+				return (
+					item.slice.pieceRange !== undefined ||
+					liveBlocks.some((block) => block.type === "response")
+				);
+			}
+			return !(collapseSteps && isAgentAttachmentOnlyRow(row));
+		});
+
 		const renderSlice = (
 			slice: RowSlice,
 			{ inWorkingBlock }: { inWorkingBlock: boolean },
@@ -692,7 +731,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				<LightboxHost>
-					{layout.items.map((item) => {
+					{layout.items.map((item, itemIndex) => {
 						if (item.type === "block") {
 							const { block } = item;
 							const itemKey = getItemKey(block);
@@ -709,6 +748,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+							const peek =
+								block.isLive && !expanded && lastReplyIndex < itemIndex;
 
 							const blockAttachments = getBlockTurnAttachments(
 								block,
@@ -736,6 +777,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									<WorkingBlockDisclosure
 										block={block}
 										expanded={expanded}
+										peek={peek}
 										onExpandedChange={(value) => {
 											keepBlock(block.liveKey);
 											setExpandedBlocks((previous) => {
@@ -747,8 +789,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 											});
 										}}
 									>
-										{expanded &&
-											block.slices.map((slice) =>
+										{(expanded || peek) &&
+											(expanded
+												? block.slices
+												: block.slices.slice(-PEEK_SLICES)
+											).map((slice) =>
 												renderSlice(slice, { inWorkingBlock: true }),
 											)}
 									</WorkingBlockDisclosure>
