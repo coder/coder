@@ -3073,22 +3073,6 @@ export const OpenPreviewCompleted: Story = {
 	decorators: [withPreviewOpenAction],
 };
 
-export const OpenPreviewAppCompleted: Story = {
-	args: {
-		name: "open_preview",
-		args: { title: "VS Code", app: "code-server" },
-		result: {
-			...MockOpenPreviewResult,
-			kind: "app",
-			title: "VS Code",
-			port: undefined,
-			preview_slug: undefined,
-			app_slug: "code-server",
-		},
-	},
-	decorators: [withPreviewOpenAction],
-};
-
 export const OpenPreviewFromMCPServer: Story = {
 	args: {
 		name: "open_preview",

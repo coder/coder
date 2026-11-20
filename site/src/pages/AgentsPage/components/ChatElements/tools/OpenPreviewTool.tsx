@@ -44,10 +44,10 @@ export const OpenPreviewTool: React.FC<{
 		>
 			<ToolCall.HeaderLayout>
 				<ToolCall.Header iconName="open_preview" label={label} />
-				{preview && open && (
+				{open && (
 					<ToolCall.HeaderActions>
 						<Button size="xs" variant="outline" onClick={open}>
-							{preview.target.kind === "app" ? "Open app" : "Open preview"}
+							Open preview
 						</Button>
 					</ToolCall.HeaderActions>
 				)}

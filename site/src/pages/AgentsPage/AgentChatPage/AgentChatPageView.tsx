@@ -563,10 +563,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		enabled: openPreviewEnabled,
 		workspace,
 		workspaceAgent,
-		wildcardHostname,
-		browserApp: availableBrowserApp,
 		openFrameTab,
-		showBrowserTab: () => showSingletonTab("browser"),
 		focusPanel: requestPanelFocus,
 	});
 

@@ -1,16 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "#/api/typesGenerated";
 import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
-import {
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceApp,
-	MockWorkspaceResource,
-} from "#/testHelpers/entities";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	getPreviewPanelContextValue,
 	parseOpenPreviewResult,
@@ -90,32 +80,6 @@ describe("parseOpenPreviewResult", () => {
 });
 
 describe("getPreviewPanelContextValue", () => {
-	const mockSubdomainApp: WorkspaceApp = {
-		...MockWorkspaceApp,
-		id: "code-server-app",
-		slug: "code-server",
-		subdomain: true,
-		subdomain_name: "code-server--a-workspace-agent--test-workspace--admin",
-	};
-	const mockChatAgent: WorkspaceAgent = {
-		...MockWorkspaceAgent,
-		apps: [MockWorkspaceApp, mockSubdomainApp],
-	};
-	const mockOtherAgent: WorkspaceAgent = {
-		...MockWorkspaceAgent,
-		id: "other-agent-id",
-		name: "other-agent",
-	};
-	const mockWorkspace: Workspace = {
-		...MockWorkspace,
-		latest_build: {
-			...MockWorkspace.latest_build,
-			resources: [
-				{ ...MockWorkspaceResource, agents: [mockChatAgent, mockOtherAgent] },
-			],
-		},
-	};
-
 	const getOpenAction = (enabled: boolean, result: Record<string, unknown>) => {
 		const openFrameTab = vi.fn();
 		const preview = parseOpenPreviewResult(result);
@@ -124,12 +88,9 @@ describe("getPreviewPanelContextValue", () => {
 		}
 		const open = getPreviewPanelContextValue({
 			enabled,
-			workspace: mockWorkspace,
-			workspaceAgent: mockChatAgent,
-			wildcardHostname: "*.apps.example.com",
-			browserApp: undefined,
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
 			openFrameTab,
-			showBrowserTab: vi.fn(),
 			focusPanel: vi.fn(),
 		}).getOpenAction(preview);
 		return { open, openFrameTab };
@@ -143,7 +104,7 @@ describe("getPreviewPanelContextValue", () => {
 		expect(openFrameTab).toHaveBeenCalledWith(
 			expect.objectContaining({
 				kind: "preview",
-				agentName: mockChatAgent.name,
+				agentName: MockWorkspaceAgent.name,
 				slug: MockOpenPreviewResult.preview_slug,
 			}),
 		);
@@ -153,27 +114,12 @@ describe("getPreviewPanelContextValue", () => {
 		{
 			name: "while the open-preview experiment is off",
 			enabled: false,
-			result: {
-				...MockOpenPreviewResult,
-				kind: "app",
-				preview_slug: undefined,
-				app_slug: mockSubdomainApp.slug,
-			},
+			result: MockOpenPreviewResult,
 		},
 		{
-			name: "for another agent in the workspace",
+			name: "for another agent",
 			enabled: true,
-			result: { ...MockOpenPreviewResult, agent_name: mockOtherAgent.name },
-		},
-		{
-			name: "for a path-based app",
-			enabled: true,
-			result: {
-				...MockOpenPreviewResult,
-				kind: "app",
-				preview_slug: undefined,
-				app_slug: MockWorkspaceApp.slug,
-			},
+			result: { ...MockOpenPreviewResult, agent_name: "other-agent" },
 		},
 	])("offers no open action $name", ({ enabled, result }) => {
 		expect(getOpenAction(enabled, result).open).toBeUndefined();

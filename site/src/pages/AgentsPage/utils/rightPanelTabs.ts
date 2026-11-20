@@ -59,7 +59,6 @@ export type UserRightPanelTab =
 			label: string;
 			appId: string;
 			agentId: string;
-			urlPath?: string;
 	  }
 	| {
 			id: string;
@@ -115,15 +114,11 @@ export function isUserRightPanelTab(
 		);
 	}
 
-	const hasValidURLPath =
-		record.urlPath === undefined || typeof record.urlPath === "string";
-
 	if (record.kind === "workspace_app") {
 		return (
 			typeof record.label === "string" &&
 			typeof record.appId === "string" &&
-			typeof record.agentId === "string" &&
-			hasValidURLPath
+			typeof record.agentId === "string"
 		);
 	}
 
@@ -145,7 +140,7 @@ export function isUserRightPanelTab(
 			typeof record.workspaceId === "string" &&
 			typeof record.agentName === "string" &&
 			typeof record.slug === "string" &&
-			hasValidURLPath
+			(record.urlPath === undefined || typeof record.urlPath === "string")
 		);
 	}
 
@@ -154,61 +149,56 @@ export function isUserRightPanelTab(
 
 export function validateUserRightPanelTabs(
 	tabs: readonly UserRightPanelTab[],
-	options: ValidateUserRightPanelTabsOptions,
-): UserRightPanelTab[] {
-	return tabs.filter((tab) => isUserRightPanelTabAvailable(tab, options));
-}
-
-/**
- * Reports whether the tab can still be shown, given the workspace and the
- * enabled experiments.
- */
-export function isUserRightPanelTabAvailable(
-	tab: WithoutID<UserRightPanelTab>,
 	{
 		workspace,
 		workspaceAgent,
 		wildcardHostname,
 		openPreviewEnabled,
 	}: ValidateUserRightPanelTabsOptions,
-): boolean {
-	if (tab.kind === "terminal") {
-		return workspace !== undefined && workspaceAgent !== undefined;
-	}
+): UserRightPanelTab[] {
+	return tabs.filter((tab) => {
+		if (tab.kind === "terminal") {
+			return workspace !== undefined && workspaceAgent !== undefined;
+		}
 
-	if (!workspace) {
-		return false;
-	}
+		if (!workspace) {
+			return false;
+		}
 
-	switch (tab.kind) {
-		case "workspace_app": {
-			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			// agent-browser already has the built-in Browser tab.
-			return (
-				app !== undefined &&
-				app.slug !== AGENT_BROWSER_APP_SLUG &&
-				isWorkspaceAppEmbeddable(app)
-			);
+		switch (tab.kind) {
+			case "workspace_app": {
+				const app = findWorkspaceAppWithAgent(
+					workspace,
+					tab.agentId,
+					tab.appId,
+				);
+				// agent-browser already has the built-in Browser tab.
+				return (
+					app !== undefined &&
+					app.slug !== AGENT_BROWSER_APP_SLUG &&
+					isWorkspaceAppEmbeddable(app)
+				);
+			}
+			case "port": {
+				// Mirror the add-menu gate so a persisted port tab disappears when
+				// the agent stops exposing the port forwarding helper.
+				const agent = findWorkspaceAgent(workspace, tab.agentId);
+				return (
+					agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
+				);
+			}
+			case "preview":
+				return (
+					openPreviewEnabled &&
+					tab.workspaceId === workspace.id &&
+					findWorkspaceAgentByName(workspace, tab.agentName) !== undefined
+				);
+			default: {
+				const _exhaustive: never = tab;
+				return _exhaustive;
+			}
 		}
-		case "port": {
-			// Mirror the add-menu gate so a persisted port tab disappears when
-			// the agent stops exposing the port forwarding helper.
-			const agent = findWorkspaceAgent(workspace, tab.agentId);
-			return (
-				agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
-			);
-		}
-		case "preview":
-			return (
-				openPreviewEnabled &&
-				tab.workspaceId === workspace.id &&
-				findWorkspaceAgentByName(workspace, tab.agentName) !== undefined
-			);
-		default: {
-			const _exhaustive: never = tab;
-			return _exhaustive;
-		}
-	}
+	});
 }
 
 /**
@@ -224,8 +214,7 @@ export function showsSameFrame(
 			return (
 				tab.kind === "workspace_app" &&
 				tab.agentId === target.agentId &&
-				tab.appId === target.appId &&
-				tab.urlPath === target.urlPath
+				tab.appId === target.appId
 			);
 		case "port":
 			return (
