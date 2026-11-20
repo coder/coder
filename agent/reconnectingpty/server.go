@@ -30,7 +30,10 @@ type Server struct {
 	connectionReporter proto.ConnectionReporter
 	connCount          atomic.Int64
 	reconnectingPTYs   sync.Map
-	timeout            time.Duration
+	// sessions maps IDs to started reconnecting ptys so their status can be
+	// read without taking them from reconnectingPTYs.
+	sessions sync.Map
+	timeout  time.Duration
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -170,6 +173,27 @@ func (s *Server) ConnCount() int64 {
 	return s.connCount.Load()
 }
 
+// Status reports whether the session with the given ID has exited.  It returns
+// false if no such session exists, including one that is still starting.
+func (s *Server) Status(id uuid.UUID) (workspacesdk.ReconnectingPTYStatus, bool) {
+	entry, ok := s.sessions.Load(id)
+	if !ok {
+		return workspacesdk.ReconnectingPTYStatus{}, false
+	}
+	rpty, ok := entry.(ReconnectingPTY)
+	if !ok {
+		return workspacesdk.ReconnectingPTYStatus{}, false
+	}
+	exitErr := rpty.ExitError()
+	if exitErr == nil {
+		return workspacesdk.ReconnectingPTYStatus{}, true
+	}
+	return workspacesdk.ReconnectingPTYStatus{
+		Exited:   true,
+		ExitCode: exitErr.ExitCode,
+	}, true
+}
+
 func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Conn) (retErr error) {
 	defer conn.Close()
 	s.connectionsTotal.Add(1)
@@ -272,6 +296,8 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			},
 		)
 
+		s.sessions.Store(msg.ID, rpty)
+
 		done := make(chan struct{})
 		go func() {
 			select {
@@ -289,10 +315,12 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 				connLogger.Debug(ctx, "reconnecting pty process exited", slog.Error(err))
 				time.AfterFunc(s.timeout, func() {
 					s.reconnectingPTYs.Delete(msg.ID)
+					s.sessions.Delete(msg.ID)
 				})
 				return
 			}
 			s.reconnectingPTYs.Delete(msg.ID)
+			s.sessions.Delete(msg.ID)
 		}()
 
 		connected = true

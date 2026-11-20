@@ -119,6 +119,7 @@ type AgentConn interface {
 	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
+	ReconnectingPTYStatus(ctx context.Context, id uuid.UUID) (ReconnectingPTYStatus, error)
 	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
@@ -250,6 +251,16 @@ type ReconnectingPTYRequest struct {
 	Data   string `json:"data,omitempty"`
 	Height uint16 `json:"height,omitempty"`
 	Width  uint16 `json:"width,omitempty"`
+}
+
+// ReconnectingPTYStatus describes a reconnecting PTY session on the agent.
+// @typescript-ignore ReconnectingPTYStatus
+type ReconnectingPTYStatus struct {
+	// Exited is true once the session's process has exited on its own. An
+	// exited session does not start its command again on reconnect.
+	Exited bool `json:"exited"`
+	// ExitCode is the process's exit code, if known.
+	ExitCode *int `json:"exit_code,omitempty"`
 }
 
 // ReconnectingPTY spawns a new reconnecting terminal session.
@@ -551,6 +562,25 @@ func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 	}
 
 	var resp codersdk.WorkspaceAgentListeningPortsResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// ReconnectingPTYStatus reports whether the reconnecting PTY session with the
+// given ID has exited. Agents without the endpoint, and sessions the agent does
+// not know about, return an error.
+func (c *agentConn) ReconnectingPTYStatus(ctx context.Context, id uuid.UUID) (ReconnectingPTYStatus, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/reconnecting-pty/"+id.String(), nil)
+	if err != nil {
+		return ReconnectingPTYStatus{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReconnectingPTYStatus{}, readAgentError(res)
+	}
+
+	var resp ReconnectingPTYStatus
 	return resp, decodeAgentJSON(res, &resp)
 }
 

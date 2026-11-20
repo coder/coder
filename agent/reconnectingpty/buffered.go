@@ -244,6 +244,10 @@ func (rpty *bufferedReconnectingPTY) Wait() error {
 	return err
 }
 
+func (rpty *bufferedReconnectingPTY) ExitError() *ExitError {
+	return rpty.state.exitError()
+}
+
 func (rpty *bufferedReconnectingPTY) Close(err error) {
 	// The closing state change will be handled by the lifecycle.
 	rpty.state.setState(StateClosing, err)
