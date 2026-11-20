@@ -1,9 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import {
-	findWorkspaceAgent,
-	findWorkspaceAgentByName,
-} from "#/utils/workspace";
+import { findWorkspaceAgent, getMatchingAgentOrFirst } from "#/utils/workspace";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { TerminalPanel } from "../TerminalPanel";
 import { AppPanel } from "./AppPanel";
@@ -77,7 +74,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 		}
 		case "preview": {
 			const agent =
-				workspace && findWorkspaceAgentByName(workspace, tab.agentName);
+				workspace && getMatchingAgentOrFirst(workspace, tab.agentName);
 
 			if (!workspace || !agent) {
 				return null;

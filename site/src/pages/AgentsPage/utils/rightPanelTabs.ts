@@ -9,10 +9,7 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
-import {
-	findWorkspaceAgent,
-	findWorkspaceAgentByName,
-} from "#/utils/workspace";
+import { findWorkspaceAgent, getMatchingAgentOrFirst } from "#/utils/workspace";
 
 /**
  * Built-in panels that the user shows or hides from the add-tab dropdown.
@@ -139,6 +136,7 @@ export function isUserRightPanelTab(
 			typeof record.label === "string" &&
 			typeof record.workspaceId === "string" &&
 			typeof record.agentName === "string" &&
+			record.agentName !== "" &&
 			typeof record.slug === "string" &&
 			(record.urlPath === undefined || typeof record.urlPath === "string")
 		);
@@ -191,7 +189,7 @@ export function validateUserRightPanelTabs(
 				return (
 					openPreviewEnabled &&
 					tab.workspaceId === workspace.id &&
-					findWorkspaceAgentByName(workspace, tab.agentName) !== undefined
+					getMatchingAgentOrFirst(workspace, tab.agentName) !== undefined
 				);
 			default: {
 				const _exhaustive: never = tab;
