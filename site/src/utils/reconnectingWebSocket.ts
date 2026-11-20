@@ -77,8 +77,9 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	 * Factory that creates and returns a new socket. Called on the
 	 * initial connection and on every reconnection attempt. The caller
 	 * is responsible for attaching any `message` listeners to the
-	 * returned socket. This utility only manages the lifecycle
-	 * (`open`, `close`, `error`) events.
+	 * returned socket. This utility manages the lifecycle (`open`,
+	 * `close`, `error`) events. With `silenceTimeoutMs` set, it also
+	 * listens to `message` events to restart the timeout.
 	 */
 	connect: () => TSocket;
 
@@ -123,6 +124,15 @@ type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	 * to `[0, 1]`; non-finite values fall back to `0.5`.
 	 */
 	random?: () => number;
+
+	/**
+	 * Treat the socket as disconnected when it receives no message for this
+	 * many milliseconds after the socket is created or after its last
+	 * message: call `onDisconnect`, close the socket, and reconnect. Only
+	 * set this when the server sends messages, such as keepalives, more
+	 * often than the timeout. Disabled when omitted.
+	 */
+	silenceTimeoutMs?: number;
 };
 
 const normalizeUnitInterval = (value: number, fallback: number): number =>
@@ -217,12 +227,21 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		factor = RECONNECT_FACTOR,
 		jitter = RECONNECT_JITTER,
 		random = Math.random,
+		silenceTimeoutMs,
 	} = options;
 
 	let disposed = false;
 	let lastReconnectAttempt = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 	let activeSocket: TSocket | null = null;
+
+	const clearSilenceTimer = () => {
+		if (silenceTimer !== null) {
+			clearTimeout(silenceTimer);
+			silenceTimer = null;
+		}
+	};
 
 	const scheduleReconnect = (reconnect: ReconnectSchedule) => {
 		if (disposed) {
@@ -261,6 +280,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				return;
 			}
 			activeSocket = null;
+			clearSilenceTimer();
 			const reconnect = getReconnectSchedule({
 				attempt: lastReconnectAttempt + 1,
 				baseMs,
@@ -276,6 +296,20 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		socket.addEventListener("open", handleOpen);
 		socket.addEventListener("error", handleDisconnect);
 		socket.addEventListener("close", handleDisconnect);
+
+		if (silenceTimeoutMs !== undefined) {
+			const restartSilenceTimer = () => {
+				clearSilenceTimer();
+				silenceTimer = setTimeout(() => {
+					// On a frozen connection, the close event from socket.close()
+					// can arrive late or never, so call handleDisconnect directly.
+					handleDisconnect();
+					socket.close();
+				}, silenceTimeoutMs);
+			};
+			socket.addEventListener("message", restartSilenceTimer);
+			restartSilenceTimer();
+		}
 	}
 
 	// Kick off the first connection.
@@ -287,6 +321,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		if (reconnectTimer !== null) {
 			clearTimeout(reconnectTimer);
 		}
+		clearSilenceTimer();
 		if (activeSocket) {
 			activeSocket.close();
 		}

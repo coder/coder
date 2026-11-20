@@ -549,4 +549,76 @@ describe("createReconnectingWebSocket", () => {
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
+
+	const silenceTimeoutMs = 40_000;
+
+	it("reconnects when no message arrives within silenceTimeoutMs", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const onDisconnect = vi.fn();
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: 0,
+			silenceTimeoutMs,
+		});
+		const silentSocket = activeSocket;
+		silentSocket.emit("open");
+
+		vi.advanceTimersByTime(silenceTimeoutMs - 1);
+		expect(silentSocket.close).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(1);
+		expect(silentSocket.close).toHaveBeenCalledTimes(1);
+		expect(onDisconnect).toHaveBeenCalledTimes(1);
+
+		vi.advanceTimersByTime(1000);
+		expect(connect).toHaveBeenCalledTimes(2);
+
+		// The close event of silentSocket arrives late, if at all.
+		silentSocket.emit("close");
+		expect(onDisconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("restarts the silence timeout on every message", () => {
+		const socket = createMockSocket();
+		const onDisconnect = vi.fn();
+
+		createReconnectingWebSocket({
+			connect: () => socket,
+			onDisconnect,
+			silenceTimeoutMs,
+		});
+
+		vi.advanceTimersByTime(silenceTimeoutMs * 0.75);
+		socket.emit("message");
+		vi.advanceTimersByTime(silenceTimeoutMs - 1);
+		expect(socket.close).not.toHaveBeenCalled();
+		expect(onDisconnect).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(1);
+		expect(socket.close).toHaveBeenCalledTimes(1);
+		expect(onDisconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("dispose cancels the silence timeout", () => {
+		const socket = createMockSocket();
+		const connect = vi.fn(() => socket);
+		const onDisconnect = vi.fn();
+
+		const dispose = createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			silenceTimeoutMs,
+		});
+		dispose();
+		vi.advanceTimersByTime(silenceTimeoutMs);
+
+		expect(socket.close).toHaveBeenCalledTimes(1);
+		expect(onDisconnect).not.toHaveBeenCalled();
+		expect(connect).toHaveBeenCalledTimes(1);
+	});
 });
