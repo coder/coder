@@ -2835,6 +2835,10 @@ export const mockApiError = ({
 	},
 });
 
+/** Like `mockApiError`, but an `Error`, as `useQuery` returns. */
+export const mockApiQueryError = (input: MockAPIInput = {}): Error =>
+	Object.assign(new Error(input.message), mockApiError(input));
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",
@@ -5938,6 +5942,106 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 			},
 		],
 	};
+
+const MockOrganizationAISpendOverviewUser: TypesGen.OrganizationAISpendOverviewUser =
+	{
+		user_id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: "Test User",
+		avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+		spend_micros: 2_500_000,
+		groups: [
+			{
+				group_id: MockGroup.id,
+				group_name: MockGroup.name,
+				group_display_name: MockGroup.display_name,
+				spend_micros: 2_500_000,
+			},
+		],
+	};
+
+export const MockOrganizationAISpendOverview: TypesGen.OrganizationAISpendOverview =
+	{
+		period_start: "2026-03-06T00:00:00Z",
+		period_end: "2026-03-13T00:00:00Z",
+		count: 2,
+		totals: { spend_micros: 3_500_000, median_spend_micros: 1_750_000 },
+		intervals: [
+			{
+				start_time: "2026-03-06T00:00:00Z",
+				end_time: "2026-03-07T00:00:00Z",
+				spend_micros: 400_000,
+			},
+			{
+				start_time: "2026-03-07T00:00:00Z",
+				end_time: "2026-03-08T00:00:00Z",
+				spend_micros: 0,
+			},
+			{
+				start_time: "2026-03-08T00:00:00Z",
+				end_time: "2026-03-09T00:00:00Z",
+				spend_micros: 650_000,
+			},
+			{
+				start_time: "2026-03-09T00:00:00Z",
+				end_time: "2026-03-10T00:00:00Z",
+				spend_micros: 900_000,
+			},
+			{
+				start_time: "2026-03-10T00:00:00Z",
+				end_time: "2026-03-11T00:00:00Z",
+				spend_micros: 300_000,
+			},
+			{
+				start_time: "2026-03-11T00:00:00Z",
+				end_time: "2026-03-12T00:00:00Z",
+				spend_micros: 1_000_000,
+			},
+			{
+				start_time: "2026-03-12T00:00:00Z",
+				end_time: "2026-03-13T00:00:00Z",
+				spend_micros: 250_000,
+			},
+		],
+		users: [
+			MockOrganizationAISpendOverviewUser,
+			{
+				...MockOrganizationAISpendOverviewUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				spend_micros: 1_000_000,
+				groups: [],
+			},
+		],
+	};
+
+export const MockUnpricedAIModel: TypesGen.UnpricedAIModel = {
+	provider_name: MockAIProviderAnthropic.name,
+	provider_display_name: MockAIProviderAnthropic.display_name,
+	provider_icon: MockAIProviderAnthropic.icon,
+	provider_type: MockAIProviderAnthropic.type,
+	model: "claude-opus-4-8",
+	token_count: 1_200_000,
+};
+
+export const MockUnpricedAIModels: TypesGen.UnpricedAIModels = {
+	period_start: "2026-03-06T00:00:00Z",
+	period_end: "2026-03-13T00:00:00Z",
+	count: 2,
+	models: [
+		MockUnpricedAIModel,
+		{
+			provider_name: MockAIProviderOpenAI.name,
+			provider_display_name: MockAIProviderOpenAI.display_name,
+			provider_icon: MockAIProviderOpenAI.icon,
+			provider_type: MockAIProviderOpenAI.type,
+			model: "gpt-4-turbo",
+			token_count: 300_000,
+		},
+	],
+};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
