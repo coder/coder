@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -80,7 +81,7 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 			// that is not read yet.
 			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
 				err := cmd.Process.Kill()
-				e.logger.Debug(killCtx, "killed command", slog.F("args", cmd.Args), slog.Error(err))
+				e.logger.Debug(killCtx, "killed command", slog.F("args", redactArgs(cmd.Args)), slog.Error(err))
 			})
 			return cmd.Process.Signal(os.Interrupt)
 		}
@@ -92,8 +93,8 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
-	e.logger.Debug(ctx, "starting command", slog.F("args", args))
+	span.SetAttributes(attribute.StringSlice("args", redactArgs(args)))
+	e.logger.Debug(ctx, "starting command", slog.F("args", redactArgs(args)))
 
 	defer func() {
 		e.logger.Debug(ctx, "closing writers", slog.Error(err))
@@ -107,7 +108,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		}
 	}()
 	if ctx.Err() != nil {
-		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", args))
+		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", redactArgs(args)))
 		return ctx.Err()
 	}
 
@@ -130,17 +131,17 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 	e.server.logger.Debug(ctx, "executing terraform command",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", redactArgs(args)),
 	)
 	err = cmd.Start()
 	if err != nil {
-		e.logger.Debug(ctx, "failed to start command", slog.F("args", args))
+		e.logger.Debug(ctx, "failed to start command", slog.F("args", redactArgs(args)))
 		return err
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
 	err = waitCommand(killCtx, cmd)
-	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
+	e.logger.Debug(ctx, "command done", slog.F("args", redactArgs(args)), slog.Error(err))
 	return err
 }
 
@@ -148,7 +149,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
+	span.SetAttributes(attribute.StringSlice("args", redactArgs(args)))
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -163,7 +164,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 
 	e.server.logger.Debug(ctx, "executing terraform command with JSON result",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", redactArgs(args)),
 	)
 	err := cmd.Start()
 	if err != nil {
@@ -616,10 +617,10 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 			default:
 				err = cmd.Process.Signal(os.Interrupt)
 			}
-			logger.Debug(ctx, "interrupted command", slog.F("args", cmd.Args), slog.Error(err))
+			logger.Debug(ctx, "interrupted command", slog.F("args", redactArgs(cmd.Args)), slog.Error(err))
 
 		case <-killCtx.Done():
-			logger.Debug(ctx, "kill context ended", slog.F("args", cmd.Args))
+			logger.Debug(ctx, "kill context ended", slog.F("args", redactArgs(cmd.Args)))
 		}
 	}()
 }
@@ -861,4 +862,25 @@ func (b *bufferedWriteCloser) Write(p []byte) (int, error) {
 
 func (b *bufferedWriteCloser) Close() error {
 	return b.wc.Close()
+}
+
+// redactArgs returns a copy of args that is safe to log or attach to spans:
+// the value of every `-var name=value` is replaced, keeping the name. Template
+// variables may be sensitive. The args passed to terraform are not modified.
+func redactArgs(args []string) []string {
+	out := slices.Clone(args)
+	for i, a := range out {
+		switch {
+		case i > 0 && args[i-1] == "-var":
+			out[i] = redactVar(a)
+		case strings.HasPrefix(a, "-var="):
+			out[i] = "-var=" + redactVar(strings.TrimPrefix(a, "-var="))
+		}
+	}
+	return out
+}
+
+func redactVar(nameValue string) string {
+	name, _, _ := strings.Cut(nameValue, "=")
+	return name + "=<redacted>"
 }

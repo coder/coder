@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -302,4 +303,16 @@ func TestChecksumFileCRC32(t *testing.T) {
 		checksum := checksumFileCRC32(ctx, logger, "/nonexistent/file.hcl")
 		require.Zero(t, checksum)
 	})
+}
+
+func TestRedactArgs(t *testing.T) {
+	t.Parallel()
+
+	args := []string{"apply", "-var", "db_password=hunter2-synthetic", "-var=token=abc-synthetic", "-no-color"}
+	orig := slices.Clone(args)
+
+	got := redactArgs(args)
+
+	require.Equal(t, []string{"apply", "-var", "db_password=<redacted>", "-var=token=<redacted>", "-no-color"}, got)
+	require.Equal(t, orig, args, "input args must not be modified")
 }
