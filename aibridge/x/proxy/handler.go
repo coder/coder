@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -22,6 +23,7 @@ import (
 	aibclient "github.com/coder/coder/v2/aibridge/client"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
@@ -65,9 +67,12 @@ type forwardedRequest struct {
 	logger slog.Logger
 	cred   credential.Credential
 	record *recorder.InterceptionRecord
+	// extractor derives recording facts for the route, set by start. Nil when
+	// the route has no extractor yet.
+	extractor extractors.Extractor
 
-	// outbound is the request passed to the reverse proxy. Set when the circuit
-	// breaker admits the request, nil otherwise.
+	// outbound is the request passed to the reverse proxy, set by start once
+	// the request body has been read. Nil otherwise.
 	outbound *http.Request
 	// requestBody captures the outbound request body for replay. Set with
 	// outbound.
@@ -165,35 +170,46 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 	defer cleanup()
 	// finish needs to run before cleanup cancels the ctx.
 	defer fr.finish(ctx, release)
+	defer func() {
+		if fr.requestBody != nil {
+			_ = fr.requestBody.Close()
+		}
+	}()
 	r = r.WithContext(ctx)
 	if !fr.start(ctx, w, r) {
 		return
 	}
 
 	route := strings.TrimPrefix(r.URL.Path, "/"+fr.handler.provider.Name())
-	fr.err = fr.handler.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		fr.outbound, fr.requestBody = replaybody.NewRequest(r)
-		defer func() { _ = fr.requestBody.Close() }()
-		return fr.forward(rw)
-	})
+	fr.err = fr.handler.breaker.Execute(route, "", w, fr.forward)
 	if fr.err != nil {
 		span.SetStatus(codes.Error, "forwarding failed")
 	}
 }
 
-// start validates the request and records its start before forwarding. On
-// rejection it writes the response and reports false.
+// start validates and reads the request, extracts its facts, and records its
+// start before forwarding. On rejection it writes the response and reports
+// false.
 func (fr *forwardedRequest) start(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
 	logger, record, cred := fr.handler.checkRequest(w, r)
 	fr.logger = logger
 	if record == nil {
 		return false
 	}
-	// Forwarding captures the request body as it streams upstream. Without full
-	// duplex, the HTTP/1 server drains the original body past the capture before
-	// writing an early reply. Writers that cannot enable it keep the default drain.
-	if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
-		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
+
+	if !fr.readRequest(ctx, w, r) {
+		return false
+	}
+	record.ClientSessionID = aibclient.GuessSessionIDFromPayload(aibclient.Type(record.Client), r, fr.requestBody.Bytes())
+	// Routes without an extractor yet are forwarded and recorded without the
+	// facts it would add.
+	if extractor := fr.handler.provider.CreateExtractor(r.URL.Path); extractor != nil {
+		// Extraction failures only lose recording facts, the request is still
+		// forwarded unchanged.
+		if err := extractor.ExtractRequest(fr.requestBody.Bytes(), record); err != nil {
+			logger.Warn(ctx, "failed to extract request facts", slog.Error(err))
+		}
+		fr.extractor = extractor
 	}
 
 	// The start record must exist before forwarding or recording its end.
@@ -205,6 +221,48 @@ func (fr *forwardedRequest) start(ctx context.Context, w http.ResponseWriter, r 
 		return false
 	}
 	fr.cred, fr.record = cred, record
+	return true
+}
+
+// readRequest reads the complete request body through a replay capture, then
+// rewinds the outbound request so forwarding sends the same bytes. It sets
+// fr.outbound and fr.requestBody. On failure it writes the rejection and
+// reports false.
+func (fr *forwardedRequest) readRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+	outbound, capture := replaybody.NewRequest(r)
+	// Closing the capture unblocks a stalled body read, so cancellation,
+	// including inflight gate shutdown, releases the request.
+	stop := context.AfterFunc(ctx, func() { _ = capture.Close() })
+	_, err := io.Copy(io.Discard, outbound.Body)
+	stop()
+	var replay io.ReadCloser
+	if err == nil {
+		// Rewind so forwarding sends the captured bytes.
+		replay, err = outbound.GetBody()
+	}
+	if err != nil {
+		_ = capture.Close()
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to read request body")
+		if ctx.Err() != nil {
+			fr.logger.Debug(ctx, "request canceled while reading its body", slog.Error(context.Cause(ctx)))
+			// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
+			http.Error(w, "request canceled", http.StatusServiceUnavailable)
+			return false
+		}
+		//nolint:errcheck // AsType returns the match; only its presence matters.
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			fr.logger.Debug(ctx, "rejecting oversized request body", slog.Error(err))
+			routing.WriteRequestBodyTooLarge(ctx, w)
+			return false
+		}
+		fr.logger.Warn(ctx, "failed to read request body", slog.Error(err))
+		// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return false
+	}
+	_ = outbound.Body.Close()
+	outbound.Body = replay
+	fr.outbound, fr.requestBody = outbound, capture
 	return true
 }
 
@@ -368,10 +426,8 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		AgentFirewallSequenceNumber: firewallSequence,
 		CredentialKind:              cred.Kind(),
 		CredentialHint:              cred.Hint(),
-		// Model:                    TODO, depends on extractor
-		// ClientSessionID:          TODO, depends on request buffering
-		// CorrelatingToolCallID:    TODO, depends on extractor
-		// TODO https://linear.app/codercom/issue/AIGOV-613
+		// The route's extractor sets Model, ClientSessionID, and
+		// CorrelatingToolCallID, see forwardedRequest.start.
 	}
 
 	return logger, ir, cred
@@ -419,11 +475,6 @@ func (fr *forwardedRequest) forward(w http.ResponseWriter) (err error) {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, proxyErr error) {
 			err = proxyErr
 			ctx := r.Context()
-			//nolint:errcheck // AsType returns the match; only its presence matters.
-			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
-				routing.WriteRequestBodyTooLarge(ctx, w)
-				return
-			}
 			fr.logger.Warn(ctx, "upstream proxy error", slog.Error(proxyErr))
 			// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
 			http.Error(w, "upstream proxy error", http.StatusBadGateway)
