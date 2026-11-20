@@ -488,6 +488,7 @@ type DeploymentValues struct {
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	SetupToken                      serpent.String                       `json:"setup_token,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode        serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
@@ -2937,6 +2938,17 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.WgtunnelHost,
 			Default:     "", // empty string means pick best server
 			Hidden:      true,
+		},
+		{
+			Name: "Setup Token",
+			Description: "The token that must be supplied to create the first user when the " +
+				"deployment is published through a try.coder.app tunnel. When empty, the " +
+				"server generates one and prints it at startup. It must be at least 24 characters.",
+			Flag:        "setup-token",
+			Env:         "CODER_SETUP_TOKEN",
+			Value:       &c.SetupToken,
+			Group:       &deploymentGroupNetworking,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "Proxy Health Check Interval",

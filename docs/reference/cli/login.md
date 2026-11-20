@@ -53,6 +53,15 @@ Specifies a human-readable name for the first user of the deployment.
 
 Specifies a password to use if creating the first user for the deployment.
 
+### --first-user-setup-token
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_FIRST_USER_SETUP_TOKEN</code> |
+
+Specifies the setup token to use if creating the first user for a deployment that requires one. The server prints it at startup.
+
 ### --first-user-trial
 
 |             |                                      |
