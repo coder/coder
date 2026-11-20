@@ -12,8 +12,22 @@ on:
           - rc
       release_notes:
         description: Release notes for the publishing the release. This is required to create a release.
+      version:
+        description: >-
+          Version to release, e.g. v2.39.2 or v2.40.0-rc.0. Required unless dry-run. Run the workflow on
+          release/X.Y (or main for an RC); the approved release job creates the annotated tag at the
+          workflow's commit with the release App, since only the App may create tags.
+        type: string
+        required: false
+      commit:
+        description: >-
+          Full SHA of the commit to tag and release. Required unless dry-run. It must already be on the
+          branch the workflow runs on (so it was reviewed), and pins the release to that commit even if
+          the branch moves. scripts/release.sh fills this in.
+        type: string
+        required: false
       dry_run:
-        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
+        description: Perform a dry-run release (devel). No tag is created.
         type: boolean
         required: true
         default: false
@@ -63,6 +77,9 @@ jobs:
     name: Build and publish
     needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    # Gates access to the release signing identity: the GCP workload identity
+    # provider for release-signer only exchanges tokens for this workflow when
+    # dispatched on a v* tag with this environment claim.
     environment: release
     permissions:
       # Required to publish a release
@@ -91,12 +108,94 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          # Build the commit being released (checked below to be on the dispatched branch).
+          ref: ${{ inputs.commit != '' && inputs.commit || github.sha }}
 
-      # If the event that triggered the build was an annotated tag (which our
-      # tags are supposed to be), actions/checkout has a bug where the tag in
-      # question is only a lightweight tag and not a full annotated tag. This
-      # command seems to fix it.
-      # https://github.com/actions/checkout/issues/290
+      # Only the release App may create tags (ruleset "Release tags (App only)"), and this job only
+      # runs after a release manager other than the dispatcher approves the `release` environment.
+      # So the tag is created here, at the commit being released, instead of being pushed by a person
+      # beforehand.
+      - name: Generate release App token for tagging
+        id: tag_app_token
+        if: ${{ !inputs.dry_run }}
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          permissions: |
+            contents: write
+            workflows: write
+
+      - name: Create release tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.tag_app_token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "::error::version must look like v2.39.2 or v2.40.0-rc.0, got '${VERSION}'"
+            exit 1
+          fi
+          if [[ ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit must be a full 40-character SHA, got '${COMMIT}'"
+            exit 1
+          fi
+          # The commit must already be on the dispatched branch, i.e. reviewed.
+          if ! git merge-base --is-ancestor "${COMMIT}" "${GITHUB_SHA}"; then
+            echo "::error::${COMMIT} is not on ${GITHUB_REF}"
+            exit 1
+          fi
+
+          # Non-RC releases must run on their release/X.Y branch; RCs on main or release/X.Y.
+          base_version="${VERSION#v}"
+          base_version="${base_version%%-*}"
+          release_branch="release/${base_version%.*}"
+          if [[ "${VERSION}" == *-rc.* ]]; then
+            allowed=("refs/heads/main" "refs/heads/${release_branch}")
+          else
+            allowed=("refs/heads/${release_branch}")
+          fi
+          if [[ ! " ${allowed[*]} " == *" ${GITHUB_REF} "* ]]; then
+            echo "::error::${VERSION} must be released from ${allowed[*]}, not ${GITHUB_REF}"
+            exit 1
+          fi
+
+          # Re-running a release whose tag already exists is fine, as long as it is this commit.
+          if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" --jq .object.sha 2>/dev/null)"; then
+            target="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing}" --jq .object.sha 2>/dev/null || echo "${existing}")"
+            if [[ "${target}" != "${COMMIT}" ]]; then
+              echo "::error::tag ${VERSION} already exists at ${target}, not ${COMMIT}"
+              exit 1
+            fi
+            echo "Tag ${VERSION} already exists at ${COMMIT}."
+            exit 0
+          fi
+
+          # Each version needs its own commit: version.sh refuses a commit with two release tags, so
+          # tagging a commit that was already released would only fail the build and leave a stray tag.
+          released="$(git tag --points-at "${COMMIT}" --list 'v*' | paste -sd ' ' -)"
+          if [[ -n "${released}" ]]; then
+            echo "::error::${COMMIT} was already released as ${released}; merge a new commit to ${GITHUB_REF#refs/heads/} and release that"
+            exit 1
+          fi
+
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+            -f tag="${VERSION}" -f message="Release ${VERSION}" -f object="${COMMIT}" -f type=commit \
+            --jq .sha)"
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${VERSION}" -f sha="${tag_object}" >/dev/null
+          echo "Created annotated tag ${VERSION} at ${COMMIT}."
+
+      # actions/checkout fetches tags as lightweight tags
+      # (https://github.com/actions/checkout/issues/290); refetch so the annotated release tag, created
+      # above, is present for version.sh.
       - name: Fetch git tags
         run: git fetch --tags --force
 
@@ -113,11 +212,14 @@ jobs:
       # Verify that all expectations for a release are met.
       - name: Verify release input
         if: ${{ !inputs.dry_run }}
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
-            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
+          version="$(./scripts/version.sh)"
+          if [[ "v${version}" != "${INPUT_VERSION}" ]]; then
+            echo "Version from the tag (${version}) does not match the version input (${INPUT_VERSION})."
             exit 1
           fi
 
@@ -133,7 +235,7 @@ jobs:
           if [[ "$version" == *-rc.* ]]; then
             echo "RC release detected — skipping release branch check (RC tags are cut from main)."
           else
-            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            branch_contains_tag=$(git branch --remotes --contains "refs/tags/${INPUT_VERSION}" --list "*/${release_branch}" --format='%(refname)')
             if [[ -z "${branch_contains_tag}" ]]; then
               echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
               exit 1
@@ -147,7 +249,7 @@ jobs:
 
           echo "Release inputs verified:"
           echo
-          echo "- Ref: ${GITHUB_REF}"
+          echo "- Ref: ${GITHUB_REF} (tag ${INPUT_VERSION})"
           echo "- Version: ${version}"
           echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
           echo "- Release branch: ${release_branch}"
@@ -204,14 +306,7 @@ jobs:
           rm /tmp/nfpm.deb
 
       - name: Install rcodesign
-        run: |
-          set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
-          sudo tar -xzf /tmp/rcodesign.tar.gz \
-            -C /usr/bin \
-            --strip-components=1 \
-            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
-          rm /tmp/rcodesign.tar.gz
+        uses: ./.github/actions/install-rcodesign
 
       - name: Install cosign
         uses: ./.github/actions/install-cosign
@@ -222,15 +317,38 @@ jobs:
       - name: Setup Apple Developer certificate and API key
         run: |
           set -euo pipefail
-          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
-          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
-          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
-          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          touch /tmp/{apple_cert.pem,apple_apikey.p8}
+          chmod 600 /tmp/{apple_cert.pem,apple_apikey.p8}
+          echo "$AC_CERTIFICATE_PEM" > /tmp/apple_cert.pem
           echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
         env:
-          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
-          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      # The Apple Developer certificate's private key lives in Google Cloud
+      # KMS. rcodesign accesses it through the Cloud KMS PKCS#11 library,
+      # authenticated via the Google Cloud credentials set up below.
+      - name: Setup Google Cloud KMS PKCS11 library
+        run: |
+          set -euo pipefail
+          ./.github/scripts/retry.sh -- wget -O /tmp/libkmsp11.tar.gz https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
+          echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 /tmp/libkmsp11.tar.gz" | sha256sum -c
+          sudo tar -xzf /tmp/libkmsp11.tar.gz \
+            -C /usr/local/lib \
+            --strip-components=1 \
+            libkmsp11-1.9-linux-amd64/libkmsp11.so
+          rm /tmp/libkmsp11.tar.gz
+
+          # The library requires the config file to be owner-writable only.
+          touch /tmp/kmsp11_config.yaml
+          chmod 600 /tmp/kmsp11_config.yaml
+          cat > /tmp/kmsp11_config.yaml <<EOF
+          ---
+          tokens:
+            - key_ring: "$AC_KMS_KEY_RING"
+          EOF
+        env:
+          AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
 
       - name: Setup Windows EV Signing Certificate
         run: |
@@ -246,7 +364,9 @@ jobs:
         run: |
           POSTGRES_VERSION=13 make test-migrations
 
-      # Setup GCloud for signing Windows binaries.
+      # Setup GCloud for signing Windows binaries (jsign uses the access
+      # token) and for the gsutil upload steps below (exported Application
+      # Default Credentials).
       - name: Authenticate to Google Cloud
         id: gcloud_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -254,6 +374,32 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
+
+      # Secrets can't be used in step conditions. The identity provider only
+      # accepts release tags, so dry runs from branches skip KMS signing.
+      - name: Check for GPG KMS signing key
+        id: gpg_kms
+        run: |
+          enabled=false
+          if [[ -n "$GPG_KMS_KEY" && "$GITHUB_REF" == refs/tags/* ]]; then
+            enabled=true
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+        env:
+          GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+
+      # release-signer@ for the KMS GPG key and the darwin signing key. Not
+      # exported, so the job's default credentials stay on the EV code signing
+      # account; GPG steps and the darwin PKCS11 library receive this
+      # credentials file explicitly. Unconditional because darwin signing
+      # always needs it, even when the optional KMS GPG signing is disabled.
+      - name: Authenticate to Google Cloud (release signing)
+        id: gcloud_auth_gpg
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GPG_KMS_SERVICE_ACCOUNT }}
+          export_environment_variables: false
 
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
@@ -276,9 +422,16 @@ jobs:
           CODER_SIGN_DARWIN: "1"
           CODER_SIGN_GPG: "1"
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           CODER_WINDOWS_RESOURCES: "1"
-          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
-          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.pem
+          AC_PKCS11_LIBRARY: /usr/local/lib/libkmsp11.so
+          AC_PKCS11_KEY_LABEL: ${{ secrets.AC_KMS_KEY }}
+          KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+          # Credentials for the Cloud KMS PKCS11 library (darwin signing)
+          # only; jsign and gsutil use the ambient coder-ci credentials.
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
@@ -290,7 +443,7 @@ jobs:
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Delete Apple Developer certificate and API key
-        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+        run: rm -f /tmp/{apple_cert.pem,apple_apikey.p8,kmsp11_config.yaml}
 
       - name: Delete Windows EV Signing Cert
         run: rm /tmp/ev_cert.pem
@@ -532,6 +685,12 @@ jobs:
       - name: ls build
         run: ls -lh build
 
+      - name: Authenticate to Google Cloud (release artifacts)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_RELEASE_ARTIFACTS_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_ARTIFACTS_SERVICE_ACCOUNT }}
+
       - name: Publish Coder CLI binaries and detached signatures to GCS
         if: ${{ !inputs.dry_run }}
         run: |
@@ -554,19 +713,29 @@ jobs:
             detached_signature="${slim_binary}.asc"
             gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
             gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+            # Cloud KMS signature, only present when GPG_KMS_KEY is set.
+            if [[ -f "./build/${slim_binary}.v2.asc" ]]; then
+              gcloud storage cp "./build/${slim_binary}.v2.asc" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.v2.asc"
+            fi
           done
 
       # Mint a short-lived installation token from the dedicated release
-      # GitHub App. The default GITHUB_TOKEN (github-actions[bot]) cannot be
-      # added to the "Auto-imported tag create protections" ruleset bypass
-      # list, so `gh release create` fails to create the tag with a 403. The
-      # App is added to that ruleset's bypass list as an Integration actor.
+      # GitHub App. Only the App may create tags (ruleset "Release tags (App
+      # only)"), so `gh release create` needs its token for any tag it creates.
       - name: Generate release App token
         id: release_app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          kms-key: ${{ secrets.RELEASE_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          permissions: |
+            contents: write
+            workflows: write
 
       - name: Publish release
         run: |
@@ -614,6 +783,8 @@ jobs:
           # from creating tags by the tag-create protection ruleset).
           GITHUB_TOKEN: ${{ steps.release_app_token.outputs.token }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+          CODER_GPG_KMS_CREDENTIALS_FILE: ${{ steps.gcloud_auth_gpg.outputs.credentials_file_path }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
@@ -663,11 +834,23 @@ jobs:
           mkdir -p build/helm
           cp "build/coder_helm_${version}.tgz" build/helm
           cp "build/provisioner_helm_${version}.tgz" build/helm
-          gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
-          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+
+          # index.yaml is shared by every release, so two releases publishing
+          # concurrently would each merge only their own charts and the last
+          # writer would drop the other's entries. The if-generation-match
+          # precondition makes the loser fail instead; re-running the job
+          # merges against the fresh index.
+          index_url=gs://helm.coder.com/v2/index.yaml
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" build/helm/index.yaml
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          if ! gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp build/helm/index.yaml "$index_url"; then
+            echo "::error::index.yaml was modified by another release since it was read (generation $generation). Re-run this job to merge against the current index." >&2
+            exit 1
+          fi
+
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
           helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
@@ -696,19 +879,53 @@ jobs:
           path: ./coder_latest_sbom.spdx.json
           retention-days: 7
 
+  # The coder-package-publisher App (installed on coder/packages and coder/homebrew-coder) has its key only in
+  # the release-publish environment, so the packages dispatch runs here rather than in the release job.
+  publish-packages:
+    name: Publish to coder/packages
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Generate coder-package-publisher App token
+        id: publisher_token
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: packages
+          # repository_dispatch needs contents: write on the target repository.
+          permissions: |
+            contents: write
+
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
-          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          token: ${{ steps.publisher_token.outputs.token }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
+          client-payload: '{"coder_version": "${{ needs.release.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
     environment: release-publish
+    permissions:
+      contents: read
+      id-token: write # Cloud KMS signs the coder-package-publisher App's JWT
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
 
@@ -718,10 +935,28 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Generate coder-package-publisher App token
+        id: publisher_token
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_ID }}
+          kms-key: ${{ secrets.CODER_PACKAGE_PUBLISHER_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: homebrew-coder
+          permissions: |
+            contents: write
+            pull_requests: write
+
       - name: Update homebrew
         env:
           GH_REPO: coder/homebrew-coder
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          # The App token only reaches coder/homebrew-coder; the release assets are read with the
+          # workflow's own token.
+          GH_TOKEN: ${{ steps.publisher_token.outputs.token }}
+          RELEASE_READ_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           # Keep version number around for reference, removing any potential leading v
@@ -738,7 +973,7 @@ jobs:
           cd "$temp_dir"
 
           # Download checksums
-          checksums_url="$(gh release view --repo coder/coder "v$coder_version" --json assets \
+          checksums_url="$(GH_TOKEN="$RELEASE_READ_TOKEN" gh release view --repo coder/coder "v$coder_version" --json assets \
             | jq -r ".assets | map(.url) | .[]" \
             | grep -e ".checksums.txt\$")"
           wget "$checksums_url" -O checksums.txt
@@ -764,7 +999,7 @@ jobs:
             exit 0
           fi
 
-          # Set up cdrci credentials for pushing to homebrew-coder
+          # Set up coder-package-publisher credentials for pushing to homebrew-coder
           echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
           # Update the formulae and push
           git checkout -b "$brew_branch"
