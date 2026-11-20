@@ -292,7 +292,6 @@ export const PeekShowsThinking: Story = {
 	args: NextStepStartsInsideBlock.args,
 };
 
-// A step a hook rewrote marks its one-line row instead of showing a badge.
 const MockRewrittenSecondStepMessage: ChatMessage = {
 	...MockWorkingMessages[3],
 	content: MockWorkingMessages[3].content?.map((part) => ({
@@ -301,6 +300,7 @@ const MockRewrittenSecondStepMessage: ChatMessage = {
 	})),
 };
 
+// A step a hook rewrote marks its one-line row instead of showing a badge.
 export const PeekMarksRewrittenStep: Story = {
 	args: {
 		...PeekShowsNewestSteps.args,
