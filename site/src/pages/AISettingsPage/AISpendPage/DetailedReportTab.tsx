@@ -12,34 +12,41 @@ import type { SpendDays } from "./spendDays";
 
 type DetailedReportTabProps = {
 	organizationId: string;
+	organizationName: string;
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	filter: string;
 	onFilterChange: (filter: string) => void;
-	/** The filter options come from AI Gateway endpoints that need read access to every session. */
-	canFilter: boolean;
+	/** The filter options and session logs need read access to every session. */
+	canViewSessions: boolean;
 	reportQuery: DetailedReportQuery;
 	hasRunReport: boolean;
 	/** The days or filter changed since the report last ran. */
 	isReportOutdated: boolean;
 	onRunReport: () => void;
 	onCancelReport: () => void;
+	/** The last run returned rows to export. */
+	canExportReport: boolean;
+	onExportReport: () => void;
 };
 
 export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	organizationId,
+	organizationName,
 	now,
 	days,
 	onDaysChange,
 	filter,
 	onFilterChange,
-	canFilter,
+	canViewSessions,
 	reportQuery,
 	hasRunReport,
 	isReportOutdated,
 	onRunReport,
 	onCancelReport,
+	canExportReport,
+	onExportReport,
 }) => {
 	const isReportRunning = hasRunReport && reportQuery.isFetching;
 	const runReportVariant =
@@ -57,7 +64,7 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 				</p>
 			</section>
 			<div className="flex flex-wrap items-center gap-3">
-				{canFilter && (
+				{canViewSessions && (
 					<DetailedReportFilter
 						organizationId={organizationId}
 						value={filter}
@@ -76,8 +83,12 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 						Run report
 					</Button>
 				)}
-				{/* TODO(AIGOV-731): export the report once it has run. */}
-				<Button variant="outline" disabled className="sm:ml-auto">
+				<Button
+					variant="outline"
+					disabled={!canExportReport}
+					onClick={onExportReport}
+					className="sm:ml-auto"
+				>
 					<DownloadIcon aria-hidden />
 					Export CSV
 				</Button>
@@ -90,7 +101,11 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 							update the results.
 						</Alert>
 					)}
-					<DetailedReportTable reportQuery={reportQuery} />
+					<DetailedReportTable
+						reportQuery={reportQuery}
+						organizationName={organizationName}
+						canViewSessions={canViewSessions}
+					/>
 				</>
 			) : (
 				<EmptyState

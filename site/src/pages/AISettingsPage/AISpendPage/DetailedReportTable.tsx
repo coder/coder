@@ -18,9 +18,14 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
+import { ItemsBadge } from "#/pages/AIBridgePage/ItemsBadge";
+import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { SpendAmount } from "#/pages/AISettingsPage/SpendPage/components/SpendAmount";
 import { formatCostMicros } from "#/utils/currency";
 import { UnpricedModelsTooltip } from "./UnpricedModelsTooltip";
+import { UserSpendMenu } from "./UserSpendMenu";
 
 const BuildingReport: React.FC<{ className?: string }> = ({ className }) => (
 	<div
@@ -49,10 +54,14 @@ export type DetailedReportQuery =
 
 type DetailedReportTableProps = {
 	reportQuery: DetailedReportQuery;
+	organizationName: string;
+	canViewSessions: boolean;
 };
 
 export const DetailedReportTable: React.FC<DetailedReportTableProps> = ({
 	reportQuery,
+	organizationName,
+	canViewSessions,
 }) => {
 	const retryButton = (
 		<Button
@@ -98,11 +107,26 @@ export const DetailedReportTable: React.FC<DetailedReportTableProps> = ({
 					query={reportQuery}
 					paginationUnitLabel={{ singular: "user", plural: "users" }}
 				>
-					<Table aria-label="Spend by user">
+					<Table
+						aria-label="Spend by user"
+						className="table-fixed"
+						wrapperClassName="@container"
+					>
 						<TableHeader>
 							<TableRow>
-								<TableHead>User</TableHead>
-								<TableHead className="text-right">Spend</TableHead>
+								<TableHead className="w-36 @3xl:w-48">User</TableHead>
+								<TableHead className="w-28 @3xl:w-36">Providers</TableHead>
+								<TableHead className="w-28 @3xl:w-36">Models</TableHead>
+								<TableHead className="w-28 @3xl:w-36">Clients</TableHead>
+								<TableHead className="w-24 text-right @3xl:w-28">
+									Spend
+								</TableHead>
+								<TableHead className="w-16">
+									<span className="sr-only">Model pricing</span>
+								</TableHead>
+								<TableHead className="w-14">
+									<span className="sr-only">Actions</span>
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -125,6 +149,34 @@ export const DetailedReportTable: React.FC<DetailedReportTableProps> = ({
 													imgFallbackText={user.username}
 												/>
 											</TableHead>
+											<TableCell>
+												<ItemsBadge
+													noun="providers"
+													items={user.provider_spend.map((provider) => ({
+														key: provider.name,
+														label: provider.display_name,
+														icon: (
+															<ProviderIcon
+																provider={provider.type ?? ""}
+																icon={provider.icon}
+																className="size-icon-xs"
+															/>
+														),
+													}))}
+												/>
+											</TableCell>
+											<TableCell>
+												<ModelsBadge
+													models={user.model_spend.map((model) => model.name)}
+												/>
+											</TableCell>
+											<TableCell>
+												<ClientsBadge
+													clients={user.client_spend.map(
+														(client) => client.name,
+													)}
+												/>
+											</TableCell>
 											<TableCell className="text-right tabular-nums">
 												{formatCostMicros(user.cost_micros)}
 											</TableCell>
@@ -135,6 +187,16 @@ export const DetailedReportTable: React.FC<DetailedReportTableProps> = ({
 														models={unpricedModels}
 													/>
 												)}
+											</TableCell>
+											<TableCell>
+												<UserSpendMenu
+													user={{ ...user, spend_micros: user.cost_micros }}
+													details={user}
+													detailsError={null}
+													period={report}
+													organizationName={organizationName}
+													canViewSessions={canViewSessions}
+												/>
 											</TableCell>
 										</TableRow>
 									);
