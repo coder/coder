@@ -16,7 +16,10 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { groupSequentialReadFileBlocks } from "./blockUtils";
+import {
+	groupSequentialReadFileBlocks,
+	type TimelineRenderBlock,
+} from "./blockUtils";
 import { ReasoningDisclosure, ResponseBlock } from "./MessageText";
 import type { MergedTool, RenderBlock } from "./types";
 
@@ -51,7 +54,7 @@ const ReadFileTimelineBlock = memo<{
 });
 
 /** Whether a block renders in one-line summaries: reasoning and tools. */
-export const isSummaryRowBlock = (block: { type: string }): boolean =>
+export const isSummaryRowBlock = (block: TimelineRenderBlock): boolean =>
 	block.type === "thinking" ||
 	block.type === "tool" ||
 	block.type === "tool-group";
