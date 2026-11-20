@@ -10,7 +10,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,15 +50,19 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
 		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
+}
+
+// pluginCacheEnabled reports whether Terraform runs with a plugin cache. Only
+// Linux reliably works with one. It's unknown why this is.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 // forceExitTimeout is how long a Terraform command can run after its
@@ -241,7 +247,11 @@ func (e *textFileBusyError) Error() string {
 	return "text file busy: " + e.exitErr.String()
 }
 
-func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
+// init runs `terraform init`. If pluginDir is set, Terraform installs
+// providers only from that directory, not from the provider registry or a
+// provider mirror, and fails if the lock file doesn't pin one of them.
+// Modules and the backend are initialized as usual.
+func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir string) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -282,7 +292,23 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		args = append(args, "-json")
 	}
 
-	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outBuf, errBuf)
+	env := e.basicEnv()
+	if pluginDir != "" {
+		// With a read-only lock file, init fails if it installed a provider
+		// that the lock file doesn't pin and so can't verify.
+		args = append(args, "-plugin-dir="+pluginDir, "-lockfile=readonly")
+		// Setting the cache as well only slows init down.
+		env = slices.DeleteFunc(env, func(v string) bool {
+			return strings.HasPrefix(v, "TF_PLUGIN_CACHE_DIR=")
+		})
+		// Terraform records -plugin-dir in the working directory, where it
+		// would stop plan and apply from finding provisioner plugins.
+		defer func() {
+			_ = os.Remove(filepath.Join(e.files.TerraformMetadataDir(), "plugin_path"))
+		}()
+	}
+
+	err = e.execWriteOutput(ctx, killCtx, args, env, outBuf, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		textFileBusy := []byte("text file busy")
@@ -305,6 +331,26 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		)
 	}
 	return nil
+}
+
+// initFromPluginCache runs `terraform init` with the plugin cache as the only
+// source of providers. It fails when the cache can't supply them, which is
+// routine for a cold cache, and the caller then runs a normal init.
+func (e *executor) initFromPluginCache(ctx, killCtx context.Context, logr logSink) error {
+	if !pluginCacheEnabled(e.cachePath) {
+		return xerrors.New("the plugin cache is not enabled")
+	}
+	// An operator's init flags can need the provider registry or a provider
+	// mirror, as -upgrade does.
+	env := e.basicEnv()
+	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
+		return xerrors.New("init flags are set in the environment")
+	}
+	err := e.init(ctx, killCtx, logr, e.cachePath)
+	if err != nil && ctx.Err() == nil {
+		logr.ProvisionLog(proto.LogLevel_INFO, "Running terraform init again, this time not limited to the plugin cache.")
+	}
+	return err
 }
 
 func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
