@@ -34,6 +34,14 @@ const (
 	SourceGitAPIListEmails      Oauth2Source = "GitAPIListEmails"
 	SourceGitAPIOrgMemberships  Oauth2Source = "GitAPIOrgMemberships"
 	SourceGitAPITeamMemberships Oauth2Source = "GitAPITeamMemberships"
+
+	SourceGitProviderListPullRequests Oauth2Source = "GitProviderListPullRequests"
+	SourceGitProviderPullRequest      Oauth2Source = "GitProviderPullRequest"
+	SourceGitProviderIssue            Oauth2Source = "GitProviderIssue"
+	SourceGitProviderReviews          Oauth2Source = "GitProviderReviews"
+	SourceGitProviderRepository       Oauth2Source = "GitProviderRepository"
+	SourceGitProviderPullRequestDiff  Oauth2Source = "GitProviderPullRequestDiff"
+	SourceGitProviderBranchDiff       Oauth2Source = "GitProviderBranchDiff"
 )
 
 // OAuth2Config exposes a subset of *oauth2.Config functions for easier testing.
