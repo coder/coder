@@ -27,7 +27,7 @@ export const MissingTemplateVariablesDialog: React.FC<
 	MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, open, onClose }) => {
 	const [variableValues, setVariableValues] = useState<VariableValue[]>(() =>
-		getDefaultValues(missingVariables),
+		toVariableValues(missingVariables),
 	);
 
 	// Pre-fill the form with the default values when missing variables are loaded
@@ -36,7 +36,7 @@ export const MissingTemplateVariablesDialog: React.FC<
 	if (missingVariables !== prevMissingVariables) {
 		setPrevMissingVariables(missingVariables);
 		if (missingVariables) {
-			setVariableValues(getDefaultValues(missingVariables));
+			setVariableValues(toVariableValues(missingVariables));
 		}
 	}
 
@@ -100,7 +100,7 @@ export const MissingTemplateVariablesDialog: React.FC<
 	);
 };
 
-const getDefaultValues = (
+const toVariableValues = (
 	missingVariables: readonly TemplateVersionVariable[] | undefined,
 ): VariableValue[] =>
 	missingVariables?.map((v) => ({ name: v.name, value: v.value })) ?? [];

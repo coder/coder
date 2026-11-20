@@ -185,24 +185,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	const [showLogs, setShowLogs] = useState(defaultShowLogs);
 	// Re-apply the default when any of its inputs change, even if the
 	// default itself stays the same.
-	const [prevShowLogsInputs, setPrevShowLogsInputs] = useState({
+	const showLogsInputs = {
 		lifecycleState: agent.lifecycle_state,
 		hasConnectivityIssues,
 		hasScriptIssues,
 		hasStartupFeatures,
-	});
+	};
+	const [prevShowLogsInputs, setPrevShowLogsInputs] = useState(showLogsInputs);
 	if (
-		prevShowLogsInputs.lifecycleState !== agent.lifecycle_state ||
-		prevShowLogsInputs.hasConnectivityIssues !== hasConnectivityIssues ||
-		prevShowLogsInputs.hasScriptIssues !== hasScriptIssues ||
-		prevShowLogsInputs.hasStartupFeatures !== hasStartupFeatures
+		prevShowLogsInputs.lifecycleState !== showLogsInputs.lifecycleState ||
+		prevShowLogsInputs.hasConnectivityIssues !==
+			showLogsInputs.hasConnectivityIssues ||
+		prevShowLogsInputs.hasScriptIssues !== showLogsInputs.hasScriptIssues ||
+		prevShowLogsInputs.hasStartupFeatures !== showLogsInputs.hasStartupFeatures
 	) {
-		setPrevShowLogsInputs({
-			lifecycleState: agent.lifecycle_state,
-			hasConnectivityIssues,
-			hasScriptIssues,
-			hasStartupFeatures,
-		});
+		setPrevShowLogsInputs(showLogsInputs);
 		setShowLogs(defaultShowLogs);
 	}
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });

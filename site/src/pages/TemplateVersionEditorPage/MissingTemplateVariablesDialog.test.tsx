@@ -8,7 +8,7 @@ import {
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 
 describe("MissingTemplateVariablesDialog", () => {
-	it("submits the default values of variables that load after opening", async () => {
+	it("submits the values of variables that load after opening", async () => {
 		const onSubmit = vi.fn();
 		const dialog = (missingVariables?: TemplateVersionVariable[]) => (
 			<MissingTemplateVariablesDialog
