@@ -22,7 +22,7 @@ func (r *RootCmd) update() *serpent.Command {
 		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
-		Long:        "Use --always-prompt to change the parameter values of the workspace.",
+		Long:        "Use --parameter or --rich-parameter-file to set mutable parameter values; the workspace is rebuilt even when it is on the active version. Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -50,7 +50,7 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			hasStartWork := templateVersion != "" || workspace.Outdated || parameterFlags.promptRichParameters || parameterFlags.promptEphemeralParameters || len(parameterFlags.ephemeralParameters) > 0
+			hasStartWork := templateVersion != "" || workspace.Outdated || parameterFlags.promptRichParameters || parameterFlags.promptEphemeralParameters || len(parameterFlags.ephemeralParameters) > 0 || parameterFlags.hasRichParameterValues()
 			// The stop version only applies when update stops the workspace first.
 			willStop := workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
 			if stopTemplateVersion != "" && !willStop {
@@ -67,6 +67,13 @@ func (r *RootCmd) update() *serpent.Command {
 			if stopTemplateVersion == "" && !hasStartWork {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace is up-to-date.\n")
 				return nil
+			}
+
+			// Build the start request before stopping so invalid parameter
+			// values fail while the workspace is still running.
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, versionID)
+			if err != nil {
+				return err
 			}
 
 			stoppedForUpdate := false
@@ -99,7 +106,10 @@ func (r *RootCmd) update() *serpent.Command {
 				stoppedForUpdate = true
 			}
 
-			build, err := startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, versionID)
+			if err := activateDormantWorkspace(inv, client, workspace); err != nil {
+				return err
+			}
+			build, err := createWorkspaceStartBuild(inv, client, workspace, startReq)
 			if err != nil {
 				if stoppedForUpdate {
 					return xerrors.Errorf("start workspace after stopping (workspace is stopped; run 'coder start' to retry): %w", err)

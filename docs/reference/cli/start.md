@@ -14,6 +14,12 @@ Start a workspace
 coder start [flags] <workspace>
 ```
 
+## Description
+
+```console
+Parameter values from --parameter, --rich-parameter-file and --ephemeral-parameter apply only when start creates a build. If the workspace is already running or starting, start fails; use "coder restart" to apply them.
+```
+
 ## Options
 
 ### --no-wait
