@@ -56,6 +56,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentChatACPSubagents:          "Chat ACP Subagents",
 		codersdk.ExperimentChatAutomations:           "Chat Automations",
 		codersdk.ExperimentAgentPlugins:              "Agent Plugins",
+		codersdk.ExperimentOpenPreview:               "Open Preview",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))

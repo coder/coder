@@ -1148,7 +1148,8 @@ type HTTPCookieConfig struct {
 // cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
 // This is a constant, do not ever mutate it.
 var cookiesToPrefix = map[string]struct{}{
-	SessionTokenCookie: {},
+	SessionTokenCookie:        {},
+	PreviewSessionTokenCookie: {},
 }
 
 // Middleware handles some cookie mutation the requests.
@@ -5555,6 +5556,7 @@ const (
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 	ExperimentAgentPlugins              Experiment = "agent-plugins"               // Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.
+	ExperimentOpenPreview               Experiment = "open-preview"                // Enables the open_preview chat tool and preview hostnames.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5593,6 +5595,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Automations"
 	case ExperimentAgentPlugins:
 		return "Agent Plugins"
+	case ExperimentOpenPreview:
+		return "Open Preview"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5621,6 +5625,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatACPSubagents,
 	ExperimentChatAutomations,
 	ExperimentAgentPlugins,
+	ExperimentOpenPreview,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

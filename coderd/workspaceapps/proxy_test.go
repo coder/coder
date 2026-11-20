@@ -7,11 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -23,17 +25,23 @@ import (
 )
 
 type fakeSignedTokenProvider struct {
+	token *workspaceapps.SignedToken
+	// issue writes the error page Issue answers with.
+	issue            func(rw http.ResponseWriter)
 	fromRequestCalls int
 	issueCalls       int
 }
 
 func (s *fakeSignedTokenProvider) FromRequest(_ *http.Request) (*workspaceapps.SignedToken, bool) {
 	s.fromRequestCalls++
-	return nil, false
+	return s.token, s.token != nil
 }
 
-func (s *fakeSignedTokenProvider) Issue(_ context.Context, _ http.ResponseWriter, _ *http.Request, _ workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
+func (s *fakeSignedTokenProvider) Issue(_ context.Context, rw http.ResponseWriter, _ *http.Request, _ workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	s.issueCalls++
+	if s.issue != nil {
+		s.issue(rw)
+	}
 	return nil, "", false
 }
 
@@ -181,4 +189,15 @@ func TestHandleSubdomain(t *testing.T) {
 		require.Empty(t, parsed.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam))
 		require.Equal(t, "1", parsed.Query().Get("x"))
 	})
+}
+
+type fakeAgentProvider struct {
+	workspaceapps.AgentProvider
+	upstream *url.URL
+}
+
+func (p *fakeAgentProvider) ReverseProxy(targetURL, _ *url.URL, _ uuid.UUID, _ appurl.ApplicationURL, _ string) *httputil.ReverseProxy {
+	target := *targetURL
+	target.Host = p.upstream.Host
+	return httputil.NewSingleHostReverseProxy(&target)
 }
