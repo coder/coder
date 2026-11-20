@@ -52,7 +52,7 @@ it("sends the typed text as the literal model search", async () => {
 	const user = userEvent.setup();
 	const modelsSpy = vi.spyOn(API, "getAIBridgeModels").mockResolvedValue([]);
 	render(<ModelFilterHarness />);
-	await user.click(screen.getByRole("button", { name: "Select model" }));
+	await user.click(screen.getByRole("button", { name: /^Model:/ }));
 	await user.type(await screen.findByRole("combobox"), "gpt_4%:");
 	await waitFor(() =>
 		expect(modelsSpy).toHaveBeenCalledWith({ model: "gpt_4%:", limit: 25 }),

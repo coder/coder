@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
 	Group,
 	User,
@@ -6,6 +6,7 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "#/api/typesGenerated";
+import { Label } from "#/components/Label/Label";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
@@ -32,6 +33,9 @@ export const AddWorkspaceUserOrGroup: React.FC<
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");
+	const autocompleteId = useId();
+	const roleId = useId();
+	const autocompleteLabelId = `${autocompleteId}-label`;
 	const excludeFromAutocomplete = workspaceACL
 		? [...workspaceACL.group, ...workspaceACL.users]
 		: [];
@@ -58,20 +62,29 @@ export const AddWorkspaceUserOrGroup: React.FC<
 				}
 			}}
 		>
-			<UserOrGroupAutocomplete
-				organizationId={organizationID}
-				value={selectedOption}
-				exclude={excludeFromAutocomplete}
-				onChange={(newValue) => {
-					setSelectedOption(newValue);
-				}}
-			/>
+			<div className="flex flex-col gap-2">
+				<Label id={autocompleteLabelId}>User or group</Label>
+				<UserOrGroupAutocomplete
+					id={autocompleteId}
+					triggerAriaLabelledBy={`${autocompleteLabelId} ${autocompleteId}`}
+					organizationId={organizationID}
+					value={selectedOption}
+					exclude={excludeFromAutocomplete}
+					onChange={(newValue) => {
+						setSelectedOption(newValue);
+					}}
+				/>
+			</div>
 
-			<RoleSelectField
-				value={selectedRole}
-				onChange={setSelectedRole}
-				disabled={isLoading}
-			/>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor={roleId}>Role</Label>
+				<RoleSelectField
+					id={roleId}
+					value={selectedRole}
+					onChange={setSelectedRole}
+					disabled={isLoading}
+				/>
+			</div>
 		</AddWorkspaceMemberForm>
 	);
 };

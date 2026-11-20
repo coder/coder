@@ -61,9 +61,7 @@ type Story = StoryObj<typeof ProviderFilterWithMenu>;
 export const Open: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Select provider" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /^Provider:/ }));
 		await waitFor(() => {
 			// Display name wins, and falls back to the configured name.
 			expect(
@@ -86,9 +84,7 @@ export const Empty: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Select provider" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /^Provider:/ }));
 		await waitFor(() => {
 			expect(screen.getByText("No providers found")).toBeVisible();
 		});
@@ -102,7 +98,7 @@ export const Preselected: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(
-				canvas.getByRole("button", { name: "Select provider" }),
+				canvas.getByRole("button", { name: /^Provider:/ }),
 			).toHaveTextContent("Anthropic (prod)");
 		});
 	},
@@ -111,7 +107,7 @@ export const Preselected: Story = {
 export const SelectingOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", { name: "Select provider" });
+		const button = canvas.getByRole("button", { name: /^Provider:/ });
 		await userEvent.click(button);
 		await waitFor(() => {
 			expect(
@@ -128,9 +124,7 @@ export const SelectingOption: Story = {
 export const Searching: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Select provider" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /^Provider:/ }));
 		await waitFor(() => {
 			expect(
 				screen.getByRole("option", { name: /openai-prod/ }),

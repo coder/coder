@@ -31,7 +31,7 @@ it("names the default provider icon unless the label names it or the icon is cus
 		},
 	]);
 	render(<ProviderFilterHarness />);
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(screen.getByRole("button", { name: /^Provider:/ }));
 
 	const bedrock = await screen.findByRole("option", { name: /bedrock/ });
 	expect(within(bedrock).getByRole("img")).toHaveAccessibleName("AWS Bedrock");

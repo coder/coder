@@ -57,11 +57,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 						onChange={onTimeRangeChange}
 						size="lg"
 					/>
-					<UserMenu
-						menu={menus.user}
-						placeholder="All users"
-						width={FILTER_WIDTH}
-					/>
+					<UserMenu menu={menus.user} width={FILTER_WIDTH} />
 					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
 					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />

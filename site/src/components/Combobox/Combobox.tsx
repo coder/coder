@@ -81,6 +81,8 @@ type ComboboxButtonProps = React.ComponentProps<"button"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
+	/** Visible label rendered before the value. */
+	label?: string;
 };
 
 export const ComboboxButton = ({
@@ -89,13 +91,14 @@ export const ComboboxButton = ({
 	width,
 	selectedOption,
 	placeholder,
+	label,
 	ref,
 	...props
 }: ComboboxButtonProps) => {
 	const { open: isPopoverOpen } = useCombobox();
-	const labelRef = useRef<HTMLSpanElement>(null);
+	const valueRef = useRef<HTMLSpanElement>(null);
 	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-	const label = selectedOption?.label ?? placeholder;
+	const value = selectedOption?.label ?? placeholder;
 
 	return (
 		<Tooltip
@@ -104,7 +107,7 @@ export const ComboboxButton = ({
 			// applied after mount still reveals the full label. Stays closed while
 			// the popover is open so it never covers the list.
 			onOpenChange={(open) => {
-				const span = labelRef.current;
+				const span = valueRef.current;
 				setIsTooltipOpen(
 					open &&
 						!isPopoverOpen &&
@@ -119,20 +122,33 @@ export const ComboboxButton = ({
 					style={{ flexBasis: width }}
 					variant="outline"
 					ref={ref}
+					aria-label={label && (value ? `${label}: ${value}` : label)}
 					{...props}
 				>
-					{selectedOption?.startIcon}
+					{label && (
+						<>
+							<span className="shrink-0 text-content-secondary">
+								{label}:
+							</span>{" "}
+						</>
+					)}
+					{selectedOption?.startIcon && (
+						// The value text already names the selection.
+						<span aria-hidden="true" className="contents">
+							{selectedOption.startIcon}
+						</span>
+					)}
 					<span
-						ref={labelRef}
+						ref={valueRef}
 						className="text-left block overflow-hidden text-ellipsis grow"
 					>
-						{label}
+						{value}
 					</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" align="start" className="max-w-65">
-				{label}
+				{value}
 			</TooltipContent>
 		</Tooltip>
 	);

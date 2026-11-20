@@ -4,10 +4,12 @@ import { API } from "#/api/api";
 import type { WorkspaceACL } from "#/api/typesGenerated";
 import {
 	MockGroup,
+	MockOrganizationMember,
 	MockUserMember,
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
+import { AddWorkspaceUserOrGroup } from "./AddWorkspaceUserOrGroup";
 import { RoleSelectField, WorkspaceSharingForm } from "./WorkspaceSharingForm";
 
 const mockWorkspaceACL: WorkspaceACL = {
@@ -185,5 +187,48 @@ describe("RoleSelectField", () => {
 		);
 		await user.click(await screen.findByRole("option", { name: "Admin" }));
 		expect(onChange).toHaveBeenCalledWith("admin");
+	});
+});
+
+describe("AddWorkspaceUserOrGroup", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("submits the selected member and role", async () => {
+		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember],
+			count: 1,
+		});
+		const onSubmit = vi.fn();
+		render(
+			<AddWorkspaceUserOrGroup
+				organizationID={MockWorkspace.organization_id}
+				isLoading={false}
+				workspaceACL={undefined}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		const user = userEvent.setup();
+		const trigger = screen.getByRole("button", { name: /^User or group/ });
+		await user.click(trigger);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganizationMember.username),
+			}),
+		);
+		expect(trigger).toHaveAccessibleName(
+			`User or group ${MockOrganizationMember.email}`,
+		);
+		await user.click(screen.getByRole("combobox", { name: /^Role/ }));
+		await user.click(await screen.findByRole("option", { name: "Admin" }));
+		await user.click(screen.getByRole("button", { name: "Add member" }));
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ user_id: MockOrganizationMember.user_id }),
+			"admin",
+			expect.any(Function),
+		);
 	});
 });

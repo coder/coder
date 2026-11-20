@@ -42,7 +42,7 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
-	/** Accessible name of the picker. Defaults to "Time range". */
+	/** Visible label and accessible name of the picker. Defaults to "Time range". */
 	label?: string;
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
@@ -282,7 +282,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					variant="outline"
 					size={size}
 					className="group gap-2 pr-1.5"
-					// The visible text is the combobox value, not its name.
+					// The name is the label; the text after it is the value.
 					role="combobox"
 					aria-label={label}
 					aria-expanded={open}
@@ -297,6 +297,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					>
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
+					<span className="text-content-secondary">{label}:</span>{" "}
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
 						{triggerLabel}
 					</span>

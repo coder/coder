@@ -223,7 +223,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(screen.getByRole("button", { name: /^Provider:/ }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -316,18 +316,18 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 
 it.each([
 	{
-		button: "Select provider",
+		button: /^Provider:/,
 		option: /OpenAI/,
 		key: "provider_name",
 		value: "openai",
 	},
 	{
-		button: "Select client",
+		button: /^Client:/,
 		option: /Claude Code/,
 		key: "client",
 		value: "Claude Code",
 	},
-	{ button: "Select model", option: /gpt-4o/, key: "model", value: "gpt-4o" },
+	{ button: /^Model:/, option: /gpt-4o/, key: "model", value: "gpt-4o" },
 ] as const)(
 	"applies and clears the $key filter and resets pagination",
 	async ({ button, option, key, value }) => {
