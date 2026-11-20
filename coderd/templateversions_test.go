@@ -630,6 +630,65 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		}
 	})
 
+	t.Run("ClassicParameterFlowDynamicModuleSource", func(t *testing.T) {
+		t.Parallel()
+		// With the classic parameter flow, workspace tags are read with
+		// tfparse, which must accept a module source that references a const
+		// variable (Terraform 1.15).
+
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
+			req.UseClassicParameterFlow = new(true)
+		})
+		require.True(t, template.UseClassicParameterFlow)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tarFile := testutil.CreateTar(t, map[string]string{
+			`main.tf`: `
+				variable "registry" {
+					type    = string
+					const   = true
+					default = "registry.example.com"
+				}
+				variable "cluster" {
+					type    = string
+					default = "dev"
+				}
+				module "example" {
+					source  = "${var.registry}/example/module/coder"
+					version = "1.2.3"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"cluster" = var.cluster
+					}
+				}`,
+		})
+		fi, err := client.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+		require.NoError(t, err)
+
+		tv, err := client.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          testutil.GetRandomNameHyphenated(t),
+			TemplateID:    template.ID,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			Provisioner:   codersdk.ProvisionerTypeTerraform,
+			FileID:        fi.ID,
+		})
+		require.NoError(t, err)
+
+		pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, map[string]string{
+			"cluster": "dev", "owner": "", "scope": "organization",
+		}, pj.Tags)
+	})
+
 	t.Run("Presets", func(t *testing.T) {
 		t.Parallel()
 		store, ps := dbtestutil.NewDB(t)
