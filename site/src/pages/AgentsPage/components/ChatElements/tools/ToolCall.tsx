@@ -55,16 +55,35 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 	hookRewritten: false,
 });
 
+/**
+ * Rows inside render as one-line summaries: no toggle, chevron, content, or
+ * header actions. For previews whose full rows render elsewhere.
+ */
+const ToolCallSummaryContext = createContext(false);
+
+const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => (
+	<ToolCallSummaryContext.Provider value>
+		{children}
+	</ToolCallSummaryContext.Provider>
+);
+
+/** Whether rows here render as one-line summaries. */
+export const useInToolCallSummary = () => useContext(ToolCallSummaryContext);
+
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
+// A one-line summary row has no room for it and marks its header instead.
 const PolicyProvider: React.FC<{
 	hookRewritten: boolean;
 	children: React.ReactNode;
 }> = ({ hookRewritten, children }) => {
 	const badgeId = useId();
+	const inSummary = useInToolCallSummary();
 	return (
 		<ToolPolicyContext.Provider value={{ hookRewritten }}>
-			{hookRewritten ? (
+			{hookRewritten && !inSummary ? (
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
@@ -154,7 +173,8 @@ const Root: React.FC<ToolCallRootProps> = ({
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const expanded = view !== "collapsed";
-	const collapsible = hasContent;
+	const inSummary = useInToolCallSummary();
+	const collapsible = hasContent && !inSummary;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
@@ -216,15 +236,25 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
 	const { hookRewritten } = useContext(ToolPolicyContext);
+	const inSummary = useInToolCallSummary();
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
 		resolvedAriaLabel && hookRewritten
 			? `${resolvedAriaLabel}, modified by policy`
 			: resolvedAriaLabel;
-	if (!collapsible && !alwaysButton) {
+	if (inSummary || (!collapsible && !alwaysButton)) {
 		return (
-			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
+			<HeaderRow className={cn("min-w-0", className)}>
+				{children}
+				{inSummary && hookRewritten && (
+					<ShieldIcon
+						role="img"
+						aria-label="Modified by policy"
+						className="size-3 shrink-0"
+					/>
+				)}
+			</HeaderRow>
 		);
 	}
 
@@ -368,6 +398,9 @@ const HeaderActions: React.FC<{
 	children: React.ReactNode;
 	className?: string;
 }> = ({ children, className }) => {
+	if (useInToolCallSummary()) {
+		return null;
+	}
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
 };
 
@@ -518,6 +551,7 @@ const Scrollable: React.FC<ToolCallScrollableProps> = ({
 export const ToolCall = {
 	Root,
 	PolicyProvider,
+	SummaryProvider,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

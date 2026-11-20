@@ -11,12 +11,15 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { ToolCall, useInToolCallSummary } from "../ChatElements/tools/ToolCall";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { groupSequentialReadFileBlocks } from "./blockUtils";
+import {
+	groupSequentialReadFileBlocks,
+	type TimelineRenderBlock,
+} from "./blockUtils";
 import { ReasoningDisclosure, ResponseBlock } from "./MessageText";
 import type { MergedTool, RenderBlock } from "./types";
 
@@ -49,6 +52,12 @@ const ReadFileTimelineBlock = memo<{
 		/>
 	);
 });
+
+/** Whether a block renders in one-line summaries: reasoning and tools. */
+export const isSummaryRowBlock = (block: TimelineRenderBlock): boolean =>
+	block.type === "thinking" ||
+	block.type === "tool" ||
+	block.type === "tool-group";
 
 export type BlockListProps = {
 	organizationId: string;
@@ -110,6 +119,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
+	const inSummary = useInToolCallSummary();
+	const desktopPreviews = showDesktopPreviews && !inSummary;
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -137,6 +148,9 @@ export const BlockList: React.FC<BlockListProps> = ({
 	return (
 		<>
 			{displayBlocks.map((block, index) => {
+				if (inSummary && !isSummaryRowBlock(block)) {
+					return null;
+				}
 				switch (block.type) {
 					case "response":
 						return (
@@ -233,7 +247,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
+								showDesktopPreviews={desktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
@@ -298,7 +312,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
+					showDesktopPreviews={desktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}

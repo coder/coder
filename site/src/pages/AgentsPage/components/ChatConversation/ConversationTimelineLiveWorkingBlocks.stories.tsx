@@ -55,7 +55,7 @@ export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
 const expandBlock =
-	(name: string): Story["play"] =>
+	(name: string | RegExp): Story["play"] =>
 	async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByRole("button", { name }));
 	};
@@ -75,7 +75,7 @@ export const StreamingFirstStep: Story = {
 			},
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 const MockBetweenStepsMessages = MockWorkingMessages.slice(0, 4);
@@ -92,7 +92,7 @@ export const RunningBetweenSteps: Story = {
 		}),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 // The block keeps working while only an attached file follows its last step.
@@ -101,12 +101,11 @@ export const AttachmentFoldsIntoLiveBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
 		liveStatus: buildLiveStatus(),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 // After a tool result the stream reopens empty before the next call streams.
-// That moment is the same block still working, so nothing appears under its
-// summary.
+// That moment is the same block still working, so no row appears after it.
 export const NextStepStartsInsideBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -116,7 +115,7 @@ export const NextStepStartsInsideBlock: Story = {
 		streamTools: [],
 		liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 export const ReasoningBeforeFirstToolFolds: Story = {
@@ -135,7 +134,7 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Working for 12s" }),
+			canvas.getByRole("button", { name: /^Working for 12s/ }),
 		);
 
 		// The reasoning text streams in through the smoothing buffer.
@@ -159,7 +158,7 @@ export const AnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: "The workspace looks healthy." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock(/^Working for 12s/),
 };
 
 // Text before a web search renders above the live block.
@@ -192,7 +191,7 @@ export const SearchAnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: " is v2.30." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 export const TextBetweenStepsOpensNextBlock: Story = {
@@ -208,7 +207,7 @@ export const TextBetweenStepsOpensNextBlock: Story = {
 			...(MockWorkingMessages[3].content ?? []),
 		]),
 	},
-	play: expandBlock("Working for 8s"),
+	play: expandBlock("Working for 8s (1 step)"),
 };
 
 export const RequiresActionCompletesBlock: Story = {
@@ -265,5 +264,66 @@ export const PromptlessLiveBlock: Story = {
 		),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for at least 12s"),
+	play: expandBlock("Working for at least 12s (2 steps or more)"),
+};
+
+export const PeekShowsFirstStep: Story = {
+	args: StreamingFirstStep.args,
+};
+
+export const PeekShowsNewestSteps: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "third",
+				tool_name: "execute",
+				args: { command: "echo third" },
+				created_at: workingFixtureTime(14),
+			},
+		]),
+	},
+};
+
+export const PeekShowsThinking: Story = {
+	args: NextStepStartsInsideBlock.args,
+};
+
+const MockRewrittenSecondStepMessage: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: MockWorkingMessages[3].content?.map((part) => ({
+		...part,
+		hook_rewritten: true,
+	})),
+};
+
+// A step a hook rewrote marks its one-line row instead of showing a badge.
+export const PeekMarksRewrittenStep: Story = {
+	args: {
+		...PeekShowsNewestSteps.args,
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			MockRewrittenSecondStepMessage,
+			MockWorkingMessages[4],
+		]),
+	},
+};
+
+// The answer replaces the peek as soon as its text renders.
+export const AnswerEndsPeek: Story = {
+	args: AnswerStreamsAfterBlock.args,
+};
+
+export const TextAnswerEndsPeek: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{ type: "text", text: "The workspace looks healthy." },
+		]),
+	},
 };
