@@ -3193,7 +3193,7 @@ export const SendToErroredChatWithQueue: Story = {
 	},
 };
 
-export const SendingFromHistoryDoesNotSnapToBottom: Story = {
+export const SendingFromHistoryMovesToTheEnd: Story = {
 	parameters: {
 		pixel: { exclude: true },
 		queries: buildQueries(
@@ -3237,62 +3237,55 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			return { queued: false };
 		});
 
-		// Rather than sampling native smooth-scroll progress (which depends on
-		// headless-browser scheduling and reduced-motion overrides), intercept the
-		// MessageScroller's own scroll calls. The eager scrollToEnd we regressed
-		// on reaches the viewport as a `scrollTo({ behavior: "smooth" })`.
-		const scrollToMock = spyOn(Element.prototype, "scrollTo");
-		try {
-			const editor = await canvas.findByTestId("chat-message-input");
-			await userEvent.click(editor);
-			await userEvent.type(editor, "Follow-up question.");
-			const viewport = canvas.getByRole("region", { name: "Messages" });
-			// Scroll the reader into history before sending, the repro starting
-			// point. The scroller reads the position from the scroll event, which
-			// fires after this assignment returns.
-			const scrolled = new Promise((resolve) =>
-				viewport.addEventListener("scroll", resolve, { once: true }),
-			);
-			viewport.scrollTop = 0;
-			await scrolled;
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Follow-up question.");
+		const viewport = canvas.getByRole("region", { name: "Messages" });
+		// Scroll the reader into history before sending. The scroller reads the
+		// position from the scroll event, which fires after this assignment.
+		const scrolled = new Promise((resolve) =>
+			viewport.addEventListener("scroll", resolve, { once: true }),
+		);
+		viewport.scrollTop = 0;
+		await scrolled;
 
-			await userEvent.keyboard("{Enter}");
-			await waitFor(() => {
-				expect(sendSpy).toHaveBeenCalledTimes(1);
-			});
-
-			// The prompt shows at submit, while the gated POST is still pending,
-			// and the scroller anchors to it with a single non-smooth scroll. The
-			// stream's copy of the prompt and the running turn do not scroll again.
-			const timeline = within(
-				await canvas.findByTestId("conversation-timeline"),
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		await timeline.findByText("Follow-up question.");
+		// The view rests at the end with the prompt in its lower half, not held
+		// at the top above a tail spacer. The stored message replaces the
+		// pending row, so each check finds the prompt again.
+		const restsAtTheEnd = () => {
+			const view = viewport.getBoundingClientRect();
+			const prompt = timeline.getByText("Follow-up question.");
+			expect(
+				viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop,
+			).toBeLessThanOrEqual(1);
+			expect(prompt.getBoundingClientRect().top).toBeGreaterThan(
+				view.top + view.height / 2,
 			);
-			await timeline.findByText("Follow-up question.");
-			const store = loadedChatStore(CHAT_ID);
-			store?.batch(() => {
-				store.upsertDurableMessages([
-					{
-						...MockChatMessage,
-						id: 41,
-						chat_id: CHAT_ID,
-						role: "user",
-						content: [{ type: "text", text: "Follow-up question." }],
-					},
-				]);
-				store.applyServerChatStatus("running");
-			});
-			await waitFor(() => {
-				expect(scrollToMock).toHaveBeenCalledTimes(1);
-				// The anchor re-position is a non-smooth scroll; a smooth call here
-				// would be the eager scrollToEnd regression resurfacing.
-				expect(scrollToMock.mock.calls[0]?.[0]).toMatchObject({
-					behavior: "auto",
-				});
-			});
-			releaseSend?.();
-		} finally {
-			scrollToMock.mockRestore();
-		}
+		};
+		// While the POST is still pending.
+		await waitFor(restsAtTheEnd);
+
+		releaseSend?.();
+		const store = loadedChatStore(CHAT_ID);
+		store?.batch(() => {
+			store.upsertDurableMessages([
+				{
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+			]);
+			store.applyServerChatStatus("running");
+		});
+		await waitFor(restsAtTheEnd);
 	},
 };
 

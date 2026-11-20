@@ -265,7 +265,7 @@ describe("submitChatTurn", () => {
 		expect(toast.error).toHaveBeenCalled();
 	});
 
-	it("edits with a recovered model without scrolling", async () => {
+	it("edits with a recovered model", async () => {
 		const originalMessage: ChatMessage = {
 			...MockChatMessage,
 			id: 5,
@@ -273,7 +273,6 @@ describe("submitChatTurn", () => {
 			content: [{ type: "text", text: "old" }],
 		};
 		const editMessage = vi.fn().mockResolvedValue(undefined);
-		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
 		await submitChatTurn(
@@ -282,7 +281,6 @@ describe("submitChatTurn", () => {
 				editingTarget: { kind: "history", id: 5 },
 				store: seededStore([originalMessage]),
 				editMessage,
-				scrollToEnd,
 				sendMessage,
 			}),
 		);
@@ -295,7 +293,6 @@ describe("submitChatTurn", () => {
 				mcp_server_ids: ["mcp-1"],
 			}),
 		});
-		expect(scrollToEnd).not.toHaveBeenCalled();
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
@@ -451,8 +448,9 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn().mockRejectedValue(error);
 		const onRequestError = vi.fn();
 		const invalidateChat = vi.fn();
+		const shownAtScroll: ReturnType<typeof visibleTexts>[] = [];
 		const scrollToEnd = vi.fn(() => {
-			expect(visibleTexts(store)).toEqual(["first"]);
+			shownAtScroll.push(visibleTexts(store));
 		});
 
 		await expect(
@@ -467,7 +465,11 @@ describe("submitChatTurn", () => {
 			),
 		).rejects.toThrow("send failed");
 
-		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
+		expect(scrollToEnd.mock.calls).toEqual([
+			[{ behavior: "auto" }],
+			[{ behavior: "smooth" }],
+		]);
+		expect(shownAtScroll).toEqual([["first", "hello"], ["first"]]);
 		expect(visibleTexts(store)).toEqual(["first"]);
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
@@ -484,6 +486,7 @@ describe("submitChatTurn", () => {
 		store.applyMessagePart({ type: "text", text: "old partial answer" });
 		const edit = createDeferred<undefined>();
 		const editMessage = vi.fn(() => edit.promise);
+		const scrollToEnd = vi.fn();
 
 		const submitted = submitChatTurn(
 			buildParams({
@@ -491,11 +494,13 @@ describe("submitChatTurn", () => {
 				editingTarget: { kind: "history", id: 3 },
 				store,
 				editMessage,
+				scrollToEnd,
 			}),
 		);
 		const queuedIDs = () =>
 			selectQueuedMessages(store.getSnapshot()).map((row) => row.id);
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
+		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "auto" });
 		expect(queuedIDs()).toEqual([8]);
 		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
@@ -524,8 +529,9 @@ describe("submitChatTurn", () => {
 		]);
 		const error = new Error("edit failed");
 		const onRequestError = vi.fn();
+		const shownAtScroll: ReturnType<typeof visibleTexts>[] = [];
 		const scrollToEnd = vi.fn(() => {
-			expect(visibleTexts(store)).toEqual(["first", "answer"]);
+			shownAtScroll.push(visibleTexts(store));
 		});
 
 		await expect(
@@ -541,7 +547,11 @@ describe("submitChatTurn", () => {
 			),
 		).rejects.toThrow("edit failed");
 
-		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
+		expect(scrollToEnd.mock.calls).toEqual([
+			[{ behavior: "auto" }],
+			[{ behavior: "smooth" }],
+		]);
+		expect(shownAtScroll).toEqual([["new"], ["first", "answer"]]);
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(visibleTexts(store)).toEqual(["first", "answer"]);
 	});
@@ -550,9 +560,13 @@ describe("submitChatTurn", () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
 		const send = createDeferred<{ queued: boolean }>();
 		const sendMessage = vi.fn(() => send.promise);
+		const scrollToEnd = vi.fn();
 
-		const submitted = submitChatTurn(buildParams({ store, sendMessage }));
+		const submitted = submitChatTurn(
+			buildParams({ store, sendMessage, scrollToEnd }),
+		);
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
+		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "auto" });
 
 		send.resolve({ queued: false });
 		await submitted;
@@ -605,13 +619,16 @@ describe("submitChatTurn", () => {
 				content: [{ type: "text", text: "hello" }],
 			};
 
-			await submitChatTurn(buildParams({ store, busyBehavior }));
+			const scrollToEnd = vi.fn();
+
+			await submitChatTurn(buildParams({ store, busyBehavior, scrollToEnd }));
 			expect(
 				selectQueuedMessages(store.getSnapshot()).map((row) => [
 					row.busy_behavior,
 					row.content,
 				]),
 			).toEqual([[lane, queued.content]]);
+			expect(scrollToEnd).not.toHaveBeenCalled();
 
 			store.setQueuedMessages([queued]);
 			expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);

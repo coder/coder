@@ -384,7 +384,6 @@ type ConversationTimelineProps = {
 	organizationId: string;
 	parsedMessages: readonly ParsedMessageEntry[];
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
-	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
@@ -410,7 +409,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		organizationId,
 		parsedMessages,
 		chatFiles,
-		initialActiveTurnMaxMessageId,
 		streamState,
 		streamTools,
 		liveStatus,
@@ -523,22 +521,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prev/next arrow buttons that jump the transcript to the neighbouring
 		// user prompt. The row key doubles as the scroller's message ID.
 		const userRowKeys: string[] = [];
-		let latestUserRowIsPending = false;
 		for (const row of renderRows) {
 			if (row.type === "message" && row.entry.message.role === "user") {
 				userRowKeys.push(row.key);
-				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
-		// Only the latest user row anchors the scroller, and only while its turn
-		// is active or the row is pending. The scroller never marks initially
-		// rendered anchors as handled, and its fallback for mutations that are
-		// neither clean appends nor clean prepends jumps to the oldest unhandled
-		// anchor, so historical rows must not be anchors at all.
-		const anchorUserRowKey =
-			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
-				? userRowKeys[userRowKeys.length - 1]
-				: undefined;
 		const userNeighborsByKey = new Map<
 			string,
 			{ prevKey?: string; nextKey?: string }
@@ -745,18 +732,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						if (collapseSteps && isAgentAttachmentOnlyRow(row)) {
 							return null;
 						}
-						const suppressInitialAnchor =
-							row.type === "message" &&
-							initialActiveTurnMaxMessageId !== undefined &&
-							row.entry.message.id <= initialActiveTurnMaxMessageId;
 						return (
-							<MessageScroller.Item
-								key={slice.key}
-								messageId={slice.key}
-								scrollAnchor={
-									slice.key === anchorUserRowKey && !suppressInitialAnchor
-								}
-							>
+							<MessageScroller.Item key={slice.key} messageId={slice.key}>
 								{renderSlice(slice, { inWorkingBlock: false })}
 							</MessageScroller.Item>
 						);

@@ -124,7 +124,6 @@ type ChatPageTimelineProps = {
 	recordStatus?: TypesGen.ChatStatus;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
-	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
@@ -144,7 +143,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	recordStatus,
 	chatFiles,
 	persistedError,
-	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
@@ -227,7 +225,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						organizationId={organizationId}
 						parsedMessages={parsedMessages}
 						chatFiles={chatFiles}
-						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 						streamState={liveStreamState}
 						streamTools={streamTools}
 						liveStatus={liveStatus}

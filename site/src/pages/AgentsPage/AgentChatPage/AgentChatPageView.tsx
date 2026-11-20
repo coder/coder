@@ -268,16 +268,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
-	// The turn already running when the page loaded must not anchor the
-	// scroller, even if its prompt is older than the newest messages page and
-	// only renders after the user pages up. Message ids are allocated from one
-	// sequence, so every user row created after mount (sends, queue
-	// promotions, edit re-sends) has an id above the initial maximum.
-	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
-		chat.status === "running" || chat.status === "interrupting"
-			? (store.getSnapshot().orderedMessageIDs.at(-1) ?? -1)
-			: undefined,
-	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
@@ -674,7 +664,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								store={store}
 								recordStatus={chat.status}
 								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
 								isFetchingMoreMessages={isFetchingMoreMessages}

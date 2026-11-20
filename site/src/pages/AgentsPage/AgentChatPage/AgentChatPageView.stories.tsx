@@ -1345,9 +1345,8 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 
 /**
  * Stream completion must not yank the transcript to the oldest message. The
- * live assistant row is replaced by its durable row (a remount, not an
- * in-place reconciliation), and the only anchored row is the active turn's
- * prompt, so the scroller has no unhandled historical anchor to jump to.
+ * live assistant row is replaced by its durable row, a remount rather than an
+ * in-place reconciliation, and the view must stay where it was.
  */
 export const StreamCompletionKeepsViewportPosition: Story = {
 	parameters: { pixel: { exclude: true } },
@@ -1417,9 +1416,9 @@ const thinkingShiftStore = buildStoreWithMessages(
 
 /**
  * The Thinking indicator must hand off to streaming text without collapsing
- * the live row for a frame. The anchored prompt must not move.
+ * the live row for a frame, so the view that follows the end does not jump.
  */
-export const ThinkingHandoffKeepsPromptPosition: Story = {
+export const ThinkingHandoffKeepsLiveRowHeight: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
@@ -1456,14 +1455,15 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		// shrank the live row below this for one frame when the first chunk
 		// arrived. Guard against a degenerate unpainted baseline so the height
 		// assertion below cannot silently become a tautology.
-		const anchoredTop = promptTop();
+		const promptStartTop = promptTop();
 		const thinkingHeight = liveRow.getBoundingClientRect().height;
 		expect(thinkingHeight).toBeGreaterThan(0);
 
 		// The first stream chunk replaces the Thinking indicator with text. The
-		// live row must never shrink below its Thinking-indicator height, so the
-		// anchored prompt and everything above it must stay put. Position uses a
-		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		// live row must never shrink below its Thinking-indicator height. At the
+		// end, a shrink lets the browser clamp scrollTop and drops the prompt, so
+		// the prompt must stay put too. Position uses a tolerance because rect
+		// tops are fractional; a 24px drop is 6x it.
 		thinkingShiftStore.applyMessageParts([
 			{ type: "text", text: "Here is the start of the answer." },
 		]);
@@ -1471,7 +1471,7 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
 				thinkingHeight,
 			);
-			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+			expect(Math.abs(promptTop() - promptStartTop)).toBeLessThan(4);
 			await new Promise<void>((r) => requestAnimationFrame(() => r()));
 		}
 	},
