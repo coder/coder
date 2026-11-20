@@ -590,8 +590,9 @@ func (e *executor) apply(
 	}, nil
 }
 
-// state must only be called while the lock is held.
-func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
+// show returns the state as `terraform show -json` reports it. It must only
+// be called while the lock is held.
+func (e *executor) show(ctx, killCtx context.Context) (*tfjson.State, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
