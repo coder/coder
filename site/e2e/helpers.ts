@@ -634,7 +634,7 @@ const emptyPlan = new TextEncoder().encode("{}");
  * createTemplateVersionTar consumes a series of echo provisioner protobufs and
  * converts it into an uploadable tar file.
  */
-export const createTemplateVersionTar = async (
+const createTemplateVersionTar = async (
 	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
 	if (responses.graph) {
