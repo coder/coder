@@ -80,7 +80,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 				return null;
 			}
 
-			return <PreviewPanel workspace={workspace} agent={agent} tab={tab} />;
+			return <PreviewPanel agent={agent} tab={tab} />;
 		}
 		default: {
 			const _exhaustive: never = tab;

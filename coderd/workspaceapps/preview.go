@@ -42,14 +42,13 @@ func (s *Server) servePreview(rw http.ResponseWriter, r *http.Request, host stri
 	}
 
 	// A preview loaded as the top-level page has no wrapper to keep it on
-	// its own host, so it reopens inside the dashboard. Fetch metadata is
-	// missing from non-browser clients and from plain-HTTP origins other
-	// than localhost, so a request without it is treated as a page load.
-	// Chromium sends no fetch metadata with a WebSocket handshake, which
-	// never loads a page.
+	// its own host, so it is refused. Fetch metadata is missing from
+	// non-browser clients and from plain-HTTP origins other than localhost,
+	// so a request without it is treated as a page load. Chromium sends no
+	// fetch metadata with a WebSocket handshake, which never loads a page.
 	dest := r.Header.Get("Sec-Fetch-Dest")
 	if dest == "document" || (dest == "" && !httpapi.IsWebsocketUpgrade(r)) {
-		http.Redirect(rw, r, s.previewOpenURL(app, r.URL).String(), http.StatusSeeOther)
+		writePreviewError(rw, r, s.DashboardURL, http.StatusForbidden, "Previews open only inside a Coder chat. Open this preview from its chat.")
 		return
 	}
 
@@ -124,25 +123,6 @@ func (s *Server) signInPreview(rw http.ResponseWriter, r *http.Request, host str
 	redirectURL.RawQuery, _ = stripQueryParam(r.URL.RawQuery, previewhost.SignInParam)
 	rw.Header().Set("Referrer-Policy", "no-referrer")
 	http.Redirect(rw, r, redirectURL.String(), http.StatusSeeOther)
-}
-
-// previewOpenURL returns the dashboard page that opens app's preview at u's
-// path and query inside its wrapper.
-func (s *Server) previewOpenURL(app appurl.ApplicationURL, u *url.URL) *url.URL {
-	appPath := originLocalURL(u.Path)
-	appPath.RawQuery, _ = stripQueryParam(u.RawQuery, previewhost.SignInParam)
-	appPath.RawQuery, _ = stripQueryParam(appPath.RawQuery, SubdomainProxyAPIKeyParam)
-
-	open := *s.DashboardURL
-	open.Path = "/previews/open"
-	open.RawQuery = url.Values{
-		"owner":     {app.Username},
-		"workspace": {app.WorkspaceName},
-		"agent":     {app.AgentName},
-		"slug":      {app.AppSlugOrPort},
-		"path":      {appPath.String()},
-	}.Encode()
-	return &open
 }
 
 func writePreviewError(rw http.ResponseWriter, r *http.Request, dashboardURL *url.URL, status int, description string) {

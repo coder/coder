@@ -18,8 +18,6 @@ type PreviewFrameProps = {
 	preview: Omit<PreviewSignInRequest, "region_id">;
 	/** Accessible name of the frame. */
 	title: string;
-	/** Shown after the preview's host in the header. */
-	headerContent?: React.ReactNode;
 };
 
 /**
@@ -30,7 +28,6 @@ type PreviewFrameProps = {
 export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 	preview,
 	title,
-	headerContent,
 }) => {
 	const { proxy } = useProxy();
 	const [frameId, setFrameId] = useState(generateUUID);
@@ -47,7 +44,6 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 						{new URL(signIn.origin).host}
 					</span>
 				)}
-				{headerContent}
 				<Button
 					size="icon"
 					variant="subtle"
