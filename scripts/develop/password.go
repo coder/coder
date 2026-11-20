@@ -35,7 +35,9 @@ func readPassword(path string) (password string, ok bool, err error) {
 	if err != nil {
 		return "", false, xerrors.Errorf("read password file %s: %w", path, err)
 	}
-	password = strings.TrimSpace(string(raw))
+	// Only the newline that storePassword adds is removed, because a
+	// password can start or end with a space.
+	password = strings.TrimSuffix(string(raw), "\n")
 	if password == "" {
 		return "", false, xerrors.Errorf("password file %s is empty: put the password back, or delete the file and run with --db-reset", path)
 	}
