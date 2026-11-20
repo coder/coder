@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/safedial"
 )
 
@@ -88,7 +89,6 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	))
 	t.Cleanup(healthy.Close)
 
-	reaperDone := make(chan struct{}, 2)
 	timeout := 1 * time.Second
 
 	start := time.Now()
@@ -107,7 +107,6 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 				netip.MustParsePrefix("::1/128"),
 			)),
 			timeout: timeout,
-			hooks:   connectHooks{reaperDone: func() { reaperDone <- struct{}{} }},
 			kind:    connectionKindOrg,
 		},
 	)
@@ -131,14 +130,33 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	require.Equal(t, "healthy", summaries[1].Slug)
 	require.Equal(t, ConnectOutcomeConnected, summaries[1].Outcome)
 	require.Equal(t, 1, summaries[1].ToolCount)
+}
 
-	// Terminating the black-holed connections unblocks the
-	// abandoned connect goroutine; the reaper must then drain its
-	// result and exit.
-	bh.close()
-	select {
-	case <-reaperDone:
-	case <-time.After(30 * time.Second):
-		t.Fatal("reaper did not exit after black-holed connections were closed")
-	}
+func TestAwaitConnect_ClosesLateSession(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcp.NewServer(&mcp.Implementation{Name: "late"}, nil).
+		Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+
+	expired, cancel := context.WithCancel(ctx)
+	cancel()
+	budgetExpired := make(chan struct{})
+	res := awaitConnect(expired, func() connectResult {
+		select {
+		case <-budgetExpired:
+		case <-ctx.Done():
+		}
+		session, err := mcp.NewClient(&mcp.Implementation{Name: "coder"}, nil).
+			Connect(ctx, clientTransport, nil)
+		return connectResult{session: session, err: err}
+	})
+	require.ErrorIs(t, res.err, context.Canceled)
+	close(budgetExpired)
+
+	serverSawClose := make(chan error, 1)
+	go func() { serverSawClose <- serverSession.Wait() }()
+	testutil.TryReceive(ctx, t, serverSawClose)
 }
