@@ -1049,6 +1049,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
+			options.SetupToken, err = resolveSetupToken(ctx, inv, options.Database, vals.SetupToken.String(), tunnel != nil)
+			if err != nil {
+				return err
+			}
+
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
@@ -2470,6 +2475,9 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 	if usr.Uid == "0" {
 		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
+	}
+	if err := config.ValidateBuiltinPostgresVersion(cfg.PostgresPath()); err != nil {
+		return "", nil, err
 	}
 
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")

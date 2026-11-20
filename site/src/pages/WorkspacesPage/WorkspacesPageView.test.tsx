@@ -188,6 +188,18 @@ describe("WorkspacesPageView", () => {
 		expect(onCheckChange).not.toHaveBeenCalled();
 	});
 
+	it("keeps selection checkboxes out of header cells", async () => {
+		renderSelection([stoppedWorkspace]);
+
+		const nameHeader = await screen.findByRole("columnheader", {
+			name: "Name",
+		});
+		const rowHeader = screen.getByRole("rowheader", { name: /stopped/ });
+
+		expect(within(nameHeader).queryByRole("checkbox")).toBeNull();
+		expect(within(rowHeader).queryByRole("checkbox")).toBeNull();
+	});
+
 	it("hides the New workspace button and explains the missing permission", async () => {
 		renderWithAuth(
 			<WorkspacesPageView {...defaultProps} canCreateWorkspace={false} />,
