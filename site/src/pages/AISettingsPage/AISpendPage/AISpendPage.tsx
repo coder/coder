@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
+import { getURLWithSearchParams } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
 	organizationAISpendOverview,
@@ -8,8 +10,10 @@ import {
 	organizationAISpendUsers,
 	organizationUnpricedAIModels,
 	paginatedOrganizationAISpendReport,
+	resolveAISpendReportFilter,
 } from "#/api/queries/aiBridge";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
@@ -157,6 +161,47 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		}
 	};
 
+	// The export streams from the server, so the browser downloads it directly.
+	const exportReport = async () => {
+		if (lastReportRun === undefined) {
+			return;
+		}
+		try {
+			// TODO(AIGOV-733): export the client filter once the endpoint supports it.
+			const { user_ids, group_id, provider_name, model } =
+				await resolveAISpendReportFilter(
+					lastReportRun.organizationId,
+					toReportFilter(lastReportRun.filter),
+				);
+			const link = document.createElement("a");
+			link.href = getURLWithSearchParams(
+				`/api/v2/organizations/${lastReportRun.organizationId}/ai/spend/export`,
+				{
+					...toSpendPeriod(lastReportRun.days),
+					user_id: user_ids?.[0],
+					group_id,
+					provider_name,
+					model,
+				},
+			);
+			link.download = "";
+			link.click();
+		} catch (error) {
+			toast.error("Failed to export the report.", {
+				description: getErrorDetail(error),
+			});
+		}
+	};
+
+	const openDetailedReport = (username?: string) => {
+		updateSearchParams((params) => {
+			params.set(tabSearchParam, "detailed-report");
+			if (username !== undefined) {
+				params.set(useFilterParamsKey, `user:${username}`);
+			}
+		});
+	};
+
 	const tab: AISpendTab =
 		searchParams.get(tabSearchParam) === "detailed-report"
 			? "detailed-report"
@@ -186,12 +231,6 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		...organizationAISpendUsers(organization?.id ?? "", period, topSpenderIds),
 		enabled: organization !== undefined && topSpenderIds.length > 0,
 	});
-
-	const openDetailedReport = () => {
-		updateSearchParams((params) => {
-			params.set(tabSearchParam, "detailed-report");
-		});
-	};
 
 	return (
 		<>
@@ -227,6 +266,8 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				isReportOutdated={isReportOutdated}
 				onRunReport={runReport}
 				onCancelReport={cancelReport}
+				canExportReport={(reportQuery.data?.count ?? 0) > 0}
+				onExportReport={exportReport}
 				onOpenDetailedReport={openDetailedReport}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}

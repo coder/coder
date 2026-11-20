@@ -99,6 +99,30 @@ export type AISpendReportFilter = Pick<
 	group_name?: string;
 };
 
+/** Resolves the username and group name to the IDs the spend endpoints filter by. */
+export const resolveAISpendReportFilter = async (
+	organizationId: string,
+	{ username, group_name, ...dimensions }: AISpendReportFilter,
+	signal?: AbortSignal,
+): Promise<OrganizationAISpendFilter> => {
+	const [user, group] = await Promise.all([
+		username ? API.getUser(username) : undefined,
+		group_name
+			? API.getGroup(
+					organizationId,
+					group_name,
+					{ exclude_members: true },
+					signal,
+				)
+			: undefined,
+	]);
+	return {
+		...dimensions,
+		user_ids: user && [user.id],
+		group_id: group?.id,
+	};
+};
+
 export const organizationAISpendReportsKey = (organizationId: string) =>
 	["organizations", organizationId, "aiSpendReport"] as const;
 
@@ -124,36 +148,21 @@ export const paginatedOrganizationAISpendReport = (
 			...organizationAISpendReportKey(organizationId, period, payload),
 			pageNumber,
 		],
-		queryFn: async ({
-			payload: { username, group_name, ...dimensions },
-			limit,
-			offset,
-			signal,
-		}) => {
-			const [user, group] = await Promise.all([
-				username ? API.getUser(username) : undefined,
-				group_name
-					? API.getGroup(
-							organizationId,
-							group_name,
-							{ exclude_members: true },
-							signal,
-						)
-					: undefined,
-			]);
-			return API.experimental.getOrganizationAISpendUsers(
+		queryFn: async ({ payload, limit, offset, signal }) =>
+			API.experimental.getOrganizationAISpendUsers(
 				organizationId,
 				{
 					...period,
-					...dimensions,
-					user_ids: user && [user.id],
-					group_id: group?.id,
+					...(await resolveAISpendReportFilter(
+						organizationId,
+						payload,
+						signal,
+					)),
 					limit,
 					offset,
 				},
 				signal,
-			);
-		},
+			),
 		// Every page aggregates the whole organization window.
 		prefetch: false,
 		// Only a page change keeps the previous rows while the next page loads.
