@@ -515,11 +515,9 @@ describe("DynamicParameter", () => {
 			await user.click(screen.getByRole("combobox"));
 			await user.keyboard("{ArrowDown}");
 
-			const options = screen.getAllByRole("option");
-			expect(options).toHaveLength(3);
-			for (const option of options) {
-				expect(option).toHaveAttribute("aria-selected", "false");
-			}
+			expect(
+				screen.queryByRole("option", { selected: true }),
+			).not.toBeInTheDocument();
 		});
 
 		it("displays selected options", () => {

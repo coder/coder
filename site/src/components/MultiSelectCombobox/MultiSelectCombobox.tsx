@@ -90,12 +90,15 @@ type MultiSelectComboboxProps = {
 	selectFirstItem?: boolean;
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
-	/** Props of `Command` */
+	/**
+	 * Props of `Command`. Set `label` to name the input: cmdk replaces the
+	 * input's `id` and `aria-labelledby`, so a `<label htmlFor>` cannot.
+	 */
 	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
 		React.ComponentProps<typeof CommandPrimitive.Input>,
-		"ref" | "value" | "placeholder" | "disabled"
+		"ref" | "value" | "placeholder" | "disabled" | "id" | "aria-labelledby"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;

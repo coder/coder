@@ -373,7 +373,6 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					// cmdk overrides the input's id, so the visible label cannot name it.
 					commandProps={{ label: parameter.display_name || parameter.name }}
 					data-testid={`multiselect-${parameter.name}`}
 					options={options}

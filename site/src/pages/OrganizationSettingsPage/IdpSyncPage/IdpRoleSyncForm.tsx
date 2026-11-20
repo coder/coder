@@ -236,7 +236,6 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 						<div className="grid items-center gap-1 flex-1">
 							<Label className="text-sm">Coder role</Label>
 							<MultiSelectCombobox
-								// cmdk overrides the input's id, so the visible label cannot name it.
 								commandProps={{ label: "Coder role" }}
 								className="min-w-60 max-w-3xl"
 								value={coderRoles}

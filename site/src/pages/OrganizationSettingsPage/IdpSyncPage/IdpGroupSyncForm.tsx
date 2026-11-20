@@ -299,7 +299,6 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 							<div className="grid items-center gap-1 flex-1">
 								<Label className="text-sm">Coder group</Label>
 								<MultiSelectCombobox
-									// cmdk overrides the input's id, so the visible label cannot name it.
 									commandProps={{ label: "Coder group" }}
 									className="min-w-60 max-w-3xl"
 									value={coderGroups}
