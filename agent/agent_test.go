@@ -2800,6 +2800,56 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	}
 }
 
+// TestAgent_ReconnectingPTYExited ensures that reconnecting to a session whose
+// process has exited does not run the command again.
+func TestAgent_ReconnectingPTYExited(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+
+	_, err := exec.LookPath("screen")
+	hasScreen := err == nil
+
+	for _, backendType := range []string{"buffered", "screen"} {
+		t.Run(backendType, func(t *testing.T) {
+			t.Parallel()
+			if backendType == "screen" {
+				if runtime.GOOS != "linux" {
+					t.Skipf("`screen` is not supported on %s", runtime.GOOS)
+				} else if !hasScreen {
+					t.Skip("`screen` not found")
+				}
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			//nolint:dogsled // Only the agent connection is needed.
+			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+
+			runsFile := filepath.Join(t.TempDir(), "runs")
+			command := fmt.Sprintf("echo ran >> %s; echo done", runsFile)
+			id := uuid.New()
+			for i := range 3 {
+				netConn, err := conn.ReconnectingPTY(ctx, id, 80, 80, command, func(arp *workspacesdk.AgentReconnectingPTYInit) {
+					arp.BackendType = backendType
+				})
+				require.NoError(t, err)
+				output, err := io.ReadAll(netConn)
+				_ = netConn.Close()
+				require.NoError(t, err)
+				if i == 0 || backendType == "buffered" {
+					// The buffered backend replays the finished session's output.
+					require.Contains(t, string(output), "done", "connection %d", i)
+				}
+			}
+
+			runs, err := os.ReadFile(runsFile)
+			require.NoError(t, err)
+			require.Equal(t, "ran\n", string(runs))
+		})
+	}
+}
+
 // This tests end-to-end functionality of connecting to a running container
 // and executing a command. It creates a real Docker container and runs a
 // command. As such, it does not run by default in CI.

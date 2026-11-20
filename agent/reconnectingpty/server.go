@@ -46,6 +46,9 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
 	if connectionReporter == nil {
 		connectionReporter = &proto.NoopConnectionReporter{}
 	}
+	if timeout == 0 {
+		timeout = defaultTimeout
+	}
 	s := &Server{
 		logger:             logger,
 		commandCreator:     commandCreator,
@@ -279,7 +282,16 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}()
 
 		go func() {
-			rpty.Wait()
+			err := rpty.Wait()
+			if isExitError(err) {
+				// Keep the finished session around temporarily so reconnecting to it
+				// does not start the command again.
+				connLogger.Debug(ctx, "reconnecting pty process exited", slog.Error(err))
+				time.AfterFunc(s.timeout, func() {
+					s.reconnectingPTYs.Delete(msg.ID)
+				})
+				return
+			}
 			s.reconnectingPTYs.Delete(msg.ID)
 		}()
 
