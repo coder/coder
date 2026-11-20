@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
 	"storj.io/drpc/drpcerr"
 
@@ -40,8 +41,11 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 	}
 	resp, err := p.client.PushContextState(ctx, pushRequestToProto(req))
 	if err != nil {
-		if drpcerr.Code(err) == drpcerr.Unimplemented {
+		switch drpcerr.Code(err) {
+		case drpcerr.Unimplemented:
 			return nil, ErrPushUnimplemented
+		case uint64(codes.InvalidArgument):
+			return nil, xerrors.Errorf("%w: %s", ErrPushInvalid, err.Error())
 		}
 		return nil, err
 	}
