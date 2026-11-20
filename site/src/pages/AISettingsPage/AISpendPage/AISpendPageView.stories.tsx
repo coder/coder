@@ -53,6 +53,10 @@ export const NoSpend: Story = {
 			...MockOrganizationAISpendOverview,
 			count: 0,
 			totals: { spend_micros: 0, median_spend_micros: 0 },
+			intervals: MockOrganizationAISpendOverview.intervals.map((interval) => ({
+				...interval,
+				spend_micros: 0,
+			})),
 		},
 		unpricedModels: [],
 	},

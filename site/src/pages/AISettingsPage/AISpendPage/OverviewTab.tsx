@@ -7,6 +7,7 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { DateRangePicker } from "#/components/DateRangePicker/DateRangePicker";
 import { formatCostMicros } from "#/utils/currency";
+import { SpendTrendsCard } from "./SpendTrendsCard";
 import { StatCard } from "./StatCard";
 import {
 	fromPickerValue,
@@ -71,6 +72,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 								}
 							/>
 						</div>
+						<SpendTrendsCard days={days} intervals={overview?.intervals} />
 					</div>
 				</div>
 			)}
