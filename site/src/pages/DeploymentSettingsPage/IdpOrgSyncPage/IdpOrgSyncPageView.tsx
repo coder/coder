@@ -50,6 +50,8 @@ import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
+const ORG_COMBOBOX_LABEL = "Coder organization";
+
 type IdpSyncPageViewProps = {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	claimFieldValues: readonly string[] | undefined;
@@ -279,9 +281,9 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm">Coder organization</Label>
+								<Label className="text-sm">{ORG_COMBOBOX_LABEL}</Label>
 								<MultiSelectCombobox
-									commandProps={{ label: "Coder organization" }}
+									commandProps={{ label: ORG_COMBOBOX_LABEL }}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
