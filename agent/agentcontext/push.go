@@ -49,6 +49,11 @@ type Pusher interface {
 // remainder of the connection.
 var ErrPushUnimplemented = xerrors.New("agentcontext: PushContextState unimplemented")
 
+// ErrPushInvalid signals that coderd rejected the snapshot as
+// invalid. Resending it cannot succeed, so RunPush waits for the
+// next change instead of retrying.
+var ErrPushInvalid = xerrors.New("agentcontext: coderd rejected the context push as invalid")
+
 // Default backoff timings for pushWithRetry. Exposed as named
 // constants (rather than inline literals) so godoc shows them
 // and a second push loop, if it ever appears, can reuse them.
@@ -102,22 +107,33 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	defer unsub()
 
 	// Until SetReady the snapshot is version 0: wait, don't push it.
+	// Every published snapshot has a new version, so a version that
+	// already reached a final outcome is not pushed again.
 	initial := true
+	var lastSent uint64
 	for {
-		snap := m.Snapshot()
-		if snap.Version == 0 {
+		if v := m.Snapshot().Version; v == 0 || v == lastSent {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-m.closedCh:
 				return nil
 			case <-changes:
+				// Shutdown comes from closedCh or ctx; the
+				// subscriber channel is never closed by
+				// SubscribeChanges.
 			}
 			continue
 		}
-		req := snapshotToPushRequest(snap, initial)
+		// Rebuild before every attempt so a retry carries the
+		// newest snapshot, not the one coderd already rejected.
+		var req *PushRequest
+		next := func() *PushRequest {
+			req = snapshotToPushRequest(m.Snapshot(), initial)
+			return req
+		}
 
-		err := pushWithRetry(ctx, p, req, initialBackoff, maxBackoff, clock, logger)
+		err := pushWithRetry(ctx, p, next, initialBackoff, maxBackoff, clock, logger)
 		switch {
 		case err == nil:
 			initial = false
@@ -126,41 +142,38 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 			return nil
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return ctx.Err()
+		case errors.Is(err, ErrPushInvalid):
+			logger.Warn(ctx, "coderd rejected context push, waiting for the next change",
+				slog.F("version", req.Version),
+				slog.Error(err))
 		default:
 			// Should be unreachable: pushWithRetry only
 			// returns terminal errors. Log and continue.
 			logger.Warn(ctx, "push terminated with non-retried error", slog.Error(err))
 		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-m.closedCh:
-			return nil
-		case <-changes:
-			// Shutdown comes from closedCh or ctx; the
-			// subscriber channel is never closed by
-			// SubscribeChanges.
-		}
+		lastSent = req.Version
 	}
 }
 
 // pushWithRetry retries transient errors with exponential
-// backoff capped at maxBackoff. The retry loop exits when:
+// backoff capped at maxBackoff, calling next for a fresh request
+// before each attempt. The retry loop exits when:
 //
 //   - ctx is canceled (returns ctx.Err()).
 //   - The Pusher returns nil (success).
-//   - The Pusher returns ErrPushUnimplemented (propagated).
+//   - The Pusher returns ErrPushUnimplemented or ErrPushInvalid
+//     (propagated).
 func pushWithRetry(
 	ctx context.Context,
 	p Pusher,
-	req *PushRequest,
+	next func() *PushRequest,
 	initialBackoff, maxBackoff time.Duration,
 	clock quartz.Clock,
 	logger slog.Logger,
 ) error {
 	backoff := initialBackoff
 	for {
+		req := next()
 		resp, err := p.PushContextState(ctx, req)
 		if err == nil {
 			if resp != nil && !resp.Accepted {
@@ -172,7 +185,7 @@ func pushWithRetry(
 			}
 			return nil
 		}
-		if errors.Is(err, ErrPushUnimplemented) {
+		if errors.Is(err, ErrPushUnimplemented) || errors.Is(err, ErrPushInvalid) {
 			return err
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

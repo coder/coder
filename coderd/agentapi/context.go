@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"storj.io/drpc/drpcerr"
@@ -129,13 +130,15 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	if req == nil {
 		return nil, xerrors.New("agentapi: PushContextState request is nil")
 	}
+	// Validation failures carry InvalidArgument so the agent waits for
+	// its files to change instead of resending the same snapshot.
 	if err := validateContextPushRequest(req); err != nil {
-		return nil, err
+		return nil, drpcerr.WithCode(err, uint64(codes.InvalidArgument))
 	}
 
 	rows, err := validateAndConvertContextResources(req.Resources, a.Experiments)
 	if err != nil {
-		return nil, err
+		return nil, drpcerr.WithCode(err, uint64(codes.InvalidArgument))
 	}
 
 	// Attach the cached workspace RBAC object so dbauthz can take its

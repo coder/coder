@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
 	"storj.io/drpc/drpcerr"
 
@@ -33,15 +34,19 @@ func NewDRPCPusher(client agentproto.DRPCAgentClient210) *DRPCPusher {
 // drpc returns an Unimplemented error when the peer's service
 // definition does not include the RPC. The adapter translates
 // that into ErrPushUnimplemented so RunPush stops gracefully
-// when an old coderd is on the other end.
+// when an old coderd is on the other end, and translates
+// InvalidArgument into ErrPushInvalid.
 func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*PushResponse, error) {
 	if p == nil || p.client == nil {
 		return nil, xerrors.New("agentcontext: DRPCPusher has no client")
 	}
 	resp, err := p.client.PushContextState(ctx, pushRequestToProto(req))
 	if err != nil {
-		if drpcerr.Code(err) == drpcerr.Unimplemented {
+		switch drpcerr.Code(err) {
+		case drpcerr.Unimplemented:
 			return nil, ErrPushUnimplemented
+		case uint64(codes.InvalidArgument):
+			return nil, xerrors.Errorf("%w: %s", ErrPushInvalid, err.Error())
 		}
 		return nil, err
 	}

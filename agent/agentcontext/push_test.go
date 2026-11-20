@@ -200,6 +200,100 @@ func TestRunPush_RetriesTransientError(t *testing.T) {
 	<-pushDone
 }
 
+// TestRunPush_RetryCarriesNewestSnapshot verifies that a retry after a
+// failed push sends the snapshot published during the backoff, so
+// fixing a file on disk is picked up without an agent restart.
+func TestRunPush_RetryCarriesNewestSnapshot(t *testing.T) {
+	t.Parallel()
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().NewTimer()
+	defer trap.Close()
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v1"), 0o600))
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+
+	p := newFakePusher()
+	p.errOnce = xerrors.New("transient")
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	defer cancel()
+	pushDone := make(chan error, 1)
+	go func() {
+		pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{
+			Logger:         testutil.Logger(t).Named("push"),
+			InitialBackoff: time.Second,
+			Clock:          mClock,
+		})
+	}()
+
+	// The first push fails and arms the backoff timer. Publish a
+	// new snapshot before the timer fires.
+	trap.MustWait(ctx).MustRelease(ctx)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
+	_, err := m.Resync(ctx)
+	require.NoError(t, err)
+	mClock.Advance(time.Second).MustWait(ctx)
+	testutil.RequireReceive(ctx, t, p.signal)
+
+	requests := p.snapshot()
+	require.Len(t, requests, 2)
+	require.Greater(t, requests[1].Version, requests[0].Version, "retry must carry the newer snapshot")
+	require.NotEqual(t, requests[0].AggregateHash, requests[1].AggregateHash)
+	require.True(t, requests[1].Initial, "Initial must hold until a push succeeds")
+
+	cancel()
+	require.ErrorIs(t, <-pushDone, context.Canceled)
+}
+
+// TestRunPush_InvalidWaitsForChange verifies that a push coderd rejects
+// as invalid is not retried, and that the next change is pushed with
+// Initial still set.
+func TestRunPush_InvalidWaitsForChange(t *testing.T) {
+	t.Parallel()
+	// The mock clock is never advanced, so entering backoff would
+	// block the loop and the second push would never arrive.
+	mClock := quartz.NewMock(t)
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v1"), 0o600))
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+
+	p := newFakePusher()
+	p.err = xerrors.Errorf("%w: duplicate source", agentcontext.ErrPushInvalid)
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	defer cancel()
+	pushDone := make(chan error, 1)
+	go func() {
+		pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{
+			Logger: testutil.Logger(t).Named("push"),
+			Clock:  mClock,
+		})
+	}()
+	testutil.RequireReceive(ctx, t, p.signal)
+
+	p.mu.Lock()
+	p.err = nil
+	p.mu.Unlock()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
+	_, err := m.Resync(ctx)
+	require.NoError(t, err)
+	testutil.RequireReceive(ctx, t, p.signal)
+
+	requests := p.snapshot()
+	require.Len(t, requests, 2)
+	require.Greater(t, requests[1].Version, requests[0].Version)
+	require.True(t, requests[1].Initial, "Initial must hold until a push succeeds")
+
+	cancel()
+	require.ErrorIs(t, <-pushDone, context.Canceled)
+}
+
 // TestRunPush_ClosesOnManagerClose verifies that calling
 // Manager.Close terminates an in-flight RunPush even when the
 // caller's context is still live. Without this guarantee the
