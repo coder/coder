@@ -313,7 +313,7 @@ func templateBuilderProvisionerFailureReason(category templatebuilder.Provisione
 // templateBuilderNameConflictValidations attributes a name conflict to the
 // request's name field.
 var templateBuilderNameConflictValidations = []codersdk.ValidationError{
-	{Field: "name", Detail: "This value is already in use and should be unique."},
+	{Field: "name", Detail: "A template with this name already exists in the organization."},
 }
 
 // @Summary Compose and create a template
