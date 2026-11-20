@@ -34,9 +34,9 @@ var (
 type executor struct {
 	logger     slog.Logger
 	server     *server
-	mut        *sync.Mutex
 	binaryPath string
-	// cachePath and files must not be used by multiple processes at once.
+	// cachePath and files must not be used by the Terraform commands of
+	// more than one RPC at once, which server.executor ensures.
 	cachePath     string
 	cliConfigPath string
 	files         tfpath.Layout
@@ -88,7 +88,6 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// execWriteOutput must only be called while the lock is held.
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
@@ -144,7 +143,6 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	return err
 }
 
-// execParseJSON must only be called while the lock is held.
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
@@ -200,7 +198,6 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-// version doesn't need e.mut because it doesn't touch the working directory.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
 	return e.server.terraformVersion(ctx)
 }
@@ -244,9 +241,6 @@ func (e *textFileBusyError) Error() string {
 func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
-	e.mut.Lock()
-	defer e.mut.Unlock()
 
 	// Record lock file checksum before init
 	lockFilePath := e.files.TerraformLockFile()
@@ -316,13 +310,13 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
+// plan also returns the parsed plan file, so the Graph RPC does not have to
+// run `terraform show` on it again.
+//
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
-	e.mut.Lock()
-	defer e.mut.Unlock()
 
 	metadata := req.Metadata
 
@@ -375,7 +369,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		// point of prebuilding if the expensive resource is replaced
 		// once claimed!
 		if hasResourceReplacement(plan) {
-			// Lock held before calling (see top of method).
 			e.logDrift(ctx, killCtx, planfilePath, logr)
 		}
 	} else if reps := findAllResourceReplacements(plan); len(reps) > 0 {
@@ -406,11 +399,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	var planConfig *tfjson.Config
-	if hasScriptOrderDataSource(planModules(plan)) {
-		planConfig = plan.Config
-	}
-	return msg, planConfig, nil
+	return msg, plan, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
@@ -430,7 +419,6 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 	return filtered
 }
 
-// parsePlan must only be called while the lock is held.
 func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -441,7 +429,6 @@ func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) 
 	return p, err
 }
 
-// logDrift must only be called while the lock is held.
 // It will log the output of `terraform show`, which will show which resources have drifted from the known state.
 func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
 	stdout, stdoutDone := resourceReplaceLogWriter(logr, e.logger)
@@ -490,7 +477,6 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 	return w, done
 }
 
-// showPlan must only be called while the lock is held.
 func (e *executor) showPlan(ctx, killCtx context.Context, stdoutWriter, stderrWriter io.WriteCloser, planfilePath string) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -499,7 +485,6 @@ func (e *executor) showPlan(ctx, killCtx context.Context, stdoutWriter, stderrWr
 	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), stdoutWriter, stderrWriter)
 }
 
-// graph must only be called while the lock is held.
 func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -522,9 +507,10 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		args = append(args, "-type=plan")
 	}
 
-	var out strings.Builder
+	var out, stderr strings.Builder
 	cmd := e.command(killCtx, args...)
 	cmd.Stdout = &out
+	cmd.Stderr = &stderr
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -539,6 +525,9 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 
 	err = waitCommand(killCtx, cmd)
 	if err != nil {
+		if output := strings.TrimSpace(stderr.String()); output != "" {
+			return "", xerrors.Errorf("graph: %s: %w", output, err)
+		}
 		return "", xerrors.Errorf("graph: %w", err)
 	}
 	return out.String(), nil
@@ -551,9 +540,6 @@ func (e *executor) apply(
 ) (*proto.ApplyComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
-	e.mut.Lock()
-	defer e.mut.Unlock()
 
 	args := []string{
 		"apply",
@@ -590,7 +576,6 @@ func (e *executor) apply(
 	}, nil
 }
 
-// state must only be called while the lock is held.
 func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
