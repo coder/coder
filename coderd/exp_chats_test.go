@@ -12318,8 +12318,11 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelWithBaseURL(t, client, baseURL)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	// A member cannot read AI providers, unlike the first user.
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
