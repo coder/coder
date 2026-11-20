@@ -434,6 +434,12 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 
 		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
 			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+			# Cloud KMS signature, only present when CODER_GPG_KMS_KEY is set.
+			if [[ -f "$@.v2.asc" ]]; then
+				cp "$@.v2.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			else
+				rm -f "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			fi
 		fi
 	fi
 
