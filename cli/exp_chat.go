@@ -144,7 +144,7 @@ func (*RootCmd) chatContextShowCommand(socketPath *string) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat(
 			[]agentsocket.ContextResource{},
-			[]string{"kind", "name", "source", "status", "size bytes", "error"},
+			[]string{"kind", "name", "plugin", "source", "status", "size bytes", "error"},
 		),
 		cliui.JSONFormat(),
 	)
