@@ -64,3 +64,11 @@ export const Fallback: Story = {
 		provider: "openai-compat",
 	},
 };
+
+// A configured icon that fails to load renders the same generic glyph.
+export const BrokenIcon: Story = {
+	args: {
+		provider: "openai-compat",
+		icon: "/icon/does-not-exist.svg",
+	},
+};

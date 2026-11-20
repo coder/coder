@@ -1,4 +1,5 @@
 import { Building2Icon } from "lucide-react";
+import { useState } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 
@@ -47,8 +48,17 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	alt = "",
 }) => {
 	const iconSrc = icon || getProviderIcon(provider);
-	if (iconSrc === undefined) {
+	// A configured icon URL can fail to load, so it falls back like a missing one.
+	const [failedSrc, setFailedSrc] = useState<string>();
+	if (iconSrc === undefined || iconSrc === failedSrc) {
 		return <Building2Icon className={`${className} shrink-0`} />;
 	}
-	return <ExternalImage src={iconSrc} alt={alt} className={className} />;
+	return (
+		<ExternalImage
+			src={iconSrc}
+			alt={alt}
+			className={className}
+			onError={() => setFailedSrc(iconSrc)}
+		/>
+	);
 };
