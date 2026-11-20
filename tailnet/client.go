@@ -13,7 +13,7 @@ import (
 )
 
 func NewDRPCClient(conn net.Conn, logger slog.Logger) (proto.DRPCTailnetClient, error) {
-	config := yamux.DefaultConfig()
+	config := drpcsdk.YamuxConfig()
 	config.LogOutput = nil
 	config.Logger = slog.Stdlib(context.Background(), logger, slog.LevelInfo)
 	session, err := yamux.Client(conn, config)

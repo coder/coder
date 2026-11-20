@@ -496,7 +496,7 @@ func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIV
 	conn.SetReadLimit(1 << 22)
 	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
 
-	config := yamux.DefaultConfig()
+	config := drpcsdk.YamuxConfig()
 	config.LogOutput = nil
 	config.Logger = slog.Stdlib(ctx, c.SDK.Logger(), slog.LevelInfo)
 	session, err := yamux.Client(netConn, config)

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
@@ -104,7 +105,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	ycfg := yamux.DefaultConfig()
+	ycfg := drpcsdk.YamuxConfig()
 	ycfg.LogOutput = nil
 	ycfg.Logger = slog.Stdlib(ctx, logger.Named("yamux"), slog.LevelInfo)
 

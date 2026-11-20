@@ -124,7 +124,7 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 }
 
 func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID StreamID) error {
-	config := yamux.DefaultConfig()
+	config := drpcsdk.YamuxConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Server(conn, config)
 	if err != nil {
