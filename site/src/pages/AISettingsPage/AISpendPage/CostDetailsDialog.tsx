@@ -23,6 +23,8 @@ import {
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
+import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT } from "#/utils/time";
 
@@ -114,8 +116,30 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 									),
 								}))}
 							/>
-							<SpendSection title="Models" items={details.model_spend} />
-							<SpendSection title="Clients" items={details.client_spend} />
+							<SpendSection
+								title="Models"
+								items={details.model_spend.map((model) => ({
+									...model,
+									icon: (
+										<AIBridgeModelIcon
+											model={model.name}
+											className="size-icon-sm"
+										/>
+									),
+								}))}
+							/>
+							<SpendSection
+								title="Clients"
+								items={details.client_spend.map((client) => ({
+									...client,
+									icon: (
+										<AIBridgeClientIcon
+											client={client.name}
+											className="size-icon-sm"
+										/>
+									),
+								}))}
+							/>
 						</div>
 					</ScrollArea>
 				)}
