@@ -273,7 +273,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                                                       |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                                                               |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                                                          |
-| `open_preview`                              | Show a workspace port, an `.html` file or directory, or a subdomain `coder_app` in the chat's right panel. Refer to [Workspace previews](#workspace-previews)                                     |
+| `open_preview`                              | Add a button that opens a workspace port, an `.html` file or directory, or a subdomain `coder_app` in the chat's right panel. Refer to [Workspace previews](#workspace-previews)                  |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                                                |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                                                          |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                                                           |
@@ -307,13 +307,22 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 > Workspace previews are experimental.
 > The `open_preview` tool and the way previews behave can change in any release.
 
-The agent can call `open_preview` to show you a web page from the workspace in the chat's right panel.
-The tool result has a button that opens the preview again.
+The agent can call `open_preview` to offer you a web page from the workspace.
+The tool result shows the title that the agent chose and an **Open preview** button.
+Nothing opens until you select the button.
+The button shows the preview in a tab in the chat's right panel.
 Only root chats outside [plan mode](#plan-mode) have the tool.
 
 ### Enable workspace previews
 
 Workspace previews require a [wildcard access URL](../admin/networking/wildcard-access-url.md).
+Without one, `open_preview` returns an error.
+
+Port and file previews also require HTTPS.
+Coder tells a preview frame from a direct visit by headers that browsers send only to HTTPS addresses and to `localhost` addresses.
+Over plain HTTP on any other hostname, Coder treats every preview request as a direct visit, so port and file previews don't load.
+Port and file previews that a [workspace proxy](../admin/networking/workspace-proxies.md) serves over plain HTTP don't load either.
+
 To give the agent the tool, add `open-preview` to the experiments that the control plane enables:
 
 ```dotenv
@@ -323,20 +332,22 @@ CODER_EXPERIMENTS=open-preview
 The `*` value doesn't enable `open-preview`, because `*` enables only the experiments that Coder marks as safe to opt in to.
 Refer to [Feature stages](../reference/feature-stages.md) for how experiments work.
 Coder reads the experiment list at startup, so restart the control plane after you change it.
-While the experiment is off, the agent doesn't get the tool and Coder doesn't serve file previews.
+While the experiment is off, the agent doesn't get the tool and Coder doesn't serve port or file previews.
 
 ### What the agent can preview
 
-Each `open_preview` call has a title of up to 80 characters and exactly one of these targets:
+Each `open_preview` call has a title of at most 80 characters, with no control or invisible formatting characters.
+The call also names exactly one of these targets:
 
-- `port` opens a plain HTTP server, not HTTPS, that already listens on a workspace port from 9 to 65535.
+- `port` opens a port preview of a plain HTTP server, not HTTPS, that already listens on a workspace port from 9 to 65535.
   The tool doesn't start the server or wait for it.
-  A template that sets `port_forwarding_helper = false` in the `display_apps` block of its `coder_agent` resource turns off port previews.
+  If the template sets `port_forwarding_helper = false` in the `display_apps` block of its `coder_agent` resource, `open_preview` returns an error for a port target.
 - `path` opens a file preview of an `.html` file, or of a directory that contains `index.html`, at an absolute workspace path.
   The workspace agent serves the files, so no server has to run.
   A preview of an `.html` file serves only that file, so a page that loads local stylesheets, scripts, or images needs a directory preview.
-- `app` opens a subdomain `coder_app` on the workspace agent, such as an IDE.
+- `app` opens a subdomain `coder_app` on the workspace agent, such as an IDE, in a regular app tab.
   The app can't be hidden, external, or a command app.
+  The tool result shows **Open app** instead of **Open preview**.
 
 The agent can also pass `url_path`, a path and query to open instead of `/`, such as `/?folder=/home/coder/project`.
 
@@ -348,21 +359,58 @@ The preview keeps its hostname, so its tab and the button on the earlier tool re
 `open_preview` returns an error when the first label of the preview's hostname would be longer than 63 characters, the DNS limit.
 The label contains the workspace agent, workspace, and owner names, so a shorter workspace name fixes the error.
 Coder checks the label only against the wildcard access URL of the control plane.
-A [workspace proxy](../admin/networking/workspace-proxies.md) with a longer wildcard hostname can still produce a label that is too long.
+If a workspace proxy's wildcard hostname adds characters to the first label, such as `*--eu.example.com`, the label can still be too long.
+When you open a port or file preview through that proxy, the tab shows `The preview address is too long. A shorter workspace or agent name fixes it.`
+
+### Open a preview
+
+Select **Open preview** on the tool result to show the preview in a tab in the right panel.
+The button appears only while the chat uses the workspace and workspace agent that the preview belongs to.
+Coder serves the preview through the same workspace proxy as your other workspace apps.
+The header of the preview shows its address and `Requests to other sites are blocked`.
+
+Each port or file preview has its own sign-in, separate from your Coder session.
+When the tab first shows the preview, and each time you reload it, Coder signs the preview in with a cookie that only that preview's address receives.
+A preview accepts only that cookie.
+Your Coder session cookie and the sign-in for your other workspace apps don't work on a preview.
+If a preview shows `Signed Out of Preview`, reload the tab to sign in again.
+
+To show a preview in a browser tab of its own, use the open-in-new-tab button at the top of the preview tab.
+The button opens a Coder page that shows the preview, with the workspace agent, owner, and workspace names in its header.
+If you open a preview's address directly, Coder redirects you to the same page.
 
 ### Preview security
 
-Previews follow the same security model as `coder_app` resources and [port forwarding](../admin/networking/port-forwarding.md):
+In your browser, a port or file preview runs scripts that the agent controls, signed in as you.
+Only the workspace owner can open port and file previews.
+Users the workspace is shared with through [workspace sharing](../workspaces/shared-workspaces.md), and users with the Owner role, can't open them.
 
-- A port preview uses the port forwarding URL for that port, so the port's [sharing level](../admin/networking/port-forwarding.md#share-ports) applies.
-- An app preview opens the app's URL, so the app's `share` setting applies.
-- A file preview has a hostname of its own, such as `preview--0123abcd--main--myworkspace--john.apps.example.com` for `*.apps.example.com`.
-  It uses the `owner` sharing level.
-  The workspace owner can open it, and so can users with `use` or `admin` access to the workspace through [workspace sharing](../workspaces/shared-workspaces.md).
-  Users with the Owner role can also open it, unless the deployment sets [`--disable-owner-workspace-access`](../reference/cli/server/index.md#--disable-owner-workspace-access).
-  Port sharing doesn't apply to file previews, and path-based app URLs don't serve them.
+Each port or file preview has a hostname of its own.
+With `*.apps.example.com` as the wildcard, a port preview of port `8080` uses `preview--8080--main--myworkspace--john.apps.example.com`.
+A file preview uses a hostname such as `preview--0123abcd--main--myworkspace--john.apps.example.com`.
+A port preview doesn't use the [port forwarding](../admin/networking/port-forwarding.md) URL of its port, so the port's [sharing level](../admin/networking/port-forwarding.md#share-ports) doesn't apply.
+Path-based app URLs don't serve previews.
 
-Coder adds no browser restrictions of its own to previews, so treat a preview like any app that runs code the agent controls.
+Coder limits what a port or file preview can do in your browser:
+
+- The page loads scripts, styles, fonts, images, and other files only from the preview's own address.
+  Inline scripts, inline styles, and `data:` and `blob:` URLs still work.
+  The browser blocks files from a content delivery network (CDN) or another server, so bundle those files with the page.
+- The page sends requests only to the preview's own address.
+  Coder also refuses requests that a preview page sends to your other workspace apps.
+- Links to other addresses don't load, and links that open a new tab or window do nothing.
+- No site other than Coder can show the preview in a frame.
+- The page can't register a service worker.
+- Coder drops each cookie that the preview's server sets with a `Domain` attribute, because your browser would send that cookie to your other workspace apps.
+
+Workspace proxies serve previews with the same limits.
+
+Coder can't stop scripts in a preview from setting cookies for a parent domain of the preview's address, such as the domain of the wildcard access URL.
+Your browser sends those cookies to your other workspace apps, and to Coder itself when the access URL is under the same domain.
+A preview can use such a cookie to overwrite a cookie that one of your other apps uses.
+
+The `app` target opens the app at its usual address, so the app's `share` setting applies.
+Coder adds none of the preview limits to it, so treat an app that the agent opens like any app that runs code the agent controls.
 
 A directory preview serves every regular file in the directory and its subdirectories.
 It doesn't serve symbolic links, or a file or subdirectory if its name starts with a dot.
@@ -371,7 +419,7 @@ It has no directory listing, and a URL that ends in `/` serves the `index.html` 
 
 > [!WARNING]
 > Do not let the agent preview a directory that contains secrets.
-> Everyone who can open the preview can read every file it serves, including files added after the agent opened it.
+> The preview serves every file in the directory to your browser, including files added after the agent opened it, and scripts in the preview can read them.
 
 ## Plan mode
 
