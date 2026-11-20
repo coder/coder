@@ -588,33 +588,28 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
-		var reportMu sync.Mutex
-		reported := false
+		var reportOnce sync.Once
 		report := func(reason codersdk.DisconnectReason) {
-			reportMu.Lock()
-			defer reportMu.Unlock()
-			if reported {
-				return
-			}
-			reported = true
-			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
-			if s.isClosing() {
-				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
-					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+			reportOnce.Do(func() {
+				fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+				if s.isClosing() {
+					if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+						fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+					}
+					reason = codersdk.DisconnectReasonServerShutdown
+					fields = append(fields, serverShutdownFields()...)
+				} else {
+					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 				}
-				reason = codersdk.DisconnectReasonServerShutdown
-				fields = append(fields, serverShutdownFields()...)
-			} else {
-				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
-			}
-			logger.Info(ctx, "ssh session closed",
-				fields...,
-			)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:    st.exitCode(),
-				Reason:  string(reason),
-				RxBytes: st.RxBytes(),
-				TxBytes: st.TxBytes(),
+				logger.Info(ctx, "ssh session closed",
+					fields...,
+				)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:    st.exitCode(),
+					Reason:  string(reason),
+					RxBytes: st.RxBytes(),
+					TxBytes: st.TxBytes(),
+				})
 			})
 		}
 		// Non-PTY processes outlive the client like OpenSSH, so report the
