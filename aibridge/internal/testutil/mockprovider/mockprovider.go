@@ -1,4 +1,7 @@
-package testutil
+// Package mockprovider provides a configurable [provider.Provider] for tests.
+// It is a subpackage so the mock can depend on packages whose tests import
+// testutil without creating an import cycle.
+package mockprovider
 
 import (
 	"fmt"
@@ -13,22 +16,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/quartz"
 )
-
-// SingleKeyPool builds a centralized key pool containing a single key, or nil
-// when key is empty (no centralized credential). It panics if the pool cannot
-// be built, which does not happen for a non-empty key.
-func SingleKeyPool(name, key string) *keypool.Pool {
-	if key == "" {
-		return nil
-	}
-	pool, err := keypool.New(name, []string{key}, quartz.NewReal(), nil)
-	if err != nil {
-		panic(err)
-	}
-	return pool
-}
 
 type MockProvider struct {
 	NameStr         string
