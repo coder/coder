@@ -3,9 +3,9 @@ title: Send Agent Relay logs to a SIEM
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
+> Agent Relay requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
-> Log messages and fields can change between beta releases.
+> Log messages and fields can change between Agent Relay releases, so review your searches and alerts when you upgrade.
 
 This page is for teams that ingest Agent Relay logs into a security information and event management (SIEM) system or another log platform that reads JSON lines.
 Agent Relay doesn't emit a separate event ID, so build searches and alerts on `msg`, `level`, `logger_names`, and values inside `fields`.
@@ -183,7 +183,7 @@ ID prefixes show where a value comes from:
   - Cursor `provider_user_id` and `user_id` are numbers.
   - `retryable` is a boolean, and `expected_spawn_seconds` is a number.
   - `deadline` is an RFC 3339 timestamp.
-  - Durations such as `interval`, `retry_interval`, `relist_interval`, and `age` are Go duration strings, such as `5s` or `5m0s`.
+  - Durations such as `backoff`, `retry_interval`, `relist_interval`, and `age` are Go duration strings, such as `5s` or `5m0s`.
 - Treat empty strings as missing.
   On Claude Code records, `account_id`, `account_email`, `agent_id`, and `org_service_name` are present but empty when they don't apply.
 - Allow duplicate keys.
