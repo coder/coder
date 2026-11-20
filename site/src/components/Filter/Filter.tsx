@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
@@ -143,26 +143,11 @@ export const Filter: React.FC<FilterProps> = ({
 	className,
 	...props
 }) => {
-	// Storing local copy of the filter query so that it can be updated more
-	// aggressively without re-renders rippling out to the rest of the app every
-	// single time. Exists for performance reasons - not really a good way to
-	// remove this; render keys would cause the component to remount too often
-	const [queryCopy, setQueryCopy] = useState(filter.query);
+	// Holds the typed query until the input blurs, so parent query updates
+	// do not overwrite in-progress keystrokes.
+	const [draftQuery, setDraftQuery] = useState<string>();
 	const textboxInputRef = useRef<HTMLInputElement>(null);
 	const errorId = useId();
-
-	// Conditionally re-syncs the parent and local filter queries
-	useEffect(() => {
-		const hasSelfOrInnerFocus =
-			textboxInputRef.current?.contains(document.activeElement) ?? false;
-
-		// This doesn't address all state sync issues - namely, what happens if the
-		// user removes focus just after this synchronizing effect fires. Also need
-		// to rely on onBlur behavior as an extra safety measure
-		if (!hasSelfOrInnerFocus) {
-			setQueryCopy(filter.query);
-		}
-	}, [filter.query]);
 
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
@@ -192,23 +177,23 @@ export const Filter: React.FC<FilterProps> = ({
 						<SearchField
 							ref={textboxInputRef}
 							className="w-full"
-							value={queryCopy}
+							value={draftQuery ?? filter.query}
 							aria-label="Search"
 							aria-invalid={shouldDisplayError}
 							aria-describedby={hasError(error) ? errorId : undefined}
 							onChange={(query) => {
-								setQueryCopy(query);
+								setDraftQuery(query);
 								filter.debounceUpdate(query);
 							}}
 							onClear={() => {
-								setQueryCopy("");
+								// The clear button unmounts once the box is empty, so return
+								// focus to the input, where the next blur drops the draft.
+								textboxInputRef.current?.focus();
+								setDraftQuery("");
 								filter.cancelDebounce();
 								filter.update("");
 							}}
-							onBlur={() => {
-								if (queryCopy === filter.query) return;
-								setQueryCopy(filter.query);
-							}}
+							onBlur={() => setDraftQuery(undefined)}
 							placeholder="Search..."
 						/>
 						{hasError(error) && (
