@@ -610,7 +610,8 @@ node_modules/.installed: package.json pnpm-lock.yaml pnpm-workspace.yaml
 offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml offlinedocs/pnpm-workspace.yaml
 	cd offlinedocs/
 	node scripts/check-toolchain.mjs
-	../scripts/pnpm_install.sh
+	# Always frozen: the lockfile holds the engine tarballs' integrity hashes.
+	pnpm install --frozen-lockfile
 	touch node_modules/.installed
 
 site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml
@@ -642,7 +643,7 @@ site/out/index.html: \
 offlinedocs/out/index.html: offlinedocs/node_modules/.installed $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
 	cd offlinedocs/
 	node scripts/check-toolchain.mjs
-	../scripts/pnpm_install.sh
+	pnpm install --frozen-lockfile
 	docs_version="$$(node scripts/docs-version.mjs "$(VERSION)")"
 	DOCS_ROOT="$(CURDIR)/docs" DOCS_VERSION="$$docs_version" pnpm export
 

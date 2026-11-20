@@ -16,9 +16,11 @@ To run the steps yourself:
 
 ```sh
 cd offlinedocs
-pnpm install
+pnpm install --frozen-lockfile
 DOCS_VERSION=v2.39.2 pnpm build
 ```
+
+Installs are always frozen: `pnpm-lock.yaml` records each engine tarball's integrity hash, so a release asset that changed after the lockfile was written fails the install.
 
 - `DOCS_ROOT` is the `docs/` tree to build. It defaults to this repository's `docs/`.
 - `DOCS_VERSION` is the version the export names itself: `v2.39.2`, `v2.39` or `main` (the default).
