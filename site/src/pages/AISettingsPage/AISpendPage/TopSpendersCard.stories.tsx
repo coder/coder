@@ -17,7 +17,7 @@ const mockBusyOverview: OrganizationAISpendOverview = {
 		{ name: "Jordan Lee", dollars: 5_000 },
 		{ name: "Sofia Rodriguez", dollars: 4_000 },
 		{ name: "Daniel Kim", dollars: 2_800 },
-		{ name: "Priya Nair", dollars: 2_500 },
+		{ name: "Jane Doe", dollars: 2_500 },
 		{ name: "Ethan Brooks", dollars: 2_200 },
 		{ name: "Leila Hassan", dollars: 1_900 },
 		{ name: "Lucas Moreira", dollars: 1_600 },
