@@ -331,6 +331,14 @@ const markdownClassName = cn(
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:mt-8",
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:mb-4",
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:leading-tight",
+	// Preflight resets heading sizes. The scale is in em so headings stay
+	// proportionate when a consumer sets a compact size such as text-xs.
+	"[&_h1]:text-[2em] [&_h1]:font-bold",
+	"[&_h2]:text-[1.5em] [&_h2]:font-bold",
+	"[&_h3]:text-[1.25em] [&_h3]:font-semibold",
+	"[&_h4]:text-[1.125em] [&_h4]:font-semibold",
+	"[&_h5]:font-semibold",
+	"[&_h6]:text-[0.875em] [&_h6]:font-semibold [&_h6]:text-content-secondary",
 	"[&_p]:mt-0 [&_p]:mb-4 [&_p:only-child]:my-0",
 	"[&_ul]:mb-4 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-2",
 	"[&_ol]:mb-4 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-2",
