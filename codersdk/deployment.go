@@ -5544,7 +5544,7 @@ const (
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 	ExperimentAgentPlugins              Experiment = "agent-plugins"               // Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.
-	ExperimentOpenPreview               Experiment = "open-preview"                // Enables the open_preview chat tool and file preview hostnames.
+	ExperimentOpenPreview               Experiment = "open-preview"                // Enables the open_preview chat tool and preview hostnames.
 )
 
 func (e Experiment) DisplayName() string {
