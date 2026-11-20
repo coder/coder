@@ -3,7 +3,7 @@ title: Agent Relay for Claude Code
 ---
 
 > [!NOTE]
-> Agent Relay for Claude Code is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
+> Agent Relay for Claude Code requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
 
 [Agent Relay](./index.md) connects [Claude Code](https://claude.ai/code) sessions to self-hosted Coder workspaces.
@@ -37,7 +37,7 @@ Anthropic calls this unit an *environment* in claude.ai and a *pool* in its API,
 - An Anthropic organization **without** Zero Data Retention.
   Self-hosted environments are unavailable when it's on.
 - Repositories hosted on GitHub.
-- A workspace image with Claude Code version 2.1.224 or later, or the module's `install_cli = true`.
+- A workspace image with Claude Code version 2.1.224 or later, or an image without the Claude Code CLI and the module's `install_cli = true`.
 - Git version 2.24 or later in the workspace image.
 
 ## Configure a Claude Code pool
@@ -98,7 +98,7 @@ Add the [`coder/agent-relay-claude-code`](https://registry.coder.com/modules/cod
 ```tf
 module "claude_code_runner" {
   source   = "registry.coder.com/coder/agent-relay-claude-code/coder"
-  version  = "1.0.0"
+  version  = "1.0.1"
   agent_id = coder_agent.main.id
   # Set to false and bake the CLI into your image for faster starts.
   install_cli = true
@@ -119,7 +119,8 @@ resource "coder_agent" "main" {
 Use the latest module version from the registry.
 
 > [!NOTE]
-> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.16.0 or later, and receive the credential as a workspace build secret.
+> Module version 1.0.0 and later receive the credential as a workspace build secret, which needs Coder 2.39 or later.
+> For the other components, refer to [Version requirements](./setup.md#version-requirements).
 > Do not set `SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET` in the template yourself.
 > To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
@@ -218,8 +219,13 @@ Each pool's `dispatch_deadline` sets the spawn budget: how long a Claude Code wo
   If no runner starts within the budget, Anthropic offers the session again.
 - The budget starts when Anthropic issues the session's work order, so time in Anthropic's queue and time waiting for a provisioner both count.
 - When a build misses the budget, Agent Relay reports the failure to Anthropic, cancels the build if it's still running, and deletes the workspace.
-- When a build succeeds but the runner never starts, Agent Relay v0.16.0 or later lets Anthropic retry the session only on its first delivery, and only within `dispatch_deadline` of the build's creation.
+- When a build succeeds but the runner never starts, Agent Relay lets Anthropic retry the session only on its first delivery, and only within `dispatch_deadline` of the build's creation.
   Otherwise, it fails the session, so a broken template doesn't rebuild in a loop.
+- When Anthropic redelivers a session while its previous workspace still has a start build or a delete in progress, Agent Relay fails the session instead of building another workspace.
+  This happens even when Agent Relay reported the earlier failure as retryable.
+  If the previous workspace has a start build still running, Agent Relay cancels it and then deletes the workspace.
+  If a delete is already running, Agent Relay lets it finish.
+  To try again, the developer sends a new message in the session.
 
 For templates where the image pull and build regularly take longer than 5&nbsp;minutes, raise `dispatch_deadline`.
 
@@ -232,12 +238,15 @@ To fit inside the budget:
 
 ## Provisioner capacity
 
-Agent Relay claims at most one new session every 5&nbsp;seconds per environment and builds each workspace in the background.
+Agent Relay claims one session at a time for each environment and builds each workspace in the background.
+After it submits a session's build, it claims the next waiting session right away.
+It waits 5&nbsp;seconds before it asks again only when no session is waiting or the request to Anthropic fails.
+Agent Relay doesn't limit how many builds run at once, so a burst of sessions becomes a burst of builds.
 Deletes run separately.
 
-To size provisioners for each environment, divide your template's typical build time in seconds by 5, then add headroom for deletes.
-Multiply the result by the number of environments.
-For example, a template that builds in 60&nbsp;seconds needs about 12 provisioners per environment at peak.
+To size provisioners, estimate how many sessions start within one typical build time at peak, across every environment that uses the same provisioners.
+Run at least that many provisioners, then add headroom for deletes.
+For example, if a template builds in 60&nbsp;seconds and up to 20 sessions start in a minute at peak, run at least 20 provisioners plus headroom for deletes.
 
 > [!WARNING]
 > Provisioner shortages feed themselves.
@@ -321,7 +330,7 @@ Pass runner options through the module's `additional_args` input, with one list 
 ```tf
 module "claude_code_runner" {
   source          = "registry.coder.com/coder/agent-relay-claude-code/coder"
-  version         = "1.0.0"
+  version         = "1.0.1"
   agent_id        = coder_agent.main.id
   additional_args = ["--configure-git", "--push-outcome-on-release"]
 }

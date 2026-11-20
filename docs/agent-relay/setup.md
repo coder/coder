@@ -3,7 +3,7 @@ title: Set up Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
+> Agent Relay requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
 
 This guide is for Coder administrators who deploy Agent Relay against an existing Coder deployment.
@@ -17,12 +17,29 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 
 You need:
 
-- A Coder deployment with a Premium license, on version 2.39 or later.
-- Agent Relay v0.16.0 or later.
+- A Coder deployment with a Premium license.
+- The component versions in [Version requirements](#version-requirements).
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](https://coder.com/downloads), signed in as an `owner`.
 - An account with the provider you want to serve.
   Refer to the requirements on the [Claude Code](./claude-code.md#requirements) or [Cursor](./cursor.md#requirements) page.
+
+### Version requirements
+
+Use these versions or later:
+
+| Component                                               | Minimum version | Notes                                                                              |
+|---------------------------------------------------------|-----------------|------------------------------------------------------------------------------------|
+| Coder control plane, provisioners, and workspace agents | 2.39            | Needed for workspace build secrets and script ordering.                            |
+| Agent Relay image and Helm chart                        | v0.17.0         | The chart version matches the image version.                                       |
+| Coder Terraform provider                                | v2.20.0         | Needed for script ordering.                                                        |
+| `coder/agent-relay-claude-code` module                  | 1.0.0           | Receives the credential as a workspace build secret.                               |
+| `coder/agent-relay-cursor` module                       | 1.0.0           | Receives the credential as a workspace build secret.                               |
+| Claude Code CLI in the workspace image                  | 2.1.224         | Not needed when the image has no Claude Code CLI and you set `install_cli = true`. |
+
+Script ordering starts the worker after your setup scripts finish, as described in [Start the worker after workspace setup](#start-the-worker-after-workspace-setup).
+With `install_cli = true`, the modules install the provider CLI only when the image doesn't have one.
+They use a CLI that's already in the image as is and never upgrade it, so keep the CLI in your image current.
 
 ## Plan your deployment
 
@@ -248,10 +265,11 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
-  Agent Relay v0.16.0 or later fails the session about a minute later.
+  Agent Relay fails the session about a minute later.
   A Cursor request fails at that point.
   For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
   Agent Relay skips that retry when the failure comes later than the pool's `dispatch_deadline` after the build was created.
+  If Anthropic redelivers the session while the failed workspace is still being deleted, Agent Relay fails the session instead of rebuilding.
   On a claimed prebuild, the status item keeps reporting the prebuild's `idle`, so Agent Relay neither fails the session nor deletes the workspace.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
@@ -418,7 +436,7 @@ The reaper can act 30&nbsp;seconds or more after a workspace reaches one of thes
 | The build is still running after the longer of the startup grace and the pool's `dispatch_deadline` | Cancels the build, then deletes the workspace.                   |
 
 The startup grace is 15&nbsp;minutes by default and starts when the latest build is created.
-For failed or timed-out startup scripts, Agent Relay v0.16.0 or later doesn't wait for the startup grace.
+For failed or timed-out startup scripts, Agent Relay doesn't wait for the startup grace.
 After the agent reports `start_error` or `start_timeout`, the reaper waits for two `pending` reads of the worker status, the second from a newer status sample than the first.
 Refer to [Start the worker after workspace setup](#start-the-worker-after-workspace-setup).
 If you set a [reap delay](./configuration.md#--reap-delay), the reaper waits for it before it deletes a workspace or reports a failure, except in the cases that the option's reference lists.
@@ -482,13 +500,12 @@ To change these durations, set [`--reap-keepalive-refresh-before` and `--reap-ke
 - Keep the metadata `interval` well under two minutes, or Agent Relay can't rely on a fresh sample.
 - The image needs `curl`, and the Cursor module also needs `awk`.
 - Agent Relay doesn't extend a workspace past its template's maximum deadline, and doesn't extend workspaces that have no autostop deadline.
-- Keepalive requires module version 1.0.0 or later.
 
 Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` for Cursor.
 
 ## Upgrade from early access
 
-Agent Relay v0.16.0 or later and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
+Module version 1.0.0 and later receive provider credentials as workspace build secrets, which need Coder 2.39 or later.
 Early access module versions, `agent-relay-claude-code` 0.4.0 or earlier and `agent-relay-cursor` 0.7.0 or earlier, don't support build secrets.
 Upgrade Coder, Agent Relay, and every Agent Relay template in the same maintenance window.
 If you need help planning the upgrade, contact Coder.
@@ -504,9 +521,9 @@ If you need help planning the upgrade, contact Coder.
 
    `0` still turns off idle release.
 
-1. Upgrade Agent Relay to v0.16.0 or later.
+1. Upgrade Agent Relay to v0.17.0 or later.
 
-1. Update every Agent Relay template to module version 1.0.0.
+1. Update every Agent Relay template to module version 1.0.0 or later.
 
 ## Learn more
 
