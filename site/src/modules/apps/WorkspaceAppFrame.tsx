@@ -18,7 +18,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
 import { isAppBlockedByMissingWildcard } from "./apps";
 import { useAppLink } from "./useAppLink";
-import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";
+import { useFrameBlock } from "./useFrameBlock";
+import { WorkspaceAppBlocked } from "./WorkspaceAppBlocked";
 import type { WorkspaceAppWithAgent } from "./workspaceApps";
 
 type WorkspaceAppFrameProps = {
@@ -47,11 +48,7 @@ export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 	const showToolbar = app.slug === "preview";
 
 	if (shouldDisplayWildcardWarning) {
-		return (
-			<div className="h-full flex items-center justify-center pb-4">
-				<WorkspaceWildcardWarning />
-			</div>
-		);
+		return <WorkspaceAppBlocked reason={{ kind: "missing-wildcard" }} />;
 	}
 
 	return (
@@ -153,11 +150,20 @@ export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 
 type WorkspaceIframeProps = React.ComponentProps<"iframe">;
 
+/**
+ * Frames a workspace app. When the page's CSP blocks the app's origin, it
+ * explains the block instead.
+ */
 export const WorkspaceIframe: React.FC<WorkspaceIframeProps> = ({
 	className,
 	ref,
 	...props
 }) => {
+	const block = useFrameBlock(props.src);
+	if (block) {
+		return <WorkspaceAppBlocked reason={{ kind: "csp", ...block }} />;
+	}
+
 	return (
 		<iframe
 			ref={ref}
