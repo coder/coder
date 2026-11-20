@@ -87,7 +87,7 @@ export const TemplateCustomizationsStep: React.FC<
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
-	const createFieldErrors = isApiValidationError(createError)
+	const createValidations = isApiValidationError(createError)
 		? mapApiErrorToFieldErrors(createError.response.data)
 		: {};
 	const form = useFormik<CustomizationsFormValues>({
@@ -101,7 +101,7 @@ export const TemplateCustomizationsStep: React.FC<
 		// The step remounts after a failed create, so the fields it names start
 		// touched for getFormHelpers to show their errors.
 		initialTouched: Object.fromEntries(
-			Object.keys(createFieldErrors).map((field) => [field, true]),
+			Object.keys(createValidations).map((field) => [field, true]),
 		),
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
@@ -145,13 +145,13 @@ export const TemplateCustomizationsStep: React.FC<
 
 	// The Organization field is not rendered while organizations fail to load,
 	// so its error moves to the alert above the form.
-	const createErrorFields = Object.keys(createFieldErrors).filter(
+	const fieldsShowingCreateError = Object.keys(createValidations).filter(
 		(field) =>
 			Object.hasOwn(form.initialValues, field) &&
 			!(field === "organization_id" && showOrgsError),
 	);
 	const showCreateErrorAlert =
-		Boolean(createError) && createErrorFields.length === 0;
+		Boolean(createError) && fieldsShowingCreateError.length === 0;
 
 	const handleOrgChange = (org: Organization | null) => {
 		void form.setFieldValue("organization_id", org?.id ?? "");
@@ -212,7 +212,9 @@ export const TemplateCustomizationsStep: React.FC<
 								<OrganizationAutocomplete
 									{...props}
 									required
-									autoFocus={createErrorFields.includes("organization_id")}
+									autoFocus={fieldsShowingCreateError.includes(
+										"organization_id",
+									)}
 									disabled={permittedOrgsQuery.isPending}
 									value={selectedOrg}
 									onChange={handleOrgChange}
@@ -264,7 +266,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={nameField}
 						label="ID"
 						required
-						autoFocus={createErrorFields.includes("name")}
+						autoFocus={fieldsShowingCreateError.includes("name")}
 						id="template-name"
 						placeholder="my-template"
 					/>
