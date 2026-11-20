@@ -171,7 +171,6 @@ type Server struct {
 	dialTimeout                    time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	buildWorkspaceFn               chattool.BuildWorkspaceFn
-	accessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
 	renderTemplateParametersFn     chattool.RenderTemplateParametersFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
@@ -1230,7 +1229,6 @@ type Config struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	BuildWorkspace                 chattool.BuildWorkspaceFn
-	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
 	RenderTemplateParameters       chattool.RenderTemplateParametersFn
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
@@ -1344,7 +1342,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		dialTimeout:                    defaultDialTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		buildWorkspaceFn:               cfg.BuildWorkspace,
-		accessControlStore:             cfg.AccessControlStore,
 		renderTemplateParametersFn:     cfg.RenderTemplateParameters,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,

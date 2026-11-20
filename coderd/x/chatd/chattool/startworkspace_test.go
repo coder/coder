@@ -440,6 +440,9 @@ func TestStartWorkspace(t *testing.T) {
 					Transition: database.WorkspaceTransitionStop,
 				}).Do()
 				ws := wsResp.Workspace
+				if tt.requireActiveVersion {
+					setRequireActiveVersion(ctx, t, db, ws.TemplateID)
+				}
 				activeVersionID := wsResp.Build.TemplateVersionID
 				if tt.outdated {
 					activeVersionID = promoteNewTemplateVersion(t, db, ws)
@@ -464,9 +467,8 @@ func TestStartWorkspace(t *testing.T) {
 				}
 
 				tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
-					OwnerID:            user.ID,
-					BuildFn:            startFn,
-					AccessControlStore: accessControlStorePointer(tt.requireActiveVersion),
+					OwnerID: user.ID,
+					BuildFn: startFn,
 					AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 						return nil, func() {}, nil
 					},
@@ -567,23 +569,6 @@ func TestStartWorkspace(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-		}).Seed(database.WorkspaceBuild{
-			Transition: database.WorkspaceTransitionStop,
-		}).Do()
-		ws := wsResp.Workspace
-		promoteNewTemplateVersion(t, db, ws)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
-			Title:             "test-start-workspace-rejected-start",
-		})
-
 		regionRequired := hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Required parameter not provided",
@@ -682,13 +667,31 @@ func TestStartWorkspace(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
 
+				ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        user.ID,
+					OrganizationID: org.ID,
+				}).Seed(database.WorkspaceBuild{
+					Transition: database.WorkspaceTransitionStop,
+				}).Do().Workspace
+				if tt.requireActiveVersion {
+					setRequireActiveVersion(ctx, t, db, ws.TemplateID)
+				}
+				promoteNewTemplateVersion(t, db, ws)
+
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+					LastModelConfigID: modelCfg.ID,
+					Title:             "test-start-workspace-rejected-start",
+				})
+
 				tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 					OwnerID: user.ID,
 					BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 						return codersdk.WorkspaceBuild{}, tt.err
 					},
-					AccessControlStore: accessControlStorePointer(tt.requireActiveVersion),
-					WorkspaceMu:        &sync.Mutex{},
+					WorkspaceMu: &sync.Mutex{},
 				})
 
 				resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
@@ -1179,20 +1182,12 @@ func (s *jobInterceptStore) GetProvisionerJobByID(ctx context.Context, id uuid.U
 	return result, err
 }
 
-type fakeAccessControlStore struct {
-	dbauthz.AGPLTemplateAccessControlStore
-	requireActiveVersion bool
-}
-
-func (s fakeAccessControlStore) GetTemplateAccessControl(database.Template) dbauthz.TemplateAccessControl {
-	return dbauthz.TemplateAccessControl{RequireActiveVersion: s.requireActiveVersion}
-}
-
-func accessControlStorePointer(requireActiveVersion bool) *atomic.Pointer[dbauthz.AccessControlStore] {
-	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var store dbauthz.AccessControlStore = fakeAccessControlStore{requireActiveVersion: requireActiveVersion}
-	acs.Store(&store)
-	return acs
+func setRequireActiveVersion(ctx context.Context, t *testing.T, db database.Store, templateID uuid.UUID) {
+	t.Helper()
+	require.NoError(t, db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
+		ID:                   templateID,
+		RequireActiveVersion: true,
+	}))
 }
 
 // promoteNewTemplateVersion makes a new version of the workspace's

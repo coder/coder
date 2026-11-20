@@ -4334,18 +4334,6 @@ func TestCreateWorkspaceTool_BindFailureCreatesNoWorkspace(t *testing.T) {
 	require.Empty(t, workspaces.Workspaces)
 }
 
-// requireActiveVersionStore always returns RequireActiveVersion: true so
-// tests can exercise relevant code paths without an enterprise license.
-type requireActiveVersionStore struct{}
-
-func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) dbauthz.TemplateAccessControl {
-	return dbauthz.TemplateAccessControl{RequireActiveVersion: true}
-}
-
-func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
-	return nil
-}
-
 func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -4354,8 +4342,6 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
-	var accessControl dbauthz.AccessControlStore = requireActiveVersionStore{}
-	api.AccessControlStore.Store(&accessControl)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
@@ -4367,6 +4353,13 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	owner, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	err = api.Database.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(owner)), database.UpdateTemplateAccessControlByIDParams{
+		ID:                   template.ID,
+		RequireActiveVersion: true,
+	})
+	require.NoError(t, err)
 
 	// Create a workspace, then stop it so start_workspace has
 	// something to start. We intentionally skip starting a test
