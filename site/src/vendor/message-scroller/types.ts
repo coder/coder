@@ -179,6 +179,8 @@ type MessageScrollerUserLayoutIntentOptions = {
 type MessageScrollerContextValue = {
   handleContentChange: () => void
   handleResize: () => void
+  // LOCAL CHANGE
+  handleTurnEnd: () => void
   observeVisibility: () => void
   preserveScrollOnPrependRef: React.RefObject<boolean>
   // LOCAL CHANGE
