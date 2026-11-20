@@ -311,9 +311,9 @@ func TestRedactArgs(t *testing.T) {
 	args := []string{
 		"apply",
 		"-var", "db_password=hunter2-synthetic",
-		"-var=token=abc-synthetic",
+		"-var", "token=abc-synthetic",
 		"-var", "region=us-east-2",
-		"-var=aws_access_key_id=AKIASYNTHETIC",
+		"-var", "aws_access_key_id=AKIASYNTHETIC",
 		"-no-color",
 	}
 	orig := slices.Clone(args)
@@ -324,10 +324,10 @@ func TestRedactArgs(t *testing.T) {
 	require.Equal(t, []string{
 		"apply",
 		"-var", "db_password=<redacted>",
-		"-var=token=<redacted>",
+		"-var", "token=<redacted>",
 		// Not flagged sensitive: logged as is, even if the name looks secret-ish.
 		"-var", "region=us-east-2",
-		"-var=aws_access_key_id=AKIASYNTHETIC",
+		"-var", "aws_access_key_id=AKIASYNTHETIC",
 		"-no-color",
 	}, got)
 	require.Equal(t, orig, args, "input args must not be modified")

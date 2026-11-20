@@ -881,21 +881,14 @@ func (b *bufferedWriteCloser) Close() error {
 // `sensitive = true`. The args passed to terraform are not modified.
 func redactArgs(args []string, sensitive map[string]bool) []string {
 	out := slices.Clone(args)
-	for i, a := range out {
-		switch {
-		case i > 0 && args[i-1] == "-var":
-			out[i] = redactVar(a, sensitive)
-		case strings.HasPrefix(a, "-var="):
-			out[i] = "-var=" + redactVar(strings.TrimPrefix(a, "-var="), sensitive)
+	for i := 1; i < len(args); i++ {
+		// plan passes each variable as a separate `-var` `name=value` pair.
+		if args[i-1] != "-var" {
+			continue
+		}
+		if name, _, _ := strings.Cut(args[i], "="); sensitive[name] {
+			out[i] = name + "=<redacted>"
 		}
 	}
 	return out
-}
-
-func redactVar(nameValue string, sensitive map[string]bool) string {
-	name, _, _ := strings.Cut(nameValue, "=")
-	if !sensitive[name] {
-		return nameValue
-	}
-	return name + "=<redacted>"
 }
