@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -1694,6 +1695,146 @@ func TestFailJob(t *testing.T) {
 		err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, additionalFields.WorkspaceID)
+	})
+}
+
+// TestFailJobAfterReap covers a daemon that resumes after the job reaper
+// failed its job, then reports a failed apply with Terraform state.
+func TestFailJobAfterReap(t *testing.T) {
+	t.Parallel()
+
+	// reapedBuild returns a build whose job the daemon acquired and the reaper
+	// then failed. The reaper copies the state of the build before it.
+	reapedBuild := func(ctx context.Context, t *testing.T, db database.Store, ps pubsub.Pubsub, pd database.ProvisionerDaemon) (database.WorkspaceTable, database.TemplateVersion, uuid.UUID, uuid.UUID) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{CreatedBy: user.ID, OrganizationID: pd.OrganizationID})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: tpl.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID})
+
+		prevJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: pd.OrganizationID,
+			StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Hour), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-time.Hour), Valid: true},
+		})
+		prevBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             prevJob.ID,
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		require.NoError(t, db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               prevBuild.ID,
+			ProvisionerState: []byte("previous"),
+			UpdatedAt:        dbtime.Now(),
+		}))
+
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			InitiatorID:    user.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: buildID})),
+			OrganizationID: pd.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			JobID:             job.ID,
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			BuildNumber:       2,
+			InitiatorID:       user.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+		require.NoError(t, db.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+			ID:        job.ID,
+			UpdatedAt: dbtime.Now().Add(-jobreaper.HungJobDuration - time.Minute),
+		}))
+
+		tickCh := make(chan time.Time)
+		statsCh := make(chan jobreaper.Stats)
+		detector := jobreaper.New(ctx, db, ps, testutil.Logger(t), tickCh).WithStatsChannel(statsCh)
+		detector.Start()
+		testutil.RequireSend(ctx, t, tickCh, time.Now())
+		stats := testutil.RequireReceive(ctx, t, statsCh)
+		detector.Close()
+		detector.Wait()
+		require.Equal(t, []uuid.UUID{job.ID}, stats.TerminatedJobIDs)
+
+		state, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("previous"), state.ProvisionerState)
+		return ws, tv, job.ID, buildID
+	}
+
+	lateFailJob := func(jobID uuid.UUID) *proto.FailedJob {
+		return &proto.FailedJob{
+			JobId: jobID.String(),
+			Error: "apply failed",
+			Type: &proto.FailedJob_WorkspaceBuild_{WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+				State: []byte("partial apply"),
+			}},
+		}
+	}
+
+	t.Run("LatestBuildGetsState", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, ps, pd := setup(t, false, nil)
+		_, _, jobID, buildID := reapedBuild(ctx, t, db, ps, pd)
+
+		_, err := srv.FailJob(ctx, lateFailJob(jobID))
+		require.ErrorContains(t, err, "job already completed")
+
+		state, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("partial apply"), state.ProvisionerState)
+		job, err := db.GetProvisionerJobByID(ctx, jobID)
+		require.NoError(t, err)
+		require.Equal(t, database.ProvisionerJobStatusFailed, job.JobStatus)
+		require.Contains(t, job.Error.String, "terminated by the reaper")
+	})
+
+	t.Run("NewerBuildKeepsState", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, ps, pd := setup(t, false, nil)
+		ws, tv, jobID, buildID := reapedBuild(ctx, t, db, ps, pd)
+		nextJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: pd.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             nextJob.ID,
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			BuildNumber:       3,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+
+		_, err := srv.FailJob(ctx, lateFailJob(jobID))
+		require.ErrorContains(t, err, "job already completed")
+
+		state, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildID)
+		require.NoError(t, err)
+		require.Equal(t, []byte("previous"), state.ProvisionerState)
 	})
 }
 
