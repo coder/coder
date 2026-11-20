@@ -47,7 +47,6 @@ This means that you should apply the latest patch release to your Coder deployme
 The Coder Support Team may ask you during troubleshooting to apply the latest patch release as a troubleshooting step.
 
 To request a patch release for an issue that affects your deployment, [contact Coder support](../support/index.md) with your Coder version, the impact, and any deadline.
-To test a fix before it's released, use the `preview` image described in [Release schedule](#release-schedule).
 
 Fixes are backported to the release branches that are eligible for them:
 
@@ -61,8 +60,9 @@ Fixes are backported to the release branches that are eligible for them:
 The Coder Team decides which releases receive a bug fix based on its severity and how likely users on each release are to encounter the bug.
 A fix might ship only in mainline and stable, in which case the supported path for older releases is to upgrade to a supported release.
 
-Fixes that require a database schema change aren't backported.
-They ship in the next minor release.
+Patch releases do not include database migrations.
+Changes that require a database migration ship in the next minor release.
+Because patch releases don't include database migrations, you can upgrade between patch releases of the same minor version, such as v2.38.5 to v2.38.10, with a rolling update.
 
 ## Release channels
 
