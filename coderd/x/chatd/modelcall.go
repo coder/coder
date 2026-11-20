@@ -183,6 +183,8 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
+	// Innermost, so each provider attempt of a fallback records its own span.
+	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), buildOpts.StageModel))
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
 	model = p.withQuickgenParamFallback(model, out.route.Provider.ID)
 	out.reasoningRejected = &atomic.Bool{}

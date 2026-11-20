@@ -16,7 +16,9 @@ Coder Agents spans are exported with the rest of the server's traces.
 ## Spans
 
 Each chat turn is a separate trace.
-The root span covers the turn, and the model calls and tool calls of the turn are its descendants.
+The root span covers the turn, and the model calls and tool calls of the turn are its descendants, including advisor and compaction calls.
+Model calls that run after a turn, such as title, status label, and chat summary generation, are traces of their own.
+They carry the same chat and user attributes, so you can attribute their tokens to the same user.
 
 | Span name                         | `gen_ai.operation.name` | Covers                                      |
 |-----------------------------------|-------------------------|---------------------------------------------|
@@ -26,6 +28,7 @@ The root span covers the turn, and the model calls and tool calls of the turn ar
 
 The turn also contains spans for other lifecycle stages, such as `generation_step`, `prepare`, `commit`, and `compaction`.
 Every span carries a `stage` attribute with its lifecycle stage name, such as `chat_turn`, `stream`, or `tool_call`.
+Model calls outside the assistant stream, such as compaction and title generation, have the stage `model_call`.
 The `stage` attribute matches the `stage` label of the `coderd_chatd_stage_duration_seconds` Prometheus metric.
 
 ## Attributes
@@ -50,7 +53,8 @@ The `chat` span carries the model call's details:
 | `gen_ai.provider.name`                     | The provider, such as `openai`, `anthropic`, or `aws.bedrock` |
 | `gen_ai.request.model`                     | The model name                                                |
 | `gen_ai.request.max_tokens`                | The output token limit, if one is set                         |
-| `gen_ai.request.stream`                    | `true`, since Coder Agents streams every model call           |
+| `gen_ai.request.temperature`               | The sampling temperature, if one is set                       |
+| `gen_ai.request.stream`                    | Whether the response was streamed                             |
 | `gen_ai.response.id`                       | The response ID the provider reported, if any                 |
 | `gen_ai.response.finish_reasons`           | Why the model stopped, such as `stop` or `tool_call`          |
 | `gen_ai.usage.input_tokens`                | Input tokens, including cache reads and cache writes          |
@@ -64,6 +68,7 @@ The tool type is `function` for built-in Coder Agents tools and `extension` for 
 
 The operation name, provider, model, and tool attributes are set when the span starts, so samplers can use them.
 A failed span has an error status and an `error.type` attribute.
+A tool call that returns an error result, such as an MCP server that cannot be reached, ends with `error.type` set to `tool_error`.
 
 Spans contain metadata only.
 Prompts, model responses, and tool arguments and results are not recorded.

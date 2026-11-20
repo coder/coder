@@ -65,15 +65,8 @@ func histogramTotals(t *testing.T, registry *prometheus.Registry, name string) (
 	return count, sum
 }
 
-// spanStage returns the stage attribute, since GenAI spans are named after
-// their operation.
 func spanStage(span sdktrace.ReadOnlySpan) Stage {
-	for _, attr := range span.Attributes() {
-		if string(attr.Key) == AttrStage {
-			return Stage(attr.Value.AsString())
-		}
-	}
-	return ""
+	return Stage(chattest.SpanStage(span))
 }
 
 func metricLabel(metric *dto.Metric, name string) string {
@@ -716,7 +709,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		})
 	})
 
-	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {
+	t.Run("ErrorResultEndsWithToolError", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 		tool := fantasy.NewAgentTool("read_file", "reads a file",
@@ -730,7 +723,12 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		toolResult, ok := result.Content[0].(fantasy.ToolResultContent)
 		require.True(t, ok)
 		require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
-		require.Equal(t, codes.Unset, endedSpan(t, fixture.spans, StageToolCall).Status().Code)
+		// Tools such as MCP clients report failures, including an
+		// unreachable server, as error results rather than Run errors.
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		require.Equal(t, codes.Error, toolCall.Status().Code)
+		require.Equal(t, "tool_error", spanAttribute(t, toolCall, "error.type"))
+		require.NotContains(t, toolCall.Status().Description, "file not found")
 	})
 
 	t.Run("ExecutionFailureEndsWithError", func(t *testing.T) {
@@ -800,5 +798,100 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		}
 		_, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.False(t, ok)
+	})
+}
+
+func TestModelCallStage(t *testing.T) {
+	t.Parallel()
+
+	stageModel := StageModel{Provider: "anthropic", ProviderType: "anthropic", Model: "claude"}
+	usage := fantasy.Usage{InputTokens: 10, OutputTokens: 5}
+	requireModelCallSpan := func(t *testing.T, span sdktrace.ReadOnlySpan, stream bool) {
+		t.Helper()
+		require.Equal(t, "chat claude", span.Name())
+		require.Equal(t, trace.SpanKindClient, span.SpanKind())
+		require.Subset(t, span.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "anthropic"),
+			attribute.Bool("gen_ai.request.stream", stream),
+			attribute.Int("gen_ai.usage.input_tokens", 10),
+			attribute.Int("gen_ai.usage.output_tokens", 5),
+		})
+	}
+
+	t.Run("GenerateObjectRecordsUsage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := fixture.tracer.TraceModelCalls(&chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return &fantasy.ObjectResponse{FinishReason: fantasy.FinishReasonStop, Usage: usage}, nil
+			},
+		}, stageModel)
+
+		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
+		require.NoError(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, false)
+		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
+		_, observed := stageSampleCount(t, fixture.registry, StageModelCall)
+		require.False(t, observed, "model calls have no stage histogram")
+	})
+
+	t.Run("UnparsedObjectRecordsUsageAndError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := fixture.tracer.TraceModelCalls(&chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return nil, &fantasy.NoObjectGeneratedError{Usage: usage, FinishReason: fantasy.FinishReasonStop}
+			},
+		}, stageModel)
+
+		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
+		require.Error(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, false)
+		require.Equal(t, codes.Error, span.Status().Code)
+		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"error"}))
+	})
+
+	t.Run("CompactionSummaryRecordsChatSpan", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					{Type: fantasy.StreamPartTypeFinish, ID: "msg_summary", FinishReason: fantasy.FinishReasonStop, Usage: usage},
+				}), nil
+			},
+		}
+
+		ctx, compaction := fixture.tracer.Start(t.Context(), StageCompaction)
+		_, _, err := generateCompactionSummary(ctx, model,
+			[]fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+			GenerateCompactionOptions{
+				SummaryPrompt: "summarize",
+				Clock:         fixture.clock,
+				Stages:        fixture.tracer,
+				StageModel:    stageModel,
+			},
+		)
+		compaction.End(err)
+		require.NoError(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, true)
+		require.Equal(t, endedSpan(t, fixture.spans, StageCompaction).SpanContext().SpanID(), span.Parent().SpanID())
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.response.id", "msg_summary"))
 	})
 }

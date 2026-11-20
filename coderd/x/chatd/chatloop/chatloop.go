@@ -237,6 +237,10 @@ type GenerateCompactionOptions struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
+	// Stages records each summary request as a chat span under the
+	// caller's compaction stage. Nil disables tracing.
+	Stages     *StageTracer
+	StageModel StageModel
 	// SummaryContextLimit is the summary model's window. When positive, it
 	// bounds the summary cap instead of the trigger's limit.
 	SummaryContextLimit int64
@@ -396,13 +400,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	var inference InferenceResponse
 	defer func() {
 		attempt.release()
-		// The recorded finish reason follows the call's outcome, so a
-		// response the loop rejects is not reported as a clean stop.
-		if retErr != nil && inference.FinishReason != fantasy.FinishReasonContentFilter {
-			inference.FinishReason = fantasy.FinishReasonError
-		}
-		streamSpan.SetInferenceResponse(inference)
-		streamSpan.End(retErr)
+		endModelCall(streamSpan, inference, retErr)
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
@@ -1293,7 +1291,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
-			toolSpan.End(execErr)
+			toolSpan.End(toolSpanError(execErr, executions[i].content))
 		}()
 		callCtx := ctx
 		if b.opts.ToolCallContext != nil {

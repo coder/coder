@@ -14759,6 +14759,22 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, "chat "+h.model.Model, stream.Name())
 		require.Equal(t, chatd.SpanAttr(t, stream, "gen_ai.provider.name"), chatd.SpanAttr(t, turn, "gen_ai.provider.name"))
+		// Title generation is a non-streaming model call that runs outside
+		// the turn, so it must still be attributed to the chat owner.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		var modelCall sdktrace.ReadOnlySpan
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			for _, span := range h.recorder.Ended() {
+				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageModelCall) {
+					modelCall = span
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalFast)
+		require.Equal(t, "chat "+h.model.Model, modelCall.Name())
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, modelCall, "user.id"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, modelCall, "gen_ai.conversation.id"))
 		require.Equal(t, chatID.String(), chatd.SpanAttr(t, stream, "gen_ai.conversation.id"))
 		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, stream, "user.id"))
 		require.Equal(t, h.model.Model, chatd.SpanAttr(t, stream, "gen_ai.request.model"))

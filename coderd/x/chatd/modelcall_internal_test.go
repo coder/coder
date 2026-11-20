@@ -203,13 +203,17 @@ func TestResolveModelCallStageModel(t *testing.T) {
 			}}})
 			require.Error(t, err)
 			ended := recorder.Ended()
-			require.Len(t, ended, 1)
-			require.Equal(t, string(chatloop.StageProviderAttempt), ended[0].Name())
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
+			require.Len(t, ended, 2)
+			// The provider attempt ends inside the model call's chat span.
+			attemptSpan, modelCall := ended[0], ended[1]
+			require.Equal(t, chatloop.StageModelCall, spanStage(modelCall))
+			require.Equal(t, modelCall.SpanContext().SpanID(), attemptSpan.Parent().SpanID())
+			require.Equal(t, string(chatloop.StageProviderAttempt), attemptSpan.Name())
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
 			if wantStageModel.Effort != "" {
-				require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrReasoningEffort, wantStageModel.Effort))
+				require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrReasoningEffort, wantStageModel.Effort))
 			}
 		})
 	}

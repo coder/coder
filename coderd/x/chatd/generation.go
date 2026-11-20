@@ -1320,6 +1320,8 @@ func (s *taskStarter) generateCompaction(
 		attribute.String(chatloop.AttrCompactionSource, string(source)),
 	)
 	compactionSpan.SetModel(compactionModel)
+	compactionOpts.Stages = s.server.stages
+	compactionOpts.StageModel = compactionModel
 	outcome, err := chatloop.GenerateCompaction(compactionCtx, compactionOpts)
 	compactionSpan.End(err)
 	if err != nil {

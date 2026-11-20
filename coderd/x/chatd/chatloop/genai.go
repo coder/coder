@@ -5,11 +5,14 @@ import (
 	"errors"
 
 	"charm.land/fantasy"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
@@ -79,7 +82,7 @@ func genAIOperation(stage Stage) (attribute.KeyValue, bool) {
 	switch stage {
 	case StageChatTurn:
 		return semconv.GenAIOperationNameInvokeAgent, true
-	case StageStream:
+	case StageStream, StageModelCall:
 		return semconv.GenAIOperationNameChat, true
 	case StageToolCall:
 		return semconv.GenAIOperationNameExecuteTool, true
@@ -107,13 +110,15 @@ func stageSpanStart(ctx context.Context, stage Stage, model StageModel, toolName
 	case StageChatTurn:
 		name += " " + GenAIAgentName
 		attrs = append(attrs, semconv.GenAIAgentName(GenAIAgentName))
-	case StageStream:
+	case StageStream, StageModelCall:
 		// Models are called over HTTP, so inference spans are clients.
 		opts = append(opts, trace.WithSpanKind(trace.SpanKindClient))
 		if model.Model != "" {
 			name += " " + model.Model
 		}
-		attrs = append(attrs, semconv.GenAIRequestStream(true))
+		if stage == StageStream {
+			attrs = append(attrs, semconv.GenAIRequestStream(true))
+		}
 		attrs = append(attrs, genAIModelAttributes(model)...)
 	case StageToolCall:
 		if toolName != "" {
@@ -124,21 +129,24 @@ func stageSpanStart(ctx context.Context, stage Stage, model StageModel, toolName
 }
 
 // genAIProviderName maps a configured provider type, or the wire protocol
-// when the type is unknown, to gen_ai.provider.name.
+// when the type is unknown, to gen_ai.provider.name. Types without a
+// well-known value in the conventions pass through as their own name.
+// TestGenAIProviderNameCoversEveryProviderType fails when a provider type
+// is added, so this mapping is revisited.
 func genAIProviderName(model StageModel) string {
 	if model.Bedrock {
 		return semconv.GenAIProviderNameAWSBedrock.Value.AsString()
 	}
-	switch model.ProviderType {
-	case "openai":
+	switch database.AIProviderType(model.ProviderType) {
+	case database.AIProviderTypeOpenai:
 		return semconv.GenAIProviderNameOpenAI.Value.AsString()
-	case "anthropic":
+	case database.AIProviderTypeAnthropic:
 		return semconv.GenAIProviderNameAnthropic.Value.AsString()
-	case "azure":
+	case database.AIProviderTypeAzure:
 		return semconv.GenAIProviderNameAzureAIOpenAI.Value.AsString()
-	case "bedrock":
+	case database.AIProviderTypeBedrock:
 		return semconv.GenAIProviderNameAWSBedrock.Value.AsString()
-	case "google":
+	case database.AIProviderTypeGoogle:
 		return semconv.GenAIProviderNameGCPGemini.Value.AsString()
 	case "":
 		return model.Provider
@@ -169,8 +177,28 @@ func (s *StageSpan) SetGenAIProvider(model StageModel) {
 	}
 }
 
+// errToolResult marks a tool call that returned an error result, such as
+// an unreachable MCP server. The result text is not recorded because it
+// can contain tool output.
+var errToolResult = xerrors.New("tool returned an error result")
+
+// toolSpanError is the error an execute_tool span ends with: the run
+// error, or errToolResult when the tool reported a failure as its result.
+func toolSpanError(execErr error, result fantasy.ToolResultContent) error {
+	if execErr != nil {
+		return execErr
+	}
+	if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
+		return errToolResult
+	}
+	return nil
+}
+
 // errorType returns error.type for a failed stage.
 func errorType(err error) string {
+	if errors.Is(err, errToolResult) {
+		return "tool_error"
+	}
 	// A transport reset wraps context.Canceled but is a provider failure.
 	if errors.Is(err, context.Canceled) && !errors.Is(err, chaterror.ErrProviderTransportReset) {
 		return "canceled"
@@ -204,14 +232,18 @@ func genAIToolAttributes(call fantasy.ToolCallContent, toolType string) []attrib
 
 // SetInferenceRequest records request attributes of a chat span.
 func (s *StageSpan) SetInferenceRequest(call fantasy.Call) {
+	s.setRequestParams(call.MaxOutputTokens, call.Temperature)
+}
+
+func (s *StageSpan) setRequestParams(maxOutputTokens *int64, temperature *float64) {
 	if s == nil || s.ended {
 		return
 	}
-	if call.MaxOutputTokens != nil {
-		s.span.SetAttributes(semconv.GenAIRequestMaxTokens(int(*call.MaxOutputTokens)))
+	if maxOutputTokens != nil {
+		s.span.SetAttributes(semconv.GenAIRequestMaxTokens(int(*maxOutputTokens)))
 	}
-	if call.Temperature != nil {
-		s.span.SetAttributes(semconv.GenAIRequestTemperature(*call.Temperature))
+	if temperature != nil {
+		s.span.SetAttributes(semconv.GenAIRequestTemperature(*temperature))
 	}
 }
 
@@ -232,14 +264,14 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 		attrs = append(attrs, semconv.GenAIResponseID(resp.ResponseID))
 	}
 	attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
-	attrs = append(attrs, usageAttributes(resp.Usage)...)
+	attrs = append(attrs, usageAttributes(s.model, resp.Usage)...)
 	s.span.SetAttributes(attrs...)
 }
 
 // genAIFinishReason maps a fantasy finish reason to the GenAI finish
-// reason enum, which has no value for a missing or unclassified reason.
-// GenerateAssistant marks every failed call as error, so those map to
-// stop.
+// reason enum. The enum has no value for a missing or unclassified
+// reason, so those map to stop. Callers set FinishReasonError for failed
+// calls.
 func genAIFinishReason(reason fantasy.FinishReason) string {
 	switch reason {
 	case fantasy.FinishReasonLength:
@@ -256,12 +288,16 @@ func genAIFinishReason(reason fantasy.FinishReason) string {
 }
 
 // usageAttributes reports input tokens including cache reads and writes,
-// as the conventions require; fantasy reports them separately.
-func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
+// as the conventions require. Fantasy reports them separately, except for
+// Google, whose prompt token count already includes cached content.
+func usageAttributes(model StageModel, usage fantasy.Usage) []attribute.KeyValue {
 	if usage == (fantasy.Usage{}) {
 		return nil
 	}
-	input := usage.InputTokens + usage.CacheReadTokens + usage.CacheCreationTokens
+	input := usage.InputTokens
+	if model.Provider != fantasygoogle.Name {
+		input += usage.CacheReadTokens + usage.CacheCreationTokens
+	}
 	attrs := []attribute.KeyValue{
 		semconv.GenAIUsageInputTokens(int(input)),
 		semconv.GenAIUsageOutputTokens(int(usage.OutputTokens)),

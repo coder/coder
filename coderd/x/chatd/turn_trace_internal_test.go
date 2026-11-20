@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -35,15 +36,8 @@ func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace
 	return stageSpansByStart(t, recorder, chatloop.StageChatTurn)
 }
 
-// spanStage returns the stage attribute, since GenAI spans are named after
-// their operation.
 func spanStage(span sdktrace.ReadOnlySpan) chatloop.Stage {
-	for _, attr := range span.Attributes() {
-		if string(attr.Key) == chatloop.AttrStage {
-			return chatloop.Stage(attr.Value.AsString())
-		}
-	}
-	return ""
+	return chatloop.Stage(chattest.SpanStage(span))
 }
 
 func stageSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder, stage chatloop.Stage) []sdktrace.ReadOnlySpan {

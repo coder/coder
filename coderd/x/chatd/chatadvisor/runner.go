@@ -57,6 +57,8 @@ func (rt *Runtime) RunAdvisor(
 		Messages:             BuildAdvisorMessages(question, conversationSnapshot),
 		CallTemplate:         nestedCall,
 		StreamSilenceTimeout: rt.cfg.StreamSilenceTimeout,
+		Stages:               rt.cfg.Stages,
+		StageModel:           rt.cfg.StageModel,
 	}
 	if opts != nil && (opts.OnAdviceDelta != nil || opts.OnReasoningDelta != nil) {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {

@@ -17,18 +17,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/quartz"
 )
 
-// spanStage returns the stage attribute, since GenAI spans are named after
-// their operation.
 func spanStage(span sdktrace.ReadOnlySpan) chatloop.Stage {
-	for _, attr := range span.Attributes() {
-		if string(attr.Key) == chatloop.AttrStage {
-			return chatloop.Stage(attr.Value.AsString())
-		}
-	}
-	return ""
+	return chatloop.Stage(chattest.SpanStage(span))
 }
 
 type stageFixture struct {

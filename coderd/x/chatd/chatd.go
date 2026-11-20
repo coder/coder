@@ -353,6 +353,8 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		Stages:               p.stages,
+		StageModel:           advisor.stageModel(),
 		PriorUses:            priorUses,
 	})
 	if err != nil {

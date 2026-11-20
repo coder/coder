@@ -475,9 +475,13 @@ func generateCompactionSummary(
 	}
 	// TTFT is an assistant-generation measurement, so the summary stream
 	// records neither its histogram nor its stage.
-	streamSummaryText := func(call fantasy.Call) (string, error) {
+	streamSummaryText := func(call fantasy.Call) (_ string, retErr error) {
+		spanCtx, span := options.Stages.StartModelCall(summaryCtx, options.StageModel, true)
+		span.SetInferenceRequest(call)
+		var inference InferenceResponse
+		defer func() { endModelCall(span, inference, retErr) }()
 		attempt, err := guardedStream(
-			summaryCtx,
+			spanCtx,
 			options.ResolvedProvider,
 			options.ResolvedModel,
 			clock,
@@ -526,6 +530,7 @@ func generateCompactionSummary(
 				finishSeen = true
 				finishReason = part.FinishReason
 				responseID = providerResponseID(part)
+				inference = InferenceResponse{ResponseID: responseID, FinishReason: finishReason, Usage: part.Usage}
 			case fantasy.StreamPartTypeError:
 				streamErr = part.Error
 				if streamErr == nil {

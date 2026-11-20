@@ -20,14 +20,17 @@ type Stage string
 
 // Stage values.
 const (
-	StageChatTurn         Stage = "chat_turn"
-	StageQueueWait        Stage = "queue_wait"
-	StageAcquisition      Stage = "acquisition"
-	StageGenerationStep   Stage = "generation_step"
-	StagePrepare          Stage = "prepare"
-	StageMCPConnect       Stage = "mcp_connect"
-	StageProviderAttempt  Stage = "provider_attempt"
-	StageStream           Stage = "stream"
+	StageChatTurn        Stage = "chat_turn"
+	StageQueueWait       Stage = "queue_wait"
+	StageAcquisition     Stage = "acquisition"
+	StageGenerationStep  Stage = "generation_step"
+	StagePrepare         Stage = "prepare"
+	StageMCPConnect      Stage = "mcp_connect"
+	StageProviderAttempt Stage = "provider_attempt"
+	StageStream          Stage = "stream"
+	// StageModelCall is a model call outside the assistant stream, such
+	// as title generation or a compaction summary. It has no histogram.
+	StageModelCall        Stage = "model_call"
 	StageTimeToFirstToken Stage = "time_to_first_token"
 	StageThinking         Stage = "thinking"
 	StageToolCall         Stage = "tool_call"
@@ -232,6 +235,13 @@ func (t *StageTracer) StartWithModel(
 ) (context.Context, *StageSpan) {
 	return t.startSpan(ctx, stage, scopeFromContext(ctx), time.Time{}, model, "",
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
+}
+
+// StartModelCall begins a chat span for a model call outside the
+// assistant stream. The model is set at creation, so samplers see it.
+func (t *StageTracer) StartModelCall(ctx context.Context, model StageModel, stream bool) (context.Context, *StageSpan) {
+	return t.startSpan(ctx, StageModelCall, scopeFromContext(ctx), time.Time{}, model, "",
+		[]trace.SpanStartOption{trace.WithAttributes(semconv.GenAIRequestStream(stream))})
 }
 
 // StartTool begins an execute_tool span for call. The tool metadata is
