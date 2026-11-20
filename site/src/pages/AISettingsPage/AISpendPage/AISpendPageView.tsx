@@ -36,7 +36,7 @@ type AISpendPageViewProps = {
 	onDaysChange: (days: SpendDays) => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
-	unpricedModels: readonly TypesGen.UnpricedAIModel[] | undefined;
+	unpricedModels: TypesGen.UnpricedAIModels | undefined;
 	isUnpricedModelsLoading: boolean;
 	topSpenderDetails: readonly TypesGen.OrganizationAISpendUser[] | undefined;
 	topSpenderDetailsError: Error | null;
