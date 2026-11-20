@@ -200,9 +200,6 @@ func TestRunPush_RetriesTransientError(t *testing.T) {
 	<-pushDone
 }
 
-// TestRunPush_RetryCarriesNewestSnapshot verifies that a retry after a
-// failed push sends the snapshot published during the backoff, so
-// fixing a file on disk is picked up without an agent restart.
 func TestRunPush_RetryCarriesNewestSnapshot(t *testing.T) {
 	t.Parallel()
 	mClock := quartz.NewMock(t)
@@ -229,8 +226,6 @@ func TestRunPush_RetryCarriesNewestSnapshot(t *testing.T) {
 		})
 	}()
 
-	// The first push fails and arms the backoff timer. Publish a
-	// new snapshot before the timer fires.
 	trap.MustWait(ctx).MustRelease(ctx)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
 	_, err := m.Resync(ctx)
@@ -248,13 +243,8 @@ func TestRunPush_RetryCarriesNewestSnapshot(t *testing.T) {
 	require.ErrorIs(t, <-pushDone, context.Canceled)
 }
 
-// TestRunPush_InvalidWaitsForChange verifies that a push coderd rejects
-// as invalid is not retried, and that the next change is pushed with
-// Initial still set.
 func TestRunPush_InvalidWaitsForChange(t *testing.T) {
 	t.Parallel()
-	// The mock clock is never advanced, so entering backoff would
-	// block the loop and the second push would never arrive.
 	mClock := quartz.NewMock(t)
 
 	dir := t.TempDir()

@@ -130,8 +130,6 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	if req == nil {
 		return nil, xerrors.New("agentapi: PushContextState request is nil")
 	}
-	// Validation failures carry InvalidArgument so the agent waits for
-	// its files to change instead of resending the same snapshot.
 	if err := validateContextPushRequest(req); err != nil {
 		return nil, drpcerr.WithCode(err, uint64(codes.InvalidArgument))
 	}

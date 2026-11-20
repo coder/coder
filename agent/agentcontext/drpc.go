@@ -34,8 +34,7 @@ func NewDRPCPusher(client agentproto.DRPCAgentClient210) *DRPCPusher {
 // drpc returns an Unimplemented error when the peer's service
 // definition does not include the RPC. The adapter translates
 // that into ErrPushUnimplemented so RunPush stops gracefully
-// when an old coderd is on the other end, and translates
-// InvalidArgument into ErrPushInvalid.
+// when an old coderd is on the other end.
 func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*PushResponse, error) {
 	if p == nil || p.client == nil {
 		return nil, xerrors.New("agentcontext: DRPCPusher has no client")

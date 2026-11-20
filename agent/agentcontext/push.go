@@ -49,9 +49,6 @@ type Pusher interface {
 // remainder of the connection.
 var ErrPushUnimplemented = xerrors.New("agentcontext: PushContextState unimplemented")
 
-// ErrPushInvalid signals that coderd rejected the snapshot as
-// invalid. Resending it cannot succeed, so RunPush waits for the
-// next change instead of retrying.
 var ErrPushInvalid = xerrors.New("agentcontext: coderd rejected the context push as invalid")
 
 // Default backoff timings for pushWithRetry. Exposed as named
@@ -107,8 +104,6 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	defer unsub()
 
 	// Until SetReady the snapshot is version 0: wait, don't push it.
-	// Every published snapshot has a new version, so a version that
-	// already reached a final outcome is not pushed again.
 	initial := true
 	var lastSent uint64
 	for {
@@ -125,8 +120,6 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 			}
 			continue
 		}
-		// Rebuild before every attempt so a retry carries the
-		// newest snapshot, not the one coderd already rejected.
 		var req *PushRequest
 		next := func() *PushRequest {
 			req = snapshotToPushRequest(m.Snapshot(), initial)
@@ -156,13 +149,11 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 }
 
 // pushWithRetry retries transient errors with exponential
-// backoff capped at maxBackoff, calling next for a fresh request
-// before each attempt. The retry loop exits when:
+// backoff capped at maxBackoff. The retry loop exits when:
 //
 //   - ctx is canceled (returns ctx.Err()).
 //   - The Pusher returns nil (success).
-//   - The Pusher returns ErrPushUnimplemented or ErrPushInvalid
-//     (propagated).
+//   - The Pusher returns ErrPushUnimplemented (propagated).
 func pushWithRetry(
 	ctx context.Context,
 	p Pusher,
