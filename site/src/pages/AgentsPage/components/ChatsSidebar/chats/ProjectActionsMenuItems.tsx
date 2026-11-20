@@ -1,6 +1,6 @@
 import { SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
-import type { ChatProjectPermissions } from "#/api/typesGenerated";
+import type { ChatProject } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -26,15 +26,22 @@ type ProjectActionsMenuItemsProps = {
 	readonly onPin?: () => void;
 	/** Adds an "Unpin" item. */
 	readonly onUnpin?: () => void;
-	readonly permissions: ChatProjectPermissions;
+	readonly project: Pick<ChatProject, "permissions" | "archived_at">;
 	readonly onEdit: () => void;
+	readonly onArchive: () => void;
+	/** When omitted, an archived project gets no "Unarchive" item. */
+	readonly onUnarchive?: () => void;
 	readonly onDelete: () => void;
 };
 
 /** Reports whether ProjectActionsMenuItems renders any permission-gated item. */
-export const hasProjectUpdateOrDeleteAction = (
-	permissions: ChatProjectPermissions,
-) => permissions.update || permissions.delete;
+export const hasProjectManageAction = ({
+	permissions,
+	archived_at,
+}: Pick<ChatProject, "permissions" | "archived_at">) =>
+	(permissions.update && !archived_at) ||
+	permissions.archive ||
+	permissions.delete;
 
 /** Project actions shared by dropdown and context menus. */
 export const ProjectActionsMenuItems: React.FC<
@@ -46,11 +53,19 @@ export const ProjectActionsMenuItems: React.FC<
 	onNewChatInPlace,
 	onPin,
 	onUnpin,
-	permissions,
+	project,
 	onEdit,
+	onArchive,
+	onUnarchive,
 	onDelete,
 }) => {
-	const hasItemsAboveDelete = onPin || onUnpin || permissions.update;
+	const { permissions } = project;
+	const isArchived = Boolean(project.archived_at);
+	const showEdit = permissions.update && !isArchived;
+	const showArchive = permissions.archive && !isArchived;
+	const showUnarchive = onUnarchive && permissions.archive && isArchived;
+	const hasItemsAboveDelete =
+		onPin || onUnpin || showEdit || showArchive || showUnarchive;
 	return (
 		<>
 			{projectPath !== undefined && (
@@ -65,14 +80,16 @@ export const ProjectActionsMenuItems: React.FC<
 							New chat
 						</Link>
 					</Item>
-					{(onPin ||
-						onUnpin ||
-						hasProjectUpdateOrDeleteAction(permissions)) && <Separator />}
+					{(onPin || onUnpin || hasProjectManageAction(project)) && (
+						<Separator />
+					)}
 				</>
 			)}
 			{onPin && <Item onSelect={onPin}>Pin</Item>}
 			{onUnpin && <Item onSelect={onUnpin}>Unpin</Item>}
-			{permissions.update && <Item onSelect={onEdit}>Edit</Item>}
+			{showEdit && <Item onSelect={onEdit}>Edit</Item>}
+			{showArchive && <Item onSelect={onArchive}>Archive</Item>}
+			{showUnarchive && <Item onSelect={onUnarchive}>Unarchive</Item>}
 			{permissions.delete && (
 				<>
 					{hasItemsAboveDelete && <Separator />}
