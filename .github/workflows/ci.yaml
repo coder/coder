@@ -1206,6 +1206,10 @@ jobs:
         if: env.PIXEL_ENABLED == 'true'
         env:
           PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+          # pixel-storybook defaults to GITHUB_SHA, which on pull_request
+          # events is the synthetic merge commit. GitHub only shows commit
+          # statuses for the PR head, so report the head SHA instead.
+          PIXEL_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
