@@ -49,8 +49,8 @@ func TestStopWorkspace(t *testing.T) {
 		})
 
 		tool := chattool.StopWorkspace(db, chat.ID, chattool.StopWorkspaceOptions{
-			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				t.Fatal("StopFn should not be called")
+			BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("BuildFn should not be called")
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
@@ -91,8 +91,8 @@ func TestStopWorkspace(t *testing.T) {
 		})
 
 		tool := chattool.StopWorkspace(db, chat.ID, chattool.StopWorkspaceOptions{
-			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				t.Fatal("StopFn should not be called for deleted workspace")
+			BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("BuildFn should not be called for deleted workspace")
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
@@ -145,8 +145,8 @@ func TestStopWorkspace(t *testing.T) {
 			testAccessControlStorePointer(),
 		)
 		tool := chattool.StopWorkspace(authzDB, chat.ID, chattool.StopWorkspaceOptions{
-			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				t.Fatal("StopFn should not be called for deleted workspace")
+			BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("BuildFn should not be called for deleted workspace")
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
@@ -192,8 +192,8 @@ func TestStopWorkspace(t *testing.T) {
 
 		tool := chattool.StopWorkspace(db, chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID: user.ID,
-			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				t.Fatal("StopFn should not be called for already-stopped workspace")
+			BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("BuildFn should not be called for already-stopped workspace")
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
@@ -248,7 +248,7 @@ func TestStopWorkspace(t *testing.T) {
 		var onChatUpdatedCalls atomic.Int32
 		tool := chattool.StopWorkspace(db, chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID: user.ID,
-			StopFn: func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			BuildFn: func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				stopCalled.Store(true)
 				require.Equal(t, ws.ID, wsID)
 				require.Equal(t, codersdk.WorkspaceTransitionStop, req.Transition)
@@ -323,7 +323,7 @@ func TestStopWorkspace(t *testing.T) {
 		var onChatUpdatedCalled atomic.Bool
 		tool := chattool.StopWorkspace(wrappedDB, chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID: user.ID,
-			StopFn: func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			BuildFn: func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				stopCalled.Store(true)
 				require.Equal(t, ws.ID, wsID)
 				require.Equal(t, codersdk.WorkspaceTransitionStop, req.Transition)
@@ -350,7 +350,7 @@ func TestStopWorkspace(t *testing.T) {
 		}()
 
 		testutil.TryReceive(ctx, t, jobRead)
-		require.False(t, stopCalled.Load(), "StopFn must wait for the in-progress build")
+		require.False(t, stopCalled.Load(), "BuildFn must wait for the in-progress build")
 
 		now := time.Now().UTC()
 		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -408,7 +408,7 @@ func TestStopWorkspace(t *testing.T) {
 		var stopCalled atomic.Bool
 		tool := chattool.StopWorkspace(db, chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID: user.ID,
-			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			BuildFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				stopCalled.Store(true)
 				require.Equal(t, codersdk.WorkspaceTransitionStop, req.Transition)
 				buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
@@ -475,7 +475,7 @@ func TestStopWorkspace(t *testing.T) {
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 		tool := chattool.StopWorkspace(wrappedDB, chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:     user.ID,
-			StopFn:      stopFn,
+			BuildFn:     stopFn,
 			WorkspaceMu: &sync.Mutex{},
 			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		})

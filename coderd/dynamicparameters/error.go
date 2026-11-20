@@ -6,9 +6,15 @@ import (
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// ErrParameterValidation is a sentinel indicating that a workspace
+// build failed because a template-version parameter could not be
+// validated (missing required value, immutable change, etc.).
+var ErrParameterValidation = xerrors.New("parameter validation failed")
 
 func parameterValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	return &DiagnosticError{

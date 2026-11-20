@@ -54,7 +54,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -4610,8 +4609,7 @@ func (api *API) chatCreateWorkspace(
 	return workspace, chat, nil
 }
 
-// chatBuildWorkspace creates a workspace build with the transition in
-// req, as the workspace owner. The chat start and stop tools share it.
+// chatBuildWorkspace creates a workspace build as the workspace owner.
 func (api *API) chatBuildWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -4629,28 +4627,13 @@ func (api *API) chatBuildWorkspace(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
-	}
-	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
-	}
-	req, updatedToActiveVersion := resolveChatStartVersion(
-		req,
-		(*(api.AccessControlStore.Load())).GetTemplateAccessControl(template),
-		latestBuild.TemplateVersionID,
-		template.ActiveVersionID,
-	)
-
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
 		UserID: ownerID,
 	}
 
-	apiBuild, err := api.postWorkspaceBuildsInternal(
+	return api.postWorkspaceBuildsInternal(
 		ctx,
 		syntheticKey,
 		workspace,
@@ -4662,60 +4645,6 @@ func (api *API) chatBuildWorkspace(
 		},
 		audit.WorkspaceBuildBaggage{},
 	)
-	if err != nil {
-		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
-			const retryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values. If the correct value for a parameter is not obvious from its description or defaults, ask the user rather than guessing."
-			if responder, ok := httperror.IsResponder(err); ok {
-				status, resp := responder.Response()
-				resp = rewriteChatStartWorkspaceManualUpdateResponse(resp, err.Error(), retryInstructions)
-				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(status, resp)
-			}
-			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: retryInstructions,
-				Detail:  err.Error(),
-			})
-		}
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
-	}
-
-	return apiBuild, nil
-}
-
-func resolveChatStartVersion(
-	req codersdk.CreateWorkspaceBuildRequest,
-	accessControl dbauthz.TemplateAccessControl,
-	latestBuildVersionID uuid.UUID,
-	activeVersionID uuid.UUID,
-) (_ codersdk.CreateWorkspaceBuildRequest, updatedToActiveVersion bool) {
-	if req.Transition != codersdk.WorkspaceTransitionStart || !accessControl.RequireActiveVersion {
-		return req, false
-	}
-	req.TemplateVersionID = activeVersionID
-	return req, latestBuildVersionID != activeVersionID
-}
-
-func rewriteChatStartWorkspaceManualUpdateResponse(resp codersdk.Response, fallbackDetail string, retryInstructions string) codersdk.Response {
-	originalMessage := resp.Message
-	resp.Message = retryInstructions
-	if len(resp.Validations) == 0 && originalMessage != "" {
-		if resp.Detail == "" {
-			resp.Detail = originalMessage
-		} else {
-			resp.Detail = originalMessage + ": " + resp.Detail
-		}
-	} else if resp.Detail == "" {
-		resp.Detail = fallbackDetail
-	}
-	return resp
-}
-
-func isChatStartWorkspaceManualUpdateRequiredError(err error) bool {
-	var diagnosticErr *dynamicparameters.DiagnosticError
-	if errors.As(err, &diagnosticErr) {
-		return true
-	}
-
-	return errors.Is(err, wsbuilder.ErrParameterValidation)
 }
 
 func chatWorkspaceAuditStatus(err error) int {

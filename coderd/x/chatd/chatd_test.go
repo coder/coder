@@ -4380,13 +4380,26 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop,
 	)
 
-	activeVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+	activeVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Parameters: []*proto.RichParameter{{
+						Name:     "region",
+						Type:     "string",
+						Required: true,
+					}},
+				},
+			},
+		}},
+	}, template.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, activeVersion.ID)
 	coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, activeVersion.ID)
 
 	var streamedCallCount atomic.Int32
 	var streamedCallsMu sync.Mutex
-	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 3)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -4397,14 +4410,20 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
 		streamedCallsMu.Unlock()
 
-		if streamedCallCount.Add(1) == 1 {
+		switch streamedCallCount.Add(1) {
+		case 1:
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
 			)
+		case 2:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("start_workspace", `{"parameters":{"region":"us"}}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("Workspace started and ready.")...,
+			)
 		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Workspace started and ready.")...,
-		)
 	})
 
 	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
@@ -4450,8 +4469,9 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 
-	// Verify start_workspace tool result exists in the chat messages.
-	var foundStartWorkspaceResult bool
+	// The active version needs a parameter the first call did not
+	// supply, so the first result tells the model how to retry.
+	var startResults []map[string]any
 	for _, message := range chatMsgs.Messages {
 		if message.Role != codersdk.ChatMessageRoleTool {
 			continue
@@ -4462,23 +4482,26 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 			}
 			var result map[string]any
 			require.NoError(t, json.Unmarshal(part.Result, &result))
-			started, ok := result["started"].(bool)
-			require.True(t, ok)
-			require.True(t, started)
-			foundStartWorkspaceResult = true
+			startResults = append(startResults, result)
 		}
 	}
-	require.True(t, foundStartWorkspaceResult, "expected start_workspace tool result message")
+	require.Len(t, startResults, 2)
+	// Messages are returned newest first.
+	started, rejected := startResults[0], startResults[1]
+	require.Contains(t, rejected["error"], "retry start_workspace")
+	require.Equal(t, template.ID.String(), rejected["template_id"])
+	require.Equal(t, true, started["started"])
+	require.Equal(t, true, started["updated_to_active_version"])
 
-	// Verify the LLM received the tool result in its second call.
-	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+	// Verify the LLM received the tool result in its third call.
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(3))
 	streamedCallsMu.Lock()
 	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
 	streamedCallsMu.Unlock()
-	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+	require.GreaterOrEqual(t, len(recordedStreamCalls), 3)
 
-	var foundToolResultInSecondCall bool
-	for _, message := range recordedStreamCalls[1] {
+	var foundToolResultInThirdCall bool
+	for _, message := range recordedStreamCalls[2] {
 		if message.Role != "tool" {
 			continue
 		}
@@ -4491,11 +4514,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 		started, ok := result["started"].(bool)
 		if ok && started {
-			foundToolResultInSecondCall = true
+			foundToolResultInThirdCall = true
 			break
 		}
 	}
-	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
+	require.True(t, foundToolResultInThirdCall, "expected third streamed model call to include start_workspace tool output")
 }
 
 func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T) {
