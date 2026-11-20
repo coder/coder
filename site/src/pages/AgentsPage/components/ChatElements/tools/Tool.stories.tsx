@@ -2488,6 +2488,8 @@ export const WebSearchQueriesAndFoundPages: Story = {
 		foundPages: [
 			{ url: "https://coder.com/changelog", title: "" },
 			{ url: "https://coder.com/docs/ai-coder/ai-gateway", title: "" },
+			{ url: "https://github.com/coder/coder/releases", title: "" },
+			{ url: "https://internal.example/release-notes", title: "" },
 			{ url: "ftp://example.com/release.txt", title: "" },
 			{ url: "data:text/html,unsafe", title: "" },
 		],

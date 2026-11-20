@@ -603,12 +603,31 @@ const mockSourcesAndAttachmentsMessages = MockMixedAttachmentMessages.map(
 					...message,
 					content: [
 						...(message.content ?? []),
-						...Array.from(
-							{ length: 5 },
-							(_, index): TypesGen.ChatSourcePart => ({
+						...[
+							{
+								url: "https://github.com/coder/coder",
+								title: "Coder on GitHub",
+							},
+							{
+								url: "https://coder.com/docs",
+								title: "Coder documentation",
+							},
+							{
+								url: "https://internal.example/workspaces",
+								title: "Workspace architecture notes",
+							},
+							{
+								url: "https://docs.aws.amazon.com/",
+								title: "AWS documentation",
+							},
+							{
+								url: "https://linear.app/docs",
+								title: "Linear documentation",
+							},
+						].map(
+							(source): TypesGen.ChatSourcePart => ({
 								type: "source",
-								url: `https://example.com/docs/page-${index + 1}`,
-								title: `Reference page ${index + 1}`,
+								...source,
 							}),
 						),
 					],
