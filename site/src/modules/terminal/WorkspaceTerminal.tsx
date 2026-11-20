@@ -543,13 +543,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 					if (disposed) {
 						return;
 					}
-					if (typeof event.data === "string") {
-						// This exclusively occurs when testing, where the mock server
-						// sends strings.
-						terminal.write(event.data);
-					} else {
-						terminal.write(new Uint8Array(event.data));
-					}
+					terminal.write(new Uint8Array(event.data));
 				});
 				websocket.addEventListener(WebsocketEvent.reconnect, () => {
 					if (disposed || !websocket) {

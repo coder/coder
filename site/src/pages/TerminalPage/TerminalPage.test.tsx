@@ -47,6 +47,14 @@ const createWorkspaceTerminalWebSocket = () => {
 	);
 };
 
+// Sends terminal output the way the PTY does, as binary messages.
+const sendOutput = (
+	ws: ReturnType<typeof createWorkspaceTerminalWebSocket>,
+	text: string,
+) => {
+	ws.send(new TextEncoder().encode(text).buffer);
+};
+
 // Renders the terminal page and waits for the terminal to finish
 // initializing (i.e. the WebSocket connection is established). Do not
 // use this for tests where the terminal stays in loading state, such
@@ -183,7 +191,7 @@ describe("TerminalPage", () => {
 		const text = "something to render";
 
 		const { container } = await renderTerminal();
-		ws.send(text);
+		sendOutput(ws, text);
 
 		await expectTerminalText(container, text);
 	});
@@ -213,7 +221,7 @@ describe("TerminalPage", () => {
 			`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
 		);
 
-		ws.send(text);
+		sendOutput(ws, text);
 		await expectTerminalText(container, text);
 	});
 
@@ -321,7 +329,7 @@ describe("TerminalPage", () => {
 			// OSC 52 sequence per #16577:
 			// printf "\033]52;c;$(echo -n 'Coder is Cool' | base64)\a"
 			const base64 = btoa("Coder is Cool");
-			ws.send(`\x1b]52;c;${base64}\x07`);
+			sendOutput(ws, `\x1b]52;c;${base64}\x07`);
 
 			await waitFor(() => {
 				expect(writeTextMock).toHaveBeenCalledWith("Coder is Cool");
@@ -333,7 +341,7 @@ describe("TerminalPage", () => {
 			await renderTerminal();
 			await ws.nextMessage();
 
-			ws.send("\x1b]52;no-separator\x07");
+			sendOutput(ws, "\x1b]52;no-separator\x07");
 
 			// Give the parser time to process, then verify no clipboard write.
 			await new Promise((r) => setTimeout(r, 100));
@@ -345,7 +353,7 @@ describe("TerminalPage", () => {
 			await renderTerminal();
 			await ws.nextMessage();
 
-			ws.send("\x1b]52;c;?\x07");
+			sendOutput(ws, "\x1b]52;c;?\x07");
 
 			await new Promise((r) => setTimeout(r, 100));
 			expect(writeTextMock).not.toHaveBeenCalled();
@@ -356,7 +364,7 @@ describe("TerminalPage", () => {
 			await renderTerminal();
 			await ws.nextMessage();
 
-			ws.send("\x1b]52;c;!!!invalid-base64!!!\x07");
+			sendOutput(ws, "\x1b]52;c;!!!invalid-base64!!!\x07");
 
 			await new Promise((r) => setTimeout(r, 100));
 			expect(writeTextMock).not.toHaveBeenCalled();
