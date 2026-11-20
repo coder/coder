@@ -13,13 +13,12 @@
 # deletes the previews when the PR closes.
 #
 # Only PRs from a branch in this repository build. Fork PRs get no preview:
-# their build would share the base branch's Actions cache scope and the
-# private engine source.
+# their build would share the base branch's Actions cache scope.
 #
 # Compiling Markdown runs the engine's plugins over it, so PR content never
 # shares a job with a secret:
-#   engine  mints a docs-engine read token and packs the engine source; never
-#           sees PR content.
+#   engine  checks out the public docs-engine without a token and packs the
+#           engine source; never sees PR content.
 #   build   no secrets. Builds the export from the engine and the PR's docs/.
 #   deploy  holds the Vercel token. Takes only the static files from build,
 #           lays them out with the engine's own script (checked against the
@@ -47,10 +46,7 @@ permissions: {}
 
 jobs:
   engine:
-    # Off for now: the DOCS_ENGINE_APP_ID and DOCS_ENGINE_APP_PRIVATE_KEY secrets
-    # this job reads aren't set, so it fails on every docs PR. The other jobs
-    # need this one and skip with it. Drop "false && " to turn previews back on.
-    if: false && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -96,22 +92,11 @@ jobs:
           [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || { echo "docs/.engine-ref must hold one full 40-hex commit SHA" >&2; exit 1; }
           echo "ref=${ref}" >> "$GITHUB_OUTPUT"
 
-      - name: Mint a docs-engine read token
-        id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          app-id: ${{ secrets.DOCS_ENGINE_APP_ID }}
-          private-key: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY }}
-          owner: coder
-          repositories: docs-engine
-          permission-contents: read
-
       - name: Check out docs-engine
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: coder/docs-engine
           ref: ${{ steps.ref.outputs.ref }}
-          token: ${{ steps.app-token.outputs.token }}
           path: engine
           fetch-depth: 0
           persist-credentials: false
@@ -193,8 +178,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # docs/ holds no symbolic links. One added by a PR could pull files
-      # from elsewhere on this runner, such as the private engine source,
-      # into a public preview, whatever the pinned engine does with it.
+      # from elsewhere on this runner into a public preview, whatever the
+      # pinned engine does with it.
       - name: Build the static export
         working-directory: engine
         env:
