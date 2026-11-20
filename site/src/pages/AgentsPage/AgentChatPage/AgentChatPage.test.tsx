@@ -18,7 +18,6 @@ import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockChat,
 	MockChatDiffStatus,
@@ -36,8 +35,6 @@ import {
 	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
-	MockWorkspaceApp,
-	MockWorkspaceResource,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -695,36 +692,10 @@ describe("AgentChatPage", () => {
 	});
 
 	describe("open_preview results", () => {
-		const mockCodeServerApp: TypesGen.WorkspaceApp = {
-			...MockWorkspaceApp,
-			id: "code-server-app",
-			slug: "code-server",
-			display_name: "code-server",
-			subdomain: true,
-			subdomain_name: "code-server--a-workspace-agent--test-workspace--admin",
-		};
-		const mockBrowserApp: TypesGen.WorkspaceApp = {
-			...MockWorkspaceApp,
-			id: "agent-browser-app",
-			slug: AGENT_BROWSER_APP_SLUG,
-			subdomain: true,
-			subdomain_name: "agent-browser--a-workspace-agent--test-workspace--admin",
-		};
-		const mockPreviewAgent = {
-			...MockWorkspaceAgent,
-			apps: [mockCodeServerApp, mockBrowserApp, MockWorkspaceApp],
-		};
-		const mockPreviewWorkspace: TypesGen.Workspace = {
-			...MockWorkspace,
-			latest_build: {
-				...MockWorkspace.latest_build,
-				resources: [{ ...MockWorkspaceResource, agents: [mockPreviewAgent] }],
-			},
-		};
 		const mockPreviewChat: Chat = {
 			...MockChat,
-			workspace_id: mockPreviewWorkspace.id,
-			agent_id: mockPreviewAgent.id,
+			workspace_id: MockWorkspace.id,
+			agent_id: MockWorkspaceAgent.id,
 		};
 
 		const previewExchange = (
@@ -778,11 +749,11 @@ describe("AgentChatPage", () => {
 				has_more: false,
 				snapshot_version: 1,
 			});
-			vi.spyOn(API, "getWorkspace").mockResolvedValue(mockPreviewWorkspace);
+			vi.spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
 			vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
 				() =>
 					new OneWayWebSocket({
-						apiRoute: `/api/v2/workspaces/${mockPreviewWorkspace.id}/watch-ws`,
+						apiRoute: `/api/v2/workspaces/${MockWorkspace.id}/watch-ws`,
 						websocketInit: (url, protocol) =>
 							createMockWebSocket(url, protocol)[0],
 					}),
@@ -797,26 +768,23 @@ describe("AgentChatPage", () => {
 
 		it.each<{
 			name: string;
-			button: string;
 			result: { title: string } & Record<string, unknown>;
 			tab: NewFrameTab;
 		}>([
 			{
 				name: "port",
-				button: "Open preview",
 				result: { ...MockOpenPreviewResult, url_path: "/docs?page=2" },
 				tab: {
 					kind: "preview",
 					label: MockOpenPreviewResult.title,
-					workspaceId: mockPreviewWorkspace.id,
-					agentName: mockPreviewAgent.name,
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
 					slug: MockOpenPreviewResult.preview_slug,
 					urlPath: "/docs?page=2",
 				},
 			},
 			{
 				name: "file",
-				button: "Open preview",
 				result: {
 					...MockOpenPreviewResult,
 					kind: "file",
@@ -827,39 +795,20 @@ describe("AgentChatPage", () => {
 				tab: {
 					kind: "preview",
 					label: MockOpenPreviewResult.title,
-					workspaceId: mockPreviewWorkspace.id,
-					agentName: mockPreviewAgent.name,
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
 					slug: "preview--0123abcd",
 					urlPath: "/?page=2",
 				},
 			},
-			{
-				name: "app",
-				button: "Open app",
-				result: {
-					...MockOpenPreviewResult,
-					kind: "app",
-					port: undefined,
-					preview_slug: undefined,
-					app_slug: mockCodeServerApp.slug,
-					url_path: "/?folder=/home/coder",
-				},
-				tab: {
-					kind: "workspace_app",
-					label: "code-server",
-					agentId: mockPreviewAgent.id,
-					appId: mockCodeServerApp.id,
-					urlPath: "/?folder=/home/coder",
-				},
-			},
 		])(
 			"opens a $name result's tab from its row once",
-			async ({ button, result, tab }) => {
+			async ({ result, tab }) => {
 				const page = renderPreviewChat({
 					messages: previewExchange(10, result),
 				});
 				const openButton = await screen.findByRole("button", {
-					name: button,
+					name: "Open preview",
 				});
 
 				await page.user.click(openButton);
@@ -903,27 +852,6 @@ describe("AgentChatPage", () => {
 			);
 		});
 
-		it("opens the Browser tab for an agent-browser result", async () => {
-			const page = renderPreviewChat({
-				messages: previewExchange(10, {
-					...MockOpenPreviewResult,
-					kind: "app",
-					port: undefined,
-					preview_slug: undefined,
-					app_slug: AGENT_BROWSER_APP_SLUG,
-				}),
-			});
-
-			await page.user.click(
-				await screen.findByRole("button", { name: "Open app" }),
-			);
-
-			await waitFor(() =>
-				expect(getPersistedSidebarTabId(mockPreviewChat.id)).toBe("browser"),
-			);
-			expect(getPersistedRightPanelTabs(mockPreviewChat.id)).toEqual([]);
-		});
-
 		it("signs in to a restored preview tab once it is shown, and again on reload", async () => {
 			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
 			savePersistedRightPanelTabs(mockPreviewChat.id, [
@@ -931,8 +859,8 @@ describe("AgentChatPage", () => {
 					id: "preview-docs",
 					kind: "preview",
 					label: "Docs site",
-					workspaceId: mockPreviewWorkspace.id,
-					agentName: mockPreviewAgent.name,
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
 					slug: "preview--3000",
 					urlPath: "/docs",
 				},
@@ -950,8 +878,8 @@ describe("AgentChatPage", () => {
 			await waitFor(() => expect(page.signIn).toHaveBeenCalledTimes(2));
 			expect(page.signIn).toHaveBeenLastCalledWith(
 				expect.objectContaining({
-					workspace_id: mockPreviewWorkspace.id,
-					agent_name: mockPreviewAgent.name,
+					workspace_id: MockWorkspace.id,
+					agent_name: MockWorkspaceAgent.name,
 					preview_slug: "preview--3000",
 					url_path: "/docs",
 				}),

@@ -23,7 +23,6 @@ import {
 type UseAppLinkParams = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
-	urlPath?: string;
 };
 
 type AppLink = {
@@ -39,7 +38,7 @@ type AppLink = {
 
 export const useAppLink = (
 	app: WorkspaceApp,
-	{ agent, workspace, urlPath }: UseAppLinkParams,
+	{ agent, workspace }: UseAppLinkParams,
 ): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
@@ -66,7 +65,6 @@ export const useAppLink = (
 			accessUrl,
 			path: proxy.preferredPathAppURL,
 			host: proxy.preferredWildcardHostname,
-			urlPath,
 		});
 
 	// Custom-protocol (non-HTTP) external apps can silently fail when the target

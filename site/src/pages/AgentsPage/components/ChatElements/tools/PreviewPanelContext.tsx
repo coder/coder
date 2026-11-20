@@ -1,33 +1,15 @@
 import { createContext } from "react";
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "#/api/typesGenerated";
-import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import {
-	isUserRightPanelTabAvailable,
-	type NewFrameTab,
-} from "../../../utils/rightPanelTabs";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
+import type { NewFrameTab } from "../../../utils/rightPanelTabs";
 import { asRecord } from "./utils";
-
-type OpenPreviewTarget =
-	| { kind: "preview"; slug: string }
-	| { kind: "app"; slug: string };
 
 type OpenPreviewResult = {
 	title: string;
 	workspaceId: string;
 	agentName: string;
-	target: OpenPreviewTarget;
+	slug: string;
 	urlPath?: string;
 };
-
-const openPreviewKinds = ["port", "file", "app"] as const;
-type OpenPreviewKind = (typeof openPreviewKinds)[number];
-
-const isOpenPreviewKind = (value: unknown): value is OpenPreviewKind =>
-	openPreviewKinds.some((kind) => kind === value);
 
 // Control, format (including bidirectional overrides), and line or paragraph
 // separators could disguise the title the user decides to open.
@@ -54,27 +36,6 @@ const isPreviewSlug = (value: unknown): value is string =>
 	typeof value === "string" &&
 	/^preview--([0-9a-f]{8}|[1-9][0-9]{0,4})$/.test(value);
 
-const parseTarget = (
-	kind: OpenPreviewKind,
-	rec: Record<string, unknown>,
-): OpenPreviewTarget | undefined => {
-	switch (kind) {
-		case "port":
-		case "file":
-			return isPreviewSlug(rec.preview_slug)
-				? { kind: "preview", slug: rec.preview_slug }
-				: undefined;
-		case "app":
-			return typeof rec.app_slug === "string" && rec.app_slug !== ""
-				? { kind: "app", slug: rec.app_slug }
-				: undefined;
-		default: {
-			const _exhaustive: never = kind;
-			return _exhaustive;
-		}
-	}
-};
-
 /**
  * Parses a stored `open_preview` tool result. Returns undefined for an error
  * result or one that fails validation.
@@ -85,23 +46,20 @@ export const parseOpenPreviewResult = (
 	const rec = asRecord(result);
 	if (
 		!rec ||
-		!isOpenPreviewKind(rec.kind) ||
+		(rec.kind !== "port" && rec.kind !== "file") ||
 		!isPreviewTitle(rec.title) ||
 		typeof rec.workspace_id !== "string" ||
 		typeof rec.agent_name !== "string" ||
+		!isPreviewSlug(rec.preview_slug) ||
 		(rec.url_path !== undefined && !isPreviewURLPath(rec.url_path))
 	) {
-		return undefined;
-	}
-	const target = parseTarget(rec.kind, rec);
-	if (!target) {
 		return undefined;
 	}
 	return {
 		title: rec.title,
 		workspaceId: rec.workspace_id,
 		agentName: rec.agent_name,
-		target,
+		slug: rec.preview_slug,
 		urlPath: rec.url_path,
 	};
 };
@@ -120,26 +78,19 @@ export const PreviewPanelContext =
 
 /**
  * Gives a row an open action only for a result from the chat's workspace and
- * agent whose tab the panel can show. Otherwise `getOpenAction` returns
- * undefined.
+ * agent. Otherwise `getOpenAction` returns undefined.
  */
 export const getPreviewPanelContextValue = ({
 	enabled,
 	workspace,
 	workspaceAgent,
-	wildcardHostname,
-	browserApp,
 	openFrameTab,
-	showBrowserTab,
 	focusPanel,
 }: {
 	enabled: boolean;
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
-	wildcardHostname: string;
-	browserApp: WorkspaceApp | undefined;
 	openFrameTab: (tab: NewFrameTab) => void;
-	showBrowserTab: () => void;
 	focusPanel: () => void;
 }): PreviewPanelContextValue => {
 	if (!enabled) {
@@ -157,62 +108,17 @@ export const getPreviewPanelContextValue = ({
 				return undefined;
 			}
 
-			const { target } = preview;
-			if (target.kind === "app" && target.slug === AGENT_BROWSER_APP_SLUG) {
-				return browserApp?.subdomain
-					? () => {
-							focusPanel();
-							showBrowserTab();
-						}
-					: undefined;
-			}
-
-			const tab = getFrameTab(preview, workspaceAgent);
-			return tab &&
-				isUserRightPanelTabAvailable(tab, {
-					workspace,
-					workspaceAgent,
-					wildcardHostname,
-					openPreviewEnabled: enabled,
-				})
-				? () => {
-						focusPanel();
-						openFrameTab(tab);
-					}
-				: undefined;
+			return () => {
+				focusPanel();
+				openFrameTab({
+					kind: "preview",
+					label: preview.title,
+					workspaceId: preview.workspaceId,
+					agentName: preview.agentName,
+					slug: preview.slug,
+					urlPath: preview.urlPath,
+				});
+			};
 		},
 	};
-};
-
-const getFrameTab = (
-	{ title, workspaceId, agentName, target, urlPath }: OpenPreviewResult,
-	agent: WorkspaceAgent,
-): NewFrameTab | undefined => {
-	switch (target.kind) {
-		case "preview":
-			return {
-				kind: "preview",
-				label: title,
-				workspaceId,
-				agentName,
-				slug: target.slug,
-				urlPath,
-			};
-		case "app": {
-			const app = agent.apps.find((app) => app.slug === target.slug);
-			return app?.subdomain
-				? {
-						kind: "workspace_app",
-						label: app.display_name ?? app.slug,
-						agentId: agent.id,
-						appId: app.id,
-						urlPath,
-					}
-				: undefined;
-		}
-		default: {
-			const _exhaustive: never = target;
-			return _exhaustive;
-		}
-	}
 };
