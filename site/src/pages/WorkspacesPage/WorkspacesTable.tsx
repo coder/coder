@@ -121,16 +121,10 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className="w-1/3">
-						{isLoading ? (
-							<Skeleton className="h-4 w-40" />
-						) : (
-							<div
-								className={cn(
-									"flex items-center gap-5",
-									isEmpty && "invisible",
-								)}
-							>
+					{/* A td, not a th: the select-all control does not label the column. */}
+					<TableCell className={cn("w-0", hideHeaders && "invisible")}>
+						{!isLoading && (
+							<div className="flex">
 								<Checkbox
 									disabled={
 										checkableWorkspaces.length === 0 &&
@@ -152,9 +146,11 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 									aria-label="Select all workspaces"
 									className="my-0"
 								/>
-								Name
 							</div>
 						)}
+					</TableCell>
+					<TableHead className={cn("w-1/3", isEmpty && "invisible")}>
+						{isLoading ? <Skeleton className="h-4 w-40" /> : "Name"}
 					</TableHead>
 					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
 						Template
@@ -196,8 +192,8 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							key={workspace.id}
 							checked={checked}
 						>
-							<TableHead scope="row">
-								<div className="flex items-center gap-5">
+							<TableCell>
+								<div className="flex">
 									<Checkbox
 										data-testid={`checkbox-${workspace.id}`}
 										disabled={cantBeChecked(workspace)}
@@ -218,65 +214,67 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										}}
 										aria-label={`Select workspace ${workspace.name}`}
 									/>
-									<AvatarData
-										title={
-											<div className="flex items-center gap-1">
-												<Link
-													asChild
-													showExternalIcon={false}
-													className="my-0 py-0 pl-0 font-semibold text-inherit visited:text-inherit whitespace-nowrap select-none"
-												>
-													<RouterLink
-														to={workspacePageLink}
-														onClick={(e) => e.stopPropagation()}
-														onAuxClick={(e) => e.stopPropagation()}
-													>
-														{workspace.name}
-													</RouterLink>
-												</Link>
-												{workspace.favorite && (
-													<StarIcon className="size-icon-xs" />
-												)}
-												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="sm" variant="info" hover asChild>
-														<RouterLink
-															to={`/agents/${chatsByWorkspace[workspace.id]}`}
-															onClick={(e) => e.stopPropagation()}
-															aria-label={`View agent conversation for ${workspace.name}`}
-														>
-															Agent
-														</RouterLink>
-													</Badge>
-												)}
-											</div>
-										}
-										subtitle={
-											<div className="flex items-center gap-1">
-												<span className="sr-only">Owner: </span>
-												<div className="flex gap-2">
-													{workspace.owner_name}
-													{workspace.shared_with &&
-														workspace.shared_with.length > 0 && (
-															<WorkspaceSharingIndicator
-																sharedWith={workspace.shared_with}
-																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-															/>
-														)}
-												</div>
-											</div>
-										}
-										avatar={
-											<Avatar
-												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
-												size="lg"
-											/>
-										}
-									/>
 								</div>
+							</TableCell>
+							<TableHead scope="row">
+								<AvatarData
+									title={
+										<div className="flex items-center gap-1">
+											<Link
+												asChild
+												showExternalIcon={false}
+												className="my-0 py-0 pl-0 font-semibold text-inherit visited:text-inherit whitespace-nowrap select-none"
+											>
+												<RouterLink
+													to={workspacePageLink}
+													onClick={(e) => e.stopPropagation()}
+													onAuxClick={(e) => e.stopPropagation()}
+												>
+													{workspace.name}
+												</RouterLink>
+											</Link>
+											{workspace.favorite && (
+												<StarIcon className="size-icon-xs" />
+											)}
+											{workspace.outdated && (
+												<WorkspaceOutdatedTooltip workspace={workspace} />
+											)}
+											{chatsByWorkspace?.[workspace.id] && (
+												<Badge size="sm" variant="info" hover asChild>
+													<RouterLink
+														to={`/agents/${chatsByWorkspace[workspace.id]}`}
+														onClick={(e) => e.stopPropagation()}
+														aria-label={`View agent conversation for ${workspace.name}`}
+													>
+														Agent
+													</RouterLink>
+												</Badge>
+											)}
+										</div>
+									}
+									subtitle={
+										<div className="flex items-center gap-1">
+											<span className="sr-only">Owner: </span>
+											<div className="flex gap-2">
+												{workspace.owner_name}
+												{workspace.shared_with &&
+													workspace.shared_with.length > 0 && (
+														<WorkspaceSharingIndicator
+															sharedWith={workspace.shared_with}
+															settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+														/>
+													)}
+											</div>
+										</div>
+									}
+									avatar={
+										<Avatar
+											src={workspace.owner_avatar_url}
+											fallback={workspace.owner_name}
+											size="lg"
+										/>
+									}
+								/>
 							</TableHead>
 
 							<TableCell>
@@ -376,11 +374,13 @@ const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
-				<TableCell className="w-2/6">
-					<div className="flex items-center gap-5">
+				<TableCell>
+					<div className="flex">
 						<Checkbox disabled />
-						<AvatarDataSkeleton />
 					</div>
+				</TableCell>
+				<TableCell className="w-2/6">
+					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell className="w-2/6">
 					<AvatarDataSkeleton />
