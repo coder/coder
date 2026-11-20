@@ -54,7 +54,7 @@ A release candidate may also be built on `main` (`refs/heads/main`):
 
 ```sh
 VERSION="<version>"
-SOURCE_REF="refs/heads/release/${VERSION%.*}"
+SOURCE_REF="refs/heads/release/$(echo "$VERSION" | cut -d. -f1,2)"
 # For a release published before November 16, 2026:
 # SOURCE_REF="refs/tags/v${VERSION}"
 ```
@@ -63,7 +63,7 @@ SOURCE_REF="refs/heads/release/${VERSION%.*}"
 
 ```ps1
 $VERSION = "<version>"
-$SOURCE_REF = "refs/heads/release/" + ($VERSION -replace "\.[^.]+$", "")
+$SOURCE_REF = "refs/heads/release/" + (($VERSION -split "\.")[0..1] -join ".")
 # For a release published before November 16, 2026:
 # $SOURCE_REF = "refs/tags/v${VERSION}"
 ```
