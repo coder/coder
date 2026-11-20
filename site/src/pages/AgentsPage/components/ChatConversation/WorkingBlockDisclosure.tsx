@@ -1,8 +1,11 @@
 import { ListTreeIcon } from "lucide-react";
-import { Component, useRef, useState } from "react";
+import { Component, useLayoutEffect, useRef, useState } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
-import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
+import {
+	useMessageScrollerLayoutSync,
+	useMessageScrollerUserLayoutIntent,
+} from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { WorkingBlockPeek } from "./WorkingBlockPeek";
 import type { WorkingBlock } from "./workingBlockGrouping";
@@ -171,8 +174,16 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
-	/** Shows the newest rows of the collapsed block under its summary row. */
+	/**
+	 * Shows the newest rows of the collapsed block under its summary row,
+	 * until a reply after the block renders its text.
+	 */
 	peek: boolean;
+	/**
+	 * Whether a peek that does not show may start: not once a reply follows
+	 * the block, even before its text renders.
+	 */
+	peekCanStart: boolean;
 	children: React.ReactNode;
 };
 
@@ -187,8 +198,28 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	expanded,
 	onExpandedChange,
 	peek,
+	peekCanStart,
 	children,
 }) => {
+	// A reply whose text has not rendered yet keeps a peek that shows, so the
+	// text replaces the rows in one frame, but starts none.
+	const canShowPeek = peek && !expanded;
+	const [peekShown, setPeekShown] = useState(canShowPeek && peekCanStart);
+	const showPeek = canShowPeek && (peekShown || peekCanStart);
+	if (showPeek !== peekShown) {
+		setPeekShown(showPeek);
+	}
+	// Rows that leave without the block expanding shrink the timeline, so
+	// the scroller reconciles before paint rather than painting a clamped
+	// scroll position.
+	const syncLayout = useMessageScrollerLayoutSync();
+	const peekWasShown = useRef(showPeek);
+	useLayoutEffect(() => {
+		if (peekWasShown.current && !showPeek && !expanded) {
+			syncLayout();
+		}
+		peekWasShown.current = showPeek;
+	}, [showPeek, expanded, syncLayout]);
 	// A page that loads mid-turn, or a reader collapsing the block, shows the
 	// peek at once; only a block that just formed grows it in.
 	const [formedFresh] = useState(
@@ -231,7 +262,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
-			{peek && !expanded && (
+			{showPeek && (
 				<WorkingBlockPeek
 					growIn={formedFresh && !hasExpanded}
 					onExpand={expandFromPeek}

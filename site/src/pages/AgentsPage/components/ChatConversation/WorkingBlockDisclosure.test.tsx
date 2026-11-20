@@ -29,6 +29,7 @@ const ControlledDisclosure = (
 			block={MockWorkingBlock}
 			{...props}
 			peek={props.peek ?? false}
+			peekCanStart={props.peekCanStart ?? true}
 			expanded={props.expanded ?? uncontrolledExpanded}
 			onExpandedChange={(next) => {
 				setUncontrolledExpanded(next);
