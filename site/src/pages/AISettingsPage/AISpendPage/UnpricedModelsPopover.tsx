@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
+import { useId } from "react";
 import type { UnpricedAIModel } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import {
@@ -18,6 +19,7 @@ type UnpricedModelsPopoverProps = {
 export const UnpricedModelsPopover: React.FC<UnpricedModelsPopoverProps> = ({
 	models,
 }) => {
+	const headingId = useId();
 	// TODO(AIGOV-730): adjust once the unpriced models endpoint is paginated.
 	const isSingle = models.length === 1;
 	const modelList = (
@@ -69,9 +71,15 @@ export const UnpricedModelsPopover: React.FC<UnpricedModelsPopoverProps> = ({
 					<ChevronRightIcon aria-hidden className="size-icon-sm" />
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align="start" className="flex w-96 flex-col gap-4 p-6">
+			<PopoverContent
+				align="start"
+				aria-labelledby={headingId}
+				className="flex w-96 flex-col gap-4 p-6"
+			>
 				<div className="flex flex-col gap-2">
-					<h3 className="m-0 text-sm font-medium">Model pricing missing</h3>
+					<h3 id={headingId} className="m-0 text-sm font-medium">
+						Model pricing missing
+					</h3>
 					<p className="m-0 text-sm text-content-secondary">
 						{isSingle
 							? "This model has no pricing configured. Its usage isn't included, so total spend may be higher."
