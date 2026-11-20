@@ -21,6 +21,7 @@ import {
 import { Link, useLocation, useOutletContext } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
@@ -30,6 +31,7 @@ import {
 	unpinChat,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -39,6 +41,11 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { toast } from "#/components/Toaster/toast";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { prNumber } from "../utils/pullRequest";
@@ -200,6 +207,10 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		},
 	});
 
+	const { data: project } = useQuery({
+		...chatProject(chat?.project_id),
+		enabled: Boolean(chat?.project_id),
+	});
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
@@ -278,6 +289,27 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 								</Button>
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
+						)}
+						{project?.name && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Link
+										to={{
+											pathname: `/agents/projects/${project.id}`,
+											search: location.search,
+										}}
+										aria-label={project.name}
+										className="shrink-0 rounded-sm"
+									>
+										<Avatar
+											size="sm"
+											src={project.icon}
+											fallback={project.name}
+										/>
+									</Link>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">{project.name}</TooltipContent>
+							</Tooltip>
 						)}
 						<h2 className="m-0 truncate text-sm text-content-primary">
 							{chatTitle}

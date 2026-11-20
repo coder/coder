@@ -10,6 +10,7 @@ import { toast } from "#/components/Toaster/toast";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
@@ -476,4 +477,32 @@ describe("ChatTopBar PR chip", () => {
 			"https://github.com/coder/other-project/pull/123",
 		);
 	});
+});
+
+it("opens the chat project while preserving filters", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+		canShareChat: false,
+	});
+	vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+		MockChatProject,
+	]);
+	const { router } = renderWithAuth(
+		<ChatTopBar
+			chat={{ ...MockChat, project_id: MockChatProject.id }}
+			panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+		/>,
+		{
+			route: `/agents/${MockChat.id}?archived=archived`,
+			path: "/agents/:agentId",
+			extraRoutes: [{ path: "/agents/projects/:projectId", element: <div /> }],
+		},
+	);
+	await user.click(
+		await screen.findByRole("link", { name: MockChatProject.name }),
+	);
+	expect(router.state.location.pathname).toBe(
+		`/agents/projects/${MockChatProject.id}`,
+	);
+	expect(router.state.location.search).toBe("?archived=archived");
 });
