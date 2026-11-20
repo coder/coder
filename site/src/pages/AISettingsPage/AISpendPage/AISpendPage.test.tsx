@@ -84,7 +84,11 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 			period,
 			TOP_SPENDERS_COUNT,
 		);
-		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			10,
+		);
 		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
 			...period,
 			user_ids: topSpenderIds,
@@ -122,7 +126,11 @@ it("writes a picked range to the URL as days and requests it", async () => {
 			period,
 			TOP_SPENDERS_COUNT,
 		);
-		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			10,
+		);
 		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
 			...period,
 			user_ids: topSpenderIds,

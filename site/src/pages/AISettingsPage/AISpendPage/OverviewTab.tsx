@@ -3,7 +3,7 @@ import {
 	MaxAISpendPeriodDays,
 	type OrganizationAISpendOverview,
 	type OrganizationAISpendUser,
-	type UnpricedAIModel,
+	type UnpricedAIModels,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { DateRangePicker } from "#/components/DateRangePicker/DateRangePicker";
@@ -25,7 +25,7 @@ type OverviewTabProps = {
 	onDaysChange: (days: SpendDays) => void;
 	overview: OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
-	unpricedModels: readonly UnpricedAIModel[] | undefined;
+	unpricedModels: UnpricedAIModels | undefined;
 	isUnpricedModelsLoading: boolean;
 	topSpenderDetails: readonly OrganizationAISpendUser[] | undefined;
 	topSpenderDetailsError: Error | null;

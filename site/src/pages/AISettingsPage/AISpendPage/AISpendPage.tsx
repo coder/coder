@@ -21,6 +21,8 @@ import { TOP_SPENDERS_COUNT } from "./topSpenders";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+// The number of unpriced models the total spend card lists.
+const UNPRICED_MODELS_COUNT = 10;
 
 type AISpendPageProps = {
 	now?: Date;
@@ -80,7 +82,11 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	// The unpriced models are slower to compute, so the total renders first and
 	// the "Models not set up" warning follows.
 	const unpricedModelsQuery = useQuery({
-		...organizationUnpricedAIModels(organization?.id ?? "", period),
+		...organizationUnpricedAIModels(
+			organization?.id ?? "",
+			period,
+			UNPRICED_MODELS_COUNT,
+		),
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
@@ -116,7 +122,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}
-				unpricedModels={unpricedModelsQuery.data?.models}
+				unpricedModels={unpricedModelsQuery.data}
 				isUnpricedModelsLoading={unpricedModelsQuery.isLoading}
 				topSpenderDetails={topSpenderDetailsQuery.data?.users}
 				topSpenderDetailsError={topSpenderDetailsQuery.error}

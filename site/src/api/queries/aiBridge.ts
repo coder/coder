@@ -137,15 +137,29 @@ export const organizationAISpendUsers = (
 			}),
 	});
 
-/** The models used in the period that still have no price. */
+/**
+ * The first `limit` models used in the period that still have no price, most
+ * unpriced tokens first.
+ */
 export const organizationUnpricedAIModels = (
 	organizationId: string,
 	period: AISpendPeriodWindow,
+	limit: number,
 ) =>
 	queryOptions({
-		queryKey: ["organizations", organizationId, "unpricedAIModels", period],
+		queryKey: [
+			"organizations",
+			organizationId,
+			"unpricedAIModels",
+			period,
+			limit,
+		],
 		queryFn: () =>
-			API.experimental.getOrganizationUnpricedAIModels(organizationId, period),
+			API.experimental.getOrganizationUnpricedAIModels(
+				organizationId,
+				period,
+				limit,
+			),
 	});
 
 export const infiniteSessionThreads = (sessionId: string) => {
