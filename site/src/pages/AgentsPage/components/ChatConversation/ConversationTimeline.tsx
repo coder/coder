@@ -39,6 +39,7 @@ import {
 	MessageActionBar,
 	UserMessageActions,
 } from "./MessageActions";
+import { ResponseTextShownContext } from "./MessageText";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
@@ -467,6 +468,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [keptBlockKeys, setKeptBlockKeys] = useState<ReadonlySet<string>>(
 			new Set(),
 		);
+		// How many response blocks of each live slice show text.
+		const [replyTextCounts, setReplyTextCounts] = useState<
+			ReadonlyMap<string, number>
+		>(new Map());
+		const countReplyText = (key: string, shown: boolean) =>
+			setReplyTextCounts((previous) =>
+				new Map(previous).set(key, (previous.get(key) ?? 0) + (shown ? 1 : -1)),
+			);
 		const keepBlock = (liveKey: string) =>
 			setKeptBlockKeys((previous) =>
 				previous.has(liveKey) ? previous : new Set(previous).add(liveKey),
@@ -639,21 +648,29 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		// A reply after a live block takes over from its peek. A whole live row
-		// without text is a status row, such as a retry, not a reply.
-		const lastReplyIndex = layout.items.findLastIndex((item) => {
-			if (item.type !== "slice") {
-				return false;
-			}
-			const row = renderRows[item.slice.rowIndex];
-			if (row.type === "live") {
-				return (
-					item.slice.pieceRange !== undefined ||
-					liveBlocks.some((block) => block.type === "response")
-				);
-			}
-			return !(collapseSteps && isAgentAttachmentOnlyRow(row));
-		});
+		// A reply after a live block ends its peek. The peek starts only before
+		// any reply, and a peek that shows lasts until a reply's text renders,
+		// which smoothing can hold back for a few frames. A live row without
+		// text is a status row, such as a retry, not a reply.
+		const findLastReply = (isLiveReply: (slice: RowSlice) => boolean) =>
+			layout.items.findLastIndex((item) => {
+				if (item.type !== "slice") {
+					return false;
+				}
+				const row = renderRows[item.slice.rowIndex];
+				if (row.type === "live") {
+					return isLiveReply(item.slice);
+				}
+				return !(collapseSteps && isAgentAttachmentOnlyRow(row));
+			});
+		const lastReplyIndex = findLastReply(
+			(slice) =>
+				slice.pieceRange !== undefined ||
+				liveBlocks.some((block) => block.type === "response"),
+		);
+		const lastShownReplyIndex = findLastReply(
+			(slice) => (replyTextCounts.get(slice.key) ?? 0) > 0,
+		);
 
 		const renderSlice = (
 			slice: RowSlice,
@@ -669,21 +686,25 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			};
 			if (row.type === "live") {
 				return (
-					<ChatMessageItem
+					<ResponseTextShownContext
 						key={slice.key}
-						{...sliceProps}
-						organizationId={organizationId}
-						liveStatus={liveStatus}
-						liveBlocks={liveBlocks}
-						liveTools={liveTools}
-						subagentStatusOverrides={
-							showsStreamOutput ? subagentStatusOverrides : undefined
-						}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						urlTransform={urlTransform}
-						mcpServers={mcpServers}
-					/>
+						value={(shown) => countReplyText(slice.key, shown)}
+					>
+						<ChatMessageItem
+							{...sliceProps}
+							organizationId={organizationId}
+							liveStatus={liveStatus}
+							liveBlocks={liveBlocks}
+							liveTools={liveTools}
+							subagentStatusOverrides={
+								showsStreamOutput ? subagentStatusOverrides : undefined
+							}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+						/>
+					</ResponseTextShownContext>
 				);
 			}
 
@@ -754,7 +775,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
 							const peek =
-								block.isLive && !expanded && lastReplyIndex < itemIndex;
+								block.isLive && !expanded && lastShownReplyIndex < itemIndex;
 
 							const blockAttachments = getBlockTurnAttachments(
 								block,
@@ -783,6 +804,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										block={block}
 										expanded={expanded}
 										peek={peek}
+										peekCanStart={lastReplyIndex < itemIndex}
 										onExpandedChange={(value) => {
 											keepBlock(block.liveKey);
 											setExpandedBlocks((previous) => {

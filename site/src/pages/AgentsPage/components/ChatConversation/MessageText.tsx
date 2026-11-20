@@ -1,5 +1,13 @@
 import { cn } from "cn";
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import {
+	createContext,
+	memo,
+	useContext,
+	useEffectEvent,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { UrlTransform } from "streamdown";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 import { Response } from "../ChatElements/Response";
@@ -125,6 +133,15 @@ export const ReasoningDisclosure = memo<{
 	},
 );
 
+/**
+ * Told with true when a response block starts showing text and with false
+ * when it stops. Smoothing can hold streamed text back for a few frames
+ * after its block renders.
+ */
+export const ResponseTextShownContext = createContext<
+	((shown: boolean) => void) | undefined
+>(undefined);
+
 /** Smooths live response text and renders the full text once committed. */
 export const ResponseBlock = memo<{
 	text: string;
@@ -138,6 +155,18 @@ export const ResponseBlock = memo<{
 		bypassSmoothing: !isStreaming,
 		streamKey,
 	});
+	const onTextShown = useContext(ResponseTextShownContext);
+	const reportTextShown = useEffectEvent((shown: boolean) =>
+		onTextShown?.(shown),
+	);
+	const shown = visibleText !== "";
+	useLayoutEffect(() => {
+		if (!shown) {
+			return;
+		}
+		reportTextShown(true);
+		return () => reportTextShown(false);
+	}, [shown]);
 	return (
 		<Response streaming={isStreaming} urlTransform={urlTransform}>
 			{isStreaming ? visibleText : text}
