@@ -25,7 +25,7 @@ var swaggerDoc = sync.OnceValue(apidoc.SwaggerInfo.ReadDoc)
 func TestEndpointsDocumented(t *testing.T) {
 	t.Parallel()
 
-	swaggerComments, err := coderdtest.ParseSwaggerComments("..", "../workspaceconnwatcher")
+	swaggerComments, err := coderdtest.ParseSwaggerComments("..", "../workspaceconnwatcher", "../workspaceapps")
 	require.NoError(t, err, "can't parse swagger comments")
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 

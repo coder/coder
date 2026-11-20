@@ -107,7 +107,10 @@
 
 - Add swagger annotations when introducing new HTTP endpoints. Do this in
   the same change as the handler so the docs do not get missed before
-  release.
+  release. Every published route needs a `@Description`, directly after
+  `@Summary`, that says what the route does and when to use it.
+  `TestEndpointsDocumented` and `TestEnterpriseEndpointsDocumented` fail
+  without one.
 - For user-scoped or resource-scoped routes, prefer path parameters over
   query parameters when that matches existing route patterns.
 - For experimental or unstable API paths, skip public doc generation with
