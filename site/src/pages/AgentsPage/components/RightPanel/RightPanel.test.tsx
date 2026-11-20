@@ -310,3 +310,18 @@ describe("RightPanel resize drag", () => {
 		});
 	});
 });
+
+describe("RightPanel viewport resize", () => {
+	it("keeps the dragged width when the viewport narrows", () => {
+		renderHarness();
+		pointerDown();
+		pointerMove(NORMAL_ZONE_X);
+		pointerUp(NORMAL_ZONE_X);
+
+		// A 600px viewport caps the panel at 420px.
+		vi.stubGlobal("innerWidth", 600);
+		fireEvent(window, new Event("resize"));
+
+		expect(persistedWidth()).toBe("600");
+	});
+});
