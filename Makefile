@@ -955,10 +955,13 @@ lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
 	_gen/bin/check-scopes
 .PHONY: lint/check-scopes
 
-# Verify migrations do not hardcode the public schema.
+# Verify migrations do not hardcode the public schema, that no two migrations
+# share a number, and that coderd/database/migrations/LATEST names the newest
+# migration.
 lint/migrations:
 	./scripts/check_pg_schema.sh "Migrations" $(MIGRATION_FILES)
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
+	./scripts/check_migrations_latest.sh
 .PHONY: lint/migrations
 
 lint/typos:
