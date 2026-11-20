@@ -6678,6 +6678,8 @@ type TemplateVersionTerraformValue struct {
 	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
 	// What version of the provisioning engine was used to generate the cached plan and module files.
 	ProvisionerdVersion string `db:"provisionerd_version" json:"provisionerd_version"`
+	// The ID of the key used to encrypt the cached plan. If this is NULL, the plan is not encrypted.
+	CachedPlanKeyID sql.NullString `db:"cached_plan_key_id" json:"cached_plan_key_id"`
 }
 
 type TemplateVersionVariable struct {

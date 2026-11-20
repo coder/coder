@@ -266,6 +266,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return err
 	}
 
+	log.Info(ctx, "encrypting cached template version terraform plans")
+	if err := rewriteCachedPlans(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -516,6 +521,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		return err
 	}
 
+	log.Info(ctx, "decrypting cached template version terraform plans")
+	if err := rewriteCachedPlans(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -597,6 +607,47 @@ func rewriteWorkspaceBuildStateInTx(ctx context.Context, tx database.Store, buil
 	})
 }
 
+// rewriteCachedPlans saves the cached plan of every template version again
+// through cryptDB, which stores it with wantKeyID. Plans already stored with
+// wantKeyID are skipped. See rewriteWorkspaceBuildStates for the values of
+// wantKeyID.
+func rewriteCachedPlans(ctx context.Context, log slog.Logger, cryptDB database.Store, wantKeyID string) error {
+	afterID := uuid.Nil
+	for {
+		page, err := cryptDB.GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx, database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams{
+			AfterID:    afterID,
+			LimitCount: keyIDPageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list template versions with a cached plan after id=%s: %w", afterID, err)
+		}
+		for _, version := range page {
+			if version.CachedPlanKeyID.String == wantKeyID {
+				log.Debug(ctx, "skipping cached plan", slog.F("template_version_id", version.TemplateVersionID), slog.F("key_id", wantKeyID))
+				continue
+			}
+			values, err := cryptDB.GetTemplateVersionTerraformValues(ctx, version.TemplateVersionID)
+			if err != nil {
+				return xerrors.Errorf("get cached plan for template version %s: %w", version.TemplateVersionID, err)
+			}
+			err = cryptDB.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, database.UpdateTemplateVersionTerraformValuesCachedPlanParams{
+				TemplateVersionID: version.TemplateVersionID,
+				CachedPlan:        values.CachedPlan,
+				CachedPlanKeyID:   sql.NullString{}, // Set by cryptDB.
+				UpdatedAt:         values.UpdatedAt,
+			})
+			if err != nil {
+				return xerrors.Errorf("rewrite cached plan for template version %s: %w", version.TemplateVersionID, err)
+			}
+			log.Debug(ctx, "rewrote cached plan", slog.F("template_version_id", version.TemplateVersionID), slog.F("key_id", wantKeyID))
+		}
+		if len(page) < keyIDPageSize {
+			return nil
+		}
+		afterID = page[len(page)-1].TemplateVersionID
+	}
+}
+
 // forEachWorkspaceSecret calls fn for every workspace secret that still holds
 // a value, one page at a time.
 func forEachWorkspaceSecret(ctx context.Context, store database.Store, fn func(database.WorkspaceSecret) error) error {
@@ -661,6 +712,10 @@ UPDATE workspace_builds
 	SET provisioner_state = NULL,
 		provisioner_state_key_id = NULL
 	WHERE provisioner_state_key_id IS NOT NULL;
+-- Cached Terraform plans are regenerated on the next template version import
+-- or dynamic-parameter render; callers already handle a missing row.
+DELETE FROM template_version_terraform_values
+	WHERE cached_plan_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;

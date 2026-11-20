@@ -22333,6 +22333,59 @@ func TestGetWorkspaceBuildProvisionerStateKeyIDsPaginates(t *testing.T) {
 	require.Equal(t, 3, pages)
 }
 
+func TestGetTemplateVersionTerraformValuesCachedPlanKeyIDsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	seedVersion := func(plan string) uuid.UUID {
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		require.NoError(t, db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID:               version.JobID,
+			CachedPlan:          []byte(plan),
+			CachedPlanKeyID:     sql.NullString{},
+			CachedModuleFiles:   uuid.NullUUID{},
+			UpdatedAt:           dbtime.Now(),
+			ProvisionerdVersion: "",
+		}))
+		return version.ID
+	}
+
+	// A version with an empty cached plan must not be listed.
+	seedVersion(`{}`)
+	var want []uuid.UUID
+	for range 5 {
+		want = append(want, seedVersion(`{"key": "value"}`))
+	}
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx, database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, version := range page {
+			got = append(got, version.TemplateVersionID)
+		}
+		afterID = page[len(page)-1].TemplateVersionID
+	}
+	require.Equal(t, want, got, "every version with a cached plan is listed once, in id order")
+	require.Equal(t, 3, pages)
+}
+
 func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
 	t.Parallel()
 
