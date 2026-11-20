@@ -2878,6 +2878,7 @@ export const LunarLander: React.FC = () => {
 		cvs.addEventListener("wheel", onWheel, { passive: false });
 		cvs.addEventListener("click", onClick);
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- The game loop owns this state; setRewinding mirrors rewind key presses into an aria-live region.
 		resize();
 		frameId = requestAnimationFrame(loop);
 
