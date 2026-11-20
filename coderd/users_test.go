@@ -75,6 +75,51 @@ func TestFirstUser(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("SetupToken", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		client := coderdtest.New(t, &coderdtest.Options{SetupToken: token})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		methods, err := client.AuthMethods(ctx)
+		require.NoError(t, err)
+		require.True(t, methods.SetupTokenRequired)
+
+		req := codersdk.CreateFirstUserRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Username: coderdtest.FirstUserParams.Username,
+			Password: coderdtest.FirstUserParams.Password,
+		}
+
+		// A missing token, a token wrong in one character and a token
+		// of the wrong length must look the same to the caller.
+		var refusals []codersdk.Response
+		for _, wrong := range []string{"", "0123456789abcdefghijklmnopqrstuX", "short"} {
+			req.SetupToken = wrong
+			_, err := client.CreateFirstUser(ctx, req)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+			refusals = append(refusals, apiErr.Response)
+		}
+		require.Equal(t, "A setup token is required to create the first user. Find it in the output of coder server.", refusals[0].Message)
+		require.Equal(t, refusals[0], refusals[1])
+		require.Equal(t, refusals[0], refusals[2])
+
+		has, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.False(t, has)
+
+		req.SetupToken = token
+		_, err = client.CreateFirstUser(ctx, req)
+		require.NoError(t, err)
+
+		_, err = client.CreateFirstUser(ctx, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

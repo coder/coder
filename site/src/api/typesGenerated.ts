@@ -766,6 +766,11 @@ export interface AuthMethods {
 	readonly password: AuthMethod;
 	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
+	/**
+	 * SetupTokenRequired is true when the first user can only be
+	 * created with a setup token.
+	 */
+	readonly setup_token_required?: boolean;
 }
 
 // From codersdk/authorization.go
@@ -1142,6 +1147,11 @@ export interface CreateFirstUserRequest {
 	readonly password: string;
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
+	/**
+	 * SetupToken is required when AuthMethods.SetupTokenRequired is
+	 * true. The server prints it at startup.
+	 */
+	readonly setup_token?: string;
 }
 
 // From codersdk/users.go
@@ -1773,6 +1783,7 @@ export interface DeploymentValues {
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
+	readonly setup_token?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;

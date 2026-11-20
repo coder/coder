@@ -1,4 +1,8 @@
-import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
+import {
+	MockAuthMethodsPasswordOnly,
+	MockBuildInfo,
+	MockUserOwner,
+} from "testHelpers/entities";
 import {
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
@@ -6,7 +10,11 @@ import {
 import { server } from "testHelpers/server";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Response, User } from "api/typesGenerated";
+import type {
+	CreateFirstUserRequest,
+	Response,
+	User,
+} from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router";
 import { SetupPage } from "./SetupPage";
@@ -74,6 +82,7 @@ describe("Setup Page", () => {
 
 	it("redirects to the app when setup is successful", async () => {
 		let userHasBeenCreated = false;
+		let firstUser: CreateFirstUserRequest | undefined;
 
 		server.use(
 			http.get<never, null, User | Response>("/api/v2/users/me", async () => {
@@ -97,10 +106,14 @@ describe("Setup Page", () => {
 					return HttpResponse.json({ message: "hooray, someone exists!" });
 				},
 			),
-			http.post("/api/v2/users/first", () => {
-				userHasBeenCreated = true;
-				return HttpResponse.json({ data: "user setup was successful!" });
-			}),
+			http.post<never, CreateFirstUserRequest>(
+				"/api/v2/users/first",
+				async ({ request }) => {
+					firstUser = await request.json();
+					userHasBeenCreated = true;
+					return HttpResponse.json({ data: "user setup was successful!" });
+				},
+			),
 		);
 
 		renderWithRouter(
@@ -121,6 +134,50 @@ describe("Setup Page", () => {
 		await waitForLoaderToBeRemoved();
 		await fillForm();
 		await waitFor(() => screen.findByText("Templates"));
+		expect(firstUser).not.toHaveProperty("setup_token");
+	});
+
+	it("sends the setup token when the server requires one", async () => {
+		let firstUser: CreateFirstUserRequest | undefined;
+
+		server.use(
+			http.get("/api/v2/users/authmethods", () => {
+				return HttpResponse.json({
+					...MockAuthMethodsPasswordOnly,
+					setup_token_required: true,
+				});
+			}),
+			http.post<never, CreateFirstUserRequest>(
+				"/api/v2/users/first",
+				async ({ request }) => {
+					firstUser = await request.json();
+					return HttpResponse.json({ data: "user setup was successful!" });
+				},
+			),
+		);
+
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/setup",
+						element: <SetupPage />,
+					},
+				],
+				{ initialEntries: ["/setup"] },
+			),
+		);
+		await waitForLoaderToBeRemoved();
+		await userEvent.type(
+			screen.getByLabelText("Setup token"),
+			" 0123456789abcdefghijklmnopqrstuv ",
+		);
+		await fillForm();
+		await waitFor(() =>
+			expect(firstUser).toMatchObject({
+				setup_token: "0123456789abcdefghijklmnopqrstuv",
+			}),
+		);
 	});
 
 	it("calls sendBeacon with telemetry", async () => {
