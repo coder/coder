@@ -205,8 +205,8 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	}
 	summaryRuntime := opts.Clock.Since(summaryStart)
 	if summary == "" {
-		publishCompactionError(config, "compaction produced an empty summary")
-		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
+		publishCompactionError(config, errEmptyCompactionSummary.Error())
+		return CompactionResult{}, errEmptyCompactionSummary
 	}
 
 	result := CompactionResult{
@@ -413,6 +413,8 @@ func startCompactionDebugRun(
 // without tool definitions for its size.
 var summaryToolResultCaps = []int{32 << 10, 4 << 10}
 
+var errEmptyCompactionSummary = xerrors.New("compaction produced an empty summary")
+
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
 // complete history (system prompt, user/assistant turns, tool
@@ -475,11 +477,19 @@ func generateCompactionSummary(
 	}
 	// TTFT is an assistant-generation measurement, so the summary stream
 	// records neither its histogram nor its stage.
-	streamSummaryText := func(call fantasy.Call) (_ string, retErr error) {
+	streamSummaryText := func(call fantasy.Call) (text string, retErr error) {
 		spanCtx, span := options.Stages.StartModelCall(summaryCtx, options.StageModel, true)
 		span.SetInferenceRequest(call)
 		var inference InferenceResponse
-		defer func() { endModelCall(span, inference, retErr) }()
+		defer func() {
+			// GenerateCompaction rejects an empty summary, so the span
+			// reports the call as failed too.
+			spanErr := retErr
+			if spanErr == nil && text == "" {
+				spanErr = errEmptyCompactionSummary
+			}
+			endModelCall(span, inference, spanErr)
+		}()
 		attempt, err := guardedStream(
 			spanCtx,
 			options.ResolvedProvider,

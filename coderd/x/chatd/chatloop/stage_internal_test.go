@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -822,19 +823,23 @@ func TestModelCallStage(t *testing.T) {
 	t.Run("GenerateObjectRecordsUsage", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
+		// The context has no identity, as for manual title proposals, so
+		// the wrapper's identity attributes the call.
+		chatID := uuid.New()
 		model := fixture.tracer.TraceModelCalls(&chattest.FakeModel{
 			ProviderName: "anthropic",
 			ModelName:    "claude",
 			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				return &fantasy.ObjectResponse{FinishReason: fantasy.FinishReasonStop, Usage: usage}, nil
 			},
-		}, stageModel)
+		}, stageModel, ChatIdentity{ChatID: chatID})
 
 		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
 		require.NoError(t, err)
 
 		span := endedSpan(t, fixture.spans, StageModelCall)
 		requireModelCallSpan(t, span, false)
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.conversation.id", chatID.String()))
 		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
 		_, observed := stageSampleCount(t, fixture.registry, StageModelCall)
 		require.False(t, observed, "model calls have no stage histogram")
@@ -849,7 +854,7 @@ func TestModelCallStage(t *testing.T) {
 			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				return nil, &fantasy.NoObjectGeneratedError{Usage: usage, FinishReason: fantasy.FinishReasonStop}
 			},
-		}, stageModel)
+		}, stageModel, ChatIdentity{})
 
 		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
 		require.Error(t, err)
@@ -858,6 +863,31 @@ func TestModelCallStage(t *testing.T) {
 		requireModelCallSpan(t, span, false)
 		require.Equal(t, codes.Error, span.Status().Code)
 		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"error"}))
+	})
+
+	t.Run("EmptyCompactionSummaryEndsWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+				}), nil
+			},
+		}
+
+		summary, _, err := generateCompactionSummary(t.Context(), model,
+			[]fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+			GenerateCompactionOptions{SummaryPrompt: "summarize", Clock: fixture.clock, Stages: fixture.tracer, StageModel: stageModel},
+		)
+		require.NoError(t, err)
+		require.Empty(t, summary)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		require.Equal(t, codes.Error, span.Status().Code)
+		require.Contains(t, span.Attributes(), attribute.Int("gen_ai.usage.output_tokens", 5))
 	})
 
 	t.Run("CompactionSummaryRecordsChatSpan", func(t *testing.T) {

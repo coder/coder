@@ -186,7 +186,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	// Innermost, so each provider attempt of a fallback records its own span.
 	tracedModel := buildOpts.StageModel
 	tracedModel.Provider = model.Provider()
-	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), tracedModel))
+	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), tracedModel, chatIdentity(spec.chat)))
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
 	model = p.withQuickgenParamFallback(model, out.route.Provider.ID)
 	out.reasoningRejected = &atomic.Bool{}

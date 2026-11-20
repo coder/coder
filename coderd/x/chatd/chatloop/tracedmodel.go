@@ -9,22 +9,32 @@ import (
 
 // TraceModelCalls wraps model so each non-streaming Generate and
 // GenerateObject call records a chat span. Streaming calls pass through:
-// GenerateAssistant and compaction trace their own streams.
-func (t *StageTracer) TraceModelCalls(model fantasy.LanguageModel, stageModel StageModel) fantasy.LanguageModel {
+// GenerateAssistant and compaction trace their own streams. identity
+// attributes calls whose context carries none, since some callers run
+// outside any chat context.
+func (t *StageTracer) TraceModelCalls(model fantasy.LanguageModel, stageModel StageModel, identity ChatIdentity) fantasy.LanguageModel {
 	if t == nil || model == nil {
 		return model
 	}
-	return &tracedModel{LanguageModel: model, tracer: t, stageModel: stageModel}
+	return &tracedModel{LanguageModel: model, tracer: t, stageModel: stageModel, identity: identity}
 }
 
 type tracedModel struct {
 	fantasy.LanguageModel
 	tracer     *StageTracer
 	stageModel StageModel
+	identity   ChatIdentity
+}
+
+func (m *tracedModel) start(ctx context.Context) (context.Context, *StageSpan) {
+	if _, ok := chatIdentityFromContext(ctx); !ok {
+		ctx = ContextWithChatIdentity(ctx, m.identity)
+	}
+	return m.tracer.StartModelCall(ctx, m.stageModel, false)
 }
 
 func (m *tracedModel) Generate(ctx context.Context, call fantasy.Call) (resp *fantasy.Response, err error) {
-	ctx, span := m.tracer.StartModelCall(ctx, m.stageModel, false)
+	ctx, span := m.start(ctx)
 	span.setRequestParams(call.MaxOutputTokens, call.Temperature)
 	defer func() {
 		inference := InferenceResponse{}
@@ -38,7 +48,7 @@ func (m *tracedModel) Generate(ctx context.Context, call fantasy.Call) (resp *fa
 }
 
 func (m *tracedModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (resp *fantasy.ObjectResponse, err error) {
-	ctx, span := m.tracer.StartModelCall(ctx, m.stageModel, false)
+	ctx, span := m.start(ctx)
 	span.setRequestParams(call.MaxOutputTokens, call.Temperature)
 	defer func() {
 		inference := InferenceResponse{}
