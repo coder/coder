@@ -391,7 +391,9 @@ export const ChatSharingPopoverContent: React.FC<
 											<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
 												Role
 											</TableHead>
-											<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
+											<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2">
+												<span className="sr-only">Actions</span>
+											</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>

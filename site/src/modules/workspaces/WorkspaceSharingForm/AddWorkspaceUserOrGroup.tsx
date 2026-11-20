@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	Group,
 	User,
@@ -32,11 +32,14 @@ export const AddWorkspaceUserOrGroup: React.FC<
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");
+	const autocompleteTriggerRef = useRef<HTMLButtonElement>(null);
 	const excludeFromAutocomplete = workspaceACL
 		? [...workspaceACL.group, ...workspaceACL.users]
 		: [];
 
 	const resetValues = () => {
+		// Focus moves before the reset disables the submit button.
+		autocompleteTriggerRef.current?.focus();
 		setSelectedOption(null);
 		setSelectedRole("use");
 	};
@@ -62,6 +65,7 @@ export const AddWorkspaceUserOrGroup: React.FC<
 				organizationId={organizationID}
 				value={selectedOption}
 				exclude={excludeFromAutocomplete}
+				triggerRef={autocompleteTriggerRef}
 				onChange={(newValue) => {
 					setSelectedOption(newValue);
 				}}
