@@ -1,0 +1,10 @@
+[debu]  acquiring database migration lock  phase=setup
+[warn]  database migration progress details unavailable  error="sql: database is closed"
+[info]  still waiting for database migration lock  elapsed_ms=1000  state=unknown
+[info]  still waiting for database migration lock  elapsed_ms=2000  state=unknown
+[debu]  acquired database migration lock  phase=setup  waited_ms=2000
+[debu]  acquiring database migration lock  phase=batch
+[debu]  acquired database migration lock  phase=batch  waited_ms=0
+[info]  database migration required  target_version=1  pending=1
+[debu]  applying database migration  version=1  name=step_1  position=1  total=1
+[debu]  database migration applied, pending commit  version=1  name=step_1  position=1  total=1  duration_ms=0
