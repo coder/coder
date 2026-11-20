@@ -123,7 +123,8 @@ export const updateChatProjectTemplates = (queryClient: QueryClient) =>
 				}
 			}
 		},
-		// Returned so the save settles only after the project refreshed.
+		// Returned so the save settles only after the project refreshed, and
+		// its editor can tell this save's result from a change made elsewhere.
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey, exact: true }),
 	});

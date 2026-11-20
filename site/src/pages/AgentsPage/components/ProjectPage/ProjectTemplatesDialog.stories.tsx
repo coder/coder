@@ -1,8 +1,11 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { useSyncExternalStore } from "react";
 import { useQuery } from "react-query";
-import { fn, screen, spyOn } from "storybook/test";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
+	agentTemplates,
 	agentTemplatesKey,
 	dynamicParameters,
 	dynamicParametersKey,
@@ -112,6 +115,7 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 		// The default parameter values are evaluated as this user.
 		user: MockUserOwner,
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -149,7 +153,9 @@ export const OneHiddenTemplate: Story = {
 };
 
 export const Loading: Story = {
-	parameters: { queries: [] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockReturnValue(new Promise(() => {}));
 	},
@@ -159,6 +165,7 @@ export const DefaultPreset: Story = {
 	args: { project: mockProjectWithDefaultPreset },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -175,6 +182,7 @@ export const DefaultParameters: Story = {
 	args: { project: mockProjectWithDefaultParameters },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -196,10 +204,37 @@ export const DefaultParameters: Story = {
 	},
 };
 
+export const TemplatesRefetchError: Story = {
+	args: { project: mockProjectWithDefaultPreset },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	decorators: [withRefetch(agentTemplates(MockChatProject.organization_id))],
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
+	play: async () => {
+		await screen.findByText("Failed to load templates.");
+	},
+};
+
 export const DefaultParametersRefetchError: Story = {
 	args: { project: mockProjectWithDefaultParameters },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -241,6 +276,7 @@ export const Saving: Story = {
 	args: { project: mockProjectWithDefaultPreset, isSaving: true },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -270,6 +306,7 @@ export const SaveError: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -297,6 +334,7 @@ export const RequestError: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -306,6 +344,87 @@ export const RequestError: Story = {
 				data: [mockSmallPreset],
 			},
 		],
+	},
+};
+
+/**
+ * Stands in for the server's copy of the project, so the Conflict story's
+ * play function can save a change from "another user" while the dialog is
+ * open.
+ */
+const serverProject = (() => {
+	let value = mockProjectWithDefaultPreset;
+	const listeners = new Set<() => void>();
+	return {
+		get: () => value,
+		set: (next: ChatProject) => {
+			value = next;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+})();
+
+/** Another user saved different templates while this editor was open. */
+export const Conflict: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	beforeEach: () => {
+		serverProject.set(mockProjectWithDefaultPreset);
+	},
+	render: function ConflictStory(args) {
+		const project = useSyncExternalStore(
+			serverProject.subscribe,
+			serverProject.get,
+		);
+		return <ProjectTemplatesDialog {...args} project={project} />;
+	},
+	play: async () => {
+		// An untouched draft follows the saved templates, so edit it first.
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Remove Kubernetes" }),
+		);
+		await userEvent.keyboard("{Escape}");
+		serverProject.set({
+			...mockProjectWithDefaultPreset,
+			templates: [mockKubernetesTemplate],
+			default_template: undefined,
+		});
+	},
+};
+
+export const ProjectRefreshError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load chat projects." }),
+		);
+	},
+	play: async () => {
+		await screen.findByRole("button", { name: "Retry" });
 	},
 };
 
@@ -321,6 +440,7 @@ export const SavedEmptyParameter: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: agentTemplatesKey(MockChatProject.organization_id),
 				data: [mockDockerTemplate, mockKubernetesTemplate],
@@ -338,5 +458,47 @@ export const SavedEmptyParameter: Story = {
 				data: [mockSmallPreset],
 			},
 		],
+	},
+};
+
+export const RefreshingProject: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	args: { project: mockProjectWithDefaultPreset },
+	decorators: [
+		withRefetch({
+			queryKey: chatProjectsKey,
+			queryFn: () => API.experimental.getChatProjects(),
+		}),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const RetryInProgress: Story = {
+	parameters: { queries: [{ key: chatProjectsKey, data: [MockChatProject] }] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates")
+			.mockRejectedValueOnce(
+				mockApiError({ message: "Failed to load templates." }),
+			)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	play: async () => {
+		await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
 	},
 };
