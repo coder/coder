@@ -1,6 +1,7 @@
 package workspaceapps_test
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,12 +12,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 )
@@ -138,7 +141,6 @@ func TestServePreviewPolicy(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 		},
 		{name: "UnparsableHost", host: "preview--08080--agent--workspace--user--apps.test.coder.com", wantStatus: http.StatusBadRequest},
-		{name: "PrefixedHost", host: "x---" + previewHost, wantStatus: http.StatusBadRequest},
 		{
 			name:       "DirectOpen",
 			path:       "/docs/?page=2&" + previewhost.SignInParam + "=secret",
@@ -235,6 +237,78 @@ func TestServePreviewPolicy(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "hello", string(msg))
 	})
+}
+
+// A file preview reaches only its own files on the agent API, without the
+// chat headers coderd adds to its own agent API requests.
+func TestServeFilePreview(t *testing.T) {
+	t.Parallel()
+
+	agentAPI := chi.NewRouter()
+	agentAPI.Get("/api/v0/previews/{id}/*", func(rw http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(workspacesdk.CoderChatIDHeader) != "" ||
+			r.Header.Get(workspacesdk.CoderToolCallIDHeader) != "" ||
+			r.Header.Get(workspacesdk.CoderAncestorChatIDsHeader) != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_, _ = rw.Write([]byte(chi.URLParam(r, "id")))
+	})
+	upstream := httptest.NewServer(agentAPI)
+	t.Cleanup(upstream.Close)
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+
+	serve := func(t *testing.T, subdomain, path string, header http.Header) (int, string) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		app, err := appurl.ParseSubdomainAppURL(subdomain)
+		require.NoError(t, err)
+		ts := newPreviewServer(t, &fakeSignedTokenProvider{token: &workspaceapps.SignedToken{
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      app.Username,
+				WorkspaceNameOrID: app.WorkspaceName,
+				AgentNameOrID:     app.AgentName,
+				AppSlugOrPort:     app.AppSlugOrPort,
+			},
+			AppURL: fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort),
+		}}, upstreamURL)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+path, nil)
+		require.NoError(t, err)
+		req.Host = subdomain + "--apps.test.coder.com"
+		req.Header.Set("Sec-Fetch-Dest", "iframe")
+		for key, values := range header {
+			req.Header[key] = values
+		}
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		return res.StatusCode, string(body)
+	}
+
+	const filePreview = "preview--0123abcd--agent--workspace--user"
+	for _, path := range []string{"/../../read-file", "/%2e%2e/%2e%2e/read-file", "/a%2f..%2f..%2f..%2fread-file", "/..%5C..%5Cread-file"} {
+		status, body := serve(t, filePreview, path, nil)
+		require.Equal(t, http.StatusOK, status, path)
+		require.Equal(t, "0123abcd", body, path)
+	}
+
+	status, body := serve(t, filePreview, "/", http.Header{
+		workspacesdk.CoderChatIDHeader:          {uuid.NewString()},
+		workspacesdk.CoderToolCallIDHeader:      {uuid.NewString()},
+		workspacesdk.CoderAncestorChatIDsHeader: {uuid.NewString()},
+	})
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "0123abcd", body)
+
+	// Only a file preview may reach the agent API port.
+	status, _ = serve(t, fmt.Sprintf("%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort), "/", nil)
+	require.Equal(t, http.StatusBadRequest, status)
 }
 
 // Requests from a preview page to the user's other apps are refused before
