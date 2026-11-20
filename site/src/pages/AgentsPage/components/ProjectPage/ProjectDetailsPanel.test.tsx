@@ -538,7 +538,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel({
 			...MockChatProject,
 			owner_id: MockUserMember.id,
-			permissions: { update: true, delete: false, share: true },
+			permissions: { update: true, delete: false, share: true, archive: false },
 		});
 
 		await user.click(

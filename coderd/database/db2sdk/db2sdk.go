@@ -2100,7 +2100,12 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // templates must be the project's templates as the caller sees them, so the
 // response never identifies a template the caller cannot access.
 func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions, templates chattool.ProjectTemplates) codersdk.ChatProject {
+	var archivedAt *time.Time
+	if project.ArchivedAt.Valid {
+		archivedAt = &project.ArchivedAt.Time
+	}
 	converted := codersdk.ChatProject{
+		ArchivedAt:          archivedAt,
 		Permissions:         permissions,
 		ID:                  project.ID,
 		OrganizationID:      project.OrganizationID,
