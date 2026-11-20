@@ -1,8 +1,9 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useSearchParams } from "react-router";
 import { mockApiError } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
-import { Filter, type UseFilterResult } from "./Filter";
+import { render, renderWithAuth } from "#/testHelpers/renderHelpers";
+import { Filter, type UseFilterResult, useFilter } from "./Filter";
 
 const mockFilter: UseFilterResult = {
 	query: "",
@@ -56,5 +57,35 @@ describe(Filter.name, () => {
 		expect(
 			screen.getByRole("textbox", { name: "Search" }),
 		).toHaveAccessibleDescription(detail);
+	});
+
+	it("shows a preset picked after clearing the search", async () => {
+		const Harness = () => {
+			const [searchParams, setSearchParams] = useSearchParams();
+			const filter = useFilter({
+				searchParams,
+				onSearchParamsChange: setSearchParams,
+			});
+			return (
+				<Filter
+					filter={filter}
+					isLoading={false}
+					optionsSkeleton={null}
+					presets={[{ name: "Running", query: "status:running" }]}
+				/>
+			);
+		};
+		const user = userEvent.setup();
+		renderWithAuth(<Harness />, { route: "/?filter=owner:me" });
+		const search = await screen.findByRole("textbox", { name: "Search" });
+
+		await user.click(screen.getByRole("button", { name: "Clear search" }));
+		expect(search).toHaveValue("");
+
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "Running" }),
+		);
+		await waitFor(() => expect(search).toHaveValue("status:running"));
 	});
 });
