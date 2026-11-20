@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
@@ -864,6 +867,66 @@ func collectSnapshot(
 	t.Cleanup(reporter.Close)
 
 	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
+}
+
+// TestTelemetry_ReporterOwnsConnectionPool covers a reporter that shares
+// http.DefaultTransport. Any code in the process can close that transport's
+// idle connections, and httptest.Server.Close does. If that happens while
+// net/http hands a response without a body, like the telemetry server's 202,
+// to its caller, the request fails although the server accepted it. The
+// deployment report then errors and no snapshot follows. The reporter must
+// keep its connection through such a close, and Close must release every
+// connection the reporter opened, the one for its final report included.
+func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	var newConns, closedConns atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			newConns.Add(1)
+		case http.StateClosed:
+			closedConns.Add(1)
+		}
+	}
+	server.Start()
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	sink := testutil.NewFakeSink(t)
+	reporter, err := telemetry.New(telemetry.Options{
+		Database:     db,
+		Logger:       testutil.Logger(t).AppendSinks(sink),
+		URL:          serverURL,
+		DeploymentID: uuid.NewString(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(reporter.Close)
+
+	// The response has no body, so the connection is in the idle pool by the
+	// time the first report is logged as submitted.
+	waitSubmitted := func(n int) {
+		t.Helper()
+		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "submitted snapshot" })) >= n
+		}, testutil.IntervalFast, "want %d submitted snapshots", n))
+	}
+	waitSubmitted(1)
+	http.DefaultClient.CloseIdleConnections()
+	reporter.Report(&telemetry.Snapshot{})
+	waitSubmitted(2)
+	require.EqualValues(t, 1, newConns.Load(), "the reporter must reuse its connection")
+
+	reporter.Close()
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return closedConns.Load() == newConns.Load()
+	}, testutil.IntervalFast, "Close must leave no connection open")
 }
 
 func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
