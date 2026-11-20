@@ -1041,6 +1041,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
+			options.SetupToken, err = resolveSetupToken(ctx, inv, options.Database, vals.SetupToken.String(), tunnel != nil)
+			if err != nil {
+				return err
+			}
+
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
