@@ -43,7 +43,7 @@ Object.defineProperty(window, "matchMedia", {
 
 const createWorkspaceTerminalWebSocket = () => {
 	return mockWebSocketServer(
-		`*/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+		`/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
 	);
 };
 
@@ -163,7 +163,9 @@ describe("TerminalPage", () => {
 	it("shows reconnect message when websocket fails", async () => {
 		server.use(
 			ws
-				.link(`*/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`)
+				.link(
+					`ws://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+				)
 				.addEventListener("connection", ({ client }) => {
 					client.close(1011, "internal error");
 				}),

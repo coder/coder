@@ -17,7 +17,7 @@ describe(mockWebSocketServer.name, () => {
 	const baseUrl = `ws://${location.host}/api/v2/test`;
 
 	it("tracks each connection with its URL and path parameters", async () => {
-		const mockServer = mockWebSocketServer("*/api/v2/test/:id");
+		const mockServer = mockWebSocketServer("/api/v2/test/:id");
 		const first = await openSocket(`${baseUrl}/one?mode=a`);
 		const second = await openSocket(`${baseUrl}/two`);
 
@@ -38,7 +38,7 @@ describe(mockWebSocketServer.name, () => {
 	});
 
 	it("waits for connections and messages that have not arrived yet", async () => {
-		const mockServer = mockWebSocketServer("*/api/v2/test");
+		const mockServer = mockWebSocketServer("/api/v2/test");
 		const connection = mockServer.connection();
 		const message = mockServer.nextMessage();
 
@@ -49,8 +49,18 @@ describe(mockWebSocketServer.name, () => {
 		expect(await message).toBe("hello");
 	});
 
+	it("only matches the path on the page's origin", async () => {
+		const mockServer = mockWebSocketServer("/api/v2/test");
+		await openSocket("ws://example.com/api/v2/test");
+		await openSocket(`ws://${location.host}/api/v2/other`);
+		await openSocket(baseUrl);
+
+		await mockServer.connection();
+		expect(mockServer.connections).toHaveLength(1);
+	});
+
 	it("sends to clients and closes connections", async () => {
-		const mockServer = mockWebSocketServer("*/api/v2/test");
+		const mockServer = mockWebSocketServer("/api/v2/test");
 		const socket = await openSocket(baseUrl);
 		const connection = await mockServer.connection();
 

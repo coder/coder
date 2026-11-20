@@ -32,11 +32,14 @@ type MockWebSocketServer = Readonly<{
 }>;
 
 /**
- * Mocks a WebSocket server for every URL matching `url`. The pattern is matched
- * like an MSW HTTP handler: it may contain path parameters (`:id`) and
- * wildcards (`*`), and the query string is ignored.
+ * Mocks a WebSocket server at `path` on the page's origin, which is where the
+ * API client opens its WebSockets. The path is matched like an MSW HTTP
+ * handler: it may contain path parameters (`:id`), and the query string is
+ * ignored.
  */
-export function mockWebSocketServer(url: string | RegExp): MockWebSocketServer {
+export function mockWebSocketServer(path: string): MockWebSocketServer {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	const url = `${protocol}//${location.host}${path}`;
 	const connections: MockWebSocketConnection[] = [];
 	const connectionWaiters = new Map<number, Array<() => void>>();
 	const messages: WebSocketData[] = [];

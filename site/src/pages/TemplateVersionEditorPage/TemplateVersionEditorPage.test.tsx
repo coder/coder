@@ -556,7 +556,9 @@ test("display pending badge and update it to running when status changes", async
 
 	// Mock the logs when the status is running. This prevents connection errors
 	// from being thrown in the console during the test.
-	mockWebSocketServer("*/api/v2/templateversions/:versionId/logs");
+	const logs = mockWebSocketServer(
+		`/api/v2/templateversions/${MockTemplateVersion.id}/logs`,
+	);
 
 	renderEditorPage(createTestQueryClient());
 
@@ -575,6 +577,7 @@ test("display pending badge and update it to running when status changes", async
 		// may cause delays.
 		{ timeout: 5_000 },
 	);
+	await logs.connection();
 });
 
 function renderEditorPage(queryClient: QueryClient) {
