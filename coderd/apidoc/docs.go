@@ -26887,7 +26887,7 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentOpenPreview": "Enables the open_preview chat tool and file preview hostnames.",
+                "ExperimentOpenPreview": "Enables the open_preview chat tool and preview hostnames.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -26911,7 +26911,7 @@ const docTemplate = `{
                 "Enables workspace-local ACP subagent tools in root chats.",
                 "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.",
-                "Enables the open_preview chat tool and file preview hostnames."
+                "Enables the open_preview chat tool and preview hostnames."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
