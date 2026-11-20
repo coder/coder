@@ -3,18 +3,11 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
-
-const preferencesData = {
-	thinking_display_mode: "auto" as const,
-	shell_tool_display_mode: "auto" as const,
-	code_diff_display_mode: "auto" as const,
-	collapse_assistant_steps: false,
-	agent_chat_send_shortcut: "enter" as const,
-};
 
 const baseArgs: AgentSettingsGeneralPageViewProps = {
 	userPromptData: {
@@ -40,7 +33,7 @@ const meta = {
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
 	parameters: {
-		queries: [{ key: preferenceSettingsKey, data: preferencesData }],
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
 	},
 } satisfies Meta<typeof AgentSettingsGeneralPageView>;
 
@@ -137,9 +130,9 @@ export const SavesUserPrompt: Story = {
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
 		let agentChatSendShortcut: AgentChatSendShortcut =
-			preferencesData.agent_chat_send_shortcut;
+			MockUserPreferenceSettings.agent_chat_send_shortcut;
 		spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
-			...preferencesData,
+			...MockUserPreferenceSettings,
 			agent_chat_send_shortcut: agentChatSendShortcut,
 		}));
 		spyOn(API, "updateUserPreferenceSettings").mockImplementation(
@@ -147,7 +140,7 @@ export const TogglesSendShortcut: Story = {
 				agentChatSendShortcut =
 					req.agent_chat_send_shortcut ?? agentChatSendShortcut;
 				return {
-					...preferencesData,
+					...MockUserPreferenceSettings,
 					agent_chat_send_shortcut: agentChatSendShortcut,
 				};
 			},
@@ -177,7 +170,7 @@ export const CollapseAssistantStepsEnabled: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: { ...preferencesData, collapse_assistant_steps: true },
+				data: { ...MockUserPreferenceSettings, collapse_assistant_steps: true },
 			},
 		],
 	},

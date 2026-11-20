@@ -6775,21 +6775,6 @@ func (mr *MockStoreMockRecorder) GetUserActivityInsights(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserActivityInsights", reflect.TypeOf((*MockStore)(nil).GetUserActivityInsights), ctx, arg)
 }
 
-// GetUserAgentChatSendShortcut mocks base method.
-func (m *MockStore) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserAgentChatSendShortcut", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserAgentChatSendShortcut indicates an expected call of GetUserAgentChatSendShortcut.
-func (mr *MockStoreMockRecorder) GetUserAgentChatSendShortcut(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAgentChatSendShortcut", reflect.TypeOf((*MockStore)(nil).GetUserAgentChatSendShortcut), ctx, userID)
-}
-
 // GetUserAppearanceSettings mocks base method.
 func (m *MockStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
 	m.ctrl.T.Helper()
@@ -6878,36 +6863,6 @@ func (m *MockStore) GetUserChatDebugLoggingEnabled(ctx context.Context, userID u
 func (mr *MockStoreMockRecorder) GetUserChatDebugLoggingEnabled(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatDebugLoggingEnabled", reflect.TypeOf((*MockStore)(nil).GetUserChatDebugLoggingEnabled), ctx, userID)
-}
-
-// GetUserCodeDiffDisplayMode mocks base method.
-func (m *MockStore) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserCodeDiffDisplayMode", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserCodeDiffDisplayMode indicates an expected call of GetUserCodeDiffDisplayMode.
-func (mr *MockStoreMockRecorder) GetUserCodeDiffDisplayMode(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCodeDiffDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserCodeDiffDisplayMode), ctx, userID)
-}
-
-// GetUserCollapseAssistantSteps mocks base method.
-func (m *MockStore) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserCollapseAssistantSteps", ctx, userID)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserCollapseAssistantSteps indicates an expected call of GetUserCollapseAssistantSteps.
-func (mr *MockStoreMockRecorder) GetUserCollapseAssistantSteps(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCollapseAssistantSteps", reflect.TypeOf((*MockStore)(nil).GetUserCollapseAssistantSteps), ctx, userID)
 }
 
 // GetUserCount mocks base method.
@@ -7030,6 +6985,21 @@ func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserNotificationPreferences", reflect.TypeOf((*MockStore)(nil).GetUserNotificationPreferences), ctx, userID)
 }
 
+// GetUserPreferenceSettings mocks base method.
+func (m *MockStore) GetUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserPreferenceSettingsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserPreferenceSettings", ctx, userID)
+	ret0, _ := ret[0].(database.GetUserPreferenceSettingsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserPreferenceSettings indicates an expected call of GetUserPreferenceSettings.
+func (mr *MockStoreMockRecorder) GetUserPreferenceSettings(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserPreferenceSettings", reflect.TypeOf((*MockStore)(nil).GetUserPreferenceSettings), ctx, userID)
+}
+
 // GetUserSecretByID mocks base method.
 func (m *MockStore) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
 	m.ctrl.T.Helper()
@@ -7090,21 +7060,6 @@ func (mr *MockStoreMockRecorder) GetUserSecretsTelemetrySummary(ctx any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetUserSecretsTelemetrySummary), ctx)
 }
 
-// GetUserShellToolDisplayMode mocks base method.
-func (m *MockStore) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserShellToolDisplayMode", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserShellToolDisplayMode indicates an expected call of GetUserShellToolDisplayMode.
-func (mr *MockStoreMockRecorder) GetUserShellToolDisplayMode(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserShellToolDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserShellToolDisplayMode), ctx, userID)
-}
-
 // GetUserSkillByUserIDAndName mocks base method.
 func (m *MockStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
@@ -7133,21 +7088,6 @@ func (m *MockStore) GetUserStatusCounts(ctx context.Context, arg database.GetUse
 func (mr *MockStoreMockRecorder) GetUserStatusCounts(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatusCounts", reflect.TypeOf((*MockStore)(nil).GetUserStatusCounts), ctx, arg)
-}
-
-// GetUserThinkingDisplayMode mocks base method.
-func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThinkingDisplayMode", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThinkingDisplayMode indicates an expected call of GetUserThinkingDisplayMode.
-func (mr *MockStoreMockRecorder) GetUserThinkingDisplayMode(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThinkingDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserThinkingDisplayMode), ctx, userID)
 }
 
 // GetUsers mocks base method.
@@ -11943,6 +11883,21 @@ func (m *MockStore) UpdateUserCollapseAssistantSteps(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateUserCollapseAssistantSteps(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCollapseAssistantSteps", reflect.TypeOf((*MockStore)(nil).UpdateUserCollapseAssistantSteps), ctx, arg)
+}
+
+// UpdateUserDefaultLandingPage mocks base method.
+func (m *MockStore) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserDefaultLandingPage", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserDefaultLandingPage indicates an expected call of UpdateUserDefaultLandingPage.
+func (mr *MockStoreMockRecorder) UpdateUserDefaultLandingPage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDefaultLandingPage", reflect.TypeOf((*MockStore)(nil).UpdateUserDefaultLandingPage), ctx, arg)
 }
 
 // UpdateUserDeletedByID mocks base method.

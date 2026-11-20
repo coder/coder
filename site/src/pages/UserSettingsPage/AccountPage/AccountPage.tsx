@@ -11,6 +11,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
+import { DefaultLandingPageSettings } from "./DefaultLandingPageSettings";
 
 const AccountPage: React.FC = () => {
 	const { permissions, user: me } = useAuthenticated();
@@ -47,6 +48,8 @@ const AccountPage: React.FC = () => {
 					onSubmit={updateProfile}
 				/>
 			</div>
+
+			<DefaultLandingPageSettings agentsEnabled={permissions.createChat} />
 
 			{hasGroupsFeature && (
 				<AccountUserGroups

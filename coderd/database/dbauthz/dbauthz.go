@@ -5597,17 +5597,6 @@ func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetU
 	return q.db.GetUserActivityInsights(ctx, arg)
 }
 
-func (q *querier) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return "", err
-	}
-	return q.db.GetUserAgentChatSendShortcut(ctx, userID)
-}
-
 func (q *querier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -5658,28 +5647,6 @@ func (q *querier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uui
 		return false, err
 	}
 	return q.db.GetUserChatDebugLoggingEnabled(ctx, userID)
-}
-
-func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return "", err
-	}
-	return q.db.GetUserCodeDiffDisplayMode(ctx, userID)
-}
-
-func (q *querier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return false, err
-	}
-	return q.db.GetUserCollapseAssistantSteps(ctx, userID)
 }
 
 func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
@@ -5751,6 +5718,17 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
+func (q *querier) GetUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserPreferenceSettingsRow, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return database.GetUserPreferenceSettingsRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return database.GetUserPreferenceSettingsRow{}, err
+	}
+	return q.db.GetUserPreferenceSettings(ctx, userID)
+}
+
 func (q *querier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
 	return fetch(q.log, q.auth, q.db.GetUserSecretByID)(ctx, id)
 }
@@ -5784,17 +5762,6 @@ func (q *querier) GetUserSecretsTelemetrySummary(ctx context.Context) (database.
 	return q.db.GetUserSecretsTelemetrySummary(ctx)
 }
 
-func (q *querier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return "", err
-	}
-	return q.db.GetUserShellToolDisplayMode(ctx, userID)
-}
-
 func (q *querier) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -5808,17 +5775,6 @@ func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserS
 		return nil, err
 	}
 	return q.db.GetUserStatusCounts(ctx, arg)
-}
-
-func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	user, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return "", err
-	}
-	return q.db.GetUserThinkingDisplayMode(ctx, userID)
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
@@ -8937,6 +8893,17 @@ func (q *querier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg data
 		return false, err
 	}
 	return q.db.UpdateUserCollapseAssistantSteps(ctx, arg)
+}
+
+func (q *querier) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.UpdateUserDefaultLandingPage(ctx, arg)
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {

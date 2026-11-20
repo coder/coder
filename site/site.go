@@ -261,14 +261,15 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo      string
-	User           string
-	Entitlements   string
-	Appearance     string
-	UserAppearance string
-	Experiments    string
-	Regions        string
-	DocsURL        string
+	BuildInfo       string
+	User            string
+	Entitlements    string
+	Appearance      string
+	UserAppearance  string
+	UserPreferences string
+	Experiments     string
+	Regions         string
+	DocsURL         string
 
 	AIGatewayEnabled          string
 	UserSecretFilePathEnabled string
@@ -487,6 +488,16 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(userAppearance)
 		if err == nil {
 			state.UserAppearance = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		preferences, err := h.opts.Database.GetUserPreferenceSettings(ctx, user.ID)
+		if err != nil {
+			return
+		}
+		data, err := json.Marshal(db2sdk.UserPreferenceSettings(preferences))
+		if err == nil {
+			state.UserPreferences = html.EscapeString(string(data))
 		}
 	})
 	if h.Entitlements != nil {

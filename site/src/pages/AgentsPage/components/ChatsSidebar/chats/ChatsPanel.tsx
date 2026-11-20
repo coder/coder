@@ -38,6 +38,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDashboardHomePath } from "#/modules/dashboard/useDashboardHomePath";
 import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
@@ -188,6 +189,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	location,
 	currentUserId,
 }) => {
+	const { homePath } = useDashboardHomePath();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
@@ -497,7 +499,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
-						<NavLink to="/workspaces" className="inline-flex">
+						<NavLink to={homePath} className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
 						<SectionSwitcher />

@@ -12,6 +12,7 @@ import {
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
+import { useDashboardHomePath } from "../useDashboardHomePath";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -27,6 +28,7 @@ export const Navbar: React.FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
+	const { homePath } = useDashboardHomePath();
 	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
@@ -72,6 +74,7 @@ export const Navbar: React.FC = () => {
 	}
 	return (
 		<NavbarView
+			homePath={homePath}
 			user={me}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}

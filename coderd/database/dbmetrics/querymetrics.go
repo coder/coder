@@ -3592,14 +3592,6 @@ func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserAgentChatSendShortcut(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserAgentChatSendShortcut").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAgentChatSendShortcut").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAppearanceSettings(ctx, userID)
@@ -3645,22 +3637,6 @@ func (m queryMetricsStore) GetUserChatDebugLoggingEnabled(ctx context.Context, u
 	r0, r1 := m.s.GetUserChatDebugLoggingEnabled(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserChatDebugLoggingEnabled").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatDebugLoggingEnabled").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserCodeDiffDisplayMode(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserCodeDiffDisplayMode").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCodeDiffDisplayMode").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserCollapseAssistantSteps(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserCollapseAssistantSteps").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCollapseAssistantSteps").Inc()
 	return r0, r1
 }
 
@@ -3728,6 +3704,14 @@ func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserPreferenceSettingsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserPreferenceSettings(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserPreferenceSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserPreferenceSettings").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSecretByID(ctx, id)
@@ -3760,14 +3744,6 @@ func (m queryMetricsStore) GetUserSecretsTelemetrySummary(ctx context.Context) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserShellToolDisplayMode(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserShellToolDisplayMode").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserShellToolDisplayMode").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
@@ -3781,14 +3757,6 @@ func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database
 	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserStatusCounts").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserStatusCounts").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThinkingDisplayMode(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThinkingDisplayMode").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThinkingDisplayMode").Inc()
 	return r0, r1
 }
 
@@ -6318,6 +6286,14 @@ func (m queryMetricsStore) UpdateUserCollapseAssistantSteps(ctx context.Context,
 	r0, r1 := m.s.UpdateUserCollapseAssistantSteps(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserCollapseAssistantSteps").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCollapseAssistantSteps").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserDefaultLandingPage(ctx context.Context, arg database.UpdateUserDefaultLandingPageParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserDefaultLandingPage(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserDefaultLandingPage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserDefaultLandingPage").Inc()
 	return r0, r1
 }
 

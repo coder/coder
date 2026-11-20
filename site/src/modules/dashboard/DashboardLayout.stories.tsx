@@ -1,14 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { buildInfoKey } from "#/api/queries/buildInfo";
 import { deploymentStatsQueryKey } from "#/api/queries/deployment";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { updateCheckQueryKey } from "#/api/queries/updateCheck";
-import type { UpdateCheckResponse } from "#/api/typesGenerated";
+import type {
+	UpdateCheckResponse,
+	UserPreferenceSettings,
+} from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockBuildInfo,
 	MockDefaultOrganization,
@@ -26,6 +31,7 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
+import { DashboardIndexRedirect } from "./DashboardIndexRedirect";
 import { DashboardFullPage, DashboardLayout } from "./DashboardLayout";
 
 const outdatedUpdateCheck: UpdateCheckResponse = {
@@ -83,6 +89,21 @@ export const Default: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Skip to main content" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const LoadingLandingPage: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: reactRouterOutlet({ path: "/" }, <DashboardIndexRedirect />),
+		}),
+	},
+	beforeEach: () => {
+		const request = spyOn(API, "getUserPreferenceSettings").mockReturnValue(
+			createDeferred<UserPreferenceSettings>().promise,
+		);
+		return () => request.mockRestore();
 	},
 };
 

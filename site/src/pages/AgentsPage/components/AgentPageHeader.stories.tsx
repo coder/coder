@@ -2,8 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useMemo, useState } from "react";
 import { Outlet } from "react-router";
 import { userEvent, within } from "storybook/test";
+import { MockUserOwner } from "#/testHelpers/entities";
 import { pixelWithPhone } from "#/testHelpers/pixel";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { AgentPageHeader } from "./AgentPageHeader";
 import { ChimeButton } from "./ChimeButton";
 import { WebPushButton } from "./WebPushButton";
@@ -159,7 +163,8 @@ const HeaderStateHarness: React.FC = () => {
 const meta: Meta<typeof AgentPageHeader> = {
 	title: "pages/AgentsPage/AgentPageHeader",
 	component: AgentPageHeader,
-	decorators: [withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
+	parameters: { user: MockUserOwner },
 	beforeEach: () => {
 		const originalMatchMedia = window.matchMedia;
 		const controller = createMatchMediaController(true);
