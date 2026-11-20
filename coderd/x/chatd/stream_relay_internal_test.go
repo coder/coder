@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -255,4 +256,163 @@ func TestStreamRelayForwarderDeliversLivePartsAfterSameEpisodeReconfigures(t *te
 		drain()
 		require.Equal(t, int64(episodeParts+1), lastSeq, "the live part did not reach relay.Parts()")
 	})
+}
+
+// TestStreamRelayForwarderDialBackoff configures the forwarder on a mock
+// clock with failing dials and expects a worker to be redialed on the retry
+// backoff, however often it is configured.
+func TestStreamRelayForwarderDialBackoff(t *testing.T) {
+	t.Parallel()
+
+	const (
+		step     = 10 * time.Millisecond
+		duration = 20 * time.Second
+	)
+	type dial struct {
+		at     time.Duration
+		worker int
+	}
+	dialsAt := func(worker int, ms ...int) []dial {
+		dials := make([]dial, 0, len(ms))
+		for _, m := range ms {
+			dials = append(dials, dial{at: time.Duration(m) * time.Millisecond, worker: worker})
+		}
+		return dials
+	}
+	// configure follows the initial configuration of worker 0 at time 0. Each
+	// one advances the history version.
+	type configure struct {
+		at                time.Duration
+		worker            int
+		generationAttempt int64
+	}
+	sameWorkerEvery := func(interval time.Duration, generationAttempt func(tick int) int64) []configure {
+		var configures []configure
+		for tick := 1; time.Duration(tick)*interval <= duration; tick++ {
+			configures = append(configures, configure{at: time.Duration(tick) * interval, generationAttempt: generationAttempt(tick)})
+		}
+		return configures
+	}
+	attemptOne := func(int) int64 { return 1 }
+	backoff := dialsAt(0, 0, 100, 300, 700, 1500, 3100, 6300, 11300, 16300)
+
+	cases := []struct {
+		name       string
+		configures []configure
+		// failDials is the number of dials that fail. Negative fails all.
+		failDials     int
+		unrecoverable bool
+		wantDials     []dial
+		// connects expects the last target's parts on relay.Parts().
+		connects bool
+	}{
+		{
+			name:      "NoUpdates",
+			failDials: -1,
+			wantDials: backoff,
+		},
+		{
+			name:       "SameWorkerEverySecond",
+			configures: sameWorkerEvery(time.Second, attemptOne),
+			failDials:  -1,
+			wantDials:  backoff,
+		},
+		{
+			// Every other update has generation attempt 0, as between model
+			// steps, which must not reset the backoff.
+			name: "SameWorkerEvery100ms",
+			configures: sameWorkerEvery(100*time.Millisecond, func(tick int) int64 {
+				return int64(tick % 2)
+			}),
+			failDials: -1,
+			wantDials: backoff,
+		},
+		{
+			name:       "WorkerChange",
+			configures: []configure{{at: 2 * time.Second, worker: 1, generationAttempt: 1}},
+			failDials:  -1,
+			wantDials: append(
+				dialsAt(0, 0, 100, 300, 700, 1500),
+				dialsAt(1, 2000, 2100, 2300, 2700, 3500, 5100, 8300, 13300, 18300)...,
+			),
+		},
+		{
+			name: "UnrecoverableRecovery",
+			configures: []configure{
+				{at: 50 * time.Millisecond, generationAttempt: 1},
+				{at: time.Second, generationAttempt: 1},
+			},
+			failDials:     1,
+			unrecoverable: true,
+			wantDials:     dialsAt(0, 0, 1000),
+			connects:      true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+				start := clock.Now()
+				buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+				defer buffer.Close()
+				chatID := uuid.New()
+				workers := []uuid.UUID{uuid.New(), uuid.New()}
+
+				logger := slogtest.Make(t, nil)
+				local := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
+				var dials []dial
+				dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
+					dials = append(dials, dial{at: clock.Since(start), worker: slices.Index(workers, input.WorkerID)})
+					if tc.failDials < 0 || len(dials) <= tc.failDials {
+						return nil, fakeDialError{unrecoverable: tc.unrecoverable}
+					}
+					return local(ctx, input)
+				}
+				relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
+				defer relay.Close()
+
+				target := streamRelayTarget{
+					workerID:          uuid.NullUUID{UUID: workers[0], Valid: true},
+					historyVersion:    1,
+					generationAttempt: 1,
+				}
+				relay.Configure(ctx, target)
+				configures := tc.configures
+				for elapsed := step; elapsed <= duration; elapsed += step {
+					// The forwarder arms its retry timer before the clock moves.
+					synctest.Wait()
+					clock.Advance(step).MustWait(ctx)
+					if len(configures) > 0 && configures[0].at == elapsed {
+						target = streamRelayTarget{
+							workerID:          uuid.NullUUID{UUID: workers[configures[0].worker], Valid: true},
+							historyVersion:    target.historyVersion + 1,
+							generationAttempt: configures[0].generationAttempt,
+						}
+						relay.Configure(ctx, target)
+						configures = configures[1:]
+					}
+				}
+				synctest.Wait()
+				require.Empty(t, configures, "configuration times must be multiples of the step")
+				require.Equal(t, tc.wantDials, dials)
+
+				if !tc.connects {
+					return
+				}
+				key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: target.historyVersion, GenerationAttempt: target.generationAttempt}
+				require.NoError(t, buffer.CreateEpisode(key))
+				require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("part")))
+				synctest.Wait()
+				select {
+				case part := <-relay.Parts():
+					require.Equal(t, int64(1), part.Seq)
+				default:
+					t.Fatal("the relay forwarder did not deliver the last target's part")
+				}
+			})
+		})
+	}
 }
