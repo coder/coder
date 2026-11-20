@@ -160,20 +160,8 @@ func TestServePreviewPolicy(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 		},
 		{name: "UnparsableHost", host: "preview--08080--agent--workspace--user--apps.test.coder.com", wantStatus: http.StatusBadRequest},
-		{
-			name:       "DirectOpen",
-			path:       "/docs/?page=2&" + previewhost.SignInParam + "=secret",
-			header:     http.Header{"Sec-Fetch-Dest": {"document"}},
-			wantStatus: http.StatusSeeOther,
-			wantLocation: previewDashboard + "/previews/open?" + url.Values{
-				"owner":     {"user"},
-				"workspace": {"workspace"},
-				"agent":     {"agent"},
-				"slug":      {"preview--8080"},
-				"path":      {"/docs/?page=2"},
-			}.Encode(),
-		},
-		{name: "NoFetchMetadata", header: http.Header{"Sec-Fetch-Dest": nil}, wantStatus: http.StatusSeeOther},
+		{name: "DirectOpen", header: http.Header{"Sec-Fetch-Dest": {"document"}}, wantStatus: http.StatusForbidden},
+		{name: "NoFetchMetadata", header: http.Header{"Sec-Fetch-Dest": nil}, wantStatus: http.StatusForbidden},
 		{
 			name:         "SignIn",
 			path:         "/docs/?page=2",
@@ -253,6 +241,8 @@ func TestServePreviewPolicy(t *testing.T) {
 			if tc.wantCookie != "" {
 				require.Equal(t, []string{tc.wantCookie}, res.Header.Values("Set-Cookie"))
 				require.Equal(t, "no-referrer", res.Header.Get("Referrer-Policy"))
+			} else if tc.wantStatus != http.StatusOK {
+				require.Empty(t, res.Header.Values("Set-Cookie"), "a refused request must not reach the preview server")
 			}
 			if tc.name == "Proxied" {
 				require.Equal(t, []string{"host=1; Path=/"}, res.Header.Values("Set-Cookie"))
