@@ -44,8 +44,8 @@ var ErrNoTokenAvailable = xerrors.New("no token available")
 // previous branch and the current branch has none.
 var ErrStalePullRequest = xerrors.New("stale pull request")
 
-// ErrRateLimitSkipped indicates that a row was skipped because
-// a prior request in the same group hit a rate limit.
+// ErrRateLimitSkipped indicates an in-batch skip after
+// an earlier request in the same group hit a rate limit.
 var ErrRateLimitSkipped = xerrors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
@@ -198,27 +198,24 @@ func (r *Refresher) Refresh(
 		})
 	}
 
-	// Process all HTTP calls concurrently with a shared
-	// semaphore. Each group tracks rate-limit errors
-	// independently so that a limit hit on one provider
-	// doesn't stall requests to other providers.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 
 	for _, grp := range resolved {
-		var rateLimitErr atomic.Pointer[gitprovider.RateLimitError]
+		var skipErr atomic.Pointer[error]
 
 		for _, idx := range grp.indices {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 
-				// Best-effort rate-limit check before acquiring
-				// the semaphore to avoid unnecessary blocking.
-				if rl := rateLimitErr.Load(); rl != nil {
+				// Check the in-batch skip before
+				// acquiring the semaphore to avoid
+				// unnecessary blocking.
+				if skipped := skipErr.Load(); skipped != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   rateLimitSkippedError(rl),
+						Error:   *skipped,
 					}
 					return
 				}
@@ -235,12 +232,12 @@ func (r *Refresher) Refresh(
 					return
 				}
 
-				// Best-effort rate-limit check after acquiring
-				// in case it was set while we waited.
-				if rl := rateLimitErr.Load(); rl != nil {
+				// Check the in-batch skip again in
+				// case it was set while we waited.
+				if skipped := skipErr.Load(); skipped != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   rateLimitSkippedError(rl),
+						Error:   *skipped,
 					}
 					return
 				}
@@ -252,9 +249,8 @@ func (r *Refresher) Refresh(
 					Error:   err,
 				}
 
-				var rlErr *gitprovider.RateLimitError
-				if errors.As(err, &rlErr) {
-					rateLimitErr.Store(rlErr)
+				if skipped := groupSkipError(err); skipped != nil {
+					skipErr.Store(&skipped)
 				}
 			}()
 		}
@@ -264,9 +260,20 @@ func (r *Refresher) Refresh(
 	return results, nil
 }
 
-// rateLimitSkippedError reports a row skipped after rl was hit by an
-// earlier request in its group. Callers match both ErrRateLimitSkipped
-// and *gitprovider.RateLimitError, and xerrors wraps only one error.
+// groupSkipError returns the in-batch skip error for a rate-limited or
+// rejected request's owner/origin group, or nil for other errors.
+func groupSkipError(err error) error {
+	if rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err); ok {
+		return rateLimitSkippedError(rateLimit)
+	}
+	if rejected, ok := errors.AsType[gitprovider.RejectedError](err); ok {
+		return xerrors.Errorf("skipped due to rejected request: %w", rejected)
+	}
+	return nil
+}
+
+// rateLimitSkippedError keeps both ErrRateLimitSkipped and rl in the
+// in-batch skip error chain; xerrors can wrap only one error.
 func rateLimitSkippedError(rl *gitprovider.RateLimitError) error {
 	return fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl) //nolint:gocritic // xerrors cannot wrap two errors.
 }
