@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // postPreviewSignIn returns a URL that signs the browser in to one preview
@@ -68,29 +67,25 @@ func (api *API) postPreviewSignIn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	target, ok := appurl.ParsePreviewSlug(req.PreviewSlug)
-	if !ok || (target.Port != 0 && target.Port < workspacesdk.AgentMinimumListeningPort) {
+	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid preview slug %q.", req.PreviewSlug),
 		})
 		return
 	}
-	if err := previewhost.CheckURLPath(req.URLPath); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid URL path.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if !slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.Name == req.AgentName }) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("The workspace has no agent named %q.", req.AgentName),
-		})
-		return
+	if target.Port != 0 {
+		agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		i := slices.IndexFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.Name == req.AgentName })
+		if i < 0 || !slices.Contains(agents[i].DisplayApps, database.DisplayAppPortForwardingHelper) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("The workspace agent %q does not allow port forwarding, so its ports cannot be previewed.", req.AgentName),
+			})
+			return
+		}
 	}
 
 	hosting, err := api.previewHostingFor(ctx, req.RegionID)
@@ -109,7 +104,7 @@ func (api *API) postPreviewSignIn(rw http.ResponseWriter, r *http.Request) {
 	}, req.URLPath)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The preview address is too long. A shorter workspace or agent name fixes it.",
+			Message: "Invalid preview address.",
 			Detail:  err.Error(),
 		})
 		return
@@ -146,8 +141,7 @@ func (api *API) postPreviewSignIn(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PreviewSignInResponse{
 		URL:     previewURL.String(),
 		Origin:  origin.String(),
-		Sandbox: hosting.Policy().Sandbox,
-		Mode:    hosting.Mode(),
+		Sandbox: hosting.Sandbox(),
 	})
 }
 

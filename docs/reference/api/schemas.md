@@ -14140,20 +14140,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
 
-## codersdk.PreviewMode
-
-```json
-"strict"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s) |
-|----------|
-| `strict` |
-
 ## codersdk.PreviewParameter
 
 ```json
@@ -14327,7 +14313,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "mode": "strict",
   "origin": "string",
   "sandbox": "string",
   "url": "string"
@@ -14336,12 +14321,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name      | Type                                         | Required | Restrictions | Description                                                          |
-|-----------|----------------------------------------------|----------|--------------|----------------------------------------------------------------------|
-| `mode`    | [codersdk.PreviewMode](#codersdkpreviewmode) | false    |              |                                                                      |
-| `origin`  | string                                       | false    |              | Origin is the preview's origin, the only one its wrapper may frame.  |
-| `sandbox` | string                                       | false    |              | Sandbox is the iframe sandbox to frame the preview with.             |
-| `url`     | string                                       | false    |              | URL is the preview URL with a one-minute sign-in token for its host. |
+| Name      | Type   | Required | Restrictions | Description                                                          |
+|-----------|--------|----------|--------------|----------------------------------------------------------------------|
+| `origin`  | string | false    |              | Origin is the preview's origin, the only one its wrapper may frame.  |
+| `sandbox` | string | false    |              | Sandbox is the iframe sandbox to frame the preview with.             |
+| `url`     | string | false    |              | URL is the preview URL with a one-minute sign-in token for its host. |
 
 ## codersdk.PrometheusConfig
 

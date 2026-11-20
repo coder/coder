@@ -1,7 +1,9 @@
 package coderd_test
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -9,12 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,7 +39,19 @@ func TestPreviewSignIn(t *testing.T) {
 		Name:           "site",
 		OwnerID:        owner.ID,
 		OrganizationID: first.OrganizationID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].DisplayApps = &proto.DisplayApps{PortForwardingHelper: true}
+		return agents
+	}).Do()
+	_ = agenttest.New(t, client.URL, ws.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte("preview ok"))
+	}))
+	t.Cleanup(upstream.Close)
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
 
 	signIn := func(c *codersdk.Client, req codersdk.PreviewSignInRequest) (codersdk.PreviewSignInResponse, error) {
 		return codersdk.NewExperimentalClient(c).PreviewSignIn(testutil.Context(t, testutil.WaitShort), req)
@@ -43,19 +59,18 @@ func TestPreviewSignIn(t *testing.T) {
 	valid := codersdk.PreviewSignInRequest{
 		WorkspaceID: ws.Workspace.ID,
 		AgentName:   "dev",
-		PreviewSlug: "preview--8080",
+		PreviewSlug: "preview--" + upstreamURL.Port(),
 		URLPath:     "/docs/?page=2",
 	}
 
 	t.Run("SignsInOnlyThePreviewHost", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		res, err := signIn(client, valid)
 		require.NoError(t, err)
-		host := "preview--8080--dev--" + ws.Workspace.Name + "--" + owner.Username + ".apps.test.coder.com:" + client.URL.Port()
+		host := valid.PreviewSlug + "--dev--" + ws.Workspace.Name + "--" + owner.Username + ".apps.test.coder.com:" + client.URL.Port()
 		require.Equal(t, "http://"+host, res.Origin)
-		require.Equal(t, codersdk.PreviewModeStrict, res.Mode)
 		require.Equal(t, "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads", res.Sandbox)
 		previewURL, err := url.Parse(res.URL)
 		require.NoError(t, err)
@@ -64,24 +79,25 @@ func TestPreviewSignIn(t *testing.T) {
 		require.True(t, strings.HasPrefix(previewURL.RawQuery, "page=2&coder_preview_sign_in="), previewURL.RawQuery)
 
 		// The preview host trades the token for a cookie on itself only.
-		follow := func(host string) (int, http.Header) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+previewURL.RequestURI(), nil)
+		get := func(requestURI string, cookies ...*http.Cookie) (int, http.Header, string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+requestURI, nil)
 			require.NoError(t, err)
 			req.Host = host
 			req.Header.Set("Sec-Fetch-Dest", "iframe")
+			for _, cookie := range cookies {
+				req.AddCookie(cookie)
+			}
 			noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			}}
 			res, err := noRedirect.Do(req)
 			require.NoError(t, err)
 			defer res.Body.Close()
-			return res.StatusCode, res.Header
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			return res.StatusCode, res.Header, string(body)
 		}
-		status, header := follow(strings.Replace(host, "preview--8080", "preview--3000", 1))
-		require.Equal(t, http.StatusBadRequest, status)
-		require.Empty(t, header.Values("Set-Cookie"))
-
-		status, header = follow(host)
+		status, header, _ := get(previewURL.RequestURI())
 		require.Equal(t, http.StatusSeeOther, status)
 		require.Equal(t, "/docs/?page=2", header.Get("Location"))
 		cookies := (&http.Response{Header: header}).Cookies()
@@ -98,6 +114,33 @@ func TestPreviewSignIn(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, owner.ID, key.UserID)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}, key.Scopes)
+
+		// The cookie opens the preview through the real server, whose
+		// connection logging reads the status under the preview policy.
+		status, header, body := get(header.Get("Location"), cookies[0])
+		require.Equal(t, http.StatusOK, status, body)
+		require.Equal(t, "preview ok", body)
+		require.Contains(t, header.Get("Content-Security-Policy"), "frame-ancestors 'self' "+strings.TrimSuffix(api.AccessURL.String(), "/"))
+	})
+
+	t.Run("PortForwardingHidden", func(t *testing.T) {
+		t.Parallel()
+
+		hidden := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OwnerID:        owner.ID,
+			OrganizationID: first.OrganizationID,
+		}).WithAgent().Do()
+		req := valid
+		req.WorkspaceID = hidden.Workspace.ID
+		_, err := signIn(client, req)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		// The template hides only port forwarding, so files still preview.
+		req.PreviewSlug = "preview--0123abcd"
+		_, err = signIn(client, req)
+		require.NoError(t, err)
 	})
 
 	t.Run("Refused", func(t *testing.T) {
@@ -114,10 +157,17 @@ func TestPreviewSignIn(t *testing.T) {
 			{name: "NotWorkspaceOwner", client: siteAdmin, wantStatus: http.StatusNotFound},
 			{name: "UnknownWorkspace", mutate: func(r *codersdk.PreviewSignInRequest) { r.WorkspaceID = uuid.New() }, wantStatus: http.StatusNotFound},
 			{name: "AppSlug", mutate: func(r *codersdk.PreviewSignInRequest) { r.PreviewSlug = "code-server" }, wantStatus: http.StatusBadRequest},
-			{name: "ReservedPort", mutate: func(r *codersdk.PreviewSignInRequest) { r.PreviewSlug = "preview--4" }, wantStatus: http.StatusBadRequest},
 			{name: "OffHostPath", mutate: func(r *codersdk.PreviewSignInRequest) { r.URLPath = "//evil.example.com/" }, wantStatus: http.StatusBadRequest},
 			{name: "UnknownAgent", mutate: func(r *codersdk.PreviewSignInRequest) { r.AgentName = "other" }, wantStatus: http.StatusBadRequest},
 			{name: "UnknownRegion", mutate: func(r *codersdk.PreviewSignInRequest) { r.RegionID = uuid.New() }, wantStatus: http.StatusBadRequest},
+			{
+				name: "HostnameTooLong",
+				mutate: func(r *codersdk.PreviewSignInRequest) {
+					r.PreviewSlug = "preview--0123abcd"
+					r.AgentName = strings.Repeat("a", 40)
+				},
+				wantStatus: http.StatusBadRequest,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -137,4 +187,24 @@ func TestPreviewSignIn(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestPreviewSignInWithoutExperiment(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{AppHostname: "*.apps.test.coder.com"})
+	first := coderdtest.CreateFirstUser(t, client)
+	ws := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		OwnerID:        first.UserID,
+		OrganizationID: first.OrganizationID,
+	}).WithAgent().Do()
+
+	_, err := codersdk.NewExperimentalClient(client).PreviewSignIn(testutil.Context(t, testutil.WaitShort), codersdk.PreviewSignInRequest{
+		WorkspaceID: ws.Workspace.ID,
+		AgentName:   "dev",
+		PreviewSlug: "preview--0123abcd",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 }

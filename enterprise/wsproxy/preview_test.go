@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -47,7 +48,10 @@ func TestWorkspaceProxyPreviewSignIn(t *testing.T) {
 		Name:           "site",
 		OwnerID:        owner.ID,
 		OrganizationID: first.OrganizationID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].DisplayApps = &proto.DisplayApps{PortForwardingHelper: true}
+		return agents
+	}).Do()
 
 	res, err := codersdk.NewExperimentalClient(client).PreviewSignIn(ctx, codersdk.PreviewSignInRequest{
 		WorkspaceID: ws.Workspace.ID,

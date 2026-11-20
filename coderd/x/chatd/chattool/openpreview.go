@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -166,8 +167,7 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 					return fantasy.NewTextErrorResponse("the workspace agent does not allow port forwarding, so ports cannot be previewed"), nil
 				}
 				result.Port = req.port
-				//nolint:gosec // parseOpenPreviewArgs bounds the port to 65535.
-				result.PreviewSlug = appurl.PreviewTarget{Port: uint16(req.port)}.Slug()
+				result.PreviewSlug = appurl.PreviewSlugPrefix + strconv.Itoa(req.port)
 				slug = result.PreviewSlug
 			case OpenPreviewKindFile:
 				preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: req.path})
