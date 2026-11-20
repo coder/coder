@@ -19078,6 +19078,10 @@ const docTemplate = `{
                 "password": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
+                "setup_token_required": {
+                    "description": "SetupTokenRequired is true when the first user can only be\ncreated with a setup token.",
+                    "type": "boolean"
+                },
                 "terms_of_service_url": {
                     "type": "string"
                 }
@@ -21683,6 +21687,10 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "setup_token": {
+                    "description": "SetupToken is required when AuthMethods.SetupTokenRequired is\ntrue. The server prints it at startup.",
+                    "type": "string"
+                },
                 "trial": {
                     "type": "boolean"
                 },
@@ -23009,6 +23017,9 @@ const docTemplate = `{
                 },
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
+                },
+                "setup_token": {
+                    "type": "string"
                 },
                 "ssh_keygen_algorithm": {
                     "type": "string"
