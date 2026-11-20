@@ -81,11 +81,10 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 		logger.Warn(r.Context(), "requester is not authorized to access the object",
 			slog.F("roles", roles.SafeRoleNames()),
 			slog.F("actor_id", roles.ID),
-			slog.F("actor_name", roles),
 			slog.F("scope", roles.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
-			slog.F("object", object),
+			slog.F("object", object.RBACObject()),
 		)
 
 		return false
@@ -113,10 +112,9 @@ func (h *HTTPAuthorizer) AuthorizeContext(ctx context.Context, action policy.Act
 		logger.Warn(ctx, "requester is not authorized to access the object",
 			slog.F("roles", roles.SafeRoleNames()),
 			slog.F("actor_id", roles.ID),
-			slog.F("actor_name", roles),
 			slog.F("scope", roles.SafeScopeName()),
 			slog.F("action", action),
-			slog.F("object", object),
+			slog.F("object", object.RBACObject()),
 		)
 		return false
 	}
