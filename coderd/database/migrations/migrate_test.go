@@ -4790,3 +4790,36 @@ func testMigration000637DeleteMCPToolSearchExperimentRule(t *testing.T, sqlDB *s
 	require.NoError(t, err)
 	require.Equal(t, []string{"experiment_rule:example"}, []string(keys))
 }
+
+func TestMigration000640TailnetTablesLogged(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// relpersistence is 'p' for a LOGGED table and 'u' for an UNLOGGED one.
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT relname, relpersistence
+		FROM pg_class
+		WHERE relname IN ('tailnet_coordinators', 'tailnet_peers', 'tailnet_tunnels')
+		ORDER BY relname`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	persistence := map[string]string{}
+	for rows.Next() {
+		var name, kind string
+		require.NoError(t, rows.Scan(&name, &kind))
+		persistence[name] = kind
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, map[string]string{
+		"tailnet_coordinators": "p",
+		"tailnet_peers":        "p",
+		"tailnet_tunnels":      "p",
+	}, persistence)
+}
