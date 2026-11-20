@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	screen,
 	waitFor,
@@ -19,6 +20,11 @@ import {
 } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockPngBase64 } from "#/testHelpers/files";
+import {
+	flushLayout,
+	setupMessageScrollerLayout,
+	viewport,
+} from "#/testHelpers/messageScrollerLayout";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -737,6 +743,92 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(summary).toHaveFocus();
+	});
+});
+
+// Eight history rows, then MockWorkingMessages' turn with text before its
+// second step, renumbered from 11.
+const mockScrollHistory: ChatMessage[] = Array.from(
+	{ length: 8 },
+	(_, index) => ({
+		...MockChatMessage,
+		id: index + 1,
+		role: index % 2 === 0 ? "user" : "assistant",
+		content: [{ type: "text", text: `History ${index + 1}` }],
+	}),
+);
+const mockSplitTurn: ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	MockTextBeforeSecondStepMessage,
+	...MockWorkingMessages.slice(4),
+].map((message) => ({ ...message, id: message.id + 10 }));
+const historyRowIds = new Set(
+	mockScrollHistory.map((message) => `message:${message.id}`),
+);
+
+// History rows are 100px, the reply between the steps 200px, and the prompt,
+// blocks, answer, and live row 40px, so the running turn fits under its
+// prompt with room for the tail spacer.
+const scrollRowHeight = (messageId: string) => {
+	if (historyRowIds.has(messageId)) {
+		return 100;
+	}
+	return messageId === "message:14" ? 200 : 40;
+};
+
+describe("ConversationTimeline in a MessageScroller", () => {
+	setupMessageScrollerLayout({ rowHeight: scrollRowHeight });
+
+	it("keeps the anchored prompt in place in the commit that merges its turn's blocks", async () => {
+		const { rerenderStage } = renderTimeline({ messages: mockScrollHistory });
+		await flushLayout();
+		// The prompt arrives with the Thinking row, which anchors it.
+		rerenderStage({
+			messages: [...mockScrollHistory, mockSplitTurn[0]],
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		await flushLayout();
+		const running = [...mockScrollHistory, ...mockSplitTurn.slice(0, 4)];
+		rerenderStage({
+			messages: running,
+			pendingToolCallIDs: getPendingToolCallIDs(running, "running"),
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await flushLayout();
+		const anchoredScrollTop = viewport().scrollTop;
+
+		// The turn ends: its blocks and the reply between them fold into one
+		// block, and the timeline below the prompt shrinks by 200px.
+		rerenderStage({
+			messages: [...mockScrollHistory, ...mockSplitTurn],
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		await act(() => Promise.resolve());
+
+		expect(viewport().scrollTop).toBe(anchoredScrollTop);
+	});
+
+	it("scrolls a prompt sent from the end of the transcript straight to its anchor", async () => {
+		const { rerenderStage } = renderTimeline({ messages: mockScrollHistory });
+		await flushLayout();
+		const scrollTo = vi.mocked(Element.prototype.scrollTo);
+		scrollTo.mockClear();
+
+		// The commit only appends, so the scroller's anchor handling places the
+		// prompt without a resize pass first scrolling to the end.
+		rerenderStage({
+			messages: [...mockScrollHistory, mockSplitTurn[0]],
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		await act(() => Promise.resolve());
+
+		expect(scrollTo.mock.calls).toEqual([
+			[expect.objectContaining({ top: viewport().scrollTop })],
+		]);
 	});
 });
 
