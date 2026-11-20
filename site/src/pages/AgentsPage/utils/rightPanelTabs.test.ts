@@ -37,6 +37,15 @@ const terminalTab = (
 	...overrides,
 });
 
+const mockPreviewTab: Extract<UserRightPanelTab, { kind: "preview" }> = {
+	id: "preview-docs",
+	kind: "preview",
+	label: "Docs",
+	workspaceId: MockWorkspace.id,
+	agentName: MockWorkspaceAgent.name,
+	slug: "preview--0123abcd",
+};
+
 describe("right-panel tab validation", () => {
 	const tabs: UserRightPanelTab[] = [
 		terminalTab(),
@@ -55,6 +64,7 @@ describe("right-panel tab validation", () => {
 			port: 3000,
 			protocol: "http",
 		},
+		mockPreviewTab,
 	];
 
 	it("keeps tabs that still match the workspace and wildcard host", () => {
@@ -63,6 +73,7 @@ describe("right-panel tab validation", () => {
 				workspace: MockWorkspace,
 				workspaceAgent: MockWorkspaceAgent,
 				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
 			}),
 		).toEqual(tabs);
 	});
@@ -72,6 +83,7 @@ describe("right-panel tab validation", () => {
 			workspace: MockWorkspace,
 			workspaceAgent: undefined,
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
@@ -82,9 +94,38 @@ describe("right-panel tab validation", () => {
 			workspace: MockWorkspace,
 			workspaceAgent: MockWorkspaceAgent,
 			wildcardHostname: "",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
+	});
+
+	it("drops preview tabs when the open-preview experiment is off", () => {
+		const validated = validateUserRightPanelTabs(tabs, {
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: false,
+		});
+
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "preview"));
+	});
+
+	it("drops preview tabs of another workspace or agent", () => {
+		const validated = validateUserRightPanelTabs(
+			[
+				{ ...mockPreviewTab, workspaceId: "other-workspace" },
+				{ ...mockPreviewTab, agentName: "other-agent" },
+			],
+			{
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
+			},
+		);
+
+		expect(validated).toEqual([]);
 	});
 
 	it("drops port tabs when the agent no longer exposes the port forwarding helper", () => {
@@ -99,6 +140,7 @@ describe("right-panel tab validation", () => {
 			workspace: buildWorkspace([agent]),
 			workspaceAgent: agent,
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
@@ -119,6 +161,7 @@ describe("right-panel tab validation", () => {
 				workspace: MockWorkspace,
 				workspaceAgent: MockWorkspaceAgent,
 				wildcardHostname: "*.apps.example.com",
+				openPreviewEnabled: true,
 			},
 		);
 
@@ -140,6 +183,7 @@ describe("right-panel tab validation", () => {
 			workspace,
 			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual([]);
@@ -162,6 +206,7 @@ describe("right-panel tab validation", () => {
 			workspace,
 			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
 			wildcardHostname: "*.apps.example.com",
+			openPreviewEnabled: true,
 		});
 
 		expect(validated).toEqual([]);
@@ -263,7 +308,7 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
 	});
 
-	it("persists port tabs", () => {
+	it("persists port and preview tabs", () => {
 		const tabs: UserRightPanelTab[] = [
 			{
 				id: "port-3000",
@@ -273,6 +318,7 @@ describe("right-panel tab storage", () => {
 				port: 3000,
 				protocol: "http",
 			},
+			{ ...mockPreviewTab, urlPath: "/?page=2" },
 		];
 
 		savePersistedRightPanelTabs("chat-1", tabs);
@@ -283,7 +329,10 @@ describe("right-panel tab storage", () => {
 	it("ignores invalid stored values", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
-			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
+			JSON.stringify([
+				{ id: "bad-tab", kind: "port" },
+				{ ...mockPreviewTab, agentName: "" },
+			]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

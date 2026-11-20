@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -66,6 +67,58 @@ describe("Tool web search rows", () => {
 		expect(
 			screen.getAllByRole("link").map((link) => link.getAttribute("href")),
 		).toEqual(["https://coder.com/docs/ai", "http://coder.com/"]);
+	});
+});
+
+describe("Tool open_preview rows", () => {
+	it("opens previews only from the built-in tool for the chat's agent", async () => {
+		const openPreview = vi.fn();
+		const row = (props: Partial<React.ComponentProps<typeof Tool>>) => (
+			<Tool
+				name="open_preview"
+				status="completed"
+				result={MockOpenPreviewResult}
+				organizationId="organization-id"
+				mcpServers={[]}
+				isError={false}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
+				{...props}
+			/>
+		);
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<ChatWorkspaceContext
+					value={{
+						workspaceId: MockWorkspace.id,
+						agentName: MockWorkspaceAgent.name,
+						openPreview,
+					}}
+				>
+					{row({})}
+					{row({
+						result: { ...MockOpenPreviewResult, agent_name: "other-agent" },
+					})}
+					{row({ mcpServerConfigId: "mcp-server-1" })}
+				</ChatWorkspaceContext>
+			</QueryClientProvider>,
+		);
+
+		for (const button of screen.getAllByRole("button", {
+			name: "Open preview",
+		})) {
+			await userEvent.click(button);
+		}
+
+		expect(openPreview).toHaveBeenCalledTimes(1);
+		expect(openPreview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentName: MockWorkspaceAgent.name,
+				slug: MockOpenPreviewResult.preview_slug,
+			}),
+		);
 	});
 });
 

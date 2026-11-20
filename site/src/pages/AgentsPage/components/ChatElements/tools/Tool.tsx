@@ -22,6 +22,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { OpenPreviewTool } from "./OpenPreviewTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -1166,6 +1167,15 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
 		<GenericToolRenderer {...props} />
 	);
 
+// An MCP server can also name a tool open_preview, so only the built-in tool
+// gets the row that opens previews.
+const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) =>
+	props.mcpServerConfigId ? (
+		<GenericToolRenderer {...props} />
+	) : (
+		<OpenPreviewTool {...props} />
+	);
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1203,6 +1213,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 	web_search: WebSearchRenderer,
+	open_preview: OpenPreviewRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every

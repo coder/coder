@@ -4359,6 +4359,20 @@ class ExperimentalApiMethods {
 			);
 		return response.data;
 	};
+
+	/**
+	 * Signs the caller in to a preview. The returned URL carries a short-lived
+	 * sign-in token.
+	 */
+	signInToPreview = async (
+		req: TypesGen.PreviewSignInRequest,
+	): Promise<TypesGen.PreviewSignInResponse> => {
+		const response = await this.axios.post<TypesGen.PreviewSignInResponse>(
+			"/api/experimental/previews/sign-in",
+			req,
+		);
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

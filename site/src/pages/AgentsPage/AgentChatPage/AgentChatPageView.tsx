@@ -72,6 +72,7 @@ import {
 } from "../utils/rightPanelTabStorage";
 import {
 	isSingletonRightPanelTabId,
+	type NewPreviewTab,
 	type PortSelection,
 	type SingletonRightPanelTabId,
 	singletonRightPanelTabIds,
@@ -146,6 +147,7 @@ type AgentChatPageViewProps = {
 
 	// Sidebar content data.
 	debugLoggingEnabled: boolean;
+	openPreviewEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -215,6 +217,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
+	openPreviewEnabled,
 	gitWatcher,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -381,7 +384,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
-		{ workspace, workspaceAgent, wildcardHostname },
+		{ workspace, workspaceAgent, wildcardHostname, openPreviewEnabled },
 	);
 
 	// The built-in Terminal renders like any other terminal tab. Its
@@ -564,6 +567,28 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
+	const openPreviewTab = (preview: NewPreviewTab) => {
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) =>
+				tab.kind === "preview" &&
+				tab.agentName === preview.agentName &&
+				tab.slug === preview.slug &&
+				tab.urlPath === preview.urlPath,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+
+		const tab: UserRightPanelTab = {
+			...preview,
+			id: createUserRightPanelTabId("preview"),
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
 	const handleCloseTab = (
 		tabId: string,
 		nextActiveTabId: string | undefined,
@@ -667,6 +692,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								workspaceId: workspace?.id,
 								buildId: chat.build_id,
 								agentId: chat.agent_id,
+								agentName: workspaceAgent?.name,
+								openPreview: openPreviewEnabled ? openPreviewTab : undefined,
 							}}
 						>
 							<ChatPageTimeline
