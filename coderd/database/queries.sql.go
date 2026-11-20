@@ -8405,6 +8405,187 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const getChatProjectSummariesByUserID = `-- name: GetChatProjectSummariesByUserID :many
+WITH accessible AS (
+    SELECT id, organization_id, owner_id, user_acl, group_acl
+    FROM chat_projects
+    WHERE owner_id = $2::uuid
+        OR (
+            -- Grant keys select candidates even while chat sharing is
+            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
+            -- role can still let the caller read the project.
+            (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
+                SELECT group_id::text FROM group_members WHERE user_id = $2::uuid
+                UNION ALL
+                SELECT organization_id::text FROM organization_members WHERE user_id = $2::uuid
+            ))
+            AND EXISTS (
+                SELECT 1 FROM organization_members
+                WHERE organization_members.user_id = $2::uuid
+                    AND organization_members.organization_id = chat_projects.organization_id
+            )
+        )
+),
+everyone_projects AS (
+    SELECT id AS project_id, organization_id FROM accessible
+    WHERE $1::boolean
+        AND group_acl -> organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+),
+org_member_counts AS (
+    SELECT organization_members.organization_id, COUNT(*) AS member_count
+    FROM organization_members
+    JOIN users ON users.id = organization_members.user_id
+    WHERE organization_members.organization_id IN (SELECT organization_id FROM everyone_projects)
+        AND users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+    GROUP BY organization_members.organization_id
+),
+project_members AS (
+    -- org_member_counts already counts the owner of an Everyone project who
+    -- is a member of its organization.
+    SELECT id AS project_id, owner_id AS user_id FROM accessible
+    WHERE id NOT IN (SELECT project_id FROM everyone_projects)
+        OR NOT EXISTS (
+            SELECT 1 FROM organization_members
+            WHERE organization_members.user_id = accessible.owner_id
+                AND organization_members.organization_id = accessible.organization_id
+        )
+    UNION
+    SELECT project_id, user_id FROM chat_project_read_grant_members
+    -- An array lets the planner filter the view's project scans; a join or
+    -- IN would expand the grants of every project first.
+    WHERE $1::boolean AND project_id = ANY(ARRAY(
+        SELECT id FROM accessible
+        EXCEPT
+        SELECT project_id FROM everyone_projects
+    ))
+),
+member_counts AS (
+    SELECT project_members.project_id, COUNT(*) AS member_count
+    FROM project_members
+    JOIN users ON users.id = project_members.user_id
+    WHERE users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+    GROUP BY project_members.project_id
+),
+own_chats AS (
+    SELECT
+        c.project_id,
+        COUNT(*) AS chat_count,
+        -- Same rule as has_unread in GetChats.
+        COUNT(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM chat_messages cm
+            WHERE cm.chat_id = c.id AND cm.role = 'assistant' AND cm.deleted = false
+                AND cm.id > COALESCE(c.last_read_message_id, 0)
+        )) AS unread_count,
+        bool_or(c.status IN ('running', 'interrupting')) AS running,
+        bool_or(c.status IN ('requires_action', 'error', 'paused')) AS needs_attention,
+        MAX(c.updated_at)::timestamptz AS last_activity_at
+    FROM chats c
+    WHERE c.owner_id = $2::uuid AND c.project_id IS NOT NULL AND c.parent_chat_id IS NULL AND c.archived = false
+    GROUP BY c.project_id
+)
+SELECT
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters,
+    (pins.project_id IS NOT NULL)::boolean AS pinned,
+    -- Numbered over the returned pins, so pins the user can no longer see
+    -- leave no gaps.
+    (CASE WHEN pins.project_id IS NULL THEN 0
+        ELSE ROW_NUMBER() OVER (PARTITION BY pins.project_id IS NULL ORDER BY pins.pin_order, chat_projects.id) END)::integer AS pin_order,
+    COALESCE(own_chats.chat_count, 0)::bigint AS own_chat_count,
+    COALESCE(own_chats.unread_count, 0)::bigint AS own_unread_count,
+    COALESCE(own_chats.running, false)::boolean AS own_running,
+    COALESCE(own_chats.needs_attention, false)::boolean AS own_needs_attention,
+    own_chats.last_activity_at,
+    (CASE WHEN $1::boolean THEN COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+FROM chat_projects
+JOIN accessible ON accessible.id = chat_projects.id
+LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
+LEFT JOIN everyone_projects ON everyone_projects.project_id = chat_projects.id
+LEFT JOIN org_member_counts ON org_member_counts.organization_id = everyone_projects.organization_id
+LEFT JOIN chat_project_pins pins
+    ON pins.user_id = $2::uuid AND pins.project_id = chat_projects.id
+LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+type GetChatProjectSummariesByUserIDParams struct {
+	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type GetChatProjectSummariesByUserIDRow struct {
+	ChatProject       ChatProject  `db:"chat_project" json:"chat_project"`
+	Pinned            bool         `db:"pinned" json:"pinned"`
+	PinOrder          int32        `db:"pin_order" json:"pin_order"`
+	OwnChatCount      int64        `db:"own_chat_count" json:"own_chat_count"`
+	OwnUnreadCount    int64        `db:"own_unread_count" json:"own_unread_count"`
+	OwnRunning        bool         `db:"own_running" json:"own_running"`
+	OwnNeedsAttention bool         `db:"own_needs_attention" json:"own_needs_attention"`
+	LastActivityAt    sql.NullTime `db:"last_activity_at" json:"last_activity_at"`
+	MemberCount       int64        `db:"member_count" json:"member_count"`
+}
+
+// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
+// user's pin and aggregates over the user's own top-level,
+// non-archived chats. Entries match regardless of the actions they grant,
+// so callers must authorize each row; pins on projects the user can no
+// longer see are never returned.
+// Users who can use each project: the owner and the users its read grants
+// reach (chat_project_read_grant_members). Counted only while project
+// sharing is available;
+// otherwise every project counts its owner alone. Suspended users cannot
+// sign in, so they are not counted.
+//
+// A read grant to the Everyone group of the project's organization reaches
+// every member, and the other grants reach only members, so such a project
+// counts its organization's members once per organization instead of
+// expanding the group into a row per member for every project.
+// Read through idx_chats_owner.
+func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectSummariesByUserIDRow
+	for rows.Next() {
+		var i GetChatProjectSummariesByUserIDRow
+		if err := rows.Scan(
+			&i.ChatProject.ID,
+			&i.ChatProject.OrganizationID,
+			&i.ChatProject.OwnerID,
+			&i.ChatProject.Name,
+			&i.ChatProject.Description,
+			&i.ChatProject.Icon,
+			&i.ChatProject.CreatedAt,
+			&i.ChatProject.UpdatedAt,
+			&i.ChatProject.UserACL,
+			&i.ChatProject.GroupACL,
+			&i.ChatProject.LimitTemplates,
+			&i.ChatProject.DefaultTemplateID,
+			&i.ChatProject.DefaultTemplateVersionPresetID,
+			&i.ChatProject.DefaultParameters,
+			&i.Pinned,
+			&i.PinOrder,
+			&i.OwnChatCount,
+			&i.OwnUnreadCount,
+			&i.OwnRunning,
+			&i.OwnNeedsAttention,
+			&i.LastActivityAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertChatProjectPin = `-- name: InsertChatProjectPin :exec
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
@@ -8428,13 +8609,10 @@ WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
         SELECT p.project_id, p.pin_order, NOT (
-            -- The user can see a project they own, or one granted to them or
-            -- their groups while grants are honored and they are a member of
-            -- its organization.
+            -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = $1::uuid
             OR (
-                $3::boolean
-                AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+                (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
                     UNION ALL
                     SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
@@ -8458,7 +8636,7 @@ ranked AS (
 ),
 target AS (
     SELECT LEAST(GREATEST(COALESCE(
-        $4::integer,
+        $3::integer,
         (SELECT position FROM current_pins WHERE project_id = $2::uuid),
         pinned_count + 1
     ), 1), pinned_count + 1) :: integer AS position
@@ -8479,25 +8657,20 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 `
 
 type PinChatProjectParams struct {
-	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID     `db:"project_id" json:"project_id"`
-	ACLEnabled bool          `db:"acl_enabled" json:"acl_enabled"`
-	PinOrder   sql.NullInt32 `db:"pin_order" json:"pin_order"`
+	UserID    uuid.UUID     `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID     `db:"project_id" json:"project_id"`
+	PinOrder  sql.NullInt32 `db:"pin_order" json:"pin_order"`
 }
 
 // Pins a project, or moves an already pinned project, to pin_order. Without
 // pin_order a new pin goes to the end and an existing pin keeps its place.
-// Positions count only pins the user can still see and are clamped to
-// [1, count]. Pins on projects the user can no longer see move
-// after the visible ones. Callers must hold the per-user pin lock so
+// Positions count the pins GetChatProjectSummariesByUserID matches and are
+// clamped to [1, count], so callers must translate a position the user sees
+// past matched pins that authorization hides. Pins the summaries no longer
+// match move after the others. Callers must hold the per-user pin lock so
 // concurrent writes cannot interleave.
 func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, pinChatProject,
-		arg.UserID,
-		arg.ProjectID,
-		arg.ACLEnabled,
-		arg.PinOrder,
-	)
+	_, err := q.db.ExecContext(ctx, pinChatProject, arg.UserID, arg.ProjectID, arg.PinOrder)
 	return err
 }
 
@@ -8509,11 +8682,10 @@ WITH deleted AS (
 ),
 updates AS (
     SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
-        -- Same access predicate as PinChatProject.
+        -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = $1::uuid
         OR (
-            $3::boolean
-            AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+            (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
@@ -8537,17 +8709,16 @@ WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id
 `
 
 type UnpinChatProjectParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
-	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
 }
 
 // Deletes a pin and compacts the remaining pins to 1..N.
 // Unpinning a project that is not pinned changes nothing. Like
-// PinChatProject, pins the user can still see come first, and callers must
-// hold the per-user pin lock.
+// PinChatProject, pins the summaries still match come first, and callers
+// must hold the per-user pin lock.
 func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
+	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID)
 	return err
 }
 
@@ -11935,7 +12106,7 @@ WHERE
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
             -- no project list reaches the chat. Same access predicate as
-            -- PinChatProject.
+            -- GetChatProjectSummariesByUserID.
             OR NOT EXISTS (
                 SELECT 1
                 FROM chat_projects cp

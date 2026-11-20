@@ -5450,6 +5450,68 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.ChatProjectSummary
+
+```json
+{
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "member_count": 0,
+  "own_chat_count": 0,
+  "own_needs_attention": true,
+  "own_running": true,
+  "own_unread_count": 0,
+  "pin_order": 0,
+  "pinned": true,
+  "project": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "default_template": {
+      "parameters": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+    },
+    "description": "string",
+    "hidden_template_count": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "limit_templates": true,
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "permissions": {
+      "delete": true,
+      "share": true,
+      "update": true
+    },
+    "templates": [
+      {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    ],
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                         | Required | Restrictions | Description                                                                                                                                        |
+|-----------------------|----------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `last_activity_at`    | string                                       | false    |              | Last activity at is the latest update to one of the caller's chats.                                                                                |
+| `member_count`        | integer                                      | false    |              | Member count counts users who can use the project, including the owner. Suspended users are not counted. It is 1 when chat sharing is unavailable. |
+| `own_chat_count`      | integer                                      | false    |              |                                                                                                                                                    |
+| `own_needs_attention` | boolean                                      | false    |              | Own needs attention reports a chat that requires action, failed, or is paused.                                                                     |
+| `own_running`         | boolean                                      | false    |              |                                                                                                                                                    |
+| `own_unread_count`    | integer                                      | false    |              |                                                                                                                                                    |
+| `pin_order`           | integer                                      | false    |              | Pin order is the 1-based position among pinned projects, or 0.                                                                                     |
+| `pinned`              | boolean                                      | false    |              |                                                                                                                                                    |
+| `project`             | [codersdk.ChatProject](#codersdkchatproject) | false    |              |                                                                                                                                                    |
+
 ## codersdk.ChatProjectTemplate
 
 ```json

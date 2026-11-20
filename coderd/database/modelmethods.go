@@ -221,6 +221,10 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
+func (r GetChatProjectSummariesByUserIDRow) RBACObject() rbac.Object {
+	return r.ChatProject.RBACObject()
+}
+
 // RBACObject authorizes an attachment through its project. Access to the
 // attached template is a separate check, because an attachment never grants
 // access to its template.

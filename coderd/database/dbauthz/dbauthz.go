@@ -3877,6 +3877,16 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
+// GetChatProjectSummariesByUserID returns a user's pins and chat counts,
+// which are that user's personal data, so the read is authorized on the
+// user as well as on each project.
+func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return nil, err
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectSummariesByUserID)(ctx, arg)
+}
+
 // GetChatProjectTemplatesByProjectIDs authorizes each attachment through its
 // project. It does not check the attached templates, so callers must not
 // expose a template the actor cannot read.

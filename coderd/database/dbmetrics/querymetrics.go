@@ -1928,6 +1928,14 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectSummariesByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectSummariesByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectSummariesByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIds []uuid.UUID) ([]database.GetChatProjectTemplatesByProjectIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectTemplatesByProjectIDs(ctx, projectIds)
