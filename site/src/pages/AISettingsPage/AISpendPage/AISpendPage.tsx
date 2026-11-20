@@ -90,7 +90,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		overviewQuery.data?.users.map((user) => user.user_id) ?? [];
 	const topSpenderDetailsQuery = useQuery({
 		...organizationAISpendUsers(organization?.id ?? "", period, topSpenderIds),
-		enabled: topSpenderIds.length > 0,
+		enabled: organization !== undefined && topSpenderIds.length > 0,
 	});
 
 	return (
