@@ -296,7 +296,9 @@ func (p *portableDesktop) Scroll(ctx context.Context, x, y, dx, dy int) error {
 }
 
 // Drag moves from (startX,startY) to (endX,endY) while holding the
-// left mouse button.
+// left mouse button. Once the button is down, Drag releases it even if
+// the move fails or ctx is canceled, so later actions do not run with
+// the button held.
 func (p *portableDesktop) Drag(ctx context.Context, startX, startY, endX, endY int) error {
 	if _, err := p.runCmd(ctx, "mouse", "move", strconv.Itoa(startX), strconv.Itoa(startY)); err != nil {
 		return err
@@ -304,11 +306,11 @@ func (p *portableDesktop) Drag(ctx context.Context, startX, startY, endX, endY i
 	if _, err := p.runCmd(ctx, "mouse", "down", string(MouseButtonLeft)); err != nil {
 		return err
 	}
-	if _, err := p.runCmd(ctx, "mouse", "move", strconv.Itoa(endX), strconv.Itoa(endY)); err != nil {
-		return err
-	}
-	_, err := p.runCmd(ctx, "mouse", "up", string(MouseButtonLeft))
-	return err
+	_, moveErr := p.runCmd(ctx, "mouse", "move", strconv.Itoa(endX), strconv.Itoa(endY))
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	_, upErr := p.runCmd(releaseCtx, "mouse", "up", string(MouseButtonLeft))
+	return errors.Join(moveErr, upErr)
 }
 
 // KeyPress sends a key-down then key-up for a key combo string.
