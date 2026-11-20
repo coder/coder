@@ -2226,18 +2226,20 @@ None
   "password": {
     "enabled": true
   },
+  "setup_token_required": true,
   "terms_of_service_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                   | Required | Restrictions | Description |
-|------------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |             |
-| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |             |
-| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |             |
-| `terms_of_service_url` | string                                                 | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                              |
+|------------------------|--------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------|
+| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |                                                                                          |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |                                                                                          |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |                                                                                          |
+| `setup_token_required` | boolean                                                | false    |              | Setup token required is true when the first user can only be created with a setup token. |
+| `terms_of_service_url` | string                                                 | false    |              |                                                                                          |
 
 ## codersdk.AuthorizationCheck
 
@@ -7404,6 +7406,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "newsletter_releases": true
   },
   "password": "string",
+  "setup_token": "string",
   "trial": true,
   "trial_info": {
     "company_name": "string",
@@ -7420,15 +7423,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                             | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`           | string                                                                           | true     |              |             |
-| `name`            | string                                                                           | false    |              |             |
-| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
-| `password`        | string                                                                           | true     |              |             |
-| `trial`           | boolean                                                                          | false    |              |             |
-| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
-| `username`        | string                                                                           | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description                                                                                           |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `email`           | string                                                                           | true     |              |                                                                                                       |
+| `name`            | string                                                                           | false    |              |                                                                                                       |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |                                                                                                       |
+| `password`        | string                                                                           | true     |              |                                                                                                       |
+| `setup_token`     | string                                                                           | false    |              | Setup token is required when AuthMethods.SetupTokenRequired is true. The server prints it at startup. |
+| `trial`           | boolean                                                                          | false    |              |                                                                                                       |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |                                                                                                       |
+| `username`        | string                                                                           | true     |              |                                                                                                       |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -8890,6 +8894,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_token_lifetime": 0,
       "refresh_default_duration": 0
     },
+    "setup_token": "string",
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
       "usage_stats": {
@@ -9530,6 +9535,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "max_token_lifetime": 0,
     "refresh_default_duration": 0
   },
+  "setup_token": "string",
   "ssh_keygen_algorithm": "string",
   "stats_collection": {
     "usage_stats": {
@@ -9689,6 +9695,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                                 | string                                                                                               | false    |              |                                                                           |
 | `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                           |
 | `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                           |
+| `setup_token`                                  | string                                                                                               | false    |              |                                                                           |
 | `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                           |
 | `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                           |
 | `strict_transport_security`                    | integer                                                                                              | false    |              |                                                                           |
