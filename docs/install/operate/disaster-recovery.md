@@ -73,16 +73,16 @@ If you configure [custom relays](../../admin/networking/index.md#custom-relays) 
 ### Impact by component
 
 - **Connections through a lost replica**:
-  losing one replica in an HA deployment disconnects the dashboard, `coder ssh`, port-forwarding, and IDE sessions that go through it.
+  Losing one replica in an HA deployment disconnects the dashboard, `coder ssh`, port-forwarding, and IDE sessions that go through it.
   Clients reconnect when they reach a healthy replica.
 - **New connections and the dashboard**:
-  users can't sign in, open the dashboard, start new sessions, or reach workspace apps through the control plane.
+  Users can't sign in, open the dashboard, start new sessions, or reach workspace apps through the control plane.
   The workspace compute keeps running.
 - **Workspace builds**:
-  starting, stopping, updating, and deleting workspaces need the control plane and the database.
+  Starting, stopping, updating, and deleting workspaces need the control plane and the database.
   These operations fail or wait until the control plane is back.
 - **Workspace agents**:
-  the workspace agent keeps running and retries its connection to the control plane.
+  The workspace agent keeps running and retries its connection to the control plane.
   Until it reconnects, it can't report status, metadata, or new apps.
 
 ## Orphaned workspaces after a database restore
