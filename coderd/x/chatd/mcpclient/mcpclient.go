@@ -300,15 +300,6 @@ func ConnectInProcess(
 	)
 }
 
-// connectHooks carries test-only instrumentation for connect
-// internals. The zero value is used in production.
-type connectHooks struct {
-	// reaperDone, when non-nil, is called after an abandoned
-	// connect goroutine's late result has been drained and any
-	// late session closed.
-	reaperDone func()
-}
-
 // connectionKind selects the trust level of an MCP server connection.
 type connectionKind uint8
 
@@ -324,7 +315,6 @@ const (
 type connectOptions struct {
 	httpClient *http.Client
 	timeout    time.Duration
-	hooks      connectHooks
 	kind       connectionKind
 
 	inProcessServers map[uuid.UUID]*mcp.Server
@@ -567,52 +557,20 @@ func connectOne(
 	connectCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
-	// Run the connect+list sequence in a goroutine and enforce the
-	// budget externally. The SDK's streamable transport detaches
-	// the context after starting HTTP requests, and its error-path
-	// session.Close blocks on those detached requests, so a
-	// black-holed server can block Connect far past connectCtx's
-	// deadline. The select below guarantees the caller gets an
-	// answer within the budget regardless.
-	type connectResult struct {
-		session *mcp.ClientSession
-		tools   *mcp.ListToolsResult
-		err     error
-	}
-	resCh := make(chan connectResult, 1)
-	go func() {
+	res := awaitConnect(connectCtx, func() connectResult {
 		session, err := mcpClient.Connect(connectCtx, tr, nil)
 		if err != nil {
-			resCh <- connectResult{err: xerrors.Errorf("connect: %w", err)}
-			return
+			return connectResult{err: xerrors.Errorf("connect: %w", err)}
 		}
 		toolsResult, err := session.ListTools(connectCtx, nil)
 		if err != nil {
-			// Deliver errors before closing: HTTP session cleanup can block
+			// Close asynchronously because HTTP session cleanup can block
 			// on a DELETE request and exhaust the connection budget.
-			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
-			_ = session.Close()
-			return
+			go func() { _ = session.Close() }()
+			return connectResult{err: xerrors.Errorf("list tools: %w", err)}
 		}
-		resCh <- connectResult{session: session, tools: toolsResult}
-	}()
-
-	var res connectResult
-	select {
-	case res = <-resCh:
-	case <-connectCtx.Done():
-		// Do not wait for transport cleanup after the connection budget
-		// expires. Close any session returned after the timeout separately.
-		go func() {
-			if late := <-resCh; late.session != nil {
-				_ = late.session.Close()
-			}
-			if opts.hooks.reaperDone != nil {
-				opts.hooks.reaperDone()
-			}
-		}()
-		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
-	}
+		return connectResult{session: session, tools: toolsResult}
+	})
 	if res.err != nil {
 		return nil, nil, res.err
 	}
@@ -656,6 +614,38 @@ func connectOne(
 	}
 
 	return tools, session, nil
+}
+
+type connectResult struct {
+	session *mcp.ClientSession
+	tools   *mcp.ListToolsResult
+	err     error
+}
+
+// awaitConnect runs connect in a goroutine and enforces ctx's budget
+// externally. The SDK's streamable transport detaches the context
+// after starting HTTP requests, and its error-path session.Close
+// blocks on those detached requests, so a black-holed server can
+// block connect far past ctx's deadline. The select below guarantees
+// the caller gets an answer within the budget regardless. A session
+// that connect returns after the budget expired is closed.
+func awaitConnect(ctx context.Context, connect func() connectResult) connectResult {
+	resCh := make(chan connectResult, 1)
+	go func() { resCh <- connect() }()
+
+	select {
+	case res := <-resCh:
+		return res
+	case <-ctx.Done():
+		// Do not wait for transport cleanup after the connection budget
+		// expires. Close any session returned after the timeout separately.
+		go func() {
+			if late := <-resCh; late.session != nil {
+				_ = late.session.Close()
+			}
+		}()
+		return connectResult{err: xerrors.Errorf("connect: %w", ctx.Err())}
+	}
 }
 
 // Caps for inline servers. Tool definitions are sent to the model
