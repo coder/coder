@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,7 +36,10 @@ func TestPreviewSignIn(t *testing.T) {
 		Name:           "site",
 		OwnerID:        owner.ID,
 		OrganizationID: first.OrganizationID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].DisplayApps = &proto.DisplayApps{PortForwardingHelper: true}
+		return agents
+	}).Do()
 
 	signIn := func(c *codersdk.Client, req codersdk.PreviewSignInRequest) (codersdk.PreviewSignInResponse, error) {
 		return codersdk.NewExperimentalClient(c).PreviewSignIn(testutil.Context(t, testutil.WaitShort), req)
@@ -97,6 +101,26 @@ func TestPreviewSignIn(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, owner.ID, key.UserID)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}, key.Scopes)
+	})
+
+	t.Run("PortForwardingHidden", func(t *testing.T) {
+		t.Parallel()
+
+		hidden := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OwnerID:        owner.ID,
+			OrganizationID: first.OrganizationID,
+		}).WithAgent().Do()
+		req := valid
+		req.WorkspaceID = hidden.Workspace.ID
+		_, err := signIn(client, req)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		// The template hides only port forwarding, so files still preview.
+		req.PreviewSlug = "preview--0123abcd"
+		_, err = signIn(client, req)
+		require.NoError(t, err)
 	})
 
 	t.Run("Refused", func(t *testing.T) {

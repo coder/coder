@@ -81,16 +81,19 @@ func (api *API) postPreviewSignIn(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if !slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.Name == req.AgentName }) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("The workspace has no agent named %q.", req.AgentName),
-		})
-		return
+	if target.Port != 0 {
+		agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		i := slices.IndexFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.Name == req.AgentName })
+		if i < 0 || !slices.Contains(agents[i].DisplayApps, database.DisplayAppPortForwardingHelper) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("The workspace agent %q does not allow port forwarding, so its ports cannot be previewed.", req.AgentName),
+			})
+			return
+		}
 	}
 
 	hosting, err := api.previewHostingFor(ctx, req.RegionID)
