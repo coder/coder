@@ -14,7 +14,6 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool } from "./Tool";
 
 afterEach(() => {
@@ -72,29 +71,54 @@ describe("Tool web search rows", () => {
 });
 
 describe("Tool open_preview rows", () => {
-	it("offers no open action for an MCP tool named open_preview", () => {
-		const getOpenAction = vi.fn(() => vi.fn());
+	it("opens previews only from the built-in tool for the chat's agent", async () => {
+		const openPreview = vi.fn();
+		const row = (props: Partial<React.ComponentProps<typeof Tool>>) => (
+			<Tool
+				name="open_preview"
+				status="completed"
+				result={MockOpenPreviewResult}
+				organizationId="organization-id"
+				mcpServers={[]}
+				isError={false}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
+				{...props}
+			/>
+		);
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
-				<PreviewPanelContext value={{ getOpenAction }}>
-					<Tool
-						name="open_preview"
-						mcpServerConfigId="mcp-server-1"
-						status="completed"
-						result={MockOpenPreviewResult}
-						organizationId="organization-id"
-						mcpServers={[]}
-						isError={false}
-						subagentTitles={new Map()}
-						subagentVariants={new Map()}
-						shellToolDisplayMode="auto"
-						codeDiffDisplayMode="auto"
-					/>
-				</PreviewPanelContext>
+				<ChatWorkspaceContext
+					value={{
+						workspaceId: MockWorkspace.id,
+						agentName: MockWorkspaceAgent.name,
+						openPreview,
+					}}
+				>
+					{row({})}
+					{row({
+						result: { ...MockOpenPreviewResult, agent_name: "other-agent" },
+					})}
+					{row({ mcpServerConfigId: "mcp-server-1" })}
+				</ChatWorkspaceContext>
 			</QueryClientProvider>,
 		);
 
-		expect(getOpenAction).not.toHaveBeenCalled();
+		for (const button of screen.getAllByRole("button", {
+			name: "Open preview",
+		})) {
+			await userEvent.click(button);
+		}
+
+		expect(openPreview).toHaveBeenCalledTimes(1);
+		expect(openPreview).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentName: MockWorkspaceAgent.name,
+				slug: MockOpenPreviewResult.preview_slug,
+			}),
+		);
 	});
 });
 

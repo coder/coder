@@ -1,10 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import {
-	getPreviewPanelContextValue,
-	parseOpenPreviewResult,
-} from "./PreviewPanelContext";
+import { parseOpenPreviewResult } from "./OpenPreviewTool";
 
 describe("parseOpenPreviewResult", () => {
 	it.each([
@@ -75,53 +71,6 @@ describe("parseOpenPreviewResult", () => {
 
 		expect(
 			parseOpenPreviewResult({ ...MockOpenPreviewResult, title }),
-		).toMatchObject({ title });
-	});
-});
-
-describe("getPreviewPanelContextValue", () => {
-	const getOpenAction = (enabled: boolean, result: Record<string, unknown>) => {
-		const openFrameTab = vi.fn();
-		const preview = parseOpenPreviewResult(result);
-		if (!preview) {
-			throw new Error("expected a valid open_preview result");
-		}
-		const open = getPreviewPanelContextValue({
-			enabled,
-			workspace: MockWorkspace,
-			workspaceAgent: MockWorkspaceAgent,
-			openFrameTab,
-			focusPanel: vi.fn(),
-		}).getOpenAction(preview);
-		return { open, openFrameTab };
-	};
-
-	it("opens a preview tab for the chat's agent", () => {
-		const { open, openFrameTab } = getOpenAction(true, MockOpenPreviewResult);
-
-		open?.();
-
-		expect(openFrameTab).toHaveBeenCalledWith(
-			expect.objectContaining({
-				kind: "preview",
-				agentName: MockWorkspaceAgent.name,
-				slug: MockOpenPreviewResult.preview_slug,
-			}),
-		);
-	});
-
-	it.each([
-		{
-			name: "while the open-preview experiment is off",
-			enabled: false,
-			result: MockOpenPreviewResult,
-		},
-		{
-			name: "for another agent",
-			enabled: true,
-			result: { ...MockOpenPreviewResult, agent_name: "other-agent" },
-		},
-	])("offers no open action $name", ({ enabled, result }) => {
-		expect(getOpenAction(enabled, result).open).toBeUndefined();
+		).toMatchObject({ label: title });
 	});
 });

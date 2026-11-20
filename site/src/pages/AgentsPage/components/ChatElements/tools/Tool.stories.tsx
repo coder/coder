@@ -30,7 +30,6 @@ import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
-import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -3050,9 +3049,15 @@ export const StopWorkspaceBuildFailed: Story = {
 };
 
 const withPreviewOpenAction: Decorator = (Story) => (
-	<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
+	<ChatWorkspaceContext
+		value={{
+			workspaceId: MockWorkspace.id,
+			agentName: MockWorkspaceAgent.name,
+			openPreview: fn(),
+		}}
+	>
 		<Story />
-	</PreviewPanelContext>
+	</ChatWorkspaceContext>
 );
 
 export const OpenPreviewRunning: Story = {

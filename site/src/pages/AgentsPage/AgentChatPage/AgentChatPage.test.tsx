@@ -54,7 +54,7 @@ import {
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
 } from "../utils/rightPanelTabStorage";
-import type { NewFrameTab } from "../utils/rightPanelTabs";
+import type { NewPreviewTab } from "../utils/rightPanelTabs";
 import { getPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import AgentChatPage from "./AgentChatPage";
 
@@ -769,7 +769,7 @@ describe("AgentChatPage", () => {
 		it.each<{
 			name: string;
 			result: { title: string } & Record<string, unknown>;
-			tab: NewFrameTab;
+			tab: NewPreviewTab;
 		}>([
 			{
 				name: "port",
