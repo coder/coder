@@ -136,6 +136,11 @@ type GenerateAssistantOptions struct {
 	Stages             *StageTracer
 	// StageModel should match the model identity on provider_attempt stages.
 	StageModel StageModel
+	// ModelCallStage records the call as a model_call stage, without the
+	// stream and time_to_first_token stages, so a nested call such as the
+	// advisor is traced without counting toward the assistant stream
+	// histograms.
+	ModelCallStage bool
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -371,7 +376,15 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
-	streamCtx, streamSpan := opts.Stages.StartWithModel(stepCtx, StageStream, opts.StageModel)
+	var streamCtx context.Context
+	var streamSpan *StageSpan
+	ttftStages := opts.Stages
+	if opts.ModelCallStage {
+		streamCtx, streamSpan = opts.Stages.StartModelCall(stepCtx, opts.StageModel, true)
+		ttftStages = nil
+	} else {
+		streamCtx, streamSpan = opts.Stages.StartWithModel(stepCtx, StageStream, opts.StageModel)
+	}
 	streamSpan.SetInferenceRequest(call)
 	attempt, streamErr := guardedStream(
 		streamCtx,
@@ -383,7 +396,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
-		opts.Stages,
+		ttftStages,
 		opts.StageModel,
 	)
 	if streamErr != nil {

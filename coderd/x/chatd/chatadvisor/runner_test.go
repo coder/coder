@@ -106,6 +106,12 @@ func TestAdvisorRunRecordsChatSpan(t *testing.T) {
 	}
 	require.Len(t, chatSpans, 1)
 	require.Contains(t, chatSpans[0].Attributes(), attribute.Int("gen_ai.usage.output_tokens", 3))
+	// The advisor is not an assistant stream, so it stays out of the stream
+	// and time_to_first_token stages.
+	require.Contains(t, chatSpans[0].Attributes(), attribute.String(chatloop.AttrStage, string(chatloop.StageModelCall)))
+	for _, span := range recorder.Ended() {
+		require.NotEqual(t, string(chatloop.StageTimeToFirstToken), span.Name())
+	}
 }
 
 func TestAdvisorRunTruncatesLongQuestion(t *testing.T) {
