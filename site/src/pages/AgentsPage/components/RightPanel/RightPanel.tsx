@@ -252,7 +252,7 @@ export const RightPanel = ({
 				Math.min(prev, getSideBySideMaxWidth(panelRef.current)),
 			);
 		};
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- Clamps the user-dragged width via setWidth, and the clamped width is persisted; it is not a store snapshot.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- width is user-dragged local state, not an external store snapshot.
 		handleResize();
 		const parent = panelRef.current?.parentElement;
 		const resizeObserver = new ResizeObserver(handleResize);
