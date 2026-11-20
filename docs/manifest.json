@@ -832,6 +832,12 @@
 							"state": ["early access"]
 						},
 						{
+							"title": "Workspace previews",
+							"description": "Let Coder Agents show web pages from the workspace in the chat's right panel.",
+							"path": "./coder-agents/platform-controls/open-preview.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Chat debug logging",
 							"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
 							"path": "./coder-agents/platform-controls/chat-debug-logging.md"
