@@ -1538,6 +1538,20 @@ func TestAIBridgeListModels(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
+
+	t.Run("NoMatchIsEmptyArray", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
+			r.URL.RawQuery = "model=no-such-model"
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, "[]", string(body))
+	})
 }
 
 func TestAIBridgeListClients(t *testing.T) {
@@ -1622,14 +1636,47 @@ func TestAIBridgeListClients(t *testing.T) {
 		Client:      sql.NullString{String: string(aibclient.CopilotCLI), Valid: true},
 	}, nil)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clients, err := client.AIBridgeListClients(ctx)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{
-		string(aibclient.Cursor),
-		string(aibclient.ClaudeCode),
-		"Unknown",
-	}, clients)
+	cases := []struct {
+		name     string
+		rawQuery string
+		want     []string
+	}{
+		{
+			// Completed interceptions are listed once per client, and the
+			// in-flight one is not.
+			name:     "AllClients",
+			rawQuery: "",
+			want: []string{
+				string(aibclient.Cursor),
+				string(aibclient.ClaudeCode),
+				"Unknown",
+			},
+		},
+		{
+			// A search with no match returns an empty list, not null.
+			name:     "NoMatchIsEmptyArray",
+			rawQuery: "q=no-such-client",
+			want:     []string{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/clients", nil, func(r *http.Request) {
+				r.URL.RawQuery = tc.rawQuery
+			})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			var got []string
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+			require.NotNil(t, got)
+			require.ElementsMatch(t, tc.want, got)
+		})
+	}
 }
 
 func TestAIBridgeListProviders(t *testing.T) {
