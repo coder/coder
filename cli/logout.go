@@ -47,7 +47,7 @@ func (r *RootCmd) logout() *serpent.Command {
 				errors = append(errors, xerrors.Errorf("remove URL file: %w", err))
 			}
 
-			err = r.ensureTokenBackend().Delete(client.URL)
+			err = r.ensureTokenBackend(inv).Delete(client.URL)
 			// Only throw error if the session configuration file is present,
 			// otherwise the user is already logged out, and we proceed
 			if err != nil && !xerrors.Is(err, os.ErrNotExist) {
