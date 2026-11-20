@@ -717,11 +717,19 @@ const AgentChatPage: React.FC = () => {
 	const agentName = workspaceAgent?.name;
 	const wsName = workspace?.name;
 	const wsOwner = workspace?.owner_name;
+	const wsId = workspace?.id;
 	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+		if (!proxyHost || !agentName || !wsName || !wsOwner || !wsId) {
 			return url;
 		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
+		return rewriteLocalhostURL(
+			url,
+			proxyHost,
+			agentName,
+			wsName,
+			wsOwner,
+			wsId,
+		);
 	};
 
 	const chatTurnDeps = {

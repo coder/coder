@@ -109,12 +109,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
 	}
 
-	appSlug := appurl.ApplicationURL{
-		AppSlugOrPort: "{{port}}",
-		AgentName:     workspaceAgent.Name,
-		WorkspaceName: workspace.Name,
-		Username:      workspace.OwnerUsername,
-	}
+	appSlug := appurl.New("{{port}}", workspaceAgent.Name, workspace.Name, workspace.OwnerUsername, workspace.ID, a.AppHostname)
 
 	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
 
@@ -298,7 +293,7 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 	// SubdomainName should be empty if AppHostname is not configured
 	subdomainName := ""
 	if appHostname != "" {
-		subdomainName = db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName)
+		subdomainName = db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, workspace.ID, ownerName, appHostname)
 	}
 
 	return &agentproto.WorkspaceApp{

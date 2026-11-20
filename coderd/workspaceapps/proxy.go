@@ -410,6 +410,15 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 // determineCORSBehavior examines the given token and conditionally applies
 // CORS middleware if the token specifies that behavior.
 func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
+	if token != nil {
+		// The URL has the owner username or the workspace ID, but not both.
+		// The token has both, so CORS can compare origins of either form.
+		// Tokens from earlier versions have no owner username.
+		if token.OwnerUsername != "" {
+			app.Username = token.OwnerUsername
+		}
+		app.WorkspaceID = token.WorkspaceID
+	}
 	return func(next http.Handler) http.Handler {
 		// Create the CORS middleware handler upfront.
 		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
@@ -527,8 +536,9 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 					BasePath:          "/",
 					Prefix:            app.Prefix,
 					UsernameOrID:      app.Username,
-					WorkspaceNameOrID: app.WorkspaceName,
+					WorkspaceNameOrID: appWorkspaceNameOrID(app),
 					AgentNameOrID:     app.AgentName,
+					AgentNameHash:     app.AgentNameHash,
 					AppSlugOrPort:     app.AppSlugOrPort,
 				},
 				AppPath:  r.URL.Path,
@@ -545,6 +555,15 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// appWorkspaceNameOrID returns the workspace ID for short form URLs and the
+// workspace name for long form URLs.
+func appWorkspaceNameOrID(app appurl.ApplicationURL) string {
+	if app.WorkspaceID != uuid.Nil {
+		return app.WorkspaceID.String()
+	}
+	return app.WorkspaceName
 }
 
 // parseHostname will return if a given request is attempting to access a

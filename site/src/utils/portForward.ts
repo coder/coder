@@ -22,12 +22,54 @@ export const resolveLocalhostPort = (
 	return protocol === "https:" ? 443 : 80;
 };
 
+// These values and algorithms must match coderd/workspaceapps/appurl.
+const maxLabelLength = 63;
+const longestPort = "65535s";
+
+/**
+ * Returns the 32-bit FNV-1a hash of the agent name in base36, padded to
+ * 7 characters. Short form port URLs identify the agent with it.
+ */
+const agentNameHash = (agentName: string): string => {
+	let hash = 0x811c9dc5;
+	for (const byte of new TextEncoder().encode(agentName)) {
+		hash = Math.imul(hash ^ byte, 0x01000193) >>> 0;
+	}
+	return hash.toString(36).padStart(7, "0");
+};
+
+/**
+ * Returns the subdomain for a port. It uses the long form when the longest
+ * port fits in one DNS label next to the fixed part of the wildcard host, and
+ * the short form, which identifies the workspace by ID, otherwise.
+ */
+const portSubdomain = (
+	host: string,
+	port: string,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+	workspaceId: string,
+): string => {
+	const fixedLength = host.split(".")[0].replace("*", "").length;
+	const longForm = (p: string) =>
+		`${p}--${agentName}--${workspaceName}--${username}`;
+	if (longForm(longestPort).length + fixedLength <= maxLabelLength) {
+		return longForm(port);
+	}
+	const encodedWorkspaceId = BigInt(`0x${workspaceId.replaceAll("-", "")}`)
+		.toString(36)
+		.padStart(25, "0");
+	return `${port}--${encodedWorkspaceId}--${agentNameHash(agentName)}`;
+};
+
 export const portForwardURL = (
 	host: string,
 	port: number,
 	agentName: string,
 	workspaceName: string,
 	username: string,
+	workspaceId: string,
 	protocol: WorkspaceAgentPortShareProtocol,
 	pathname?: string,
 	search?: string,
@@ -35,11 +77,18 @@ export const portForwardURL = (
 	const { location } = window;
 	const suffix = protocol === "https" ? "s" : "";
 
-	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
-
-	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
 	try {
-		const url = new URL(baseUrl);
+		const subdomain = portSubdomain(
+			host,
+			`${port}${suffix}`,
+			agentName,
+			workspaceName,
+			username,
+			workspaceId,
+		);
+		const url = new URL(
+			`${location.protocol}//${host.replace(/\*/g, subdomain)}`,
+		);
 		if (pathname) {
 			url.pathname = pathname;
 		}
@@ -48,8 +97,8 @@ export const portForwardURL = (
 		}
 		return url.toString();
 	} catch {
-		// When the proxy host is empty or invalid, return a do-nothing anchor
-		// so the link renders without navigating anywhere.
+		// When the proxy host or workspace ID is empty or invalid, return a
+		// do-nothing anchor so the link renders without navigating anywhere.
 		return "#";
 	}
 };
@@ -65,6 +114,7 @@ export const rewriteLocalhostURL = (
 	agentName: string,
 	workspaceName: string,
 	username: string,
+	workspaceId: string,
 ): string => {
 	try {
 		const parsed = new URL(url);
@@ -81,6 +131,7 @@ export const rewriteLocalhostURL = (
 			agentName,
 			workspaceName,
 			username,
+			workspaceId,
 			protocol,
 			parsed.pathname,
 			parsed.search,
@@ -98,6 +149,7 @@ export const openMaybePortForwardedURL = (
 	agentName?: string,
 	workspaceName?: string,
 	username?: string,
+	workspaceId?: string,
 ) => {
 	const open = (uri: string) => {
 		// Copied from: https://github.com/xtermjs/xterm.js/blob/master/addons/xterm-addon-web-links/src/WebLinksAddon.ts#L23
@@ -114,12 +166,21 @@ export const openMaybePortForwardedURL = (
 		}
 	};
 
-	if (!agentName || !workspaceName || !username || !proxyHost) {
+	if (!agentName || !workspaceName || !username || !workspaceId || !proxyHost) {
 		open(uri);
 		return;
 	}
 
-	open(rewriteLocalhostURL(uri, proxyHost, agentName, workspaceName, username));
+	open(
+		rewriteLocalhostURL(
+			uri,
+			proxyHost,
+			agentName,
+			workspaceName,
+			username,
+			workspaceId,
+		),
+	);
 };
 
 export const saveWorkspaceListeningPortsProtocol = (

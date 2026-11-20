@@ -487,18 +487,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID, workspaceMutators...)
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+	appHostCtx := testutil.Context(t, testutil.WaitLong)
+	primaryAppHost, err := client.AppHost(appHostCtx)
+	require.NoError(t, err)
+
 	// Verify app subdomains
 	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
 		require.True(t, app.Subdomain)
 
-		appURL := appurl.ApplicationURL{
-			Prefix: "",
-			// findProtoApp is needed as the order of apps returned from PG database
-			// is not guaranteed.
-			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
-			WorkspaceName: workspace.Name,
-			Username:      me.Username,
-		}
+		// findProtoApp is needed as the order of apps returned from PG
+		// database is not guaranteed.
+		appURL := appurl.New(findProtoApp(t, protoApps, app.Slug).Slug, proxyTestAgentName, workspace.Name, me.Username, workspace.ID, primaryAppHost.Host)
 		require.Equal(t, appURL.String(), app.SubdomainName)
 	}
 
@@ -511,9 +510,6 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	//
 	// This means that all port URLs generated in code-server etc. will be sent
 	// to the primary.
-	appHostCtx := testutil.Context(t, testutil.WaitLong)
-	primaryAppHost, err := client.AppHost(appHostCtx)
-	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
 		// Fetch the manifest without marking this short-lived helper
 		// connection as the workspace agent. Closing a monitored RPC
@@ -525,13 +521,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		manifest, err := aAPI.GetManifest(appHostCtx, &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
 
-		appHost := appurl.ApplicationURL{
-			Prefix:        "",
-			AppSlugOrPort: "{{port}}",
-			AgentName:     proxyTestAgentName,
-			WorkspaceName: workspace.Name,
-			Username:      me.Username,
-		}
+		appHost := appurl.New("{{port}}", proxyTestAgentName, workspace.Name, me.Username, workspace.ID, primaryAppHost.Host)
 		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
 		require.Equal(t, manifest.VsCodePortProxyUri, proxyURL)
 		err = rpcConn.Close()

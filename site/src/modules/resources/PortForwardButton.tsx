@@ -362,6 +362,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 											agent.name,
 											workspace.name,
 											workspace.owner_name,
+											workspace.id,
 											listeningPortProtocol,
 										),
 										"_blank",
@@ -402,6 +403,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							agent.name,
 							workspace.name,
 							workspace.owner_name,
+							workspace.id,
 							listeningPortProtocol,
 						);
 						const label =
@@ -479,6 +481,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 								agent.name,
 								workspace.name,
 								workspace.owner_name,
+								workspace.id,
 								share.protocol,
 							);
 							const label = share.port;

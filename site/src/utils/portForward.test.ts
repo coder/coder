@@ -10,6 +10,7 @@ describe("port forward URL", () => {
 	const sampleAgent = "my-agent";
 	const sampleWorkspace = "my-workspace";
 	const sampleUsername = "my-username";
+	const sampleWorkspaceId = "0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c";
 
 	it("https, host and port", () => {
 		const forwarded = portForwardURL(
@@ -18,6 +19,7 @@ describe("port forward URL", () => {
 			sampleAgent,
 			sampleWorkspace,
 			sampleUsername,
+			sampleWorkspaceId,
 			"https",
 		);
 		expect(forwarded).toEqual(
@@ -31,6 +33,7 @@ describe("port forward URL", () => {
 			sampleAgent,
 			sampleWorkspace,
 			sampleUsername,
+			sampleWorkspaceId,
 			"http",
 			"/path1/path2",
 		);
@@ -45,6 +48,7 @@ describe("port forward URL", () => {
 			sampleAgent,
 			sampleWorkspace,
 			sampleUsername,
+			sampleWorkspaceId,
 			"https",
 			"/path1/path2",
 			"?",
@@ -60,12 +64,59 @@ describe("port forward URL", () => {
 			sampleAgent,
 			sampleWorkspace,
 			sampleUsername,
+			sampleWorkspaceId,
 			"http",
 			"/path1/path2",
 			"?key1=value1&key2=value2",
 		);
 		expect(forwarded).toEqual(
 			"http://12345--my-agent--my-workspace--my-username.proxy-host.tld/path1/path2?key1=value1&key2=value2",
+		);
+	});
+	it("uses the short form when the long form does not fit", () => {
+		const longName = "abcdefghijklmnopqrstuvwxyzabcdef";
+		const forwarded = portForwardURL(
+			proxyHostWildcard,
+			8080,
+			"main",
+			`${longName}-${longName}`,
+			sampleUsername,
+			sampleWorkspaceId,
+			"https",
+		);
+		// Same value as the Go test in coderd/workspaceapps/appurl.
+		expect(forwarded).toEqual(
+			"http://8080s--0oq73xnihgtc6v280bd0muhq4--1t30hzc.proxy-host.tld/",
+		);
+	});
+	it("adds the agent hash to ports below 1000 in the short form", () => {
+		const longName = "abcdefghijklmnopqrstuvwxyzabcdef";
+		const forwarded = portForwardURL(
+			proxyHostWildcard,
+			80,
+			"main",
+			`${longName}-${longName}`,
+			sampleUsername,
+			sampleWorkspaceId,
+			"http",
+		);
+		// Same value as the Go test in coderd/workspaceapps/appurl.
+		expect(forwarded).toEqual(
+			"http://80--0oq73xnihgtc6v280bd0muhq4--1t30hzc.proxy-host.tld/",
+		);
+	});
+	it("counts the fixed part of the wildcard label", () => {
+		const forwarded = portForwardURL(
+			"*--a-very-long-fixed-suffix.proxy-host.tld",
+			8080,
+			"main",
+			sampleWorkspace,
+			sampleUsername,
+			sampleWorkspaceId,
+			"http",
+		);
+		expect(forwarded).toEqual(
+			"http://8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc--a-very-long-fixed-suffix.proxy-host.tld/",
 		);
 	});
 });
@@ -89,6 +140,7 @@ describe("rewriteLocalhostURL", () => {
 	const agent = "my-agent";
 	const workspace = "my-workspace";
 	const username = "my-username";
+	const workspaceId = "0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c";
 
 	it("rewrites http://localhost:3000/path", () => {
 		const result = rewriteLocalhostURL(
@@ -97,6 +149,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path",
@@ -110,6 +163,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://8443s--my-agent--my-workspace--my-username.proxy-host.tld/path",
@@ -123,6 +177,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://80--my-agent--my-workspace--my-username.proxy-host.tld/path",
@@ -136,6 +191,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://443s--my-agent--my-workspace--my-username.proxy-host.tld/path",
@@ -149,6 +205,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://5000--my-agent--my-workspace--my-username.proxy-host.tld/api",
@@ -162,6 +219,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://8080--my-agent--my-workspace--my-username.proxy-host.tld/",
@@ -175,6 +233,7 @@ describe("rewriteLocalhostURL", () => {
 			agent,
 			workspace,
 			username,
+			workspaceId,
 		);
 		expect(result).toEqual(
 			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path?key=value",
@@ -184,14 +243,28 @@ describe("rewriteLocalhostURL", () => {
 	it("returns non-localhost URLs unchanged", () => {
 		const url = "https://example.com/page";
 		expect(
-			rewriteLocalhostURL(url, proxyHost, agent, workspace, username),
+			rewriteLocalhostURL(
+				url,
+				proxyHost,
+				agent,
+				workspace,
+				username,
+				workspaceId,
+			),
 		).toBe(url);
 	});
 
 	it("returns invalid URLs unchanged", () => {
 		const url = "not-a-url";
 		expect(
-			rewriteLocalhostURL(url, proxyHost, agent, workspace, username),
+			rewriteLocalhostURL(
+				url,
+				proxyHost,
+				agent,
+				workspace,
+				username,
+				workspaceId,
+			),
 		).toBe(url);
 	});
 });

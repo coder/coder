@@ -173,6 +173,7 @@ const PortsList: React.FC<{
 					agentName={agent.name}
 					workspaceName={workspace.name}
 					ownerName={workspace.owner_name}
+					workspaceId={workspace.id}
 					protocol={protocol}
 					onPortSelect={onPortSelect}
 				/>
@@ -203,6 +204,7 @@ const PortsList: React.FC<{
 							agentName={agent.name}
 							workspaceName={workspace.name}
 							ownerName={workspace.owner_name}
+							workspaceId={workspace.id}
 							onPortSelect={onPortSelect}
 						/>
 					))}
@@ -226,6 +228,7 @@ const ListeningPortItem: React.FC<{
 	agentName: string;
 	workspaceName: string;
 	ownerName: string;
+	workspaceId: string;
 	protocol: "http" | "https";
 	onPortSelect?: (selection: PortSelection) => void;
 }> = ({
@@ -234,6 +237,7 @@ const ListeningPortItem: React.FC<{
 	agentName,
 	workspaceName,
 	ownerName,
+	workspaceId,
 	protocol,
 	onPortSelect,
 }) => {
@@ -265,6 +269,7 @@ const ListeningPortItem: React.FC<{
 		agentName,
 		workspaceName,
 		ownerName,
+		workspaceId,
 		protocol,
 	);
 	return (
@@ -289,8 +294,17 @@ const SharedPortItem: React.FC<{
 	agentName: string;
 	workspaceName: string;
 	ownerName: string;
+	workspaceId: string;
 	onPortSelect?: (selection: PortSelection) => void;
-}> = ({ share, host, agentName, workspaceName, ownerName, onPortSelect }) => {
+}> = ({
+	share,
+	host,
+	agentName,
+	workspaceName,
+	ownerName,
+	workspaceId,
+	onPortSelect,
+}) => {
 	const ShareIcon =
 		share.share_level === "public"
 			? LockOpenIcon
@@ -323,6 +337,7 @@ const SharedPortItem: React.FC<{
 		agentName,
 		workspaceName,
 		ownerName,
+		workspaceId,
 		share.protocol,
 	);
 	return (

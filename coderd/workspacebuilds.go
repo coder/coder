@@ -1558,7 +1558,7 @@ func (api *API) convertWorkspaceBuild(
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent scripts: %w", err)
 			}
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable(), api.AppHostname), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {

@@ -731,6 +731,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
+				if appurl.MaxSubdomainLength(appHostname) < appurl.MaxShortSubdomainLength {
+					logger.Warn(ctx, "the first label of the wildcard access URL is too long, some port URLs will pass the 63 character DNS label limit",
+						slog.F("wildcard_access_url", appHostname),
+						slog.F("max_fixed_characters", 63-appurl.MaxShortSubdomainLength))
+				}
 			}
 
 			promRegistry := prometheus.NewRegistry()
