@@ -100,8 +100,9 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", redactArgs(args, e.sensitiveVars)))
-	e.logger.Debug(ctx, "starting command", slog.F("args", redactArgs(args, e.sensitiveVars)))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
+	e.logger.Debug(ctx, "starting command", slog.F("args", logArgs))
 
 	defer func() {
 		e.logger.Debug(ctx, "closing writers", slog.Error(err))
@@ -115,7 +116,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		}
 	}()
 	if ctx.Err() != nil {
-		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", redactArgs(args, e.sensitiveVars)))
+		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", logArgs))
 		return ctx.Err()
 	}
 
@@ -138,17 +139,17 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 	e.server.logger.Debug(ctx, "executing terraform command",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", redactArgs(args, e.sensitiveVars)),
+		slog.F("args", logArgs),
 	)
 	err = cmd.Start()
 	if err != nil {
-		e.logger.Debug(ctx, "failed to start command", slog.F("args", redactArgs(args, e.sensitiveVars)))
+		e.logger.Debug(ctx, "failed to start command", slog.F("args", logArgs))
 		return err
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
 	err = waitCommand(killCtx, cmd)
-	e.logger.Debug(ctx, "command done", slog.F("args", redactArgs(args, e.sensitiveVars)), slog.Error(err))
+	e.logger.Debug(ctx, "command done", slog.F("args", logArgs), slog.Error(err))
 	return err
 }
 
@@ -156,7 +157,8 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", redactArgs(args, e.sensitiveVars)))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -171,7 +173,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 
 	e.server.logger.Debug(ctx, "executing terraform command with JSON result",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", redactArgs(args, e.sensitiveVars)),
+		slog.F("args", logArgs),
 	)
 	err := cmd.Start()
 	if err != nil {
