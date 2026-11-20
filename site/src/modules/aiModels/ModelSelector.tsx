@@ -422,7 +422,7 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 			<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 				{option.displayName}
 			</span>
-			{option.contextLimit != null && option.contextLimit > 0 && (
+			{option.contextLimit !== undefined && option.contextLimit > 0 && (
 				<span className="shrink-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 					({formatContextLimit(option.contextLimit)})
 				</span>

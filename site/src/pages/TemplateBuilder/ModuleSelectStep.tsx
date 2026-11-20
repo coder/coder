@@ -194,7 +194,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 		}));
 		const nextMeta: SelectedModuleMeta[] = nextIds
 			.map((id) => modulesById.get(id))
-			.filter((m): m is TemplateBuilderModule => m != null)
+			.filter((m): m is TemplateBuilderModule => m !== undefined)
 			.map(toMeta);
 
 		onChangeModules(nextModules, nextMeta);

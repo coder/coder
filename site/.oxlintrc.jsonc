@@ -160,7 +160,7 @@
 		"no-debugger": "error",
 		"no-console": ["error", { "allow": ["error", "info", "warn"] }],
 		"no-document-cookie": "error",
-		"eqeqeq": ["error", "always", { "null": "ignore" }],
+		"eqeqeq": ["error", "always"],
 		"no-duplicate-case": "error",
 		"no-dupe-class-members": "error",
 		"no-dupe-else-if": "error",

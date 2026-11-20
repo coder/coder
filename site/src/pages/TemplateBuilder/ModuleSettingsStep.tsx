@@ -117,7 +117,7 @@ export const ModuleSettingsStep: React.FC<ModuleSettingsStepProps> = ({
 
 	const selectedModules = selectedModuleIds
 		.map((id) => modules.find((m) => m.id === id))
-		.filter((m): m is TemplateBuilderModule => m != null);
+		.filter((m): m is TemplateBuilderModule => m !== undefined);
 
 	const handleChange = (moduleId: string, varName: string, value: string) => {
 		const current = moduleVariables[moduleId] ?? {};

@@ -80,6 +80,10 @@
 				}
 			},
 			"suspicious": {
+				"noDoubleEquals": {
+					"level": "error",
+					"options": { "ignoreNull": false }
+				},
 				"noFallthroughSwitchClause": "off", // oxlint owns no-fallthrough
 				"noConfusingVoidType": "off", // oxlint owns no-invalid-void-type
 				"noExplicitAny": "off", // oxlint owns no-explicit-any

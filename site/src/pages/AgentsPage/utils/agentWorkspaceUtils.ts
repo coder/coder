@@ -88,7 +88,7 @@ export function shouldNavigateAfterArchive(
 ): boolean {
 	if (activeChatId === archivedChatId) return true;
 	// The active chat is a sub-agent rooted at the archived parent.
-	if (activeRootChatId != null && activeRootChatId === archivedChatId) {
+	if (activeRootChatId !== undefined && activeRootChatId === archivedChatId) {
 		return true;
 	}
 	return false;

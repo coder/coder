@@ -35,7 +35,7 @@ export const AdminPersonalModelOverridesSettings: React.FC<
 	isSaveAdminSettingError,
 }) => {
 	const hasLoadedAdminSettings = adminSettings !== undefined;
-	const hasAdminSettingsError = adminSettingsError != null;
+	const hasAdminSettingsError = Boolean(adminSettingsError);
 	const isDisabled = isSavingAdminSetting || !hasLoadedAdminSettings;
 	const allowsUsers = adminSettings?.allow_users ?? false;
 

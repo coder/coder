@@ -168,7 +168,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 								label="Tool choice"
 								value={(() => {
 									const tc = request.policy.tool_choice;
-									if (tc == null) return "";
+									if (tc === null) return "";
 									if (typeof tc === "string") return tc;
 									try {
 										return JSON.stringify(tc);

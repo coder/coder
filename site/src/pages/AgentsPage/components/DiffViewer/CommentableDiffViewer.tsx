@@ -55,7 +55,7 @@ export function extractDiffContent(
 							side === "additions"
 								? block.additionLineIndex + i
 								: block.deletionLineIndex + i;
-						if (lines[idx] != null) collected.push(lines[idx]);
+						if (lines[idx] !== undefined) collected.push(lines[idx]);
 					}
 					addLine++;
 					delLine++;
@@ -66,7 +66,7 @@ export function extractDiffContent(
 					for (let i = 0; i < block.deletions; i++) {
 						if (delLine >= startLine && delLine <= endLine) {
 							const line = lines[block.deletionLineIndex + i];
-							if (line != null) collected.push(line);
+							if (line !== undefined) collected.push(line);
 						}
 						delLine++;
 					}
@@ -81,7 +81,7 @@ export function extractDiffContent(
 					for (let i = 0; i < block.additions; i++) {
 						if (addLine >= startLine && addLine <= endLine) {
 							const line = lines[block.additionLineIndex + i];
-							if (line != null) collected.push(line);
+							if (line !== undefined) collected.push(line);
 						}
 						addLine++;
 					}

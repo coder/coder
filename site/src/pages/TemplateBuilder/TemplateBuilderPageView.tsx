@@ -317,7 +317,7 @@ export const TemplateBuilderPageView: React.FC<
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			{error != null && <ErrorAlert error={error} />}
+			{Boolean(error) && <ErrorAlert error={error} />}
 
 			<div className="flex gap-8">
 				{/* Main content area */}
