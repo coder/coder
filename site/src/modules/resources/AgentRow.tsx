@@ -7,7 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
@@ -177,30 +177,38 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	);
 	const hasScriptIssues = getAgentScriptIssues(agent).length > 0;
 	const { proxy } = useProxy();
-	const [showLogs, setShowLogs] = useState(
+	const defaultShowLogs =
 		(agent.lifecycle_state !== "ready" ||
 			hasConnectivityIssues ||
 			hasScriptIssues) &&
+		hasStartupFeatures;
+	const [showLogs, setShowLogs] = useState(defaultShowLogs);
+	// Re-apply the default when any of its inputs change, even if the
+	// default itself stays the same.
+	const [prevShowLogsInputs, setPrevShowLogsInputs] = useState({
+		lifecycleState: agent.lifecycle_state,
+		hasConnectivityIssues,
+		hasScriptIssues,
+		hasStartupFeatures,
+	});
+	if (
+		prevShowLogsInputs.lifecycleState !== agent.lifecycle_state ||
+		prevShowLogsInputs.hasConnectivityIssues !== hasConnectivityIssues ||
+		prevShowLogsInputs.hasScriptIssues !== hasScriptIssues ||
+		prevShowLogsInputs.hasStartupFeatures !== hasStartupFeatures
+	) {
+		setPrevShowLogsInputs({
+			lifecycleState: agent.lifecycle_state,
+			hasConnectivityIssues,
+			hasScriptIssues,
 			hasStartupFeatures,
-	);
+		});
+		setShowLogs(defaultShowLogs);
+	}
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
-
-	useEffect(() => {
-		setShowLogs(
-			(agent.lifecycle_state !== "ready" ||
-				hasConnectivityIssues ||
-				hasScriptIssues) &&
-				hasStartupFeatures,
-		);
-	}, [
-		agent.lifecycle_state,
-		hasConnectivityIssues,
-		hasScriptIssues,
-		hasStartupFeatures,
-	]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	useLayoutEffect(() => {
@@ -262,13 +270,10 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const hasAutoSelectedLogTabRef = useRef(false);
+	// Undefined until a tab is picked by the user or auto-selected.
+	const [chosenLogTab, setChosenLogTab] = useState<string>();
 	// Auto-select the first log tab whose script failed and has rendered output.
-	useEffect(() => {
-		if (hasAutoSelectedLogTabRef.current) {
-			return;
-		}
+	if (chosenLogTab === undefined) {
 		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
 			const script = agent.scripts.find(
 				(s) => s.log_source_id === logSource.id,
@@ -282,14 +287,10 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			);
 		});
 		if (failedSourceWithLogs) {
-			hasAutoSelectedLogTabRef.current = true;
-			setSelectedLogTab(failedSourceWithLogs.id);
+			setChosenLogTab(failedSourceWithLogs.id);
 		}
-	}, [agent.log_sources, agent.scripts, agentLogs]);
-	const handleSelectedLogTabChange = (value: string) => {
-		hasAutoSelectedLogTabRef.current = true;
-		setSelectedLogTab(value);
-	};
+	}
+	const selectedLogTab = chosenLogTab ?? "all";
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -612,7 +613,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 									<Tabs
 										className="-mx-px -mt-px"
 										value={selectedLogTab}
-										onValueChange={handleSelectedLogTabChange}
+										onValueChange={setChosenLogTab}
 									>
 										<div className="flex items-stretch">
 											<div className="min-w-0 flex-1 overflow-hidden">
@@ -673,7 +674,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
-																	onValueChange={handleSelectedLogTabChange}
+																	onValueChange={setChosenLogTab}
 																>
 																	{overflowLogTabs.map((tab) => (
 																		<DropdownMenuRadioItem
