@@ -208,6 +208,7 @@ func TestResolveModelCallStageModel(t *testing.T) {
 			attemptSpan, modelCall := ended[0], ended[1]
 			require.Equal(t, chatloop.StageModelCall, spanStage(modelCall))
 			require.Equal(t, modelCall.SpanContext().SpanID(), attemptSpan.Parent().SpanID())
+			require.Contains(t, modelCall.Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
 			require.Equal(t, string(chatloop.StageProviderAttempt), attemptSpan.Name())
 			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
 			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
