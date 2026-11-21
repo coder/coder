@@ -287,6 +287,37 @@ export type SendChatMessageOptions = {
 	busyBehavior?: TypesGen.ChatBusyBehavior;
 };
 
+// Converts the edited message's workspace file references uploaded to
+// the bound workspace into already-uploaded entries.
+const getPreservedWorkspaceUploads = (
+	blocks: readonly TypesGen.ChatMessagePart[] | undefined,
+	workspaceId: string | null,
+): readonly WorkspaceFileUpload[] =>
+	(blocks ?? [])
+		.filter(isWorkspaceFileReferencePart)
+		.filter(
+			(part) =>
+				workspaceId !== null &&
+				part.workspace_file_workspace_id === workspaceId,
+		)
+		.map(
+			(part, i): WorkspaceFileUpload => ({
+				id: `preserved-${i}-${part.workspace_file_path}`,
+				file: new File([], part.workspace_file_name, {
+					type: part.workspace_file_media_type || "application/octet-stream",
+				}),
+				status: "uploaded",
+				response: {
+					path: part.workspace_file_path,
+					name: part.workspace_file_name,
+					size: part.workspace_file_size,
+					media_type:
+						part.workspace_file_media_type || "application/octet-stream",
+					workspace_id: part.workspace_file_workspace_id,
+				},
+			}),
+		);
+
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
@@ -522,7 +553,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		editScopeRef.current = { organizationId, chatId };
 		if (scopeChanged) {
 			resetEditAttachments();
-			setPreservedWorkspaceUploads([]);
 		}
 	}, [organizationId, chatId, resetEditAttachments]);
 
@@ -531,15 +561,25 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// them unreadable for the agent, so drop them (regular attachments
 	// are chat files and survive workspace changes). Scope tracks the
 	// chat's bound workspace ID, not the async-loaded workspace
-	// object, which resolves after mount without a rebind.
-	const editWorkspaceScopeRef = useRef(selectedWorkspaceId);
-	useEffect(() => {
-		if (editWorkspaceScopeRef.current === selectedWorkspaceId) {
-			return;
-		}
-		editWorkspaceScopeRef.current = selectedWorkspaceId;
+	// object, which resolves after mount without a rebind. A chat scope
+	// change drops them too.
+	const [preservedScope, setPreservedScope] = useState({
+		organizationId,
+		chatId,
+		workspaceId: selectedWorkspaceId,
+	});
+	if (
+		preservedScope.organizationId !== organizationId ||
+		preservedScope.chatId !== chatId ||
+		preservedScope.workspaceId !== selectedWorkspaceId
+	) {
+		setPreservedScope({
+			organizationId,
+			chatId,
+			workspaceId: selectedWorkspaceId,
+		});
 		setPreservedWorkspaceUploads([]);
-	}, [selectedWorkspaceId]);
+	}
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
@@ -597,67 +637,46 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// (available with the chat record) rather than the
 	// async-loaded workspace object, whose late resolution would
 	// otherwise drop references hydrated before it arrived.
-	// Kept separate from the attachment hydration above and keyed on
-	// the blocks reference plus the workspace binding: a rebind mid-edit
-	// only recomputes the references (ordinary attachments added during
+	// Kept separate from the attachment hydration above, applied after the
+	// scope drop above, and keyed on the blocks reference plus the
+	// workspace binding: a rebind mid-edit only recomputes the
+	// references (ordinary attachments added during
 	// the edit survive), a failed edit submission restores the same
 	// array on rollback (same key, no re-run, so uploads added mid-edit
 	// survive), and rebinding the workspace away and back re-runs
 	// preservation so references valid for the restored binding
 	// reappear. Editing a different message passes a fresh array.
-	const hydratedEditBlocksRef = useRef<{
+	const [hydratedEditBlocks, setHydratedEditBlocks] = useState<{
 		blocks: readonly TypesGen.ChatMessagePart[] | null;
 		workspaceId: string | null;
 	} | null>(null);
+	if (
+		isEditing &&
+		(hydratedEditBlocks === null ||
+			hydratedEditBlocks.blocks !== (editingFileBlocks ?? null) ||
+			hydratedEditBlocks.workspaceId !== selectedWorkspaceId)
+	) {
+		setHydratedEditBlocks({
+			blocks: editingFileBlocks ?? null,
+			workspaceId: selectedWorkspaceId,
+		});
+		setPreservedWorkspaceUploads(
+			getPreservedWorkspaceUploads(editingFileBlocks, selectedWorkspaceId),
+		);
+	}
+
+	// Each hydration also drops uploads added to the edit bucket.
+	const resetHydrationRef = useRef(hydratedEditBlocks);
 	useEffect(() => {
-		if (!isEditing) {
-			return;
-		}
 		if (
-			hydratedEditBlocksRef.current !== null &&
-			hydratedEditBlocksRef.current.blocks === (editingFileBlocks ?? null) &&
-			hydratedEditBlocksRef.current.workspaceId === selectedWorkspaceId
+			hydratedEditBlocks === null ||
+			resetHydrationRef.current === hydratedEditBlocks
 		) {
 			return;
 		}
-		hydratedEditBlocksRef.current = {
-			blocks: editingFileBlocks ?? null,
-			workspaceId: selectedWorkspaceId,
-		};
+		resetHydrationRef.current = hydratedEditBlocks;
 		resetEditWorkspaceUploads();
-		setPreservedWorkspaceUploads(
-			(editingFileBlocks ?? [])
-				.filter(isWorkspaceFileReferencePart)
-				.filter(
-					(part) =>
-						selectedWorkspaceId !== null &&
-						part.workspace_file_workspace_id === selectedWorkspaceId,
-				)
-				.map(
-					(part, i): WorkspaceFileUpload => ({
-						id: `preserved-${i}-${part.workspace_file_path}`,
-						file: new File([], part.workspace_file_name, {
-							type:
-								part.workspace_file_media_type || "application/octet-stream",
-						}),
-						status: "uploaded",
-						response: {
-							path: part.workspace_file_path,
-							name: part.workspace_file_name,
-							size: part.workspace_file_size,
-							media_type:
-								part.workspace_file_media_type || "application/octet-stream",
-							workspace_id: part.workspace_file_workspace_id,
-						},
-					}),
-				),
-		);
-	}, [
-		isEditing,
-		editingFileBlocks,
-		selectedWorkspaceId,
-		resetEditWorkspaceUploads,
-	]);
+	}, [hydratedEditBlocks, resetEditWorkspaceUploads]);
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
@@ -677,7 +696,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		wasEditingRef.current = false;
-		hydratedEditBlocksRef.current = null;
+		setHydratedEditBlocks(null);
 		resetEditAttachments();
 		resetEditWorkspaceUploads();
 		setPreservedWorkspaceUploads([]);
