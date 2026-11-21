@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 )
 
 // OIDCLinkAnalysis contains the results of analyzing OIDC user links
@@ -107,7 +108,8 @@ func ResolveIssuer(ctx context.Context, cli *http.Client, issuerURL string) (str
 	var discovery struct {
 		Issuer string `json:"issuer"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
+	body := xhttp.LimitResponseBody(resp.Body, xhttp.MaxProviderResponseBytes)
+	if err := json.NewDecoder(body).Decode(&discovery); err != nil {
 		return "", xerrors.Errorf("decode OIDC discovery document: %w", err)
 	}
 	if discovery.Issuer == "" {

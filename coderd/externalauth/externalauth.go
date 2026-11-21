@@ -675,14 +675,17 @@ func (c *Config) ValidateToken(ctx context.Context, token *oauth2.Token) (bool, 
 		// Success, handled below.
 
 	default:
-		data, _ := io.ReadAll(res.Body)
+		data, readErr := io.ReadAll(xhttp.LimitResponseBody(res.Body, xhttp.MaxProviderResponseBytes))
+		if readErr != nil {
+			return false, nil, xerrors.Errorf("status %d: body: %s: read body: %w", res.StatusCode, data, readErr)
+		}
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 
 	var user *codersdk.ExternalAuthUser
 	if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
 		var ghUser github.User
-		err = json.NewDecoder(res.Body).Decode(&ghUser)
+		err = json.NewDecoder(xhttp.LimitResponseBody(res.Body, xhttp.MaxProviderResponseBytes)).Decode(&ghUser)
 		if err == nil {
 			user = &codersdk.ExternalAuthUser{
 				ID:         ghUser.GetID(),
@@ -824,7 +827,7 @@ func (c *Config) RevokeToken(ctx context.Context, link database.ExternalAuthLink
 		return false, err
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
+	body, err := io.ReadAll(xhttp.LimitResponseBody(res.Body, xhttp.MaxProviderResponseBytes))
 	if err != nil {
 		return false, err
 	}
@@ -926,10 +929,10 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 		codersdk.ExternalAuthDevice
 		ErrorDescription string `json:"error_description"`
 	}
-	err = json.NewDecoder(resp.Body).Decode(&r)
+	err = json.NewDecoder(xhttp.LimitResponseBody(resp.Body, xhttp.MaxProviderResponseBytes)).Decode(&r)
 	if err != nil {
-		mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-		if err != nil {
+		mediaType, _, mediaErr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if mediaErr != nil {
 			mediaType = "unknown"
 		}
 
