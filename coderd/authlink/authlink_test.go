@@ -2,8 +2,10 @@ package authlink_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -383,5 +386,23 @@ func TestResolveIssuer(t *testing.T) {
 		_, err := authlink.ResolveIssuer(ctx, srv.Client(), srv.URL)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "HTTP 500")
+	})
+
+	t.Run("OversizedResponse", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer":  "https://accounts.google.com",
+				"padding": strings.Repeat("a", int(xhttp.MaxProviderResponseBytes)),
+			})
+		}))
+		defer srv.Close()
+
+		_, err := authlink.ResolveIssuer(ctx, srv.Client(), srv.URL)
+		_, tooLarge := errors.AsType[*xhttp.ResponseBodyTooLargeError](err)
+		require.True(t, tooLarge, "want *ResponseBodyTooLargeError, got %v", err)
 	})
 }
