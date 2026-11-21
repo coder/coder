@@ -15,6 +15,12 @@ const (
 	LockIDReconcilePrebuilds
 )
 
+// LockIDFirstUserSetup serializes creation of the first user. It is
+// derived from a string because the sequential list above has a
+// different length on each release branch, and this lock must have the
+// same value on all of them.
+var LockIDFirstUserSetup = GenLockID("first_user_setup")
+
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {
 	hash := fnv.New64()
