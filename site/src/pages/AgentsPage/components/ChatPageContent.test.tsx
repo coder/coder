@@ -1,7 +1,15 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRef, useState } from "react";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	type Mock,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -27,6 +35,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatPageInput,
 	ChatPageTimeline,
@@ -127,52 +136,77 @@ describe("workspaceSkillsFromChat", () => {
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
 	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
-) =>
-	renderWithAuth(
-		<ChatPageInput
-			chat={{ ...MockChat, id: "", organization_id: "" }}
-			store={store}
-			modelCatalog={undefined}
-			onSend={vi.fn()}
-			onDeleteQueuedMessage={vi.fn()}
-			onPromoteQueuedMessage={vi.fn()}
-			onInterrupt={vi.fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={vi.fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			editingTarget={null}
-			onCancelEdit={vi.fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={vi.fn()}
-			unsupportedProviderNames={[]}
-			onPlanModeToggle={vi.fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={vi.fn()}
-			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={vi.fn()}
-			isWorkspaceLoading={false}
-			queuedMessageUnderEditID={null}
-			{...overrides}
-		/>,
-	);
+) => renderWithAuth(chatPageInput(store, overrides));
+
+// Renders the input with props a test can change while it stays mounted.
+const renderUpdatableChatPageInput = (
+	store: ReturnType<typeof createChatStore>,
+	initialOverrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
+) => {
+	let setOverrides: React.Dispatch<
+		React.SetStateAction<Partial<React.ComponentProps<typeof ChatPageInput>>>
+	> = () => {};
+	const inputRef = { current: null };
+	const Harness: React.FC = () => {
+		const [overrides, setState] = useState(initialOverrides);
+		setOverrides = setState;
+		return chatPageInput(store, { inputRef, ...overrides });
+	};
+	renderWithAuth(<Harness />);
+	return {
+		update: (next: Partial<React.ComponentProps<typeof ChatPageInput>>) =>
+			act(() => setOverrides((current) => ({ ...current, ...next }))),
+	};
+};
+
+const chatPageInput = (
+	store: ReturnType<typeof createChatStore>,
+	overrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
+) => (
+	<ChatPageInput
+		chat={{ ...MockChat, id: "", organization_id: "" }}
+		store={store}
+		modelCatalog={undefined}
+		onSend={vi.fn()}
+		onDeleteQueuedMessage={vi.fn()}
+		onPromoteQueuedMessage={vi.fn()}
+		onInterrupt={vi.fn()}
+		isInputDisabled={false}
+		isSendPending={false}
+		isInterruptPending={false}
+		hasModelOptions
+		selectedModel="model-config-1"
+		onModelChange={vi.fn()}
+		modelOptions={[
+			{
+				id: "model-config-1",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o",
+			},
+		]}
+		modelSelectorPlaceholder="Select model"
+		canConfigureAgentSetup={false}
+		editingTarget={null}
+		onCancelEdit={vi.fn()}
+		isReadOnly={false}
+		onReasoningEffortChange={vi.fn()}
+		unsupportedProviderNames={[]}
+		onPlanModeToggle={vi.fn()}
+		isModelCatalogLoading={false}
+		inputRef={{ current: null }}
+		initialValue=""
+		remountKey={0}
+		onContentChange={vi.fn()}
+		editingFileBlocks={[]}
+		mcpServers={[]}
+		selectedMCPServerIds={[]}
+		onMCPSelectionChange={vi.fn()}
+		isWorkspaceLoading={false}
+		queuedMessageUnderEditID={null}
+		{...overrides}
+	/>
+);
 
 const workspaceFileReference = (
 	name: string,
@@ -598,6 +632,35 @@ describe("ChatPageInput", () => {
 			},
 		);
 
+		it("drops edit uploads when editing a different message", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			const { update } = renderUpdatableChatPageInput(createChatStore(), {
+				...draftProps,
+				onSend,
+				editingTarget: { kind: "history", id: 1 },
+				editingFileBlocks: [],
+			});
+
+			await user.upload(
+				await screen.findByTestId("chat-attachment-file-input"),
+				new File([new Uint8Array(16)], "archive.tar", {
+					type: "application/x-tar",
+				}),
+			);
+			await screen.findByRole("button", { name: "Remove archive.tar" });
+			update({
+				editingTarget: { kind: "history", id: 2 },
+				editingFileBlocks: [],
+			});
+			await user.click(
+				await screen.findByRole("button", { name: "Save edit" }),
+			);
+
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+			expect(onSend.mock.calls[0][0].workspaceUploads).toBeUndefined();
+		});
+
 		it("keeps compose uploads out of message edits without clearing the draft", async () => {
 			const user = userEvent.setup();
 			const onSend = vi
@@ -797,6 +860,140 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	describe("edited workspace file references", () => {
+		type OnSendMock = Mock<
+			React.ComponentProps<typeof ChatPageInput>["onSend"]
+		>;
+		const editing: EditingTarget = { kind: "history", id: 1 };
+		const boundChat = {
+			...MockChat,
+			id: "",
+			organization_id: "",
+			workspace_id: "ws-1",
+		};
+		const editingFileBlocks = [
+			workspaceFileReference("first.csv", "ws-1"),
+			workspaceFileReference("second.csv", "ws-1"),
+			workspaceFileReference("rebound.csv", "ws-2"),
+		];
+		const sentFileNames = (onSend: OnSendMock, call: number) =>
+			(
+				onSend.mock.calls[call][0].workspaceUploads as
+					| readonly { name: string }[]
+					| undefined
+			)?.map((upload) => upload.name);
+		const renderEdit = (onSend: OnSendMock) =>
+			renderUpdatableChatPageInput(createChatStore(), {
+				chat: boundChat,
+				onSend,
+				editingTarget: editing,
+				initialValue: "edited",
+				editingFileBlocks,
+			});
+		const saveEdit = async (
+			user: ReturnType<typeof userEvent.setup>,
+			onSend: OnSendMock,
+			calls: number,
+		) => {
+			await user.click(
+				await screen.findByRole("button", { name: "Save edit" }),
+			);
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(calls));
+		};
+
+		it("keeps a removed reference removed after a failed edit", async () => {
+			const user = userEvent.setup();
+			const firstSend = createDeferred<undefined>();
+			const onSend = vi
+				.fn()
+				.mockReturnValueOnce(firstSend.promise)
+				.mockResolvedValue(undefined);
+			const { update } = renderEdit(onSend);
+
+			await user.click(
+				await screen.findByRole("button", { name: "Remove first.csv" }),
+			);
+			await saveEdit(user, onSend, 1);
+			update({ editingTarget: null, isSendPending: true });
+			await act(async () => firstSend.reject(new Error("Edit failed.")));
+			update({ editingTarget: editing, isSendPending: false });
+			await saveEdit(user, onSend, 2);
+
+			expect(sentFileNames(onSend, 1)).toEqual(["second.csv"]);
+		});
+
+		it("drops references when the workspace is rebound away and back during a pending edit", async () => {
+			const user = userEvent.setup();
+			const firstSend = createDeferred<undefined>();
+			const onSend = vi
+				.fn()
+				.mockReturnValueOnce(firstSend.promise)
+				.mockResolvedValue(undefined);
+			const { update } = renderEdit(onSend);
+
+			await saveEdit(user, onSend, 1);
+			update({ editingTarget: null, isSendPending: true });
+			update({ chat: { ...boundChat, workspace_id: "ws-2" } });
+			update({ chat: boundChat });
+			await act(async () => firstSend.reject(new Error("Edit failed.")));
+			update({ editingTarget: editing, isSendPending: false });
+			await saveEdit(user, onSend, 2);
+
+			expect(sentFileNames(onSend, 1)).toBeUndefined();
+		});
+
+		it("rehydrates references for a workspace rebound mid-edit", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			const { update } = renderEdit(onSend);
+
+			await screen.findByRole("button", { name: "Remove first.csv" });
+			update({ chat: { ...boundChat, workspace_id: "ws-2" } });
+			await saveEdit(user, onSend, 1);
+
+			expect(sentFileNames(onSend, 0)).toEqual(["rebound.csv"]);
+		});
+
+		it("drops references when the chat changes mid-edit", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			const { update } = renderEdit(onSend);
+
+			await screen.findByRole("button", { name: "Remove first.csv" });
+			update({ chat: { ...boundChat, id: "other-chat" } });
+			await saveEdit(user, onSend, 1);
+
+			expect(sentFileNames(onSend, 0)).toBeUndefined();
+		});
+
+		it("drops references after a successful edit", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			renderEdit(onSend);
+
+			await saveEdit(user, onSend, 1);
+			await saveEdit(user, onSend, 2);
+
+			expect(sentFileNames(onSend, 0)).toEqual(["first.csv", "second.csv"]);
+			expect(sentFileNames(onSend, 1)).toBeUndefined();
+		});
+
+		it("restores removed references when the edit is reopened", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			const { update } = renderEdit(onSend);
+
+			await user.click(
+				await screen.findByRole("button", { name: "Remove first.csv" }),
+			);
+			update({ editingTarget: null });
+			update({ editingTarget: editing });
+			await saveEdit(user, onSend, 1);
+
+			expect(sentFileNames(onSend, 0)).toEqual(["first.csv", "second.csv"]);
+		});
 	});
 
 	it("sends the attachments of a failed send again", async () => {
