@@ -290,10 +290,10 @@ export type SendChatMessageOptions = {
 // Converts the edited message's workspace file references uploaded to
 // the bound workspace into already-uploaded entries.
 const getPreservedWorkspaceUploads = (
-	blocks: readonly TypesGen.ChatMessagePart[] | undefined,
+	blocks: readonly TypesGen.ChatMessagePart[],
 	workspaceId: string | null,
 ): readonly WorkspaceFileUpload[] =>
-	(blocks ?? [])
+	blocks
 		.filter(isWorkspaceFileReferencePart)
 		.filter(
 			(part) =>
@@ -563,21 +563,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// chat's bound workspace ID, not the async-loaded workspace
 	// object, which resolves after mount without a rebind. A chat scope
 	// change drops them too.
-	const [preservedScope, setPreservedScope] = useState({
+	const preservedScopeInputs = {
 		organizationId,
 		chatId,
 		workspaceId: selectedWorkspaceId,
-	});
+	};
+	const [preservedScope, setPreservedScope] = useState(preservedScopeInputs);
 	if (
-		preservedScope.organizationId !== organizationId ||
-		preservedScope.chatId !== chatId ||
-		preservedScope.workspaceId !== selectedWorkspaceId
+		preservedScope.organizationId !== preservedScopeInputs.organizationId ||
+		preservedScope.chatId !== preservedScopeInputs.chatId ||
+		preservedScope.workspaceId !== preservedScopeInputs.workspaceId
 	) {
-		setPreservedScope({
-			organizationId,
-			chatId,
-			workspaceId: selectedWorkspaceId,
-		});
+		setPreservedScope(preservedScopeInputs);
 		setPreservedWorkspaceUploads([]);
 	}
 
@@ -637,27 +634,27 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// (available with the chat record) rather than the
 	// async-loaded workspace object, whose late resolution would
 	// otherwise drop references hydrated before it arrived.
-	// Kept separate from the attachment hydration above, applied after the
-	// scope drop above, and keyed on the blocks reference plus the
-	// workspace binding: a rebind mid-edit only recomputes the
-	// references (ordinary attachments added during
+	// Kept separate from the attachment hydration above, applied after
+	// the scope drop above so a rehydration wins, and keyed on the
+	// blocks reference plus the workspace binding: a rebind mid-edit
+	// only recomputes the references (ordinary attachments added during
 	// the edit survive), a failed edit submission restores the same
-	// array on rollback (same key, no re-run, so uploads added mid-edit
-	// survive), and rebinding the workspace away and back re-runs
-	// preservation so references valid for the restored binding
-	// reappear. Editing a different message passes a fresh array.
+	// array on rollback (same key, no rehydration, so uploads added
+	// mid-edit survive), and rebinding the workspace away and back
+	// rehydrates so references valid for the restored binding reappear.
+	// Editing a different message passes a fresh array.
 	const [hydratedEditBlocks, setHydratedEditBlocks] = useState<{
-		blocks: readonly TypesGen.ChatMessagePart[] | null;
+		blocks: readonly TypesGen.ChatMessagePart[];
 		workspaceId: string | null;
 	} | null>(null);
 	if (
 		isEditing &&
 		(hydratedEditBlocks === null ||
-			hydratedEditBlocks.blocks !== (editingFileBlocks ?? null) ||
+			hydratedEditBlocks.blocks !== editingFileBlocks ||
 			hydratedEditBlocks.workspaceId !== selectedWorkspaceId)
 	) {
 		setHydratedEditBlocks({
-			blocks: editingFileBlocks ?? null,
+			blocks: editingFileBlocks,
 			workspaceId: selectedWorkspaceId,
 		});
 		setPreservedWorkspaceUploads(
@@ -665,16 +662,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		);
 	}
 
-	// Each hydration also drops uploads added to the edit bucket.
-	const resetHydrationRef = useRef(hydratedEditBlocks);
+	// Each hydration also drops uploads added to the edit bucket. The
+	// reset aborts in-flight uploads, so it runs from an effect rather
+	// than during render; the ref makes it run once per hydration.
+	const lastResetHydrationRef = useRef(hydratedEditBlocks);
 	useEffect(() => {
 		if (
 			hydratedEditBlocks === null ||
-			resetHydrationRef.current === hydratedEditBlocks
+			lastResetHydrationRef.current === hydratedEditBlocks
 		) {
 			return;
 		}
-		resetHydrationRef.current = hydratedEditBlocks;
+		lastResetHydrationRef.current = hydratedEditBlocks;
 		resetEditWorkspaceUploads();
 	}, [hydratedEditBlocks, resetEditWorkspaceUploads]);
 

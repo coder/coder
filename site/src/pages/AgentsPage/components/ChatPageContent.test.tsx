@@ -867,7 +867,7 @@ describe("ChatPageInput", () => {
 			React.ComponentProps<typeof ChatPageInput>["onSend"]
 		>;
 		const editing: EditingTarget = { kind: "history", id: 1 };
-		const boundChat = {
+		const mockBoundChat = {
 			...MockChat,
 			id: "",
 			organization_id: "",
@@ -879,14 +879,10 @@ describe("ChatPageInput", () => {
 			workspaceFileReference("rebound.csv", "ws-2"),
 		];
 		const sentFileNames = (onSend: OnSendMock, call: number) =>
-			(
-				onSend.mock.calls[call][0].workspaceUploads as
-					| readonly { name: string }[]
-					| undefined
-			)?.map((upload) => upload.name);
+			onSend.mock.calls[call][0].workspaceUploads?.map((upload) => upload.name);
 		const renderEdit = (onSend: OnSendMock) =>
 			renderUpdatableChatPageInput(createChatStore(), {
-				chat: boundChat,
+				chat: mockBoundChat,
 				onSend,
 				editingTarget: editing,
 				initialValue: "edited",
@@ -935,8 +931,8 @@ describe("ChatPageInput", () => {
 
 			await saveEdit(user, onSend, 1);
 			update({ editingTarget: null, isSendPending: true });
-			update({ chat: { ...boundChat, workspace_id: "ws-2" } });
-			update({ chat: boundChat });
+			update({ chat: { ...mockBoundChat, workspace_id: "ws-2" } });
+			update({ chat: mockBoundChat });
 			await act(async () => firstSend.reject(new Error("Edit failed.")));
 			update({ editingTarget: editing, isSendPending: false });
 			await saveEdit(user, onSend, 2);
@@ -950,7 +946,7 @@ describe("ChatPageInput", () => {
 			const { update } = renderEdit(onSend);
 
 			await screen.findByRole("button", { name: "Remove first.csv" });
-			update({ chat: { ...boundChat, workspace_id: "ws-2" } });
+			update({ chat: { ...mockBoundChat, workspace_id: "ws-2" } });
 			await saveEdit(user, onSend, 1);
 
 			expect(sentFileNames(onSend, 0)).toEqual(["rebound.csv"]);
@@ -962,7 +958,7 @@ describe("ChatPageInput", () => {
 			const { update } = renderEdit(onSend);
 
 			await screen.findByRole("button", { name: "Remove first.csv" });
-			update({ chat: { ...boundChat, id: "other-chat" } });
+			update({ chat: { ...mockBoundChat, id: "other-chat" } });
 			await saveEdit(user, onSend, 1);
 
 			expect(sentFileNames(onSend, 0)).toBeUndefined();
