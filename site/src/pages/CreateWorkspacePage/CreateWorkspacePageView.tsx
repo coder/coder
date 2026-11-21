@@ -1,6 +1,13 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -213,13 +220,9 @@ export const CreateWorkspacePageView: React.FC<
 		}
 	}, [form.submitCount, form.errors]);
 
-	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "undefined", icon: "", description: "" },
-	]);
-	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
-	// Build options and keep default label/value in sync
-	useEffect(() => {
-		const options = [
+	// Kept stable because the preset parameter effect depends on it.
+	const presetOptions = useMemo(
+		() => [
 			{ label: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
 				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
@@ -227,26 +230,27 @@ export const CreateWorkspacePageView: React.FC<
 				icon: preset.Icon,
 				description: preset.Description,
 			})),
-		];
-		setPresetOptions(options);
-
+		],
+		[presets],
+	);
+	// Falls back to "None" when the form's preset is unset or not listed.
+	const selectedPresetIndex = Math.max(
+		0,
+		presetOptions.findIndex(
+			(option) => option.value === form.values.template_version_preset_id,
+		),
+	);
+	// Apply the URL or default preset whenever the presets or the URL preset
+	// change.
+	useEffect(() => {
 		// URL preset takes precedence over default preset.
 		if (urlPreset) {
-			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
-			setSelectedPresetIndex(idx);
 			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
 		}
 
 		const defaultPreset = presets.find((p) => p.Default);
-		if (defaultPreset) {
-			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
-			setSelectedPresetIndex(idx);
-			setFieldValue("template_version_preset_id", defaultPreset.ID);
-		} else {
-			setSelectedPresetIndex(0); // Explicitly set to "None"
-			setFieldValue("template_version_preset_id", undefined);
-		}
+		setFieldValue("template_version_preset_id", defaultPreset?.ID);
 	}, [presets, setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
@@ -720,7 +724,6 @@ export const CreateWorkspacePageView: React.FC<
 													if (index === -1) {
 														return;
 													}
-													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
 														// "undefined" string is equivalent to using None option.

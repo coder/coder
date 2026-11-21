@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type {
 	TemplateVersionVariable,
 	VariableValue,
@@ -26,17 +26,19 @@ type MissingTemplateVariablesDialogProps = {
 export const MissingTemplateVariablesDialog: React.FC<
 	MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, open, onClose }) => {
-	const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
+	const [variableValues, setVariableValues] = useState<VariableValue[]>(() =>
+		toVariableValues(missingVariables),
+	);
 
 	// Pre-fill the form with the default values when missing variables are loaded
-	useEffect(() => {
-		if (!missingVariables) {
-			return;
+	const [prevMissingVariables, setPrevMissingVariables] =
+		useState(missingVariables);
+	if (missingVariables !== prevMissingVariables) {
+		setPrevMissingVariables(missingVariables);
+		if (missingVariables) {
+			setVariableValues(toVariableValues(missingVariables));
 		}
-		setVariableValues(
-			missingVariables.map((v) => ({ name: v.name, value: v.value })),
-		);
-	}, [missingVariables]);
+	}
 
 	return (
 		<Dialog
@@ -97,3 +99,8 @@ export const MissingTemplateVariablesDialog: React.FC<
 		</Dialog>
 	);
 };
+
+const toVariableValues = (
+	missingVariables: readonly TemplateVersionVariable[] | undefined,
+): VariableValue[] =>
+	missingVariables?.map((v) => ({ name: v.name, value: v.value })) ?? [];
