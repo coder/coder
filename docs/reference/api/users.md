@@ -183,6 +183,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   "password": {
     "enabled": true
   },
+  "setup_token_required": true,
   "terms_of_service_url": "string"
 }
 ```
@@ -258,6 +259,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
     "newsletter_releases": true
   },
   "password": "string",
+  "setup_token": "string",
   "trial": true,
   "trial_info": {
     "company_name": "string",

@@ -1193,6 +1193,18 @@ Controls if the 'Secure' property is set on browser session cookies.
 - YAML key: `networking.secureAuthCookie`
 - Default value: `(computed at runtime)`
 
+### Setup token
+
+The token that must be supplied to create the first user when the deployment is published through a try.coder.app tunnel.
+When empty, the server generates one and prints it at startup.
+It must be at least 24 characters.
+
+- Type: `string`
+- Environment variable: `CODER_SETUP_TOKEN`
+- CLI flag: [`--setup-token`](../../reference/cli/server/index.md#--setup-token)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
+
 ### Wildcard access URL
 
 Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".
