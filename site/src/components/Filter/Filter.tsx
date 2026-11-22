@@ -64,7 +64,12 @@ export const useFilter = ({
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-		const noUpdateNeeded = query === serialized;
+		// Compare against the live searchParams object rather than the
+		// render-time query. Earlier updates mutate searchParams in place
+		// before the router applies them, so query can be stale and would
+		// wrongly drop an update that reverts a pending change.
+		const currentQuery = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+		const noUpdateNeeded = currentQuery === serialized;
 		if (noUpdateNeeded) {
 			return;
 		}
