@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isEqual from "lodash/isEqual";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
@@ -569,11 +570,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		workspaceId: selectedWorkspaceId,
 	};
 	const [preservedScope, setPreservedScope] = useState(preservedScopeInputs);
-	if (
-		preservedScope.organizationId !== preservedScopeInputs.organizationId ||
-		preservedScope.chatId !== preservedScopeInputs.chatId ||
-		preservedScope.workspaceId !== preservedScopeInputs.workspaceId
-	) {
+	if (!isEqual(preservedScopeInputs, preservedScope)) {
 		setPreservedScope(preservedScopeInputs);
 		setPreservedWorkspaceUploads([]);
 	}

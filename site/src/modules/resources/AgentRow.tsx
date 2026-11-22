@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isEqual from "lodash/isEqual";
 import {
 	CopyIcon,
 	EllipsisIcon,
@@ -192,13 +193,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		hasStartupFeatures,
 	};
 	const [prevShowLogsInputs, setPrevShowLogsInputs] = useState(showLogsInputs);
-	if (
-		prevShowLogsInputs.lifecycleState !== showLogsInputs.lifecycleState ||
-		prevShowLogsInputs.hasConnectivityIssues !==
-			showLogsInputs.hasConnectivityIssues ||
-		prevShowLogsInputs.hasScriptIssues !== showLogsInputs.hasScriptIssues ||
-		prevShowLogsInputs.hasStartupFeatures !== showLogsInputs.hasStartupFeatures
-	) {
+	if (!isEqual(showLogsInputs, prevShowLogsInputs)) {
 		setPrevShowLogsInputs(showLogsInputs);
 		setShowLogs(defaultShowLogs);
 	}
