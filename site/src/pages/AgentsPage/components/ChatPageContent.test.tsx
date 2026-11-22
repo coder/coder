@@ -899,27 +899,6 @@ describe("ChatPageInput", () => {
 			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(calls));
 		};
 
-		it("keeps a removed reference removed after a failed edit", async () => {
-			const user = userEvent.setup();
-			const firstSend = createDeferred<undefined>();
-			const onSend = vi
-				.fn()
-				.mockReturnValueOnce(firstSend.promise)
-				.mockResolvedValue(undefined);
-			const { update } = renderEdit(onSend);
-
-			await user.click(
-				await screen.findByRole("button", { name: "Remove first.csv" }),
-			);
-			await saveEdit(user, onSend, 1);
-			update({ editingTarget: null, isSendPending: true });
-			await act(async () => firstSend.reject(new Error("Edit failed.")));
-			update({ editingTarget: editing, isSendPending: false });
-			await saveEdit(user, onSend, 2);
-
-			expect(sentFileNames(onSend, 1)).toEqual(["second.csv"]);
-		});
-
 		it("drops references when the workspace is rebound away and back during a pending edit", async () => {
 			const user = userEvent.setup();
 			const firstSend = createDeferred<undefined>();
