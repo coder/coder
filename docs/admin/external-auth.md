@@ -235,6 +235,10 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 
 The redirect URI for Gitea is `https://coder.example.com/external-auth/gitea/callback`.
 
+For a self-managed instance, Coder derives the token, validation, and REST API URLs from the host in `CODER_EXTERNAL_AUTH_0_AUTH_URL`.
+Coder derives these URLs from the host alone.
+For an instance served under a subpath, such as `https://example.com/git`, set `CODER_EXTERNAL_AUTH_0_TOKEN_URL`, `CODER_EXTERNAL_AUTH_0_VALIDATE_URL`, and `CODER_EXTERNAL_AUTH_0_API_BASE_URL` to their full URLs.
+
 ### GitHub
 
 Use this section as a reference for environment variables to customize your setup or to integrate with an existing GitHub authentication.

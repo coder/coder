@@ -222,6 +222,100 @@ func TestGitlabDefaults(t *testing.T) {
 	}
 }
 
+func TestGiteaDefaults(t *testing.T) {
+	t.Parallel()
+
+	// The default public Gitea setup. Copying this here as hard coded
+	// values.
+	public := func() codersdk.ExternalAuthConfig {
+		return codersdk.ExternalAuthConfig{
+			Type:                          string(codersdk.EnhancedExternalAuthProviderGitea),
+			ID:                            string(codersdk.EnhancedExternalAuthProviderGitea),
+			AuthURL:                       "https://gitea.com/login/oauth/authorize",
+			TokenURL:                      "https://gitea.com/login/oauth/access_token",
+			ValidateURL:                   "https://gitea.com/login/oauth/userinfo",
+			DisplayName:                   "Gitea",
+			DisplayIcon:                   "/icon/gitea.svg",
+			Regex:                         `^(https?://)?gitea\.com(/.*)?$`,
+			APIBaseURL:                    "https://gitea.com/api/v1",
+			Scopes:                        []string{"read:repository", "write:repository", "read:user"},
+			CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		input          codersdk.ExternalAuthConfig
+		mutateExpected func(*codersdk.ExternalAuthConfig)
+	}{
+		{
+			name: "OnlyType",
+			input: codersdk.ExternalAuthConfig{
+				Type: string(codersdk.EnhancedExternalAuthProviderGitea),
+			},
+		},
+		{
+			// Self-hosted Gitea and Forgejo instances derive every URL,
+			// including the REST API base, from the auth URL host.
+			name: "SelfHostedOnlyAuthURL",
+			input: codersdk.ExternalAuthConfig{
+				Type:    string(codersdk.EnhancedExternalAuthProviderGitea),
+				AuthURL: "https://git.example.org/login/oauth/authorize",
+			},
+			mutateExpected: func(config *codersdk.ExternalAuthConfig) {
+				config.AuthURL = "https://git.example.org/login/oauth/authorize"
+				config.TokenURL = "https://git.example.org/login/oauth/access_token"
+				config.ValidateURL = "https://git.example.org/login/oauth/userinfo"
+				config.Regex = `^(https?://)?git\.example\.org(/.*)?$`
+				config.APIBaseURL = "https://git.example.org/api/v1"
+			},
+		},
+		{
+			// Defaults use the auth URL host only. Instances served under
+			// a subpath must set the token, validate, and API URLs, as the
+			// external auth docs describe.
+			name: "SelfHostedSubpathUsesHostOnly",
+			input: codersdk.ExternalAuthConfig{
+				Type:    string(codersdk.EnhancedExternalAuthProviderGitea),
+				AuthURL: "https://example.com/git/login/oauth/authorize",
+			},
+			mutateExpected: func(config *codersdk.ExternalAuthConfig) {
+				config.AuthURL = "https://example.com/git/login/oauth/authorize"
+				config.TokenURL = "https://example.com/login/oauth/access_token"
+				config.ValidateURL = "https://example.com/login/oauth/userinfo"
+				config.Regex = `^(https?://)?example\.com(/.*)?$`
+				config.APIBaseURL = "https://example.com/api/v1"
+			},
+		},
+		{
+			name: "SelfHostedExplicitAPIBaseURL",
+			input: codersdk.ExternalAuthConfig{
+				Type:       string(codersdk.EnhancedExternalAuthProviderGitea),
+				AuthURL:    "http://git.example.org:3000/login/oauth/authorize",
+				APIBaseURL: "https://api.example.org/api/v1",
+			},
+			mutateExpected: func(config *codersdk.ExternalAuthConfig) {
+				config.AuthURL = "http://git.example.org:3000/login/oauth/authorize"
+				config.TokenURL = "http://git.example.org:3000/login/oauth/access_token"
+				config.ValidateURL = "http://git.example.org:3000/login/oauth/userinfo"
+				config.Regex = `^(https?://)?git\.example\.org:3000(/.*)?$`
+				config.APIBaseURL = "https://api.example.org/api/v1"
+			},
+		},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			expected := public()
+			if c.mutateExpected != nil {
+				c.mutateExpected(&expected)
+			}
+			applyDefaultsToConfig(&c.input)
+			require.Equal(t, expected, c.input)
+		})
+	}
+}
+
 func TestIsFailedRefresh(t *testing.T) {
 	t.Parallel()
 
