@@ -12,13 +12,13 @@ import {
  * viewer's IP to the image host (Cure53 CDM-02-006).
  */
 export const MarkdownImage = ({ src, alt }: { src?: string; alt?: string }) => {
-	const [consented, setConsented] = useState(false);
+	const [consentedSrc, setConsentedSrc] = useState<string>();
 
 	if (!src) {
 		return null;
 	}
 
-	if (consented || !isExternalImageSource(src)) {
+	if (consentedSrc === src || !isExternalImageSource(src)) {
 		return (
 			<img src={src} alt={alt ?? ""} loading="lazy" className="max-w-full" />
 		);
@@ -40,7 +40,7 @@ export const MarkdownImage = ({ src, alt }: { src?: string; alt?: string }) => {
 	return (
 		<button
 			type="button"
-			onClick={() => setConsented(true)}
+			onClick={() => setConsentedSrc(src)}
 			aria-label={`Load external image from ${host}`}
 			className={cn(
 				"inline-flex max-w-full cursor-pointer items-center gap-1.5",

@@ -1,6 +1,8 @@
 import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "#/components/Button/Button";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -236,6 +238,37 @@ export const ExternalImageConsentGate: Story = {
 			expect(img).not.toBeNull();
 			expect(img?.getAttribute("src")).toBe(externalImageURL);
 		});
+	},
+};
+
+export const ExternalImageSourceChanged: Story = {
+	args: {
+		streaming: true,
+	},
+	render: function Render(args) {
+		const [src, setSrc] = useState(externalImageURL);
+		return (
+			<div className="flex flex-col items-start gap-4">
+				<Response {...args}>{`![diagram](${src})`}</Response>
+				<Button
+					variant="outline"
+					onClick={() => setSrc("https://another-image-host.invalid/image.png")}
+				>
+					Change image source
+				</Button>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: "Load external image from external-image-host.invalid",
+			}),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Change image source" }),
+		);
 	},
 };
 
