@@ -290,16 +290,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		};
 	}, [open]);
 
-	useEffect(() => {
-		/** If `onSearch` is provided, do not trigger options updated. */
-		if (!arrayOptions || onSearch) {
-			return;
-		}
-		const newOption = transitionToGroupOption(arrayOptions || [], groupBy);
+	/** Keep options in sync with the `options` prop unless `onSearch` provides them. */
+	if (arrayOptions && !onSearch) {
+		const newOption = transitionToGroupOption(arrayOptions, groupBy);
 		if (JSON.stringify(newOption) !== JSON.stringify(options)) {
 			setOptions(newOption);
 		}
-	}, [arrayOptions, groupBy, onSearch, options]);
+	}
 
 	useEffect(() => {
 		/** sync search */

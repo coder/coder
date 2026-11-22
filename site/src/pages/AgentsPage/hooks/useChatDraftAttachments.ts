@@ -496,11 +496,8 @@ export function useChatDraftAttachments(
 	// attachment (or the chat scope changed). processResize checks
 	// this before swapping in a replacement.
 	const abandonedResizesRef = useRef<Set<string>>(new Set());
-	const [subscriber] = useState<UploadRegistrySubscriber>(
-		() =>
-			function handleUploadRegistrySnapshot(snapshot: UploadRegistrySnapshot) {
-				setViews((prev) => applySnapshot(prev, snapshot));
-			},
+	const subscriberRef = useRef<UploadRegistrySubscriber>((snapshot) =>
+		setViews((prev) => applySnapshot(prev, snapshot)),
 	);
 
 	useEffect(() => {
@@ -533,7 +530,7 @@ export function useChatDraftAttachments(
 			if (!isSameScope(entry, organizationId, chatId)) {
 				continue;
 			}
-			subscribeToEntry(entry, subscriptionsRef, subscriber);
+			subscribeToEntry(entry, subscriptionsRef, subscriberRef.current);
 			nextViews = applySnapshot(nextViews, snapshotFromEntry(entry));
 		}
 		const restoredEntriesToStart: UploadRegistryEntry[] = [];
@@ -547,7 +544,7 @@ export function useChatDraftAttachments(
 				chatId,
 				file,
 			);
-			subscribeToEntry(entry, subscriptionsRef, subscriber);
+			subscribeToEntry(entry, subscriptionsRef, subscriberRef.current);
 			restoredEntriesToStart.push(entry);
 		}
 		for (const view of previousViews) {
@@ -562,7 +559,7 @@ export function useChatDraftAttachments(
 		for (const entry of restoredEntriesToStart) {
 			beginUpload(entry);
 		}
-	}, [organizationId, chatId, subscriber]);
+	}, [organizationId, chatId]);
 
 	// The view enters in "processing" status from handleAttach;
 	// processResize either swaps in the smaller file and registers
@@ -687,7 +684,7 @@ export function useChatDraftAttachments(
 			chatId,
 			replacement,
 		);
-		subscribeToEntry(entry, subscriptionsRef, subscriber);
+		subscribeToEntry(entry, subscriptionsRef, subscriberRef.current);
 		beginUpload(entry);
 	};
 
@@ -738,7 +735,7 @@ export function useChatDraftAttachments(
 			}
 			const view = { ...baseView, ...computePreview(file, "pending") };
 			const entry = createRegistryEntry(clientId, organizationId, chatId, file);
-			subscribeToEntry(entry, subscriptionsRef, subscriber);
+			subscribeToEntry(entry, subscriptionsRef, subscriberRef.current);
 			nextViews.push(view);
 			entriesToStart.push(entry);
 		}

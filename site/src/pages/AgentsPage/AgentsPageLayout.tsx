@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -246,27 +246,39 @@ const AgentsPageLayout: React.FC = () => {
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
-	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
-	// Completion must outlive the initiating row, but not this layout.
-	const navigateAfterArchive = (chatId: string) => {
-		setCompletedArchives((completed) => [...completed, chatId]);
-	};
+	// Archives can finish after the row that started them unmounts, so
+	// read the route this layout last committed. It is unset while the
+	// layout is unmounted and between a navigation and the next commit.
+	const archiveRouteRef = useRef<{
+		agentId: string | undefined;
+		search: string;
+	}>(undefined);
 	useEffect(() => {
-		if (completedArchives.length === 0) return;
-		const activeChat = agentId
-			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(agentId))
+		archiveRouteRef.current = { agentId, search: location.search };
+		return () => {
+			archiveRouteRef.current = undefined;
+		};
+	});
+	const navigateAfterArchive = (chatId: string) => {
+		const route = archiveRouteRef.current;
+		if (!route) {
+			return;
+		}
+		const activeChat = route.agentId
+			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(route.agentId))
 			: undefined;
 		if (
-			completedArchives.some((chatId) =>
-				shouldNavigateAfterArchive(agentId, chatId, activeChat?.root_chat_id),
+			!shouldNavigateAfterArchive(
+				route.agentId,
+				chatId,
+				activeChat?.root_chat_id,
 			)
 		) {
-			void navigate({ pathname: "/agents", search: location.search });
+			return;
 		}
-		setCompletedArchives((completed) =>
-			completed.slice(completedArchives.length),
-		);
-	}, [agentId, completedArchives, location.search, navigate, queryClient]);
+		archiveRouteRef.current = undefined;
+		void navigate({ pathname: "/agents", search: route.search });
+	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;

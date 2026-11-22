@@ -16,11 +16,11 @@ export const Blocks: React.FC<BlocksProps> = ({ count }) => {
 
 	// Fix: When using useLayoutEffect, snapshot tests fail to calculate the right width.
 	useEffect(() => {
-		if (availableWidth || !blocksRef.current) {
+		if (!blocksRef.current) {
 			return;
 		}
 		setAvailableWidth(blocksRef.current.clientWidth);
-	}, [availableWidth]);
+	}, []);
 
 	const totalSpaceBetweenBlocks = (count - 1) * spaceBetweenBlocks;
 	const necessarySize = blockSize * count + totalSpaceBetweenBlocks;
