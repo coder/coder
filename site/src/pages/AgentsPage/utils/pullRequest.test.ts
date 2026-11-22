@@ -42,6 +42,26 @@ describe("parsePullRequestUrl", () => {
 		});
 	});
 
+	it("parses Gitea and Forgejo pull request URLs", () => {
+		expect(
+			parsePullRequestUrl(
+				"https://git.example.com/forgejo/org/repo/pulls/42/files",
+			),
+		).toEqual({
+			owner: "org",
+			repo: "repo",
+			number: "42",
+		});
+	});
+
+	it("ignores Gitea branch URLs that contain pull-like path segments", () => {
+		expect(
+			parsePullRequestUrl(
+				"https://git.example.com/org/repo/src/branch/feature/pulls/123",
+			),
+		).toBeNull();
+	});
+
 	it("ignores branch URLs that only contain pull-like path segments", () => {
 		expect(
 			parsePullRequestUrl(

@@ -1,7 +1,7 @@
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 
 const repoContentRoutePattern =
-	/\/(?:tree|blob|compare|commit|commits|branches|releases|tags|wiki)\//;
+	/\/(?:tree|blob|src|compare|commit|commits|branches|releases|tags|wiki)\//;
 
 export const parsePullRequestUrl = (
 	url: string | null | undefined,
@@ -18,7 +18,8 @@ export const parsePullRequestUrl = (
 		}
 
 		const pullSegmentIndex = segments.findIndex((segment, index) => {
-			if (segment !== "pull") {
+			// GitHub uses /pull/, Gitea and Forgejo use /pulls/.
+			if (segment !== "pull" && segment !== "pulls") {
 				return false;
 			}
 
