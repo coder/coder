@@ -225,6 +225,21 @@ func TestSupportBundle(t *testing.T) {
 		assertBundleContents(t, path, true, false, []string{secretValue})
 	})
 
+	t.Run("UnknownAgent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		path := filepath.Join(t.TempDir(), "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithAgent.Workspace.Name, "unknown-agent", "--output-file", path, "--yes")
+		//nolint:gocritic // Tests an agent lookup in the owner's workspace.
+		clitest.SetupConfig(t, client, root)
+		var stderr bytes.Buffer
+		inv.Stderr = &stderr
+		require.NoError(t, inv.WithContext(ctx).Run())
+		require.Contains(t, stderr.String(), `Could not find workspace agent "unknown-agent". Agent diagnostics were skipped.`)
+		assertBundleContents(t, path, true, false, []string{secretValue})
+	})
+
 	t.Run("MemberCanGenerateBundle", func(t *testing.T) {
 		t.Parallel()
 
