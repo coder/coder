@@ -64,6 +64,14 @@ func (g *gitlabProvider) webHost() string {
 	return u.Host
 }
 
+func (g *gitlabProvider) webPath(path string) (string, bool) {
+	base, err := url.Parse(g.webBaseURL)
+	if err != nil {
+		return "", false
+	}
+	return strings.CutPrefix(path, strings.TrimRight(base.Path, "/")+"/")
+}
+
 // reqOpts returns per-request options for authentication and context.
 func reqOpts(ctx context.Context, token string) []gitlab.RequestOptionFunc {
 	opts := []gitlab.RequestOptionFunc{gitlab.WithContext(ctx)}
@@ -425,10 +433,6 @@ func (g *gitlabProvider) FetchBranchDiff(
 
 // ParseRepositoryOrigin preserves slashes in owner because GitLab supports
 // subgroup paths such as group/subgroup/repo.
-//
-// TODO: this does not handle GitLab instances installed under a relative URL
-// prefix (e.g. https://example.com/gitlab/). See
-// https://docs.gitlab.com/install/relative_url/ for details.
 func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normalizedOrigin string, ok bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -459,7 +463,10 @@ func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normali
 		return "", "", "", false
 	}
 
-	path := strings.TrimPrefix(u.Path, "/")
+	path, ok := g.webPath(u.Path)
+	if !ok {
+		return "", "", "", false
+	}
 	path = strings.TrimSuffix(path, "/")
 	path = strings.TrimSuffix(path, ".git")
 	if path == "" {
@@ -493,7 +500,10 @@ func (g *gitlabProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
 
 	// GitLab MR URLs: /owner/repo/-/merge_requests/123
 	// or /group/subgroup/repo/-/merge_requests/123
-	path := strings.TrimPrefix(u.Path, "/")
+	path, ok := g.webPath(u.Path)
+	if !ok {
+		return PRRef{}, false
+	}
 	path = strings.TrimSuffix(path, "/")
 
 	// Find "-/merge_requests/NUMBER" in the path.

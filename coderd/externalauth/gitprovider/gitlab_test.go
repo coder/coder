@@ -434,4 +434,39 @@ func TestGitLabSelfHosted(t *testing.T) {
 		result := gp.BuildPullRequestURL(gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42})
 		assert.Equal(t, "https://gitlab.corp.com/org/repo/-/merge_requests/42", result)
 	})
+
+	t.Run("PrefixedBaseURL", func(t *testing.T) {
+		t.Parallel()
+		prefixed, err := gitprovider.New("gitlab", "https://gitlab.corp.com/gitlab/api/v4", nil)
+		require.NoError(t, err)
+
+		owner, repo, normalized, ok := prefixed.ParseRepositoryOrigin("https://gitlab.corp.com/gitlab/org/subgroup/repo.git")
+		require.True(t, ok)
+		assert.Equal(t, "org/subgroup", owner)
+		assert.Equal(t, "repo", repo)
+		assert.Equal(t, "https://gitlab.corp.com/gitlab/org/subgroup/repo", normalized)
+
+		ref, ok := prefixed.ParsePullRequestURL("https://gitlab.corp.com/gitlab/org/subgroup/repo/-/merge_requests/42")
+		require.True(t, ok)
+		assert.Equal(t, gitprovider.PRRef{Owner: "org/subgroup", Repo: "repo", Number: 42}, ref)
+		assert.Equal(t, "https://gitlab.corp.com/gitlab/org/subgroup/repo/-/merge_requests/42",
+			prefixed.BuildPullRequestURL(ref))
+
+		for _, origin := range []string{
+			"https://gitlab.corp.com/gitlab-other/org/repo.git",
+			"https://gitlab.corp.com/org/repo.git",
+			"https://other.example/gitlab/org/repo.git",
+		} {
+			_, _, _, ok := prefixed.ParseRepositoryOrigin(origin)
+			assert.False(t, ok, origin)
+		}
+		_, ok = prefixed.ParsePullRequestURL("https://gitlab.corp.com/gitlab-other/org/repo/-/merge_requests/42")
+		assert.False(t, ok)
+
+		owner, repo, normalized, ok = prefixed.ParseRepositoryOrigin("git@gitlab.corp.com:org/subgroup/repo.git")
+		require.True(t, ok)
+		assert.Equal(t, "org/subgroup", owner)
+		assert.Equal(t, "repo", repo)
+		assert.Equal(t, "https://gitlab.corp.com/gitlab/org/subgroup/repo", normalized)
+	})
 }

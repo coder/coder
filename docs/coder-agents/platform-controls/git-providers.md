@@ -69,6 +69,14 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 > [!NOTE]
 > You can also set `API_BASE_URL` explicitly if needed (for example, `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
+If your self-hosted GitLab instance runs under a URL prefix, set `API_BASE_URL` to include the prefix and `/api/v4`.
+Coder derives the default from the `AUTH_URL` host, so it omits the prefix.
+For an instance at `https://gitlab.example.com/gitlab`, use:
+
+```dotenv
+CODER_EXTERNAL_AUTH_0_API_BASE_URL="https://gitlab.example.com/gitlab/api/v4"
+```
+
 ## Known limitations
 
 ### GitLab
