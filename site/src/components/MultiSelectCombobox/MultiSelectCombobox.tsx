@@ -290,12 +290,22 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		};
 	}, [open]);
 
-	/** Keep options in sync with the `options` prop unless `onSearch` provides them. */
-	if (arrayOptions && !onSearch) {
-		const newOption = transitionToGroupOption(arrayOptions, groupBy);
-		if (JSON.stringify(newOption) !== JSON.stringify(options)) {
-			setOptions(newOption);
-		}
+	// Keep options in sync with the `options` prop unless `onSearch` provides
+	// them. The memos keep keystroke renders from re-serializing the lists.
+	const propOptions = useMemo(
+		() =>
+			arrayOptions && !onSearch
+				? transitionToGroupOption(arrayOptions, groupBy)
+				: undefined,
+		[arrayOptions, groupBy, onSearch],
+	);
+	const propOptionsJSON = useMemo(
+		() => JSON.stringify(propOptions),
+		[propOptions],
+	);
+	const optionsJSON = useMemo(() => JSON.stringify(options), [options]);
+	if (propOptions && propOptionsJSON !== optionsJSON) {
+		setOptions(propOptions);
 	}
 
 	useEffect(() => {

@@ -248,7 +248,8 @@ const AgentsPageLayout: React.FC = () => {
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
 	// Archives can finish after the row that started them unmounts, so
 	// read the route this layout last committed. It is unset while the
-	// layout is unmounted and between a navigation and the next commit.
+	// layout is unmounted, and after navigating so a second matching
+	// archive before the next commit does not navigate again.
 	const archiveRouteRef = useRef<{
 		agentId: string | undefined;
 		search: string;
