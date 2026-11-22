@@ -1713,6 +1713,14 @@ jobs:
           fi
           echo "ghcr.io/coder/coder-preview:${VERSION_TAG} -> ${got}"
 
+      # "Promote" revokes the token right after the dispatch. On release branches
+      # a newer push cancels this run, so if it stops in between, revoke it here.
+      - name: Revoke the dispatch token
+        if: ${{ always() && steps.dispatch_token.outputs.token != '' }}
+        env:
+          GH_TOKEN: ${{ steps.dispatch_token.outputs.token }}
+        run: gh api -X DELETE installation/token > /dev/null 2>&1 || true
+
       - name: Upload build artifact (coder-linux-amd64.tar.gz)
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
