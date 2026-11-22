@@ -194,7 +194,7 @@ type Config struct {
 // Git returns a Provider for this config. It returns (nil, nil) when
 // this config's type has no provider implementation, which covers both
 // non-git types (e.g. Slack, JFrog) and git types that are not
-// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// implemented yet (bitbucket-*, azure-devops*). Callers cannot
 // distinguish the two cases from the return values. Returns a non-nil
 // error if provider construction fails.
 //
