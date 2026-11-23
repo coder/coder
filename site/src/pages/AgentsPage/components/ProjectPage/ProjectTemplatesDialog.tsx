@@ -270,8 +270,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const request =
 		eligibleTemplates &&
 		chatProjectTemplatesRequest(formValue, eligibleTemplates);
-	const isUnchanged =
-		!hasStalePreset && staleParameterNames.length === 0 && isDraftUntouched;
+	const baseRequest =
+		eligibleTemplates &&
+		chatProjectTemplatesRequest(initialValue, eligibleTemplates);
+	// A request leaves out templates that are no longer eligible, so a draft
+	// that only selects one of those has nothing to save. An untouched draft
+	// with a stale default does, because saving clears that default.
+	const hasChanges =
+		request !== undefined &&
+		baseRequest !== undefined &&
+		serializeTemplates(request) !== serializeTemplates(baseRequest);
 	// A change saved elsewhere can touch what the draft changes, so the user
 	// resolves it first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
@@ -309,8 +317,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		templatesQuery.isFetching ||
 		isLoadingDefaults;
 	const canSave =
-		request !== undefined &&
-		!isUnchanged &&
+		hasChanges &&
 		!hasConflict &&
 		!refreshFailed &&
 		!isRefreshing &&
@@ -509,7 +516,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				<div
 					ref={conflictAlertRef}
 					tabIndex={-1}
-					className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+					className="rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					<ProjectEditConflictAlert
 						disabled={isSaving}
