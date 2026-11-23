@@ -17,7 +17,7 @@ If you lose track of your spawned agents, call list_agents to recover them befor
 
 const acpSubagentPromptBlock = `<acp-subagents>
 Workspace-local ACP subagents are available through the internal acp_* tools. The acp_spawn_agent schema lists the configured harness_id values and their supported configuration options. Use that schema to identify available harnesses.
-Prefer using non-ACP subagents unless the user asks for an ACP harness.
+Prefer using non-ACP subagents unless the user asks for an ACP harness or if the requested model is only available through ACP.
 Use acp_spawn_agent to delegate a task and acp_wait_agent to collect its response. Use acp_message_agent for follow-up tasks in an idle session and acp_interrupt_agent to stop a running turn, then acp_wait_agent to observe completion.
 </acp-subagents>`
 
