@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-	type QueryClient,
-	type QueryKey,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { isApiValidationError } from "#/api/errors";
 import {
 	type ChatProjectTemplatesChange,
@@ -15,9 +10,12 @@ import {
 	agentTemplates,
 	agentTemplatesKey,
 	richParameters,
+	richParametersKey,
 	templateVersionPresets,
+	templateVersionPresetsKey,
 } from "#/api/queries/templates";
-import type { ChatProject, Template } from "#/api/typesGenerated";
+import { replaceRequests } from "#/api/queries/util";
+import type { ChatProject } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -40,6 +38,7 @@ import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 import {
 	rebaseValues,
 	savedTemplates,
+	serializeEligibleTemplates,
 	serializeTemplates,
 	serializeValues,
 	templatesChange,
@@ -114,22 +113,6 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	);
 };
 
-/**
- * Cancels the requests in flight for these queries. Other views share the
- * queries, so fresh requests replace them.
- */
-const replaceRequests = (
-	queryClient: QueryClient,
-	queryKeys: readonly QueryKey[],
-) => {
-	for (const queryKey of queryKeys) {
-		const filters = { queryKey, exact: true };
-		void queryClient
-			.cancelQueries(filters)
-			.then(() => queryClient.invalidateQueries(filters));
-	}
-};
-
 type ProjectTemplatesFormProps = Omit<
 	ProjectTemplatesDialogProps,
 	"onOpenChange" | "onCloseAutoFocus"
@@ -139,24 +122,6 @@ type ProjectTemplatesFormProps = Omit<
 	readonly isCheckCurrent: (checkId: number) => boolean;
 	readonly onCancel: () => void;
 };
-
-/**
- * Covers what a request for the draft's templates depends on: which of them
- * are eligible, their active versions, and their parameter mode.
- */
-const serializeEligibleTemplates = (
-	templates: readonly Template[] | undefined,
-	draftTemplateIds: readonly string[],
-) =>
-	JSON.stringify(
-		(templates ?? [])
-			.filter(({ id }) => draftTemplateIds.includes(id))
-			.map(
-				({ id, active_version_id, use_classic_parameter_flow }) =>
-					`${id}:${active_version_id}:${use_classic_parameter_flow}`,
-			)
-			.sort(),
-	);
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onBeginCheck,
@@ -266,15 +231,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	});
 	const defaultsVersionId = defaultTemplate?.active_version_id;
 	// A stalled request for the defaults would keep the next open dialog
-	// waiting too, so this form replaces its requests when it unmounts.
+	// waiting too, so the form replaces its requests when it unmounts or the
+	// default template's version changes.
 	useEffect(() => {
 		if (defaultsVersionId === undefined) {
 			return;
 		}
 		return () =>
 			replaceRequests(queryClient, [
-				templateVersionPresets(defaultsVersionId).queryKey,
-				richParameters(defaultsVersionId).queryKey,
+				templateVersionPresetsKey(defaultsVersionId),
+				richParametersKey(defaultsVersionId),
 			]);
 	}, [queryClient, defaultsVersionId]);
 	// Values for parameters the active version no longer has are not shown,
