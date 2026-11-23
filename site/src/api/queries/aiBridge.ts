@@ -99,6 +99,75 @@ export const paginatedOrganizationAISpend = (
 };
 
 /**
+ * Filters a detailed AI spend report by provider, model, client, user, and
+ * group. Users and groups are given by name, which the report resolves to the
+ * IDs the endpoint filters by.
+ */
+export type AISpendReportFilter = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "model" | "client"
+> & {
+	username?: string;
+	group_name?: string;
+};
+
+const organizationAISpendReportKey = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
+) =>
+	["organizations", organizationId, "aiSpendReport", period, filter] as const;
+
+export const paginatedOrganizationAISpendReport = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
+): UsePaginatedQueryOptions<
+	OrganizationAISpendReport,
+	AISpendReportFilter,
+	Error
+> => {
+	return {
+		queryPayload: () => filter,
+		queryKey: ({ payload, pageNumber }) => [
+			...organizationAISpendReportKey(organizationId, period, payload),
+			pageNumber,
+		],
+		queryFn: async ({
+			payload: { username, group_name, ...dimensions },
+			limit,
+			offset,
+		}) => {
+			const [user, group] = await Promise.all([
+				username ? API.getUser(username) : undefined,
+				group_name
+					? API.getGroup(organizationId, group_name, { exclude_members: true })
+					: undefined,
+			]);
+			return API.experimental.getOrganizationAISpendUsers(organizationId, {
+				...period,
+				...dimensions,
+				user_ids: user && [user.id],
+				group_id: group?.id,
+				limit,
+				offset,
+			});
+		},
+		// Each page totals the whole period on the server, so skip loading the
+		// neighbouring pages in the background.
+		prefetch: false,
+		// While the next page loads, keep the current rows. A different filter,
+		// period, or organization is a new report, so it shows the loading state.
+		placeholderData: (previousData, previousQuery) =>
+			previousQuery &&
+			hashKey(previousQuery.queryKey.slice(0, -1)) ===
+				hashKey(organizationAISpendReportKey(organizationId, period, filter))
+				? previousData
+				: undefined,
+	};
+};
+
+/**
  * The organization's AI spend over `period`, in whole UTC days, with the
  * first `limit` users by spend.
  */
