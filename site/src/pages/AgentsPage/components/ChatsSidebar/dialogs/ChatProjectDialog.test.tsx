@@ -9,7 +9,6 @@ import { describe, expect, it, vi } from "vitest";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
-	Preset,
 	Template,
 } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -18,6 +17,7 @@ import {
 	MockDefaultOrganization,
 	MockDropdownParameter,
 	MockOrganization2,
+	MockPreset,
 	MockPreviewParameter1,
 	MockSwitchParameter,
 	MockTagSelectParameter,
@@ -519,15 +519,6 @@ const mockSecondTemplate: Template = {
 	display_name: "Kubernetes",
 	active_version_id: "version-2",
 };
-const mockPreset: Preset = {
-	ID: "preset-1",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
 const mockEvaluateRoute = `/api/v2/templateversions/${mockFirstTemplate.active_version_id}/dynamic-parameters/evaluate`;
 describe("ChatProjectDialog templates", () => {
 	/**
@@ -541,7 +532,7 @@ describe("ChatProjectDialog templates", () => {
 				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
 			),
 			http.get("/api/v2/templateversions/:versionId/presets", () =>
-				HttpResponse.json([mockPreset]),
+				HttpResponse.json([MockPreset]),
 			),
 			http.post<never, DynamicParametersRequest>(
 				mockEvaluateRoute,
@@ -625,7 +616,7 @@ describe("ChatProjectDialog templates", () => {
 					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
 					default_template: {
 						template_id: mockSecondTemplate.id,
-						preset_id: mockPreset.ID,
+						preset_id: MockPreset.ID,
 					},
 				}),
 			);
