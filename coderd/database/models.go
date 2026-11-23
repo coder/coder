@@ -5949,6 +5949,8 @@ type ExternalAuthLink struct {
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
 	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+	// The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.
+	OAuthExtraKeyID sql.NullString `db:"oauth_extra_key_id" json:"oauth_extra_key_id"`
 }
 
 type File struct {
@@ -6534,6 +6536,7 @@ type Template struct {
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	BrowserOnly                   bool            `db:"browser_only" json:"browser_only"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -6590,6 +6593,8 @@ type TemplateTable struct {
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	// Whether coderd refuses non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser_only setting applies on top of this.
+	BrowserOnly bool `db:"browser_only" json:"browser_only"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

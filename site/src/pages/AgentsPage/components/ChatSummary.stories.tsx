@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
 
 const meta: Meta<typeof ChatSummary> = {
@@ -30,6 +31,17 @@ export default meta;
 type Story = StoryObj<typeof ChatSummary>;
 
 export const WithSummary: Story = {};
+
+export const CostEstimateTooltip: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "About this cost",
+			}),
+		);
+		await screen.findByRole("dialog");
+	},
+};
 
 // A headline alone is valid when it already covers the whole chat, and
 // subagent summaries are plain report prose.
@@ -81,6 +93,18 @@ export const CostError: Story = {
 
 export const PartialCost: Story = {
 	args: { costMicros: 0, unpricedRequestCount: 3 },
+};
+
+export const PartialCostTooltip: Story = {
+	args: { costMicros: 4_130_000, unpricedRequestCount: 3 },
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "Cost incomplete",
+			}),
+		);
+		await screen.findByRole("dialog");
+	},
 };
 
 export const SubagentTreeCost: Story = {

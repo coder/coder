@@ -98,6 +98,9 @@ describe("AgentSettingsSkillsPage", () => {
 			MockDefaultOrganization.id,
 			"default-skill",
 		);
+		expect(getOrganizationSkills).not.toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
 
 		await user.click(
 			screen.getByRole("combobox", {

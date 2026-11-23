@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -67,7 +66,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 
 	var mu sync.Mutex
 	var received []agenthooks.PostToolUseData
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -92,8 +91,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 			_, err = w.Write([]byte(`{}`))
 		}
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -196,7 +194,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	var postCalls atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -211,8 +209,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 		require.JSONEq(t, `{"answer":42}`, string(data.ToolResponse))
 		_, err := w.Write([]byte(`{"model_context":"dynamic feedback","user_message":"dynamic notice"}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -284,7 +281,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	var postCalls atomic.Int32
 	var failPostToolUse atomic.Bool
 	failPostToolUse.Store(true)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -296,8 +293,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -370,7 +366,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	var postCalls atomic.Int32
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
@@ -382,8 +378,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -444,7 +439,7 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 
 	var mu sync.Mutex
 	var postToolUseIDs []string
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
@@ -462,8 +457,7 @@ func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -536,7 +530,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 
 	var mu sync.Mutex
 	results := map[string]string{}
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPostToolUse {
@@ -558,8 +552,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 		}
 		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)

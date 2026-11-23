@@ -806,7 +806,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
-    refresh_lease_expires_at timestamp with time zone
+    refresh_lease_expires_at timestamp with time zone,
+    oauth_extra_key_id text
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -816,6 +817,8 @@ COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of t
 COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
 
 COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+COMMENT ON COLUMN external_auth_links.oauth_extra_key_id IS 'The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.';
 
 CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
     LANGUAGE plpgsql
@@ -3715,7 +3718,8 @@ CREATE TABLE templates (
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
     agents_allowed boolean DEFAULT true NOT NULL,
-    allow_workspace_renames boolean DEFAULT false NOT NULL
+    allow_workspace_renames boolean DEFAULT false NOT NULL,
+    browser_only boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3743,6 +3747,8 @@ COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the wor
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
+
+COMMENT ON COLUMN templates.browser_only IS 'Whether coderd refuses non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser_only setting applies on top of this.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3779,6 +3785,7 @@ CREATE VIEW template_with_names AS
     templates.time_til_autostop_notify,
     templates.agents_allowed,
     templates.allow_workspace_renames,
+    templates.browser_only,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -5799,6 +5806,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT external_auth_links_oauth_extra_key_id_fkey FOREIGN KEY (oauth_extra_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;

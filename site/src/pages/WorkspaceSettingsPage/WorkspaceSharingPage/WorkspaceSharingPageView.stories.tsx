@@ -7,6 +7,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceUser,
 	MockWorkspaceUserAdmin,
+	MockWorkspaceUserLongName,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
@@ -96,6 +97,32 @@ export const WithGroups: Story = {
 export const WithUsersAndGroups: Story = {
 	args: {
 		workspaceACL: aclWithUsersAndGroups,
+	},
+};
+
+const aclWithLongName: WorkspaceACL = {
+	...aclWithUsersAndGroups,
+	users: [...aclWithUsersAndGroups.users, MockWorkspaceUserLongName],
+};
+
+export const NarrowViewport: Story = {
+	args: {
+		workspaceACL: aclWithLongName,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const NarrowViewportReadOnly: Story = {
+	args: {
+		workspaceACL: aclWithLongName,
+		canShareWorkspace: false,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 
