@@ -190,3 +190,12 @@ it("shares the picked days between the tabs", async () => {
 		).getByRole("button", { name: /Mar 1, 2026/ }),
 	).toBeInTheDocument();
 });
+
+it("opens the Detailed report from the Top spenders card", async () => {
+	const user = userEvent.setup();
+	const { searchParam } = renderAISpendPage();
+	await user.click(
+		await screen.findByRole("button", { name: "Detailed report" }),
+	);
+	expect(searchParam("tab")).toBe("detailed-report");
+});
