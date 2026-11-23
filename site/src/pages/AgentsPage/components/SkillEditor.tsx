@@ -4,6 +4,7 @@ import { UploadIcon } from "lucide-react";
 import { createContext, use, useId, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import * as Yup from "yup";
+import { MaxSkillDisplayNameLength } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -14,11 +15,17 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { formatKiB } from "#/utils/fileSize";
+import {
+	countCharacters,
+	getFormHelpers,
+	maxCharacters,
+} from "#/utils/formUtils";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	buildSkillMarkdown,
@@ -131,6 +138,12 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		body: Yup.string().test("body-required", "Body is required.", (value) =>
 			Boolean(value?.trim()),
 		),
+		// Saves skip the display name while the action is off, so a hidden
+		// value never blocks a save.
+		displayName: Yup.string().when("action", {
+			is: true,
+			then: () => maxCharacters("Display name", MaxSkillDisplayNameLength),
+		}),
 	});
 
 	const validate = (values: SkillFormValues): FormikErrors<SkillFormValues> => {
@@ -159,6 +172,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 				name: values.name.trim(),
 				description: values.description.trim(),
 				body: values.body.trim(),
+				displayName: values.displayName?.trim(),
 			};
 			onSubmit(normalizedValues, buildSkillMarkdown(normalizedValues), () =>
 				setSubmitting(false),
@@ -231,18 +245,12 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		.split(/\r?\n/, 1)[0]
 		?.trim() === "---";
 
-type SkillEditorImportProps = {
-	/**
-	 * Turns automatic use back on before a create-mode import, so a file
-	 * without the setting does not inherit an earlier import's value.
-	 */
-	resetsModelInvocable?: boolean;
-};
-
-/** Fills the fields from an uploaded or pasted SKILL.md file. */
-export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
-	resetsModelInvocable = false,
-}) => {
+/**
+ * Fills the fields from an uploaded or pasted SKILL.md file. A boolean
+ * `disable-model-invocation` sets automatic use (true turns it off, false
+ * turns it on), matching how the server reads uploaded content.
+ */
+export const SkillEditorImport: React.FC = () => {
 	const { form, mode, isBusy, isReadingFile, setIsReadingFile } =
 		useSkillEditorContext();
 	const isCreate = mode === "create";
@@ -266,10 +274,13 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 			return;
 		}
 
+		const setsAutomaticUse = result.values.modelInvocable !== undefined;
 		if (isCreate) {
+			// Turn automatic use back on first, so a file without the setting
+			// does not inherit an earlier import's value.
 			await form.setValues({
 				...form.values,
-				...(resetsModelInvocable && { modelInvocable: true }),
+				modelInvocable: true,
 				...result.values,
 			});
 			await form.setTouched(
@@ -281,6 +292,9 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 				...form.values,
 				description: result.values.description,
 				body: result.values.body,
+				...(setsAutomaticUse && {
+					modelInvocable: result.values.modelInvocable,
+				}),
 			});
 			await form.setTouched(
 				{ name: false, description: true, body: true },
@@ -293,10 +307,10 @@ export const SkillEditorImport: React.FC<SkillEditorImportProps> = ({
 			kind: "success",
 			title: "Imported SKILL.md",
 			detail: isCreate
-				? resetsModelInvocable
-					? "Updated name, description, body, and automatic use."
-					: "Updated name, description, and body fields."
-				: "Updated description and body fields. Kept the existing name.",
+				? "Updated name, description, body, and automatic use."
+				: setsAutomaticUse
+					? "Updated description, body, and automatic use. Kept the existing name."
+					: "Updated description and body fields. Kept the existing name.",
 		});
 	};
 
@@ -577,7 +591,7 @@ export const SkillEditorBodyField: React.FC<SkillEditorBodyFieldProps> = ({
 	);
 };
 
-/** The action and automatic-use switches of a project skill. */
+/** The action, display name, and automatic-use settings of a project skill. */
 export const SkillEditorProjectSettings: React.FC = () => {
 	const { form, readOnly, isBusy } = useSkillEditorContext();
 	return (
@@ -591,16 +605,42 @@ export const SkillEditorProjectSettings: React.FC = () => {
 					void form.setFieldValue("action", checked)
 				}
 			/>
-			<SkillSettingSwitch
-				label="Agents can use it automatically"
-				description="When off, agents use the skill only when someone invokes it."
-				checked={form.values.modelInvocable ?? true}
-				disabled={readOnly || isBusy}
-				onCheckedChange={(checked) =>
-					void form.setFieldValue("modelInvocable", checked)
-				}
-			/>
+			{form.values.action && <SkillEditorDisplayNameField />}
+			<SkillEditorAutomaticUseSetting />
 		</>
+	);
+};
+
+const SkillEditorAutomaticUseSetting: React.FC = () => {
+	const { form, readOnly, isBusy } = useSkillEditorContext();
+	return (
+		<SkillSettingSwitch
+			label="Agents can use it automatically"
+			description="When off, agents use the skill only when someone invokes it."
+			checked={form.values.modelInvocable ?? true}
+			disabled={readOnly || isBusy}
+			onCheckedChange={(checked) =>
+				void form.setFieldValue("modelInvocable", checked)
+			}
+		/>
+	);
+};
+
+const SkillEditorDisplayNameField: React.FC = () => {
+	const { form, readOnly, isBusy } = useSkillEditorContext();
+	return (
+		<FormField
+			field={getFormHelpers(form)("displayName", {
+				helperText: "Shown on the action button. Uses the name when empty.",
+				maxLength: MaxSkillDisplayNameLength,
+				measureLength: countCharacters,
+			})}
+			label="Display name"
+			placeholder={form.values.name.trim() || "Review database query"}
+			readOnly={readOnly}
+			disabled={isBusy}
+			className={cn(readOnly && "bg-surface-secondary")}
+		/>
 	);
 };
 
@@ -723,6 +763,7 @@ export const SkillEditorDialog: React.FC<SkillEditorDialogProps> = ({
 						{!readOnly && <SkillEditorImport />}
 						<SkillEditorNameField />
 						<SkillEditorDescriptionField />
+						<SkillEditorAutomaticUseSetting />
 						<SkillEditorBodyField />
 					</SkillEditorFields>
 					<SkillEditorDialogFooter

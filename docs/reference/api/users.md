@@ -183,6 +183,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   "password": {
     "enabled": true
   },
+  "setup_token_required": true,
   "terms_of_service_url": "string"
 }
 ```
@@ -258,6 +259,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
     "newsletter_releases": true
   },
   "password": "string",
+  "setup_token": "string",
   "trial": true,
   "trial_info": {
     "company_name": "string",
@@ -552,6 +554,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_dark": "string",
   "theme_light": "string",
   "theme_mode": "",
@@ -586,6 +589,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_dark": "light",
   "theme_light": "light",
   "theme_mode": "sync",
@@ -607,6 +611,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_dark": "string",
   "theme_light": "string",
   "theme_mode": "",

@@ -96,6 +96,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 									className="text-xs font-normal"
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
+									aria-selected={value?.id === org.id}
 									onSelect={() => {
 										onChange(org);
 										setOpen(false);

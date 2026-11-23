@@ -187,7 +187,7 @@ const ParameterLabel: React.FC<ParameterLabelProps> = ({
 								<span className="flex items-center">
 									<Badge size="sm">
 										<LinkIcon />
-										URL Autofill
+										URL autofill
 									</Badge>
 								</span>
 							</TooltipTrigger>
@@ -373,9 +373,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					inputProps={{
-						id: id,
-					}}
+					commandProps={{ label: parameter.display_name || parameter.name }}
 					data-testid={`multiselect-${parameter.name}`}
 					options={options}
 					defaultOptions={selectedOptions}

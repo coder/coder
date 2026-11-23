@@ -82,4 +82,21 @@ describe(PaginationWidgetBase.name, () => {
 			unmount();
 		}
 	});
+
+	it("names page buttons by their visible page number", async () => {
+		const onPageChange = vi.fn();
+		renderWithAuth(
+			<PaginationWidgetBase
+				currentPage={1}
+				pageSize={5}
+				totalRecords={100}
+				onPageChange={onPageChange}
+			/>,
+		);
+
+		// Narrow and wide layouts each render the current page; CSS shows one.
+		await screen.findAllByRole("button", { name: "Page 1", current: "page" });
+		await userEvent.click(screen.getByRole("button", { name: "Page 20" }));
+		expect(onPageChange).toHaveBeenCalledWith(20);
+	});
 });

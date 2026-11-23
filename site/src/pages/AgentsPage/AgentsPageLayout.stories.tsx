@@ -15,8 +15,8 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatEntityKey,
-	chatMessagesKey,
 	chatPromptsKey,
+	chatStoreKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -54,6 +54,7 @@ import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPa
 import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { buildLoadedChatStore } from "./components/ChatConversation/storyFixtures";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -520,6 +521,23 @@ export const WithChatList: Story = {
 	},
 };
 
+// 320x256 matches a 1280px window at 400% zoom, where the chat list must keep
+// a usable height next to the composer.
+export const ShortMobileViewport: Story = {
+	beforeEach: WithChatList.beforeEach,
+	decorators: [
+		(Story) => (
+			<div style={{ height: 256, width: 320 }}>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const ResizableSidebar: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -847,11 +865,13 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 const watchedChatQueries = (chat: Chat) => [
 	{ key: chatEntityKey(chat.id), data: chat },
 	{
-		key: chatMessagesKey(chat.id),
-		data: {
-			pages: [{ messages: [], queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		},
+		key: chatStoreKey(chat.id),
+		data: () =>
+			buildLoadedChatStore(chat.id, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
 	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },

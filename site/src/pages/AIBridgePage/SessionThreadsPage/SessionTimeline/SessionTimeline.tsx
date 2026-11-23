@@ -56,12 +56,12 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	highlight,
 	expandToMatch = false,
 }) => {
-	const contentRef = useRef<HTMLParagraphElement>(null);
+	const contentRef = useRef<HTMLQuoteElement>(null);
 	// Only user toggles are stored, so expansion follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isExpanded = userToggled ?? expandToMatch;
 
-	// The paragraph always renders its full text, so one scrollHeight
+	// The quote always renders its full text, so one scrollHeight
 	// measurement suffices for the collapse toggle.
 	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
@@ -82,7 +82,9 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 	return (
 		<div className="relative">
-			<p
+			{/* Prompt and thinking text is verbatim user or model output, so it is
+				quoted as written instead of parsed into lists or headings. */}
+			<blockquote
 				ref={contentRef}
 				style={
 					isExpandable && !isExpanded
@@ -94,7 +96,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
 				<HighlightText text={text} highlight={highlight ?? ""} />
-			</p>
+			</blockquote>
 			{isExpandable && (
 				<div
 					className={cn(
@@ -107,6 +109,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
 						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
+						aria-expanded={isExpanded}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
 						{toggleLabel}
@@ -135,6 +138,7 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 		type="button"
 		variant="subtle"
 		onClick={onClick}
+		aria-expanded={isOpen}
 		className="border-none bg-transparent text-content-secondary flex items-center"
 		size="sm"
 	>
@@ -144,7 +148,6 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 				isOpen && "rotate-90",
 			)}
 		/>
-		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
 		{accessibleNameSuffix && (
 			<span className="sr-only">{accessibleNameSuffix}</span>
@@ -215,6 +218,8 @@ type ToolCallBlockProps = {
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
+	/** 1-based number among the loop's tool calls, which names the toggle. */
+	number: number;
 };
 
 const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
@@ -224,6 +229,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	timestamp,
 	expandedByDefault = false,
 	highlight,
+	number,
 }) => {
 	// Only user toggles are stored, so a later search match still reveals it.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
@@ -234,6 +240,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
+					accessibleNameSuffix={String(number)}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
@@ -249,7 +256,13 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						timestamp={timestamp}
 						serverURL={serverURL}
 					/>
-					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto">
+					<pre
+						// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll long input from here.
+						tabIndex={0}
+						role="region"
+						aria-label={`${tool} input`}
+						className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					>
 						<span>
 							<HighlightText text={tool} highlight={highlight} />
 						</span>
@@ -274,12 +287,15 @@ type AgenticActionItemProps = {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
 	highlight: string;
+	/** Each tool call's 1-based number in the whole loop, by ID. */
+	toolCallNumbers: Map<string, number>;
 };
 
 const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
+	toolCallNumbers,
 }) => {
 	const visibleToolCalls = matchedToolCallIds?.size
 		? action.tool_calls.filter((tool_call) =>
@@ -304,6 +320,7 @@ const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
+					number={toolCallNumbers.get(tool_call.id) ?? 0}
 				/>
 			))}
 		</>
@@ -355,6 +372,11 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 		(count, action) => count + action.tool_calls.length,
 		0,
 	);
+	const toolCallNumbers = new Map(
+		thread.agentic_actions
+			.flatMap((action) => action.tool_calls)
+			.map((toolCall, i) => [toolCall.id, i + 1] as const),
+	);
 
 	return (
 		<li>
@@ -369,7 +391,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 										<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 									</TooltipTrigger>
 									<TooltipContent
-										className="max-w-96 text-sm font-normal"
+										className="max-w-[min(24rem,var(--radix-popper-available-width))] text-sm font-normal"
 										align="start"
 										side="top"
 									>
@@ -469,6 +491,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 									action={action}
 									matchedToolCallIds={matchedToolCallIds}
 									highlight={highlight}
+									toolCallNumbers={toolCallNumbers}
 								/>
 							))}
 
@@ -604,7 +627,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 						</TooltipTrigger>
 						<TooltipContent
-							className="max-w-80 text-sm font-normal"
+							className="max-w-[min(20rem,var(--radix-popper-available-width))] text-sm font-normal"
 							align="end"
 							side="top"
 						>

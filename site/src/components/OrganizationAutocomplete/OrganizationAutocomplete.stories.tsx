@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import type { Organization } from "#/api/typesGenerated";
 import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { OrganizationAutocomplete } from "./OrganizationAutocomplete";
 
@@ -68,6 +69,25 @@ export const TabbableOptions: Story = {
 	},
 };
 
+// The selected org's check icon keeps its color when another option is
+// highlighted.
+export const SelectedOptionNotHighlighted: Story = {
+	args: {
+		value: MockOrganization,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await screen.findAllByRole("option");
+		await userEvent.keyboard("{ArrowDown}");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("option", { name: MockOrganization2.display_name }),
+			).toHaveAttribute("data-selected", "true");
+		});
+	},
+};
+
 export const WithValue: Story = {
 	args: {
 		value: MockOrganization2,
@@ -100,5 +120,26 @@ export const OneOrg: Story = {
 			).toBeInTheDocument();
 		});
 		expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+const mockOrganizationWithLongName: Organization = {
+	...MockOrganization2,
+	display_name:
+		"Meridian Systems Platform Engineering and Infrastructure Europe",
+};
+
+export const LongNameTooltip: Story = {
+	args: {
+		value: null,
+		options: [MockOrganization, mockOrganizationWithLongName],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("combobox"));
+		await screen.findAllByRole("option");
 	},
 };

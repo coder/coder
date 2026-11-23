@@ -64,7 +64,10 @@ export const useFilter = ({
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-		const noUpdateNeeded = query === serialized;
+		// Pending updates mutate searchParams before the router re-renders.
+		// Comparing with query would drop a revert to the render-time value.
+		const currentQuery = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+		const noUpdateNeeded = currentQuery === serialized;
 		if (noUpdateNeeded) {
 			return;
 		}
@@ -193,7 +196,7 @@ export const Filter: React.FC<FilterProps> = ({
 							ref={textboxInputRef}
 							className="w-full"
 							value={queryCopy}
-							aria-label="Filter"
+							aria-label="Search"
 							aria-invalid={shouldDisplayError}
 							aria-describedby={hasError(error) ? errorId : undefined}
 							onChange={(query) => {

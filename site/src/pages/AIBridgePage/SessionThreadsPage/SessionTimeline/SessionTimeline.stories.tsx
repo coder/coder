@@ -217,7 +217,7 @@ export const SecondThreadLoopOpen: Story = {
 	play: async ({ canvas }) => {
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: /^\(Show more\) Agentic loop for prompt: Please refactor the authentication/,
+				name: /^Agentic loop for prompt: Please refactor the authentication/,
 			}),
 		);
 	},
@@ -276,6 +276,13 @@ export const SearchFiltersToolCalls: Story = {
 		await expect(canvas.queryByText("write_file")).not.toBeInTheDocument();
 		// The loop header counts the matching calls (1), not the thread total (2).
 		await expect(canvas.getByTestId("tool-calls-count")).toHaveTextContent("1");
+	},
+};
+
+export const ToolCallInputFocused: Story = {
+	args: SearchFiltersToolCalls.args,
+	play: async ({ canvas }) => {
+		(await canvas.findByRole("region", { name: "read_file input" })).focus();
 	},
 };
 

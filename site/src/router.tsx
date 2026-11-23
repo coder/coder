@@ -12,6 +12,7 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { openChatListFirst } from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -320,6 +321,7 @@ const PremiumPage = lazy(
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const PubsubPage = lazy(() => import("./pages/HealthPage/PubsubPage"));
 const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
 const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
@@ -425,6 +427,7 @@ import {
 	AgentChatPageSkeleton,
 	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
+import { EmbedContext } from "./pages/AgentsPage/components/EmbedContext";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const AIBridgeLayout = lazy(
@@ -464,6 +467,9 @@ const AISettingsGatewayKeysPage = lazy(
 );
 const AISettingsSpendPage = lazy(
 	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
+);
+const AISettingsAISpendPage = lazy(
+	() => import("./pages/AISettingsPage/AISpendPage/AISpendPage"),
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
@@ -569,6 +575,8 @@ const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
+
+openChatListFirst();
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
@@ -775,6 +783,11 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route path="spend" element={<AISettingsSpendPage />} />
+						{/* TODO(AIGOV-729): The redesigned spend page, unlisted until it replaces the one above. */}
+						<Route
+							path="spend/experimental"
+							element={<AISettingsAISpendPage />}
+						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
 						<Route
@@ -817,6 +830,7 @@ export const router = createBrowserRouter(
 						<Route index element={<Navigate to="access-url" replace />} />
 						<Route path="access-url" element={<AccessURLPage />} />
 						<Route path="database" element={<DatabasePage />} />
+						<Route path="pubsub" element={<PubsubPage />} />
 						<Route path="derp" element={<DERPPage />} />
 						<Route path="derp/regions/:regionId" element={<DERPRegionPage />} />
 						<Route path="websocket" element={<WebsocketPage />} />
@@ -952,9 +966,11 @@ export const router = createBrowserRouter(
 			<Route
 				path="/agents/:agentId/embed"
 				element={
-					<Suspense fallback={<AgentChatPageSkeleton />}>
-						<AgentEmbedPage />
-					</Suspense>
+					<EmbedContext value={{ isEmbedded: true }}>
+						<Suspense fallback={<AgentChatPageSkeleton />}>
+							<AgentEmbedPage />
+						</Suspense>
+					</EmbedContext>
 				}
 			>
 				<Route

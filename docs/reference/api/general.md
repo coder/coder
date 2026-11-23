@@ -585,6 +585,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "max_token_lifetime": 0,
       "refresh_default_duration": 0
     },
+    "setup_token": "string",
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
       "usage_stats": {

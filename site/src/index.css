@@ -21,6 +21,8 @@
 @source "../node_modules/streamdown";
 
 @theme inline {
+	--shadow-border-warning: 0 0 0 2px
+		color-mix(in srgb, var(--color-border-warning) 60%, transparent);
 	--color-chart-success: var(--chart-success);
 	--color-chart-success-border: var(--chart-success-border);
 	--color-chart-error: var(--chart-error);
@@ -495,7 +497,7 @@
 		--content-invert: 0 0% 98%;
 		--content-disabled: 240 5% 65%;
 		--content-success: 142 72% 29%;
-		--content-warning: 27 96% 61%;
+		--content-warning: 17 88% 40%;
 		--content-destructive: 0 72.2% 50.6%;
 		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
@@ -523,7 +525,7 @@
 		--border-sky: 203 90% 40%;
 		--border-green: 138 82% 82%;
 		--border-magenta: 295, 68%, 46%;
-		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-warning: 21 90% 48%;
 		--border-destructive: 0 72.2% 50.6%;
 		--border-secondary: 240 5% 65%;
 		/*
@@ -605,7 +607,7 @@
 		--content-link: 213 94% 68%;
 		--content-invert: 240 10% 4%;
 		--content-disabled: 240 5% 26%;
-		--content-success: 142 76% 36%;
+		--content-success: 142 71% 45%;
 		--content-warning: 31 97% 72%;
 		--content-destructive: 0 91% 71%;
 		--surface-primary: 240 10% 4%;
@@ -627,7 +629,7 @@
 		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
 		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
-		--border-success: 142 76% 36%;
+		--border-success: 142 71% 45%;
 		--border-magenta: 292, 100%, 78%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
@@ -817,6 +819,12 @@
 	body,
 	:is(#root, #storybook-root) {
 		@apply h-full;
+	}
+
+	/* Keep focused elements clear of the sticky Navbar and DeploymentBanner
+	when the page scrolls to them. */
+	html {
+		@apply scroll-pt-18 scroll-pb-9;
 	}
 
 	body {

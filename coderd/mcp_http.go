@@ -76,6 +76,13 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			if !api.Authorize(r, policy.ActionSSH, workspace) {
 				return nil, nil, xerrors.New("unauthorized: you do not have SSH access to this workspace")
 			}
+			browserOnly, err := templateRefusesNonBrowserConnections(ctx, api.Database, workspace.TemplateID)
+			if err != nil {
+				return nil, nil, err
+			}
+			if browserOnly {
+				return nil, nil, xerrors.New("non-browser connections are disabled for this template")
+			}
 			conn, release, err := api.agentProvider.AgentConn(ctx, agentID)
 			if unreachable, ok := errors.AsType[*workspaceapps.AgentUnreachableError](err); ok {
 				// Tool errors are sent with HTTP 200, so the request log

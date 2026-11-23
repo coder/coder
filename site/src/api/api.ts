@@ -70,12 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	afterMessageId?: number,
+	snapshotVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	if (afterMessageId !== undefined && afterMessageId > 0) {
-		params.set("after_id", afterMessageId.toString());
-	}
+	params.set("snapshot_version", snapshotVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
@@ -3673,6 +3671,29 @@ class ExperimentalApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		return response.data;
+	};
+
+	getOrganizationAISpendOverview = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.OrganizationAISpendOverview> => {
+		const response = await this.axios.get<TypesGen.OrganizationAISpendOverview>(
+			`/api/experimental/organizations/${organizationId}/ai/spend`,
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getOrganizationUnpricedAIModels = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+	): Promise<TypesGen.UnpricedAIModels> => {
+		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
+			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
+			{ params: period },
+		);
 		return response.data;
 	};
 

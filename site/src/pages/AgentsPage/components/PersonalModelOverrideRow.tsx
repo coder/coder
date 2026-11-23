@@ -63,6 +63,7 @@ const PERSONAL_OVERRIDE_COPY: Record<
 	},
 	explore: {
 		title: "Explore subagent model",
+		// sentence-case-expect: Explore is the subagent's name.
 		description: "Choose the model behavior for read-only Explore subagents.",
 	},
 };
