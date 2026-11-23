@@ -13,7 +13,10 @@ import {
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
-import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import {
+	workspaceByOwnerAndNameKey,
+	workspacePermissionsKey,
+} from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
@@ -220,9 +223,13 @@ function workspaceQueries(
 			],
 		},
 		{
-			key: ["workspaces", workspace.id, "permissions"],
+			key: workspacePermissionsKey(workspace.id),
 			data: {
+				createWorkspace: true,
 				readWorkspace: true,
+				startWorkspace: true,
+				stopWorkspace: true,
+				deleteWorkspace: true,
 				shareWorkspace: true,
 				updateWorkspace: true,
 				updateWorkspaceVersion: true,

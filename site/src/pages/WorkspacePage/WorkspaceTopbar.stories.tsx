@@ -37,7 +37,11 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		template: MockTemplate,
 		latestVersion: MockTemplateVersion,
 		permissions: {
+			createWorkspace: true,
 			readWorkspace: true,
+			startWorkspace: true,
+			stopWorkspace: true,
+			deleteWorkspace: true,
 			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: true,

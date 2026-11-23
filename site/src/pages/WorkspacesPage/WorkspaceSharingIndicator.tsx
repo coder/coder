@@ -1,5 +1,7 @@
 import { UsersIcon } from "lucide-react";
-import type { SharedWorkspaceActor } from "#/api/typesGenerated";
+import { useQuery } from "react-query";
+import { workspacePermissions } from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Link } from "#/components/Link/Link";
 import {
@@ -9,15 +11,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 type WorkspaceSharingIndicatorProps = {
-	sharedWith: readonly SharedWorkspaceActor[];
-	settingsPath: string;
+	workspace: Workspace;
 };
 
 export const WorkspaceSharingIndicator: React.FC<
 	WorkspaceSharingIndicatorProps
-> = ({ sharedWith, settingsPath }) => {
+> = ({ workspace }) => {
+	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	// Sort by type (users then groups) and then alphabetically by name.
-	const sortedActors = [...sharedWith].sort((a, b) => {
+	const sortedActors = [...(workspace.shared_with ?? [])].sort((a, b) => {
 		if (a.actor_type !== b.actor_type) {
 			return a.actor_type === "user" ? -1 : 1;
 		}
@@ -59,16 +61,18 @@ export const WorkspaceSharingIndicator: React.FC<
 						);
 					})}
 				</ul>
-				<div className="px-3 pb-3 pt-4">
-					<Link
-						href={settingsPath}
-						className="text-sm text-content-link font-medium"
-						onClick={(e) => e.stopPropagation()}
-						showExternalIcon={false}
-					>
-						Change permissions
-					</Link>
-				</div>
+				{permissions?.shareWorkspace && (
+					<div className="px-3 pb-3 pt-4">
+						<Link
+							href={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+							className="text-sm text-content-link font-medium"
+							onClick={(e) => e.stopPropagation()}
+							showExternalIcon={false}
+						>
+							Change permissions
+						</Link>
+					</div>
+				)}
 			</TooltipContent>
 		</Tooltip>
 	);

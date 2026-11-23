@@ -6,7 +6,10 @@ import {
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import {
+	workspaceByOwnerAndNameKey,
+	workspacePermissionsKey,
+} from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
@@ -21,6 +24,7 @@ import {
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
+import { MockReadOnlyWorkspacePermissions } from "#/testHelpers/workspacePermissions";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
@@ -244,9 +248,13 @@ function workspaceQueries(workspace: Workspace) {
 			data: workspace,
 		},
 		{
-			key: ["workspaces", workspace.id, "permissions"],
+			key: workspacePermissionsKey(workspace.id),
 			data: {
+				createWorkspace: true,
 				readWorkspace: true,
+				startWorkspace: true,
+				stopWorkspace: true,
+				deleteWorkspace: true,
 				shareWorkspace: true,
 				updateWorkspace: true,
 				updateWorkspaceVersion: true,
@@ -262,3 +270,22 @@ function workspaceQueries(workspace: Workspace) {
 		},
 	];
 }
+
+export const NoUpdatePermission: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(MockWorkspace),
+		queries: [
+			{
+				key: workspaceByOwnerAndNameKey(
+					MockWorkspace.owner_name,
+					MockWorkspace.name,
+				),
+				data: MockWorkspace,
+			},
+			{
+				key: workspacePermissionsKey(MockWorkspace.id),
+				data: MockReadOnlyWorkspacePermissions,
+			},
+		],
+	},
+};

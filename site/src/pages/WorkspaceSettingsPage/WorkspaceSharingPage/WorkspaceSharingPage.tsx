@@ -1,25 +1,13 @@
-import { useQuery } from "react-query";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
-import { workspaceChecks } from "#/modules/workspaces/permissions";
 import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: React.FC = () => {
-	const { workspace } = useWorkspaceSettings();
+	const { workspace, permissions } = useWorkspaceSettings();
 	const sharing = useWorkspaceSharing(workspace);
 
-	const checks = workspaceChecks(workspace);
-	const permissionsQuery = useQuery({
-		...checkAuthorization<WorkspacePermissions>({ checks }),
-	});
-	const permissions = permissionsQuery.data;
-	const canShareWorkspace = Boolean(permissions?.shareWorkspace);
-
-	const error =
-		sharing.error ?? permissionsQuery.error ?? sharing.mutationError;
+	const error = sharing.error ?? sharing.mutationError;
 
 	return (
 		<>
@@ -28,7 +16,7 @@ const WorkspaceSharingPage: React.FC = () => {
 			<WorkspaceSharingPageView
 				workspace={workspace}
 				workspaceACL={sharing.workspaceACL}
-				canShareWorkspace={canShareWorkspace}
+				canShareWorkspace={permissions.shareWorkspace}
 				error={error}
 				onAddUser={sharing.addUser}
 				isAddingUser={sharing.isAddingUser}

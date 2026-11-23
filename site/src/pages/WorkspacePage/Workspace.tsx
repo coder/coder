@@ -5,8 +5,11 @@ import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
+import {
+	canEditWorkspaceParameters,
+	type WorkspacePermissions,
+} from "#/modules/workspaces/permissions";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
@@ -93,6 +96,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
 
+	const canUpdateWorkspace = canEditWorkspaceParameters(workspace, permissions);
 	const workspaceRunning = workspace.latest_build.status === "running";
 	const workspacePending = workspace.latest_build.status === "pending";
 	const haveBuildLogs = (buildLogs ?? []).length > 0;
@@ -220,7 +224,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 												)}
 												workspace={workspace}
 												template={template}
-												onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+												onUpdateAgent={
+													canUpdateWorkspace ? handleUpdate : undefined
+												}
 											/>
 										))}
 

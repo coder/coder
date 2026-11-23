@@ -13,10 +13,15 @@ import {
 	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { MockReadOnlyWorkspacePermissions } from "#/testHelpers/workspacePermissions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 export const defaultPermissions: WorkspacePermissions = {
+	createWorkspace: true,
 	readWorkspace: true,
+	startWorkspace: true,
+	stopWorkspace: true,
+	deleteWorkspace: true,
 	shareWorkspace: true,
 	updateWorkspace: true,
 	updateWorkspaceVersion: true,
@@ -186,6 +191,16 @@ export const AgentDisconnected: Story = {
 				),
 			);
 		});
+	},
+};
+
+export const ReadOnlyAgentDisconnected: Story = {
+	args: {
+		...AgentDisconnected.args,
+		permissions: MockReadOnlyWorkspacePermissions,
+	},
+	play: async () => {
+		await userEvent.click(screen.getByTestId("warning-notifications"));
 	},
 };
 

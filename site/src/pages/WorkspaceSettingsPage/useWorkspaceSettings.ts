@@ -5,7 +5,7 @@ import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 type WorkspaceSettingsContext = {
 	owner: string;
 	workspace: Workspace;
-	permissions?: WorkspacePermissions;
+	permissions: WorkspacePermissions;
 };
 
 export const WorkspaceSettings = createContext<

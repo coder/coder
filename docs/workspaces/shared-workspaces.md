@@ -96,6 +96,10 @@ For full command details, see [`coder sharing`](../reference/cli/sharing/index.m
 
 Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
 
+In the **Workspace actions** menu, **Settings** opens the first section you have permission to use.
+To open **Parameters**, you need permission to start the workspace.
+If the workspace is running, you also need permission to stop it.
+
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)
 
 <a id="accessing-workspace-apps-in-shared-workspaces"></a>

@@ -30,15 +30,9 @@ import { WorkspaceParametersPageView } from "./WorkspaceParametersPageView";
 
 const resolveTemplateVersionId = (
 	workspace: Workspace,
-	permissions: WorkspacePermissions | undefined,
+	permissions: WorkspacePermissions,
 	requestedVersionId: string | null,
-): string | undefined => {
-	// Whether the active version is required depends on permissions, so avoid
-	// loading a version that may be rejected.
-	if (!permissions) {
-		return undefined;
-	}
-
+): string => {
 	// Users who cannot bypass the requirement can only build the active
 	// version, so ignore any requested or current version.
 	if (
@@ -232,7 +226,7 @@ const WorkspaceParametersPage: React.FC = () => {
 		},
 	});
 
-	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
+	const canChangeVersions = permissions.updateWorkspaceVersion;
 
 	const handleSubmit = (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];

@@ -24,7 +24,11 @@ const createTimestamp = (
 };
 
 const permissions: WorkspacePermissions = {
+	createWorkspace: true,
 	readWorkspace: true,
+	startWorkspace: true,
+	stopWorkspace: true,
+	deleteWorkspace: true,
 	shareWorkspace: true,
 	updateWorkspace: true,
 	updateWorkspaceVersion: true,
