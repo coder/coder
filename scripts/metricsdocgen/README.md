@@ -22,7 +22,7 @@ Contains metrics that are not defined in Coder source code, such as:
 > [!Note]
 > This file also supplies label metadata for source-defined metrics that the scanner cannot observe. For example, `coderd_agentstats_*` labels are configured at runtime. When a metric appears in both files, its generated name, type, and description take priority, and the two label sets are unioned and deduplicated by name.
 
-**Edit this file** to add metrics that should appear in the documentation but are not scanned from the Coder codebase, or to supply labels that only exist at runtime. Static labels are additive: an entry here can document a label the scanner cannot see, but it cannot remove or replace one the scanner found. To correct a label the scanner derives wrongly, fix the source declaration or the scanner, because a static entry will not override it. Do not add source-defined metrics solely because their registerer has a static prefix: the scanner resolves prefixes from `prometheus.WrapRegistererWithPrefix` and `prometheusmetrics.NewMetricAliasRegisterer`.
+**Edit this file** to add metrics that should appear in the documentation but are not scanned from the Coder codebase, or to supply labels that only exist at runtime. Static labels are additive: an entry here can document a label the scanner cannot see, but it cannot remove or replace one the scanner found. To correct a label the scanner derives wrongly, fix the source declaration or the scanner, because a static entry will not override it. Do not add source-defined metrics solely because their registerer has a static prefix: the scanner resolves prefixes from `prometheus.WrapRegistererWithPrefix`.
 
 ### `generated_metrics` (auto-generated)
 
@@ -39,7 +39,7 @@ make scripts/metricsdocgen/generated_metrics
 Configure these options in `scanner/scanner.go`:
 
 - **Scan scope (`scanDirs`):** Directories searched recursively for metric definitions. Add a directory when definitions live outside the existing scan scope. Test files are excluded.
-- **Prefix scope (`prefixScanDirs`):** Directories searched for registerer wrapping. The scanner resolves name prefixes from `prometheus.WrapRegistererWithPrefix` and `prometheusmetrics.NewMetricAliasRegisterer`, so prefixes do not need to be listed by hand. Add a directory when a registerer is wrapped outside the existing scope.
+- **Prefix scope (`prefixScanDirs`):** Directories searched for registerer wrapping. The scanner resolves name prefixes from `prometheus.WrapRegistererWithPrefix`, so prefixes do not need to be listed by hand. Add a directory when a registerer is wrapped outside the existing scope.
 - **Exclusions (`excludeDirs`):** Subtrees excluded from scanning, for metrics a deployment never exposes. Document a metric in the static file instead when the scanner cannot extract it correctly.
 
 ## Updating Metrics Documentation

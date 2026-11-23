@@ -3,6 +3,8 @@ package agentssh
 import (
 	"context"
 	"io"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -80,7 +82,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 		NewChannel:         newChannel,
 		startSession:       startSession,
 		logger:             logger.With(slog.F("destination_port", d.DestPort)),
-		originAddr:         d.OriginAddr,
+		originAddr:         net.JoinHostPort(d.OriginAddr, strconv.FormatUint(uint64(d.OriginPort), 10)),
 		connectionReporter: connectionReporter,
 		clientSessionID:    clientSessionID,
 		isClosing:          isClosing,
@@ -121,25 +123,27 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 				defer w.trackChannel(false)
 			}
 			endSession()
-			detail := "normal close"
+			reason := codersdk.DisconnectReasonGraceful
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			if w.isClosing() {
-				detail = string(codersdk.DisconnectReasonServerShutdown)
+				reason = codersdk.DisconnectReasonServerShutdown
 				fields = append(fields, serverShutdownFields()...)
 			} else {
-				reason := codersdk.DisconnectReasonGraceful
 				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 			}
+			if !reason.Expected() {
+				w.logger.Flush(context.Background())
+			}
+			//nolint: gocritic // JetBrains is a proper noun and should be capitalized
+			w.logger.Info(context.Background(), "JetBrains channel closed",
+				fields...,
+			)
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:    0,
-				Reason:  detail,
+				Reason:  string(reason),
 				RxBytes: rxbytes,
 				TxBytes: txbytes,
 			})
-			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
-			w.logger.Debug(context.Background(), "JetBrains channel closed",
-				fields...,
-			)
 		},
 	}, r, err
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -49,13 +50,21 @@ type forwardingHandler struct {
 	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
+// errForwardingAborted marks forwarding that ended without returning, such as
+// a panic that aborts the response copy. endRecord replaces it with the real
+// cause when one is known.
+var errForwardingAborted = xerrors.New("forwarding aborted")
+
 // forwardedRequest tracks single bridged request
 type forwardedRequest struct {
 	handler *forwardingHandler
 
-	// logger and cred are set by serve after the request passes validation.
+	// logger, cred, and record are set by start after the request passes
+	// validation and its interception start is recorded. record is nil
+	// otherwise.
 	logger slog.Logger
 	cred   credential.Credential
+	record *recorder.InterceptionRecord
 
 	// outbound is the request passed to the reverse proxy. Set when the circuit
 	// breaker admits the request, nil otherwise.
@@ -70,8 +79,12 @@ type forwardedRequest struct {
 	// responseBody captures the final upstream response body, set by forward.
 	// Nil when no upstream response was accepted.
 	responseBody *replaybody.TeeBuffer
+	// credentialHint identifies the last pooled key used, set by forward.
+	// Empty when no pooled key was used.
+	credentialHint string
 
 	// err is why forwarding failed, including circuit breaker rejection.
+	// errForwardingAborted until forwarding returns.
 	err error
 }
 
@@ -141,23 +154,20 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
 		return
 	}
-	defer release()
-	ctx, cleanup := fr.handler.inflight.RequestContext(r.Context())
-	defer cleanup()
-	ctx, span := fr.handler.tracer.Start(ctx, "Proxy")
-	defer span.End()
-	r = r.WithContext(ctx)
-	var record *recorder.InterceptionRecord
-	fr.logger, record, fr.cred = fr.handler.checkRequest(w, r)
-	if record == nil {
-		return
-	}
+	// Set the sentinel in case forwarding panics and breaker.Execute does not return.
+	// fr.endRecord replaces it with the real cause when one is known.
+	fr.err = errForwardingAborted
 
-	// Forwarding captures the request body as it streams upstream. Without full
-	// duplex, the HTTP/1 server drains the original body past the capture before
-	// writing an early reply. Writers that cannot enable it keep the default drain.
-	if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
-		fr.logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
+	// Defer ordering: finish, then cleanup, then span.End.
+	ctx, span := fr.handler.tracer.Start(r.Context(), "Proxy")
+	defer span.End()
+	ctx, cleanup := fr.handler.inflight.RequestContext(ctx)
+	defer cleanup()
+	// finish needs to run before cleanup cancels the ctx.
+	defer fr.finish(ctx, release)
+	r = r.WithContext(ctx)
+	if !fr.start(ctx, w, r) {
+		return
 	}
 
 	route := strings.TrimPrefix(r.URL.Path, "/"+fr.handler.provider.Name())
@@ -168,6 +178,114 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 	})
 	if fr.err != nil {
 		span.SetStatus(codes.Error, "forwarding failed")
+	}
+}
+
+// start validates the request and records its start before forwarding. On
+// rejection it writes the response and reports false.
+func (fr *forwardedRequest) start(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+	logger, record, cred := fr.handler.checkRequest(w, r)
+	fr.logger = logger
+	if record == nil {
+		return false
+	}
+	// Forwarding captures the request body as it streams upstream. Without full
+	// duplex, the HTTP/1 server drains the original body past the capture before
+	// writing an early reply. Writers that cannot enable it keep the default drain.
+	if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
+		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
+	}
+
+	// The start record must exist before forwarding or recording its end.
+	if err := fr.handler.recorder.RecordInterception(ctx, record); err != nil {
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to record interception")
+		logger.Warn(ctx, "failed to record interception", slog.Error(err))
+		// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
+		http.Error(w, "failed to record interception", http.StatusInternalServerError)
+		return false
+	}
+	fr.cred, fr.record = cred, record
+	return true
+}
+
+// finish records how the interception ended, then releases in-flight
+// admission. It must run before cleanup cancels ctx.
+func (fr *forwardedRequest) finish(ctx context.Context, release func()) {
+	// No start record means the request was not forwarded, do not record an end.
+	if fr.record == nil {
+		release()
+		return
+	}
+	ended := fr.endRecord(ctx)
+	// Record asynchronously so the response finishes without waiting for the recorder.
+	go fr.recordEnd(ctx, ended, release)
+}
+
+// endRecord describes how forwarding ended.
+func (fr *forwardedRequest) endRecord(ctx context.Context) *recorder.InterceptionRecordEnded {
+	// fr.err is what breaker.Execute returned, or errForwardingAborted if
+	// forwarding panicked. A nil error still needs the response capture and
+	// status to tell success from failure.
+	err := fr.err
+
+	// Prioritize context cancellation over the errForwardingAborted sentinel.
+	if canceled := context.Cause(ctx); canceled != nil && errors.Is(err, errForwardingAborted) {
+		err = canceled
+	}
+
+	var body []byte
+	if fr.responseBody != nil {
+		// fr.forward has closed the capture, so it has finished.
+		readErr := fr.responseBody.Err()
+		if errors.Is(readErr, replaybody.ErrCaptureInProgress) {
+			fr.logger.Warn(ctx, "response capture still in progress when recording interception end", slog.F("interception_id", fr.record.ID))
+		}
+		body = fr.responseBody.Bytes()
+		// Errors from the circuit breaker, reverse proxy, or cancellation are left
+		// unchanged. A nil err, or the errForwardingAborted sentinel, takes the
+		// capture's read error. The sentinel stays only if the capture completed but
+		// the copy to the client aborted.
+		if err == nil || (errors.Is(err, errForwardingAborted) && readErr != nil) {
+			err = readErr
+		}
+	}
+
+	// Categorize Go errors first, HTTP error responses may have no Go error.
+	errType, errMsg := interceptionerror.Categorize(fr.handler.provider, err)
+	if err == nil && fr.status >= http.StatusBadRequest {
+		// TODO: provide SDK error to Categorize
+		// https://linear.app/codercom/issue/AIGOV-811
+		errType = recorder.ErrorTypeFromStatus(fr.status)
+		errMsg = interceptionerror.TruncateMessage(string(body))
+		if errMsg == "" {
+			errMsg = http.StatusText(fr.status)
+		}
+	}
+
+	// Keep the initial hint for BYOK, or use the last attempted pooled key.
+	hint := fr.record.CredentialHint
+	if fr.credentialHint != "" {
+		hint = fr.credentialHint
+	}
+	return &recorder.InterceptionRecordEnded{
+		ID:             fr.record.ID,
+		EndedAt:        time.Now().UTC(),
+		CredentialHint: hint,
+		ErrorType:      errType,
+		ErrorMessage:   errMsg,
+	}
+}
+
+// recordEnd stores the end record, then releases in-flight admission.
+func (fr *forwardedRequest) recordEnd(ctx context.Context, ended *recorder.InterceptionRecordEnded, release func()) {
+	// Release in-flight gate admission after recording.
+	defer release()
+
+	// Do not propagate cancellation to the recorder.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
+	defer cancel()
+	if err := fr.handler.recorder.RecordInterceptionEnded(ctx, ended); err != nil {
+		fr.handler.logger.Warn(ctx, "failed to record interception end", slog.F("interception_id", ended.ID), slog.Error(err))
 	}
 }
 
@@ -269,12 +387,25 @@ func (fr *forwardedRequest) forward(w http.ResponseWriter) (err error) {
 			_ = fr.responseBody.Close()
 		}
 	}()
+	failover := fr.handler.failover
+	if failover.Pool != nil {
+		// TODO: key failover transport should provide the key hint and the key
+		// pool error. https://linear.app/codercom/issue/AIGOV-795
+		failover.InjectAuthKey = func(header *http.Header, key string) {
+			fr.credentialHint = utils.MaskSecret(key)
+			fr.handler.failover.InjectAuthKey(header, key)
+		}
+		failover.BuildKeyPoolResponse = func(keyErr *keypool.Error) *http.Response {
+			err = keyErr
+			return fr.handler.failover.BuildKeyPoolResponse(keyErr)
+		}
+	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewriteForwardingURL(pr, fr.handler.provider.RoutePrefix(), fr.handler.baseURL)
 			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, fr.cred)
 		},
-		Transport:     keypool.NewKeyFailoverTransport(fr.handler.transport, fr.handler.failover),
+		Transport:     keypool.NewKeyFailoverTransport(fr.handler.transport, failover),
 		FlushInterval: -1,
 		// Only the final response returned by key failover is observed.
 		ModifyResponse: func(resp *http.Response) error {
@@ -294,6 +425,7 @@ func (fr *forwardedRequest) forward(w http.ResponseWriter) (err error) {
 				return
 			}
 			fr.logger.Warn(ctx, "upstream proxy error", slog.Error(proxyErr))
+			// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
 			http.Error(w, "upstream proxy error", http.StatusBadGateway)
 		},
 		ErrorLog: fr.handler.errorLog,
