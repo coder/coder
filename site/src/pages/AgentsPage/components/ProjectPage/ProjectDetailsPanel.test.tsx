@@ -663,6 +663,10 @@ const mockKubernetesTemplate: Template = {
 	display_name: "Kubernetes",
 };
 
+/** Save is busy while the dialog loads, refreshes, checks, or saves. */
+const findSave = () =>
+	screen.findByRole("button", { name: "Save", busy: false });
+
 describe("ProjectDetailsPanel templates", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -751,9 +755,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(
 			screen.getByRole("switch", { name: "Limit chats to these templates" }),
 		);
-		await user.click(
-			await screen.findByRole("button", { name: "Save", busy: false }),
-		);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(detach).toHaveBeenCalledWith(
@@ -838,9 +840,7 @@ describe("ProjectDetailsPanel templates", () => {
 		rerenderWithProject(mockProjectWithTemplates);
 		failUpdate(mockApiError({ message: "Failed to update chat project." }));
 
-		await user.click(
-			await screen.findByRole("button", { name: "Save", busy: false }),
-		);
+		await user.click(await findSave());
 
 		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));
 		// The retry sends only what the first save left unsaved.
