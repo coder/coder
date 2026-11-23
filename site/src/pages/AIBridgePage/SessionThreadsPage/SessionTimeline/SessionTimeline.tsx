@@ -62,14 +62,17 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	const isExpanded = userToggled ?? expandToMatch;
 
 	// The quote always renders its full text, so one scrollHeight
-	// measurement suffices for the collapse toggle. ResizeObserver
-	// reports the initial size once observation starts.
+	// measurement suffices for the collapse toggle.
 	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
 
-		const observer = new ResizeObserver(() => setFullHeight(el.scrollHeight));
+		const measure = () => setFullHeight(el.scrollHeight);
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- The ref is null during render, so the height can only be measured after mount.
+		measure();
+
+		const observer = new ResizeObserver(measure);
 		observer.observe(el);
 
 		return () => observer.disconnect();
