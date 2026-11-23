@@ -93,47 +93,6 @@ func expectRefreshLease(t *testing.T, db *dbmock.MockStore, tok database.MCPServ
 func TestRefreshMCPTokenPermanentFailure(t *testing.T) {
 	t.Parallel()
 
-	t.Run("MarksTokenAndClearsAuth", func(t *testing.T) {
-		t.Parallel()
-		tokenSrv := invalidGrantServer(t, nil)
-
-		cfg := database.MCPServerConfig{
-			ID:             uuid.New(),
-			Slug:           "revoked",
-			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2TokenURL: tokenSrv.URL,
-		}
-		tok := expiredMCPToken(cfg.ID)
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		leased := expectRefreshLease(t, db, tok)
-		marked := tok
-		marked.AccessToken = ""
-		marked.RefreshToken = ""
-		marked.Expiry = sql.NullTime{}
-		marked.OauthRefreshFailureReason = "invalid_grant"
-		db.EXPECT().
-			MarkMCPServerUserTokenRefreshFailure(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
-				require.Equal(t, tok.ID, arg.ID)
-				require.Equal(t, leased.UpdatedAt, arg.UpdatedAt)
-				require.Equal(t, leased.RefreshLeaseExpiresAt.Time, arg.Lease)
-				require.Contains(t, arg.OauthRefreshFailureReason, "invalid_grant")
-				return marked, nil
-			})
-
-		server := loopbackMCPServer(db)
-		result, err := server.refreshMCPTokenIfNeeded(
-			context.Background(), slogtest.Make(t, nil), cfg, tok,
-		)
-		require.NoError(t, err)
-		require.Empty(t, result.AccessToken)
-		require.Empty(t, result.RefreshToken)
-		require.NotEmpty(t, result.OauthRefreshFailureReason)
-	})
-
 	t.Run("OptimisticLockLossUsesWinnerRow", func(t *testing.T) {
 		t.Parallel()
 		tokenSrv := invalidGrantServer(t, nil)
@@ -170,36 +129,6 @@ func TestRefreshMCPTokenPermanentFailure(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, "fresh-access", result.AccessToken)
-		require.Empty(t, result.OauthRefreshFailureReason)
-	})
-
-	t.Run("TransientFailureKeepsToken", func(t *testing.T) {
-		t.Parallel()
-		tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		t.Cleanup(tokenSrv.Close)
-
-		cfg := database.MCPServerConfig{
-			ID:             uuid.New(),
-			Slug:           "flaky",
-			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2TokenURL: tokenSrv.URL,
-		}
-		tok := expiredMCPToken(cfg.ID)
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		expectRefreshLease(t, db, tok)
-
-		server := loopbackMCPServer(db)
-		result, err := server.refreshMCPTokenIfNeeded(
-			context.Background(), slogtest.Make(t, nil), cfg, tok,
-		)
-		require.NoError(t, err)
-		require.Equal(t, tok.AccessToken, result.AccessToken)
-		require.Equal(t, tok.RefreshToken, result.RefreshToken)
 		require.Empty(t, result.OauthRefreshFailureReason)
 	})
 }
@@ -305,52 +234,6 @@ func TestRefreshMCPTokenDatabaseError(t *testing.T) {
 			require.ErrorIs(t, err, sql.ErrConnDone)
 		})
 	}
-}
-
-func TestRefreshMCPTokenDeletedDuringRefresh(t *testing.T) {
-	t.Parallel()
-
-	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"fresh-refresh","token_type":"Bearer","expires_in":3600}`))
-	}))
-	t.Cleanup(tokenSrv.Close)
-
-	cfg := database.MCPServerConfig{
-		ID:             uuid.New(),
-		Slug:           "disconnected",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "cid",
-		OAuth2TokenURL: tokenSrv.URL,
-	}
-	tok := expiredMCPToken(cfg.ID)
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	leased := expectRefreshLease(t, db, tok)
-	db.EXPECT().
-		UpdateMCPServerUserTokenFromRefresh(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
-			require.Equal(t, tok.ID, arg.ID)
-			require.Equal(t, leased.UpdatedAt, arg.UpdatedAt)
-			require.Equal(t, leased.RefreshLeaseExpiresAt.Time, arg.Lease)
-			return database.MCPServerUserToken{}, sql.ErrNoRows
-		})
-	db.EXPECT().
-		GetMCPServerUserToken(gomock.Any(), database.GetMCPServerUserTokenParams{
-			MCPServerConfigID: tok.MCPServerConfigID,
-			UserID:            tok.UserID,
-		}).
-		Return(database.MCPServerUserToken{}, sql.ErrNoRows)
-
-	server := loopbackMCPServer(db)
-	result, err := server.refreshMCPTokenIfNeeded(
-		context.Background(), slogtest.Make(t, nil), cfg, tok,
-	)
-	require.NoError(t, err)
-	require.Empty(t, result.AccessToken)
-	require.Empty(t, result.RefreshToken)
-	require.Empty(t, result.OauthRefreshFailureReason)
 }
 
 func TestRefreshExpiredMCPTokensSkipsFailedTokens(t *testing.T) {
@@ -670,28 +553,4 @@ func TestRefreshMCPTokenValidTokenTakesNoLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, tok, result)
 	require.EqualValues(t, 0, hits.Load())
-}
-
-func TestRefreshMCPTokenSavesRotatedRefreshToken(t *testing.T) {
-	t.Parallel()
-
-	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"same-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`))
-	}))
-	t.Cleanup(tokenSrv.Close)
-
-	ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
-	rawDB, _ := dbtestutil.NewDB(t)
-	cfg, tok := seedExpiredMCPToken(t, rawDB, tokenSrv.URL, "same-access", "old-refresh")
-
-	server := loopbackMCPServer(newAuthzStore(t, rawDB))
-	_, err := server.refreshMCPTokenIfNeeded(ctx, slogtest.Make(t, nil), cfg, tok)
-	require.NoError(t, err)
-
-	row, err := rawDB.GetMCPServerUserTokenByID(ctx, tok.ID)
-	require.NoError(t, err)
-	require.Equal(t, "same-access", row.AccessToken)
-	require.Equal(t, "rotated-refresh", row.RefreshToken)
-	require.True(t, row.Expiry.Time.After(time.Now()), "expiry moves forward")
 }

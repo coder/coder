@@ -39,7 +39,7 @@ func TestRefreshFailureReason(t *testing.T) {
 // ends a leased refresh of an expired token. Only an error code tied to
 // the grant marks the token for reconnect (RFC 6749 section 5.2). Client,
 // config and server errors affect every user of the server, so they fail
-// temporarily and leave the row as it was.
+// temporarily and keep the stored token.
 func TestRefreshOAuth2TokenProviderErrors(t *testing.T) {
 	t.Parallel()
 
