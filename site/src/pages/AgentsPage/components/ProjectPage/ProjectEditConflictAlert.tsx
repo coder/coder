@@ -2,7 +2,6 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
 type ProjectEditConflictAlertProps = {
-	/** Explains what changed and what each action does. */
 	readonly children: React.ReactNode;
 	readonly disabled: boolean;
 	readonly onKeepDraft: () => void;
@@ -11,8 +10,8 @@ type ProjectEditConflictAlertProps = {
 };
 
 /**
- * Warns that a project setting changed elsewhere while its editor was open,
- * and asks whether to keep the draft or load the latest value.
+ * Each editor resolves a conflict its own way, so `children` must say what
+ * keeping the draft does there: replace the newer value, or merge into it.
  */
 export const ProjectEditConflictAlert: React.FC<
 	ProjectEditConflictAlertProps

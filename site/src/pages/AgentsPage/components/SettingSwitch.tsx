@@ -4,14 +4,16 @@ import { Switch } from "#/components/Switch/Switch";
 
 type SettingSwitchProps = {
 	readonly label: string;
-	/** Described to assistive technology as the switch's description. */
 	readonly description: React.ReactNode;
 	readonly checked: boolean;
 	readonly disabled: boolean;
 	readonly onCheckedChange: (checked: boolean) => void;
 };
 
-/** A labeled switch for one setting, with the description below its label. */
+/**
+ * The description is tied to the switch with `aria-describedby`, so assistive
+ * technology announces it with the label.
+ */
 export const SettingSwitch: React.FC<SettingSwitchProps> = ({
 	label,
 	description,
