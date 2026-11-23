@@ -1753,14 +1753,19 @@ func RefreshUserToken(
 		if !errors.Is(err, sql.ErrNoRows) {
 			return tok, xerrors.Errorf("claim MCP oauth2 token refresh: %w", err)
 		}
-		select {
-		case <-ctx.Done():
-			return tok, ctx.Err()
-		case <-time.After(refreshPollInterval):
+		cur, err := currentUserToken(ctx, store, tok)
+		if err != nil {
+			return cur, err
 		}
-		if tok, err = currentUserToken(ctx, store, tok); err != nil {
-			return tok, err
+		if cur.UpdatedAt.Equal(tok.UpdatedAt) {
+			// Another refresher holds a live claim on this version.
+			select {
+			case <-ctx.Done():
+				return cur, ctx.Err()
+			case <-time.After(refreshPollInterval):
+			}
 		}
+		tok = cur
 	}
 }
 
