@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
+import { useCallback, useRef } from "react";
 import type {
 	PreviewParameter,
 	Workspace,
@@ -59,9 +60,6 @@ export const WorkspaceParametersPageView: React.FC<
 				autofillParameters,
 			),
 		},
-		initialTouched: Object.fromEntries(
-			autofillParameters.map((p) => [p.name, true]),
-		),
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
@@ -101,23 +99,37 @@ export const WorkspaceParametersPageView: React.FC<
 		},
 	);
 
+	// Names of the parameters whose values were set by the user or autofill.
+	// The sync from websocket responses leaves them alone. Formik's `touched`
+	// can't be used for this: it treats dots and brackets in names as paths, and
+	// it is replaced on every submit attempt.
+	const editedParameterNames = useRef(
+		new Set(autofillParameters.map((p) => p.name)),
+	);
+	const isParameterEdited = useCallback(
+		(name: string) => editedParameterNames.current.has(name),
+		[],
+	);
+
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
 		value: string,
 	) => {
+		// Mark the parameter as edited before updating its value. Otherwise a
+		// response arriving in between is synced over the user's new value.
+		editedParameterNames.current.add(parameter.name);
 		await form.setFieldValue(parameterField, {
 			name: parameter.name,
 			value,
 		});
-		form.setFieldTouched(parameter.name, true);
 		sendDynamicParamsRequest(parameter, value);
 	};
 
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
-		touched: form.touched,
+		isParameterEdited,
 		setFieldValue: form.setFieldValue,
 	});
 

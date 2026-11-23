@@ -993,6 +993,8 @@ describe("ChatsSidebar search dialog", () => {
 		const [searchButton] = screen.getAllByRole("button", {
 			name: "Search chats",
 		});
+		// isMac() returns false in our Vitest environment, which is set to jsdom
+		expect(searchButton).toHaveAttribute("aria-keyshortcuts", "Control+K");
 		searchButton.focus();
 		await user.keyboard("{Enter}");
 		await waitFor(() => {
