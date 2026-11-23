@@ -56,7 +56,8 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, externalAuthLink := range externalAuthLinks {
-				if externalAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && externalAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
+				extraCurrent := !extraHasContent(externalAuthLink.OAuthExtra) || externalAuthLink.OAuthExtraKeyID.String == ciphers[0].HexDigest()
+				if externalAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && externalAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() && extraCurrent {
 					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
@@ -70,6 +71,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
 					OAuthExpiry:               externalAuthLink.OAuthExpiry,
 					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OAuthExtraKeyID:           sql.NullString{}, // dbcrypt will update as required
 					OauthRefreshFailureReason: "",
 					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
@@ -321,7 +323,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, externalAuthLink := range externalAuthLinks {
-				if !externalAuthLink.OAuthAccessTokenKeyID.Valid && !externalAuthLink.OAuthRefreshTokenKeyID.Valid {
+				if !externalAuthLink.OAuthAccessTokenKeyID.Valid && !externalAuthLink.OAuthRefreshTokenKeyID.Valid && !externalAuthLink.OAuthExtraKeyID.Valid {
 					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
@@ -335,6 +337,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					OAuthRefreshTokenKeyID:    sql.NullString{}, // we explicitly want to clear the key id
 					OAuthExpiry:               externalAuthLink.OAuthExpiry,
 					OAuthExtra:                externalAuthLink.OAuthExtra,
+					OAuthExtraKeyID:           sql.NullString{}, // we explicitly want to clear the key id
 					OauthRefreshFailureReason: "",
 					RefreshLeaseExpiresAt:     sql.NullTime{},
 				}); err != nil {
@@ -550,7 +553,8 @@ DELETE FROM user_links
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
-	OR oauth_refresh_token_key_id IS NOT NULL;
+	OR oauth_refresh_token_key_id IS NOT NULL
+	OR oauth_extra_key_id IS NOT NULL;
 DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets

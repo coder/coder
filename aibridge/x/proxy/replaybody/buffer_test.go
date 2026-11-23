@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
@@ -304,6 +305,77 @@ func TestBufferConcurrentBodies(t *testing.T) {
 		require.NoError(t, got.err, "every body must finish successfully at source EOF")
 		require.Equal(t, strings.Repeat("chunk", 2), string(got.data), "each body must receive every chunk")
 	}
+}
+
+func TestBufferErr(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		source io.Reader
+		// closeFirst closes the buffer instead of reading the source.
+		closeFirst bool
+		wantErr    error
+	}{
+		{
+			name:   "Completed",
+			source: strings.NewReader("body"),
+		},
+		{
+			name:    "SourceError",
+			source:  io.MultiReader(strings.NewReader("body"), iotest.ErrReader(io.ErrUnexpectedEOF)),
+			wantErr: io.ErrUnexpectedEOF,
+		},
+		{
+			name:       "Closed",
+			source:     strings.NewReader("body"),
+			closeFirst: true,
+			wantErr:    io.ErrClosedPipe,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			body, b := newBuffer(io.NopCloser(tc.source))
+			defer body.Close()
+			require.ErrorIs(t, b.Err(), replaybody.ErrCaptureInProgress, "unfinished capture must report it is in progress")
+			if tc.closeFirst {
+				require.NoError(t, b.Close())
+			} else {
+				_, _ = io.Copy(io.Discard, body)
+			}
+			if tc.wantErr == nil {
+				require.NoError(t, b.Err(), "completed capture must report no error")
+			} else {
+				require.ErrorIs(t, b.Err(), tc.wantErr)
+			}
+			_, waitErr := b.Wait(testutil.Context(t, testutil.WaitShort))
+			require.Equal(t, b.Err(), waitErr, "Err must match the finished Wait result")
+		})
+	}
+}
+
+func TestBufferBytes(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	input, output := io.Pipe()
+	body, b := newBuffer(input)
+	defer body.Close()
+	t.Cleanup(func() { require.NoError(t, b.Close()); _ = output.Close() })
+
+	written := make(chan error, 1)
+	go func() { _, err := io.WriteString(output, "prefix"); written <- err }()
+	prefix := make([]byte, len("prefix"))
+	_, err := io.ReadFull(body, prefix)
+	require.NoError(t, err)
+	require.NoError(t, testutil.RequireReceive(ctx, t, written))
+	require.ErrorIs(t, b.Err(), replaybody.ErrCaptureInProgress)
+	require.Equal(t, "prefix", string(b.Bytes()), "Bytes must return the bytes captured so far without waiting")
+
+	go func() { _, _ = io.WriteString(output, "suffix"); _ = output.Close() }()
+	_, err = io.Copy(io.Discard, body)
+	require.NoError(t, err)
+	payload, err := b.Wait(ctx)
+	require.NoError(t, err)
+	require.Equal(t, payload, b.Bytes(), "Bytes must match the finished Wait result")
 }
 
 func TestBufferWaitCanceled(t *testing.T) {

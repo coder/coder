@@ -11,14 +11,14 @@ description: |
   (pull requests) pass none.
 
   The certificate files and Apple API key are written under
-  $RUNNER_TEMP/coder-signing and removed in the last step, even if the build
-  fails. The Google Cloud credentials are not: the EV code signing account's
-  credentials stay exported to the job's environment (release.yaml uploads
-  with them), and the release-signer credentials file is kept for callers
-  through the release-signer-credentials-file output. Any later step in the
-  calling job can use them, and any step with id-token: write in the signing
-  environment could mint them anyway, so treat the whole calling job as
-  trusted with the signing identities.
+  $RUNNER_TEMP/coder-signing and $RUNNER_TEMP/apple-signing and removed in the
+  last step, even if the build fails. The Google Cloud credentials are not: the
+  EV code signing account's credentials stay exported to the job's environment
+  (release.yaml uploads with them), and the release-signer credentials file is
+  kept for callers through the release-signer-credentials-file output. Any
+  later step in the calling job can use them, and any step with id-token: write
+  in the signing environment could mint them anyway, so treat the whole calling
+  job as trusted with the signing identities.
 inputs:
   targets:
     description: >-
@@ -188,9 +188,7 @@ runs:
 
     - name: Install rcodesign
       if: inputs.sign == 'true'
-      uses: ./.github/actions/install-rcodesign
-      with:
-        use-cache: "false"
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
 
     # Necessary for signing Windows binaries.
     - name: Setup Java
@@ -203,19 +201,19 @@ runs:
     # The Apple Developer certificate's private key lives in Google Cloud KMS.
     # rcodesign reaches it through the Cloud KMS PKCS#11 library, authenticated
     # as release-signer.
+    - name: Set up Apple signing
+      id: apple_signing
+      if: inputs.sign == 'true'
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+      with:
+        certificate-pem: ${{ inputs.ac-certificate-pem }}
+        key-ring: ${{ inputs.ac-kms-key-ring }}
+
     - name: Install signing tools and write signing material
       if: inputs.sign == 'true'
       shell: bash
       run: |
         set -euo pipefail
-
-        ./.github/scripts/retry.sh -- wget -O "$RUNNER_TEMP/libkmsp11.tar.gz" https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
-        echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 $RUNNER_TEMP/libkmsp11.tar.gz" | sha256sum -c
-        sudo tar -xzf "$RUNNER_TEMP/libkmsp11.tar.gz" \
-          -C /usr/local/lib \
-          --strip-components=1 \
-          libkmsp11-1.9-linux-amd64/libkmsp11.so
-        rm "$RUNNER_TEMP/libkmsp11.tar.gz"
 
         ./.github/scripts/retry.sh -- wget -O "$RUNNER_TEMP/jsign-6.0.jar" https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar
         echo "05ca18d4ab7b8c2183289b5378d32860f0ea0f3bdab1f1b8cae5894fb225fa8a $RUNNER_TEMP/jsign-6.0.jar" | sha256sum -c
@@ -225,23 +223,13 @@ runs:
         mkdir -m 700 "$dir"
         (
           umask 077
-          printf '%s\n' "$AC_CERTIFICATE_PEM" > "$dir/apple_cert.pem"
           printf '%s\n' "$EV_SIGNING_CERT" > "$dir/ev_cert.pem"
-          # The PKCS#11 library refuses a config file writable by anyone but
-          # the owner.
-          cat > "$dir/kmsp11_config.yaml" <<EOF
-        ---
-        tokens:
-          - key_ring: "$AC_KMS_KEY_RING"
-        EOF
           if [[ "$INPUT_NOTARIZE" == "true" ]]; then
             printf '%s' "$AC_APIKEY_P8_BASE64" | base64 -d > "$dir/apple_apikey.p8"
           fi
         )
       env:
         INPUT_NOTARIZE: ${{ inputs.notarize }}
-        AC_CERTIFICATE_PEM: ${{ inputs.ac-certificate-pem }}
-        AC_KMS_KEY_RING: ${{ inputs.ac-kms-key-ring }}
         AC_APIKEY_P8_BASE64: ${{ inputs.ac-apikey-p8-base64 }}
         EV_SIGNING_CERT: ${{ inputs.ev-signing-cert }}
 
@@ -290,9 +278,9 @@ runs:
         if [[ "$INPUT_SIGN" == "true" ]]; then
           dir="$RUNNER_TEMP/coder-signing"
           export CODER_SIGN_DARWIN=1 CODER_SIGN_WINDOWS=1 CODER_SIGN_GPG=1 CODER_WINDOWS_RESOURCES=1
-          export AC_CERTIFICATE_FILE="$dir/apple_cert.pem"
-          export AC_PKCS11_LIBRARY=/usr/local/lib/libkmsp11.so
-          export KMS_PKCS11_CONFIG="$dir/kmsp11_config.yaml"
+          export AC_CERTIFICATE_FILE="$APPLE_CERTIFICATE_FILE"
+          export AC_PKCS11_LIBRARY="$APPLE_PKCS11_LIBRARY"
+          export KMS_PKCS11_CONFIG="$APPLE_PKCS11_CONFIG"
           export AC_PKCS11_CREDENTIALS_FILE="$RELEASE_SIGNER_CREDENTIALS_FILE"
           export CODER_GPG_KMS_CREDENTIALS_FILE="$RELEASE_SIGNER_CREDENTIALS_FILE"
           export EV_CERTIFICATE_PATH="$dir/ev_cert.pem"
@@ -325,6 +313,9 @@ runs:
         INPUT_TARGETS: ${{ inputs.targets }}
         VERSION: ${{ steps.version.outputs.version }}
         RELEASE_SIGNER_CREDENTIALS_FILE: ${{ steps.release_signer_auth.outputs.credentials_file_path }}
+        APPLE_CERTIFICATE_FILE: ${{ steps.apple_signing.outputs.certificate-file }}
+        APPLE_PKCS11_LIBRARY: ${{ steps.apple_signing.outputs.pkcs11-library }}
+        APPLE_PKCS11_CONFIG: ${{ steps.apple_signing.outputs.pkcs11-config }}
         CODER_GPG_RELEASE_KEY_BASE64: ${{ inputs.gpg-release-key }}
         CODER_GPG_KMS_KEY: ${{ inputs.gpg-kms-key }}
         AC_PKCS11_KEY_LABEL: ${{ inputs.ac-kms-key }}
@@ -338,4 +329,4 @@ runs:
     - name: Delete signing material
       if: always() && inputs.sign == 'true'
       shell: bash
-      run: rm -rf "$RUNNER_TEMP/coder-signing"
+      run: rm -rf "$RUNNER_TEMP/coder-signing" "$RUNNER_TEMP/apple-signing"
