@@ -92,6 +92,8 @@ const TemplateVersionEditorPage: React.FC = () => {
 	const {
 		fileTree,
 		setFileTree,
+		hasUnsavedChanges,
+		markFileTreeSaved,
 		tarFile,
 		error: fileError,
 	} = useFileTree(activeTemplateVersion);
@@ -180,6 +182,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 					template={templateQuery.data}
 					templateVersion={activeTemplateVersion}
 					fileTree={fileTree}
+					hasUnsavedChanges={hasUnsavedChanges}
 					onFileTreeChange={(updater) => {
 						setFileTree((current) => (current ? updater(current) : current));
 					}}
@@ -201,6 +204,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 							file_id: serverFile.hash,
 						});
 
+						markFileTreeSaved(newFileTree);
 						onBuildEnds(newVersion);
 					}}
 					onPublish={() => {
@@ -295,6 +299,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		enabled: templateVersion !== undefined,
 	});
 	const [fileTree, setFileTree] = useState<FileTree | undefined>(undefined);
+	// The files of the active version, as loaded or as last submitted.
+	const [savedFileTree, setSavedFileTree] = useState<FileTree>();
 	const [tarFile, setTarFile] = useState<TarReader | undefined>(undefined);
 
 	useEffect(() => {
@@ -307,7 +313,9 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 				if (stale) {
 					return;
 				}
-				setFileTree(createTemplateVersionFileTree(tarFile));
+				const loaded = createTemplateVersionFileTree(tarFile);
+				setFileTree(loaded);
+				setSavedFileTree(loaded);
 				setTarFile(tarFile);
 			} catch (error) {
 				console.error(error);
@@ -326,7 +334,14 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		};
 	}, [fileQuery.data]);
 
-	return { fileTree, setFileTree, tarFile, error: fileQuery.error };
+	return {
+		fileTree,
+		setFileTree,
+		hasUnsavedChanges: fileTree !== savedFileTree,
+		markFileTreeSaved: setSavedFileTree,
+		tarFile,
+		error: fileQuery.error,
+	};
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
