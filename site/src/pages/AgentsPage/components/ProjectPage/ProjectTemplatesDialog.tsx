@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import {
+	type QueryClient,
+	type QueryKey,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { isApiValidationError } from "#/api/errors";
 import {
 	type ChatProjectTemplatesChange,
@@ -81,16 +86,10 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 		}
 		checkIdRef.current += 1;
 		// A hung check would otherwise keep the next open dialog waiting.
-		// Other views share these lists, so fresh requests replace them.
-		for (const queryKey of [
+		replaceRequests(queryClient, [
 			chatProjectsKey,
 			agentTemplatesKey(formProps.project.organization_id),
-		]) {
-			const filters = { queryKey, exact: true };
-			void queryClient
-				.cancelQueries(filters)
-				.then(() => queryClient.invalidateQueries(filters));
-		}
+		]);
 		onOpenChange(false);
 	};
 
@@ -113,6 +112,22 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 			</DialogContent>
 		</Dialog>
 	);
+};
+
+/**
+ * Cancels the requests in flight for these queries. Other views share the
+ * queries, so fresh requests replace them.
+ */
+const replaceRequests = (
+	queryClient: QueryClient,
+	queryKeys: readonly QueryKey[],
+) => {
+	for (const queryKey of queryKeys) {
+		const filters = { queryKey, exact: true };
+		void queryClient
+			.cancelQueries(filters)
+			.then(() => queryClient.invalidateQueries(filters));
+	}
 };
 
 type ProjectTemplatesFormProps = Omit<
@@ -154,6 +169,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onResetError,
 	onCancel,
 }) => {
+	const queryClient = useQueryClient();
 	const latestTemplates = savedTemplates(project);
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
@@ -248,6 +264,19 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		...richParameters(defaultTemplate?.active_version_id ?? ""),
 		enabled: defaultTemplate !== undefined && hasDefaultParameters,
 	});
+	const defaultsVersionId = defaultTemplate?.active_version_id;
+	// A stalled request for the defaults would keep the next open dialog
+	// waiting too, so this form replaces its requests when it unmounts.
+	useEffect(() => {
+		if (defaultsVersionId === undefined) {
+			return;
+		}
+		return () =>
+			replaceRequests(queryClient, [
+				templateVersionPresets(defaultsVersionId).queryKey,
+				richParameters(defaultsVersionId).queryKey,
+			]);
+	}, [queryClient, defaultsVersionId]);
 	// Values for parameters the active version no longer has are not shown,
 	// and the server rejects them for classic templates, so the form drops
 	// them.
@@ -270,8 +299,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const request =
 		eligibleTemplates &&
 		chatProjectTemplatesRequest(formValue, eligibleTemplates);
-	const isUnchanged =
-		!hasStalePreset && staleParameterNames.length === 0 && isDraftUntouched;
+	const baseRequest =
+		eligibleTemplates &&
+		chatProjectTemplatesRequest(initialValue, eligibleTemplates);
+	// A request leaves out templates that are no longer eligible, so a draft
+	// that only selects one of those has nothing to save. An untouched draft
+	// with a stale default does, because saving clears that default.
+	const hasChanges =
+		request !== undefined &&
+		baseRequest !== undefined &&
+		serializeTemplates(request) !== serializeTemplates(baseRequest);
 	// A change saved elsewhere can touch what the draft changes, so the user
 	// resolves it first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
@@ -309,8 +346,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		templatesQuery.isFetching ||
 		isLoadingDefaults;
 	const canSave =
-		request !== undefined &&
-		!isUnchanged &&
+		hasChanges &&
 		!hasConflict &&
 		!refreshFailed &&
 		!isRefreshing &&
@@ -509,7 +545,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				<div
 					ref={conflictAlertRef}
 					tabIndex={-1}
-					className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+					className="rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					<ProjectEditConflictAlert
 						disabled={isSaving}

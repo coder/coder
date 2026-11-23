@@ -165,6 +165,17 @@ export const Loading: Story = {
 	},
 };
 
+export const TemplatesLoadError: Story = {
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
+};
+
 export const DefaultPreset: Story = {
 	args: { project: mockProjectWithDefaultPreset },
 	parameters: {
@@ -380,9 +391,8 @@ export const RequestError: Story = {
 };
 
 /**
- * Stands in for the server's copy of the project, so the Conflict story's
- * play function can save a change from "another user" while the dialog is
- * open.
+ * Stands in for the server's copy of the project, so the conflict stories
+ * can save a change from "another user" while the dialog is open.
  */
 const serverProject = (() => {
 	let value = mockProjectWithDefaultPreset;
@@ -402,7 +412,6 @@ const serverProject = (() => {
 	};
 })();
 
-/** Another user saved different templates while this editor was open. */
 export const Conflict: Story = {
 	parameters: {
 		queries: [
@@ -438,6 +447,56 @@ export const Conflict: Story = {
 			templates: [mockKubernetesTemplate],
 			default_template: undefined,
 		});
+	},
+};
+
+const mockNewerProject: ChatProject = {
+	...mockProjectWithDefaultPreset,
+	templates: [mockKubernetesTemplate],
+	default_template: undefined,
+};
+
+export const ConflictFoundOnSave: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	beforeEach: () => {
+		serverProject.set(mockProjectWithDefaultPreset);
+		// The check that Save runs first loads a save from "another user".
+		spyOn(API.experimental, "getChatProjects").mockImplementation(async () => {
+			serverProject.set(mockNewerProject);
+			return [mockNewerProject];
+		});
+		spyOn(API, "getTemplates").mockResolvedValue([
+			mockDockerTemplate,
+			mockKubernetesTemplate,
+		]);
+	},
+	render: function ConflictFoundOnSaveStory(args) {
+		const project = useSyncExternalStore(
+			serverProject.subscribe,
+			serverProject.get,
+		);
+		return <ProjectTemplatesDialog {...args} project={project} />;
+	},
+	// Saves an edited draft, so the screenshot shows the warning with focus.
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
+		await userEvent.click(await screen.findByRole("button", { name: "Save" }));
 	},
 };
 

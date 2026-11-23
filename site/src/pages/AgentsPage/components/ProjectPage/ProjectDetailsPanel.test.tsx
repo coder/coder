@@ -751,8 +751,10 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(
 			screen.getByRole("switch", { name: "Limit chats to these templates" }),
 		);
-		const save = screen.getByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: "Save",
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
@@ -800,10 +802,10 @@ describe("ProjectDetailsPanel templates", () => {
 			await user.click(
 				await screen.findByRole("button", { name: "Clear all" }),
 			);
-			const save = screen.getByRole("button", { name: "Save" });
-			await waitFor(() =>
-				expect(save).toHaveAttribute("aria-disabled", "false"),
-			);
+			const save = await screen.findByRole("button", {
+				name: "Save",
+				busy: false,
+			});
 			const refreshesBeforeSave = getProjects.mock.calls.length;
 			await user.click(save);
 
@@ -838,8 +840,10 @@ describe("ProjectDetailsPanel templates", () => {
 		rerenderWithProject(mockProjectWithTemplates);
 		failUpdate(mockApiError({ message: "Failed to update chat project." }));
 
-		const save = await screen.findByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: "Save",
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));
