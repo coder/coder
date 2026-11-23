@@ -271,8 +271,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			if (e.key === "Escape") {
 				input.blur();
 			}
-			// Only from the input: cmdk would otherwise select the highlighted
-			// option on a following Enter pressed on a remove button.
+			// Only from the input: the list closes when the input loses focus,
+			// so one opened from a remove button would stay open after focus
+			// moves on.
 			if (e.key === "ArrowDown" && e.target === input) {
 				setOpen(true);
 			}
