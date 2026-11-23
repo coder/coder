@@ -86,6 +86,10 @@ const renderDialog = (
 const findParameterInput = async (name: string) =>
 	within(await screen.findByRole("group", { name })).getByRole("textbox");
 
+/** Save is busy while the dialog loads, refreshes, checks, or saves. */
+const findSave = () =>
+	screen.findByRole("button", { name: /Save/, busy: false });
+
 describe("ProjectTemplatesDialog", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -258,11 +262,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
 	});
 
@@ -326,10 +326,7 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		const callsBeforeSave = getProjects.mock.calls.length;
 		getProjects.mockResolvedValue([mockProjectWithDefault]);
 
@@ -375,10 +372,7 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -399,10 +393,7 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -424,10 +415,7 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, rerenderWithProject } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		const newer = mockProjectWithDefault;
 		getProjects.mockResolvedValue([newer]);
 
@@ -449,10 +437,7 @@ describe("ProjectTemplatesDialog", () => {
 		const { user } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		getProjects.mockRejectedValueOnce(
 			mockApiError({ message: "Network error." }),
 		);
@@ -517,11 +502,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
@@ -645,10 +626,7 @@ describe("ProjectTemplatesDialog", () => {
 	it("saves nothing when an eligible template changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		vi.mocked(API.getTemplates).mockResolvedValue([
 			{ ...MockTemplate, active_version_id: "new-active-version" },
 		]);
@@ -663,10 +641,7 @@ describe("ProjectTemplatesDialog", () => {
 	it("sends a save once even when Save is pressed again before the dialog closes", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 
 		await user.click(save);
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
@@ -687,9 +662,8 @@ describe("ProjectTemplatesDialog", () => {
 				queryKey: agentTemplatesKey(MockChatProject.organization_id),
 			}),
 		);
-		await user.click(
-			await screen.findByRole("button", { name: /Save/, busy: false }),
-		);
+		await user.click(await findSave());
+		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(props.onSave).not.toHaveBeenCalled();
 		// The first load and the refetch. A save would check the list again.
@@ -705,11 +679,7 @@ describe("ProjectTemplatesDialog", () => {
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
@@ -722,10 +692,7 @@ describe("ProjectTemplatesDialog", () => {
 	it("saves when only a template outside the draft changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 		vi.mocked(API.getTemplates).mockResolvedValue([
 			MockTemplate,
 			{ ...MockTemplate, id: "unrelated-template" },

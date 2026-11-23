@@ -17,7 +17,7 @@ import {
 	richParameters,
 	templateVersionPresets,
 } from "#/api/queries/templates";
-import type { ChatProject, Template } from "#/api/typesGenerated";
+import type { ChatProject } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -40,6 +40,7 @@ import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 import {
 	rebaseValues,
 	savedTemplates,
+	serializeEligibleTemplates,
 	serializeTemplates,
 	serializeValues,
 	templatesChange,
@@ -139,24 +140,6 @@ type ProjectTemplatesFormProps = Omit<
 	readonly isCheckCurrent: (checkId: number) => boolean;
 	readonly onCancel: () => void;
 };
-
-/**
- * Covers what a request for the draft's templates depends on: which of them
- * are eligible, their active versions, and their parameter mode.
- */
-const serializeEligibleTemplates = (
-	templates: readonly Template[] | undefined,
-	draftTemplateIds: readonly string[],
-) =>
-	JSON.stringify(
-		(templates ?? [])
-			.filter(({ id }) => draftTemplateIds.includes(id))
-			.map(
-				({ id, active_version_id, use_classic_parameter_flow }) =>
-					`${id}:${active_version_id}:${use_classic_parameter_flow}`,
-			)
-			.sort(),
-	);
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onBeginCheck,
