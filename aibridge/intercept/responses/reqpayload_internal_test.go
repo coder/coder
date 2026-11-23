@@ -153,6 +153,31 @@ func TestCorrelatingToolCallID(t *testing.T) {
 			name:    "tool result missing call id followed by developer message does not fall back to older result",
 			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"type":"function_call_output","output":"r2"},{"role":"developer","content":"dev"}]}`),
 		},
+		{
+			name:     "computer_call_output",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"computer_call_output","call_id":"call_computer","output":{"type":"computer_screenshot","image_url":"data:image/png;base64,AA=="}}]}`),
+			wantCall: new("call_computer"),
+		},
+		{
+			name:     "shell_call_output followed by developer message",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"shell_call_output","call_id":"call_shell","output":[{"stdout":"/home","stderr":"","outcome":{"type":"exit","exit_code":0}}]},{"role":"developer","content":"dev"}]}`),
+			wantCall: new("call_shell"),
+		},
+		{
+			name:     "apply_patch_call_output",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"apply_patch_call_output","call_id":"call_patch","status":"completed"}]}`),
+			wantCall: new("call_patch"),
+		},
+		{
+			name:     "local_shell_call_output with call_id",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"local_shell_call_output","call_id":"call_local","output":"ok"}]}`),
+			wantCall: new("call_local"),
+		},
+		{
+			name:     "local_shell_call_output with only id",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"local_shell_call_output","id":"call_local","output":"ok"}]}`),
+			wantCall: new("call_local"),
+		},
 	}
 
 	for _, tc := range tests {

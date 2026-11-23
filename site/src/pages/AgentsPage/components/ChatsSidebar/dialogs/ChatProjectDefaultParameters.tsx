@@ -5,6 +5,7 @@ import { dynamicParameters } from "#/api/queries/templates";
 import type { PreviewParameter } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -12,7 +13,6 @@ import {
 	Diagnostics,
 	DynamicParameter,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
-import { RetryButton } from "../../RetryButton";
 
 type ParameterValues = Readonly<Record<string, string>>;
 
