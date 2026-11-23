@@ -134,7 +134,6 @@ export const shouldInvalidateFilteredChatList = (
 // A chat that pauses for input publishes only action_required.
 const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"action_required",
-	"chat_summary_change",
 	"created",
 	"deleted",
 	"project_change",
