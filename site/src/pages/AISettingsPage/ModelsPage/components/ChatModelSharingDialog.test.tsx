@@ -74,6 +74,10 @@ describe("ChatModelSharingDialog", () => {
 			}),
 		);
 		await user.click(screen.getByRole("button", { name: "Add member" }));
+		// Wait for the added row so Save includes it.
+		await screen.findByRole("button", {
+			name: `Remove ${MockUserOwner.username}`,
+		});
 		await user.click(screen.getByRole("button", { name: "Save permissions" }));
 
 		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
