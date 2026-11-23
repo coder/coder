@@ -81,6 +81,32 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+// ChatAutomation inserts a schedule automation. Without a target mode it
+// targets an existing chat. The organization and the owner must exist.
+func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomation) database.ChatAutomation {
+	t.Helper()
+
+	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+		ID:                   uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
+		Name:                 takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedByChatID:      seed.CreatedByChatID,
+		Kind:                 takeFirst(seed.Kind, database.ChatAutomationKindSchedule),
+		Enabled:              seed.Enabled,
+		Prompt:               takeFirst(seed.Prompt, "Do the task."),
+		TargetMode:           takeFirst(seed.TargetMode, database.ChatAutomationTargetModeExistingChat),
+		TargetChatID:         seed.TargetChatID,
+		NewChatModelConfigID: seed.NewChatModelConfigID,
+		ProjectID:            seed.ProjectID,
+		ScheduleCron:         takeFirst(seed.ScheduleCron, sql.NullString{String: "0 9 * * *", Valid: true}),
+		ScheduleTimeZone:     takeFirst(seed.ScheduleTimeZone, sql.NullString{String: "UTC", Valid: true}),
+		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
+	})
+	require.NoError(t, err, "insert chat automation")
+	return automation
+}
+
 func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {
 	t.Helper()
 

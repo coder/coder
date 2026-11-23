@@ -139,6 +139,17 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
+			// A replica of the previous release fails to load an API key
+			// whose allow list names a resource type it does not know.
+			// chat_automation is new, so it stays out of allow lists
+			// until a rolling upgrade can no longer meet such a replica.
+			if entry.Type == rbac.ResourceChatAutomation.Type {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  "Resource type \"chat_automation\" cannot be used in an allow list yet.",
+				})
+				return
+			}
 			rbacAllowListElements = append(rbacAllowListElements, entry)
 		}
 

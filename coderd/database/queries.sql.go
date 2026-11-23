@@ -6142,6 +6142,234 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const countChatAutomationsByOwnerID = `-- name: CountChatAutomationsByOwnerID :one
+SELECT COUNT(*)::bigint
+FROM chat_automations
+WHERE owner_id = $1::uuid
+`
+
+// Counts the automations of one owner across all organizations.
+func (q *sqlQuerier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatAutomationsByOwnerID, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const deleteChatAutomationByID = `-- name: DeleteChatAutomationByID :exec
+DELETE FROM chat_automations
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatAutomationByID, id)
+	return err
+}
+
+const getChatAutomationByID = `-- name: GetChatAutomationByID :one
+SELECT id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, new_chat_model_config_id, project_id, schedule_cron, schedule_time_zone, schedule_next_run_at, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, created_at, updated_at
+FROM chat_automations
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error) {
+	row := q.db.QueryRowContext(ctx, getChatAutomationByID, id)
+	var i ChatAutomation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.CreatedByChatID,
+		&i.Kind,
+		&i.Enabled,
+		&i.Prompt,
+		&i.TargetMode,
+		&i.TargetChatID,
+		&i.NewChatModelConfigID,
+		&i.ProjectID,
+		&i.ScheduleCron,
+		&i.ScheduleTimeZone,
+		&i.ScheduleNextRunAt,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
+SELECT id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, new_chat_model_config_id, project_id, schedule_cron, schedule_time_zone, schedule_next_run_at, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, created_at, updated_at
+FROM
+    chat_automations
+WHERE
+    organization_id = $1::uuid
+    AND CASE
+        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN owner_id = $2::uuid
+        ELSE true
+    END
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatAutomationsByOrganizationID
+    -- @authorize_filter
+ORDER BY
+    created_at DESC,
+    id DESC
+`
+
+type GetChatAutomationsByOrganizationIDParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+// The all-zero owner_id means every owner.
+func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationsByOrganizationID, arg.OrganizationID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.Prompt,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ProjectID,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleNextRunAt,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatAutomation = `-- name: InsertChatAutomation :one
+INSERT INTO chat_automations (
+    id,
+    organization_id,
+    owner_id,
+    name,
+    created_by_chat_id,
+    kind,
+    enabled,
+    prompt,
+    target_mode,
+    target_chat_id,
+    new_chat_model_config_id,
+    project_id,
+    schedule_cron,
+    schedule_time_zone,
+    schedule_next_run_at
+)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::uuid,
+    $6::chat_automation_kind,
+    $7::boolean,
+    $8::text,
+    $9::chat_automation_target_mode,
+    $10::uuid,
+    $11::uuid,
+    $12::uuid,
+    $13::text,
+    $14::text,
+    $15::timestamptz
+)
+RETURNING id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, new_chat_model_config_id, project_id, schedule_cron, schedule_time_zone, schedule_next_run_at, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, created_at, updated_at
+`
+
+type InsertChatAutomationParams struct {
+	ID                   uuid.NullUUID            `db:"id" json:"id"`
+	OrganizationID       uuid.UUID                `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID                `db:"owner_id" json:"owner_id"`
+	Name                 string                   `db:"name" json:"name"`
+	CreatedByChatID      uuid.NullUUID            `db:"created_by_chat_id" json:"created_by_chat_id"`
+	Kind                 ChatAutomationKind       `db:"kind" json:"kind"`
+	Enabled              bool                     `db:"enabled" json:"enabled"`
+	Prompt               string                   `db:"prompt" json:"prompt"`
+	TargetMode           ChatAutomationTargetMode `db:"target_mode" json:"target_mode"`
+	TargetChatID         uuid.NullUUID            `db:"target_chat_id" json:"target_chat_id"`
+	NewChatModelConfigID uuid.NullUUID            `db:"new_chat_model_config_id" json:"new_chat_model_config_id"`
+	ProjectID            uuid.NullUUID            `db:"project_id" json:"project_id"`
+	ScheduleCron         sql.NullString           `db:"schedule_cron" json:"schedule_cron"`
+	ScheduleTimeZone     sql.NullString           `db:"schedule_time_zone" json:"schedule_time_zone"`
+	ScheduleNextRunAt    sql.NullTime             `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+}
+
+func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error) {
+	row := q.db.QueryRowContext(ctx, insertChatAutomation,
+		arg.ID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+		arg.CreatedByChatID,
+		arg.Kind,
+		arg.Enabled,
+		arg.Prompt,
+		arg.TargetMode,
+		arg.TargetChatID,
+		arg.NewChatModelConfigID,
+		arg.ProjectID,
+		arg.ScheduleCron,
+		arg.ScheduleTimeZone,
+		arg.ScheduleNextRunAt,
+	)
+	var i ChatAutomation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.CreatedByChatID,
+		&i.Kind,
+		&i.Enabled,
+		&i.Prompt,
+		&i.TargetMode,
+		&i.TargetChatID,
+		&i.NewChatModelConfigID,
+		&i.ProjectID,
+		&i.ScheduleCron,
+		&i.ScheduleTimeZone,
+		&i.ScheduleNextRunAt,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id

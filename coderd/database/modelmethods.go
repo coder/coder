@@ -261,6 +261,13 @@ func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
 		WithGroupACL(chatProjectMemoryACL(project.GroupACL))
 }
 
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		InOrg(a.OrganizationID).
+		WithOwner(a.OwnerID.String())
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).

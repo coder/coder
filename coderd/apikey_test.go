@@ -273,6 +273,23 @@ func TestCreateTokenScopes(t *testing.T) {
 	}
 }
 
+// A replica of the previous release cannot load a key whose allow list
+// names chat_automation, so a token cannot name it yet.
+func TestTokenAllowListRejectsChatAutomation(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		AllowList: []codersdk.APIAllowListTarget{codersdk.AllowTypeTarget(codersdk.ResourceChatAutomation)},
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+}
+
 func TestTokenScopeCeiling(t *testing.T) {
 	t.Parallel()
 

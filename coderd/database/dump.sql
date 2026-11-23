@@ -312,7 +312,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_secret:create',
     'workspace_secret:read',
     'workspace_secret:read_secret',
-    'workspace_secret:update'
+    'workspace_secret:update',
+    'chat_automation:*',
+    'chat_automation:create',
+    'chat_automation:read',
+    'chat_automation:update',
+    'chat_automation:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -357,6 +362,21 @@ CREATE TYPE build_reason AS ENUM (
     'ssh_connection',
     'vscode_connection',
     'jetbrains_connection'
+);
+
+CREATE TYPE chat_automation_kind AS ENUM (
+    'schedule'
+);
+
+CREATE TYPE chat_automation_run_outcome AS ENUM (
+    'accepted',
+    'skipped',
+    'refused'
+);
+
+CREATE TYPE chat_automation_target_mode AS ENUM (
+    'existing_chat',
+    'new_chat'
 );
 
 CREATE TYPE chat_busy_behavior AS ENUM (
@@ -1048,6 +1068,13 @@ BEGIN
         -- does not remove the users row so the FK cascade never fires.
         DELETE FROM skills
         WHERE user_id = OLD.id;
+
+        -- Remove their chat automations, which would otherwise keep
+        -- running as them.
+        -- chat_automations.owner_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM chat_automations
+        WHERE owner_id = OLD.id;
     END IF;
     RETURN NEW;
 END;
@@ -1322,6 +1349,24 @@ BEGIN
 		END IF;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_chat_automation_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.owner_id
+      AND deleted = true
+    LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Cannot create chat_automation for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_automation_owner_deleted';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -2097,6 +2142,47 @@ COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests
 COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
+CREATE TABLE chat_automations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    created_by_chat_id uuid,
+    kind chat_automation_kind NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    prompt text NOT NULL,
+    target_mode chat_automation_target_mode NOT NULL,
+    target_chat_id uuid,
+    new_chat_model_config_id uuid,
+    project_id uuid,
+    schedule_cron text,
+    schedule_time_zone text,
+    schedule_next_run_at timestamp with time zone,
+    last_run_at timestamp with time zone,
+    last_run_outcome chat_automation_run_outcome,
+    last_run_reason text,
+    last_run_chat_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_automations_last_run_shape CHECK (((last_run_at IS NULL) = (last_run_outcome IS NULL))),
+    CONSTRAINT chat_automations_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
+    CONSTRAINT chat_automations_project_target_mode CHECK (((project_id IS NULL) OR (target_mode = 'new_chat'::chat_automation_target_mode))),
+    CONSTRAINT chat_automations_schedule_shape CHECK (((kind = 'schedule'::chat_automation_kind) = ((schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
+    CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL))))
+);
+
+COMMENT ON TABLE chat_automations IS 'Saved prompts that a trigger sends to a chat as their owner.';
+
+COMMENT ON COLUMN chat_automations.created_by_chat_id IS 'Chat whose agent created the automation. NULL when a person created it or after that chat is deleted.';
+
+COMMENT ON COLUMN chat_automations.target_chat_id IS 'Target of an existing_chat automation. NULL after the target chat is deleted.';
+
+COMMENT ON COLUMN chat_automations.project_id IS 'Project for the chats a new_chat automation creates. NULL when it has none or after the project is deleted.';
+
+COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'The next occurrence to run. NULL when none is pending.';
+
+COMMENT ON COLUMN chat_automations.last_run_chat_id IS 'Chat of the latest run. No foreign key: the chat can be deleted.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
@@ -4695,6 +4781,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
 
@@ -5122,6 +5211,18 @@ CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
+CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
+
+CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_next_run_at) WHERE ((kind = 'schedule'::chat_automation_kind) AND enabled);
+
+CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
+
+CREATE INDEX chat_automations_owner_id_idx ON chat_automations USING btree (owner_id);
+
+CREATE INDEX chat_automations_project_id_idx ON chat_automations USING btree (project_id) WHERE (project_id IS NOT NULL);
+
+CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
@@ -5555,6 +5656,8 @@ CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT 
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
+CREATE TRIGGER trigger_insert_chat_automations BEFORE INSERT ON chat_automations FOR EACH ROW EXECUTE FUNCTION insert_chat_automation_fail_if_user_deleted();
+
 CREATE TRIGGER trigger_insert_organization_system_roles AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_organization_system_roles();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
@@ -5628,6 +5731,24 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_created_by_chat_id_fkey FOREIGN KEY (created_by_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_new_chat_model_config_fkey FOREIGN KEY (organization_id, new_chat_model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_target_chat_id_fkey FOREIGN KEY (target_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
