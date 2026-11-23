@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import type { Template } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
@@ -20,12 +21,15 @@ import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
-// The icon field renders external images, which read the active theme.
+// The icon field renders external images, which read the active theme, and
+// the organization picker shows tooltips, which need the app's provider.
 const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
 	const [queryClient] = useState(createTestQueryClient);
 	return (
 		<QueryClientProvider client={queryClient}>
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider>{children}</TooltipProvider>
+			</ThemeOverride>
 		</QueryClientProvider>
 	);
 };
