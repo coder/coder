@@ -116,14 +116,10 @@ const select = async (
 	await user.click(await screen.findByRole("option", { name: option }));
 };
 const fillDetails = async (user: ReturnType<typeof userEvent.setup>) => {
-	await user.type(
-		await screen.findByRole("textbox", { name: "Name" }),
-		"Daily report",
-	);
-	await user.type(
-		screen.getByRole("textbox", { name: "Prompt" }),
-		"Summarize changes.",
-	);
+	await user.click(await screen.findByRole("textbox", { name: "Name" }));
+	await user.paste("Daily report");
+	await user.click(screen.getByRole("textbox", { name: "Prompt" }));
+	await user.paste("Summarize changes.");
 };
 const chooseModel = (user: ReturnType<typeof userEvent.setup>) =>
 	select(user, "Model", "GPT-5 (OpenAI)");
@@ -179,16 +175,11 @@ it("creates a fully configured schedule and invalidates only its organization's 
 	const name = "🛠".repeat(128);
 	await user.click(await screen.findByRole("textbox", { name: "Name" }));
 	await user.paste(` ${name} `);
-	await user.type(
-		screen.getByRole("textbox", { name: "Prompt" }),
-		"  Preserve prompt spacing.\n",
-	);
+	await user.click(screen.getByRole("textbox", { name: "Prompt" }));
+	await user.paste("  Preserve prompt spacing.\n");
 	await user.click(screen.getByRole("switch", { name: "Enabled" }));
 	await user.clear(screen.getByRole("textbox", { name: "Cron schedule" }));
-	await user.type(
-		screen.getByRole("textbox", { name: "Cron schedule" }),
-		"30 8 * * 1",
-	);
+	await user.paste("30 8 * * 1");
 	await select(user, "Time zone", "America/New_York");
 	await chooseModel(user);
 	await select(user, "Project", MockChatProject.name);
@@ -276,10 +267,8 @@ it.each([
 		await select(user, "Existing chat", MockOwnedChat.title);
 		await select(user, "Trigger type", "Webhook");
 		await select(user, "Webhook authentication", "Standard Webhooks");
-		await user.type(
-			screen.getByLabelText("Webhook secret"),
-			"discarded-secret",
-		);
+		await user.click(screen.getByLabelText("Webhook secret"));
+		await user.paste("discarded-secret");
 		if (auth === "standard_webhooks") {
 			await select(user, "Webhook authentication", "GitHub signature");
 		}
@@ -293,10 +282,7 @@ it.each([
 				expect(screen.getByLabelText("Webhook secret")).toHaveFocus(),
 			);
 			expect(requests).toEqual([]);
-			await user.type(
-				screen.getByLabelText("Webhook secret"),
-				"whsec_c3Rvcnktc2VjcmV0",
-			);
+			await user.paste("whsec_c3Rvcnktc2VjcmV0");
 		} else if (busy === "skip") {
 			await select(user, "When the chat is busy", "Skip");
 		}
@@ -477,10 +463,7 @@ it("focuses backend field errors and retries with the corrected draft", async ()
 		).toHaveFocus(),
 	);
 	await user.clear(screen.getByRole("textbox", { name: "Cron schedule" }));
-	await user.type(
-		screen.getByRole("textbox", { name: "Cron schedule" }),
-		"0 * * * *",
-	);
+	await user.paste("0 * * * *");
 	await submit(user);
 	await waitFor(() => expect(requests).toHaveLength(2));
 	expect(requests[1]).toEqual({ ...requests[0], schedule_cron: "0 * * * *" });
