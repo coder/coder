@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import {
@@ -94,15 +95,10 @@ export const WorkspaceBuildLogSection: React.FC<
 	const hasLogs = Boolean(logs && logs.length > 0);
 	const [timedOut, setTimedOut] = useState(false);
 
-	const [prevTimeoutInputs, setPrevTimeoutInputs] = useState({
-		effectiveBuildId,
-		hasLogs,
-	});
-	if (
-		prevTimeoutInputs.effectiveBuildId !== effectiveBuildId ||
-		prevTimeoutInputs.hasLogs !== hasLogs
-	) {
-		setPrevTimeoutInputs({ effectiveBuildId, hasLogs });
+	const timeoutInputs = { effectiveBuildId, hasLogs };
+	const [prevTimeoutInputs, setPrevTimeoutInputs] = useState(timeoutInputs);
+	if (!isEqual(timeoutInputs, prevTimeoutInputs)) {
+		setPrevTimeoutInputs(timeoutInputs);
 		setTimedOut(false);
 	}
 
