@@ -19,6 +19,7 @@ export const Blocks: React.FC<BlocksProps> = ({ count }) => {
 		if (!blocksRef.current) {
 			return;
 		}
+
 		setAvailableWidth(blocksRef.current.clientWidth);
 	}, []);
 

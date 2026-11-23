@@ -246,6 +246,7 @@ const AgentsPageLayout: React.FC = () => {
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
+
 	// Archives can outlive their row, so read the route this layout last
 	// committed. Unset while unmounted, and after navigating so a second
 	// matching archive before the next commit does not navigate again.
@@ -253,20 +254,25 @@ const AgentsPageLayout: React.FC = () => {
 		agentId: string | undefined;
 		search: string;
 	}>(undefined);
+
 	useEffect(() => {
 		archiveRouteRef.current = { agentId, search: location.search };
+
 		return () => {
 			archiveRouteRef.current = undefined;
 		};
 	});
+
 	const navigateAfterArchive = (chatId: string) => {
 		const route = archiveRouteRef.current;
 		if (!route) {
 			return;
 		}
+
 		const activeChat = route.agentId
 			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(route.agentId))
 			: undefined;
+
 		if (
 			!shouldNavigateAfterArchive(
 				route.agentId,
@@ -276,9 +282,11 @@ const AgentsPageLayout: React.FC = () => {
 		) {
 			return;
 		}
+
 		archiveRouteRef.current = undefined;
 		void navigate({ pathname: "/agents", search: route.search });
 	};
+
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;

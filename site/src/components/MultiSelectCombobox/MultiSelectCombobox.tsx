@@ -294,6 +294,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	// Keep options in sync with the `options` prop unless `onSearch` provides them.
 	if (arrayOptions && !onSearch) {
 		const propOptions = transitionToGroupOption(arrayOptions, groupBy);
+
 		if (!isEqual(propOptions, options)) {
 			setOptions(propOptions);
 		}
