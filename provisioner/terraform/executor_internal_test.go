@@ -323,8 +323,8 @@ func TestRedactArgs(t *testing.T) {
 
 	require.Equal(t, []string{
 		"apply",
-		"-var", "db_password=*redacted*",
-		"-var", "token=*redacted*",
+		"-var", "db_password=[REDACTED]",
+		"-var", "token=[REDACTED]",
 		// Not flagged sensitive: logged as is, even if the name looks secret-ish.
 		"-var", "region=us-east-2",
 		"-var", "aws_access_key_id=AKIASYNTHETIC",

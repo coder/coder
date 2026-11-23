@@ -77,9 +77,6 @@ const forceExitTimeout = 10 * time.Second
 func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Dir = e.files.WorkDirectory()
-	// Capture now, while the caller holds the lock: the callback below runs later
-	// and plan replaces e.sensitiveVars.
-	sensitiveVars := e.sensitiveVars
 	if runtime.GOOS != "windows" {
 		cmd.Cancel = func() error {
 			// A short exit timeout also shortens the wait after the second
@@ -88,7 +85,7 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 			// that is not read yet.
 			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
 				err := cmd.Process.Kill()
-				e.logger.Debug(killCtx, "killed command", slog.F("args", redactArgs(cmd.Args, sensitiveVars)), slog.Error(err))
+				e.logger.Debug(killCtx, "killed command", slog.F("args", redactArgs(cmd.Args, e.sensitiveVars)), slog.Error(err))
 			})
 			return cmd.Process.Signal(os.Interrupt)
 		}
@@ -887,7 +884,7 @@ func redactArgs(args []string, sensitive map[string]bool) []string {
 			continue
 		}
 		if name, _, _ := strings.Cut(args[i], "="); sensitive[name] {
-			out[i] = name + "=*redacted*"
+			out[i] = name + "=[REDACTED]"
 		}
 	}
 	return out
