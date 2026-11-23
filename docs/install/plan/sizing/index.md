@@ -193,7 +193,7 @@ That number depends on how much your users rely on AI agents:
 - Without AI agents, most users have fewer than one running workspace at a time.
   Not everyone works at the same time, and workspaces can stop automatically when idle.
 - With AI agents, each agent that runs code or edits files needs a running workspace.
-  A [Coder Agents chat](../../../ai-coder/agents/architecture.md#workspace-connection-lifecycle) creates or starts a workspace when it first needs one.
+  A [Coder Agents chat](../../../coder-agents/architecture.md#workspace-connection-lifecycle) creates or starts a workspace when it first needs one.
   Several chats that run at the same time can each keep a workspace running.
   A user who relies heavily on agents can account for five or more running workspaces.
 
