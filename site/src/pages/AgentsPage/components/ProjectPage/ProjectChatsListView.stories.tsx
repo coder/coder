@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -207,6 +207,29 @@ export const WithoutActions: Story = {
 
 export const WithoutCost: Story = {
 	args: { showCost: false },
+};
+
+export const PartialCost: Story = {
+	parameters: {
+		queries: [
+			...chats.map((chat, index) => ({
+				key: chatCostTreeKey(chat.id),
+				data: {
+					...mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
+					unpriced_request_count: index === 0 ? 2 : 0,
+				},
+			})),
+			{ key: chatProjectsKey, data: [MockChatProject] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "Cost incomplete",
+			}),
+		);
+		await screen.findByRole("dialog");
+	},
 };
 
 export const Loading: Story = {

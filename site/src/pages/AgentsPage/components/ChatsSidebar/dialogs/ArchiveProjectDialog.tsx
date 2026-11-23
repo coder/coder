@@ -26,6 +26,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
@@ -34,7 +35,6 @@ import {
 	projectChatWorkspaces,
 	projectWorkspaceAction,
 } from "../../../utils/agentWorkspaceUtils";
-import { RetryButton } from "../../RetryButton";
 import {
 	notifyWorkspaceActionResult,
 	ProjectWorkspacesSection,

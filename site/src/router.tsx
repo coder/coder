@@ -430,6 +430,7 @@ import {
 	AgentChatPageSkeleton,
 	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
+import { EmbedContext } from "./pages/AgentsPage/components/EmbedContext";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const AIBridgeLayout = lazy(
@@ -469,6 +470,9 @@ const AISettingsGatewayKeysPage = lazy(
 );
 const AISettingsSpendPage = lazy(
 	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
+);
+const AISettingsAISpendPage = lazy(
+	() => import("./pages/AISettingsPage/AISpendPage/AISpendPage"),
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
@@ -782,6 +786,11 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route path="spend" element={<AISettingsSpendPage />} />
+						{/* TODO(AIGOV-729): The redesigned spend page, unlisted until it replaces the one above. */}
+						<Route
+							path="spend/experimental"
+							element={<AISettingsAISpendPage />}
+						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
 						<Route
@@ -961,9 +970,11 @@ export const router = createBrowserRouter(
 			<Route
 				path="/agents/:agentId/embed"
 				element={
-					<Suspense fallback={<AgentChatPageSkeleton />}>
-						<AgentEmbedPage />
-					</Suspense>
+					<EmbedContext value={{ isEmbedded: true }}>
+						<Suspense fallback={<AgentChatPageSkeleton />}>
+							<AgentEmbedPage />
+						</Suspense>
+					</EmbedContext>
 				}
 			>
 				<Route
