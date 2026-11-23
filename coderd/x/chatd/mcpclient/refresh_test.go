@@ -4,15 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -20,7 +23,12 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestIsPermanentRefreshError(t *testing.T) {
@@ -283,4 +291,101 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	t.Cleanup(func() {
 		require.Zero(t, hits.Load(), "no token request may be made")
 	})
+}
+
+// TestRefreshUserTokenOneRefresher runs two refreshes of one expired token
+// and lets the provider answer the first only after the second is waiting
+// on the token lock (or, without the lock, has reached the provider too).
+// The provider rotates refresh tokens and reports any reuse of a spent one.
+func TestRefreshUserTokenOneRefresher(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		refresh     string
+		wantAccess  string
+		wantFailure bool
+		wantGrants  int64
+	}{
+		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1},
+		{name: "RevokedGrant", refresh: "revoked", wantFailure: true},
+		{name: "ProviderDown", refresh: "down", wantAccess: "expired-access"},
+		{name: "Disconnected", refresh: "disconnect", wantGrants: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			authzDB := dbauthz.New(store, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+			user := dbgen.User(t, store, database.User{})
+
+			var requests, grants, reuses atomic.Int64
+			var spent sync.Map
+			release := make(chan struct{})
+			var cfg database.MCPServerConfig
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if requests.Add(1) == 1 {
+					select {
+					case <-release:
+					case <-ctx.Done():
+					}
+				}
+				w.Header().Set("Content-Type", "application/json")
+				refresh := r.FormValue("refresh_token")
+				_, reused := spent.LoadOrStore(refresh, true)
+				if reused && refresh != "down" && refresh != "revoked" {
+					reuses.Add(1)
+				}
+				switch {
+				case refresh == "down":
+					w.WriteHeader(http.StatusInternalServerError)
+				case refresh == "revoked" || reused:
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+				default:
+					if refresh == "disconnect" {
+						assert.NoError(t, store.DeleteMCPServerUserToken(ctx, database.DeleteMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: user.ID}))
+					}
+					n := grants.Add(1)
+					_, _ = fmt.Fprintf(w, `{"access_token":"access-%d","refresh_token":"refresh-%d","token_type":"Bearer","expires_in":3600}`, n, n)
+				}
+			}))
+			t.Cleanup(provider.Close)
+			cfg = dbgen.MCPServerConfig(t, store, database.MCPServerConfig{AuthType: "oauth2", OAuth2ClientID: "cid", OAuth2TokenURL: provider.URL})
+			tok, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            user.ID,
+				AccessToken:       "expired-access",
+				RefreshToken:      tc.refresh,
+				TokenType:         "Bearer",
+				Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+
+			results := make(chan database.MCPServerUserToken, 2)
+			refresh := func() {
+				got, err := mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), authzDB, testMCPHTTPClient(nil), cfg, tok)
+				assert.NoError(t, err)
+				results <- got
+			}
+			go refresh()
+			testutil.Eventually(ctx, t, func(context.Context) bool { return requests.Load() == 1 }, testutil.IntervalFast)
+			go refresh()
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waiting int
+				err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+					WHERE d.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`).Scan(&waiting)
+				return (err == nil && waiting > 0) || requests.Load() > 1
+			}, testutil.IntervalFast)
+			close(release)
+
+			for range 2 {
+				got := testutil.RequireReceive(ctx, t, results)
+				require.Equal(t, tc.wantAccess, got.AccessToken)
+				require.Equal(t, tc.wantFailure, got.OauthRefreshFailureReason != "")
+			}
+			require.Equal(t, tc.wantGrants, grants.Load())
+			require.Zero(t, reuses.Load(), "a spent refresh token was sent again")
+		})
+	}
 }
