@@ -125,3 +125,17 @@ func TestLimitedResponseBody(t *testing.T) {
 		})
 	}
 }
+
+// TestAgentRequestDefaultResponseLimit covers the limit for requests
+// without a per-call limit, such as ListeningPorts. It reads from memory
+// because streaming 32 MiB through an in-process tailnet is too slow for
+// CI.
+func TestAgentRequestDefaultResponseLimit(t *testing.T) {
+	t.Parallel()
+
+	src := &countingReader{size: agentResponseMaxBytes + 1}
+	body := newLimitedResponseBody(io.NopCloser(src), agentRequestOptions{}.responseLimit())
+	n, err := io.Copy(io.Discard, body)
+	require.ErrorContains(t, err, "workspace agent response exceeds 33554432 bytes")
+	require.Equal(t, agentResponseMaxBytes, n)
+}
