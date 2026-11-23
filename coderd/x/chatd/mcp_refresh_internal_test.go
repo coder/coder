@@ -28,14 +28,16 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
 // loopbackMCPServer permits local httptest token endpoints through
-// the SSRF guard.
+// the SSRF guard. Its clock is the real clock, as New defaults it.
 func loopbackMCPServer(db database.Store) *Server {
 	return &Server{
-		db: db,
+		db:    db,
+		clock: quartz.NewReal(),
 		mcpHTTPClient: safedial.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
 			netip.MustParsePrefix("127.0.0.0/8"),
 			netip.MustParsePrefix("::1/128"),
