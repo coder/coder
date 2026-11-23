@@ -156,7 +156,7 @@ const ChatProjectDefaultParameter: React.FC<
 			aria-label={name}
 			tabIndex={-1}
 			disabled={disabled}
-			className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0 outline-hidden"
+			className="flex min-w-0 flex-col gap-1 outline-hidden"
 		>
 			<DynamicParameter
 				parameter={parameter}
