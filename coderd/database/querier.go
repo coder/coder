@@ -105,7 +105,8 @@ type sqlcQuerier interface {
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
-	// Counts the automations of one owner across all organizations.
+	// Counts the automations of one owner across all organizations. A deleted
+	// organization counts too: its last member can still create there.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
@@ -1254,6 +1255,10 @@ type sqlcQuerier interface {
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	// Inserts only for an owner that is neither deleted nor a system user. The
+	// shared row lock makes a concurrent soft delete of the owner wait for this
+	// transaction, so its trigger then deletes the new row. Without it the
+	// insert could commit after the delete and leave the row behind.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.

@@ -103,6 +103,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
@@ -881,6 +882,8 @@ func New(options *Options) *API {
 
 	{ // Chat daemon and git sync worker initialization.
 		api.chatLimits = chatd.LimitsFromConfig(options.DeploymentValues.AI.Chat)
+		api.chatAutomationCreator = chatautomation.NewCreator(options.Database, options.Authorizer,
+			chatautomation.LimitsFromConfig(options.DeploymentValues.AI.Chat))
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -2352,6 +2355,8 @@ type API struct {
 	// chatLimits are the deployment chat limits shared by the chat daemon
 	// and the chat HTTP handlers.
 	chatLimits chatd.Limits
+	// chatAutomationCreator creates chat automations for the HTTP handler.
+	chatAutomationCreator *chatautomation.Creator
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

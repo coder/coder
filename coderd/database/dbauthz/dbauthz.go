@@ -117,10 +117,15 @@ type querier struct {
 	acs  *atomic.Pointer[AccessControlStore]
 }
 
+// IsWrapped reports whether db enforces RBAC through dbauthz.
+func IsWrapped(db database.Store) bool {
+	return slices.Contains(db.Wrappers(), wrapname)
+}
+
 func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger, acs *atomic.Pointer[AccessControlStore]) database.Store {
 	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
-	if slices.Contains(db.Wrappers(), wrapname) {
+	if IsWrapped(db) {
 		return db
 	}
 	return &querier{
@@ -463,6 +468,28 @@ var (
 					Site:        []rbac.Permission{},
 					User: rbac.Permissions(map[string][]policy.Action{
 						rbac.ResourceApiKey.Type: {policy.ActionDelete},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
+	// The cap on chat automations counts an owner's automations across
+	// organizations, an object that no organization-scoped grant matches.
+	subjectChatAutomationCounter = func(ownerID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatAutomationCounter,
+			FriendlyName: "Chat Automation Counter",
+			ID:           ownerID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatautomationcounter"},
+					DisplayName: "Chat Automation Counter",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceChatAutomation.Type: {policy.ActionRead},
 					}),
 					ByOrgID: map[string]rbac.OrgPermissions{},
 				},
@@ -979,6 +1006,13 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // keys owned by the specified user, and nothing else.
 func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectAPIKeyRevoker(userID))
+}
+
+// AsChatAutomationCounter returns a context with an actor that can read the
+// chat automations that the specified user owns, in every organization, and
+// nothing else. Use it only to count them for the per-owner limit.
+func AsChatAutomationCounter(ctx context.Context, ownerID uuid.UUID) context.Context {
+	return As(ctx, subjectChatAutomationCounter(ownerID))
 }
 
 // AsChatdKeyMinter returns a context with an actor that manages the synthetic

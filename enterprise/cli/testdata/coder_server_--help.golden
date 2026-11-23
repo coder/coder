@@ -280,6 +280,11 @@ Configure the background chat processing daemon.
           message that includes more files than the limit is rejected with HTTP
           400. Must be at least 1.
 
+      --chat-max-automations-per-owner int, $CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER (default: 50)
+          Maximum number of chat automations that one user can own across all
+          organizations. Creating one more fails with HTTP 409. Lowering the
+          limit does not delete existing automations. Must be at least 1.
+
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings that each Coder server
           stores at the same time. Each upload holds the recording and its
@@ -312,6 +317,16 @@ Configure the background chat processing daemon.
           step; compaction summaries, advisor calls, and retried attempts do not
           count. A turn that reaches the limit runs the tools from the last
           response, then ends without an error. Must be at least 1.
+
+      --chat-min-automation-schedule-interval duration, $CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL (default: 5m0s)
+          Minimum time between two runs of a chat automation schedule. Creating
+          a schedule that runs more often fails with HTTP 400. The check
+          compares only the times of day of a schedule, counted around the
+          clock. It ignores the days, so it can refuse a schedule whose runs
+          near midnight fall on different days. It ignores clock changes, so on
+          the day that a time zone changes its clock a schedule can run closer
+          than this. Existing schedules are not changed. Must be between 1m and
+          24h.
 
       --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
           Maximum time to wait for the next streamed part from the chat model
