@@ -1,5 +1,9 @@
 import { cn } from "cn";
 
+/** Returns the unread count as the badge displays it, capped at "99+". */
+export const formatUnreadCount = (count: number): string =>
+	count > 99 ? "99+" : String(count);
+
 type UnreadBadgeProps = {
 	count: number;
 } & React.HTMLProps<HTMLSpanElement>;
@@ -19,7 +23,7 @@ export const UnreadBadge: React.FC<UnreadBadgeProps> = ({
 			])}
 			{...props}
 		>
-			{count > 99 ? "99+" : count}
+			{formatUnreadCount(count)}
 		</span>
 	);
 };

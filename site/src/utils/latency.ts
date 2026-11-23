@@ -1,15 +1,22 @@
 const latencyColors = {
-	good: { text: "text-content-success", background: "bg-content-success" },
+	good: {
+		text: "text-content-success",
+		icon: "text-content-success",
+		background: "bg-content-success",
+	},
 	warning: {
 		text: "text-content-warning",
-		background: "bg-content-yellow",
+		icon: "text-border-warning",
+		background: "bg-border-warning",
 	},
 	critical: {
 		text: "text-content-destructive",
+		icon: "text-content-destructive",
 		background: "bg-content-destructive",
 	},
 	unknown: {
 		text: "text-content-secondary",
+		icon: "text-content-secondary",
 		background: "bg-content-secondary",
 	},
 } as const;
@@ -25,5 +32,5 @@ const getLatencyLevel = (latency?: number): LatencyLevel => {
 
 export const getLatencyColor = (
 	latency?: number,
-	type: "text" | "background" = "text",
+	type: "text" | "icon" | "background" = "text",
 ) => latencyColors[getLatencyLevel(latency)][type];

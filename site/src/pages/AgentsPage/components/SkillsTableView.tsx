@@ -2,6 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -20,6 +21,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -43,7 +45,6 @@ import {
 	type SkillsCopy,
 	type SkillsScope,
 } from "../utils/skills";
-import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay, SkillSubmitHandler } from "./SkillEditor";
 import { SkillEditorDialog } from "./SkillEditor";
@@ -248,6 +249,19 @@ export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	);
 };
 
+type SkillNameCellProps = {
+	skill: SkillMetadata;
+};
+
+const SkillNameCell: React.FC<SkillNameCellProps> = ({ skill }) => (
+	<TableCell className="max-w-48" title={skill.name}>
+		<div className="flex items-center gap-1.5">
+			<span className="truncate">{skill.name}</span>
+			{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
+		</div>
+	</TableCell>
+);
+
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	scope,
 	skills,
@@ -359,9 +373,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	} else {
 		tableBody = skills.map((skill) => (
 			<TableRow key={skill.id}>
-				<TableCell className="max-w-48 truncate" title={skill.name}>
-					{skill.name}
-				</TableCell>
+				<SkillNameCell skill={skill} />
 				<TableCell
 					className="w-full max-w-0 truncate"
 					title={skill.description || undefined}
