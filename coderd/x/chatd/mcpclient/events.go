@@ -1,6 +1,7 @@
 package mcpclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -35,6 +36,8 @@ const (
 	// maxSafeHeaderInteger bounds integer x-mcp-header values (the
 	// JavaScript safe-integer range).
 	maxSafeHeaderInteger = 1<<53 - 1
+	// codeHeaderMismatch is the transport's HeaderMismatch error.
+	codeHeaderMismatch = -32020
 )
 
 // DeliveryMode is a way a server delivers an event type.
@@ -69,6 +72,7 @@ type EventType struct {
 	Delivery      []DeliveryMode  `json:"delivery"`
 	InputSchema   json.RawMessage `json:"inputSchema,omitempty"`
 	PayloadSchema json.RawMessage `json:"payloadSchema,omitempty"`
+	Meta          mcp.Meta        `json:"_meta,omitempty"`
 }
 
 // EventOccurrence is one delivered event. Cursor comes with push and
@@ -79,6 +83,7 @@ type EventOccurrence struct {
 	Timestamp time.Time       `json:"timestamp"`
 	Data      json.RawMessage `json:"data"`
 	Cursor    *string         `json:"cursor,omitempty"`
+	Meta      mcp.Meta        `json:"_meta,omitempty"`
 }
 
 // PollParams are the params of events/poll. A nil Cursor is sent as
@@ -302,12 +307,8 @@ func (s *EventsSession) List(ctx context.Context) ([]EventType, error) {
 
 // Poll sends one events/poll request.
 func (s *EventsSession) Poll(ctx context.Context, p PollParams) (PollResult, error) {
-	headers, err := s.requestHeaders(ctx, p.Name, p.Arguments)
-	if err != nil {
-		return PollResult{}, err
-	}
 	p.Arguments = argumentsObject(p.Arguments)
-	res, err := callEvents[*PollResult](ctx, s, "events/poll", &p, headers)
+	res, err := callNamed[*PollResult](ctx, s, "events/poll", p.Name, p.Arguments, &p)
 	if err != nil {
 		return PollResult{}, err
 	}
@@ -316,13 +317,9 @@ func (s *EventsSession) Poll(ctx context.Context, p PollParams) (PollResult, err
 
 // Subscribe creates or refreshes a webhook subscription.
 func (s *EventsSession) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeResult, error) {
-	headers, err := s.requestHeaders(ctx, p.Name, p.Arguments)
-	if err != nil {
-		return SubscribeResult{}, err
-	}
 	p.Arguments = argumentsObject(p.Arguments)
 	p.Delivery.Mode = DeliveryWebhook
-	res, err := callEvents[*SubscribeResult](ctx, s, "events/subscribe", &p, headers)
+	res, err := callNamed[*SubscribeResult](ctx, s, "events/subscribe", p.Name, p.Arguments, &p)
 	if err != nil {
 		return SubscribeResult{}, err
 	}
@@ -332,13 +329,31 @@ func (s *EventsSession) Subscribe(ctx context.Context, p SubscribeParams) (Subsc
 // Unsubscribe ends the webhook subscription keyed by name, arguments and
 // callback URL.
 func (s *EventsSession) Unsubscribe(ctx context.Context, name string, args map[string]any, url string) error {
-	headers, err := s.requestHeaders(ctx, name, args)
-	if err != nil {
-		return err
-	}
 	p := &unsubscribeParams{Name: name, Arguments: argumentsObject(args), Delivery: WebhookDelivery{URL: url}}
-	_, err = callEvents[*unsubscribeResult](ctx, s, "events/unsubscribe", p, headers)
+	_, err := callNamed[*unsubscribeResult](ctx, s, "events/unsubscribe", name, p.Arguments, p)
 	return err
+}
+
+// callNamed sends an events/* request for one event with its routing
+// headers. On HeaderMismatch it lists the event types again and retries
+// once, as the extension asks of clients.
+func callNamed[R mcp.Result, T any, P interface {
+	*T
+	mcp.Params
+}](ctx context.Context, s *EventsSession, method, name string, args map[string]any, params P) (R, error) {
+	for retried := false; ; retried = true {
+		headers, err := s.requestHeaders(ctx, name, args)
+		if err != nil {
+			var zero R
+			return zero, err
+		}
+		res, err := callEvents[R](ctx, s, method, params, headers)
+		var eventsErr *EventsError
+		if retried || !errors.As(err, &eventsErr) || eventsErr.Code != codeHeaderMismatch {
+			return res, err
+		}
+		s.paramHeaders = nil
+	}
 }
 
 // requestHeaders returns Mcp-Name and one Mcp-Param-{Name} per annotated
@@ -351,8 +366,24 @@ func (s *EventsSession) requestHeaders(ctx context.Context, name string, args ma
 		}
 	}
 	headers := map[string]string{"Mcp-Name": encodeHeaderValue(name)}
-	for _, b := range s.paramHeaders[name] {
-		if value, ok := headerArgument(args, b.path); ok {
+	bindings := s.paramHeaders[name]
+	if len(bindings) == 0 {
+		return headers, nil
+	}
+	// Read the values from the JSON that goes on the wire, whatever Go
+	// types the caller used.
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return nil, xerrors.Errorf("encode event arguments: %w", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var wire any
+	if err := dec.Decode(&wire); err != nil {
+		return nil, xerrors.Errorf("decode event arguments: %w", err)
+	}
+	for _, b := range bindings {
+		if value, ok := headerArgument(wire, b.path); ok {
 			headers["Mcp-Param-"+b.header] = encodeHeaderValue(value)
 		}
 	}
@@ -454,8 +485,7 @@ func paramHeaderBindings(schema json.RawMessage) ([]paramHeader, error) {
 // headerArgument returns the argument at path as a header value: a
 // string as is, a boolean as true or false, a safe integer in decimal.
 // Any other value, null or an absent argument gives no header.
-func headerArgument(args map[string]any, path []string) (string, bool) {
-	var value any = args
+func headerArgument(value any, path []string) (string, bool) {
 	for _, key := range path {
 		obj, ok := value.(map[string]any)
 		if !ok {
@@ -470,17 +500,14 @@ func headerArgument(args map[string]any, path []string) (string, bool) {
 		return value, true
 	case bool:
 		return strconv.FormatBool(value), true
+	case json.Number:
+		n, err := strconv.ParseInt(value.String(), 10, 64)
+		if err != nil || n > maxSafeHeaderInteger || n < -maxSafeHeaderInteger {
+			return "", false
+		}
+		return strconv.FormatInt(n, 10), true
 	}
-	// Numbers arrive as any Go numeric type; their JSON form is decimal.
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return "", false
-	}
-	n, err := strconv.ParseInt(string(raw), 10, 64)
-	if err != nil || n > maxSafeHeaderInteger || n < -maxSafeHeaderInteger {
-		return "", false
-	}
-	return strconv.FormatInt(n, 10), true
+	return "", false
 }
 
 // encodeHeaderValue applies the Streamable HTTP value encoding: a value

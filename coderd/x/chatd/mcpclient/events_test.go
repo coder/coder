@@ -71,7 +71,7 @@ func newEventsTestServer(t *testing.T, extensions map[string]any) *eventsTestSer
 	}
 	pages := map[string]*eventsTestList{
 		"": {NextCursor: "page2", Events: []mcpclient.EventType{
-			eventType("a.created", `{"type":"object","properties":{"region":{"type":"string","x-mcp-header":"Region"}}}`),
+			eventType("a.created", `{"type":"object","properties":{"region":{"type":"string","x-mcp-header":"Region"},"filter":{"type":"object","properties":{"team":{"type":"string","x-mcp-header":"Team"}}}}}`),
 			eventType("bad.items", `{"type":"object","properties":{"tags":{"type":"array","items":{"type":"string","x-mcp-header":"Tag"}}}}`),
 			eventType("bad.number", `{"type":"object","properties":{"limit":{"type":"number","x-mcp-header":"Limit"}}}`),
 			eventType("bad.repeat", `{"type":"object","properties":{"a":{"type":"string","x-mcp-header":"Key"},"b":{"type":"string","x-mcp-header":"key"}}}`),
@@ -138,7 +138,7 @@ func connectEventsTest(t *testing.T, es *eventsTestServer) *mcpclient.EventsSess
 
 func TestEventsRequests(t *testing.T) {
 	t.Parallel()
-	args := map[string]any{"region": "Hello, 世界", "other": 1}
+	args := map[string]any{"region": "Hello, 世界", "filter": map[string]string{"team": "core"}, "other": 1}
 	hook := "https://coder.example.com/hook"
 	cases := []struct {
 		method string
@@ -188,6 +188,7 @@ func TestEventsRequests(t *testing.T) {
 			assert.Equal(t, "owner-1", req.header.Get("X-Coder-Owner-Id"))
 			// The encoded form is the example in the transport's Value Encoding table.
 			assert.Equal(t, "=?base64?SGVsbG8sIOS4lueVjA==?=", req.header.Get("Mcp-Param-Region"))
+			assert.Equal(t, "core", req.header.Get("Mcp-Param-Team"))
 			for key, want := range tc.params {
 				assert.JSONEq(t, want, string(req.params[key]), key)
 			}
@@ -223,17 +224,20 @@ func TestEventsUnsupported(t *testing.T) {
 func TestEventsErrors(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		event string
-		code  int64
-		data  string
+		event    string
+		code     int64
+		data     string
+		requests []string
 	}{
-		{event: "forbidden", code: -32024, data: `{"reason":"revoked"}`},
-		{event: "mismatch", code: -32020},
+		{event: "forbidden", code: -32024, data: `{"reason":"revoked"}`, requests: []string{"events/list", "events/list", "events/poll"}},
+		// HeaderMismatch lists (two pages) again and retries once.
+		{event: "mismatch", code: -32020, requests: []string{"events/list", "events/list", "events/poll", "events/list", "events/list", "events/poll"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.event, func(t *testing.T) {
 			t.Parallel()
-			s := connectEventsTest(t, newEventsTestServer(t, eventsExtension))
+			es := newEventsTestServer(t, eventsExtension)
+			s := connectEventsTest(t, es)
 			_, err := s.Poll(testutil.Context(t, testutil.WaitShort), mcpclient.PollParams{Name: tc.event})
 			var eventsErr *mcpclient.EventsError
 			require.ErrorAs(t, err, &eventsErr)
@@ -241,6 +245,11 @@ func TestEventsErrors(t *testing.T) {
 			if tc.data != "" {
 				assert.JSONEq(t, tc.data, string(eventsErr.Data))
 			}
+			var methods []string
+			for _, req := range es.recorded() {
+				methods = append(methods, req.method)
+			}
+			assert.Equal(t, tc.requests, methods)
 		})
 	}
 }
