@@ -1,3 +1,5 @@
+import { cn } from "cn";
+import { ListIcon } from "lucide-react";
 import { type UseQueryResult, useQuery } from "react-query";
 import { useOutletContext } from "react-router";
 import { chatCost } from "#/api/queries/chats";
@@ -6,6 +8,12 @@ import type {
 	ChatCost,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { useChatAttachments } from "../hooks/useChatAttachments";
@@ -17,13 +25,54 @@ import {
 	useChatSelector,
 } from "./ChatConversation/chatStore";
 import {
+	chatOverviewCardPositionClassName,
+	chatOverviewHiddenWhenNarrowClassName,
+} from "./ChatOverviewCardShell";
+import {
 	type ChatOverview,
 	ChatOverviewCardView,
 	type OverviewTarget,
 } from "./ChatOverviewCardView";
 import { countRepoChanges, repoLabel } from "./GitPanel/gitViews";
 
+/** The card's stored open state and the handler that flips it. */
+export type ChatOverviewToggleProps = {
+	isOpen: boolean;
+	/** The card's `id`, named in `aria-controls` while the card shows. */
+	cardId: string;
+	onToggle: () => void;
+};
+
+/** The top bar button that shows and hides the card. */
+export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
+	isOpen,
+	cardId,
+	onToggle,
+}) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				variant="subtle"
+				size="icon"
+				onClick={onToggle}
+				className={cn(
+					"size-7 text-content-secondary hover:text-content-primary",
+					isOpen && "bg-surface-secondary text-content-primary",
+					chatOverviewHiddenWhenNarrowClassName,
+				)}
+				aria-label="Toggle overview"
+				aria-expanded={isOpen}
+				aria-controls={isOpen ? cardId : undefined}
+			>
+				<ListIcon className="size-4" />
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent side="bottom">Toggle overview</TooltipContent>
+	</Tooltip>
+);
+
 type ChatOverviewCardProps = {
+	id: string;
 	chat: Chat;
 	store: ChatStore;
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
@@ -36,6 +85,7 @@ type ChatOverviewCardProps = {
  * whole page view.
  */
 export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
+	id,
 	chat,
 	store,
 	repositories,
@@ -83,13 +133,14 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 
 	return (
 		<ChatOverviewCardView
+			id={id}
 			overview={overview}
 			isLoading={
 				(showCost && costQuery.isPending) || earlierAttachmentsRequest.isLoading
 			}
 			earlierAttachmentsRequest={earlierAttachmentsRequest}
 			onOpenTarget={onOpenTarget}
-			className="absolute top-full right-4 z-20 mt-2"
+			className={chatOverviewCardPositionClassName}
 		/>
 	);
 };

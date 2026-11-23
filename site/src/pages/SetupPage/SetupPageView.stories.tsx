@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { mockApiError } from "#/testHelpers/entities";
 import { SetupPageView } from "./SetupPageView";
 
@@ -20,6 +20,38 @@ export const WithGitHub: Story = {
 			oidc: { enabled: false, signInText: "", iconUrl: "" },
 			password: { enabled: true },
 		},
+	},
+};
+
+export const SetupTokenRequired: Story = {
+	args: {
+		authMethods: {
+			github: { enabled: true, default_provider_configured: true },
+			oidc: { enabled: false, signInText: "", iconUrl: "" },
+			password: { enabled: true },
+			setup_token_required: true,
+		},
+	},
+};
+
+export const SetupTokenRefused: Story = {
+	args: {
+		...SetupTokenRequired.args,
+		onSubmit: fn(),
+		error: mockApiError({
+			message:
+				"A setup token is required to create the first user. Find it in the output of coder server.",
+			validations: [
+				{ field: "setup_token", detail: "Missing or incorrect setup token." },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText("Setup token"), "wrong-token");
+		await userEvent.type(canvas.getByLabelText("Email"), "sam@coder.com");
+		await userEvent.type(canvas.getByLabelText("Password"), "s3cure&password!");
+		await userEvent.click(canvas.getByTestId("create"));
 	},
 };
 
