@@ -1,4 +1,13 @@
 -- name: InsertChatAutomation :one
+-- The shared lock on the owner row makes a concurrent soft delete of the owner
+-- wait for this transaction, so its cleanup trigger then deletes the new row.
+-- The insert trigger refuses an owner that is already deleted.
+WITH owner AS (
+    SELECT id
+    FROM users
+    WHERE id = @owner_id::uuid
+    FOR SHARE
+)
 INSERT INTO chat_automations (
     id,
     organization_id,
@@ -16,10 +25,10 @@ INSERT INTO chat_automations (
     schedule_time_zone,
     schedule_next_run_at
 )
-VALUES (
+SELECT
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
-    @owner_id::uuid,
+    owner.id,
     @name::text,
     sqlc.narg('created_by_chat_id')::uuid,
     @kind::chat_automation_kind,
@@ -32,7 +41,7 @@ VALUES (
     sqlc.narg('schedule_cron')::text,
     sqlc.narg('schedule_time_zone')::text,
     sqlc.narg('schedule_next_run_at')::timestamptz
-)
+FROM owner
 RETURNING *;
 
 -- name: GetChatAutomationByID :one

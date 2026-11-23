@@ -6270,6 +6270,12 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg
 }
 
 const insertChatAutomation = `-- name: InsertChatAutomation :one
+WITH owner AS (
+    SELECT id
+    FROM users
+    WHERE id = $15::uuid
+    FOR SHARE
+)
 INSERT INTO chat_automations (
     id,
     organization_id,
@@ -6287,30 +6293,29 @@ INSERT INTO chat_automations (
     schedule_time_zone,
     schedule_next_run_at
 )
-VALUES (
+SELECT
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
-    $3::uuid,
-    $4::text,
-    $5::uuid,
-    $6::chat_automation_kind,
-    $7::boolean,
-    $8::text,
-    $9::chat_automation_target_mode,
+    owner.id,
+    $3::text,
+    $4::uuid,
+    $5::chat_automation_kind,
+    $6::boolean,
+    $7::text,
+    $8::chat_automation_target_mode,
+    $9::uuid,
     $10::uuid,
     $11::uuid,
-    $12::uuid,
+    $12::text,
     $13::text,
-    $14::text,
-    $15::timestamptz
-)
+    $14::timestamptz
+FROM owner
 RETURNING id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, new_chat_model_config_id, project_id, schedule_cron, schedule_time_zone, schedule_next_run_at, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, created_at, updated_at
 `
 
 type InsertChatAutomationParams struct {
 	ID                   uuid.NullUUID            `db:"id" json:"id"`
 	OrganizationID       uuid.UUID                `db:"organization_id" json:"organization_id"`
-	OwnerID              uuid.UUID                `db:"owner_id" json:"owner_id"`
 	Name                 string                   `db:"name" json:"name"`
 	CreatedByChatID      uuid.NullUUID            `db:"created_by_chat_id" json:"created_by_chat_id"`
 	Kind                 ChatAutomationKind       `db:"kind" json:"kind"`
@@ -6323,13 +6328,16 @@ type InsertChatAutomationParams struct {
 	ScheduleCron         sql.NullString           `db:"schedule_cron" json:"schedule_cron"`
 	ScheduleTimeZone     sql.NullString           `db:"schedule_time_zone" json:"schedule_time_zone"`
 	ScheduleNextRunAt    sql.NullTime             `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	OwnerID              uuid.UUID                `db:"owner_id" json:"owner_id"`
 }
 
+// The shared lock on the owner row makes a concurrent soft delete of the owner
+// wait for this transaction, so its cleanup trigger then deletes the new row.
+// The insert trigger refuses an owner that is already deleted.
 func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error) {
 	row := q.db.QueryRowContext(ctx, insertChatAutomation,
 		arg.ID,
 		arg.OrganizationID,
-		arg.OwnerID,
 		arg.Name,
 		arg.CreatedByChatID,
 		arg.Kind,
@@ -6342,6 +6350,7 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		arg.ScheduleCron,
 		arg.ScheduleTimeZone,
 		arg.ScheduleNextRunAt,
+		arg.OwnerID,
 	)
 	var i ChatAutomation
 	err := row.Scan(
