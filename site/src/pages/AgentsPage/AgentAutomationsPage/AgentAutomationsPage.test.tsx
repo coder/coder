@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
@@ -43,6 +43,7 @@ const renderPage = (enabled = true) => {
 	const router = createMemoryRouter(
 		[
 			{ path: "/agents/automations", element: <AgentAutomationsPage /> },
+			{ path: "/agents/automations/new", element: <div /> },
 			{ path: "/agents/:chatId", element: <div /> },
 			{ path: "/agents", element: <div /> },
 		],
@@ -239,7 +240,7 @@ it("retries only the failed organization while keeping the filter and usable row
 	await user.click(await screen.findByRole("button", { name: "Cancel" }));
 });
 
-it("navigates to a readable existing target chat", async () => {
+it("navigates to a readable existing target chat and to the creation page", async () => {
 	const user = userEvent.setup();
 	server.use(
 		http.get(endpoint, ({ params }) =>
@@ -261,6 +262,13 @@ it("navigates to a readable existing target chat", async () => {
 		expect(router.state.location.pathname).toBe(
 			`/agents/${MockChatAutomation.target_chat_id}`,
 		),
+	);
+	await act(() => router.navigate("/agents/automations"));
+	await user.click(
+		await screen.findByRole("link", { name: "Create automation" }),
+	);
+	await waitFor(() =>
+		expect(router.state.location.pathname).toBe("/agents/automations/new"),
 	);
 });
 

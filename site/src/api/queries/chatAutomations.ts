@@ -1,6 +1,9 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
-import type { ChatAutomation } from "#/api/typesGenerated";
+import type {
+	ChatAutomation,
+	CreateChatAutomationRequest,
+} from "#/api/typesGenerated";
 
 /** Identifies an organization's automation list in the query cache. */
 export const chatAutomationsKey = (organizationId: string) =>
@@ -12,6 +15,24 @@ export const chatAutomations = (organizationId: string) =>
 		queryKey: chatAutomationsKey(organizationId),
 		queryFn: ({ signal }) =>
 			API.experimental.getChatAutomations(organizationId, signal),
+	});
+
+/** Creates an automation without retaining its one-time secret after unmount. */
+export const createChatAutomation = (queryClient: QueryClient) =>
+	mutationOptions({
+		gcTime: 0,
+		retry: false,
+		mutationFn: ({
+			organizationId,
+			req,
+		}: {
+			organizationId: string;
+			req: CreateChatAutomationRequest;
+		}) => API.experimental.createChatAutomation(organizationId, req),
+		onSuccess: (_data, { organizationId }) =>
+			queryClient.invalidateQueries({
+				queryKey: chatAutomationsKey(organizationId),
+			}),
 	});
 
 /** Invalidates the owning organization's list after either deletion outcome. */
