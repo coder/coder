@@ -133,7 +133,7 @@ the Makefile trigger the full targets as before.
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
    >
-   > The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+   > The user is `admin@coder.com`. `develop.sh` generates its password on the first run, prints it in the startup banner, and stores it in `.coderv2/admin-password`. A second user, `member@coder.com`, has its password in `.coderv2/member-password`.
 
 1. Create Your First Workspace
 
