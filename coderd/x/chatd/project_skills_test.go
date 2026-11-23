@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -27,9 +28,9 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	// The test runs six model turns on this context, which together can
-	// take longer than WaitLong on a loaded CI runner.
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	// Setup, each turn, and each mid-test mutation get their own context so
+	// the six sequential turns cannot exhaust a shared deadline.
+	ctx := testutil.Context(t, testutil.WaitLong)
 	recorder, openAIURL := newSkillRecordingOpenAI(t)
 	owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	// The teammate is an organization admin, whose role can read every
@@ -70,7 +71,7 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 		Name:      "project-disabled",
 	})
 	require.NoError(t, err)
-	insertPersonalSkill := func(userID uuid.UUID, name, description string) {
+	insertPersonalSkill := func(ctx context.Context, userID uuid.UUID, name, description string) {
 		t.Helper()
 		_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
 			ID:          uuid.New(),
@@ -81,7 +82,7 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-	insertPersonalSkill(owner.ID, "shared", "Personal shared process")
+	insertPersonalSkill(ctx, owner.ID, "shared", "Personal shared process")
 
 	// The dbauthz wrapper applies the project ACL in production.
 	authzDB := dbauthz.New(
@@ -98,6 +99,7 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	// sends text to chatID, and returns the model calls of that turn.
 	runTurn := func(t *testing.T, userID, chatID uuid.UUID, opts chatd.CreateOptions, text string) (uuid.UUID, []skillRecordedCall) {
 		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		subject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), db, userID, rbac.ScopeAll)
 		require.NoError(t, err)
 		userCtx := dbauthz.As(ctx, subject)
@@ -171,7 +173,8 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	// Revoking the share removes project skills on the next turn, even
 	// though the admin role still reads the project. The teammate's personal
 	// skill keeps read_skill available to observe that.
-	insertPersonalSkill(teammate.ID, "teammate-notes", "Teammate notes")
+	ctx = testutil.Context(t, testutil.WaitShort)
+	insertPersonalSkill(ctx, teammate.ID, "teammate-notes", "Teammate notes")
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID: project.ID, UserACL: database.ChatACL{}, GroupACL: database.ChatACL{},
 	}))
@@ -180,6 +183,7 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	require.Equal(t, []string{`skill "shared" not found`}, lastToolResults(calls[1], 1))
 
 	// A deleted project skill is gone on the next turn.
+	ctx = testutil.Context(t, testutil.WaitShort)
 	_, err = db.DeleteProjectSkillByProjectIDAndName(ctx, database.DeleteProjectSkillByProjectIDAndNameParams{
 		ProjectID: project.ID,
 		Name:      "project-review",
