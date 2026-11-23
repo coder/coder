@@ -14,11 +14,11 @@ import {
 import type {
 	ChatProject,
 	DynamicParametersResponse,
-	Preset,
 	Template,
 } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockPreset,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockTemplate,
@@ -42,21 +42,12 @@ const mockKubernetesTemplate: Template = {
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
 };
-const mockSmallPreset: Preset = {
-	ID: "preset-small",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
 const mockProjectWithDefaultPreset: ChatProject = {
 	...MockChatProject,
 	templates: [mockDockerTemplate, mockKubernetesTemplate],
 	default_template: {
 		template_id: mockDockerTemplate.id,
-		preset_id: mockSmallPreset.ID,
+		preset_id: MockPreset.ID,
 	},
 };
 const mockDefaultParameters = { [MockPreviewParameter1.name]: "custom" };
@@ -183,7 +174,7 @@ export const DefaultPreset: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -209,7 +200,7 @@ export const DefaultParameters: Story = {
 			// Lets the story switch to a preset without a request.
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -226,7 +217,7 @@ export const TemplatesRefetchError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -260,7 +251,7 @@ export const DefaultParametersRefetchError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -294,7 +285,7 @@ export const Saving: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -332,7 +323,7 @@ export const SaveError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -352,15 +343,15 @@ export const RequestError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
 };
 
 /**
- * Stands in for the server's copy of the project, so the conflict stories
- * can save a change from "another user" while the dialog is open.
+ * Stands in for the server's copy of the project, so a story can save a
+ * change from "another user" while the dialog is open.
  */
 const serverProject = (() => {
 	let value = mockProjectWithDefaultPreset;
@@ -380,6 +371,22 @@ const serverProject = (() => {
 	};
 })();
 
+const ServerProjectDialog: React.FC<
+	React.ComponentProps<typeof ProjectTemplatesDialog>
+> = (props) => {
+	const project = useSyncExternalStore(
+		serverProject.subscribe,
+		serverProject.get,
+	);
+	return <ProjectTemplatesDialog {...props} project={project} />;
+};
+
+const mockNewerProject: ChatProject = {
+	...mockProjectWithDefaultPreset,
+	templates: [mockKubernetesTemplate],
+	default_template: undefined,
+};
+
 export const Conflict: Story = {
 	parameters: {
 		queries: [
@@ -390,38 +397,22 @@ export const Conflict: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
 	beforeEach: () => {
 		serverProject.set(mockProjectWithDefaultPreset);
 	},
-	render: function ConflictStory(args) {
-		const project = useSyncExternalStore(
-			serverProject.subscribe,
-			serverProject.get,
-		);
-		return <ProjectTemplatesDialog {...args} project={project} />;
-	},
+	render: (args) => <ServerProjectDialog {...args} />,
 	play: async () => {
 		// An untouched draft follows the saved templates, so edit it first.
 		await userEvent.click(
 			await screen.findByRole("button", { name: "Remove Kubernetes" }),
 		);
 		await userEvent.keyboard("{Escape}");
-		serverProject.set({
-			...mockProjectWithDefaultPreset,
-			templates: [mockKubernetesTemplate],
-			default_template: undefined,
-		});
+		serverProject.set(mockNewerProject);
 	},
-};
-
-const mockNewerProject: ChatProject = {
-	...mockProjectWithDefaultPreset,
-	templates: [mockKubernetesTemplate],
-	default_template: undefined,
 };
 
 export const ConflictFoundOnSave: Story = {
@@ -434,7 +425,7 @@ export const ConflictFoundOnSave: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -450,13 +441,7 @@ export const ConflictFoundOnSave: Story = {
 			mockKubernetesTemplate,
 		]);
 	},
-	render: function ConflictFoundOnSaveStory(args) {
-		const project = useSyncExternalStore(
-			serverProject.subscribe,
-			serverProject.get,
-		);
-		return <ProjectTemplatesDialog {...args} project={project} />;
-	},
+	render: (args) => <ServerProjectDialog {...args} />,
 	// Saves an edited draft, so the screenshot shows the warning with focus.
 	play: async () => {
 		await userEvent.click(
@@ -514,7 +499,7 @@ export const SavedEmptyParameter: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -530,7 +515,7 @@ export const RefreshingProject: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
