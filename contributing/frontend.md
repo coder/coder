@@ -21,10 +21,11 @@ You can run the UI and access the Coder dashboard in two ways:
    deployed yet or that involve both the frontend and backend.
 
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
-`./scripts/develop.sh` you can log in with the default credentials.
+`./scripts/develop.sh` you can log in as `admin@coder.com`.
 
 > [!NOTE]
-> **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
+> **Password:** `develop.sh` prints it in its startup banner and stores it in
+> `.coderv2/admin-password`.
 
 ## Tech Stack Overview
 

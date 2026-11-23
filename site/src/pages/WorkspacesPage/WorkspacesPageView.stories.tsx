@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -212,6 +212,16 @@ export const SelectAllMixedEligibility: Story = {
 	},
 };
 
+export const SelectAllLabel: Story = {
+	args: SelectAllMixedEligibility.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("checkbox", { name: "Select all workspaces" })
+			.focus();
+		await screen.findByRole("tooltip", { name: "Select all workspaces" });
+	},
+};
+
 export const NoEligibleWorkspaces: Story = {
 	args: {
 		workspaces: [
@@ -392,6 +402,19 @@ export const AllStates: Story = {
 		for (const img of images) {
 			expect(img).toHaveAttribute("alt");
 		}
+	},
+};
+
+export const WorkspaceNameFocused: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 3),
+		count: 3,
+	},
+	play: async ({ canvasElement }) => {
+		const link = await within(canvasElement).findByRole("link", {
+			name: allWorkspaces[0].name,
+		});
+		link.focus();
 	},
 };
 

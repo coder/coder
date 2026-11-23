@@ -73,7 +73,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
-				className="w-screen border-0 border-b p-0 py-2"
+				className="w-screen max-w-none border-0 border-b p-0 py-2"
 				sideOffset={17}
 			>
 				<DropdownMenuItem asChild className={itemStyles.default}>
@@ -139,7 +139,10 @@ const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
 						</span>
 						<RadioIcon
 							aria-hidden="true"
-							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
+							className={cn(
+								"size-4",
+								getLatencyColor(latency?.latencyMS, "icon"),
+							)}
 						/>
 						<Latency
 							className={

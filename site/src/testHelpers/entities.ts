@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -40,6 +41,24 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 	default_org_member_roles: ["organization-workspace-access"],
 };
+
+export const MockAIBridgeSessionOrganization: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+		sources: ["workspace"],
+	};
+
+export const MockAIBridgeSessionOrganization2: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization2.id,
+		name: MockOrganization2.name,
+		display_name: MockOrganization2.display_name,
+		icon: MockOrganization2.icon,
+		sources: ["effective_group"],
+	};
 
 export const MockOrganization3: TypesGen.Organization = {
 	id: "my-organization-3-id",
@@ -626,6 +645,13 @@ export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
 	role: "use",
 };
 
+export const MockWorkspaceUserLongName: TypesGen.WorkspaceUser = {
+	...MockWorkspaceUser,
+	id: "long-name-workspace-user",
+	username: "a-long-username-for-narrow-views",
+	name: "A Member With An Unusually Long Display Name",
+};
+
 export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
 	id: MockUserOwner.id,
 	username: MockUserOwner.username,
@@ -1064,6 +1090,7 @@ export const MockTemplate: TypesGen.Template = {
 	disable_module_cache: false,
 	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
+	browser_only: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -2829,6 +2856,28 @@ export const mockApiError = ({
 	},
 });
 
+/**
+ * Builds a real `AxiosError` with an API error body, for code that needs the
+ * HTTP status or an `Error` instance.
+ */
+export const mockAxiosError = ({
+	status,
+	...input
+}: MockAPIInput & { status: number }): AxiosError => {
+	const data = mockApiError(input).response.data;
+	return new AxiosError(data.message, undefined, undefined, null, {
+		status,
+		statusText: "",
+		data,
+		headers: {},
+		config: { headers: new AxiosHeaders() },
+	});
+};
+
+/** Like `mockApiError`, but an `Error`, as `useQuery` returns. */
+export const mockApiQueryError = (input: MockAPIInput = {}): Error =>
+	Object.assign(new Error(input.message), mockApiError(input));
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",
@@ -2952,6 +3001,14 @@ export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 		},
+	}),
+};
+
+export const MockEntitlementsWithAIBridge: TypesGen.Entitlements = {
+	...MockEntitlements,
+	has_license: true,
+	features: withDefaultFeatures({
+		aibridge: { enabled: true, entitlement: "entitled" },
 	}),
 };
 
@@ -5595,6 +5652,7 @@ export const MockSession: TypesGen.AIBridgeSession = {
 			"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
 	},
 	providers: ["anthropic", "openai"],
+	organizations: [],
 	models: ["claude-opus-4-6", "gpt-5.4"],
 	client: "Xum",
 	metadata: {
@@ -5848,10 +5906,36 @@ export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	name: "Test User",
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	cost_micros: 2_500_000,
-	unpriced_usage_count: 0,
-	providers: ["anthropic", "openai"],
-	clients: ["Claude Code", "Cursor"],
-	models: ["claude-opus-4-6", "gpt-5.4"],
+	provider_spend: [
+		{
+			name: "anthropic",
+			display_name: "Anthropic",
+			icon: "",
+			type: "anthropic",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{
+			name: "openai",
+			display_name: "OpenAI",
+			icon: "",
+			type: "openai",
+			cost_micros: 1_000_000,
+			has_unpriced_usage: false,
+		},
+	],
+	model_spend: [
+		{
+			name: "claude-opus-4-6",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{ name: "gpt-5.4", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
+	client_spend: [
+		{ name: "Claude Code", cost_micros: 1_500_000, has_unpriced_usage: false },
+		{ name: "Cursor", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
 };
 
 export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
@@ -5860,7 +5944,7 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 		period_end: "2026-03-12T00:00:00Z",
 		retention_start: "2026-01-11T15:30:00Z",
 		count: 2,
-		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		totals: { cost_micros: 3_500_000, has_unpriced_usage: false },
 		users: [
 			MockOrganizationAISpendUser,
 			{
@@ -5870,12 +5954,133 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 				name: "Alice Liddell",
 				avatar_url: "",
 				cost_micros: 1_000_000,
-				providers: ["anthropic"],
-				clients: ["Unknown"],
-				models: ["claude-opus-4-6"],
+				provider_spend: [
+					{
+						name: "anthropic",
+						display_name: "Anthropic",
+						icon: "",
+						type: "anthropic",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				model_spend: [
+					{
+						name: "claude-opus-4-6",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				client_spend: [
+					{
+						name: "Unknown",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
 			},
 		],
 	};
+
+const MockOrganizationAISpendOverviewUser: TypesGen.OrganizationAISpendOverviewUser =
+	{
+		user_id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: "Test User",
+		avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+		spend_micros: 2_500_000,
+		groups: [
+			{
+				group_id: MockGroup.id,
+				group_name: MockGroup.name,
+				group_display_name: MockGroup.display_name,
+				spend_micros: 2_500_000,
+			},
+		],
+	};
+
+export const MockOrganizationAISpendOverview: TypesGen.OrganizationAISpendOverview =
+	{
+		period_start: "2026-03-06T00:00:00Z",
+		period_end: "2026-03-13T00:00:00Z",
+		count: 2,
+		totals: { spend_micros: 3_500_000, median_spend_micros: 1_750_000 },
+		intervals: [
+			{
+				start_time: "2026-03-06T00:00:00Z",
+				end_time: "2026-03-07T00:00:00Z",
+				spend_micros: 400_000,
+			},
+			{
+				start_time: "2026-03-07T00:00:00Z",
+				end_time: "2026-03-08T00:00:00Z",
+				spend_micros: 0,
+			},
+			{
+				start_time: "2026-03-08T00:00:00Z",
+				end_time: "2026-03-09T00:00:00Z",
+				spend_micros: 650_000,
+			},
+			{
+				start_time: "2026-03-09T00:00:00Z",
+				end_time: "2026-03-10T00:00:00Z",
+				spend_micros: 900_000,
+			},
+			{
+				start_time: "2026-03-10T00:00:00Z",
+				end_time: "2026-03-11T00:00:00Z",
+				spend_micros: 300_000,
+			},
+			{
+				start_time: "2026-03-11T00:00:00Z",
+				end_time: "2026-03-12T00:00:00Z",
+				spend_micros: 1_000_000,
+			},
+			{
+				start_time: "2026-03-12T00:00:00Z",
+				end_time: "2026-03-13T00:00:00Z",
+				spend_micros: 250_000,
+			},
+		],
+		users: [
+			MockOrganizationAISpendOverviewUser,
+			{
+				...MockOrganizationAISpendOverviewUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				spend_micros: 1_000_000,
+				groups: [],
+			},
+		],
+	};
+
+export const MockUnpricedAIModel: TypesGen.UnpricedAIModel = {
+	provider_name: MockAIProviderAnthropic.name,
+	provider_display_name: MockAIProviderAnthropic.display_name,
+	provider_icon: MockAIProviderAnthropic.icon,
+	provider_type: MockAIProviderAnthropic.type,
+	model: "claude-opus-4-8",
+	token_count: 1_200_000,
+};
+
+export const MockUnpricedAIModels: TypesGen.UnpricedAIModels = {
+	period_start: "2026-03-06T00:00:00Z",
+	period_end: "2026-03-13T00:00:00Z",
+	count: 2,
+	models: [
+		MockUnpricedAIModel,
+		{
+			provider_name: MockAIProviderOpenAI.name,
+			provider_display_name: MockAIProviderOpenAI.display_name,
+			provider_icon: MockAIProviderOpenAI.icon,
+			provider_type: MockAIProviderOpenAI.type,
+			model: "gpt-4-turbo",
+			token_count: 300_000,
+		},
+	],
+};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,

@@ -84,6 +84,7 @@ To stage the RPM on a host with no internet access, refer to [Air-gapped deploym
 
 Set your configuration in `/etc/coder.d/coder.env` before you start the service.
 If `CODER_ACCESS_URL` is empty, Coder opens a public tunnel to the deployment.
+Coder then prints a setup token in its logs, and the setup page asks for the token before it creates the first account.
 If `CODER_PG_CONNECTION_URL` is empty, Coder uses a built-in PostgreSQL database.
 
 1. Open the configuration file.
