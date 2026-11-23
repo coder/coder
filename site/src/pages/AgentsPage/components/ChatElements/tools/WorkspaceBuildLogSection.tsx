@@ -93,6 +93,7 @@ export const WorkspaceBuildLogSection: React.FC<
 	// appended log entry.
 	const hasLogs = Boolean(logs && logs.length > 0);
 	const [timedOut, setTimedOut] = useState(false);
+
 	const [prevTimeoutInputs, setPrevTimeoutInputs] = useState({
 		effectiveBuildId,
 		hasLogs,
@@ -104,6 +105,7 @@ export const WorkspaceBuildLogSection: React.FC<
 		setPrevTimeoutInputs({ effectiveBuildId, hasLogs });
 		setTimedOut(false);
 	}
+
 	useEffect(() => {
 		if (!effectiveBuildId || hasLogs) {
 			return;

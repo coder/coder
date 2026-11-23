@@ -66,6 +66,7 @@ describe(Filter.name, () => {
 				searchParams,
 				onSearchParamsChange: setSearchParams,
 			});
+
 			return (
 				<Filter
 					filter={filter}
@@ -75,6 +76,7 @@ describe(Filter.name, () => {
 				/>
 			);
 		};
+
 		const user = userEvent.setup();
 		renderWithAuth(<Harness />, { route: "/?filter=owner:me" });
 		const search = await screen.findByRole("textbox", { name: "Search" });
@@ -86,6 +88,7 @@ describe(Filter.name, () => {
 		await user.click(
 			await screen.findByRole("menuitemradio", { name: "Running" }),
 		);
+
 		await waitFor(() => expect(search).toHaveValue("status:running"));
 	});
 });
