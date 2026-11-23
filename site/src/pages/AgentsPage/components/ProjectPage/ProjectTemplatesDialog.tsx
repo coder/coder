@@ -21,8 +21,8 @@ import {
 	templatesValidationDetail,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import {
+	hasTemplatesChanges,
 	savedTemplates,
-	serializeTemplates,
 	templatesChange,
 } from "./projectTemplatesDraft";
 
@@ -109,15 +109,11 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const eligibleTemplates = templatesQuery.data;
 	const request =
 		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
-	const baseRequest =
-		eligibleTemplates &&
-		chatProjectTemplatesRequest(initialValue, eligibleTemplates);
-	// A request leaves out templates that are no longer eligible, so a draft
-	// that only selects one of those has nothing to save.
-	const hasChanges =
-		request !== undefined &&
-		baseRequest !== undefined &&
-		serializeTemplates(request) !== serializeTemplates(baseRequest);
+	const hasChanges = hasTemplatesChanges(
+		request,
+		initialValue,
+		eligibleTemplates,
+	);
 	const isBusy = isSaving || templatesQuery.isFetching;
 	const canSave = hasChanges && !isSaveSent && !isSaving;
 	useEffect(() => {
