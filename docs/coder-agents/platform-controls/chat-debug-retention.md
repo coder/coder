@@ -1,5 +1,6 @@
 ---
 title: Chat debug data retention
+description: Configure automatic cleanup of old Coder Agents chat debug data to manage database size.
 ---
 
 Coder Agents automatically cleans up old chat debug data to manage database growth.

@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider troubleshooting
+description: Diagnose and fix OAuth2 provider errors by their exact error code or message.
 ---
 
 This page collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.

@@ -1,5 +1,6 @@
 ---
 title: Agent Firewall
+description: Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.
 ---
 
 Agent Firewall is a process-level firewall that restricts and audits what autonomous programs, such as AI agents, can access and use.

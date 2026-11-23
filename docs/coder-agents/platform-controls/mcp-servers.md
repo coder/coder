@@ -1,5 +1,6 @@
 ---
 title: MCP servers
+description: Configure external MCP servers that provide additional tools for agent chat sessions.
 ---
 
 Organization admins can register external Model Context Protocol (MCP) servers that provide additional tools for agent chat sessions.

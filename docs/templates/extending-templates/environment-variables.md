@@ -1,5 +1,6 @@
 ---
 title: Environment variables
+description: Inject environment variables into Coder workspaces using the coder_env Terraform resource.
 ---
 
 Use the [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) resource to inject environment variables into your workspace agents.

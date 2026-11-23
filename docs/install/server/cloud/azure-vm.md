@@ -1,5 +1,6 @@
 ---
 title: Microsoft Azure
+description: Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.
 ---
 
 This guide shows you how to set up the Coder control plane on Azure which will provision Azure-hosted Linux workspaces.

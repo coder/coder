@@ -1,5 +1,6 @@
 ---
 title: Template dependencies
+description: Manage provider and module dependencies in your Coder templates to keep builds reproducible.
 ---
 
 When creating Coder templates, it is unlikely that you will just be using built-in providers.

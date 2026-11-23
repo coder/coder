@@ -1,5 +1,7 @@
 ---
 title: Groups and roles
+description: Manage access control with user groups and role-based permissions for Coder resources.
+state: [premium]
 ---
 
 Groups and roles can be manually assigned in Coder.

@@ -1,5 +1,6 @@
 ---
 title: Use Coder with an external database
+description: Configure Coder to use an external PostgreSQL database for production deployments.
 ---
 
 ## Recommendation

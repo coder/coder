@@ -1,5 +1,7 @@
 ---
 title: User secrets
+description: Store secret values in Coder and automatically inject them into workspaces.
+icon_path: ./images/icons/secrets.svg
 ---
 
 User secrets let you store secret values in Coder and make them available in every workspace you own.

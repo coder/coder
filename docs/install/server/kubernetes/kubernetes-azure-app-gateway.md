@@ -1,5 +1,6 @@
 ---
 title: Deploy Coder on Azure with an Application Gateway
+description: Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.
 ---
 
 In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) is required.

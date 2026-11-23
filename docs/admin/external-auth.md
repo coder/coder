@@ -1,5 +1,7 @@
 ---
 title: External authentication
+description: Configure external authentication so workspaces can access Git providers and other OAuth services.
+icon_path: ./images/icons/plug.svg
 ---
 
 Coder supports external authentication via OAuth2.0.

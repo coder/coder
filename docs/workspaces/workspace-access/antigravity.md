@@ -1,5 +1,6 @@
 ---
 title: Antigravity
+description: Access your Coder workspace with the Antigravity agentic code editor over SSH.
 ---
 
 [Antigravity](https://antigravity.google/) is Google's desktop IDE.

@@ -1,5 +1,8 @@
 ---
 title: Nix(OS)
+description: Define reproducible environments with Nix flakes, with or without NixOS.
+icon_path: ./images/icons/nix.svg
+state: [early access]
 ---
 
 > [!NOTE]

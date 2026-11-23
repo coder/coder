@@ -1,5 +1,6 @@
 ---
 title: Manage provisioner jobs
+description: Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.
 ---
 
 [Provisioners](./index.md) start and run provisioner jobs to create or delete workspaces.

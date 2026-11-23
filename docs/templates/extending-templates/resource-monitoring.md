@@ -1,5 +1,6 @@
 ---
 title: Resource monitoring
+description: Monitor workspace resource usage and alert on thresholds from the Coder dashboard.
 ---
 
 Use the [`resources_monitoring`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#resources_monitoring-1) block on the [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent) resource in our Terraform provider to monitor out of memory (OOM) and out of disk (OOD) errors and alert users when they overutilize memory and disk.

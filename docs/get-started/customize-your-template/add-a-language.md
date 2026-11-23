@@ -1,5 +1,6 @@
 ---
 title: Add a programming language to your template
+description: Expose a new programming language through a template parameter and install it at workspace startup.
 ---
 
 Now that you've finished [Launch your first workspace](../index.md), you can add another language toolchain to every workspace you create.

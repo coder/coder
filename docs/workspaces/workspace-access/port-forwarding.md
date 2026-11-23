@@ -1,5 +1,6 @@
 ---
 title: Workspace ports
+description: Securely access ports and processes running inside your Coder workspace from your local machine.
 ---
 
 ## Port forwarding

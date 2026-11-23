@@ -1,5 +1,6 @@
 ---
 title: OpenID Connect
+description: Configure OpenID Connect authentication with identity providers like Okta or Active Directory.
 ---
 
 The following steps through how to integrate any OpenID Connect provider (Okta, Active Directory, and so on) to Coder.

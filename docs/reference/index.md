@@ -1,5 +1,7 @@
 ---
 title: Reference
+description: Reference for automating Coder through the REST API, command-line interface, and Agent API.
+icon_path: ./images/icons/notes.svg
 ---
 
 ## Automation

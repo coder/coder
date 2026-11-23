@@ -1,5 +1,6 @@
 ---
 title: Docker in workspaces
+description: Run Docker inside container-based Coder workspaces using several supported approaches.
 ---
 
 There are a few ways to run Docker within container-based Coder workspaces.

@@ -1,5 +1,7 @@
 ---
 title: AI Gateway
+description: Govern and observe AI coding traffic with AI Gateway.
+icon_path: ./images/icons/api.svg
 ---
 
 ![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)

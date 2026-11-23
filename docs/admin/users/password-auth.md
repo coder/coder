@@ -1,5 +1,6 @@
 ---
 title: Password authentication
+description: Manage username/password authentication settings and user password reset workflows.
 ---
 
 Coder has password authentication enabled by default.

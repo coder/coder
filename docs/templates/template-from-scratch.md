@@ -1,5 +1,6 @@
 ---
 title: Write a template from scratch
+description: Learn how to write a Coder template from scratch with Terraform, step by step.
 ---
 
 > [!TIP]

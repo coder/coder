@@ -1,5 +1,6 @@
 ---
 title: "Reference architecture: up to 10,000 users"
+description: Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users.
 ---
 
 The 10,000 users architecture targets enterprises with an extremely large global workforce of technical professionals or applications requiring lots of simultaneous workspaces (for example, Agentic AI).

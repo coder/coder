@@ -1,5 +1,7 @@
 ---
 title: Deploy Coder on Rancher
+description: Deploy Coder on Rancher as a Kubernetes workload using the Rancher UI and Helm.
+icon_path: ./images/icons/rancher.svg
 ---
 
 You can deploy Coder on Rancher as a [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).

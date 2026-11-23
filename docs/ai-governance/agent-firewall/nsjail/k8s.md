@@ -1,5 +1,6 @@
 ---
 title: nsjail on Kubernetes
+description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.
 ---
 
 > [!NOTE]

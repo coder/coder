@@ -1,5 +1,6 @@
 ---
 title: Configure Coder to connect to PostgreSQL using SSL
+description: Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.
 ---
 
 <div>

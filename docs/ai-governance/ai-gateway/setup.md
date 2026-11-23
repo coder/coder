@@ -1,5 +1,6 @@
 ---
 title: Setup
+description: Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.
 ---
 
 By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.

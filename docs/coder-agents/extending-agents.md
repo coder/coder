@@ -1,5 +1,6 @@
 ---
 title: Extending agents
+description: Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.
 ---
 
 Workspace templates can extend the agent with custom skills, Model Context Protocol (MCP) tools, and [Agent Client Protocol (ACP) subagents](./acp-subagents.md).

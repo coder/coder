@@ -1,5 +1,6 @@
 ---
 title: nsjail on Docker
+description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.
 ---
 
 > [!NOTE]

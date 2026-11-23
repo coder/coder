@@ -1,5 +1,7 @@
 ---
 title: Sections
+description: Reference for the Coder Agent API used by workspace agents to communicate with the control plane.
+icon_path: ./images/icons/api.svg
 ---
 
 <children>

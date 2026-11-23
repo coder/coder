@@ -1,5 +1,6 @@
 ---
 title: Customize your template
+description: Add a language, install command-line tools, and authenticate to GitHub.
 ---
 
 In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the control plane, and built a workspace from the Quickstart template.

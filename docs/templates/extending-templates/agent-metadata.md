@@ -1,5 +1,6 @@
 ---
 title: Agent metadata
+description: Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.
 ---
 
 ![agent-metadata](../../images/admin/templates/agent-metadata-ui.png)

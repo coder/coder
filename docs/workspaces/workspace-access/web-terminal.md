@@ -1,5 +1,6 @@
 ---
 title: Web Terminal
+description: Use the browser-based web terminal to run commands in your workspace without any local setup.
 ---
 
 The Web Terminal is a browser-based terminal interface that provides instant access to your workspace's shell environment directly from the Coder dashboard.

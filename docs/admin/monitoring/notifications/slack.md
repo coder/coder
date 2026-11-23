@@ -1,5 +1,6 @@
 ---
 title: Slack notifications
+description: Set up a Slack integration to deliver Coder notifications to your channels.
 ---
 
 [Slack](https://slack.com/) is a popular messaging platform designed for teams and businesses, enabling real-time collaboration through channels, direct messages, and integrations with external tools.

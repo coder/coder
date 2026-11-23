@@ -1,5 +1,6 @@
 ---
 title: Scale Coder
+description: Best practices for preparing and tuning a Coder deployment so it scales to many users.
 ---
 
 This best practice guide helps you prepare a Coder deployment that you can scale up to a high-scale deployment as use grows, and keep it operating smoothly with a high number of active users and workspaces.

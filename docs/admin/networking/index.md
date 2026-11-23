@@ -1,5 +1,7 @@
 ---
 title: Networking
+description: Understand Coder's networking model, including how workspaces, servers, and clients connect.
+icon_path: ./images/icons/networking.svg
 ---
 
 Coder's network topology has three types of nodes: workspaces, the control plane, and users.

@@ -1,5 +1,6 @@
 ---
 title: "Reference architecture: up to 2,000 users"
+description: Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users.
 ---
 
 In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.

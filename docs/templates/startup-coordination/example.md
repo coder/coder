@@ -1,5 +1,6 @@
 ---
 title: Workspace startup coordination examples
+description: A complete, production-ready example of coordinating workspace startup scripts with sync units.
 ---
 
 To order whole scripts without calling the CLI, refer to [declarative script ordering](../extending-templates/script-ordering.md).

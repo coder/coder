@@ -1,5 +1,7 @@
 ---
 title: Configure control plane access
+description: Configure your Coder control plane with server settings and environment variables.
+icon_path: ./images/icons/toggle_on.svg
 ---
 
 The control plane's primary configuration is done via environment variables.

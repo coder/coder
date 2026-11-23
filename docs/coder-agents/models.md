@@ -1,5 +1,6 @@
 ---
 title: Models
+description: Configure the LLM providers and models that power Coder Agents from Admin settings.
 ---
 
 Administrators configure large language model (LLM) providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.

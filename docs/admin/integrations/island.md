@@ -1,5 +1,6 @@
 ---
 title: Island browser integration
+description: Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.
 ---
 
 <div>

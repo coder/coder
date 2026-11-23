@@ -1,5 +1,6 @@
 ---
 title: Tools
+description: How Coder Agents uses tool calls to select templates and create workspaces.
 ---
 
 Coder Agents completes work by calling tools: structured functions the agent invokes during a chat to gather context and take action, such as listing templates, reading files, running commands, or creating a workspace.

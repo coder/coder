@@ -1,5 +1,6 @@
 ---
 title: Reference
+description: Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.
 ---
 
 > [!NOTE]

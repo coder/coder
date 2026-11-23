@@ -1,5 +1,6 @@
 ---
 title: Dev Containers
+description: Configure dev container support in your templates using either Docker or Envbuilder.
 ---
 
 Dev containers allow developers to define their development environment as code using the [Dev Container specification](https://containers.dev/).

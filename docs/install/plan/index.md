@@ -1,5 +1,7 @@
 ---
 title: Plan your deployment
+description: Learn the architecture, size the deployment, and record the decisions that shape it.
+icon_path: ./images/icons/notes.svg
 ---
 
 Planning decides the shape of your deployment: which components run where, how large they need to be, and which choices are expensive to change later.

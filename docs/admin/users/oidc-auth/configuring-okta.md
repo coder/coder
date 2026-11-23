@@ -1,5 +1,6 @@
 ---
 title: Configure custom claims/scopes with Okta for group/role
+description: Configure custom Okta claims and scopes to drive Coder group and role sync.
 ---
 
 <div style="pad: 0px; margin: 0px;">

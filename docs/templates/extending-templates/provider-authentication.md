@@ -1,5 +1,6 @@
 ---
 title: Provider authentication
+description: Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.
 ---
 
 > [!CAUTION]

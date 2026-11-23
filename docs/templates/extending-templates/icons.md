@@ -1,5 +1,6 @@
 ---
 title: Icons
+description: Customize your Coder templates and resources with built-in or custom icons.
 ---
 
 Coder uses icons in several places, including ones that can be configured throughout the app, or specified in your Terraform.

@@ -1,5 +1,7 @@
 ---
 title: Appearance
+description: Customize your Coder deployment's appearance, including the logo, service banner, and application name.
+state: [premium]
 ---
 
 > [!NOTE]

@@ -1,5 +1,7 @@
 ---
 title: Network isolation
+description: Run Coder Agents in a separate sandbox with a two-Pod Kubernetes template.
+state: [early access]
 ---
 
 Use your template to run the AI agent in a separate sandbox from the user's development environment.

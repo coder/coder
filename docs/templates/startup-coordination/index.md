@@ -1,5 +1,7 @@
 ---
 title: Workspace startup coordination
+description: Coordinate units of work within startup scripts using experimental coder exp sync commands.
+state: [early access]
 ---
 
 We recommend using [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync` to order whole startup and shutdown scripts.

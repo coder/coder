@@ -1,5 +1,6 @@
 ---
 title: Troubleshooting dev containers
+description: Diagnose and resolve common issues with dev containers in your Coder workspace.
 ---
 
 ## Dev container not starting

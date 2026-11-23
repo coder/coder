@@ -1,5 +1,7 @@
 ---
 title: Releases
+description: Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.
+icon_path: ./images/icons/star.svg
 ---
 
 Coder releases are cut directly from the `main` branch of the [coder/coder repo](https://github.com/coder/coder).

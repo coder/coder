@@ -1,5 +1,6 @@
 ---
 title: Junie
+description: Configure Junie CLI to route requests through AI Gateway with a custom model profile.
 ---
 
 > [!NOTE]

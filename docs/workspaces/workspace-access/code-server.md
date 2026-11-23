@@ -1,5 +1,6 @@
 ---
 title: code-server
+description: Access your Coder workspace in the browser with code-server, the VS Code experience over the web.
 ---
 
 [code-server](https://github.com/coder/code-server) is our supported method of running VS Code in the web browser.

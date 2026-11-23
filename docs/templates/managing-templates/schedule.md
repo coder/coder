@@ -1,5 +1,6 @@
 ---
 title: Workspace scheduling
+description: Configure template settings that control how workspaces autostart, autostop, and stay available.
 ---
 
 You can configure a template to control how workspaces are started and stopped.

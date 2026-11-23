@@ -1,5 +1,6 @@
 ---
 title: Wildcard access URLs
+description: Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.
 ---
 
 Wildcard access URLs unlock Coder's full potential for modern development workflows.

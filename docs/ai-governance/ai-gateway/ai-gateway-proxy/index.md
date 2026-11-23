@@ -1,5 +1,6 @@
 ---
 title: AI Gateway Proxy
+description: Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.
 ---
 
 > [!NOTE]

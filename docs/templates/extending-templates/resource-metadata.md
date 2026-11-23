@@ -1,5 +1,6 @@
 ---
 title: Resource metadata
+description: Expose key workspace resource information to your users in the Coder dashboard with metadata.
 ---
 
 Expose key workspace information to your users with [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resources in your template code.

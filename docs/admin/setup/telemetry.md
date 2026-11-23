@@ -1,5 +1,6 @@
 ---
 title: Telemetry
+description: Learn what usage telemetry Coder collects, why it is collected, and how to opt out.
 ---
 
 > [!NOTE]

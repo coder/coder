@@ -1,5 +1,6 @@
 ---
 title: Monitoring
+description: Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.
 ---
 
 > [!NOTE]

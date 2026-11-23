@@ -1,5 +1,6 @@
 ---
 title: Port forwarding
+description: Learn how port forwarding works in Coder and how to expose workspace ports to users.
 ---
 
 Port forwarding lets developers securely access processes on their Coder workspace from a local machine.

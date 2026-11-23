@@ -1,5 +1,6 @@
 ---
 title: Client configuration
+description: Configure your AI coding tools to route their model requests through AI Gateway.
 ---
 
 > [!NOTE]

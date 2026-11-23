@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider callback URL schemes
+description: Which redirect URI schemes and hosts Coder accepts.
 ---
 
 This page covers which redirect Uniform Resource Identifier (URI) schemes and hosts Coder accepts, for both admin-created and self-registered applications.

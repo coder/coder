@@ -1,5 +1,7 @@
 ---
 title: IdP sync
+description: Synchronize user groups, roles, and organizations from your identity provider to Coder.
+state: [premium]
 ---
 
 <!-- markdownlint-disable MD024 -->

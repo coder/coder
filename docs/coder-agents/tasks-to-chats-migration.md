@@ -1,5 +1,6 @@
 ---
 title: Migrate from the Tasks API to the Chats API
+description: Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.
 ---
 
 > [!WARNING]

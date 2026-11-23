@@ -1,5 +1,7 @@
 ---
 title: Manage workspace schedules
+description: Control cloud costs by scheduling when your Coder workspaces automatically start and stop.
+icon_path: ./images/icons/stopwatch.svg
 ---
 
 Scheduling helps minimize cloud costs without sacrificing the availability of your workspaces.

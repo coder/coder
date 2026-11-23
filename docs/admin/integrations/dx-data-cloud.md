@@ -1,5 +1,6 @@
 ---
 title: DX
+description: Tag and sync Coder users with DX Data Cloud to measure developer productivity.
 ---
 
 [DX](https://getdx.com) is a developer intelligence platform used by engineering leaders and platform engineers.

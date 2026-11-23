@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider integration patterns
+description: Client authentication methods, the standard flow, the required PKCE flow, and discovery endpoints.
 ---
 
 This page covers how a client proves who it is and completes a login: the supported ways to prove identity, the standard login steps, the required Proof Key for Code Exchange (PKCE) step, and how a client finds the right web addresses to use.

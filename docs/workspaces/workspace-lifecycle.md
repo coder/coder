@@ -1,5 +1,7 @@
 ---
 title: Workspace lifecycle
+description: A guide to the workspace lifecycle, from creation and status through stopping and deletion.
+icon_path: ./images/icons/circle-dot.svg
 ---
 
 Workspaces are flexible, reproducible, and isolated units of compute.

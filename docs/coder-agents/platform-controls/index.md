@@ -1,5 +1,6 @@
 ---
 title: Platform controls
+description: Learn how platform teams control Coder Agents behavior, models, spend, and policies.
 ---
 
 ## Design philosophy

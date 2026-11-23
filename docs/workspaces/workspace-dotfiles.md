@@ -1,5 +1,7 @@
 ---
 title: Dotfiles
+description: Personalize your Coder workspaces by applying your dotfiles repository with the coder dotfiles command.
+icon_path: ./images/icons/art-pad.svg
 ---
 
 <!-- markdown-link-check-disable -->

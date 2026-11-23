@@ -1,5 +1,6 @@
 ---
 title: Additional clusters
+description: Deploy Coder workspaces across additional Kubernetes clusters beyond the control plane cluster.
 ---
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.

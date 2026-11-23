@@ -1,5 +1,7 @@
 ---
 title: Spend management
+description: Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.
+state: [premium]
 ---
 
 Coder controls agent spend with AI Gateway budgets, and surfaces the resulting spend to both admins and users.

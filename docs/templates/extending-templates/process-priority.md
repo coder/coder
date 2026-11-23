@@ -1,5 +1,6 @@
 ---
 title: Improve agent resiliency
+description: Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.
 ---
 
 Coder's agent can automatically lower the scheduling priority and raise the out-of-memory (OOM) kill score of user processes so the agent itself stays alive under resource pressure.

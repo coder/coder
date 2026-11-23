@@ -1,5 +1,7 @@
 ---
 title: Install Coder on RHEL-family Linux
+description: Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.
+icon_path: ./images/icons/system.svg
 ---
 
 This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux (RHEL) host or another RHEL-family distribution.

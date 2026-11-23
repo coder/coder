@@ -1,5 +1,6 @@
 ---
 title: Template change management
+description: Manage Coder template changes with source control, versioning, and CI/CD publishing.
 ---
 
 We recommend source-controlling your templates as you would other any code, and automating the creation of new versions in continuous integration and continuous delivery (CI/CD) pipelines.

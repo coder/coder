@@ -1,5 +1,7 @@
 ---
 title: Manage workspaces
+description: Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.
+icon_path: ./images/icons/generic.svg
 ---
 
 A workspace is the environment where a developer or a coding agent works.

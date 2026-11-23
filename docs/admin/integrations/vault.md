@@ -1,5 +1,6 @@
 ---
 title: Integrate HashiCorp Vault with Coder
+description: Integrate Coder with HashiCorp Vault to inject secrets securely into your workspaces.
 ---
 
 <div>

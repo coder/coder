@@ -1,5 +1,6 @@
 ---
 title: Self-host a STUN server
+description: Run your own STUN server with coturn and configure Coder to use it for direct connections.
 ---
 
 Coder clients and workspace agents use Session Traversal Utilities for Network Address Translation (STUN) servers to discover the addresses they use for direct connections.

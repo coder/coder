@@ -1,5 +1,6 @@
 ---
 title: Monitor Agent Relay
+description: Trace sessions and failures with Agent Relay logs and Prometheus metrics.
 ---
 
 > [!NOTE]

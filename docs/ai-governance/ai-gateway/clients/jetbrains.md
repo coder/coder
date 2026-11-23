@@ -1,5 +1,6 @@
 ---
 title: JetBrains
+description: Use Claude Agent and Codex in JetBrains IDEs with AI Gateway.
 ---
 
 > [!NOTE]

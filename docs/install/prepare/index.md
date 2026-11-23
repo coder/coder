@@ -1,5 +1,7 @@
 ---
 title: Prepare prerequisites
+description: Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.
+icon_path: ./images/icons/dependency.svg
 ---
 
 Preparation gathers the external pieces a deployment depends on.

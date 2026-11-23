@@ -1,5 +1,7 @@
 ---
 title: Dev Containers
+description: Run containerized development environments in your Coder workspace using the dev containers specification.
+icon_path: ./images/icons/container.svg
 ---
 
 [Dev containers](https://containers.dev/) define your development environment as code using a `devcontainer.json` file.

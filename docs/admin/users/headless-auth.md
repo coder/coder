@@ -1,5 +1,7 @@
 ---
 title: Headless authentication
+description: Create and manage headless service accounts for automated systems and API integrations.
+state: [premium]
 ---
 
 > [!NOTE]

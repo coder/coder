@@ -1,5 +1,7 @@
 ---
 title: Permissions
+description: Control which users and groups can use, edit, and administer each Coder template.
+state: [premium]
 ---
 
 > [!NOTE]

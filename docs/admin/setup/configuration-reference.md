@@ -1,5 +1,6 @@
 ---
 toc_depth: 2
+description: Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key.
 ---
 
 <!-- DO NOT EDIT | GENERATED CONTENT -->

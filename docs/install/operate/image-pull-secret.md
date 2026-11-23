@@ -1,5 +1,6 @@
 ---
 title: Define ImagePullSecrets for Coder workspaces
+description: Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.
 ---
 
 <div>

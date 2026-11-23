@@ -1,5 +1,6 @@
 ---
 title: Work with Dev Containers
+description: Access and work inside dev containers in your Coder workspace over SSH, your IDE, or the web terminal.
 ---
 
 The dev container integration appears in your Coder dashboard, providing a visual representation of the running environment:

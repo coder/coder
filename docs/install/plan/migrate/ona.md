@@ -1,5 +1,6 @@
 ---
 title: Migrate from Ona (formerly Gitpod) to Coder
+description: Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.
 ---
 
 This guide is for platform engineers who run an Ona Enterprise organization with runners in AWS or Google Cloud and want to move it to a self-hosted Coder deployment.

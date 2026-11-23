@@ -1,5 +1,7 @@
 ---
 title: Audit logs
+description: Track user and administrator actions across your Coder deployment with audit logs.
+state: [premium]
 ---
 
 **Audit Logs** allows Auditors to monitor user operations in their deployment.

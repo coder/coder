@@ -1,5 +1,6 @@
 ---
 title: Mirror the Coder Registry with JFrog Artifactory
+description: Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments.
 ---
 
 This guide shows you how to use JFrog Artifactory to mirror the [Coder Registry](https://registry.coder.com) for air-gapped or restricted network deployments.

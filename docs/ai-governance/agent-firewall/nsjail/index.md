@@ -1,5 +1,6 @@
 ---
 title: nsjail jail type
+description: Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.
 ---
 
 > [!NOTE]

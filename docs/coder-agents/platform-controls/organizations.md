@@ -1,5 +1,6 @@
 ---
 title: Organization scope
+description: Learn which Coder Agents settings belong to an organization, what an upgrade migrates, and who can change them.
 ---
 
 Coder Agents configuration is split between deployment-wide settings and organization-scoped settings.

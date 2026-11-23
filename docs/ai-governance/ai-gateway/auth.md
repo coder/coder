@@ -1,5 +1,6 @@
 ---
 title: Authentication
+description: Authenticate AI coding tools against AI Gateway using your Coder API token.
 ---
 
 > [!NOTE]

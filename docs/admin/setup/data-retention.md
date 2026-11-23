@@ -1,5 +1,6 @@
 ---
 title: Data retention
+description: Configure retention policies that automatically purge old records from Coder database tables.
 ---
 
 Coder supports configurable retention policies that automatically purge old Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway records.

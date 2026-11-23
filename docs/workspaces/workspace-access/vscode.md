@@ -1,5 +1,6 @@
 ---
 title: Visual Studio Code
+description: Develop in your Coder workspace remotely with VS Code, using the desktop app or the browser.
 ---
 
 You can develop in your Coder workspace remotely with [VS Code](https://code.visualstudio.com/download).

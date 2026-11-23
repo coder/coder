@@ -1,5 +1,7 @@
 ---
 title: External workspaces
+description: Connect externally managed servers and machines to Coder as external workspaces.
+state: [premium, early access]
 ---
 
 External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces.

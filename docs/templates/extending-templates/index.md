@@ -1,5 +1,6 @@
 ---
 title: Extend templates
+description: Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.
 ---
 
 There are a variety of Coder-native features to extend the configuration of your development environments.

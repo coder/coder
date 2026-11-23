@@ -1,5 +1,6 @@
 ---
 title: Cline
+description: Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.
 ---
 
 > [!NOTE]

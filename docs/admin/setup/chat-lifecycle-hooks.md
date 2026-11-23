@@ -1,5 +1,7 @@
 ---
 title: Configure chat lifecycle hooks
+description: Configure an external policy service for chat agent lifecycle events.
+state: [early access]
 ---
 
 > [!NOTE]

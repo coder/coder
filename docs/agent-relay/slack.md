@@ -1,5 +1,6 @@
 ---
 title: Configure Slack for Agent Relay
+description: Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.
 ---
 
 > [!NOTE]

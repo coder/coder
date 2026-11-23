@@ -1,5 +1,7 @@
 ---
 title: User Guides
+description: Guides for Coder end users on accessing, managing, and personalizing their workspaces.
+icon_path: ./images/icons/users.svg
 ---
 
 These guides contain information on workspace management, workspace access via IDEs, environment personalization, and workspace scheduling.

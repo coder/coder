@@ -1,5 +1,6 @@
 ---
 title: Notifications
+description: Configure how Coder sends notifications for deployment events over email and webhooks.
 ---
 
 Notifications are sent by Coder in response to specific internal events, such as a workspace being deleted or a user being created.

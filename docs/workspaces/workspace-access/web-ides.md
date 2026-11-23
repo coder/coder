@@ -1,5 +1,6 @@
 ---
 title: Web IDEs
+description: Access your Coder workspace through web-based IDEs that run in the browser, with no local install.
 ---
 
 By default, Coder workspaces allow connections via:

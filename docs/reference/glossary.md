@@ -1,5 +1,6 @@
 ---
 title: Glossary
+description: Definitions of Coder terms and product names.
 ---
 
 This glossary defines the Coder-specific terms and product names you encounter across the documentation.

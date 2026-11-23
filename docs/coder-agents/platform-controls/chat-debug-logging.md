@@ -1,5 +1,6 @@
 ---
 title: Chat debug logging
+description: Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.
 ---
 
 Records a detailed trace of each chat turn for troubleshooting: the normalized request sent to the large language model (LLM) provider, the full response, token usage, retry attempts, and errors.

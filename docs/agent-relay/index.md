@@ -1,5 +1,8 @@
 ---
 title: Agent Relay
+description: Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.
+icon_path: ./images/icons/link.svg
+state: [premium, beta]
 ---
 
 > [!NOTE]

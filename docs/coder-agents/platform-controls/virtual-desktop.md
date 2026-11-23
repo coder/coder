@@ -1,5 +1,7 @@
 ---
 title: Virtual desktop
+description: Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.
+state: [early access]
 ---
 
 > [!NOTE]

@@ -1,5 +1,6 @@
 ---
 title: Web IDEs in templates
+description: Add and configure web IDEs in your Coder templates as coder_app resources.
 ---
 
 In Coder, web IDEs are defined as [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) resources in the template.

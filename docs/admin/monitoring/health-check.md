@@ -1,5 +1,6 @@
 ---
 title: Deployment health
+description: Use Coder's deployment health page to monitor your control plane and its dependencies.
 ---
 
 Coder includes an operator-friendly deployment health page that provides a number of details about the health of your Coder deployment.

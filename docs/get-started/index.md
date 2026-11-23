@@ -1,5 +1,7 @@
 ---
 title: Quickstart
+description: Install Coder, build your first template, and launch your first workspace in this quickstart guide.
+icon_path: ./images/icons/rocket.svg
 ---
 
 Follow this guide to get your first Coder development environment running in under 10&nbsp;minutes.

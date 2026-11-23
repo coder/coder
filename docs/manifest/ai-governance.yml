@@ -1,8 +1,5 @@
 title: AI Governance
-description: "Govern AI usage at scale with AI Governance: AI Gateway, Agent Firewall, and reporting."
 path: ./ai-governance/index.md
-icon_path: ./images/icons/ai_intelligence.svg
-state: [premium]
 children:
   - include: ai-governance/ai-gateway.yml
   - include: ai-governance/agent-firewall.yml

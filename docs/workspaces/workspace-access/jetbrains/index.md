@@ -1,5 +1,6 @@
 ---
 title: JetBrains IDEs
+description: Connect JetBrains IDEs to Coder workspaces using JetBrains Toolbox or Gateway.
 ---
 
 Coder supports JetBrains IDEs using [Toolbox](https://www.jetbrains.com/toolbox/) and [Gateway](https://www.jetbrains.com/remote-development/gateway/).

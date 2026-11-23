@@ -1,5 +1,7 @@
 ---
 title: Install Coder in your infrastructure
+description: Plan, prepare, install, validate, and operate a Coder deployment in your own infrastructure.
+icon_path: ./images/icons/download.svg
 ---
 
 This section covers how to install and run a Coder deployment, from the first decisions to a steady-state operating environment.

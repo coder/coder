@@ -1,5 +1,6 @@
 ---
 title: STUN and NAT
+description: Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.
 ---
 
 [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html) is a protocol used to assist applications in establishing peer-to-peer communications across Network Address Translations (NATs) or firewalls.

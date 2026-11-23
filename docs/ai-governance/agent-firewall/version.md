@@ -1,5 +1,6 @@
 ---
 title: Version requirements
+description: Check the Coder and Claude Code module version requirements for running Agent Firewall.
 ---
 
 > [!NOTE]

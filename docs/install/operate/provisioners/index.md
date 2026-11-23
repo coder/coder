@@ -1,5 +1,8 @@
 ---
 title: External provisioners
+description: Run external provisioner daemons to isolate builds and scale workspace provisioning.
+icon_path: ./images/icons/key.svg
+state: [premium]
 ---
 
 By default, the control plane runs [built-in provisioner daemons](../../../reference/cli/server/index.md#--provisioner-daemons), which execute `terraform` during workspace and template builds.

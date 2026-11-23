@@ -1,5 +1,6 @@
 ---
 title: Envbuilder security and caching
+description: Configure Envbuilder registry authentication and layer caching for faster, secure builds.
 ---
 
 > [!WARNING]

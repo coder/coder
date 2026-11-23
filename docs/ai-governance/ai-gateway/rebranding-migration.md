@@ -1,5 +1,6 @@
 ---
 title: Rebranding migration
+description: Update configuration and references after the AI Bridge rename to AI Gateway.
 ---
 
 AI Bridge has been renamed to **AI Gateway**.

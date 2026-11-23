@@ -1,5 +1,6 @@
 ---
 title: Security - best practices
+description: Follow security best practices to harden your Coder deployment against common risks.
 ---
 
 December 16, 2024

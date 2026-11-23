@@ -1,5 +1,7 @@
 ---
 title: Advisor
+description: Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.
+state: [beta]
 ---
 
 ## What it does

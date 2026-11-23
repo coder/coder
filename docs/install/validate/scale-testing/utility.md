@@ -1,5 +1,6 @@
 ---
 title: Scale tests and utilities
+description: Use Coder's built-in scale-testing utility to benchmark and load-test your deployment.
 ---
 
 We scale-test Coder with a built-in utility that can be used in your environment for insights into how Coder scales with your infrastructure.

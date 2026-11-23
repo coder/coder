@@ -1,5 +1,6 @@
 ---
 title: landjail jail type
+description: Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.
 ---
 
 > [!NOTE]

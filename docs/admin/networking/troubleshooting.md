@@ -1,5 +1,6 @@
 ---
 title: Troubleshooting
+description: Diagnose and resolve Coder networking issues using coder ping and other built-in tools.
 ---
 
 `coder ping <workspace>` will ping the workspace agent and print diagnostics on the state of the connection.

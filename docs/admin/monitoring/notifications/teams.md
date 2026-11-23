@@ -1,5 +1,6 @@
 ---
 title: Microsoft Teams notifications
+description: Set up a Microsoft Teams integration to deliver Coder notifications to your channels.
 ---
 
 [Microsoft Teams](https://www.microsoft.com/en-us/microsoft-teams) is a widely used collaboration platform, and with Coder's integration, you can enable automated notifications directly within Teams using workflows and [Adaptive Cards](https://adaptivecards.io/)

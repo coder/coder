@@ -1,5 +1,7 @@
 ---
 title: OpenShift
+description: Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.
+icon_path: ./images/icons/openshift.svg
 ---
 
 ## Requirements

@@ -1,5 +1,7 @@
 ---
 title: Install Coder on Kubernetes
+description: Install Coder on a Kubernetes cluster using the official Helm chart for production deployments.
+icon_path: ./images/icons/kubernetes.svg
 ---
 
 You can install Coder on Kubernetes (K8s) using Helm.

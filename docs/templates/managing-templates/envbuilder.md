@@ -1,5 +1,6 @@
 ---
 title: Envbuilder
+description: Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.
 ---
 
 > [!WARNING]

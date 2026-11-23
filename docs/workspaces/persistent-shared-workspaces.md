@@ -1,5 +1,7 @@
 ---
 title: Persistent shared workspaces with service accounts
+description: Set up long-lived shared workspaces with service accounts and workspace sharing.
+state: [premium]
 ---
 
 > [!NOTE]

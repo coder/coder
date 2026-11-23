@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider token management
+description: Refresh an access token, revoke a token, and delete an OAuth2 application.
 ---
 
 This page covers three different readers: a developer refreshing or revoking a token, any Coder user ending their own authorization for an application, and a deployment administrator deleting an application.

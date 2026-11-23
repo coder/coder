@@ -1,5 +1,6 @@
 ---
 title: Amazon Web Services
+description: Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.
 ---
 
 This guide is designed to get you up and running with a Coder proof-of-concept on AWS Elastic Kubernetes Service (EKS) using a [Coder-provided CloudFormation Template](https://codermktplc-assets.s3.us-east-1.amazonaws.com/community-edition/eks-cluster.yaml).

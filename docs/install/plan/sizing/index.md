@@ -1,5 +1,6 @@
 ---
 title: Coder Validated Architecture
+description: Reference designs and best practices for sizing a Coder deployment, from 1,000 to 10,000 users.
 ---
 
 Many customers operate Coder in complex organizational environments, consisting of multiple business units, agencies, and/or subsidiaries.

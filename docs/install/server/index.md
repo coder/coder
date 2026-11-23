@@ -1,5 +1,7 @@
 ---
 title: Install the control plane
+description: Choose a platform and install the Coder control plane on it.
+icon_path: ./images/icons/download.svg
 ---
 
 The pages in this section are alternatives, not sequential steps.

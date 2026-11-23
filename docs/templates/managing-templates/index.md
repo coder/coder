@@ -1,5 +1,6 @@
 ---
 title: Work with templates
+description: Learn how to edit, version, and manage Coder templates, along with recommended best practices.
 ---
 
 You create and edit Coder templates as [Terraform](https://developer.hashicorp.com/terraform/intro) configuration files (`.tf`) and any supporting files, like a README or configuration files for other services.

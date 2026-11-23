@@ -1,5 +1,6 @@
 ---
 title: OpenCode
+description: Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.
 ---
 
 > [!NOTE]

@@ -1,6 +1,8 @@
 ---
 title: Home
 markdown_url: /docs.md
+description: Coder is a self-hosted platform for running AI coding agents and cloud development environments on the infrastructure you control.
+icon_path: ./images/icons/home.svg
 ---
 
 ![Coder platform showing templates and a running workspace](./images/hero-image.png)
