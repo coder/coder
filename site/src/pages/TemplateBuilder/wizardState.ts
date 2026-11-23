@@ -71,7 +71,6 @@ export type TemplateBuilderWizardState = {
 	baseTemplateId: string | null;
 	baseVariableValues: Record<string, string>;
 	modules: TemplateBuilderComposeModule[];
-	hasProvisioners: boolean | undefined;
 	name: string;
 	displayName: string;
 	description: string;
@@ -88,7 +87,6 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	baseTemplateId: null,
 	baseVariableValues: {},
 	modules: [],
-	hasProvisioners: undefined,
 	name: "",
 	displayName: "",
 	description: "",
@@ -146,8 +144,6 @@ export type WizardAction =
 			field: "name" | "displayName" | "description" | "icon";
 			value: string;
 	  }
-	| { type: "SET_HAS_PROVISIONERS"; value: boolean | undefined }
-	| { type: "RESET_CUSTOMIZATIONS" }
 	| { type: "RESET" };
 
 export function wizardReducer(
@@ -203,17 +199,6 @@ export function wizardReducer(
 			return {
 				...state,
 				[action.field]: action.value,
-			};
-		case "SET_HAS_PROVISIONERS":
-			return {
-				...state,
-				hasProvisioners: action.value,
-			};
-		case "RESET_CUSTOMIZATIONS":
-			// Re-detect provisioners when the step is re-entered.
-			return {
-				...state,
-				hasProvisioners: undefined,
 			};
 		case "RESET":
 			return initialWizardState;

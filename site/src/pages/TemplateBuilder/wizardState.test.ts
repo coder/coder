@@ -353,32 +353,6 @@ describe("wizardReducer", () => {
 		});
 	});
 
-	describe("RESET_CUSTOMIZATIONS", () => {
-		it("clears provisioner state but keeps base-derived fields", () => {
-			const state = reduce([
-				{
-					type: "SET_BASE",
-					base: {
-						id: "docker",
-						name: "Docker Containers",
-						description: "Docker",
-						iconUrl: "/icon/docker.png",
-						hasParameters: false,
-						hasPrerequisites: false,
-					},
-				},
-				{ type: "SET_HAS_PROVISIONERS", value: true },
-				{ type: "RESET_CUSTOMIZATIONS" },
-			]);
-			expect(state.hasProvisioners).toBeUndefined();
-			// Base-derived fields survive so re-entering the step stays filled.
-			expect(state.name).toBe("docker");
-			expect(state.displayName).toBe("Docker Containers");
-			expect(state.description).toBe("Docker");
-			expect(state.icon).toBe("/icon/docker.png");
-		});
-	});
-
 	describe("RESET", () => {
 		it("returns to initial state", () => {
 			const state = reduce([

@@ -5,7 +5,6 @@ import {
 	getProvisionerDaemonsKey,
 	permittedOrganizations,
 } from "#/api/queries/organizations";
-import { Button } from "#/components/Button/Button";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
@@ -14,10 +13,7 @@ import {
 	mockApiError,
 	mockAxiosError,
 } from "#/testHelpers/entities";
-import {
-	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
-	TemplateCustomizationsStep,
-} from "./TemplateCustomizationsStep";
+import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
 	type TemplateBuilderWizardState,
@@ -50,26 +46,13 @@ const meta: Meta<typeof TemplateCustomizationsStep> = {
 	args: {
 		state: baseState,
 		onCreate: fn(),
-		onProvisionerStatusChange: fn(),
+		onBack: fn(),
 	},
 	parameters: {
 		queries: [
 			{ key: permittedOrgsKey, data: [MockOrganization, MockOrganization2] },
 		],
 	},
-	// The "Create template" submit button lives in the wizard's shared nav bar,
-	// outside this component. It is associated with the form via the `form`
-	// attribute, so the stories render an equivalent button to exercise submit.
-	decorators: [
-		(Story) => (
-			<div className="flex flex-col gap-6">
-				<Story />
-				<Button type="submit" form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}>
-					Create template
-				</Button>
-			</div>
-		),
-	],
 };
 
 export default meta;
@@ -87,6 +70,20 @@ export const MissingOrganizationError: Story = {
 			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await canvas.findByText("Select an organization to continue.");
+	},
+};
+
+// The selected organization has no provisioners, so the step warns and
+// disables Create.
+export const NoProvisioners: Story = {
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [],
+			},
+		],
 	},
 };
 

@@ -30,6 +30,7 @@ import {
 	moduleSettingsComplete,
 } from "./ModuleSettingsStep";
 import { SelectionSummary } from "./SelectionSummary";
+import { StepFrame } from "./StepFrame";
 import {
 	findNextVisibleIndex,
 	findPrevVisibleIndex,
@@ -43,10 +44,7 @@ import {
 	StepHeadingRefProvider,
 	useStepHeadingFocus,
 } from "./TemplateBuilderHeader";
-import {
-	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
-	TemplateCustomizationsStep,
-} from "./TemplateCustomizationsStep";
+import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	type CustomizationsFormValues,
 	initWizardState,
@@ -141,7 +139,6 @@ export const TemplateBuilderPageView: React.FC<
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
-	const isLastStep = nextIndex === -1;
 
 	const canContinue = computeCanContinue(
 		currentStep.id,
@@ -176,7 +173,6 @@ export const TemplateBuilderPageView: React.FC<
 
 	const handleBack = () => {
 		if (currentStep.id === "customizations") {
-			dispatch({ type: "RESET_CUSTOMIZATIONS" });
 			onClearCreateError?.();
 		}
 		navigateToStep(prevIndex);
@@ -200,7 +196,6 @@ export const TemplateBuilderPageView: React.FC<
 			return;
 		}
 		if (currentStep.id === "customizations" && stepId !== "customizations") {
-			dispatch({ type: "RESET_CUSTOMIZATIONS" });
 			onClearCreateError?.();
 		}
 		navigateToStep(nearestVisible(target, state));
@@ -215,13 +210,6 @@ export const TemplateBuilderPageView: React.FC<
 		setSubmittedCustomizations(values);
 		onCreateTemplate(state, values);
 	};
-
-	const handleProvisionerStatusChange = useCallback(
-		(value: boolean | undefined) => {
-			dispatch({ type: "SET_HAS_PROVISIONERS", value });
-		},
-		[],
-	);
 
 	const handleDeselectModule = (moduleId: string) => {
 		// If the only module gets deselected, go back to module selection
@@ -322,47 +310,46 @@ export const TemplateBuilderPageView: React.FC<
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="p-6 border rounded-lg overflow-x-auto">
-						<StepHeadingRefProvider value={stepHeadingRef}>
-							<StepContent
-								stepId={currentStep.id}
+					<StepHeadingRefProvider value={stepHeadingRef}>
+						{/* The customizations step frames itself because its Create
+							button depends on the provisioners it loads. */}
+						{currentStep.id === "customizations" ? (
+							<TemplateCustomizationsStep
 								state={state}
-								dispatch={dispatch}
-								moduleVarMap={moduleVarMap}
-								createError={createError}
-								submittedCustomizations={
+								onCreate={handleCreate}
+								onBack={handleBack}
+								initialValues={
 									createError ? submittedCustomizations : undefined
 								}
-								onProvisionerStatusChange={handleProvisionerStatusChange}
-								onRemoveModule={handleDeselectModule}
-								registerModuleRef={registerModuleRef}
-								onCreate={handleCreate}
-								showValidationErrors={showContinueError}
+								createError={createError}
 							/>
-						</StepHeadingRefProvider>
-					</div>
-
-					{/* Navigation controls */}
-					<div className="flex justify-end mt-6 gap-2">
-						{isFirstStep ? (
-							<div />
 						) : (
-							<Button variant="outline" onClick={handleBack}>
-								Back
-							</Button>
-						)}
-						{isLastStep ? (
-							<Button
-								type="submit"
-								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
-								disabled={state.hasProvisioners === false}
+							<StepFrame
+								footer={
+									<>
+										{isFirstStep ? (
+											<div />
+										) : (
+											<Button variant="outline" onClick={handleBack}>
+												Back
+											</Button>
+										)}
+										<Button onClick={handleNext}>Continue</Button>
+									</>
+								}
 							>
-								Create template
-							</Button>
-						) : (
-							<Button onClick={handleNext}>Continue</Button>
+								<StepContent
+									stepId={currentStep.id}
+									state={state}
+									dispatch={dispatch}
+									moduleVarMap={moduleVarMap}
+									onRemoveModule={handleDeselectModule}
+									registerModuleRef={registerModuleRef}
+									showValidationErrors={showContinueError}
+								/>
+							</StepFrame>
 						)}
-					</div>
+					</StepHeadingRefProvider>
 
 					{showContinueError && !canContinue && (
 						<p className="flex justify-end mt-2 mb-0 text-xs text-content-destructive">
@@ -405,12 +392,8 @@ type StepContentProps = {
 	state: TemplateBuilderWizardState;
 	dispatch: (action: WizardAction) => void;
 	moduleVarMap: Record<string, Record<string, string>>;
-	createError: Error | null;
-	submittedCustomizations: CustomizationsFormValues | undefined;
-	onProvisionerStatusChange: (value: boolean | undefined) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
-	onCreate: (values: CustomizationsFormValues) => void;
 	showValidationErrors: boolean;
 };
 
@@ -419,12 +402,8 @@ const StepContent: React.FC<StepContentProps> = ({
 	state,
 	dispatch,
 	moduleVarMap,
-	createError,
-	submittedCustomizations,
-	onProvisionerStatusChange,
 	onRemoveModule,
 	registerModuleRef,
-	onCreate,
 	showValidationErrors,
 }) => {
 	switch (stepId) {
@@ -477,16 +456,6 @@ const StepContent: React.FC<StepContentProps> = ({
 					showErrors={showValidationErrors}
 				/>
 			);
-		case "customizations":
-			return (
-				<TemplateCustomizationsStep
-					state={state}
-					onCreate={onCreate}
-					onProvisionerStatusChange={onProvisionerStatusChange}
-					initialValues={submittedCustomizations}
-					createError={createError}
-				/>
-			);
 		default:
 			return null;
 	}
@@ -531,8 +500,6 @@ function computeCanContinue(
 				state.modules.map((m) => m.id),
 				moduleVarMap,
 			);
-		case "customizations":
-			return state.hasProvisioners !== false;
 		default:
 			return true;
 	}
