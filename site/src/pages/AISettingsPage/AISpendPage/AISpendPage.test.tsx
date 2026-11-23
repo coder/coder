@@ -268,6 +268,28 @@ it("runs the report for the picked days and filter, resolving the user and group
 	);
 });
 
+it("ignores the URL filter when the viewer can't use it", async () => {
+	const user = userEvent.setup();
+	const getUserSpy = vi.spyOn(API, "getUser");
+	const { usersSpy } = renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin provider:openai")}`,
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await waitFor(() =>
+		expect(usersSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-01T00:00:00.000Z",
+				period_end: "2026-03-04T00:00:00.000Z",
+				limit: 10,
+				offset: 0,
+			},
+			expect.any(AbortSignal),
+		),
+	);
+	expect(getUserSpy).not.toHaveBeenCalled();
+});
+
 it("cancels a report before it has results", async () => {
 	const user = userEvent.setup();
 	const { usersSpy } = renderAISpendPage("tab=detailed-report");
@@ -298,26 +320,4 @@ it("cancels a report while it loads another page", async () => {
 	await waitFor(() => expect(searchParam("page")).toBe("2"));
 	await user.click(await screen.findByRole("button", { name: "Cancel" }));
 	await waitFor(() => expect(searchParam("page")).toBe("1"));
-});
-
-it("ignores the URL filter when the viewer can't use it", async () => {
-	const user = userEvent.setup();
-	const getUserSpy = vi.spyOn(API, "getUser");
-	const { usersSpy } = renderAISpendPage(
-		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin provider:openai")}`,
-	);
-	await user.click(await screen.findByRole("button", { name: "Run report" }));
-	await waitFor(() =>
-		expect(usersSpy).toHaveBeenCalledWith(
-			MockOrganization.id,
-			{
-				period_start: "2026-03-01T00:00:00.000Z",
-				period_end: "2026-03-04T00:00:00.000Z",
-				limit: 10,
-				offset: 0,
-			},
-			expect.any(AbortSignal),
-		),
-	);
-	expect(getUserSpy).not.toHaveBeenCalled();
 });
