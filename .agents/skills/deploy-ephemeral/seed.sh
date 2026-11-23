@@ -7,7 +7,17 @@ set -euo pipefail
 
 url=${CODER_URL:-http://127.0.0.1:3100}
 email=${EPH_ADMIN_EMAIL:-admin@coder.com}
-password=${EPH_ADMIN_PASSWORD:-SomeSecurePassword!}
+password=${EPH_ADMIN_PASSWORD:-}
+# develop.sh writes this file when it creates the admin user. The path is
+# the checkout that the coder-ephemeral supervisor uses inside eph-dev.
+password_file=${EPH_ADMIN_PASSWORD_FILE:-/home/coder/coder/.coderv2/admin-password}
+if [[ -z $password ]]; then
+	if [[ ! -s $password_file ]]; then
+		echo "seed: admin password file $password_file is missing or empty" >&2
+		exit 1
+	fi
+	password=$(<"$password_file")
+fi
 # eph-proxy on the VM listens here. It replaces the placeholder key with the
 # coder-ephemeral service account token and forwards to dogfood's AI Gateway.
 gateway=${EPH_GATEWAY_URL:-http://host.docker.internal:7080}
