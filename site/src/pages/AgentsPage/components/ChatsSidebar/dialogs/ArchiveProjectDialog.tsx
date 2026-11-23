@@ -23,10 +23,10 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
-import { RetryButton } from "../../RetryButton";
 
 const plural = (count: number, singular: string, pluralForm: string) =>
 	`${count} ${count === 1 ? singular : pluralForm}`;

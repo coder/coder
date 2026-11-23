@@ -327,7 +327,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 
 									{moduleCacheDisabledByDeployment && (
 										<span className="flex gap-2 items-start mt-4">
-											<TriangleAlertIcon className="size-icon-sm shrink-0 mt-0.5 text-content-warning" />
+											<TriangleAlertIcon className="size-icon-sm shrink-0 mt-0.5 text-border-warning" />
 											<span>
 												<strong>
 													This setting is locked because module caching is

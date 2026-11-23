@@ -822,6 +822,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 			SignInText: signInText,
 			IconURL:    iconURL,
 		},
+		SetupTokenRequired: api.setupTokenRequired(),
 	})
 }
 
@@ -1778,6 +1779,26 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			return xerrors.Errorf("unable to fetch user count: %w", err)
 		}
 
+		// On a tunnel the first user is created with the setup token,
+		// which an OAuth sign-in cannot carry.
+		if userCount == 0 && api.setupTokenRequired() {
+			return errSetupNotComplete()
+		}
+
+		// Only a sign-up while no user exists can create the owner, so
+		// only that case takes the lock. Other sign-ins must not wait
+		// on it.
+		if userCount == 0 && user.ID == uuid.Nil {
+			userCount, err = lockFirstUserSetup(ctx, tx)
+			if err != nil {
+				return err
+			}
+			if userCount != 0 {
+				logger.Warn(ctx, "a sign-up did not become the first user because another request created the first user at the same time",
+					slog.F("remote_addr", r.RemoteAddr))
+			}
+		}
+
 		// Allow the first user to sign up with OIDC, regardless of
 		// whether signups are enabled or not.
 		allowSignup := userCount == 0 || params.AllowSignups
@@ -2042,7 +2063,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		return nil
-	}, nil)
+	}, firstUserSetupTxOptions())
 	if err != nil {
 		return nil, database.User{}, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}

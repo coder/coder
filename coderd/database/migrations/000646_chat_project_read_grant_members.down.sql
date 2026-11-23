@@ -1,1 +1,0 @@
-DROP VIEW chat_project_read_grant_members;

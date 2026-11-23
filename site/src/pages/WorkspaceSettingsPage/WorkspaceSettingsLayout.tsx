@@ -65,19 +65,17 @@ export const WorkspaceSettingsLayout: React.FC = () => {
 								</BreadcrumbItem>
 								<BreadcrumbSeparator />
 								<BreadcrumbItem>
-									<BreadcrumbLink to="..">
-										<BreadcrumbPage className="flex items-center gap-2">
-											<Avatar
-												variant="icon"
-												size="sm"
-												fallback={
-													workspace.template_display_name ||
-													workspace.template_name
-												}
-												src={workspace.template_icon}
-											/>
-											{workspace.name}
-										</BreadcrumbPage>
+									<BreadcrumbLink to=".." className="flex items-center gap-2">
+										<Avatar
+											variant="icon"
+											size="sm"
+											fallback={
+												workspace.template_display_name ||
+												workspace.template_name
+											}
+											src={workspace.template_icon}
+										/>
+										{workspace.name}
 									</BreadcrumbLink>
 								</BreadcrumbItem>
 							</>

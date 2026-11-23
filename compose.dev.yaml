@@ -88,7 +88,6 @@ services:
       CODER_ACCESS_URL: "${CODER_DEV_ACCESS_URL-http://localhost:3000}"
       CODER_CACHE_DIRECTORY: "${CODER_CACHE_DIRECTORY-/cache}"
       CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "${CODER_DANGEROUS_ALLOW_CORS_REQUESTS-true}"
-      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD-SomeSecurePassword!}"
       CODER_EXPERIMENTS: "${CODER_EXPERIMENTS-*}"
       CODER_HTTP_ADDRESS: "${CODER_HTTP_ADDRESS-0.0.0.0:3000}"
       CODER_PG_CONNECTION_URL: "${CODER_PG_CONNECTION_URL-postgresql://coder:coder@database:5432/coder?sslmode=disable}"
@@ -141,7 +140,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
+      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -163,7 +162,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      CODER_DEV_MEMBER_PASSWORD: "${CODER_DEV_MEMBER_PASSWORD:-SomeSecurePassword!}"
+      CODER_DEV_MEMBER_PASSWORD: "${CODER_DEV_MEMBER_PASSWORD:-}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
