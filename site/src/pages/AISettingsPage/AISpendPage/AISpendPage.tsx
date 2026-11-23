@@ -6,6 +6,7 @@ import {
 	organizationAISpendUsers,
 	organizationUnpricedAIModels,
 } from "#/api/queries/aiBridge";
+import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -37,12 +38,16 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	);
 	const isSpendAvailable = isEntitled && isEnabled;
 
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const updateSearchParams = useUpdateSearchParams();
-	const setSearchParamValues = (values: Record<string, string>) => {
+	const setSearchParamValues = (values: Record<string, string | undefined>) => {
 		updateSearchParams((params) => {
 			for (const [key, value] of Object.entries(values)) {
-				params.set(key, value);
+				if (value === undefined) {
+					params.delete(key);
+				} else {
+					params.set(key, value);
+				}
 			}
 		});
 	};
@@ -69,6 +74,10 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			searchParams.get(endDateSearchParam),
 		) ?? defaultSpendDays(now ?? new Date());
 	const period = toSpendPeriod(days);
+	const reportFilter = useFilter({
+		searchParams,
+		onSearchParamsChange: (next) => setSearchParams(next, { replace: true }),
+	});
 	const tab: AISpendTab =
 		searchParams.get(tabSearchParam) === "detailed-report"
 			? "detailed-report"
@@ -118,9 +127,16 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
-				onOrganizationChange={(next) =>
-					setSearchParamValues({ [modelOrganizationSearchParam]: next.name })
-				}
+				onOrganizationChange={(next) => {
+					// Only switching to another organization starts the report filter over.
+					if (next.id === organization?.id) {
+						return;
+					}
+					setSearchParamValues({
+						[modelOrganizationSearchParam]: next.name,
+						[useFilterParamsKey]: undefined,
+					});
+				}}
 				tab={tab}
 				onTabChange={(next) => setSearchParamValues({ [tabSearchParam]: next })}
 				isOrganizationsLoading={organizationsQuery.isLoading}
@@ -132,6 +148,8 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 						[endDateSearchParam]: next.endDate,
 					})
 				}
+				reportFilter={reportFilter.query}
+				onReportFilterChange={reportFilter.update}
 				onOpenDetailedReport={openDetailedReport}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}
