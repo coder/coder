@@ -34,8 +34,8 @@ describe("useWorkspaceBuildLogs", () => {
 		rerender({ buildId: "build-2", enabled: true });
 		expect(result.current).toBeUndefined();
 
-		act(() => publishLog.get("build-1")?.(firstLog));
 		act(() => publishLog.get("build-2")?.(secondLog));
+		act(() => publishLog.get("build-1")?.(firstLog));
 		expect(result.current).toEqual([secondLog]);
 	});
 });
