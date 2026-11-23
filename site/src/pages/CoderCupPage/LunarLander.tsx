@@ -2060,15 +2060,22 @@ function drawRewindLabel(ctx: CanvasRenderingContext2D) {
 function createRewindingStore() {
 	let rewinding = false;
 	const listeners = new Set<() => void>();
+
 	return {
 		get: () => rewinding,
 		set: (next: boolean) => {
-			if (next === rewinding) return;
+			if (next === rewinding) {
+				return;
+			}
+
 			rewinding = next;
-			for (const listener of listeners) listener();
+			for (const listener of listeners) {
+				listener();
+			}
 		},
 		subscribe: (listener: () => void) => {
 			listeners.add(listener);
+
 			return () => {
 				listeners.delete(listener);
 			};
@@ -2090,6 +2097,7 @@ export const LunarLander: React.FC = () => {
 		rewindingStore.subscribe,
 		rewindingStore.get,
 	);
+
 	const selectDifficulty = (picked: LandingLimits) => {
 		limitsRef.current = picked;
 		setLimits(picked);
