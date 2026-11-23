@@ -133,7 +133,7 @@ const OAuth2Fields: React.FC<MCPServerAuthFieldsProps> = ({
 					<p className="m-0 text-sm text-content-secondary">
 						{registeredClientID
 							? "Coder registered a client with the OAuth2 provider of the server URL. When you save a different server URL, Coder registers a new client."
-							: "When you save, Coder discovers the OAuth2 provider of the server URL and registers a client."}{" "}
+							: "When you save, Coder discovers the OAuth2 provider of the server URL and registers a client, with a client ID metadata document when the provider supports one."}{" "}
 						Coder will handle the per-user authorization flow.
 					</p>
 					{registeredClientID && (

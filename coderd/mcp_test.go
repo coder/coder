@@ -77,7 +77,7 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, organizationID
 }
 
 // mcpDiscoveryServer is an MCP server whose authorization server supports
-// discovery and dynamic client registration (RFC 7591).
+// discovery and, by default, dynamic client registration (RFC 7591).
 type mcpDiscoveryServer struct {
 	url     string
 	authURL string
@@ -95,22 +95,33 @@ func (s *mcpDiscoveryServer) registrations() [][]string {
 
 // newMCPDiscoveryServer starts an mcpDiscoveryServer whose URL has the
 // path /mcp. When beforeRegister is not nil, it runs before each
-// registration response.
-func newMCPDiscoveryServer(t testing.TB, beforeRegister func()) *mcpDiscoveryServer {
+// registration response. methods lists the client registration methods
+// that the authorization server advertises; the default is dynamic only.
+func newMCPDiscoveryServer(t testing.TB, beforeRegister func(), methods ...codersdk.MCPServerOAuth2ClientRegistration) *mcpDiscoveryServer {
 	t.Helper()
 
+	if len(methods) == 0 {
+		methods = []codersdk.MCPServerOAuth2ClientRegistration{codersdk.MCPServerOAuth2ClientRegistrationDynamic}
+	}
 	s := &mcpDiscoveryServer{}
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/oauth-authorization-server":
+			origin := "http://" + r.Host
+			metadata := map[string]any{
+				"issuer":                   origin,
+				"authorization_endpoint":   origin + "/authorize",
+				"token_endpoint":           origin + "/token",
+				"response_types_supported": []string{"code"},
+			}
+			if slices.Contains(methods, codersdk.MCPServerOAuth2ClientRegistrationDynamic) {
+				metadata["registration_endpoint"] = origin + "/register"
+			}
+			if slices.Contains(methods, codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument) {
+				metadata["client_id_metadata_document_supported"] = true
+			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{
-				"issuer": "` + "http://" + r.Host + `",
-				"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
-				"token_endpoint": "` + "http://" + r.Host + `/token",
-				"registration_endpoint": "` + "http://" + r.Host + `/register",
-				"response_types_supported": ["code"]
-			}`))
+			_ = json.NewEncoder(w).Encode(metadata)
 		case "/register":
 			var body struct {
 				RedirectURIs []string `json:"redirect_uris"`
@@ -3392,6 +3403,85 @@ func TestMCPServerConfigsUpdateOAuth2Registration(t *testing.T) {
 		require.Equal(t, "none", got.AuthType)
 		require.Equal(t, otherURL, got.URL)
 	})
+}
+
+func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dynamic          = codersdk.MCPServerOAuth2ClientRegistrationDynamic
+		metadataDocument = codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument
+	)
+	cases := []struct {
+		name      string
+		accessURL string
+		supports  []codersdk.MCPServerOAuth2ClientRegistration
+		// want is the stored method, or "" when the create must fail.
+		want codersdk.MCPServerOAuth2ClientRegistration
+	}{
+		{name: "PrefersMetadataDocument", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: metadataDocument},
+		{name: "DynamicOnly", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic}, want: dynamic},
+		{name: "MetadataDocumentNeedsPublicAccessURL", accessURL: "http://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			accessURL, err := url.Parse(tc.accessURL)
+			require.NoError(t, err)
+			client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t), AccessURL: accessURL})
+			firstUser := coderdtest.CreateFirstUser(t, client)
+			discovery := newMCPDiscoveryServer(t, nil, tc.supports...)
+
+			config, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:  "Metadata Document",
+				Slug:         "metadata-document",
+				Transport:    "streamable_http",
+				URL:          discovery.url,
+				AuthType:     "oauth2",
+				Availability: "default_on",
+				Enabled:      true,
+			})
+			if tc.want == "" {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, "access URL")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, config.OAuth2ClientRegistration)
+
+			documentPath := "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/client-metadata.json"
+			callbackURL := tc.accessURL + "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/callback"
+			// Authorization servers fetch the document without a session.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+documentPath, nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			if tc.want == dynamic {
+				require.Equal(t, [][]string{{callbackURL}}, discovery.registrations())
+				require.Equal(t, http.StatusNotFound, resp.StatusCode)
+				return
+			}
+
+			require.Empty(t, discovery.registrations())
+			require.Equal(t, tc.accessURL+documentPath, config.OAuth2ClientID)
+			require.False(t, config.HasOAuth2Secret)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			var document struct {
+				ClientID                string   `json:"client_id"`
+				RedirectURIs            []string `json:"redirect_uris"`
+				TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&document))
+			require.Equal(t, config.OAuth2ClientID, document.ClientID)
+			require.Equal(t, []string{callbackURL}, document.RedirectURIs)
+			require.Equal(t, "none", document.TokenEndpointAuthMethod)
+		})
+	}
 }
 
 func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {

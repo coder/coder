@@ -55,3 +55,26 @@ func TestContainsEncodedPath(t *testing.T) {
 		})
 	}
 }
+
+func TestIsPublicHTTPS(t *testing.T) {
+	t.Parallel()
+
+	for rawURL, want := range map[string]bool{
+		"https://coder.example.com":      true,
+		"https://203.0.113.7:8443/coder": true,
+		"http://coder.example.com":       false,
+		"https://localhost":              false,
+		"https://dev.localhost":          false,
+		"https://127.0.0.1":              false,
+		"https://[::1]":                  false,
+		"https://10.1.2.3":               false,
+		"https://169.254.169.254":        false,
+		"https://[fe80::1]":              false,
+		"https://[::ffff:192.168.0.1]":   false,
+		"https://0.0.0.0":                false,
+	} {
+		u, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		require.Equal(t, want, xurl.IsPublicHTTPS(u), rawURL)
+	}
+}

@@ -65,6 +65,10 @@ const (
 	// endpoints and registered the client with RFC 7591 Dynamic Client
 	// Registration.
 	MCPServerOAuth2ClientRegistrationDynamic MCPServerOAuth2ClientRegistration = "dynamic"
+	// MCPServerOAuth2ClientRegistrationMetadataDocument means Coder
+	// discovered the endpoints and identifies itself with an OAuth Client
+	// ID Metadata Document that it serves at the client ID URL.
+	MCPServerOAuth2ClientRegistrationMetadataDocument MCPServerOAuth2ClientRegistration = "metadata_document"
 )
 
 // MCPServerConfig represents an admin-configured MCP server.
@@ -187,12 +191,16 @@ type CreateMCPServerConfigRequest struct {
 	APIKeyValue    string            `json:"api_key_value,omitempty"`
 	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
 	// OAuth2ClientRegistration selects how Coder gets the OAuth2 client.
-	// With "dynamic", Coder discovers the authorization server of URL and
-	// registers a client (RFC 7591), so the client ID, client secret, auth
-	// URL, and token URL must be empty. With "manual", the client ID, auth
-	// URL, and token URL are required. When empty, Coder uses "dynamic" if
-	// those three fields are empty, and "manual" otherwise.
-	OAuth2ClientRegistration MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic"`
+	// With "dynamic" or "metadata_document", Coder discovers the
+	// authorization server of URL and gets a client automatically, so the
+	// client ID, client secret, auth URL, and token URL must be empty.
+	// Coder uses a Client ID Metadata Document when the authorization
+	// server supports one and the access URL is a public https URL, and
+	// RFC 7591 registration otherwise; the stored value names the method
+	// used. With "manual", the client ID, auth URL, and token URL are
+	// required. When empty, Coder registers automatically if those three
+	// fields are empty, and uses "manual" otherwise.
+	OAuth2ClientRegistration MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic metadata_document"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -236,15 +244,18 @@ type UpdateMCPServerConfigRequest struct {
 	APIKeyValue    *string            `json:"api_key_value,omitempty"`
 	CustomHeaders  *map[string]string `json:"custom_headers,omitempty"`
 	// OAuth2ClientRegistration changes how Coder gets the OAuth2 client.
-	// When a request that sets the URL or an auth field omits it, Coder
-	// uses "dynamic" if the resulting config has no client ID, auth URL,
-	// and token URL, and keeps the stored value otherwise. Coder registers
-	// a new client when the config becomes "dynamic" or when the URL of a
-	// "dynamic" config changes. A new client deletes the stored user
-	// tokens. A "dynamic" config ignores empty and unchanged values for
-	// the client ID, client secret, auth URL, and token URL. Other values
-	// fail unless the request also sets "manual".
-	OAuth2ClientRegistration *MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic"`
+	// "dynamic" and "metadata_document" both select automatic
+	// registration, as on create; a config that already registers
+	// automatically keeps its method. When a request that sets the URL or
+	// an auth field omits it, Coder registers automatically if the
+	// resulting config has no client ID, auth URL, and token URL, and
+	// keeps the stored value otherwise. Coder gets a new client when the
+	// config becomes automatic or when the URL of an automatic config
+	// changes. A new client deletes the stored user tokens. An automatic
+	// config ignores empty and unchanged values for the client ID, client
+	// secret, auth URL, and token URL. Other values fail unless the
+	// request also sets "manual".
+	OAuth2ClientRegistration *MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty" validate:"omitempty,oneof=manual dynamic metadata_document"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

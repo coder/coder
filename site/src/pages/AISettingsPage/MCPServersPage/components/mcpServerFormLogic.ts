@@ -102,8 +102,11 @@ export const buildInitialMCPServerFormValues = (
 	url: server?.url ?? "",
 	transport: server?.transport ?? "streamable_http",
 	authType: server?.auth_type ?? "none",
+	// The form offers one automatic option; the server keeps the method of
+	// an automatic client when the form saves it as "dynamic".
 	oauth2ClientRegistration:
-		server?.auth_type === "oauth2"
+		server?.auth_type === "oauth2" &&
+		server.oauth2_client_registration !== "metadata_document"
 			? (server.oauth2_client_registration ?? "manual")
 			: "dynamic",
 	oauth2ClientID: server?.oauth2_client_id ?? "",

@@ -3,6 +3,7 @@
 package xurl
 
 import (
+	"net/netip"
 	"net/url"
 	"strings"
 	"unicode"
@@ -48,4 +49,23 @@ func ContainsEncodedPath(u *url.URL) bool {
 
 func isPathSeparator(r rune) bool {
 	return r == '/' || r == '\\'
+}
+
+// IsPublicHTTPS reports whether u is an https URL whose host could be
+// reachable from the public internet: the host is not localhost and is
+// not a loopback, private, link-local, or unspecified IP literal. Host
+// names are not resolved.
+func IsPublicHTTPS(u *url.URL) bool {
+	if u == nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return false
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		ip = ip.Unmap()
+		return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
+	}
+	return true
 }
