@@ -1998,6 +1998,17 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	tok, err := q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, tok); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.ClaimMCPServerUserTokenRefresh(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 

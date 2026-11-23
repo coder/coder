@@ -293,10 +293,9 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	})
 }
 
-// TestRefreshUserTokenOneRefresher runs two refreshes of one expired token
-// and lets the provider answer the first only after the second is waiting
-// on the token lock (or, without the lock, has reached the provider too).
-// The provider rotates refresh tokens and reports any reuse of a spent one.
+// TestRefreshUserTokenOneRefresher refreshes one expired token while another
+// refresher's provider call is in flight. The provider rotates refresh tokens
+// and reports any reuse of a spent one.
 func TestRefreshUserTokenOneRefresher(t *testing.T) {
 	t.Parallel()
 
@@ -306,16 +305,20 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		wantAccess  string
 		wantFailure bool
 		wantGrants  int64
+		// lateCaller refreshes the stale row after the first call returns;
+		// it must get the first call's result. A provider outage keeps the
+		// claim until it lapses, so that row has no late caller.
+		lateCaller bool
 	}{
-		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1},
-		{name: "RevokedGrant", refresh: "revoked", wantFailure: true},
+		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1, lateCaller: true},
+		{name: "RevokedGrant", refresh: "revoked", wantFailure: true, lateCaller: true},
 		{name: "ProviderDown", refresh: "down", wantAccess: "expired-access"},
-		{name: "Disconnected", refresh: "disconnect", wantGrants: 1},
+		{name: "Disconnected", refresh: "disconnect", wantGrants: 1, lateCaller: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			store, _ := dbtestutil.NewDB(t)
 			authzDB := dbauthz.New(store, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
 			user := dbgen.User(t, store, database.User{})
 
@@ -361,26 +364,34 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 				Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
 			})
 			require.NoError(t, err)
-
-			results := make(chan database.MCPServerUserToken, 2)
-			refresh := func() {
-				got, err := mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), authzDB, testMCPHTTPClient(nil), cfg, tok)
-				assert.NoError(t, err)
-				results <- got
+			refresh := func(ctx context.Context) (database.MCPServerUserToken, error) {
+				return mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), authzDB, testMCPHTTPClient(nil), cfg, tok)
 			}
-			go refresh()
+
+			first := make(chan database.MCPServerUserToken, 1)
+			go func() {
+				got, err := refresh(ctx)
+				assert.NoError(t, err)
+				first <- got
+			}()
 			testutil.Eventually(ctx, t, func(context.Context) bool { return requests.Load() == 1 }, testutil.IntervalFast)
-			go refresh()
-			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				var waiting int
-				err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database
-					WHERE d.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`).Scan(&waiting)
-				return (err == nil && waiting > 0) || requests.Load() > 1
-			}, testutil.IntervalFast)
+
+			// A second refresher of the same row waits for the first instead
+			// of spending the refresh token again.
+			waitCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+			defer cancel()
+			_, err = refresh(waitCtx)
+			require.Error(t, err)
+			require.EqualValues(t, 1, requests.Load(), "a second refresher reached the provider")
 			close(release)
 
-			for range 2 {
-				got := testutil.RequireReceive(ctx, t, results)
+			results := []database.MCPServerUserToken{testutil.RequireReceive(ctx, t, first)}
+			if tc.lateCaller {
+				late, err := refresh(ctx)
+				require.NoError(t, err)
+				results = append(results, late)
+			}
+			for _, got := range results {
 				require.Equal(t, tc.wantAccess, got.AccessToken)
 				require.Equal(t, tc.wantFailure, got.OauthRefreshFailureReason != "")
 			}

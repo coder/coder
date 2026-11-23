@@ -20576,6 +20576,38 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	return pg_try_advisory_xact_lock, err
 }
 
+const claimMCPServerUserTokenRefresh = `-- name: ClaimMCPServerUserTokenRefresh :one
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW() + make_interval(secs => $1::double precision)
+WHERE
+    id = $2::uuid
+    AND updated_at = $3::timestamptz
+    AND updated_at <= NOW()
+RETURNING
+    updated_at
+`
+
+type ClaimMCPServerUserTokenRefreshParams struct {
+	LeaseSeconds float64   `db:"lease_seconds" json:"lease_seconds"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Claims the right to refresh a token for @lease_seconds by moving
+// updated_at that far into the future. It matches only the version the
+// caller read, and never a live claim (updated_at still ahead of NOW()),
+// so concurrent refreshers of one token make one provider call without
+// holding a transaction across it. The claimant persists its result
+// against the returned updated_at; other writers set NOW(), which ends
+// the claim.
+func (q *sqlQuerier) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, claimMCPServerUserTokenRefresh, arg.LeaseSeconds, arg.ID, arg.UpdatedAt)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
+}
+
 const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
 SET mcp_server_ids = (

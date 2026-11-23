@@ -1702,19 +1702,28 @@ func RefreshOAuth2Token(
 	}, nil
 }
 
+// refreshLease is how long a refresh claim keeps other refreshers of the
+// token waiting. It outlasts the provider call that RefreshOAuth2Token
+// bounds with connectTimeout, so a live claim does not lapse mid-call.
+const refreshLease = connectTimeout + 5*time.Second
+
+// refreshPollInterval is how often a refresher that lost the claim
+// re-reads the token while it waits for the claimant.
+const refreshPollInterval = 250 * time.Millisecond
+
 // RefreshUserToken refreshes tok when it expires within 10 seconds and
 // returns the row the caller should use. Authorization servers rotate
 // refresh tokens and may revoke the whole grant when a spent one comes
-// back, so concurrent callers must spend each refresh token once: under a
-// per-token advisory lock it re-reads the row, calls the provider only if
-// the re-read row is still stale, and persists the result in the same
-// transaction. The lock is held for at most one provider call, which
-// RefreshOAuth2Token bounds.
+// back, so concurrent callers must spend each refresh token once. A
+// caller first claims the row (ClaimMCPServerUserTokenRefresh), calls the
+// provider with no transaction open, and persists against its claim.
+// A caller that loses the claim re-reads the row until the claimant's
+// result lands or the claim lapses.
 //
 // ctx must allow reading the token; writes run as the token owner. A
 // transient provider failure is logged and returns the current row with
-// a nil error, so a returned error is always a database error. A deleted
-// row comes back as tok without credentials.
+// a nil error, so a returned error is a database error or ctx's. A
+// deleted row comes back as tok without credentials.
 func RefreshUserToken(
 	ctx context.Context,
 	logger slog.Logger,
@@ -1723,87 +1732,102 @@ func RefreshUserToken(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
-	if cfg.AuthType != "oauth2" || tok.RefreshToken == "" || tok.OauthRefreshFailureReason != "" {
+	if cfg.AuthType != "oauth2" {
 		return tok, nil
 	}
-	if oauth2Token(tok).Valid() {
-		return tok, nil
-	}
-
 	logger = logger.With(slog.F("server_slug", cfg.Slug), slog.F("user_id", tok.UserID))
 	ownerCtx := dbauthz.AsChatdTokenOwner(ctx, tok.UserID)
-	current := func(tx database.Store) (database.MCPServerUserToken, error) {
-		row, err := tx.GetMCPServerUserTokenByID(ctx, tok.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			disconnected := tok
-			disconnected.AccessToken, disconnected.RefreshToken, disconnected.Expiry = "", "", sql.NullTime{}
-			return disconnected, nil
+	for {
+		if tok.RefreshToken == "" || tok.OauthRefreshFailureReason != "" || oauth2Token(tok).Valid() {
+			return tok, nil
 		}
-		if err != nil {
-			return database.MCPServerUserToken{}, xerrors.Errorf("get MCP oauth2 token: %w", err)
+		claimedAt, err := store.ClaimMCPServerUserTokenRefresh(ownerCtx, database.ClaimMCPServerUserTokenRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			LeaseSeconds: refreshLease.Seconds(),
+		})
+		if err == nil {
+			tok.UpdatedAt = claimedAt
+			return refreshClaimedUserToken(ctx, ownerCtx, logger, store, httpClient, cfg, tok)
 		}
-		return row, nil
+		if !errors.Is(err, sql.ErrNoRows) {
+			return tok, xerrors.Errorf("claim MCP oauth2 token refresh: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return tok, ctx.Err()
+		case <-time.After(refreshPollInterval):
+		}
+		if tok, err = currentUserToken(ctx, store, tok); err != nil {
+			return tok, err
+		}
 	}
+}
 
-	var out database.MCPServerUserToken
-	err := store.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, database.GenLockID("mcp-token-refresh:"+tok.ID.String())); err != nil {
-			return xerrors.Errorf("lock MCP oauth2 token: %w", err)
+func refreshClaimedUserToken(
+	ctx, ownerCtx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (database.MCPServerUserToken, error) {
+	result, err := RefreshOAuth2Token(ctx, httpClient, cfg, tok)
+	out := tok
+	switch {
+	case err != nil && !IsPermanentRefreshError(err):
+		// The claim lapses after refreshLease, which spaces out retries.
+		logger.Warn(ctx, "failed to refresh MCP oauth2 token", slog.Error(err))
+		return tok, nil
+	case err != nil:
+		logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect", slog.Error(err))
+		out, err = store.MarkMCPServerUserTokenRefreshFailure(ownerCtx, database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: RefreshFailureReason(err),
+		})
+	case !result.Refreshed:
+		return tok, nil
+	default:
+		logger.Info(ctx, "refreshed MCP oauth2 token")
+		var expiry sql.NullTime
+		if !result.Expiry.IsZero() {
+			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 		}
-		cur, err := current(tx)
-		if err != nil {
-			return err
-		}
-		out = cur
-		if cur.RefreshToken == "" || cur.OauthRefreshFailureReason != "" {
-			return nil
-		}
-
-		result, err := RefreshOAuth2Token(ctx, httpClient, cfg, cur)
-		switch {
-		case err != nil && !IsPermanentRefreshError(err):
-			logger.Warn(ctx, "failed to refresh MCP oauth2 token", slog.Error(err))
-			return nil
-		case err != nil:
-			logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect", slog.Error(err))
-			out, err = tx.MarkMCPServerUserTokenRefreshFailure(ownerCtx, database.MarkMCPServerUserTokenRefreshFailureParams{
-				ID:                        cur.ID,
-				UpdatedAt:                 cur.UpdatedAt,
-				OauthRefreshFailureReason: RefreshFailureReason(err),
-			})
-		case !result.Refreshed:
-			return nil
-		default:
-			logger.Info(ctx, "refreshed MCP oauth2 token")
-			var expiry sql.NullTime
-			if !result.Expiry.IsZero() {
-				expiry = sql.NullTime{Time: result.Expiry, Valid: true}
-			}
-			out, err = tx.UpdateMCPServerUserTokenFromRefresh(ownerCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
-				ID:                cur.ID,
-				UpdatedAt:         cur.UpdatedAt,
-				AccessToken:       result.AccessToken,
-				AccessTokenKeyID:  sql.NullString{},
-				RefreshToken:      result.RefreshToken,
-				RefreshTokenKeyID: sql.NullString{},
-				TokenType:         result.TokenType,
-				Expiry:            expiry,
-			})
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			// A re-authentication or disconnect, which does not take the
-			// lock, replaced the row during the provider call and wins.
-			out, err = current(tx)
-		}
-		if err != nil {
-			return xerrors.Errorf("persist MCP oauth2 token refresh: %w", err)
-		}
-		return nil
-	}, nil)
+		out, err = store.UpdateMCPServerUserTokenFromRefresh(ownerCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:                tok.ID,
+			UpdatedAt:         tok.UpdatedAt,
+			AccessToken:       result.AccessToken,
+			AccessTokenKeyID:  sql.NullString{},
+			RefreshToken:      result.RefreshToken,
+			RefreshTokenKeyID: sql.NullString{},
+			TokenType:         result.TokenType,
+			Expiry:            expiry,
+		})
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// A re-authentication or disconnect, which does not claim the row,
+		// replaced it during the provider call and wins.
+		return currentUserToken(ctx, store, tok)
+	}
 	if err != nil {
-		return tok, err
+		return tok, xerrors.Errorf("persist MCP oauth2 token refresh: %w", err)
 	}
 	return out, nil
+}
+
+// currentUserToken re-reads tok, returning it without credentials when
+// the row is gone.
+func currentUserToken(ctx context.Context, store database.Store, tok database.MCPServerUserToken) (database.MCPServerUserToken, error) {
+	row, err := store.GetMCPServerUserTokenByID(ctx, tok.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		tok.AccessToken, tok.RefreshToken, tok.Expiry = "", "", sql.NullTime{}
+		return tok, nil
+	}
+	if err != nil {
+		return tok, xerrors.Errorf("get MCP oauth2 token: %w", err)
+	}
+	return row, nil
 }
 
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009

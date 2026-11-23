@@ -264,6 +264,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimMCPServerUserTokenRefresh(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimMCPServerUserTokenRefresh").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimMCPServerUserTokenRefresh").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)

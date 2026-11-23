@@ -87,6 +87,14 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Claims the right to refresh a token for @lease_seconds by moving
+	// updated_at that far into the future. It matches only the version the
+	// caller read, and never a live claim (updated_at still ahead of NOW()),
+	// so concurrent refreshers of one token make one provider call without
+	// holding a transaction across it. The claimant persists its result
+	// against the returned updated_at; other writers set NOW(), which ends
+	// the claim.
+	ClaimMCPServerUserTokenRefresh(ctx context.Context, arg ClaimMCPServerUserTokenRefreshParams) (time.Time, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
