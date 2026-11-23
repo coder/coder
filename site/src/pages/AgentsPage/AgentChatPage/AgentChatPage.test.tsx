@@ -15,8 +15,14 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatDiffStatus,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -35,6 +41,7 @@ import {
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parseStoredDraft } from "../utils/draftStorage";
+import { overviewCardOpenStorageKey } from "../utils/overviewCardStorage";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -45,6 +52,68 @@ const outletContext: Partial<AgentsPageOutletContext> = {
 	clearChatErrorReason: vi.fn(),
 	onChatReady: vi.fn(),
 };
+
+const mockChatPageApi = (
+	chat: Chat,
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
+) => {
+	vi.spyOn(apiModule, "watchChat").mockImplementation(
+		() =>
+			new OneWayWebSocket({
+				apiRoute: `/api/experimental/chats/${chat.id}/stream`,
+				websocketInit: (url, protocol) => createMockWebSocket(url, protocol)[0],
+			}),
+	);
+	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
+	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+		messages: [],
+		queued_messages: [...queuedMessages],
+		has_more: false,
+		snapshot_version: 1,
+	});
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		models: [
+			{
+				...MockChatModel,
+				id: chat.last_model_config_id,
+				organization_id: chat.organization_id,
+				is_default: true,
+			},
+		],
+		providers: [MockChatModelProviderDescriptor],
+		unsupported_providers: [],
+	});
+	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+		MockUserPreferenceSettings,
+	);
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
+	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+};
+
+/** The transcript has messages before the loaded page. */
+const mockOlderMessages = () =>
+	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+		messages: [MockChatMessage],
+		queued_messages: [],
+		has_more: true,
+	});
+
+const renderChatPage = (chat: Chat) =>
+	renderWithAuth(<Outlet context={outletContext} />, {
+		path: "/agents",
+		route: `/agents/${chat.id}`,
+		children: [{ path: ":agentId", element: <AgentChatPage /> }],
+	});
+
+/**
+ * Waits for the loaded chat. The loading view renders its own overview toggle
+ * and a skeleton card with the same names, and unmounts them when the chat
+ * loads.
+ */
+const waitForLoadedChat = () =>
+	screen.findByRole("region", { name: "Messages" });
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -160,51 +229,9 @@ const renderQueuedChat = ({
 	};
 };
 
-const renderChatPage = (
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
-) => {
-	vi.spyOn(apiModule, "watchChat").mockImplementation(
-		() =>
-			new OneWayWebSocket({
-				apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
-				websocketInit: (url, protocol) => createMockWebSocket(url, protocol)[0],
-			}),
-	);
-	vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
-	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-		messages: [],
-		queued_messages: queuedMessages,
-		has_more: false,
-		snapshot_version: 1,
-	});
-	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
-		models: [
-			{
-				...MockChatModel,
-				id: mockProjectChat.last_model_config_id,
-				organization_id: mockProjectChat.organization_id,
-				is_default: true,
-			},
-		],
-		providers: [MockChatModelProviderDescriptor],
-		unsupported_providers: [],
-	});
-	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
-		MockUserPreferenceSettings,
-	);
-	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
-		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
-	);
-	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-	return renderWithAuth(<Outlet context={outletContext} />, {
-		path: "/agents",
-		route: `/agents/${mockProjectChat.id}`,
-		children: [{ path: ":agentId", element: <AgentChatPage /> }],
-	});
-};
-
 describe("AgentChatPage", () => {
 	it("refreshes the project actions after a send fails", async () => {
+		mockChatPageApi(mockProjectChat);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "deploy", action: true }]);
@@ -215,7 +242,7 @@ describe("AgentChatPage", () => {
 			);
 		const user = userEvent.setup();
 
-		const { queryClient } = renderChatPage();
+		const { queryClient } = renderChatPage(mockProjectChat);
 
 		// The actions bar remounts after the send, so only the failure's
 		// invalidation may refetch the list.
@@ -273,6 +300,77 @@ describe("AgentChatPage", () => {
 			await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
 		},
 	);
+
+	it("shows the overview card in a new chat and keeps the toggle's choice", async () => {
+		mockChatPageApi(MockChat);
+		const user = userEvent.setup();
+		const firstPage = renderChatPage(MockChat);
+		await waitForLoadedChat();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Toggle overview",
+				expanded: true,
+			}),
+		);
+		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBe("false");
+
+		firstPage.unmount();
+		renderChatPage(MockChat);
+		await waitForLoadedChat();
+		await screen.findByRole("button", {
+			name: "Toggle overview",
+			expanded: false,
+		});
+	});
+
+	it("focuses a row's panel tab and hides the overview card while the panel is open", async () => {
+		const chat = { ...MockChat, diff_statuses: [MockChatDiffStatus] };
+		mockChatPageApi(chat);
+		const user = userEvent.setup();
+		renderChatPage(chat);
+		await waitForLoadedChat();
+
+		const card = await screen.findByRole("complementary", {
+			name: "Overview",
+		});
+		await user.click(within(card).getByRole("button", { name: /#123/ }));
+		expect(screen.getByRole("tab", { name: "Git" })).toHaveFocus();
+		expect(
+			screen.queryByRole("complementary", { name: "Overview" }),
+		).toBeNull();
+
+		await user.click(
+			screen.getByRole("button", { name: "Toggle panel", expanded: true }),
+		);
+		screen.getByRole("button", { name: "Toggle panel", expanded: false });
+		await screen.findByRole("button", {
+			name: "Toggle overview",
+			expanded: true,
+		});
+		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBeNull();
+	});
+
+	it("retries the overview card's earlier attachments after a failure", async () => {
+		mockChatPageApi(MockChat);
+		mockOlderMessages();
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(new Error("Failed to get chat attachments."))
+			.mockResolvedValueOnce({ attachments: [] });
+		const user = userEvent.setup();
+		renderChatPage(MockChat);
+		await waitForLoadedChat();
+
+		const card = await screen.findByRole("complementary", {
+			name: "Overview",
+		});
+		await user.click(
+			await within(card).findByRole("button", { name: "Retry" }),
+		);
+
+		await waitFor(() => expect(getChatAttachments).toHaveBeenCalledTimes(2));
+	});
 
 	describe("queued message editing", () => {
 		const row = {
@@ -564,7 +662,8 @@ describe("AgentChatPage", () => {
 			.mockRejectedValue(mockApiError({ message: "promote failed" }));
 		const user = userEvent.setup();
 
-		renderChatPage([MockChatQueuedMessage]);
+		mockChatPageApi(mockProjectChat, [MockChatQueuedMessage]);
+		renderChatPage(mockProjectChat);
 
 		await user.click(await screen.findByRole("button", { name: "Send now" }));
 		await waitFor(() =>

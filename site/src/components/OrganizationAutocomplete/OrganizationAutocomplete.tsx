@@ -22,7 +22,7 @@ import {
 
 type OrganizationAutocompleteProps = Pick<
 	React.ComponentProps<"button">,
-	"aria-invalid" | "aria-describedby"
+	"aria-invalid" | "aria-describedby" | "autoFocus"
 > & {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
@@ -140,6 +140,7 @@ export const OrganizationAutocomplete: React.FC<
 								<CommandItem
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
+									aria-selected={value?.id === org.id}
 									onSelect={() => {
 										onChange(org);
 										setOpen(false);

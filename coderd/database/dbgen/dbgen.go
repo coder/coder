@@ -717,6 +717,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
 		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
+		BrowserOnly:                  seed.BrowserOnly,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -1691,6 +1692,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 		OAuthExtra:             *msg,
+		OAuthExtraKeyID:        takeFirst(orig.OAuthExtraKeyID, sql.NullString{}),
 	})
 
 	require.NoError(t, err, "insert external auth link")
