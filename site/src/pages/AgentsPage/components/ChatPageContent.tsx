@@ -540,22 +540,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		handleRemoveAttachment,
 	} = modeAttachments;
 
-	// Edit attachments are scoped to the chat being edited, not the compose
-	// draft. Clear them when navigation changes the chat scope.
-	const editScopeRef = useRef({ organizationId, chatId });
-
 	const { reset: resetEditWorkspaceUploads } = editWorkspaceUploads;
-
-	useEffect(() => {
-		const previous = editScopeRef.current;
-		const scopeChanged =
-			previous.organizationId !== organizationId || previous.chatId !== chatId;
-		editScopeRef.current = { organizationId, chatId };
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Resetting revokes blob URLs, and the scope changes with the chat record rather than from an event here.
-		if (scopeChanged) {
-			resetEditAttachments();
-		}
-	}, [organizationId, chatId, resetEditAttachments]);
 
 	// Preserved references point at files inside the bound workspace's
 	// filesystem. Rebinding or clearing the workspace mid-edit makes
