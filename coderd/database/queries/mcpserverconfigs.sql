@@ -262,6 +262,9 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
     -- New token material means the user re-authenticated, so any
     -- cached permanent refresh failure no longer applies.
     oauth_refresh_failure_reason = '',
+    -- A refresh that holds the lease must not overwrite the new token
+    -- material: its lease-checked save then matches no row.
+    refresh_lease_expires_at = NULL,
     updated_at = NOW()
 RETURNING
     *;
@@ -305,6 +308,23 @@ WHERE
     AND updated_at = @updated_at::timestamptz
 RETURNING
     *;
+
+-- name: AcquireMCPServerUserTokenRefreshLease :one
+-- Sets the lease to expire after the provided timeout and returns the
+-- leased row. While another lease is active, an exception is raised. When
+-- the token is gone, no row is returned. updated_at is left unchanged.
+SELECT * FROM acquire_mcp_server_user_token_refresh_lease(@id::uuid, @timeout_ms::bigint);
+
+-- name: ReleaseMCPServerUserTokenRefreshLease :exec
+-- The lease is only removed if it is the current lease. updated_at is
+-- left unchanged.
+UPDATE
+    mcp_server_user_tokens
+SET
+    refresh_lease_expires_at = NULL
+WHERE
+    id = @id::uuid
+    AND refresh_lease_expires_at = @refresh_lease_expires_at;
 
 -- name: DeleteMCPServerUserToken :exec
 DELETE FROM

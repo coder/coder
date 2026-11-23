@@ -20,6 +20,10 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error
+	// Sets the lease to expire after the provided timeout and returns the
+	// leased row. While another lease is active, an exception is raised. When
+	// the token is gone, no row is returned. updated_at is left unchanged.
+	AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg AcquireMCPServerUserTokenRefreshLeaseParams) (MCPServerUserToken, error)
 	// Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
 	// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
 	//
@@ -1545,6 +1549,9 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// The lease is only removed if it is the current lease. updated_at is
+	// left unchanged.
+	ReleaseMCPServerUserTokenRefreshLease(ctx context.Context, arg ReleaseMCPServerUserTokenRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never

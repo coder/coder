@@ -20576,6 +20576,39 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	return pg_try_advisory_xact_lock, err
 }
 
+const acquireMCPServerUserTokenRefreshLease = `-- name: AcquireMCPServerUserTokenRefreshLease :one
+SELECT id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at FROM acquire_mcp_server_user_token_refresh_lease($1::uuid, $2::bigint)
+`
+
+type AcquireMCPServerUserTokenRefreshLeaseParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	TimeoutMs int64     `db:"timeout_ms" json:"timeout_ms"`
+}
+
+// Sets the lease to expire after the provided timeout and returns the
+// leased row. While another lease is active, an exception is raised. When
+// the token is gone, no row is returned. updated_at is left unchanged.
+func (q *sqlQuerier) AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg AcquireMCPServerUserTokenRefreshLeaseParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, acquireMCPServerUserTokenRefreshLease, arg.ID, arg.TimeoutMs)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
+	)
+	return i, err
+}
+
 const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
 SET mcp_server_ids = (
@@ -21112,7 +21145,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByOrganization(ctx context.Context, orga
 
 const getMCPServerUserToken = `-- name: GetMCPServerUserToken :one
 SELECT
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     mcp_server_user_tokens
 WHERE
@@ -21141,13 +21174,14 @@ func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServer
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
 
 const getMCPServerUserTokenByID = `-- name: GetMCPServerUserTokenByID :one
 SELECT
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     mcp_server_user_tokens
 WHERE
@@ -21170,13 +21204,14 @@ func (q *sqlQuerier) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
 
 const getMCPServerUserTokensByUserID = `-- name: GetMCPServerUserTokensByUserID :many
 SELECT
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     mcp_server_user_tokens
 WHERE
@@ -21205,6 +21240,7 @@ func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OauthRefreshFailureReason,
+			&i.RefreshLeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -21435,7 +21471,7 @@ WHERE
     id = $2::uuid
     AND updated_at = $3::timestamptz
 RETURNING
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type MarkMCPServerUserTokenRefreshFailureParams struct {
@@ -21465,8 +21501,31 @@ func (q *sqlQuerier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, a
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
+}
+
+const releaseMCPServerUserTokenRefreshLease = `-- name: ReleaseMCPServerUserTokenRefreshLease :exec
+UPDATE
+    mcp_server_user_tokens
+SET
+    refresh_lease_expires_at = NULL
+WHERE
+    id = $1::uuid
+    AND refresh_lease_expires_at = $2
+`
+
+type ReleaseMCPServerUserTokenRefreshLeaseParams struct {
+	ID                    uuid.UUID    `db:"id" json:"id"`
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+}
+
+// The lease is only removed if it is the current lease. updated_at is
+// left unchanged.
+func (q *sqlQuerier) ReleaseMCPServerUserTokenRefreshLease(ctx context.Context, arg ReleaseMCPServerUserTokenRefreshLeaseParams) error {
+	_, err := q.db.ExecContext(ctx, releaseMCPServerUserTokenRefreshLease, arg.ID, arg.RefreshLeaseExpiresAt)
+	return err
 }
 
 const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
@@ -21668,7 +21727,7 @@ WHERE
     id = $7::uuid
     AND updated_at = $8::timestamptz
 RETURNING
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpdateMCPServerUserTokenFromRefreshParams struct {
@@ -21709,6 +21768,7 @@ func (q *sqlQuerier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, ar
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
@@ -21743,9 +21803,12 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
     -- New token material means the user re-authenticated, so any
     -- cached permanent refresh failure no longer applies.
     oauth_refresh_failure_reason = '',
+    -- A refresh that holds the lease must not overwrite the new token
+    -- material: its lease-checked save then matches no row.
+    refresh_lease_expires_at = NULL,
     updated_at = NOW()
 RETURNING
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpsertMCPServerUserTokenParams struct {
@@ -21784,6 +21847,7 @@ func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }

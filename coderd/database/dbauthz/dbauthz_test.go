@@ -2330,6 +2330,26 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns(token)
 	}))
+	s.Run("AcquireMCPServerUserTokenRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		arg := database.AcquireMCPServerUserTokenRefreshLeaseParams{
+			ID:        token.ID,
+			TimeoutMs: 20000,
+		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		dbm.EXPECT().AcquireMCPServerUserTokenRefreshLease(gomock.Any(), arg).Return(token, nil).AnyTimes()
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
+	}))
+	s.Run("ReleaseMCPServerUserTokenRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		arg := database.ReleaseMCPServerUserTokenRefreshLeaseParams{
+			ID:                    token.ID,
+			RefreshLeaseExpiresAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		dbm.EXPECT().ReleaseMCPServerUserTokenRefreshLease(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns()
+	}))
 	s.Run("MarkMCPServerUserTokenRefreshFailure", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
 		arg := database.MarkMCPServerUserTokenRefreshFailureParams{

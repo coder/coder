@@ -1959,6 +1959,49 @@ func TestMCPServerUserTokens(t *testing.T) {
 		require.False(t, marked.RefreshTokenKeyID.Valid)
 		require.Equal(t, "invalid_grant", marked.OauthRefreshFailureReason)
 	})
+
+	t.Run("AcquireMCPServerUserTokenRefreshLease", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Decrypt", func(t *testing.T) {
+			t.Parallel()
+			_, crypt, ciphers := setup(t)
+			_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+			leased, err := crypt.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+				ID:        tok.ID,
+				TimeoutMs: 10,
+			})
+			require.NoError(t, err)
+			require.Equal(t, accessToken, leased.AccessToken)
+			require.Equal(t, refreshToken, leased.RefreshToken)
+			require.True(t, leased.RefreshLeaseExpiresAt.Valid)
+		})
+
+		t.Run("DecryptErr", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+			_, err := db.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            tok.UserID,
+				AccessToken:       fakeBase64RandomData(t, 32),
+				AccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+				RefreshToken:      fakeBase64RandomData(t, 32),
+				RefreshTokenKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+				TokenType:         "Bearer",
+			})
+			require.NoError(t, err)
+
+			_, err = crypt.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+				ID:        tok.ID,
+				TimeoutMs: 10,
+			})
+			require.Error(t, err, "expected an error")
+			var derr *DecryptFailedError
+			require.ErrorAs(t, err, &derr, "expected a decrypt error")
+		})
+	})
 }
 
 func TestUserSecrets(t *testing.T) {

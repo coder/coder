@@ -6036,6 +6036,8 @@ type MCPServerUserToken struct {
 	CreatedAt                 time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt                 time.Time      `db:"updated_at" json:"updated_at"`
 	OauthRefreshFailureReason string         `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
 type NotificationMessage struct {

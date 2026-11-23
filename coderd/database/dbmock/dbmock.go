@@ -73,6 +73,21 @@ func (mr *MockStoreMockRecorder) AcquireLock(ctx, pgAdvisoryXactLock any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireLock", reflect.TypeOf((*MockStore)(nil).AcquireLock), ctx, pgAdvisoryXactLock)
 }
 
+// AcquireMCPServerUserTokenRefreshLease mocks base method.
+func (m *MockStore) AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg database.AcquireMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireMCPServerUserTokenRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireMCPServerUserTokenRefreshLease indicates an expected call of AcquireMCPServerUserTokenRefreshLease.
+func (mr *MockStoreMockRecorder) AcquireMCPServerUserTokenRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireMCPServerUserTokenRefreshLease", reflect.TypeOf((*MockStore)(nil).AcquireMCPServerUserTokenRefreshLease), ctx, arg)
+}
+
 // AcquireNotificationMessages mocks base method.
 func (m *MockStore) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	m.ctrl.T.Helper()
@@ -10396,6 +10411,20 @@ func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
+}
+
+// ReleaseMCPServerUserTokenRefreshLease mocks base method.
+func (m *MockStore) ReleaseMCPServerUserTokenRefreshLease(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshLeaseParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseMCPServerUserTokenRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseMCPServerUserTokenRefreshLease indicates an expected call of ReleaseMCPServerUserTokenRefreshLease.
+func (mr *MockStoreMockRecorder) ReleaseMCPServerUserTokenRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseMCPServerUserTokenRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseMCPServerUserTokenRefreshLease), ctx, arg)
 }
 
 // RemoveUserFromGroups mocks base method.
