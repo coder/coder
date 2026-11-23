@@ -854,9 +854,11 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags. Also fails on table header cells with no text.
+# and unclosed container tags. Also fails on table header cells with no text,
+# and on ARIA, role, tabindex, and lang attributes and iframe, object, area,
+# form control, and meta elements.
 lint/docs-html:
-	echo "--- check for invalid inline HTML and empty table headers in docs"
+	echo "--- check for invalid inline HTML, empty table headers, and disallowed elements in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
@@ -1197,6 +1199,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/database/migrations/testdata/.gen-golden \
 	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
@@ -1635,6 +1638,10 @@ coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/database/migrations/testdata/.gen-golden: $(wildcard coderd/database/migrations/testdata/reporter/*.golden) $(GO_SRC_FILES) $(wildcard coderd/database/migrations/*_test.go)
+	TZ=UTC go test ./coderd/database/migrations -run="^(TestReporter|TestOutcome|TestFinish)$$" -update
 	touch "$@"
 
 # Wait for fixture generation before reading its outputs under make -j.

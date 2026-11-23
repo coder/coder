@@ -1,7 +1,18 @@
 import { cn } from "cn";
 
+/**
+ * Height cap bounded by the space Radix reports between the trigger and the
+ * viewport edge. Menus that use it can scroll, so every item stays reachable
+ * on short viewports and at 200% browser zoom. `FilterCombobox` also applies
+ * it to each panel inside its `overflow-visible` popup, so flyouts can extend
+ * past the popup.
+ */
+export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
+
 export const menuContentClass = cn(
-	"z-50 min-w-48 overflow-hidden rounded-md border bg-surface-primary p-2 text-content-secondary shadow-md",
+	"z-50 min-w-[min(12rem,var(--radix-popper-available-width))] max-w-(--radix-popper-available-width) rounded-md border bg-surface-primary p-2 text-content-secondary shadow-md",
+	menuMaxHeightClassName,
+	"overflow-y-auto overflow-x-hidden",
 	"origin-(--radix-popper-transform-origin) ease-out-strong",
 	"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 	"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

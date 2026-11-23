@@ -1,0 +1,1 @@
+[warn]  database migration commit outcome unknown  status=failure  count=1  final_version=1  transaction_status="in progress"  total_duration_ms=0  error="migration 3 (step_3): migration failed: unexpected EOF"

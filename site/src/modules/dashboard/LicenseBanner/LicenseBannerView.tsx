@@ -50,8 +50,8 @@ const bannerVariants = cva("flex items-center p-3", {
 const iconVariants = cva("size-4", {
 	variants: {
 		variant: {
-			warning: "text-content-warning",
-			warningProminent: "text-content-warning",
+			warning: "text-border-warning",
+			warningProminent: "text-border-warning",
 			error: "text-content-destructive",
 		},
 	},

@@ -1,0 +1,1 @@
+[erro]  committed database migrations before failure  status=failure  count=1  from_version=1  final_version=3  transaction_status=committed  total_duration_ms=0  error="commit tx on unlock: driver: bad connection"
