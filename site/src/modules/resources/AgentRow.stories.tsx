@@ -311,6 +311,13 @@ export const StartError: Story = {
 		await waitFor(() =>
 			expect(startupScriptTab).toHaveAttribute("data-state", "active"),
 		);
+
+		// A manual pick wins over the auto-selection.
+		const allLogsTab = canvas.getByRole("tab", { name: "All logs" });
+		await userEvent.click(allLogsTab);
+		await waitFor(() =>
+			expect(allLogsTab).toHaveAttribute("data-state", "active"),
+		);
 	},
 };
 
