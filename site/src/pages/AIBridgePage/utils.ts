@@ -1,3 +1,5 @@
+import { formatProviderLabel } from "#/utils/aiProviders";
+
 const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 	maximumFractionDigits: 1,
@@ -30,6 +32,9 @@ export const getProviderDisplayName = (provider: string) => {
 			return "GitHub Copilot";
 		case "openai-compat":
 			return "OpenAI-compatible";
+		case "opencode-go":
+		case "zai":
+			return formatProviderLabel(provider);
 		case "openrouter":
 			return "OpenRouter";
 		case "vercel":

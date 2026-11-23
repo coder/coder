@@ -28,6 +28,8 @@ Coder supports the following provider types:
 | OpenAI Compatible | Any endpoint implementing the OpenAI API |
 | OpenRouter        | Multi-model routing via OpenRouter       |
 | Vercel AI Gateway | Models via Vercel AI SDK                 |
+| Z.ai              | Models via the GLM Coding Plan           |
+| OpenCode Go       | Models via an OpenCode Go subscription   |
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an OpenAI-compatible chat completions endpoint.
 Use it to connect to self-hosted models, internal gateways, or third-party proxies like LiteLLM.
@@ -64,7 +66,7 @@ For the default Agents path through AI Gateway, set the endpoint/base URL to the
 Do not set it to Coder's public AI Gateway route, such as `https://<coder-host>/api/v2/ai-gateway/openai/v1`.
 
 OpenAI-shaped provider types require the upstream OpenAI-compatible prefix in the endpoint/base URL because Coder appends request suffixes such as `/chat/completions`, `/responses`, and `/models`.
-This applies to **OpenAI**, **Azure OpenAI**, **Google**, **OpenAI Compatible**, **OpenRouter**, and **Vercel AI Gateway** provider types.
+This applies to **OpenAI**, **Azure OpenAI**, **Google**, **OpenAI Compatible**, **OpenRouter**, **Vercel AI Gateway**, **Z.ai**, and **OpenCode Go** provider types.
 
 Examples:
 
@@ -75,9 +77,19 @@ Examples:
 | Google Gemini OpenAI-compatible API | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | OpenRouter                          | `https://openrouter.ai/api/v1`                             |
 | Vercel AI Gateway                   | `https://ai-gateway.vercel.sh/v1`                          |
+| Z.ai GLM Coding Plan                | `https://api.z.ai/api/coding/paas/v4`                      |
+| OpenCode Go                         | `https://opencode.ai/inference/go/openai/v1`               |
 | Generic OpenAI-compatible proxy     | `https://provider.example.com/v1`                          |
 
 Confirm the exact endpoint/base URL in your provider or proxy documentation.
+
+## Subscription providers
+
+Select **Z.ai** for a [Z.ai GLM Coding Plan](https://docs.z.ai/devpack/overview) or **OpenCode Go** for an [OpenCode Go subscription](https://opencode.ai/docs/console/go/).
+Use the API key associated with your subscription and enter the upstream model ID when you add the Agents model.
+Coder sends a stable `X-Opencode-Session` header for each OpenCode Go conversation.
+AI Gateway records token usage under the configured provider name.
+Check your provider's dashboard for remaining subscription allowance.
 
 ## Provider credentials and security
 

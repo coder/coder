@@ -1251,6 +1251,8 @@ The first two happen together in `chatprovider.ProviderOptionsForCall`, the only
 
 `TransportFor` has no Azure case, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
 
+<!-- TODO: Document how OpenCode Go requests use the chat ID for the session header. -->
+
 Both transports read the same `provider_options.openai` config, but not every field applies to both wire formats. The table below records, per field, which transport honors it; `TestProviderOptionsTransportParity` fails when a field is honored on one transport and silently ignored on the other without being recorded there as intentional.
 
 | `provider_options.openai` field | Responses | Chat Completions |

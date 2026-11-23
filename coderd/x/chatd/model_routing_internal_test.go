@@ -875,24 +875,34 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	})
 }
 
-func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
+func TestAIBridgeGatewayCompatibleProviderRequests(t *testing.T) {
 	t.Parallel()
 
-	const modelName = "anthropic/claude-opus-4.6"
 	tests := []struct {
 		name         string
 		providerName string
 		providerType database.AIProviderType
+		modelName    string
+		wantSession  bool
 	}{
 		{
 			name:         "OpenRouter",
 			providerName: "openrouter",
 			providerType: database.AIProviderTypeOpenrouter,
+			modelName:    "anthropic/claude-opus-4.6",
 		},
 		{
 			name:         "OpenAICompat",
 			providerName: "openai-compatible-relay",
 			providerType: database.AIProviderTypeOpenaiCompat,
+			modelName:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name: "ZAI", providerName: "coding-plan", providerType: database.AIProviderTypeZai, modelName: "glm-5.1",
+		},
+		{
+			name: "OpenCodeGo", providerName: "go-subscription", providerType: database.AIProviderTypeOpencodeGo,
+			modelName: "glm-5.1", wantSession: true,
 		},
 	}
 
@@ -901,8 +911,9 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 			t.Parallel()
 
 			type seenRequest struct {
-				model string
-				path  string
+				model   string
+				path    string
+				session string
 			}
 			seen := make(chan seenRequest, 1)
 			factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -912,7 +923,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 					Model string `json:"model"`
 				}
 				require.NoError(t, json.Unmarshal(body, &payload))
-				seen <- seenRequest{model: payload.Model, path: req.URL.Path}
+				seen <- seenRequest{model: payload.Model, path: req.URL.Path, session: req.Header.Get("X-Opencode-Session")}
 
 				var responsePayload map[string]any
 				if strings.Contains(req.URL.Path, "/responses") {
@@ -921,7 +932,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 						"object":     "response",
 						"created_at": 0,
 						"status":     "completed",
-						"model":      modelName,
+						"model":      tt.modelName,
 						"output": []map[string]any{{
 							"id":      "msg_test",
 							"type":    "message",
@@ -935,7 +946,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 						"id":      "chatcmpl-test",
 						"object":  "chat.completion",
 						"created": 0,
-						"model":   modelName,
+						"model":   tt.modelName,
 						"choices": []map[string]any{{
 							"index":         0,
 							"message":       map[string]any{"role": "assistant", "content": "hello"},
@@ -960,7 +971,7 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 
 			model, err := server.newModel(
 				t.Context(),
-				aibridgeTestRequest(chat, modelName),
+				aibridgeTestRequest(chat, tt.modelName),
 				aibridgeTestRoute(aibridgeTestAIProvider(uuid.New(), tt.providerName, tt.providerType)),
 				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			)
@@ -972,8 +983,13 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 			require.NoError(t, err)
 
 			got := <-seen
-			require.NotEmpty(t, got.path)
-			require.Equal(t, modelName, got.model)
+			require.Equal(t, "/v1/chat/completions", got.path)
+			require.Equal(t, tt.modelName, got.model)
+			if tt.wantSession {
+				require.Equal(t, chat.ID.String(), got.session)
+			} else {
+				require.Empty(t, got.session)
+			}
 			gotProvider, gotSource := factory.recorded()
 			require.Equal(t, tt.providerName, gotProvider)
 			require.Equal(t, aibridge.SourceAgents, gotSource)

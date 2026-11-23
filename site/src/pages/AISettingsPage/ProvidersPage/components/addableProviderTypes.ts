@@ -1,4 +1,5 @@
 import type { AIProviderType } from "#/api/typesGenerated";
+import { formatProviderLabel } from "#/utils/aiProviders";
 
 export type AddableProvider = {
 	value: AIProviderType;
@@ -13,6 +14,8 @@ export const addableProviders: readonly AddableProvider[] = [
 	{ value: "google", label: "Google" },
 	{ value: "openai", label: "OpenAI" },
 	{ value: "openai-compat", label: "OpenAI-compatible" },
+	{ value: "opencode-go", label: formatProviderLabel("opencode-go") },
 	{ value: "openrouter", label: "OpenRouter" },
 	{ value: "vercel", label: "Vercel" },
+	{ value: "zai", label: formatProviderLabel("zai") },
 ];

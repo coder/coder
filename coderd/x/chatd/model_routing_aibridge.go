@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"strings"
 
@@ -271,6 +272,17 @@ func (p *Server) newModel(
 		openAIConfig.UseResponsesAPI = &force
 	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
+	if route.Provider.Type == database.AIProviderTypeOpencodeGo {
+		headers := make(map[string]string, len(extraHeaders)+1)
+		maps.Copy(headers, extraHeaders)
+		sessionID := req.Chat.ID
+		if sessionID == uuid.Nil {
+			// A standalone model call can run before a chat exists.
+			sessionID = uuid.New()
+		}
+		headers["X-Opencode-Session"] = sessionID.String()
+		extraHeaders = headers
+	}
 	callConfig := req.CallConfig
 	callConfig.OpenAIConfig = openAIConfig
 	model, err := newLanguageModel(

@@ -164,8 +164,13 @@ const providerDefaults: Partial<
 		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
 	},
 	"openai-compat": { name: "openai-compat", baseUrl: "" },
+	"opencode-go": {
+		name: "opencode-go",
+		baseUrl: "https://opencode.ai/inference/go/openai/v1",
+	},
 	openrouter: { name: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
 	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
+	zai: { name: "zai", baseUrl: "https://api.z.ai/api/coding/paas/v4" },
 };
 
 const baseUrlPlaceholders: Partial<Record<AIProviderType, string>> = {
@@ -181,8 +186,10 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 				"azure",
 				"google",
 				"openai-compat",
+				"opencode-go",
 				"openrouter",
 				"vercel",
+				"zai",
 			] as const)
 			.required(),
 		name: makeNameSchema(editing),
@@ -322,8 +329,10 @@ const getProviderFormSchema = (editing: boolean) =>
 				case "azure":
 				case "google":
 				case "openai-compat":
+				case "opencode-go":
 				case "openrouter":
 				case "vercel":
+				case "zai":
 					return makeOpenAiAnthropicSchema(editing);
 				case "anthropic":
 					return value.authMethod === "claude_platform_aws"

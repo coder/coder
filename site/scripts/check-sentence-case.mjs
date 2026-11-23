@@ -87,6 +87,7 @@ const PROPER_NOUNS = [
 	"JetBrains Toolbox",
 	"Markdown",
 	"Mermaid",
+	"OpenCode Go",
 	"React",
 	"Terraform",
 	"Unicode",

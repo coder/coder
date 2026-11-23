@@ -49,6 +49,10 @@ const (
 	// which uses request-time GitHub OAuth tokens rather than pre-shared
 	// API keys.
 	AIProviderTypeCopilot AIProviderType = "copilot"
+	// AIProviderTypeZAI uses the Z.ai GLM Coding Plan.
+	AIProviderTypeZAI AIProviderType = "zai"
+	// AIProviderTypeOpenCodeGo uses the OpenCode Go subscription.
+	AIProviderTypeOpenCodeGo AIProviderType = "opencode-go"
 )
 
 // AgentsUnsupportedProviderType is an AIProviderType the Coder Agents harness
@@ -300,7 +304,9 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
-		AIProviderTypeVercel:
+		AIProviderTypeVercel,
+		AIProviderTypeZAI,
+		AIProviderTypeOpenCodeGo:
 	case "":
 		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})
 	default:

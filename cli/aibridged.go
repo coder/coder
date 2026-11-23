@@ -300,10 +300,8 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	}
 
 	// aibridge currently has native support for OpenAI and Anthropic
-	// only. The other ai_provider_type values (azure, google,
-	// openai-compat, openrouter, vercel) route through the OpenAI
-	// provider because chatd configures them against their
-	// OpenAI-compatible endpoints. Bedrock routes through the Anthropic
+	// only. The OpenAI-compatible types use the same OpenAI provider
+	// against their configured endpoints. Bedrock routes through the Anthropic
 	// provider with a Bedrock discriminator in Settings.
 	switch spec.Type {
 	case database.AIProviderTypeOpenai,
@@ -311,7 +309,9 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		database.AIProviderTypeGoogle,
 		database.AIProviderTypeOpenaiCompat,
 		database.AIProviderTypeOpenrouter,
-		database.AIProviderTypeVercel:
+		database.AIProviderTypeVercel,
+		database.AIProviderTypeZai,
+		database.AIProviderTypeOpencodeGo:
 		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", spec.Type)
 		}

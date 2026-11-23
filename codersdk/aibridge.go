@@ -383,8 +383,8 @@ type AIBridgeListSessionsFilter struct {
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
 	// Provider matches the runtime provider type column (openai,
 	// anthropic, copilot). The runtime type collapses the configured
-	// ai_provider_type: azure, google, openai-compat, openrouter, and
-	// vercel route through openai; bedrock routes through anthropic.
+	// ai_provider_type: OpenAI-compatible types route through openai,
+	// and bedrock routes through anthropic.
 	// Retained for backward compatibility; new clients should prefer
 	// ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`

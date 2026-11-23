@@ -10,8 +10,41 @@ import {
 } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
+	providerFormValuesToCreate,
 	providerFormValuesToUpdate,
 } from "./providerFormApiMap";
+
+it.each([
+	{
+		label: "Z.ai",
+		type: "zai",
+		baseUrl: "https://api.z.ai/api/coding/paas/v4",
+	},
+	{
+		label: "OpenCode Go",
+		type: "opencode-go",
+		baseUrl: "https://opencode.ai/inference/go/openai/v1",
+	},
+] as const)(
+	"submits $label with its subscription endpoint",
+	async ({ type, baseUrl }) => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
+		render(<ProviderForm initialValues={{ type }} onSubmit={onSubmit} />);
+
+		await user.type(screen.getByLabelText(/^API key/i), "subscription-key");
+		await user.click(screen.getByRole("button", { name: "Add provider" }));
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(providerFormValuesToCreate(onSubmit.mock.calls[0][0])).toMatchObject(
+			{
+				type,
+				base_url: baseUrl,
+				api_keys: ["subscription-key"],
+			},
+		);
+	},
+);
 
 describe("Claude Platform provider form", () => {
 	it.each(["", "workspace-key"])(
