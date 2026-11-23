@@ -708,9 +708,10 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 			wantReason: refreshedReason,
 		},
 		{
+			// With no stored expiry the token may still be valid, so it
+			// gets the grace. Rows 16 and 17 cover a future expiry.
 			name:           "4 no refresh token",
 			noRefreshToken: true,
-			expiry:         hourAhead,
 			answer:         tokenAnswerRotate,
 			turns:          []reconnectTurnWant{{tokenCalls: 0, step1: "unauthorized", graceWaits: 1}},
 			wantRow:        tokenRowCleared,
@@ -830,6 +831,17 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 				{tokenCalls: 0, step1: "connected", step1Tools: true, graceWaits: 1},
 			},
 			wantConnected: true,
+		},
+		{
+			// Nothing can make an expired token without a refresh token
+			// valid again, so its 401 marks it at once, with no grace.
+			name:           "18 expired token without a refresh token",
+			noRefreshToken: true,
+			expiry:         hourAgo,
+			answer:         tokenAnswerRotate,
+			turns:          []reconnectTurnWant{{tokenCalls: 0, step1: "unauthorized", graceWaits: 0}},
+			wantRow:        tokenRowCleared,
+			wantReason:     noRTReason,
 		},
 	}
 	for _, row := range rows {

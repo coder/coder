@@ -192,7 +192,9 @@ func (p *Server) newMCPTokenRefresher(
 // RefreshRejected returns the token for the next connect after a 401.
 // A token that this step's expiry refresh just issued, or one without a
 // refresh token, is sent again as it is, which ConnectAllWithRefresh
-// does only after a short grace. A token whose expiry refresh failed in
+// does only after a short grace. An expired token without a refresh
+// token is marked for reconnect at once instead, because nothing can
+// make it valid again. A token whose expiry refresh failed in
 // this step, or that already had its forced refresh or its grace this
 // turn, gets no reconnect. Otherwise it refreshes the token whatever its
 // stored expiry, under the token's refresh lease; when the leased row
@@ -221,6 +223,10 @@ func (r *mcpTokenRefresher) RefreshRejected(
 		return tok, false
 	}
 	if tok.RefreshToken == "" {
+		if tok.Expiry.Valid && !tok.Expiry.Time.After(r.server.clock.Now()) {
+			r.markRejected(ctx, srv, tok, false)
+			return tok, false
+		}
 		// Nothing can renew the token, but the server may still be
 		// catching up with it.
 		return tok, true
@@ -249,14 +255,26 @@ func (r *mcpTokenRefresher) RefreshRejected(
 
 // RejectedAgain marks a token that the MCP server still rejected after
 // a refresh or the grace, so the token is never sent again and the user
-// is asked to reconnect. The mark runs under the token's refresh lease
-// and is skipped when another caller holds the lease or the row no
-// longer holds tok's access token, because that caller may have saved a
-// new token.
+// is asked to reconnect.
 func (r *mcpTokenRefresher) RejectedAgain(
 	ctx context.Context,
 	srv mcpclient.Server,
 	tok database.MCPServerUserToken,
+) {
+	r.markRejected(ctx, srv, tok, true)
+}
+
+// markRejected marks tok for reconnect after the MCP server rejected it.
+// graceReconnectFailed says whether the server also rejected tok on a
+// reconnect after the grace. The mark runs under the token's refresh
+// lease and is skipped when another caller holds the lease or the row no
+// longer holds tok's access token, because that caller may have saved a
+// new token.
+func (r *mcpTokenRefresher) markRejected(
+	ctx context.Context,
+	srv mcpclient.Server,
+	tok database.MCPServerUserToken,
+	graceReconnectFailed bool,
 ) {
 	reason := "mcp server rejected the refreshed access token (HTTP 401)"
 	if tok.RefreshToken == "" {
@@ -278,13 +296,16 @@ func (r *mcpTokenRefresher) RejectedAgain(
 			slog.Error(err),
 		)
 	case result.Outcome == mcpoauth.LeasedRefreshMarkedDead:
-		r.logger.Warn(ctx, "mcp server rejected the oauth2 token again, marked token for reconnect",
+		r.logger.Warn(ctx, "mcp server rejected the oauth2 token, marked token for reconnect",
 			slog.F("server_slug", srv.Slug),
 			slog.F("user_id", tok.UserID),
 			slog.F("reason", reason),
+			// updated_at is when the token was saved.
+			slog.F("token_age", r.server.clock.Since(tok.UpdatedAt)),
+			slog.F("grace_reconnect_failed", graceReconnectFailed),
 		)
 	case result.Outcome == mcpoauth.LeasedRefreshLeaseHeld:
-		r.logger.Info(ctx, "mcp server rejected the oauth2 token again, not marked while another refresh holds the lease",
+		r.logger.Info(ctx, "mcp server rejected the oauth2 token, not marked while another refresh holds the lease",
 			slog.F("server_slug", srv.Slug),
 			slog.F("user_id", tok.UserID),
 		)
