@@ -122,6 +122,13 @@ func TestWrite(t *testing.T) {
 				OutputPrice:     int64Ptr(0),
 				CacheReadPrice:  nil,
 				CacheWritePrice: int64Ptr(1),
+				PricingExtras: &pricebook.PricingExtras{
+					ExtraPrices: pricebook.ExtraPrices{CacheWrite1h: int64Ptr(6_000_000)},
+					Tiers: []pricebook.Tier{{
+						ThresholdTokens: 200_000,
+						Prices:          pricebook.TierPrices{Input: int64Ptr(6_000_000), Output: int64Ptr(0)},
+					}},
+				},
 			},
 			{
 				Provider: "openai",
@@ -201,6 +208,34 @@ func TestRowSamePrices(t *testing.T) {
 			name: "cache write differs",
 			a:    pricebook.Row{CacheWritePrice: int64Ptr(1)},
 			b:    pricebook.Row{CacheWritePrice: int64Ptr(2)},
+			want: false,
+		},
+		{
+			name: "cache write 1h differs",
+			a:    pricebook.Row{PricingExtras: pricebook.NewPricingExtras(int64Ptr(1), nil)},
+			b:    pricebook.Row{PricingExtras: pricebook.NewPricingExtras(int64Ptr(2), nil)},
+			want: false,
+		},
+		{
+			name: "tier added",
+			a:    pricebook.Row{},
+			b:    pricebook.Row{PricingExtras: pricebook.NewPricingExtras(nil, []pricebook.Tier{{ThresholdTokens: 200_000}})},
+			want: false,
+		},
+		{
+			name: "tier threshold differs",
+			a:    pricebook.Row{PricingExtras: pricebook.NewPricingExtras(nil, []pricebook.Tier{{ThresholdTokens: 200_000}})},
+			b:    pricebook.Row{PricingExtras: pricebook.NewPricingExtras(nil, []pricebook.Tier{{ThresholdTokens: 272_000}})},
+			want: false,
+		},
+		{
+			name: "tier price differs",
+			a: pricebook.Row{PricingExtras: pricebook.NewPricingExtras(nil, []pricebook.Tier{
+				{ThresholdTokens: 200_000, Prices: pricebook.TierPrices{CacheWrite1h: int64Ptr(1)}},
+			})},
+			b: pricebook.Row{PricingExtras: pricebook.NewPricingExtras(nil, []pricebook.Tier{
+				{ThresholdTokens: 200_000, Prices: pricebook.TierPrices{CacheWrite1h: int64Ptr(2)}},
+			})},
 			want: false,
 		},
 		{

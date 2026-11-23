@@ -5,7 +5,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -13,7 +18,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 250000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -21,7 +31,12 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 200000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 16000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -29,7 +44,12 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 100000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -37,7 +57,12 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 100000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -45,7 +70,24 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 200000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000,
+            "cache_write_1h": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "anthropic",
@@ -53,7 +95,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -61,7 +108,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 250000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -69,7 +121,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -77,7 +134,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -85,7 +147,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -93,7 +160,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -101,7 +173,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -109,7 +186,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -117,7 +199,12 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -125,7 +212,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -133,7 +225,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -141,7 +238,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -149,7 +251,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "anthropic",
@@ -157,7 +264,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "azure",
@@ -197,7 +309,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -221,7 +346,20 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 10000000,
+            "output": 37500000,
+            "cache_read": 1000000,
+            "cache_write": 12500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -237,7 +375,20 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 10000000,
+            "output": 37500000,
+            "cache_read": 1000000,
+            "cache_write": 12500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -557,7 +708,19 @@
     "input_price": 2500000,
     "output_price": 15000000,
     "cache_read_price": 250000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 5000000,
+            "output": 22500000,
+            "cache_read": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -581,7 +744,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -589,7 +763,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -597,7 +783,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -605,7 +804,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -613,7 +825,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -621,7 +846,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -629,7 +867,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -637,7 +888,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -645,7 +909,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -653,7 +930,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -661,7 +951,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -669,7 +972,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -725,7 +1041,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "azure",
@@ -949,7 +1277,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -957,7 +1290,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 250000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -965,7 +1303,12 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 200000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 16000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -973,7 +1316,12 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 100000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -981,7 +1329,12 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -989,7 +1342,12 @@
     "input_price": 15000000,
     "output_price": 75000000,
     "cache_read_price": 1500000,
-    "cache_write_price": 18750000
+    "cache_write_price": 18750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 30000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -997,7 +1355,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1005,7 +1368,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1013,7 +1381,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1021,7 +1394,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1029,7 +1407,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1037,7 +1420,12 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1045,7 +1433,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1053,7 +1446,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1061,7 +1459,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1069,7 +1472,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1101,7 +1509,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1109,7 +1522,12 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 110000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1117,7 +1535,24 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 220000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 550000,
+            "output": 2750000,
+            "cache_read": 55000,
+            "cache_write": 687500,
+            "cache_write_1h": 1100000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1125,7 +1560,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1133,7 +1573,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1141,7 +1586,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1149,7 +1599,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1157,7 +1612,12 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 220000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8800000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1165,7 +1625,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1173,7 +1638,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1181,7 +1651,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1189,7 +1664,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1261,7 +1741,12 @@
     "input_price": 11000000,
     "output_price": 55000000,
     "cache_read_price": 1100000,
-    "cache_write_price": 13750000
+    "cache_write_price": 13750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 22000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1269,7 +1754,12 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 110000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1277,7 +1767,24 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 220000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 550000,
+            "output": 2750000,
+            "cache_read": 55000,
+            "cache_write": 687500,
+            "cache_write_1h": 1100000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1285,7 +1792,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1293,7 +1805,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1301,7 +1818,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1309,7 +1831,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1317,7 +1844,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1325,7 +1857,12 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 220000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8800000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1333,7 +1870,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1341,7 +1883,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1349,7 +1896,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1357,7 +1909,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1365,7 +1922,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1389,7 +1951,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1397,7 +1964,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 250000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1405,7 +1977,12 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 200000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 16000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1413,7 +1990,12 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 100000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1421,7 +2003,24 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 200000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000,
+            "cache_write_1h": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1429,7 +2028,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1437,7 +2041,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1445,7 +2054,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1453,7 +2067,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1461,7 +2080,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1469,7 +2093,12 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1477,7 +2106,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1485,7 +2119,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1493,7 +2132,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1501,7 +2145,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1509,7 +2158,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1533,7 +2187,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1541,7 +2208,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1549,7 +2229,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1557,7 +2250,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1565,7 +2271,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1573,7 +2292,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1581,7 +2313,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1589,7 +2334,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1597,7 +2355,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1605,7 +2376,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1685,7 +2469,12 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 110000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1693,7 +2482,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1701,7 +2495,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1709,7 +2508,20 @@
     "input_price": 220000,
     "output_price": 1320000,
     "cache_read_price": 22000,
-    "cache_write_price": 275000
+    "cache_write_price": 275000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 440000,
+            "output": 1980000,
+            "cache_read": 44000,
+            "cache_write": 550000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1717,7 +2529,20 @@
     "input_price": 2200000,
     "output_price": 13200000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 19800000,
+            "cache_read": 440000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1733,7 +2558,12 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 110000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1741,7 +2571,24 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 220000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 550000,
+            "output": 2750000,
+            "cache_read": 55000,
+            "cache_write": 687500,
+            "cache_write_1h": 1100000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -1749,7 +2596,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1757,7 +2609,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1765,7 +2622,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1773,7 +2635,12 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 220000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8800000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1781,7 +2648,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1789,7 +2661,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -1797,7 +2674,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2005,7 +2887,20 @@
     "input_price": 220000,
     "output_price": 1320000,
     "cache_read_price": 22000,
-    "cache_write_price": 275000
+    "cache_write_price": 275000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 440000,
+            "output": 1980000,
+            "cache_read": 44000,
+            "cache_write": 550000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2013,7 +2908,20 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 440000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8800000,
+            "output": 33000000,
+            "cache_read": 880000,
+            "cache_write": 11000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2021,7 +2929,20 @@
     "input_price": 2200000,
     "output_price": 13200000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 19800000,
+            "cache_read": 440000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2029,7 +2950,20 @@
     "input_price": 11000000,
     "output_price": 55000000,
     "cache_read_price": 1100000,
-    "cache_write_price": 13750000
+    "cache_write_price": 13750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 22000000,
+            "output": 82500000,
+            "cache_read": 2200000,
+            "cache_write": 27500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2037,7 +2971,20 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 220000,
+            "output": 825000,
+            "cache_read": 22000,
+            "cache_write": 275000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2045,7 +2992,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 440000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2053,7 +3013,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 220000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2061,7 +3034,20 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 55000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2200000,
+            "output": 8250000,
+            "cache_read": 110000,
+            "cache_write": 2750000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2069,7 +3055,20 @@
     "input_price": 8800000,
     "output_price": 44000000,
     "cache_read_price": 440000,
-    "cache_write_price": 11000000
+    "cache_write_price": 11000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 17600000,
+            "output": 66000000,
+            "cache_read": 880000,
+            "cache_write": 22000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2077,7 +3076,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 220000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2245,7 +3257,12 @@
     "input_price": 11000000,
     "output_price": 55000000,
     "cache_read_price": 1100000,
-    "cache_write_price": 13750000
+    "cache_write_price": 13750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 22000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2253,7 +3270,12 @@
     "input_price": 11000000,
     "output_price": 55000000,
     "cache_read_price": 275000,
-    "cache_write_price": 13750000
+    "cache_write_price": 13750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 22000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2261,7 +3283,12 @@
     "input_price": 8800000,
     "output_price": 44000000,
     "cache_read_price": 220000,
-    "cache_write_price": 11000000
+    "cache_write_price": 11000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 17600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2269,7 +3296,12 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 110000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2200000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2277,7 +3309,24 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 220000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 550000,
+            "output": 2750000,
+            "cache_read": 55000,
+            "cache_write": 687500,
+            "cache_write_1h": 1100000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2285,7 +3334,12 @@
     "input_price": 15000000,
     "output_price": 75000000,
     "cache_read_price": 1500000,
-    "cache_write_price": 18750000
+    "cache_write_price": 18750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 30000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2293,7 +3347,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2301,7 +3360,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2309,7 +3373,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2317,7 +3386,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2325,7 +3399,12 @@
     "input_price": 5500000,
     "output_price": 27500000,
     "cache_read_price": 550000,
-    "cache_write_price": 6875000
+    "cache_write_price": 6875000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 11000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2333,7 +3412,12 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 220000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8800000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2341,7 +3425,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2349,7 +3438,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2357,7 +3451,12 @@
     "input_price": 3300000,
     "output_price": 16500000,
     "cache_read_price": 330000,
-    "cache_write_price": 4125000
+    "cache_write_price": 4125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6600000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2365,7 +3464,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2373,7 +3477,12 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4400000
+      }
+    }
   },
   {
     "provider": "bedrock",
@@ -2453,7 +3562,20 @@
     "input_price": 220000,
     "output_price": 1320000,
     "cache_read_price": 22000,
-    "cache_write_price": 275000
+    "cache_write_price": 275000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 440000,
+            "output": 1980000,
+            "cache_read": 44000,
+            "cache_write": 550000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2461,7 +3583,20 @@
     "input_price": 4400000,
     "output_price": 22000000,
     "cache_read_price": 440000,
-    "cache_write_price": 5500000
+    "cache_write_price": 5500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8800000,
+            "output": 33000000,
+            "cache_read": 880000,
+            "cache_write": 11000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2469,7 +3604,20 @@
     "input_price": 2200000,
     "output_price": 13200000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 19800000,
+            "cache_read": 440000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2477,7 +3625,20 @@
     "input_price": 11000000,
     "output_price": 55000000,
     "cache_read_price": 1100000,
-    "cache_write_price": 13750000
+    "cache_write_price": 13750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 22000000,
+            "output": 82500000,
+            "cache_read": 2200000,
+            "cache_write": 27500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2485,7 +3646,20 @@
     "input_price": 110000,
     "output_price": 550000,
     "cache_read_price": 11000,
-    "cache_write_price": 137500
+    "cache_write_price": 137500,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 220000,
+            "output": 825000,
+            "cache_read": 22000,
+            "cache_write": 275000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2493,7 +3667,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 220000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 440000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2501,7 +3688,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 220000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2509,7 +3709,20 @@
     "input_price": 1100000,
     "output_price": 5500000,
     "cache_read_price": 55000,
-    "cache_write_price": 1375000
+    "cache_write_price": 1375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2200000,
+            "output": 8250000,
+            "cache_read": 110000,
+            "cache_write": 2750000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2517,7 +3730,20 @@
     "input_price": 8800000,
     "output_price": 44000000,
     "cache_read_price": 440000,
-    "cache_write_price": 11000000
+    "cache_write_price": 11000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 17600000,
+            "output": 66000000,
+            "cache_read": 880000,
+            "cache_write": 22000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2525,7 +3751,20 @@
     "input_price": 2200000,
     "output_price": 11000000,
     "cache_read_price": 110000,
-    "cache_write_price": 2750000
+    "cache_write_price": 2750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4400000,
+            "output": 16500000,
+            "cache_read": 220000,
+            "cache_write": 5500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "bedrock",
@@ -2629,7 +3868,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2637,7 +3881,12 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 250000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 20000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2645,7 +3894,12 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 200000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 16000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2653,7 +3907,12 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 100000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 2000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2661,7 +3920,24 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 200000
+      },
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000,
+            "cache_write_1h": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2669,7 +3945,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2677,7 +3958,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2685,7 +3971,12 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 10000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2693,7 +3984,12 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 8000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2701,7 +3997,12 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 6000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2709,7 +4010,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2717,7 +4023,12 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "extra_prices": {
+        "cache_write_1h": 4000000
+      }
+    }
   },
   {
     "provider": "copilot",
@@ -2829,7 +4140,19 @@
     "input_price": 2500000,
     "output_price": 15000000,
     "cache_read_price": 250000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 5000000,
+            "output": 22500000,
+            "cache_read": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2853,7 +4176,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2861,7 +4196,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2869,7 +4217,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2877,7 +4238,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2885,7 +4259,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2893,7 +4280,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2901,7 +4301,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2909,7 +4322,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2917,7 +4343,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2925,7 +4364,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2933,7 +4385,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2941,7 +4406,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2949,7 +4426,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -2957,7 +4446,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "copilot",
@@ -3005,7 +4506,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3013,7 +4526,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3061,7 +4586,19 @@
     "input_price": 1250000,
     "output_price": 10000000,
     "cache_read_price": 125000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 15000000,
+            "cache_read": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3141,7 +4678,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3149,7 +4698,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3277,7 +4838,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "google",
@@ -3485,7 +5058,19 @@
     "input_price": 2500000,
     "output_price": 15000000,
     "cache_read_price": 250000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 5000000,
+            "output": 22500000,
+            "cache_read": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3509,7 +5094,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3517,7 +5113,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3525,7 +5133,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3533,7 +5152,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3541,7 +5173,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3549,7 +5194,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3557,7 +5215,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3565,7 +5236,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3573,7 +5257,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3581,7 +5278,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3589,7 +5299,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3597,7 +5320,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3605,7 +5341,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3613,7 +5362,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3621,7 +5383,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openai",
@@ -3853,7 +5628,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3877,7 +5665,20 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 10000000,
+            "output": 37500000,
+            "cache_read": 1000000,
+            "cache_write": 12500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3885,7 +5686,20 @@
     "input_price": 5000000,
     "output_price": 25000000,
     "cache_read_price": 500000,
-    "cache_write_price": 6250000
+    "cache_write_price": 6250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 10000000,
+            "output": 37500000,
+            "cache_read": 1000000,
+            "cache_write": 12500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3917,7 +5731,20 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 6000000,
+            "output": 22500000,
+            "cache_read": 600000,
+            "cache_write": 7500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3925,7 +5752,20 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 6000000,
+            "output": 22500000,
+            "cache_read": 600000,
+            "cache_write": 7500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3973,7 +5813,18 @@
     "input_price": 250000,
     "output_price": 2000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 128000,
+          "prices": {
+            "input": 500000,
+            "output": 4000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -3981,7 +5832,18 @@
     "input_price": 100000,
     "output_price": 400000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 128000,
+          "prices": {
+            "input": 200000,
+            "output": 800000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -4213,7 +6075,19 @@
     "input_price": 1250000,
     "output_price": 10000000,
     "cache_read_price": 125000,
-    "cache_write_price": 375000
+    "cache_write_price": 375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 15000000,
+            "cache_read": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -4221,7 +6095,19 @@
     "input_price": 1250000,
     "output_price": 10000000,
     "cache_read_price": 125000,
-    "cache_write_price": 375000
+    "cache_write_price": 375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 15000000,
+            "cache_read": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -4293,7 +6179,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 375000
+    "cache_write_price": 375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -4301,7 +6199,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 375000
+    "cache_write_price": 375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5365,7 +7275,19 @@
     "input_price": 2500000,
     "output_price": 15000000,
     "cache_read_price": 250000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 5000000,
+            "output": 22500000,
+            "cache_read": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5397,7 +7319,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5405,7 +7338,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5413,7 +7358,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5421,7 +7377,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5429,7 +7398,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5437,7 +7419,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5445,7 +7440,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5453,7 +7461,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5461,7 +7482,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5469,7 +7503,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5477,7 +7524,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5485,7 +7545,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5493,7 +7566,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5501,7 +7587,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5509,7 +7608,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5517,7 +7629,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5525,7 +7650,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5533,7 +7671,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5541,7 +7692,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5549,7 +7713,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5557,7 +7734,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5565,7 +7755,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5573,7 +7776,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5757,7 +7973,20 @@
     "input_price": 260000,
     "output_price": 780000,
     "cache_read_price": 52000,
-    "cache_write_price": 325000
+    "cache_write_price": 325000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 780000,
+            "output": 2340000,
+            "cache_read": 156000,
+            "cache_write": 975000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5837,7 +8066,29 @@
     "input_price": 195000,
     "output_price": 975000,
     "cache_read_price": 39000,
-    "cache_write_price": 243750
+    "cache_write_price": 243750,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 32000,
+          "prices": {
+            "input": 325000,
+            "output": 1625000,
+            "cache_read": 65000,
+            "cache_write": 406250
+          }
+        },
+        {
+          "threshold_tokens": 128000,
+          "prices": {
+            "input": 520000,
+            "output": 2600000,
+            "cache_read": 104000,
+            "cache_write": 650000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5933,7 +8184,18 @@
     "input_price": 260000,
     "output_price": 1560000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 325000,
+            "output": 1950000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5941,7 +8203,19 @@
     "input_price": 300000,
     "output_price": 1800000,
     "cache_read_price": null,
-    "cache_write_price": 375000
+    "cache_write_price": 375000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 375000,
+            "output": 2250000,
+            "cache_write": 468750
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5965,7 +8239,19 @@
     "input_price": 187500,
     "output_price": 1125000,
     "cache_read_price": null,
-    "cache_write_price": 234375
+    "cache_write_price": 234375,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 750000,
+            "output": 3000000,
+            "cache_write": 937500
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5973,7 +8259,19 @@
     "input_price": 325000,
     "output_price": 1950000,
     "cache_read_price": null,
-    "cache_write_price": 406250
+    "cache_write_price": 406250,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 1300000,
+            "output": 3900000,
+            "cache_write": 1625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5981,7 +8279,29 @@
     "input_price": 30000,
     "output_price": 130000,
     "cache_read_price": 6000,
-    "cache_write_price": 38000
+    "cache_write_price": 38000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 32000,
+          "prices": {
+            "input": 100000,
+            "output": 400000,
+            "cache_read": 20000,
+            "cache_write": 125000
+          }
+        },
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 200000,
+            "output": 800000,
+            "cache_read": 40000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -5997,7 +8317,20 @@
     "input_price": 320000,
     "output_price": 1280000,
     "cache_read_price": 64000,
-    "cache_write_price": 400000
+    "cache_write_price": 400000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 960000,
+            "output": 3840000,
+            "cache_read": 192000,
+            "cache_write": 1200000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6125,7 +8458,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6133,7 +8478,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6373,7 +8730,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6381,7 +8750,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6389,7 +8770,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6397,7 +8790,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 300000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 600000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6405,7 +8810,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6413,7 +8830,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6613,7 +9042,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 100000,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6669,7 +9111,19 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 187500
+    "cache_write_price": 187500,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6685,7 +9139,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6693,7 +9160,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6709,7 +9189,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6717,7 +9210,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6733,7 +9239,20 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": 0
+    "cache_write_price": 0,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000,
+            "cache_write": 0
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "openrouter",
@@ -6797,7 +9316,27 @@
     "input_price": 1200000,
     "output_price": 6000000,
     "cache_read_price": 240000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 32001,
+          "prices": {
+            "input": 2400000,
+            "output": 12000000,
+            "cache_read": 480000
+          }
+        },
+        {
+          "threshold_tokens": 128001,
+          "prices": {
+            "input": 3000000,
+            "output": 15000000,
+            "cache_read": 600000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -6829,7 +9368,20 @@
     "input_price": 400000,
     "output_price": 2400000,
     "cache_read_price": 40000,
-    "cache_write_price": 500000
+    "cache_write_price": 500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256001,
+          "prices": {
+            "input": 500000,
+            "output": 3000000,
+            "cache_read": 50000,
+            "cache_write": 625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -6853,7 +9405,20 @@
     "input_price": 500000,
     "output_price": 3000000,
     "cache_read_price": 50000,
-    "cache_write_price": 625000
+    "cache_write_price": 625000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 2000000,
+            "output": 6000000,
+            "cache_read": 200000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -6861,7 +9426,29 @@
     "input_price": 30000,
     "output_price": 130000,
     "cache_read_price": 6000,
-    "cache_write_price": 38000
+    "cache_write_price": 38000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 32000,
+          "prices": {
+            "input": 100000,
+            "output": 400000,
+            "cache_read": 20000,
+            "cache_write": 125000
+          }
+        },
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 200000,
+            "output": 800000,
+            "cache_read": 40000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -6877,7 +9464,20 @@
     "input_price": 400000,
     "output_price": 1600000,
     "cache_read_price": 80000,
-    "cache_write_price": 500000
+    "cache_write_price": 500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 256000,
+          "prices": {
+            "input": 1200000,
+            "output": 4800000,
+            "cache_read": 240000,
+            "cache_write": 1500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7021,7 +9621,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 100001,
+          "prices": {
+            "input": 500000,
+            "output": 2500000,
+            "cache_read": 50000,
+            "cache_write": 625000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7101,7 +9714,20 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 6000000,
+            "output": 22500000,
+            "cache_read": 600000,
+            "cache_write": 7500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7109,7 +9735,20 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": 3750000
+    "cache_write_price": 3750000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200000,
+          "prices": {
+            "input": 6000000,
+            "output": 22500000,
+            "cache_read": 600000,
+            "cache_write": 7500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7309,7 +9948,19 @@
     "input_price": 1250000,
     "output_price": 10000000,
     "cache_read_price": 125000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 15000000,
+            "cache_read": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7357,7 +10008,19 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -7757,7 +10420,19 @@
     "input_price": 300000,
     "output_price": 1200000,
     "cache_read_price": 60000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 512000,
+          "prices": {
+            "input": 1200000,
+            "output": 4800000,
+            "cache_read": 240000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8229,7 +10904,19 @@
     "input_price": 2500000,
     "output_price": 15000000,
     "cache_read_price": 250000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 5000000,
+            "output": 22500000,
+            "cache_read": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8269,7 +10956,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8277,7 +10975,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8293,7 +11003,18 @@
     "input_price": 30000000,
     "output_price": 180000000,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 60000000,
+            "output": 270000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8301,7 +11022,20 @@
     "input_price": 200000,
     "output_price": 1200000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 400000,
+            "output": 1800000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8309,7 +11043,20 @@
     "input_price": 400000,
     "output_price": 2400000,
     "cache_read_price": 40000,
-    "cache_write_price": 500000
+    "cache_write_price": 500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 800000,
+            "output": 3600000,
+            "cache_read": 80000,
+            "cache_write": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8317,7 +11064,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8325,7 +11085,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 800000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 1600000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8333,7 +11106,20 @@
     "input_price": 2000000,
     "output_price": 12000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 4000000,
+            "output": 18000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8341,7 +11127,20 @@
     "input_price": 4000000,
     "output_price": 24000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272000,
+          "prices": {
+            "input": 8000000,
+            "output": 36000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8349,7 +11148,20 @@
     "input_price": 10000000,
     "output_price": 50000000,
     "cache_read_price": 1000000,
-    "cache_write_price": 12500000
+    "cache_write_price": 12500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 20000000,
+            "output": 75000000,
+            "cache_read": 2000000,
+            "cache_write": 25000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8357,7 +11169,20 @@
     "input_price": 20000000,
     "output_price": 100000000,
     "cache_read_price": 2000000,
-    "cache_write_price": 25000000
+    "cache_write_price": 25000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 40000000,
+            "output": 150000000,
+            "cache_read": 4000000,
+            "cache_write": 50000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8365,7 +11190,20 @@
     "input_price": 100000,
     "output_price": 500000,
     "cache_read_price": 10000,
-    "cache_write_price": 125000
+    "cache_write_price": 125000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 200000,
+            "output": 750000,
+            "cache_read": 20000,
+            "cache_write": 250000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8373,7 +11211,20 @@
     "input_price": 200000,
     "output_price": 1000000,
     "cache_read_price": 20000,
-    "cache_write_price": 250000
+    "cache_write_price": 250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 400000,
+            "output": 1500000,
+            "cache_read": 40000,
+            "cache_write": 500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8381,7 +11232,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 400000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8389,7 +11253,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 400000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 800000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8397,7 +11274,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8405,7 +11295,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 400000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8413,7 +11316,20 @@
     "input_price": 1000000,
     "output_price": 5000000,
     "cache_read_price": 50000,
-    "cache_write_price": 1250000
+    "cache_write_price": 1250000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 2000000,
+            "output": 7500000,
+            "cache_read": 100000,
+            "cache_write": 2500000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8421,7 +11337,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8429,7 +11358,20 @@
     "input_price": 8000000,
     "output_price": 40000000,
     "cache_read_price": 400000,
-    "cache_write_price": 10000000
+    "cache_write_price": 10000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 16000000,
+            "output": 60000000,
+            "cache_read": 800000,
+            "cache_write": 20000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8437,7 +11379,20 @@
     "input_price": 16000000,
     "output_price": 80000000,
     "cache_read_price": 800000,
-    "cache_write_price": 20000000
+    "cache_write_price": 20000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 32000000,
+            "output": 120000000,
+            "cache_read": 1600000,
+            "cache_write": 40000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8445,7 +11400,20 @@
     "input_price": 2000000,
     "output_price": 10000000,
     "cache_read_price": 100000,
-    "cache_write_price": 2500000
+    "cache_write_price": 2500000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 4000000,
+            "output": 15000000,
+            "cache_read": 200000,
+            "cache_write": 5000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8453,7 +11421,20 @@
     "input_price": 4000000,
     "output_price": 20000000,
     "cache_read_price": 200000,
-    "cache_write_price": 5000000
+    "cache_write_price": 5000000,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 8000000,
+            "output": 30000000,
+            "cache_read": 400000,
+            "cache_write": 10000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8645,7 +11626,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8653,7 +11646,19 @@
     "input_price": 5000000,
     "output_price": 30000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 272001,
+          "prices": {
+            "input": 10000000,
+            "output": 45000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8693,7 +11698,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8701,7 +11718,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8709,7 +11738,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8717,7 +11758,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 400000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8725,7 +11778,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8733,7 +11798,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8741,7 +11818,19 @@
     "input_price": 1250000,
     "output_price": 2500000,
     "cache_read_price": 200000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 2500000,
+            "output": 5000000,
+            "cache_read": 400000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8749,7 +11838,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 300000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 600000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8757,7 +11858,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
@@ -8765,7 +11878,19 @@
     "input_price": 2000000,
     "output_price": 6000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "pricing_extras": {
+      "tiers": [
+        {
+          "threshold_tokens": 200001,
+          "prices": {
+            "input": 4000000,
+            "output": 12000000,
+            "cache_read": 1000000
+          }
+        }
+      ]
+    }
   },
   {
     "provider": "vercel",
