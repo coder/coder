@@ -301,6 +301,7 @@ export function useFileAttachments(
 		setPreviewUrls(restored.previewUrls);
 	});
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Adoption revokes blob URLs and prunes localStorage, and permission refetches change the organization without an event.
 		if (organizationId && stateOrgId !== organizationId) {
 			adoptOrganization(organizationId);
 		}

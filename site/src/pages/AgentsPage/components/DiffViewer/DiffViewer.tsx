@@ -293,11 +293,13 @@ function DiffFileTree({
 	// highlighted unless its selection is cleared. Replace the whole
 	// selection with just the active file, suppressing the echoed events.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The file tree model keeps its own selection, so it is synchronised to the active file here.
 		if (!activePath || selectedPathRef.current === activePath) return;
 		const item = model.getItem(activePath);
 		if (!item) return;
 		isSyncingSelectionRef.current = true;
 		for (const path of model.getSelectedPaths()) {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- False positive: the rule reads this loop guard as event logic.
 			if (path !== activePath) {
 				model.getItem(path)?.deselect();
 			}
@@ -507,10 +509,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	const canScroll = !isLoading && !error && items.length > 0;
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- A file reference can arrive before the diff has loaded, so the scroll waits until the code view is mounted.
 		if (!scrollToFile) return;
 		// CodeView is not mounted while loading/erroring/empty, so the ref is
 		// null. Skip the scroll without signalling completion so the parent
 		// keeps the pending target and retries once the view is ready.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the scroll waits for the code view.
 		if (!canScroll || !codeViewRef.current) return;
 		codeViewRef.current.scrollTo({
 			type: "item",

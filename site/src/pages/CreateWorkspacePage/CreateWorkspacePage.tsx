@@ -391,6 +391,7 @@ const CreateWorkspacePage: React.FC = () => {
 	}
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Auto-creation starts once consent is given and the external auth and preset queries have resolved, which can happen in either order.
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
 		}

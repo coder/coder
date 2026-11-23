@@ -24,6 +24,7 @@ export const useLatestAbortController = (
 	}, []);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The file can be marked expired from outside this component while its request is in flight.
 		if (shouldAbortCurrentRequest) {
 			controllerRef.current?.abort();
 			controllerRef.current = null;

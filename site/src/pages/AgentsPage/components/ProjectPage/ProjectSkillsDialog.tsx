@@ -419,6 +419,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	}
 	// A detail 404 does not refresh the separate list query, so invalidate it.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The deletion is only known when the detail query returns 404, so the response is handled here.
 		if (!isSkillDeleted) {
 			return;
 		}

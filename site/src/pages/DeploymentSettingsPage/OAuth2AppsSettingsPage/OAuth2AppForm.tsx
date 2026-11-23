@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { useEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
@@ -39,12 +38,14 @@ type OAuth2AppFormValues = {
 type OAuth2AppFormSubmit =
 	| {
 			app?: undefined;
+			/** Rejects when the save fails, which keeps the form's unsaved changes. */
 			onSubmit: (
 				data: TypesGen.PostOAuth2ProviderAppRequest,
 			) => void | Promise<void>;
 	  }
 	| {
 			app: TypesGen.OAuth2ProviderApp;
+			/** Rejects when the save fails, which keeps the form's unsaved changes. */
 			onSubmit: (
 				data: TypesGen.PutOAuth2ProviderAppRequest,
 			) => void | Promise<void>;
@@ -227,7 +228,6 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 	...submit
 }) => {
 	const { app } = submit;
-	const didSubmit = useRef(false);
 	const isPublicClient = clientType === "public";
 	// A stored list that no longer passes validation disables Update on load.
 	// Show its errors right away instead of waiting for the field to be
@@ -252,12 +252,12 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 			: undefined,
 		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
-		onSubmit: async ({
-			scope: selectedScopes,
-			redirect_uris: enteredRedirectURIs,
-			...values
-		}) => {
-			didSubmit.current = true;
+		onSubmit: async (submittedValues) => {
+			const {
+				scope: selectedScopes,
+				redirect_uris: enteredRedirectURIs,
+				...values
+			} = submittedValues;
 			const redirectURIs = enteredRedirectURIs.map((uri) => uri.trim());
 			const scope = selectedScopes.join(" ");
 			// An untouched allowlist is left out of updates rather than echoed
@@ -270,23 +270,35 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 				name: values.name.trim(),
 				...(scopeChanged ? { scope } : {}),
 			};
-			if (submit.app === undefined) {
-				await submit.onSubmit({ ...request, redirect_uris: redirectURIs });
+
+			try {
+				if (submit.app === undefined) {
+					await submit.onSubmit({ ...request, redirect_uris: redirectURIs });
+				} else {
+					// Leave an unchanged list out so an old copy can't undo another
+					// admin's edit. Compare with the form's starting list, not the app
+					// prop, which refreshes after each save. Trim it because a save
+					// resets it to the untrimmed input.
+					const loaded = form.initialValues.redirect_uris.map((uri) =>
+						uri.trim(),
+					);
+					const redirectURIsChanged =
+						redirectURIs.length !== loaded.length ||
+						redirectURIs.some((uri, index) => uri !== loaded[index]);
+					await submit.onSubmit(
+						redirectURIsChanged
+							? { ...request, redirect_uris: redirectURIs }
+							: request,
+					);
+				}
+			} catch {
+				// The caller reports the error. Keep the unsaved changes.
 				return;
 			}
-			// Leave an unchanged list out so an old copy can't undo another
-			// admin's edit. Compare with the form's starting list, not the app
-			// prop, which refreshes after each save. Trim it because a save
-			// resets it to the untrimmed input.
-			const loaded = form.initialValues.redirect_uris.map((uri) => uri.trim());
-			const redirectURIsChanged =
-				redirectURIs.length !== loaded.length ||
-				redirectURIs.some((uri, index) => uri !== loaded[index]);
-			await submit.onSubmit(
-				redirectURIsChanged
-					? { ...request, redirect_uris: redirectURIs }
-					: request,
-			);
+
+			// A saved submission is the new baseline, so the unsaved-changes
+			// prompt does not fire on later navigations.
+			form.resetForm({ values: submittedValues });
 		},
 	});
 	const scopesQuery = useQuery(getExternalScopes());
@@ -308,20 +320,6 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 		narrowsAllowlist(app.scope, form.values.scope, scopesQuery.data.external);
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
-
-	// When the parent's mutation finishes without an error, treat the just-
-	// submitted values as the new baseline so the unsaved-changes prompt does
-	// not fire on subsequent navigations.
-	const previousIsUpdating = useRef(isUpdating);
-	useEffect(() => {
-		if (previousIsUpdating.current && !isUpdating) {
-			if (didSubmit.current && !error) {
-				form.resetForm({ values: form.values });
-			}
-			didSubmit.current = false;
-		}
-		previousIsUpdating.current = isUpdating;
-	}, [isUpdating, error, form]);
 
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,

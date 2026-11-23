@@ -272,6 +272,7 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Scrolling needs the row's DOM node after the selection renders, including when refreshed results put a new row at the selected index.
 		if (isSelected) {
 			rowRef.current?.scrollIntoView({ block: "nearest" });
 		}

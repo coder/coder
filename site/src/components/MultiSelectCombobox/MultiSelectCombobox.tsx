@@ -68,6 +68,7 @@ type MultiSelectComboboxProps = {
 	 * sync search. This search will not showing loadingIndicator.
 	 * The rest props are the same as async search.
 	 * i.e.: creatable, groupBy, delay.
+	 * Called during render, so it must be pure.
 	 **/
 	onSearchSync?: (value: string) => Option[];
 	onChange?: (options: Option[]) => void;
@@ -300,28 +301,22 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		}
 	}
 
-	useEffect(() => {
-		/** sync search */
-
-		const doSearchSync = () => {
-			const res = onSearchSync?.(debouncedSearchTerm);
+	const searchSyncInputs = {
+		debouncedSearchTerm,
+		groupBy,
+		open,
+		triggerSearchOnFocus,
+		onSearchSync,
+	};
+	const [prevSearchSyncInputs, setPrevSearchSyncInputs] =
+		useState(searchSyncInputs);
+	if (!isEqual(searchSyncInputs, prevSearchSyncInputs)) {
+		setPrevSearchSyncInputs(searchSyncInputs);
+		if (onSearchSync && open && (triggerSearchOnFocus || debouncedSearchTerm)) {
+			const res = onSearchSync(debouncedSearchTerm);
 			setOptions(transitionToGroupOption(res || [], groupBy));
-		};
-
-		const exec = () => {
-			if (!onSearchSync || !open) return;
-
-			if (triggerSearchOnFocus) {
-				doSearchSync();
-			}
-
-			if (debouncedSearchTerm) {
-				doSearchSync();
-			}
-		};
-
-		void exec();
-	}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearchSync]);
+		}
+	}
 
 	useEffect(() => {
 		/** async search */
@@ -334,8 +329,10 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		};
 
 		const exec = async () => {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Results are fetched for the debounced search term, which settles on a timer rather than in an event handler.
 			if (!onSearch || !open) return;
 
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the search follows the debounced term.
 			if (triggerSearchOnFocus) {
 				await doSearch();
 			}
@@ -350,6 +347,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 
 	// Scroll dropdown into view on open
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The list only exists after the open render commits, so it can only be scrolled into view here.
 		if (!open || !listRef.current) {
 			return;
 		}

@@ -6,7 +6,8 @@ import {
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
@@ -99,7 +100,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 
 	// Flyout sub-menus clip on mobile.
 	const [view, setView] = useState<"main" | "ports">("main");
-	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
+	const portsItemRef = useRef<HTMLDivElement>(null);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
 
@@ -112,7 +113,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	// Leave the mobile-only ports view once the viewport widens.
 	if (!isBelowMd && view === "ports") {
 		setView("main");
-		setFocusPortsOnMain(false);
 	}
 
 	return (
@@ -123,7 +123,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 				setOpen(next);
 				if (!next) {
 					setView("main");
-					setFocusPortsOnMain(false);
 				}
 			}}
 		>
@@ -185,8 +184,12 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							host={host}
 							portsData={portsData}
 							onBack={() => {
-								setFocusPortsOnMain(true);
-								setView("main");
+								// The Ports item only exists once the main view renders.
+								flushSync(() => {
+									setView("main");
+								});
+
+								portsItemRef.current?.focus();
 							}}
 						/>
 					) : (
@@ -242,12 +245,8 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 									portsData={portsData}
 									isRunning={isRunning}
 									isBelowMd={isBelowMd}
-									focusOnMount={focusPortsOnMain}
-									onFocusApplied={() => setFocusPortsOnMain(false)}
-									onSelectInline={() => {
-										setFocusPortsOnMain(false);
-										setView("ports");
-									}}
+									ref={portsItemRef}
+									onSelectInline={() => setView("ports")}
 								/>
 							)}
 							{hasItemsAboveSeparator && (

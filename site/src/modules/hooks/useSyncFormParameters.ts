@@ -60,7 +60,6 @@ export function useSyncFormParameters({
 	});
 
 	useEffect(() => {
-		if (!parameters) return;
 		syncParameters();
 	}, [parameters]);
 }

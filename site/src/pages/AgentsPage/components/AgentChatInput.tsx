@@ -398,6 +398,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	});
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The highlight arrives through navigation state, so the editor is focused once it renders.
 		if (highlightKey !== undefined) {
 			internalRef.current?.focus();
 		}
@@ -458,6 +459,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The transcript arrives from the browser's speech recognition, so it is written into the editor as it changes.
 		if (!speech.isRecording || preRecordingState === null) return;
 		internalRef.current?.restoreEditorState(
 			preRecordingState,
@@ -742,6 +744,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	useEffect(() => {
 		const wasLoading = prevIsLoadingRef.current;
 		prevIsLoadingRef.current = isLoading;
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The editor is locked while a send is in flight, so it can only take focus again after it renders unlocked.
 		if (lockWhileLoading && wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}

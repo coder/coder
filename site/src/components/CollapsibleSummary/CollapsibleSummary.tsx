@@ -1,7 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 const collapsibleSummaryVariants = cva(
 	cn(
@@ -61,15 +62,7 @@ export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 
-	const lastState = useRef<boolean>(defaultOpen);
 	const ref = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		if (lastState.current !== isOpen && isOpen && scrollIntoViewOnOpen) {
-			ref.current?.scrollIntoView({ behavior: "smooth" });
-		}
-		lastState.current = isOpen;
-	}, [isOpen, scrollIntoViewOnOpen]);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -81,7 +74,14 @@ export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 				)}
 				type="button"
 				onClick={() => {
-					setIsOpen((v) => !v);
+					// The children only exist once the open state renders.
+					flushSync(() => {
+						setIsOpen((v) => !v);
+					});
+
+					if (scrollIntoViewOnOpen) {
+						ref.current?.scrollIntoView({ behavior: "smooth" });
+					}
 				}}
 			>
 				<div

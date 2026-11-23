@@ -551,6 +551,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		const scopeChanged =
 			previous.organizationId !== organizationId || previous.chatId !== chatId;
 		editScopeRef.current = { organizationId, chatId };
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Resetting revokes blob URLs, and the scope changes with the chat record rather than from an event here.
 		if (scopeChanged) {
 			resetEditAttachments();
 		}
@@ -578,9 +579,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The edit target also changes from queue updates and rollbacks, and hydration must follow useFileAttachments' post-commit organization adoption.
 		if (!isEditing) {
 			return;
 		}
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, hydration must follow the post-commit adoption.
 		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
@@ -609,6 +612,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- False positive: the rule reads this loop guard as event logic.
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
@@ -679,11 +683,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// ref makes them run once per change.
 	const lastResetHydrationRef = useRef(hydratedEditBlocks);
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- See the comment above.
 		if (lastResetHydrationRef.current === hydratedEditBlocks) {
 			return;
 		}
 
 		lastResetHydrationRef.current = hydratedEditBlocks;
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the resets abort in-flight uploads.
 		if (hydratedEditBlocks === null) {
 			resetEditAttachments();
 		}

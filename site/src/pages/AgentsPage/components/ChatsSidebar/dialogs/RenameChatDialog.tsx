@@ -169,6 +169,7 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 	}, []);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The caret can only move to the end after React writes each typed frame into the input.
 		if (!isTypingGeneratedTitle) return;
 		const input = inputRef.current;
 		if (!input) return;

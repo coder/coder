@@ -520,6 +520,7 @@ export function useDesktopConnection({
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- noVNC is configured by setting properties, so each new connection and scale change is applied here.
 		if (rfbInstance && rfbRef.current) {
 			rfbRef.current.scaleViewport = scaleViewport;
 		}

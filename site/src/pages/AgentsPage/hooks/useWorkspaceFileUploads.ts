@@ -278,6 +278,7 @@ export function useWorkspaceFileUploads(
 		updateUploads(() => restoreWorkspaceUploadDraft(storageKey, workspaceId));
 	});
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Uploads in flight belong to the previous chat and workspace, so they are cancelled when the scope changes.
 		if (previousScopeKeyRef.current === scopeKey) {
 			return;
 		}

@@ -209,12 +209,14 @@ export function usePaginatedQuery<
 	// hasXPage values are derived from the server and won't always be immediately
 	// ready on the initial render
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The server's count can arrive after the page changes, so prefetching follows it here.
 		if (hasNextPage) {
 			void prefetchPage(currentPage + 1);
 		}
 	}, [currentPage, hasNextPage]);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The server's count can arrive after the page changes, so prefetching follows it here.
 		if (hasPreviousPage) {
 			void prefetchPage(currentPage - 1);
 		}

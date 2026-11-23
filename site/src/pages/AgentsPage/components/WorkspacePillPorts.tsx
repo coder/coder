@@ -34,8 +34,8 @@ export const PortsMenuItem: React.FC<{
 	portsData: PortsData;
 	isRunning: boolean;
 	isBelowMd: boolean;
-	focusOnMount: boolean;
-	onFocusApplied?: () => void;
+	/** Receives the mobile menu item. */
+	ref?: React.Ref<HTMLDivElement>;
 	onSelectInline?: () => void;
 	/**
 	 * When set, selecting a port calls this instead of opening the port in a new
@@ -50,30 +50,19 @@ export const PortsMenuItem: React.FC<{
 	portsData,
 	isRunning,
 	isBelowMd,
-	focusOnMount,
-	onFocusApplied,
+	ref,
 	onSelectInline,
 	onPortSelect,
 }) => {
-	const itemRef = useRef<HTMLDivElement>(null);
-
 	const label =
 		portsData.totalCount !== undefined
 			? `Ports (${portsData.totalCount})`
 			: "Ports";
 
-	useEffect(() => {
-		if (!focusOnMount || !isBelowMd) {
-			return;
-		}
-		itemRef.current?.focus();
-		onFocusApplied?.();
-	}, [focusOnMount, isBelowMd, onFocusApplied]);
-
 	if (isBelowMd) {
 		return (
 			<DropdownMenuItem
-				ref={itemRef}
+				ref={ref}
 				disabled={!isRunning}
 				onSelect={(event) => {
 					event.preventDefault();

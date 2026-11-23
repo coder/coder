@@ -380,6 +380,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 	// Saving disables the row; refocus the control that started the change.
 	const focusAfterSave = useRef<HTMLButtonElement | null>(null);
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- A disabled control cannot take focus, so focus returns once the row is re-enabled.
 		if (!disabled) {
 			focusAfterSave.current?.focus();
 			focusAfterSave.current = null;

@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -260,10 +261,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				},
 			}
 		: undefined;
-	// A row opens the right panel and unmounts the focused row, so the panel
-	// focuses its active tab once per id, and clears it so a remount does not
-	// move focus again.
-	const [panelFocusRequestId, setPanelFocusRequestId] = useState<number>();
+	const activeTabRef = useRef<HTMLButtonElement>(null);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -312,18 +310,21 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	};
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
 		if (!isArchived) {
 			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
 		}
 	}, [agentId, isArchived, userRightPanelTabs]);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
 		if (!isArchived) {
 			savePersistedDefaultTerminalHidden(agentId, defaultTerminalHidden);
 		}
 	}, [agentId, defaultTerminalHidden, isArchived]);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
 		if (!isArchived) {
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
@@ -411,8 +412,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	};
 
 	const openOverviewTarget = (target: OverviewTarget) => {
-		setPanelFocusRequestId((id) => (id ?? 0) + 1);
-		activateRightPanelTab(target.tabId);
+		// A row opens the right panel and unmounts the focused row, so focus
+		// moves to the panel's tab once it renders.
+		flushSync(() => {
+			activateRightPanelTab(target.tabId);
+		});
+
+		activeTabRef.current?.focus();
 	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
@@ -775,12 +781,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
 							chatTitle={chat.title}
-							focusRequestId={panelFocusRequestId}
-							onFocusRequestApplied={(id) =>
-								setPanelFocusRequestId((current) =>
-									current === id ? undefined : current,
-								)
-							}
+							activeTabRef={activeTabRef}
 							addTabControl={(closeTab) => (
 								<RightPanelAddTabControl
 									workspace={workspace}

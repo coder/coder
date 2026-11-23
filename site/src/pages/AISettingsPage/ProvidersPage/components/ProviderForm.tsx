@@ -545,7 +545,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 	// as `null`, so a truthy check covers both null and undefined.
 	const previousIsLoading = useRef(isLoading);
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The saved credentials' masks arrive with the refreshed provider after the save settles, so the form can only be reset on the render that carries them.
 		if (previousIsLoading.current && !isLoading) {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the reset needs the masks from the refreshed provider.
 			if (didSubmit.current && !submitError) {
 				// Restore credential fields to their initial masked sentinels so
 				// the raw key is never left visible after a successful save.

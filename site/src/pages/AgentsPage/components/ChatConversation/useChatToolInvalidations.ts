@@ -52,6 +52,7 @@ export function useChatToolInvalidations({
 	const chatIDRef = useRef(chatID);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Tool results arrive on the chat stream, so the queries they affect are invalidated as they arrive.
 		if (chatIDRef.current !== chatID) {
 			chatIDRef.current = chatID;
 			processedToolCallIdsRef.current.clear();

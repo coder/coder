@@ -205,6 +205,7 @@ export const CreateWorkspacePageView: React.FC<
 	const { setFieldValue } = form;
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Errors arrive from the websocket, the create request and the auto-create checks, so the page scrolls up when one appears.
 		if (error) {
 			window.scrollTo(0, 0);
 		}
@@ -251,6 +252,7 @@ export const CreateWorkspacePageView: React.FC<
 	// change.
 	useEffect(() => {
 		// URL preset takes precedence over default preset.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Presets load asynchronously, so the URL or default preset is applied when they arrive.
 		if (urlPreset) {
 			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
@@ -315,6 +317,7 @@ export const CreateWorkspacePageView: React.FC<
 	);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Preset values apply to parameters as websocket responses add them, not only when a preset is picked.
 		if (!selectedPreset?.Parameters) {
 			return;
 		}
@@ -333,6 +336,7 @@ export const CreateWorkspacePageView: React.FC<
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
 			);
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- False positive: the rule reads this loop guard as event logic.
 			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;

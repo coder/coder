@@ -762,6 +762,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		lastChipScopeRef.current = { organizationId, chatProjectId };
 		if (last.organizationId && last.organizationId !== organizationId) {
 			chatInputRef.current?.removeSkills(["org", "project"]);
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The editor holds the chips outside React, and permission and project refetches also change their scope.
 		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
 			chatInputRef.current?.removeSkills(["project"]);
 		}
@@ -825,11 +826,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
 	useEffect(() => {
 		if (
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Permission and workspace refetches also change the scope, and dropping the queued uploads aborts their requests.
 			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
 		) {
 			return;
 		}
 		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the scope also changes from refetches.
 		if (canUploadWorkspaceFiles || workspaceUploadCount === 0) {
 			return;
 		}
@@ -918,6 +921,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const canAttachPrefillFile = organizationAdopted && !isForbidden;
 	useEffect(() => {
 		if (
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Organization adoption replaces the attachments after commit, so the prefill file can only be attached once it has committed.
 			prefillFile &&
 			canAttachPrefillFile &&
 			!prefillAttachRequestedRef.current
