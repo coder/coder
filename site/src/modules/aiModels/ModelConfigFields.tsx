@@ -48,6 +48,7 @@ import {
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
 } from "./modelConfigFormLogic";
+import { PriceTierNotes } from "./PriceTierNotes";
 
 const booleanFieldOptions = [
 	{ label: "Off", value: "false" },
@@ -778,7 +779,8 @@ export const PricingEstimateFields: React.FC<{
 	if (
 		!livePriceLoading &&
 		(costs === undefined ||
-			priceEstimateFields.every(([, key]) => costs[key] === undefined))
+			priceEstimateFields.every(([, key]) => costs[key] === undefined)) &&
+		!livePrice?.tiers.length
 	) {
 		return (
 			<p className="m-0 text-xs text-content-secondary sm:col-span-full">
@@ -834,6 +836,7 @@ export const PricingEstimateFields: React.FC<{
 					</div>
 				);
 			})}
+			{livePrice && <PriceTierNotes price={livePrice} />}
 		</>
 	);
 };

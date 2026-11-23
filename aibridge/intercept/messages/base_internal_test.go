@@ -1655,6 +1655,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		msgID         string
 		providerModel anthropic.Model
 		usage         anthropic.Usage
+		promptTokens  int64
 		expected      *recorder.TokenUsageRecord
 	}{
 		{
@@ -1697,6 +1698,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					Ephemeral5mInputTokens: 7,
 				},
 			},
+			promptTokens: 170,
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_full",
@@ -1705,6 +1707,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				Output:                200,
 				CacheReadInputTokens:  30,
 				CacheWriteInputTokens: 40,
+				PromptTokens:          170,
 				ExtraTokenTypes: map[string]int64{
 					"web_search_requests":      5,
 					"cache_ephemeral_1h_input": 6,
@@ -1742,7 +1745,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				id:       id,
 				recorder: rec,
 			}
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage, tc.promptTokens)
 
 			usages := rec.RecordedTokenUsages()
 			require.Len(t, usages, 1)

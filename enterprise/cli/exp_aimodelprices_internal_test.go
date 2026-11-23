@@ -99,6 +99,57 @@ func TestDiffAIModelPrices(t *testing.T) {
 			wantChanged: 1,
 		},
 		{
+			name: "ChangedTierIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, InputPrice: new(int64(200))}},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, InputPrice: new(int64(300))}},
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			name: "ChangedTierThresholdIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, InputPrice: new(int64(200))}},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 300_000, InputPrice: new(int64(200))}},
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			name: "ChangedTierCacheWritePriceIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, CacheWritePrice: new(int64(200))}},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, CacheWritePrice: new(int64(300))}},
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			// Omitted JSON tiers must match the API's empty array.
+			name: "NoTiersMatchesEmptyTiers",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), Tiers: []codersdk.AIModelPriceTier{},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+			}},
+			wantAdded:   0,
+			wantChanged: 0,
+		},
+		{
 			// A model of the same name under another provider is a different
 			// row, so it does not match.
 			name: "SameModelDifferentProvider",

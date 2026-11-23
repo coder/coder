@@ -213,6 +213,9 @@ newStream:
 		var message anthropic.Message
 		var lastToolName string
 		var serviceTier anthropic.UsageServiceTier
+		// The message_delta record has output tokens only, so it carries the
+		// prompt size of its message_start to select the same price tier.
+		var promptTokens int64
 
 		pendingToolCalls := make(map[string]string)
 
@@ -283,8 +286,9 @@ newStream:
 			case string(constant.ValueOf[constant.MessageStart]()):
 				start := event.AsMessageStart()
 				serviceTier = start.Message.Usage.ServiceTier
+				promptTokens = promptSize(start.Message.Usage)
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
-				i.recordTokenUsage(streamCtx, message.ID, message.Model, start.Message.Usage)
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, start.Message.Usage, promptTokens)
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -300,7 +304,7 @@ newStream:
 				i.recordTokenUsage(streamCtx, message.ID, message.Model, anthropic.Usage{
 					OutputTokens: delta.Usage.OutputTokens,
 					ServiceTier:  serviceTier,
-				})
+				}, promptTokens)
 
 				// A turn that stopped for another reason (e.g. max_tokens) may carry
 				// truncated tool input, so injected tools must not run. An empty

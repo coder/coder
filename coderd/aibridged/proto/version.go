@@ -33,9 +33,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Adds organization_source to IsAuthorizedResponse.
 //   - Adds organization_id to IsBudgetExceededRequest.
 //   - Adds delegated_organization_id to IsAuthorizedRequest.
+//
+// API v1.7:
+//   - Adds prompt_tokens to RecordTokenUsageRequest.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

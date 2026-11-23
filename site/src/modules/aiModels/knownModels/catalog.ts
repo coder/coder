@@ -1,5 +1,6 @@
 import type { ChatComputerUseProvider } from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
+import { microsToDollars } from "#/utils/currency";
 import knownModelsGenerated from "./knownModelsGenerated.json";
 import type { KnownModel } from "./types";
 
@@ -178,4 +179,13 @@ export const formatPricePerMillionTokens = (
 	const [whole, decimals = ""] = value.toFixed(4).split(".");
 	const trimmed = decimals.slice(0, 2) + decimals.slice(2).replace(/0+$/, "");
 	return { belowThreshold: false, value: `${whole}.${trimmed}` };
+};
+
+/**
+ * Formats a price in micro-units per million tokens as a dollar amount, such
+ * as "$3" or "<$0.0001" for a positive price too small to show.
+ */
+export const formatMicrosPerMillionTokens = (micros: number): string => {
+	const price = formatPricePerMillionTokens(microsToDollars(micros));
+	return `${price.belowThreshold ? "<$" : "$"}${price.value}`;
 };

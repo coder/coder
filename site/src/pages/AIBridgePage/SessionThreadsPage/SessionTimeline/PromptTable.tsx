@@ -8,9 +8,8 @@ import {
 	TooltipMessage,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { formatPricePerMillionTokens } from "#/modules/aiModels/knownModels/catalog";
+import { formatMicrosPerMillionTokens } from "#/modules/aiModels/knownModels/catalog";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
-import { microsToDollars } from "#/utils/currency";
 import { formatDate } from "#/utils/time";
 import { CostBadge } from "../../CostBadge";
 import { TokenBadges } from "../../TokenBadges";
@@ -19,8 +18,7 @@ const formatPrice = (micros: number | null): string => {
 	if (micros === null) {
 		return "Not set";
 	}
-	const price = formatPricePerMillionTokens(microsToDollars(micros));
-	return `${price.belowThreshold ? "<$" : "$"}${price.value} / 1M tokens`;
+	return `${formatMicrosPerMillionTokens(micros)} / 1M tokens`;
 };
 
 type ModelPricesProps = {

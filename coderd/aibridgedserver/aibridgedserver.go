@@ -402,6 +402,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
 			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.F("prompt_tokens", in.GetPromptTokens()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
 			slog.F("metadata", metadata),
 		)
@@ -450,6 +451,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
 	createdAt := s.recordTime(ctx, "created_at", in.GetCreatedAt(), intc.ID.String())
+	usage := usageFromRequest(in)
 
 	// Populated inside the transaction with any budget thresholds this
 	// interception crossed.
@@ -459,10 +461,10 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			ID:                    uuid.New(),
 			InterceptionID:        intc.ID,
 			ProviderResponseID:    in.GetMsgId(),
-			InputTokens:           in.GetInputTokens(),
-			OutputTokens:          in.GetOutputTokens(),
-			CacheReadInputTokens:  in.GetCacheReadInputTokens(),
-			CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
+			InputTokens:           usage.input,
+			OutputTokens:          usage.output,
+			CacheReadInputTokens:  usage.cacheRead,
+			CacheWriteInputTokens: usage.cacheWrite,
 			Metadata:              metadataJSON,
 			CreatedAt:             createdAt,
 			EffectiveGroupID:      cost.effectiveGroupID,
@@ -473,6 +475,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CostMicros:            cost.costMicros,
 			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
 			PricedModel:           cost.pricedModel,
+			PricingUsage:          cost.pricingUsage,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}

@@ -174,6 +174,11 @@ For delivery methods, see [Notifications](../../admin/monitoring/notifications/i
 Coder multiplies the token usage of each request by the published price of its model.
 Prices come from a curated [models.dev](https://models.dev) snapshot that ships with every Coder release, so no configuration is required.
 
+When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
+The prompt size counts the input, cache read, and cache write tokens of the request.
+When a model has more than one long-context size, the largest size that the prompt is over applies.
+A long-context price that isn't set uses the base price.
+
 Coder prices a request by the model the client requested.
 When that model has no price, Coder uses the price of the model the provider reports serving, for example when the provider resolves an alias to a specific model.
 Coder uses the first price it finds, in this order:
@@ -257,6 +262,9 @@ To see every price a model holds, both at once:
 coder exp ai-model-prices list --source all
 ```
 
+The table leaves out the long-context prices.
+To see them, add `--output json`, which reports them as `tiers`.
+
 Price a single model.
 Prices are micro-units per million tokens, so `3000000` is $3.00 per million tokens.
 Use `null` for a price you do not have, and `0` to declare a model free:
@@ -267,7 +275,31 @@ coder exp ai-model-prices update --provider anthropic --model my-model \
   --cache-read-price null --cache-write-price null
 ```
 
-Price several models at once from a JSON document in the same shape as the price book:
+Price several models at once from a JSON document.
+The document is an array of prices that uses the keys `coder exp ai-model-prices list --output json` prints, not the keys of the price book.
+Long-context prices go in `tiers`, in ascending `threshold_tokens` order:
+
+```json
+[
+  {
+    "provider": "anthropic",
+    "model": "my-model",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000,
+    "tiers": [
+      {
+        "threshold_tokens": 200000,
+        "input_price": 6000000,
+        "output_price": 22500000,
+        "cache_read_price": 600000,
+        "cache_write_price": 7500000
+      }
+    ]
+  }
+]
+```
 
 ```sh
 coder exp ai-model-prices update prices.json
@@ -278,6 +310,8 @@ coder exp ai-model-prices update prices.json
 > - Prices are not retroactive.
 >   Usage recorded before you set a price stays unpriced, so past spend does not change.
 > - A price you set takes precedence over the default and stays in effect across upgrades, so it does not pick up later price books.
+>   It also replaces the default long-context prices, so set `tiers` on it too.
+>   Long-context prices can only be set from a JSON document, and an update that leaves out `tiers` clears them.
 > - A price is keyed by provider type and model, so every configured provider of that type shares it.
 > - `openai-compat` providers cannot be priced.
 >   They pass through to any upstream vendor, so a single price would be wrong for most of them.
