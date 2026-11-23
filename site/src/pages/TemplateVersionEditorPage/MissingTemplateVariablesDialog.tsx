@@ -26,20 +26,6 @@ type MissingTemplateVariablesDialogProps = {
 export const MissingTemplateVariablesDialog: React.FC<
 	MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, open, onClose }) => {
-	const [variableValues, setVariableValues] = useState<VariableValue[]>(() =>
-		toVariableValues(missingVariables),
-	);
-
-	// Pre-fill the form with the default values when missing variables are loaded
-	const [prevMissingVariables, setPrevMissingVariables] =
-		useState(missingVariables);
-	if (missingVariables !== prevMissingVariables) {
-		setPrevMissingVariables(missingVariables);
-		if (missingVariables) {
-			setVariableValues(toVariableValues(missingVariables));
-		}
-	}
-
 	return (
 		<Dialog
 			open={open}
@@ -58,34 +44,14 @@ export const MissingTemplateVariablesDialog: React.FC<
 					</DialogDescription>
 				</DialogHeader>
 
-				<VerticalForm
-					id="updateVariables"
-					onSubmit={(e) => {
-						e.preventDefault();
-						onSubmit(variableValues);
-					}}
-				>
-					{missingVariables ? (
-						<FormFields>
-							{missingVariables.map((variable, index) => {
-								return (
-									<VariableInput
-										defaultValue={variable.value}
-										variable={variable}
-										key={variable.name}
-										onChange={async (value) => {
-											setVariableValues((prev) =>
-												prev.with(index, { name: variable.name, value }),
-											);
-										}}
-									/>
-								);
-							})}
-						</FormFields>
-					) : (
-						<Loader />
-					)}
-				</VerticalForm>
+				{missingVariables ? (
+					<MissingVariablesForm
+						missingVariables={missingVariables}
+						onSubmit={onSubmit}
+					/>
+				) : (
+					<Loader />
+				)}
 
 				<DialogFooter>
 					<Button variant="outline" type="button" onClick={onClose}>
@@ -100,7 +66,47 @@ export const MissingTemplateVariablesDialog: React.FC<
 	);
 };
 
-const toVariableValues = (
-	missingVariables: readonly TemplateVersionVariable[] | undefined,
-): VariableValue[] =>
-	missingVariables?.map((v) => ({ name: v.name, value: v.value })) ?? [];
+type MissingVariablesFormProps = {
+	missingVariables: readonly TemplateVersionVariable[];
+	onSubmit: (values: VariableValue[]) => void;
+};
+
+const MissingVariablesForm: React.FC<MissingVariablesFormProps> = ({
+	missingVariables,
+	onSubmit,
+}) => {
+	const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+
+	return (
+		<VerticalForm
+			id="updateVariables"
+			onSubmit={(e) => {
+				e.preventDefault();
+				onSubmit(
+					missingVariables.map((v) => ({
+						name: v.name,
+						value: editedValues[v.name] ?? v.value,
+					})),
+				);
+			}}
+		>
+			<FormFields>
+				{missingVariables.map((variable) => {
+					return (
+						<VariableInput
+							defaultValue={variable.value}
+							variable={variable}
+							key={variable.name}
+							onChange={async (value) => {
+								setEditedValues((prev) => ({
+									...prev,
+									[variable.name]: value,
+								}));
+							}}
+						/>
+					);
+				})}
+			</FormFields>
+		</VerticalForm>
+	);
+};
