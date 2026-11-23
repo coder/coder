@@ -34,6 +34,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { toast } from "#/components/Toaster/toast";
+import { useDebouncedFunction } from "#/hooks/debounce";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import {
 	getPersistedProjectsSectionExpanded,
@@ -79,6 +80,8 @@ type ProjectFoldersProps = {
 	/** Moves focus out of the folders when the user unpins the last one. */
 	readonly focusUnpinFallback?: () => void;
 };
+
+const POINTER_PREFETCH_DELAY_MS = 150;
 
 // Focuses the folder after the unpinned one, else the one before it, else
 // the fallback.
@@ -318,8 +321,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		onEdit,
 		onDelete,
 	};
-	// A folder fetches its chats when it opens, so start once the pointer or
-	// keyboard focus reaches it.
+	// A folder fetches its chats when it opens, so start once keyboard focus
+	// reaches it or the pointer rests on it. The pause keeps a pointer passing
+	// over the folders from loading each one.
 	const prefetchChats = () => {
 		if (!expanded) {
 			void queryClient.prefetchInfiniteQuery(
@@ -327,6 +331,10 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 			);
 		}
 	};
+	const {
+		debounced: prefetchChatsOnRest,
+		cancelDebounce: cancelPrefetchOnRest,
+	} = useDebouncedFunction(prefetchChats, POINTER_PREFETCH_DELAY_MS);
 	return (
 		<ChatDropArea
 			target={{
@@ -340,7 +348,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				<ContextMenuTrigger asChild>
 					<div
 						className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary"
-						onPointerEnter={prefetchChats}
+						onPointerEnter={prefetchChatsOnRest}
+						onPointerLeave={cancelPrefetchOnRest}
 					>
 						<Button
 							ref={(element) => {

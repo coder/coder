@@ -312,6 +312,38 @@ describe("ChatsSidebar projects", () => {
 		},
 	);
 
+	it("does not load a closed folder's chats when the pointer only passes over it", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+		const toggle = await screen.findByRole("button", {
+			name: `Expand ${MockChatProject.name}`,
+		});
+		await user.hover(toggle);
+		await user.unhover(toggle);
+		await act(() => vi.advanceTimersByTimeAsync(1000));
+
+		expect(requests).toHaveLength(0);
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {
