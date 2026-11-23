@@ -15,6 +15,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,8 +48,9 @@ func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler
 func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
+	callerID := httpmw.APIKey(r).UserID
 
-	ownerID, found, err := api.chatAutomationOwnerFilter(ctx, httpmw.APIKey(r).UserID, r.URL.Query().Get("owner"))
+	ownerID, found, err := api.chatAutomationOwnerFilter(ctx, callerID, r.URL.Query().Get("owner"))
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -55,6 +58,14 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	if !found {
 		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.ChatAutomation{})
 		return
+	}
+	// A caller who cannot read every automation of the organization reads
+	// only its own. Naming the owner lets the query use the
+	// (organization_id, owner_id) index, which the RBAC filter cannot use
+	// because it compares owner_id as text. The check does not log: a denial
+	// is the normal case for a member.
+	if ownerID == uuid.Nil && api.Authorizer.Authorize(ctx, httpmw.UserAuthorization(ctx), policy.ActionRead, rbac.ResourceChatAutomation.InOrg(organization.ID)) != nil {
+		ownerID = callerID
 	}
 	automations, err := api.Database.GetChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{
 		OrganizationID: organization.ID,
