@@ -296,7 +296,10 @@ Anthropic offers settings that keep sessions on self-hosted environments, but no
 - **Claude Desktop SSH sessions:** Turning off local sessions leaves SSH sessions available.
   Set `sshHostAllowlist` to an empty array in managed settings to turn them off too.
   Claude Desktop reads this setting from managed settings only.
-- **Claude Code CLI:** The CLI ignores both settings, so developers can still run Claude Code on their own computers.
+- **Claude Code CLI and IDE extensions:** Neither reads these settings, so developers can still run Claude Code on their own computers.
+- **Remote Control:** Remote Control lets a developer drive a session on their own computer from claude.ai, the Claude mobile apps, or Claude Desktop.
+  On Team and Enterprise plans, Remote Control stays off until an Owner turns it on in [Claude Code admin settings](https://claude.ai/admin-settings/claude-code).
+  To turn it off on a device, set `disableRemoteControl` to `true` in managed settings.
 
 The following managed settings turn off both local and SSH sessions in Claude Desktop:
 
@@ -307,8 +310,13 @@ The following managed settings turn off both local and SSH sessions in Claude De
 }
 ```
 
-Quit and reopen Claude Desktop to apply the settings.
-The environment picker then shows the developer's computer and the SSH section as turned off by the organization.
+Deliver these keys from the highest-ranked managed source on each device, such as server-managed settings if your organization uses them.
+By default, Claude Desktop reads the keys from that source only and ignores them in lower-ranked sources without a warning.
+If you set `managedSourcesBehavior` to `"merge"`, an empty `sshHostAllowlist` in one source doesn't turn off SSH for hosts that another source allows.
+Refer to [How Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources).
+
+If you deliver the settings as server-managed settings, have developers quit and reopen Claude Desktop, which fetches them at launch.
+The entry for the developer's computer in the environment picker then appears grayed out with the tooltip **Disabled by your organization**.
 
 Refer to Anthropic's [Deploy self-hosted environments to production](https://code.claude.com/docs/en/self-hosted-environments-deploy), [Turn off local sessions and distribute SSH connections](https://code.claude.com/docs/en/desktop#turn-off-local-sessions-and-distribute-ssh-connections), and [Restrict which SSH hosts users can connect to](https://code.claude.com/docs/en/desktop#restrict-which-ssh-hosts-users-can-connect-to) for details.
 
