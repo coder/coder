@@ -178,12 +178,14 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	);
 	const hasScriptIssues = getAgentScriptIssues(agent).length > 0;
 	const { proxy } = useProxy();
+
 	const defaultShowLogs =
 		(agent.lifecycle_state !== "ready" ||
 			hasConnectivityIssues ||
 			hasScriptIssues) &&
 		hasStartupFeatures;
 	const [showLogs, setShowLogs] = useState(defaultShowLogs);
+
 	// Re-apply the default when any of its inputs change, even if the
 	// default itself stays the same.
 	const showLogsInputs = {
@@ -197,6 +199,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		setPrevShowLogsInputs(showLogsInputs);
 		setShowLogs(defaultShowLogs);
 	}
+
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
@@ -262,8 +265,10 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
+
 	// Undefined until a tab is picked by the user or auto-selected.
 	const [chosenLogTab, setChosenLogTab] = useState<string>();
+
 	// Auto-select the first log tab whose script failed and has rendered output.
 	if (chosenLogTab === undefined) {
 		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
@@ -282,7 +287,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			setChosenLogTab(failedSourceWithLogs.id);
 		}
 	}
+
 	const selectedLogTab = chosenLogTab ?? "all";
+
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.

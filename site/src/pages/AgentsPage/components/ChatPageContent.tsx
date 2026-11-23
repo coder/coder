@@ -569,6 +569,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		chatId,
 		workspaceId: selectedWorkspaceId,
 	};
+
 	const [preservedScope, setPreservedScope] = useState(preservedScopeInputs);
 	if (!isEqual(preservedScopeInputs, preservedScope)) {
 		setPreservedScope(preservedScopeInputs);
@@ -644,6 +645,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		blocks: readonly TypesGen.ChatMessagePart[];
 		workspaceId: string | null;
 	} | null>(null);
+
 	if (
 		isEditing &&
 		(hydratedEditBlocks === null ||
@@ -670,6 +672,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		) {
 			return;
 		}
+
 		lastResetHydrationRef.current = hydratedEditBlocks;
 		resetEditWorkspaceUploads();
 	}, [hydratedEditBlocks, resetEditWorkspaceUploads]);

@@ -57,8 +57,10 @@ describe("AgentRow", () => {
 			...MockWorkspaceAgentStarting,
 			logs_length: 1,
 		};
+
 		const Harness: React.FC = () => {
 			const [agent, setAgent] = useState(mockStartingAgent);
+
 			return (
 				<>
 					<button
@@ -79,6 +81,7 @@ describe("AgentRow", () => {
 				</>
 			);
 		};
+
 		renderWithAuth(<Harness />);
 		const user = userEvent.setup();
 

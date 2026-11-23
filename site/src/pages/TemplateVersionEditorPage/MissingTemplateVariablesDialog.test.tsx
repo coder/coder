@@ -26,6 +26,7 @@ describe("MissingTemplateVariablesDialog", () => {
 				{ ...MockTemplateVersionVariable2, value: "second" },
 			]),
 		);
+
 		await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
 		expect(onSubmit).toHaveBeenCalledWith([

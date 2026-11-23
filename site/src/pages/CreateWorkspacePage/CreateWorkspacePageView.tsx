@@ -233,6 +233,7 @@ export const CreateWorkspacePageView: React.FC<
 		],
 		[presets],
 	);
+
 	// Falls back to "None" when the form's preset is unset or not listed.
 	const selectedPresetIndex = Math.max(
 		0,
@@ -240,6 +241,7 @@ export const CreateWorkspacePageView: React.FC<
 			(option) => option.value === form.values.template_version_preset_id,
 		),
 	);
+
 	// Apply the URL or default preset whenever the presets or the URL preset
 	// change.
 	useEffect(() => {

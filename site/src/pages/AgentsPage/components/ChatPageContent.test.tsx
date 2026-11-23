@@ -147,12 +147,16 @@ const renderUpdatableChatPageInput = (
 		React.SetStateAction<Partial<React.ComponentProps<typeof ChatPageInput>>>
 	> = () => {};
 	const inputRef = { current: null };
+
 	const Harness: React.FC = () => {
 		const [overrides, setState] = useState(initialOverrides);
 		setOverrides = setState;
+
 		return chatPageInput(store, { inputRef, ...overrides });
 	};
+
 	renderWithAuth(<Harness />);
+
 	return {
 		update: (next: Partial<React.ComponentProps<typeof ChatPageInput>>) =>
 			act(() => setOverrides((current) => ({ ...current, ...next }))),
@@ -649,10 +653,12 @@ describe("ChatPageInput", () => {
 				}),
 			);
 			await screen.findByRole("button", { name: "Remove archive.tar" });
+
 			update({
 				editingTarget: { kind: "history", id: 2 },
 				editingFileBlocks: [],
 			});
+
 			await user.click(
 				await screen.findByRole("button", { name: "Save edit" }),
 			);
@@ -866,20 +872,25 @@ describe("ChatPageInput", () => {
 		type OnSendMock = Mock<
 			React.ComponentProps<typeof ChatPageInput>["onSend"]
 		>;
+
 		const editing: EditingTarget = { kind: "history", id: 1 };
+
 		const mockBoundChat = {
 			...MockChat,
 			id: "",
 			organization_id: "",
 			workspace_id: "ws-1",
 		};
+
 		const editingFileBlocks = [
 			workspaceFileReference("first.csv", "ws-1"),
 			workspaceFileReference("second.csv", "ws-1"),
 			workspaceFileReference("rebound.csv", "ws-2"),
 		];
+
 		const sentFileNames = (onSend: OnSendMock, call: number) =>
 			onSend.mock.calls[call][0].workspaceUploads?.map((upload) => upload.name);
+
 		const renderEdit = (onSend: OnSendMock) =>
 			renderUpdatableChatPageInput(createChatStore(), {
 				chat: mockBoundChat,
@@ -888,6 +899,7 @@ describe("ChatPageInput", () => {
 				initialValue: "edited",
 				editingFileBlocks,
 			});
+
 		const saveEdit = async (
 			user: ReturnType<typeof userEvent.setup>,
 			onSend: OnSendMock,
@@ -909,9 +921,11 @@ describe("ChatPageInput", () => {
 			const { update } = renderEdit(onSend);
 
 			await saveEdit(user, onSend, 1);
+
 			update({ editingTarget: null, isSendPending: true });
 			update({ chat: { ...mockBoundChat, workspace_id: "ws-2" } });
 			update({ chat: mockBoundChat });
+
 			await act(async () => firstSend.reject(new Error("Edit failed.")));
 			update({ editingTarget: editing, isSendPending: false });
 			await saveEdit(user, onSend, 2);
@@ -963,8 +977,10 @@ describe("ChatPageInput", () => {
 			await user.click(
 				await screen.findByRole("button", { name: "Remove first.csv" }),
 			);
+
 			update({ editingTarget: null });
 			update({ editingTarget: editing });
+
 			await saveEdit(user, onSend, 1);
 
 			expect(sentFileNames(onSend, 0)).toEqual(["first.csv", "second.csv"]);
