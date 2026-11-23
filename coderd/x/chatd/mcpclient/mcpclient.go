@@ -1791,9 +1791,10 @@ func refreshClaimedUserToken(
 			UpdatedAt:                 tok.UpdatedAt,
 			OauthRefreshFailureReason: RefreshFailureReason(err),
 		})
-	case !result.Refreshed:
-		return tok, nil
 	default:
+		// Persist every successful response, even one that repeats the
+		// access token: the refresh token or expiry may have changed, and
+		// the write ends the claim.
 		logger.Info(ctx, "refreshed MCP oauth2 token")
 		var expiry sql.NullTime
 		if !result.Expiry.IsZero() {
@@ -1821,10 +1822,14 @@ func refreshClaimedUserToken(
 	return out, nil
 }
 
-// currentUserToken re-reads tok, returning it without credentials when
-// the row is gone.
+// currentUserToken re-reads the owner's token for tok's server, which a
+// reconnect may have replaced with a new row, and returns tok without
+// credentials when there is none.
 func currentUserToken(ctx context.Context, store database.Store, tok database.MCPServerUserToken) (database.MCPServerUserToken, error) {
-	row, err := store.GetMCPServerUserTokenByID(ctx, tok.ID)
+	row, err := store.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: tok.MCPServerConfigID,
+		UserID:            tok.UserID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		tok.AccessToken, tok.RefreshToken, tok.Expiry = "", "", sql.NullTime{}
 		return tok, nil

@@ -314,6 +314,8 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		{name: "RevokedGrant", refresh: "revoked", wantFailure: true, lateCaller: true},
 		{name: "ProviderDown", refresh: "down", wantAccess: "expired-access"},
 		{name: "Disconnected", refresh: "disconnect", wantGrants: 1, lateCaller: true},
+		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1, lateCaller: true},
+		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1, lateCaller: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -346,11 +348,19 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 					_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 				default:
-					if refresh == "disconnect" {
+					if refresh == "disconnect" || refresh == "reconnect" {
 						assert.NoError(t, store.DeleteMCPServerUserToken(ctx, database.DeleteMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: user.ID}))
 					}
+					if refresh == "reconnect" {
+						_, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: user.ID, AccessToken: "reconnected-access", TokenType: "Bearer"})
+						assert.NoError(t, err)
+					}
 					n := grants.Add(1)
-					_, _ = fmt.Fprintf(w, `{"access_token":"access-%d","refresh_token":"refresh-%d","token_type":"Bearer","expires_in":3600}`, n, n)
+					access := fmt.Sprintf("access-%d", n)
+					if refresh == "same-access" {
+						access = "expired-access"
+					}
+					_, _ = fmt.Fprintf(w, `{"access_token":%q,"refresh_token":"refresh-%d","token_type":"Bearer","expires_in":3600}`, access, n)
 				}
 			}))
 			t.Cleanup(provider.Close)
