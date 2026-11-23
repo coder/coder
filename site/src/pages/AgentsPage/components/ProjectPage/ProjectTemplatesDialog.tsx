@@ -22,7 +22,7 @@ import {
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import {
 	savedTemplates,
-	serializeValues,
+	serializeTemplates,
 	templatesChange,
 } from "./projectTemplatesDraft";
 
@@ -105,15 +105,21 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	if (isSaveSent && shownError) {
 		setIsSaveSent(false);
 	}
-	const isDraftUntouched =
-		serializeValues(value) === serializeValues(initialValue);
 	const templatesQuery = useQuery(agentTemplates(project.organization_id));
 	const eligibleTemplates = templatesQuery.data;
 	const request =
 		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
+	const baseRequest =
+		eligibleTemplates &&
+		chatProjectTemplatesRequest(initialValue, eligibleTemplates);
+	// A request leaves out templates that are no longer eligible, so a draft
+	// that only selects one of those has nothing to save.
+	const hasChanges =
+		request !== undefined &&
+		baseRequest !== undefined &&
+		serializeTemplates(request) !== serializeTemplates(baseRequest);
 	const isBusy = isSaving || templatesQuery.isFetching;
-	const canSave =
-		request !== undefined && !isDraftUntouched && !isSaveSent && !isSaving;
+	const canSave = hasChanges && !isSaveSent && !isSaving;
 	useEffect(() => {
 		const pending = pendingFocusRef.current;
 		// Wait for the outcome: a save either closes the dialog or fails.

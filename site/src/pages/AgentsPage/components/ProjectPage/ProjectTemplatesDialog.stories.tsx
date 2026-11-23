@@ -137,6 +137,15 @@ export const Loading: Story = {
 	},
 };
 
+export const TemplatesLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
+};
+
 export const DefaultPreset: Story = {
 	args: { project: mockProjectWithDefaultPreset },
 	parameters: {
