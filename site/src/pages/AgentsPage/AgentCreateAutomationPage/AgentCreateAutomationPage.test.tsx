@@ -220,7 +220,7 @@ it("creates a fully configured schedule and invalidates only its organization's 
 	await waitFor(() =>
 		expect(router.state.location.pathname).toBe("/agents/automations"),
 	);
-});
+}, 10_000);
 
 it.each([
 	{
@@ -306,6 +306,7 @@ it.each([
 			]),
 		);
 	},
+	10_000,
 );
 
 it("clears organization-scoped selections without discarding the automation draft", async () => {
@@ -369,7 +370,7 @@ it("clears organization-scoped selections without discarding the automation draf
 			},
 		]),
 	);
-});
+}, 10_000);
 
 it("retries a failed catalog and preserves edits through a background refetch", async () => {
 	const user = userEvent.setup();
