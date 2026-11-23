@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ func TestMiddleware_StreamingResponse(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{}`)))
@@ -103,7 +104,7 @@ func TestMiddleware_PreservesResponseBody(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{}`)))

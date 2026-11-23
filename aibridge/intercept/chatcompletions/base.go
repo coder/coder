@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +47,9 @@ type interceptionBase struct {
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
+
+	// dumpSeq numbers the API dump files of each upstream call.
+	dumpSeq atomic.Int64
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -91,7 +95,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, &i.dumpSeq, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 

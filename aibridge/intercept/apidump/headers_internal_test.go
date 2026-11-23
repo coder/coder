@@ -47,7 +47,7 @@ func TestWriteRedactedHeaders(t *testing.T) {
 	t.Parallel()
 
 	d := &Dumper{
-		dumpPath: interceptDumpPath("/tmp", "test", "test", uuid.New(), quartz.NewMock(t)),
+		dumpPath: interceptDumpPath("/tmp", "test", "test", uuid.New(), 1, quartz.NewMock(t)),
 		logger:   slog.Make(),
 	}
 
