@@ -92,12 +92,14 @@ const TemplateVersionEditorPage: React.FC = () => {
 	const {
 		fileTree,
 		setFileTree,
+		hasUnsavedChanges,
+		markFileTreeSaved,
 		tarFile,
 		error: fileError,
 	} = useFileTree(activeTemplateVersion);
 	const {
 		missingVariables,
-		setIsMissingVariablesDialogOpen,
+		closeMissingVariablesDialog,
 		isMissingVariablesDialogOpen,
 	} = useMissingVariables(activeTemplateVersion);
 
@@ -180,6 +182,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 					template={templateQuery.data}
 					templateVersion={activeTemplateVersion}
 					fileTree={fileTree}
+					hasUnsavedChanges={hasUnsavedChanges}
 					onFileTreeChange={(updater) => {
 						setFileTree((current) => (current ? updater(current) : current));
 					}}
@@ -201,6 +204,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 							file_id: serverFile.hash,
 						});
 
+						markFileTreeSaved(newFileTree);
 						onBuildEnds(newVersion);
 					}}
 					onPublish={() => {
@@ -274,11 +278,9 @@ const TemplateVersionEditorPage: React.FC = () => {
 							user_variable_values: values,
 						});
 						onBuildEnds(newVersion);
-						setIsMissingVariablesDialogOpen(false);
+						closeMissingVariablesDialog();
 					}}
-					onCancelSubmitMissingVariableValues={() => {
-						setIsMissingVariablesDialogOpen(false);
-					}}
+					onCancelSubmitMissingVariableValues={closeMissingVariablesDialog}
 					provisionerTags={provisionerTags}
 					onUpdateProvisionerTags={(tags) => {
 						setProvisionerTags(tags);
@@ -295,6 +297,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		enabled: templateVersion !== undefined,
 	});
 	const [fileTree, setFileTree] = useState<FileTree | undefined>(undefined);
+	// The files of the active version, as loaded or as last submitted.
+	const [savedFileTree, setSavedFileTree] = useState<FileTree>();
 	const [tarFile, setTarFile] = useState<TarReader | undefined>(undefined);
 
 	useEffect(() => {
@@ -307,7 +311,9 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 				if (stale) {
 					return;
 				}
-				setFileTree(createTemplateVersionFileTree(tarFile));
+				const loaded = createTemplateVersionFileTree(tarFile);
+				setFileTree(loaded);
+				setSavedFileTree(loaded);
 				setTarFile(tarFile);
 			} catch (error) {
 				console.error(error);
@@ -326,7 +332,14 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		};
 	}, [fileQuery.data]);
 
-	return { fileTree, setFileTree, tarFile, error: fileQuery.error };
+	return {
+		fileTree,
+		setFileTree,
+		hasUnsavedChanges: fileTree !== savedFileTree,
+		markFileTreeSaved: setSavedFileTree,
+		tarFile,
+		error: fileQuery.error,
+	};
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
@@ -336,22 +349,14 @@ const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
 		...templateVersionVariables(templateVersion?.id ?? ""),
 		enabled: isRequiringVariables,
 	});
-	const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
-		useState(isRequiringVariables);
-
-	const [prevIsRequiringVariables, setPrevIsRequiringVariables] =
-		useState(isRequiringVariables);
-	if (isRequiringVariables !== prevIsRequiringVariables) {
-		setPrevIsRequiringVariables(isRequiringVariables);
-		if (isRequiringVariables) {
-			setIsMissingVariablesDialogOpen(true);
-		}
-	}
+	const [dismissedVersionId, setDismissedVersionId] = useState<string>();
 
 	return {
 		missingVariables: isRequiringVariables ? variables : undefined,
-		isMissingVariablesDialogOpen,
-		setIsMissingVariablesDialogOpen,
+		isMissingVariablesDialogOpen:
+			isRequiringVariables && dismissedVersionId !== templateVersion?.id,
+		closeMissingVariablesDialog: () =>
+			setDismissedVersionId(templateVersion?.id),
 	};
 };
 

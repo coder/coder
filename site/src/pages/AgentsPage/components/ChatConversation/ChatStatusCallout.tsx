@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
+import { useTime } from "#/hooks/useTime";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
@@ -11,34 +11,19 @@ type RetryOrFailedStatus = Extract<
 type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 
 /**
- * Syncs with the system clock to produce a live countdown from an
- * ISO-8601 deadline. Polls at 100ms so the displayed second flips
- * within 100ms of the real transition. Returns 0 when the deadline is
- * invalid or has passed.
+ * Produces a live countdown from an ISO-8601 deadline. Ticks every 100ms
+ * so the displayed second flips within 100ms of the real transition.
+ * Returns 0 when the deadline is invalid or has passed.
  */
 const useDeadlineCountdown = (deadline: string): number => {
-	const [secondsLeft, setSecondsLeft] = useState(0);
+	const targetMs = new Date(deadline).getTime();
+	const isValid = Number.isFinite(targetMs);
+	const now = useTime(() => Date.now(), { interval: 100, disabled: !isValid });
 
-	useEffect(() => {
-		const targetMs = new Date(deadline).getTime();
-		const isValid = Number.isFinite(targetMs);
-
-		const update = () => {
-			const remaining = isValid ? Math.max(0, targetMs - Date.now()) : 0;
-			setSecondsLeft(Math.ceil(remaining / 1000));
-		};
-
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- Reading the clock during render would be impure, so the countdown can only start here.
-		update();
-		if (!isValid) {
-			return;
-		}
-
-		const interval = setInterval(update, 100);
-		return () => clearInterval(interval);
-	}, [deadline]);
-
-	return secondsLeft;
+	if (!isValid) {
+		return 0;
+	}
+	return Math.ceil(Math.max(0, targetMs - now) / 1000);
 };
 
 /**

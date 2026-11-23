@@ -1,5 +1,4 @@
-import isEqual from "lodash/isEqual";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { watchBuildLogsByBuildId } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -9,40 +8,27 @@ export const useWorkspaceBuildLogs = (
 	buildId: string | undefined,
 	enabled = true,
 ) => {
-	// The logs are tagged with their build so that messages from a socket
-	// that is about to close cannot leak into the next build's logs.
 	const [buildLogs, setBuildLogs] = useState<{
-		buildId: string | undefined;
-		logs: ProvisionerJobLog[] | undefined;
-	}>({ buildId, logs: undefined });
-	const socket = useRef<WebSocket>(undefined);
-
-	// Every new watch starts from empty logs. Disabling keeps the logs.
-	const watch = { buildId, enabled };
-	const [prevWatch, setPrevWatch] = useState(watch);
-	if (!isEqual(watch, prevWatch)) {
-		setPrevWatch(watch);
-		if (buildId && enabled) {
-			setBuildLogs({ buildId, logs: undefined });
-		}
-	}
+		buildId: string;
+		logs: ProvisionerJobLog[];
+	}>();
 
 	useEffect(() => {
 		if (!buildId || !enabled) {
-			socket.current?.close();
 			return;
 		}
 
-		socket.current = watchBuildLogsByBuildId(buildId, {
+		let ignore = false;
+		const logs: ProvisionerJobLog[] = [];
+		const socket = watchBuildLogsByBuildId(buildId, {
 			// Retrieve all the logs
 			after: -1,
 			onMessage: (log) => {
-				setBuildLogs((previous) => {
-					if (previous.buildId !== buildId) {
-						return previous;
-					}
-					return { buildId, logs: [...(previous.logs ?? []), log] };
-				});
+				if (ignore) {
+					return;
+				}
+				logs.push(log);
+				setBuildLogs({ buildId, logs: [...logs] });
 			},
 			onError: () => {
 				toast.error(`Error on getting "${buildId}" build logs.`);
@@ -50,9 +36,14 @@ export const useWorkspaceBuildLogs = (
 		});
 
 		return () => {
-			socket.current?.close();
+			ignore = true;
+			socket.close();
 		};
 	}, [buildId, enabled]);
 
-	return buildLogs.logs;
+	// Disabling keeps the last logs. A new build starts from empty logs.
+	if (!buildId || !enabled || buildLogs?.buildId === buildId) {
+		return buildLogs?.logs;
+	}
+	return undefined;
 };
