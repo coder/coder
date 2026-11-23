@@ -8,7 +8,15 @@ import {
 	useQuery,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	vi,
+} from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import {
@@ -1224,4 +1232,28 @@ describe("AgentsPageLayout project chats", () => {
 			});
 		},
 	);
+
+	it("does not refresh project summaries on a chat_summary_change event", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		const getSummaries = vi
+			.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockResolvedValue([]);
+		const publishChatWatchEvent = mockChatWatchSocket();
+		renderLayout();
+		await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+
+		publishChatWatchEvent({
+			kind: "chat_summary_change",
+			chat: { ...MockChat, project_id: "project-a" },
+		});
+
+		// Past the refresh debounce.
+		await act(() => vi.advanceTimersByTimeAsync(2000));
+		expect(getSummaries).toHaveBeenCalledTimes(1);
+	});
 });
