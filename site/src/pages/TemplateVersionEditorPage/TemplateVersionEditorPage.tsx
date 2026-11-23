@@ -99,7 +99,7 @@ const TemplateVersionEditorPage: React.FC = () => {
 	} = useFileTree(activeTemplateVersion);
 	const {
 		missingVariables,
-		setIsMissingVariablesDialogOpen,
+		closeMissingVariablesDialog,
 		isMissingVariablesDialogOpen,
 	} = useMissingVariables(activeTemplateVersion);
 
@@ -278,11 +278,9 @@ const TemplateVersionEditorPage: React.FC = () => {
 							user_variable_values: values,
 						});
 						onBuildEnds(newVersion);
-						setIsMissingVariablesDialogOpen(false);
+						closeMissingVariablesDialog();
 					}}
-					onCancelSubmitMissingVariableValues={() => {
-						setIsMissingVariablesDialogOpen(false);
-					}}
+					onCancelSubmitMissingVariableValues={closeMissingVariablesDialog}
 					provisionerTags={provisionerTags}
 					onUpdateProvisionerTags={(tags) => {
 						setProvisionerTags(tags);
@@ -351,22 +349,14 @@ const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
 		...templateVersionVariables(templateVersion?.id ?? ""),
 		enabled: isRequiringVariables,
 	});
-	const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
-		useState(isRequiringVariables);
-
-	const [prevIsRequiringVariables, setPrevIsRequiringVariables] =
-		useState(isRequiringVariables);
-	if (isRequiringVariables !== prevIsRequiringVariables) {
-		setPrevIsRequiringVariables(isRequiringVariables);
-		if (isRequiringVariables) {
-			setIsMissingVariablesDialogOpen(true);
-		}
-	}
+	const [dismissedVersionId, setDismissedVersionId] = useState<string>();
 
 	return {
 		missingVariables: isRequiringVariables ? variables : undefined,
-		isMissingVariablesDialogOpen,
-		setIsMissingVariablesDialogOpen,
+		isMissingVariablesDialogOpen:
+			isRequiringVariables && dismissedVersionId !== templateVersion?.id,
+		closeMissingVariablesDialog: () =>
+			setDismissedVersionId(templateVersion?.id),
 	};
 };
 

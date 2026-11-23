@@ -556,6 +556,10 @@ describe.each([
 			const dialogSelector = /template variables/i;
 			if (askForVariables) {
 				await screen.findByText(dialogSelector);
+				await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+				await waitFor(() =>
+					expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument(),
+				);
 			} else {
 				expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
 			}
