@@ -20,6 +20,7 @@ import {
 	MockOrganization2,
 	MockPreviewParameter1,
 	MockSwitchParameter,
+	MockTagSelectParameter,
 	MockTemplate,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -663,6 +664,38 @@ describe("ChatProjectDialog templates", () => {
 		await pickDefaultTemplate(user, "Docker");
 		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
 	};
+
+	it("does not change a tag parameter while the project is being created", async () => {
+		useTemplateHandlers();
+		server.use(
+			http.post(mockEvaluateRoute, () =>
+				HttpResponse.json({
+					id: 0,
+					diagnostics: [],
+					parameters: [MockTagSelectParameter],
+				} satisfies DynamicParametersResponse),
+			),
+		);
+		const user = userEvent.setup();
+		const { props, rerenderWith } = renderDialog();
+
+		await openParameterValues(user);
+		const tags = await screen.findByRole("textbox", {
+			name: MockTagSelectParameter.display_name,
+		});
+		rerenderWith({ isSubmitting: true });
+		await user.type(tags, "late,");
+		rerenderWith({ isSubmitting: false });
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					default_template: { template_id: mockFirstTemplate.id },
+				}),
+			);
+		});
+	});
 
 	const pickInstanceType = async (
 		user: ReturnType<typeof userEvent.setup>,
