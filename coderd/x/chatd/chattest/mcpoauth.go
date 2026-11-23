@@ -2,8 +2,31 @@ package chattest
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"sync"
 )
+
+// The answer mcp.linear.app gave on 2026-11-18 to a request with an
+// invalid bearer token. The chatd MCP client has no OAuth handler, so it
+// never follows resource_metadata.
+const (
+	// RecordedUnauthorizedChallenge is the recorded WWW-Authenticate
+	// header.
+	RecordedUnauthorizedChallenge = `Bearer realm="OAuth", resource_metadata="https://mcp.linear.app/.well-known/oauth-protected-resource/mcp", error="invalid_token", scope="read write"`
+	// RecordedUnauthorizedBody is the recorded JSON body.
+	RecordedUnauthorizedBody = `{"error":"invalid_token","error_description":"Invalid access token"}`
+)
+
+// WriteRecordedUnauthorized answers a request with the recorded 401 and
+// returns the error from writing the body.
+func WriteRecordedUnauthorized(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", RecordedUnauthorizedChallenge)
+	w.WriteHeader(http.StatusUnauthorized)
+	_, err := io.WriteString(w, RecordedUnauthorizedBody)
+	return err
+}
 
 // TokenGrant is one OAuth grant at a fake token endpoint that rotates
 // refresh tokens. Each accepted refresh issues a new token pair,
