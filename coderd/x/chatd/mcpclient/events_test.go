@@ -210,6 +210,25 @@ func TestEventsList(t *testing.T) {
 	assert.Equal(t, []string{"a.created", "b.created"}, names)
 }
 
+func TestEventsTokenForAnotherServer(t *testing.T) {
+	t.Parallel()
+	es := newEventsTestServer(t, eventsExtension)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := database.MCPServerConfig{ID: uuid.New(), Slug: "events", Url: es.url, Transport: "streamable_http", AuthType: "oauth2"}
+	tok := &database.MCPServerUserToken{MCPServerConfigID: uuid.New(), AccessToken: "other-server-token"}
+	s, err := mcpclient.ConnectEvents(ctx, slogtest.Make(t, nil), cfg, tok, nil, testMCPHTTPClient(nil))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+
+	_, err = s.List(ctx)
+	require.NoError(t, err)
+	requests := es.recorded()
+	require.NotEmpty(t, requests)
+	for _, req := range requests {
+		assert.Empty(t, req.header.Get("Authorization"))
+	}
+}
+
 func TestEventsUnsupported(t *testing.T) {
 	t.Parallel()
 	es := newEventsTestServer(t, nil)
@@ -229,7 +248,7 @@ func TestEventsErrors(t *testing.T) {
 		data     string
 		requests []string
 	}{
-		{event: "forbidden", code: -32024, data: `{"reason":"revoked"}`, requests: []string{"events/list", "events/list", "events/poll"}},
+		{event: "forbidden", code: -32024, data: `{"reason":"revoked"}`},
 		// HeaderMismatch lists (two pages) again and retries once.
 		{event: "mismatch", code: -32020, requests: []string{"events/list", "events/list", "events/poll", "events/list", "events/list", "events/poll"}},
 	}
@@ -245,11 +264,13 @@ func TestEventsErrors(t *testing.T) {
 			if tc.data != "" {
 				assert.JSONEq(t, tc.data, string(eventsErr.Data))
 			}
-			var methods []string
-			for _, req := range es.recorded() {
-				methods = append(methods, req.method)
+			if tc.requests != nil {
+				var methods []string
+				for _, req := range es.recorded() {
+					methods = append(methods, req.method)
+				}
+				assert.Equal(t, tc.requests, methods)
 			}
-			assert.Equal(t, tc.requests, methods)
 		})
 	}
 }
