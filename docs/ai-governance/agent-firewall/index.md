@@ -123,6 +123,9 @@ module "agent-firewall" {
 
 For detailed information about the rules engine and how to construct allowlist rules, see the [rules engine documentation](./rules-engine.md).
 
+> [!TIP]
+> For worked examples, refer to [Common policy patterns](./rules-engine.md#common-policy-patterns) in the rules engine documentation.
+
 You can also run Agent Firewall directly in your workspace and configure it per template.
 You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up.
 You can do so with the following command:

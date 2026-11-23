@@ -107,3 +107,68 @@ allowlist:
 
 `NOTE`: The pattern `/api/*` does not include the base path `/api`.
 To match both, use `path=/api,/api/*`.
+
+---
+
+## Common policy patterns
+
+The following examples show `allowlist` rules for common scenarios.
+Each block contains only the `allowlist` key, so merge it into your `config.yaml` with the other settings you use.
+For a broad multi-language policy, refer to the [example policy](./example-policy.md).
+
+### Read-only access to a code host
+
+```yaml
+allowlist:
+  # Read-only access to the GitHub REST API.
+  - method=GET,HEAD domain=api.github.com
+  # Read-only Git over HTTPS on github.com, with or without the .git suffix.
+  - method=GET domain=github.com path=/*/*/info/refs
+  - method=POST domain=github.com path=/*/*/git-upload-pack
+```
+
+The first rule allows `GET` and `HEAD` requests to `api.github.com`, such as `GET https://api.github.com/repos/coder/coder`, and denies `POST`, `PATCH`, `PUT`, and `DELETE` to that host.
+The other two rules allow the requests that a clone or fetch sends to `github.com`, and no other requests on that host.
+Web pages such as `https://github.com/coder/coder` are denied because they match neither path pattern.
+A push starts with a `GET` to `info/refs`, which this policy allows, but the `POST` to `git-receive-pack` that sends the changes is denied, so the push fails.
+
+### Path-scoped internal API
+
+```yaml
+allowlist:
+  # Read and write the results collection and the items beneath it.
+  - method=GET,POST domain=internal-api.example.com path=/api/v1/results,/api/v1/results/*
+  # Health check endpoint, read only.
+  - method=GET domain=internal-api.example.com path=/healthz
+```
+
+This policy allows `GET` and `POST` to `/api/v1/results` and to paths beneath it, such as `/api/v1/results/42/logs`.
+It denies `DELETE` on those paths and requests to other paths on the host, such as `/api/v1/users`, except the health check.
+The pattern `/api/v1/results/*` does not match the collection root, so list both patterns.
+A `path` rule without a `domain` matches every host, so always pair `path` with `domain`.
+
+### Base domain and subdomains
+
+```yaml
+allowlist:
+  # The company domain and every subdomain beneath it.
+  - domain=example.com
+  - domain=*.example.com
+```
+
+The rule `domain=example.com` matches only `example.com`, and `domain=*.example.com` matches `build.example.com` and `a.b.example.com` but not `example.com`.
+Neither rule matches `badexample.com` or `example.com.attacker.net`, so listing both rules covers the domain without opening lookalike hosts.
+
+### Locked-down task agent
+
+```yaml
+allowlist:
+  # Model provider API, all methods.
+  - domain=api.anthropic.com
+  # Task service, POST to the run endpoint only.
+  - method=POST domain=tasks.internal.example.com path=/run
+```
+
+This policy allows requests to the model provider and `POST /run` on the task service.
+It denies `GET` requests to the task service, `POST` to other paths such as `/run/abort`, and every other host, including package registries.
+A compromised or misbehaving agent can therefore reach only the model provider and the run endpoint.
