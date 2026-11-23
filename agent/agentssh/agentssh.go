@@ -568,6 +568,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	keepAlive := ctx.KeepAlive()
 	conn, _ := ctx.Value(readErrorConnContextKey{}).(*readErrorConn)
+	interval, countMax, env := extractClientAlive(env, s.srv.ClientAliveInterval)
+	if interval > 0 {
+		keepAlive.SetClientAlive(interval, countMax)
+		logger.Debug(ctx, "client keep-alive set", slog.F("interval", interval), slog.F("count_max", countMax))
+	}
+
 	reportSession := true
 
 	if family == codersdk.AppFamilyJetBrains {

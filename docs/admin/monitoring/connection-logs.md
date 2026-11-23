@@ -28,6 +28,8 @@ To attribute SSH and IDE activity to a user, correlate them with tunnel events f
 An SSH connection whose client goes away without closing it, for example after a crash or power loss, stays **Ongoing** until the agent next sends it data.
 The agent sends a keep-alive every third of `CODER_AGENT_SSH_MAX_TIMEOUT`, which is every 24&nbsp;hours by default.
 Lower it to close these connections sooner, at the cost of dropping sessions on devices that sleep.
+A client can set `CODER_SSH_CLIENT_ALIVE_INTERVAL` (in seconds, raised to 5 if lower) and `CODER_SSH_CLIENT_ALIVE_COUNT_MAX` in its session environment to get keep-alives more often, like OpenSSH's `ClientAliveInterval` and `ClientAliveCountMax`.
+The agent uses them only when both are set and the interval is shorter than its own.
 
 The Coder CLI attaches a client session ID to the SSH and reconnecting pseudo-terminal (PTY) connections it opens.
 Tools that launch the CLI, such as IDE extensions, can reuse one ID across launches to group their connections.
