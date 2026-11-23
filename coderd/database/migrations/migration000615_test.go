@@ -3,7 +3,11 @@ package migrations_test
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +16,26 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// migrationsThrough returns the migration files up to and including version.
+func migrationsThrough(t *testing.T, version int) fstest.MapFS {
+	t.Helper()
+
+	names, err := filepath.Glob("*.sql")
+	require.NoError(t, err)
+	fsys := fstest.MapFS{}
+	for _, name := range names {
+		prefix, _, _ := strings.Cut(name, "_")
+		n, err := strconv.Atoi(prefix)
+		require.NoError(t, err, name)
+		if n <= version {
+			data, err := os.ReadFile(name)
+			require.NoError(t, err)
+			fsys[name] = &fstest.MapFile{Data: data}
+		}
+	}
+	return fsys
+}
 
 // TestMigration000615RemoveChatAutomations upgrades a database that used chat
 // automations through the production migration runner, which applies 000615
@@ -137,7 +161,8 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 			VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)`, uuid.New(), now, []byte(grant.key), grant.key, userID, mixedAppID, grant.scope)
 	}
 
-	require.NoError(t, migrations.Up(sqlDB))
+	// Stop at 616: migration 647 adds chat automations again.
+	require.NoError(t, migrations.Up(sqlDB, migrations.WithFS(migrationsThrough(t, 616))))
 
 	queryStrings := func(query string, args ...any) []string {
 		t.Helper()
