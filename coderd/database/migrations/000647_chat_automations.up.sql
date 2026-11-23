@@ -45,7 +45,7 @@ CREATE TABLE chat_automations (
         CHECK ((last_run_at IS NULL) = (last_run_outcome IS NULL))
 );
 
-COMMENT ON TABLE chat_automations IS 'Saved prompts that a trigger sends to a chat as their owner.';
+COMMENT ON TABLE chat_automations IS 'Saved prompts that Coder sends to a chat as their owner when the automation runs.';
 COMMENT ON COLUMN chat_automations.created_by_chat_id IS 'Chat whose agent created the automation. NULL when a person created it or after that chat is deleted.';
 COMMENT ON COLUMN chat_automations.target_chat_id IS 'Target of an existing_chat automation. NULL after the target chat is deleted.';
 COMMENT ON COLUMN chat_automations.project_id IS 'Project for the chats a new_chat automation creates. NULL when it has none or after the project is deleted.';
@@ -137,7 +137,7 @@ BEGIN
 END;
 $$;
 
--- 000616 removed these values with the earlier automations experiment.
+-- API key scopes for the chat_automation RBAC resource.
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:*';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:create';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:read';

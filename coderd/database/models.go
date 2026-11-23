@@ -5622,7 +5622,7 @@ type Chat struct {
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
-// Saved prompts that a trigger sends to a chat as their owner.
+// Saved prompts that Coder sends to a chat as their owner when the automation runs.
 type ChatAutomation struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`

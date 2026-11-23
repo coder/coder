@@ -2172,7 +2172,7 @@ CREATE TABLE chat_automations (
     CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL))))
 );
 
-COMMENT ON TABLE chat_automations IS 'Saved prompts that a trigger sends to a chat as their owner.';
+COMMENT ON TABLE chat_automations IS 'Saved prompts that Coder sends to a chat as their owner when the automation runs.';
 
 COMMENT ON COLUMN chat_automations.created_by_chat_id IS 'Chat whose agent created the automation. NULL when a person created it or after that chat is deleted.';
 
