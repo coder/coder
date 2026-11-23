@@ -280,49 +280,31 @@ We recommend keeping latency under 10&nbsp;ms between the control plane and data
 
 When determining scaling requirements, take into account the following considerations:
 
-- `2 vCPU x 8 GB RAM x 512 GB storage`: A baseline for database requirements for Coder deployment with less than 1000 users, and low activity level (30% active users).
-  This capacity should be sufficient to support 100 external provisioners.
-- Storage size depends on user activity, workspace builds, log verbosity, overhead on database encryption, and so on.
-- Allocate two additional CPU core to the database instance for every 1000 active users.
+- Size the database by your number of concurrent running workspaces.
+  Each [reference architecture](#node-sizing) lists the database vCPU, memory, and `max_connections` that Coder validated it with.
+- Storage size depends on workspace activity, workspace builds, log verbosity, overhead on database encryption, and so on.
+  A reasonable starting point for storage is 512&nbsp;GB.
 - Enable High Availability mode for database engine for large scale deployments.
 
 #### Recommended instance types by cloud provider
 
 For production deployments, we recommend using dedicated compute instances rather than burstable instances (like AWS t-family) which provide inconsistent CPU performance.
-Below are recommended instance types for each major cloud provider:
+Choose an instance with at least the database vCPU and memory that your reference architecture lists, from the following instance families.
 
 ##### AWS (RDS/Aurora PostgreSQL)
 
-- **Small deployments (<1000 users)**:
-  `db.m6i.large` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `db.r6i.large` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**:
-  `db.m6i.xlarge` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `db.r6i.xlarge` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**:
-  `db.m6i.2xlarge` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `db.r6i.2xlarge` (8&nbsp;vCPU, 64&nbsp;GB RAM)
-
-[Comparison](https://instances.vantage.sh/rds?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=db.r6i.large%7Cdb.m6i.large%7Cdb.m6i.xlarge%7Cdb.r6i.xlarge%7Cdb.r6i.2xlarge%7Cdb.m6i.2xlarge&region=us-east-1&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.noUpfront&compare_on=true)
+Use `db.m6i` instances for general purpose workloads, or `db.r6i` instances for more memory per vCPU.
 
 ##### Azure (Azure Database for PostgreSQL)
 
-- **Small deployments (<1000 users)**:
-  `Standard_D2s_v5` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `Standard_E2s_v5` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**:
-  `Standard_D4s_v5` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `Standard_E4s_v5` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**:
-  `Standard_D8s_v5` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `Standard_E8s_v5` (8&nbsp;vCPU, 64&nbsp;GB RAM)
-
-[Comparison](https://instances.vantage.sh/azure?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=d2s-v5%7Ce2s-v5%7Cd4s-v5%7Ce4s-v5%7Ce8s-v5%7Cd8s-v5&region=us-east&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.allUpfront&compare_on=true)
+Use Dsv5-series instances, such as `Standard_D8s_v5`, for general purpose workloads, or Esv5-series instances, such as `Standard_E8s_v5`, for more memory per vCPU.
 
 ##### Google Cloud (Cloud SQL for PostgreSQL)
 
-- **Small deployments (<1000 users)**:
-  `db-perf-optimized-N-2` (2&nbsp;vCPU, 16&nbsp;GB RAM)
-- **Medium deployments (1000-2000 users)**:
-  `db-perf-optimized-N-4` (4&nbsp;vCPU, 32&nbsp;GB RAM)
-- **Large deployments (2000+ users)**:
-  `db-perf-optimized-N-8` (8&nbsp;vCPU, 64&nbsp;GB RAM)
-
-[Comparison](https://cloud.google.com/sql/docs/postgres/machine-series-overview#n2)
+Use custom machine types, named `db-custom-<vCPU>-<memory in MB>`, to match the database vCPU and memory that your reference architecture lists.
+Coder's scale tests use custom machine types.
+On Cloud SQL Enterprise Plus, performance-optimized machine types such as `db-perf-optimized-N-8` also work.
+To compare machine series, refer to the [Cloud SQL machine series overview](https://cloud.google.com/sql/docs/postgres/machine-series-overview#n2).
 
 ##### Storage recommendations
 
