@@ -1641,7 +1641,7 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	touch "$@"
 
 coderd/database/migrations/testdata/.gen-golden: $(wildcard coderd/database/migrations/testdata/reporter/*.golden) $(GO_SRC_FILES) $(wildcard coderd/database/migrations/*_test.go)
-	TZ=UTC go test ./coderd/database/migrations -run="TestReporter$$" -update
+	TZ=UTC go test ./coderd/database/migrations -run="^(TestReporter|TestOutcome|TestFinish)$$" -update
 	touch "$@"
 
 # Wait for fixture generation before reading its outputs under make -j.

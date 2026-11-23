@@ -5,3 +5,4 @@
 [info]  database migration required  from_version=1  target_version=2  pending=1
 [info]  applying database migration  version=2  name=step_2  position=1  total=1
 [info]  database migration applied, pending commit  version=2  name=step_2  position=1  total=1  duration_ms=1000
+[info]  committed database migrations  status=success  count=1  from_version=1  final_version=2  transaction_status=committed  total_duration_ms=1000

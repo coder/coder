@@ -176,18 +176,10 @@ func Up(db *sql.DB, opts ...Option) (retErr error) {
 		retErr = srcErr
 	}()
 
+	r.upStart = r.clock.Now()
 	err = m.Up()
 	r.cancel()
-	if err != nil {
-		if errors.Is(err, migrate.ErrNoChange) {
-			// It's OK if no changes happened!
-			return nil
-		}
-
-		return xerrors.Errorf("up: %w", err)
-	}
-
-	return nil
+	return r.finish(err)
 }
 
 // Down runs all down SQL migrations.
