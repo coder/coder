@@ -27,6 +27,15 @@ export const getMCPMenuServers = (
 			: [];
 	});
 
+/** Returns selected, connected servers from the enabled server list. */
+export const getActiveMCPServers = (
+	servers: readonly TypesGen.MCPServerConfig[],
+	selectedIds: readonly string[] | undefined,
+): TypesGen.MCPServerConfig[] =>
+	getMCPMenuServers(servers, selectedIds)
+		.filter(({ isSelected, isDisconnected }) => isSelected && !isDisconnected)
+		.map(({ server }) => server);
+
 /**
  * Counts OAuth2 servers the user has no connected account for, whatever
  * their availability; callers pass only enabled servers.

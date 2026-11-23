@@ -4,15 +4,19 @@ import {
 	ChevronRightIcon,
 	ListFilterIcon,
 	SearchIcon,
+	XIcon,
 } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
+	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
+	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -24,6 +28,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
@@ -45,7 +50,6 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 	isListNavigationKey,
-	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
@@ -83,6 +87,7 @@ const mobileOverlayClassName =
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
+	/** An empty list renders a plain search textbox without a popup. */
 	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
@@ -94,11 +99,10 @@ type FilterComboboxProps = Readonly<{
 }>;
 
 /**
- * Filter input that shows applied filters as chips and opens a cmdk menu. The
- * menu lists categories, which open as pointer flyouts or as keyboard and
- * mobile drill-ins; option rows for categories with `inlineOptions`; and
- * cross-category value suggestions for typed text. State lives in
- * `useFilterCombobox`.
+ * Filter input that renders a plain search textbox when no categories exist.
+ * Otherwise, applied filters are chips and a cmdk menu offers categories
+ * as pointer flyouts or keyboard and mobile drill-ins, inline options, and
+ * cross-category value suggestions. State lives in `useFilterCombobox`.
  */
 export function FilterCombobox({
 	value,
@@ -130,6 +134,7 @@ export function FilterCombobox({
 		valueSuggestions,
 		inlineSections,
 		chipValues,
+		isOptionSelected,
 		highlightRef,
 		scopeState,
 		scopePillCategoryKey,
@@ -289,6 +294,71 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
+	const errorContent = invalid && (
+		<span
+			id={errorId}
+			role="alert"
+			className="text-sm text-content-destructive"
+		>
+			{errorMessage}
+		</span>
+	);
+
+	if (categories.length === 0) {
+		return (
+			<>
+				<InputGroup className={className}>
+					<InputGroupAddon className="h-9.5 self-start px-2">
+						<SearchIcon aria-hidden className="size-icon-sm" />
+					</InputGroupAddon>
+					<InputGroupInput
+						{...passwordManagerIgnoreProps}
+						ref={setInputRef}
+						className="h-9.5 pr-2 text-sm font-medium text-content-primary focus:placeholder:text-transparent"
+						aria-label={placeholder}
+						aria-invalid={invalid || undefined}
+						aria-errormessage={invalid ? errorId : undefined}
+						placeholder={placeholder}
+						value={inputValue}
+						onBlur={actions.dismiss}
+						onKeyDown={actions.onInputKeyDown}
+						onChange={(event) =>
+							actions.onInputValueChange(event.currentTarget.value)
+						}
+					/>
+					{inputValue !== "" && (
+						<InputGroupAddon align="inline-end">
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<InputGroupButton
+										type="button"
+										size="icon"
+										onMouseDown={(event) => event.preventDefault()}
+										onClick={(event) => {
+											const hadFocus =
+												document.activeElement === event.currentTarget;
+											actions.clearAll();
+											if (hadFocus) {
+												actions.focusInput();
+											}
+										}}
+									>
+										<XIcon aria-hidden />
+										<span className="sr-only">Clear search</span>
+									</InputGroupButton>
+								</TooltipTrigger>
+								<TooltipContent align="end" sideOffset={8} alignOffset={-8}>
+									Clear search
+								</TooltipContent>
+							</Tooltip>
+						</InputGroupAddon>
+					)}
+				</InputGroup>
+				{errorContent}
+			</>
+		);
+	}
+
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		categoryPlaceholderCount === 0 &&
@@ -323,7 +393,7 @@ export function FilterCombobox({
 				unfilteredOptionCount={
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
 				}
-				selectedTokens={chipValues}
+				isOptionSelected={isOptionSelected}
 				optionTokenFor={(option) => optionTokenFor(activeCategoryKey, option)}
 				scope={scopeState(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
@@ -597,7 +667,7 @@ export function FilterCombobox({
 											key={flyoutOptions.category.key}
 											offset={panelOffset}
 											flyout={flyoutOptions}
-											selectedTokens={chipValues}
+											isOptionSelected={isOptionSelected}
 											optionTokenFor={(option) =>
 												optionTokenFor(flyoutOptions.category.key, option)
 											}
@@ -612,15 +682,7 @@ export function FilterCombobox({
 					)}
 				</FilterComboboxContent>
 			</FilterComboboxRoot>
-			{invalid && (
-				<span
-					id={errorId}
-					role="alert"
-					className="text-sm text-content-destructive"
-				>
-					{errorMessage}
-				</span>
-			)}
+			{errorContent}
 		</>
 	);
 }
@@ -817,9 +879,9 @@ function MainPanel({
 			))}
 			{listedCategories.map((category) => (
 				<FilterComboboxItem
+					key={category.key}
 					ref={(element) => registerCategoryRow(category.key, element)}
 					className={OPTION_ITEM_CLASS}
-					key={category.key}
 					value={category.key}
 					onMouseEnter={() => onOpenFlyout(category.key)}
 					onSelect={() => {
@@ -882,6 +944,7 @@ function MainPanel({
 								)}
 								key={token}
 								value={token}
+								aria-selected={selected}
 								onSelect={() => onToggleInlineOption(token)}
 							>
 								<OptionRowContent
@@ -906,6 +969,7 @@ function MainPanel({
 								)}
 								key={suggestion.token}
 								value={suggestion.token}
+								aria-selected={suggestion.selected}
 								onSelect={() => onSelectSuggestion(suggestion.token)}
 							>
 								<OptionRowContent
@@ -945,6 +1009,7 @@ function FlyoutSearch({
 				className="mr-2 size-icon-sm shrink-0 opacity-50"
 			/>
 			<input
+				{...passwordManagerIgnoreProps}
 				aria-label={`Search ${label}`}
 				className="h-10 w-full bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
 				placeholder={`Search ${label.toLowerCase()}…`}
@@ -1125,7 +1190,7 @@ const useFlyoutOptions = (
 	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
-			categoryKey ?? "",
+			category?.optionsKey ?? "",
 			category?.getOptions,
 			debouncedQuery,
 			category !== undefined && debouncedQuery.length > 0,
@@ -1173,7 +1238,7 @@ const useFlyoutOptions = (
 type FlyoutCategoryPanelProps = Readonly<{
 	offset: number;
 	flyout: NonNullable<ReturnType<typeof useFlyoutOptions>>;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1184,7 +1249,7 @@ type FlyoutCategoryPanelProps = Readonly<{
 function FlyoutCategoryPanel({
 	offset,
 	flyout,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1223,7 +1288,7 @@ function FlyoutCategoryPanel({
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
 					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
+					const selected = isOptionSelected(option, token);
 					return (
 						<button
 							className={cn(
@@ -1232,6 +1297,7 @@ function FlyoutCategoryPanel({
 							)}
 							key={token}
 							type="button"
+							aria-pressed={selected}
 							// Keep focus in the combobox input so keyboard navigation continues.
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
@@ -1260,7 +1326,7 @@ type CategoryOptionsListProps = Readonly<{
 	emptyMessage: string | undefined;
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1279,7 +1345,7 @@ function CategoryOptionsList({
 	optionsError,
 	emptyMessage,
 	unfilteredOptionCount,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1330,7 +1396,7 @@ function CategoryOptionsList({
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
 					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
+					const selected = isOptionSelected(option, token);
 					return (
 						<FilterComboboxItem
 							className={cn(
@@ -1339,6 +1405,7 @@ function CategoryOptionsList({
 							)}
 							key={token}
 							value={token}
+							aria-selected={selected}
 							onSelect={() => onSelectOption(token)}
 						>
 							<OptionRowContent

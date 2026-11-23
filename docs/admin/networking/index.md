@@ -41,7 +41,8 @@ In order for clients to be able to establish direct connections:
   See [Session Traversal Utilities for Network Address Translation (STUN) and NAT](./stun.md) for more details on how this process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN.
-    This involves sending UDP packets outbound on `udp/3478` to the configured [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
+    This involves sending UDP packets outbound to the port of each configured [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
+    The default servers are Google's, which listen on `udp/19302`.
     If either the agent or the client are unable to send and receive User Datagram Protocol (UDP) packets to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on ephemeral (high) ports.
     If a firewall between the client and the agent blocks this UDP traffic, direct connections will not be possible.
@@ -67,7 +68,6 @@ This is useful when debugging connectivity issues between the workspace agent an
 ## Web Apps
 
 The control plane relays dashboard-initiated connections between the user and the workspace.
-Web terminal <-> workspace connections are an exception and can be direct.
 
 In general, [port forwarded](./port-forwarding.md) web apps are faster than dashboard-accessed web apps.
 
@@ -158,6 +158,27 @@ Some Coder deployments require that all access is through the browser to comply 
 In these cases, pass the `--browser-only` flag to `coder server` or set `CODER_BROWSER_ONLY=true`.
 
 With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../../workspaces/workspace-access/web-ides.md).
+
+### Scope browser-only connections to a template
+
+When only some workspaces handle data that requires it, enable browser-only on those templates instead of the whole deployment.
+Set `browser_only` on the template with [`PATCH /api/v2/templates/{template}`](../../reference/api/templates.md#update-template-settings-by-id).
+Coder then refuses SSH, port forwarding and desktop IDE connections to workspaces built from that template, and leaves the other templates in the deployment alone.
+Coder Desktop does not list workspaces built from a browser-only template.
+
+Coder checks the setting when a connection starts.
+Connections that were open before you turned it on stay open until they close.
+
+Coder Desktop users keep access for longer.
+Coder Desktop keeps its tunnel to every workspace it already lists, and SSH and desktop IDE sessions on that machine use the tunnel.
+New sessions through Coder Desktop still reach the workspace until the workspace is stopped or restarted, or until Coder Desktop reconnects.
+
+To end open connections and Coder Desktop access right away, stop or restart the workspaces built from the template.
+
+After you turn it off, Coder Desktop lists the workspace again on the next update to that user's workspaces, such as a workspace start or stop.
+
+The deployment-wide setting still applies on top.
+While `CODER_BROWSER_ONLY` is set, every template refuses those connections regardless of its own setting.
 
 ### Workspace Proxies
 

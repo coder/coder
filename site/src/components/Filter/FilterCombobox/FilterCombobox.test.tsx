@@ -18,6 +18,7 @@ import {
 
 const ownerCategory: FilterCategory = {
 	key: "owner",
+	optionsKey: "owner",
 	label: "Owner",
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
@@ -53,6 +54,7 @@ const OWNER_NAMES = Array.from(
 // search, like a user beyond the first page of results.
 const manyOwnersCategory: FilterCategory = {
 	key: "owner",
+	optionsKey: "owner",
 	label: "Owner",
 	getOptions: async (query) =>
 		[...OWNER_NAMES, ...(query ? ["zed"] : [])]
@@ -62,6 +64,7 @@ const manyOwnersCategory: FilterCategory = {
 
 const statusCategory: FilterCategory = {
 	key: "status",
+	optionsKey: "status",
 	label: "Status",
 	inlineOptions: true,
 	getOptions: async (query) =>
@@ -72,6 +75,7 @@ const statusCategory: FilterCategory = {
 
 const emptyTemplateCategory: FilterCategory = {
 	key: "template",
+	optionsKey: "template",
 	label: "Template",
 	getOptions: async () => [],
 };
@@ -97,6 +101,7 @@ const flushTimers = () => act(() => vi.advanceTimersByTimeAsync(0));
 
 const attributesCategory: FilterCategory = {
 	key: "attribute",
+	optionsKey: "attribute",
 	label: "Attributes",
 	chipKeys: ["outdated", "dormant"],
 	inlineOptions: true,
@@ -185,9 +190,11 @@ describe("FilterCombobox", () => {
 	const expectStatus = (text: string) =>
 		waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
 
+	// cmdk marks the highlighted row with `data-selected`; `aria-selected`
+	// reports whether a row's value is applied.
 	const expectHighlighted = (name: string) =>
 		expect(screen.getByRole("option", { name })).toHaveAttribute(
-			"aria-selected",
+			"data-selected",
 			"true",
 		);
 
@@ -209,11 +216,17 @@ describe("FilterCombobox", () => {
 				categories={[
 					{
 						key: "template",
+						optionsKey: "template",
 						label: "Template",
 						hideWhenSingleOption: true,
 						getOptions: hideable,
 					},
-					{ key: "owner", label: "Owner", getOptions: other },
+					{
+						key: "owner",
+						optionsKey: "owner",
+						label: "Owner",
+						getOptions: other,
+					},
 				]}
 				initialValue=""
 				onChange={vi.fn()}
@@ -227,6 +240,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -259,6 +273,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -293,6 +308,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -326,6 +342,7 @@ describe("FilterCombobox", () => {
 		const templates = heldSearch(
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [],
@@ -357,6 +374,7 @@ describe("FilterCombobox", () => {
 		const { user, filtersButton } = setup([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => {
@@ -385,6 +403,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => {
@@ -427,6 +446,7 @@ describe("FilterCombobox", () => {
 			[
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions,
@@ -480,6 +500,7 @@ describe("FilterCombobox", () => {
 			[
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: (query) => {
@@ -723,9 +744,34 @@ describe("FilterCombobox", () => {
 		});
 
 		await user.click(filtersButton);
-		await user.click(await screen.findByRole("option", { name: "Running" }));
+		await user.click(
+			await screen.findByRole("option", { name: "Running", selected: true }),
+		);
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+	});
+
+	it("keeps a just-added chip when removing another before the parent applies it", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		// A fixed value stands in for a parent that has not applied onChange yet.
+		render(
+			<FilterCombobox
+				value="status:running"
+				onChange={onChange}
+				categories={[statusCategory, attributesCategory]}
+				placeholder="Search and filter"
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(await screen.findByRole("option", { name: "Outdated" }));
+		expect(onChange).toHaveBeenLastCalledWith("status:running outdated:true");
+		await user.click(
+			screen.getByRole("button", { name: "Remove status:running" }),
+		);
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
 	});
 
 	it("keeps the main menu usable and focused after selecting a flyout option", async () => {
@@ -976,6 +1022,7 @@ describe("FilterCombobox", () => {
 	it("holds back typed text once one category's search matches while another is pending", async () => {
 		const templateCategory: FilterCategory = {
 			key: "template",
+			optionsKey: "template",
 			label: "Template",
 			getOptions: async (query) =>
 				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
@@ -1037,6 +1084,20 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice zzz"),
 		);
+	});
+
+	it("reports applied values in the flyout and in suggestions", async () => {
+		const { user, input, filtersButton } = setup([ownerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await screen.findByRole("button", { name: "alice", pressed: true });
+
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice", selected: true });
 	});
 
 	it("keeps the applied search when a typed drill-in value is committed", async () => {
@@ -1406,7 +1467,7 @@ describe("FilterCombobox", () => {
 		await user.type(input, "ali");
 		const option = await screen.findByRole("option", { name: "alice" });
 		await waitFor(() =>
-			expect(option).toHaveAttribute("aria-selected", "false"),
+			expect(option).toHaveAttribute("data-selected", "false"),
 		);
 		await user.keyboard("{Enter}");
 
@@ -1474,6 +1535,7 @@ describe("FilterCombobox", () => {
 				[
 					{
 						key: "owner",
+						optionsKey: "owner",
 						label: "Owner",
 						getOptions: async (query) =>
 							query === ""
@@ -1804,6 +1866,7 @@ describe("FilterCombobox", () => {
 				{
 					...manyOwnersCategory,
 					key: "user",
+					optionsKey: "user",
 					label: "User",
 					getOptions: getUserOptions,
 				},
@@ -1959,6 +2022,7 @@ describe("FilterCombobox", () => {
 		const { user, onChange, input } = setup([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: async () => [{ label: "Docker", value: "docker" }],
@@ -1966,6 +2030,7 @@ describe("FilterCombobox", () => {
 			{
 				...manyOwnersCategory,
 				key: "owner",
+				optionsKey: "owner",
 				getOptions: async () => [
 					{ label: "alice", value: "alice" },
 					{ label: "bob", value: "bob" },
@@ -2024,6 +2089,7 @@ describe("FilterCombobox", () => {
 				{ ...ownerCategory, getOptions: neverResolves },
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => {
@@ -2173,6 +2239,7 @@ describe("FilterCombobox", () => {
 		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus([
 			{
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				hideWhenSingleOption: true,
 				getOptions: neverResolves,
@@ -2465,7 +2532,7 @@ describe("FilterCombobox", () => {
 			const alice = await screen.findByRole("option", { name: "alice" });
 			await harness.user.hover(alice);
 			await harness.user.unhover(alice);
-			expect(alice).toHaveAttribute("aria-selected", "false");
+			expect(alice).toHaveAttribute("data-selected", "false");
 			await harness.user.keyboard("{Enter}");
 
 			await waitFor(() =>
@@ -2752,6 +2819,7 @@ describe("FilterCombobox", () => {
 		describe("typing the scope phrase", () => {
 			const templateCategory: FilterCategory = {
 				key: "template",
+				optionsKey: "template",
 				label: "Template",
 				getOptions: async () => [{ label: "Docker", value: "docker" }],
 			};
@@ -2882,7 +2950,7 @@ describe("FilterCombobox", () => {
 
 				expect(
 					await screen.findByRole("option", { name: /sharon/ }),
-				).toHaveAttribute("aria-selected", "true");
+				).toHaveAttribute("data-selected", "true");
 				expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 			});
 
@@ -3033,6 +3101,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3061,6 +3130,7 @@ describe("FilterCombobox", () => {
 				ownerCategory,
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
 					getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3096,6 +3166,7 @@ describe("FilterCombobox", () => {
 					ownerCategory,
 					{
 						key: "template",
+						optionsKey: "template",
 						label: "Template",
 						hideWhenSingleOption: true,
 						getOptions: async () => [{ label: "docker", value: "docker" }],
@@ -3146,6 +3217,7 @@ describe("FilterCombobox", () => {
 								ownerCategory,
 								{
 									key: "template",
+									optionsKey: "template",
 									label: "Template",
 									hideWhenSingleOption: true,
 									getOptions: async () => [

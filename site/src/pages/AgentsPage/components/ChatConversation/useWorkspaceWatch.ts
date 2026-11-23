@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "react-query";
 import { watchWorkspace } from "#/api/api";
 import { invalidateChatEntity } from "#/api/queries/chats";
+import { workspaceBuildByIdKey } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -25,6 +26,16 @@ export function useWorkspaceWatch({
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
 		(watchedWorkspaceId: string, next: TypesGen.Workspace) => {
+			const previousBuild = queryClient.getQueryData<TypesGen.Workspace>(
+				workspaceByIdKey(watchedWorkspaceId),
+			)?.latest_build;
+			if (previousBuild && previousBuild.id !== next.latest_build.id) {
+				// Open tool calls still need the previous build after the workspace advances.
+				queryClient.setQueryData(
+					workspaceBuildByIdKey(previousBuild.id),
+					previousBuild,
+				);
+			}
 			queryClient.setQueryData<TypesGen.Workspace | undefined>(
 				workspaceByIdKey(watchedWorkspaceId),
 				(prev) => {

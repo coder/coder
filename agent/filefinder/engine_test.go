@@ -176,8 +176,9 @@ func TestEngine_AddRootIdempotent(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir))
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	snapLen := filefinder.EngineSnapLen(eng)
-	require.Equal(t, 1, snapLen, "expected exactly one root after duplicate add")
+	results, err := eng.Search(ctx, "file", filefinder.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Len(t, results, 1, "expected exactly one root after duplicate add")
 }
 
 func TestEngine_RemoveRoot(t *testing.T) {

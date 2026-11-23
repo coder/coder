@@ -398,9 +398,9 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- Favorited workspaces should show up first only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_id = @requester_id THEN 0 ELSE 1 END ASC,
 		-- Workspaces you own should show up first.
-		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = @requester_id THEN 0 ELSE 1 END ASC,
 		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
@@ -1090,6 +1090,11 @@ WHERE
 	-- Filter by owner_id
 	workspaces.owner_id = @owner_id :: uuid
 	AND workspaces.deleted = false
+	-- Browser-only workspaces refuse tailnet tunnels, so clients should not be told to dial them.
+	AND NOT EXISTS (
+		SELECT 1 FROM templates
+		WHERE templates.id = workspaces.template_id AND templates.browser_only
+	)
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;

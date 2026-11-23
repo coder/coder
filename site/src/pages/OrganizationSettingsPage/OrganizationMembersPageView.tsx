@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import type { useFilter } from "#/components/Filter/Filter";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
+import { MembersFilter } from "#/components/Filter/MembersFilter";
 import { MultiUserSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
@@ -59,7 +59,7 @@ export const OrganizationMembersPageView: React.FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				<UsersFilter {...filterProps} />
+				<MembersFilter {...filterProps} error={error} />
 				{!canViewMembers && (
 					<div className="flex text-content-warning gap-2 items-center text-sm">
 						<TriangleAlertIcon className="size-icon-sm" />

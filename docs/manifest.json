@@ -82,9 +82,21 @@
 							]
 						},
 						{
-							"title": "Migrate from Ona (formerly Gitpod)",
-							"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
-							"path": "./install/plan/migrate-from-ona.md"
+							"title": "Migrate to Coder",
+							"description": "Move developer environments from another platform to a self-hosted Coder deployment.",
+							"path": "./install/plan/migrate.md",
+							"children": [
+								{
+									"title": "Migrate from Ona (formerly Gitpod)",
+									"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
+									"path": "./install/plan/migrate/ona.md"
+								},
+								{
+									"title": "Migrate from Microsoft Dev Box",
+									"description": "Move Microsoft Dev Box dev centers, projects, and pools to Coder templates, with Windows workspaces on Azure.",
+									"path": "./install/plan/migrate/dev-box.md"
+								}
+							]
 						}
 					]
 				},
@@ -131,6 +143,11 @@
 							"path": "./install/server/kubernetes/index.md",
 							"icon_path": "./images/icons/kubernetes.svg",
 							"children": [
+								{
+									"title": "Install Coder on K3s in an air-gapped environment",
+									"description": "Install Coder on a single-node K3s cluster with no internet access, using artifacts staged on a connected workstation.",
+									"path": "./install/server/kubernetes/k3s-air-gapped.md"
+								},
 								{
 									"title": "Deploy Coder on Azure with an Application Gateway",
 									"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
@@ -462,6 +479,11 @@
 							"title": "Docker in workspaces",
 							"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
 							"path": "./templates/extending-templates/docker-in-workspaces.md"
+						},
+						{
+							"title": "Sandbox agents",
+							"description": "Run AI agents in workspaces with fast startup and kernel, network, and secret isolation.",
+							"path": "./templates/extending-templates/sandbox-agents.md"
 						},
 						{
 							"title": "Workspace tags",
@@ -877,60 +899,11 @@
 		},
 		{
 			"title": "AI Governance",
-			"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
+			"description": "Govern AI usage at scale with AI Governance: AI Gateway, Agent Firewall, and reporting.",
 			"path": "./ai-governance/index.md",
 			"icon_path": "./images/icons/ai_intelligence.svg",
 			"state": ["premium"],
 			"children": [
-				{
-					"title": "Agent Firewall",
-					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
-					"path": "./ai-governance/agent-firewall/index.md",
-					"children": [
-						{
-							"title": "NsJail jail type",
-							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
-							"path": "./ai-governance/agent-firewall/nsjail/index.md",
-							"children": [
-								{
-									"title": "NsJail on Docker",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
-									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
-								},
-								{
-									"title": "NsJail on Kubernetes",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
-									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
-								},
-								{
-									"title": "NsJail on ECS",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
-									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
-								}
-							]
-						},
-						{
-							"title": "Landjail jail type",
-							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
-							"path": "./ai-governance/agent-firewall/landjail.md"
-						},
-						{
-							"title": "Rules engine",
-							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
-							"path": "./ai-governance/agent-firewall/rules-engine.md"
-						},
-						{
-							"title": "Example policy",
-							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
-							"path": "./ai-governance/agent-firewall/example-policy.md"
-						},
-						{
-							"title": "Version requirements",
-							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
-							"path": "./ai-governance/agent-firewall/version.md"
-						}
-					]
-				},
 				{
 					"title": "AI Gateway",
 					"description": "Govern and observe AI coding traffic with AI Gateway.",
@@ -1057,6 +1030,11 @@
 							"path": "./ai-governance/ai-gateway/cost-controls.md"
 						},
 						{
+							"title": "Request organization",
+							"description": "How AI Gateway assigns each request to an organization, and how that affects budgets and spend.",
+							"path": "./ai-governance/ai-gateway/request-organization.md"
+						},
+						{
 							"title": "Reference",
 							"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
 							"path": "./ai-governance/ai-gateway/reference.md"
@@ -1065,6 +1043,55 @@
 							"title": "Rebranding migration",
 							"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
 							"path": "./ai-governance/ai-gateway/rebranding-migration.md"
+						}
+					]
+				},
+				{
+					"title": "Agent Firewall",
+					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
+					"path": "./ai-governance/agent-firewall/index.md",
+					"children": [
+						{
+							"title": "NsJail jail type",
+							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
+							"path": "./ai-governance/agent-firewall/nsjail/index.md",
+							"children": [
+								{
+									"title": "NsJail on Docker",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
+									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
+								},
+								{
+									"title": "NsJail on Kubernetes",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
+									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
+								},
+								{
+									"title": "NsJail on ECS",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
+									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
+								}
+							]
+						},
+						{
+							"title": "Landjail jail type",
+							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
+							"path": "./ai-governance/agent-firewall/landjail.md"
+						},
+						{
+							"title": "Rules engine",
+							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
+							"path": "./ai-governance/agent-firewall/rules-engine.md"
+						},
+						{
+							"title": "Example policy",
+							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+							"path": "./ai-governance/agent-firewall/example-policy.md"
+						},
+						{
+							"title": "Version requirements",
+							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
+							"path": "./ai-governance/agent-firewall/version.md"
 						}
 					]
 				}
@@ -1459,7 +1486,7 @@
 					"children": [
 						{
 							"title": "Logs",
-							"description": "Learn how Coder services write logs to standard output and how to collect them.",
+							"description": "Learn how Coder services write logs to standard error and how to collect them.",
 							"path": "./admin/monitoring/logs.md"
 						},
 						{
@@ -1529,6 +1556,11 @@
 							"title": "Security - best practices",
 							"description": "Follow security best practices to harden your Coder deployment against common risks.",
 							"path": "./admin/security/security-best-practices.md"
+						},
+						{
+							"title": "Verify releases",
+							"description": "Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.",
+							"path": "./admin/security/verify-releases.md"
 						}
 					]
 				}
