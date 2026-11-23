@@ -197,10 +197,10 @@ func TestCreateChatAutomation(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		return sdkErr
 	}
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	t.Run("Created", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		got, err := asMember.CreateChatAutomation(ctx, org, request(own, "*/5 * * * *"))
 		require.NoError(t, err)
 		require.True(t, got.Enabled)
@@ -242,18 +242,23 @@ func TestCreateChatAutomation(t *testing.T) {
 			// as the admin.
 			{"AdminTargetsMembersChat", adminClient, request(own, "0 9 * * *"), http.StatusForbidden, ""},
 		} {
-			_, err := codersdk.NewExperimentalClient(tc.client).CreateChatAutomation(ctx, org, tc.req)
-			sdkErr := status(t, err)
-			require.Equal(t, tc.status, sdkErr.StatusCode(), tc.name)
-			if tc.field != "" {
-				require.Len(t, sdkErr.Validations, 1, tc.name)
-				require.Equal(t, tc.field, sdkErr.Validations[0].Field, tc.name)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, err := codersdk.NewExperimentalClient(tc.client).CreateChatAutomation(ctx, org, tc.req)
+				sdkErr := status(t, err)
+				require.Equal(t, tc.status, sdkErr.StatusCode())
+				if tc.field != "" {
+					require.Len(t, sdkErr.Validations, 1)
+					require.Equal(t, tc.field, sdkErr.Validations[0].Field)
+				}
+			})
 		}
 	})
 
 	t.Run("Limit", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		// The limit counts every organization of the owner.
 		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: capped.ID})
 		for range chatautomation.MaxAutomationsPerOwner - 2 {

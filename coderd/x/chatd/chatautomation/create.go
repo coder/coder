@@ -49,9 +49,11 @@ func Create(ctx context.Context, db database.Store, organizationID uuid.UUID, re
 
 	enabled := req.Enabled == nil || *req.Enabled
 	params := database.InsertChatAutomationParams{
+		ID:                   uuid.NullUUID{}, // The database generates it.
 		OrganizationID:       organizationID,
 		OwnerID:              owner,
 		Name:                 strings.TrimSpace(req.Name),
+		CreatedByChatID:      uuid.NullUUID{}, // A person created it.
 		Kind:                 database.ChatAutomationKindSchedule,
 		Enabled:              enabled,
 		Prompt:               req.Prompt,
