@@ -77,8 +77,9 @@ The `oauth2_client_registration` field sets how Coder gets the OAuth2 client:
 | `metadata_document` | Coder discovers the provider and identifies itself with an OAuth Client ID Metadata Document. The client ID is the URL of the document, and the client has no secret.                   |
 | `manual`            | You register a client with the provider and enter its details.                                                                                                                          |
 
-`dynamic` and `metadata_document` are both automatic registration: in a request, either value lets Coder pick the method, and the stored value names the method that Coder used.
-When a request sets the server URL or an authentication field but omits `oauth2_client_registration`, Coder registers automatically if `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` are all empty.
+In a request, `dynamic` and `metadata_document` both select automatic registration.
+Coder picks the method when it registers a client, and the stored value names the method it used.
+When a request sets the server URL or an authentication field but omits `oauth2_client_registration`, Coder uses automatic registration if `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` are all empty.
 Otherwise, Coder keeps the current value, or uses `manual` for a new server.
 
 **Manual registration**: provide all three fields together:
@@ -111,9 +112,10 @@ Coder discovers the provider and gets a client in this order:
 
 1. RFC 9728: Protected Resource Metadata
 1. RFC 8414: Authorization Server Metadata
-1. A Client ID Metadata Document, when the authorization server metadata sets `client_id_metadata_document_supported` and the Coder access URL is a public HTTPS URL.
-   Otherwise, RFC 7591: Dynamic Client Registration.
+1. A Client ID Metadata Document or RFC 7591: Dynamic Client Registration
 
+Coder uses a Client ID Metadata Document when the authorization server metadata sets `client_id_metadata_document_supported` and the Coder access URL is a public HTTPS URL, which means its host is not `localhost` or a private, loopback, or link-local IP address.
+Otherwise, Coder uses Dynamic Client Registration.
 Coder serves the document without authentication at `<access URL>/api/experimental/mcp/servers/<server ID>/oauth2/client-metadata.json`, which is also the client ID.
 An authorization server that supports only Client ID Metadata Documents fails registration when the access URL is not a public HTTPS URL.
 If you change the host of the access URL, save the server again with a new registration, as described below, so that the client ID points to the new host.
