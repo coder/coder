@@ -46,10 +46,10 @@ func LoadManifestSources(dir string) (*Manifest, error) {
 }
 
 // BuildManifest reads the sidebar sources in dir, splices every children_from
-// fragment into its route, and validates the result. When docsDir is not
-// empty, every route path must name an existing file under it. It fails on any
-// file in dir that nothing references, so a section can't silently drop out
-// of the sidebar.
+// fragment into its route, and fills each page's metadata from its front
+// matter. When docsDir is not empty, every route path must name an existing
+// file under it. It fails on any file in dir that nothing references, so a
+// section can't silently drop out of the sidebar.
 func BuildManifest(dir, docsDir string) (*Manifest, error) {
 	m, used, err := loadSources(dir)
 	if err != nil {
@@ -58,7 +58,7 @@ func BuildManifest(dir, docsDir string) (*Manifest, error) {
 	var errs []error
 	m.Routes = resolveRoutes(dir, m.Routes, nil, used, &errs)
 	if docsDir != "" {
-		checkPaths(docsDir, m.Routes, nil, &errs)
+		applyPageMetadata(docsDir, m.Routes, nil, &errs)
 	}
 	errs = append(errs, unreferencedFiles(dir, used)...)
 	if len(errs) > 0 {
@@ -158,7 +158,7 @@ func loadRouteFile(dir, name string, crumb []string, used map[string]bool, errs 
 		*errs = append(*errs, xerrors.Errorf("%s: include is allowed only on a child entry", where))
 	}
 	if r.ChildrenFrom != "" {
-		checkOverlays(where, r, errs)
+		checkChildrenFrom(where, r, errs)
 		return r, true
 	}
 	for i, c := range r.Children {
@@ -195,7 +195,8 @@ func loadRouteFile(dir, name string, crumb []string, used map[string]bool, errs 
 	return r, true
 }
 
-// checkSourceRoute checks the keys every hand-edited route needs.
+// checkSourceRoute checks the keys every hand-edited route needs. Page metadata
+// lives in the page's front matter, so a sidebar route can't set it.
 func checkSourceRoute(where string, r Route, errs *[]error) {
 	if r.Title == "" {
 		*errs = append(*errs, xerrors.Errorf("%s: route is missing a title", where))
@@ -203,7 +204,9 @@ func checkSourceRoute(where string, r Route, errs *[]error) {
 	if r.Path == "" {
 		*errs = append(*errs, xerrors.Errorf("%s: route is missing a path", where))
 	}
-	checkDescription(where, "description", r.Description, errs)
+	if r.Description != "" || r.IconPath != "" || len(r.State) > 0 {
+		*errs = append(*errs, xerrors.Errorf("%s: description, icon_path, and state belong in the page's front matter, not the sidebar source", where))
+	}
 }
 
 // checkDescription requires a non-empty page description to end with a
@@ -215,27 +218,19 @@ func checkDescription(where, field, desc string, errs *[]error) {
 	}
 }
 
-// checkOverlays checks a children_from route before its fragment is resolved.
-func checkOverlays(where string, r Route, errs *[]error) {
+// checkChildrenFrom checks a children_from route before its fragment is
+// resolved. The generated fragment supplies every child, so the route can't
+// list children of its own.
+func checkChildrenFrom(where string, r Route, errs *[]error) {
 	if _, err := sourceRel(r.ChildrenFrom); err != nil {
 		*errs = append(*errs, xerrors.Errorf("%s: children_from %q: %w", where, r.ChildrenFrom, err))
 	}
-	// With children_from, children are metadata overlays matched by title
-	// onto the generated routes, so they can't carry structure of their own.
-	for _, o := range r.Children {
-		ow := where + " > " + o.Title
-		switch {
-		case o.Title == "":
-			*errs = append(*errs, xerrors.Errorf("%s: overlay is missing a title", where))
-		case o.Path != "" || len(o.Children) > 0 || o.ChildrenFrom != "" || o.Include != "":
-			*errs = append(*errs, xerrors.Errorf("%s: overlays under children_from may set only title, description, icon_path, and state", ow))
-		}
-		checkDescription(ow, "description", o.Description, errs)
+	if len(r.Children) > 0 {
+		*errs = append(*errs, xerrors.Errorf("%s: children_from supplies the children; remove the children list", where))
 	}
 }
 
-// resolveRoutes returns routes with every children_from fragment spliced in
-// and its overlays applied.
+// resolveRoutes returns routes with every children_from fragment spliced in.
 func resolveRoutes(dir string, routes []Route, crumb []string, used map[string]bool, errs *[]error) []Route {
 	out := slices.Clone(routes)
 	for i := range out {
@@ -253,7 +248,7 @@ func resolveRoutes(dir string, routes []Route, crumb []string, used map[string]b
 			continue
 		}
 		validateFragment(name, generated, nil, errs)
-		r.Children = applyOverlays(name, generated, r.Children, breadcrumb(c), errs)
+		r.Children = generated
 		r.ChildrenFrom = ""
 	}
 	return out
@@ -275,97 +270,75 @@ func validateFragment(file string, routes []Route, crumb []string, errs *[]error
 	}
 }
 
-// applyOverlays fills empty metadata on the generated routes from the curated
-// overlays with the same title. A field set on both sides must match, so the
-// manifest and the generated page front matter can't disagree. An overlay
-// that matches no generated route is an error rather than silently dropped
-// metadata.
-func applyOverlays(file string, generated, overlays []Route, where string, errs *[]error) []Route {
-	byTitle := make(map[string]Route, len(overlays))
-	for _, o := range overlays {
-		if _, dup := byTitle[o.Title]; dup {
-			*errs = append(*errs, xerrors.Errorf("%s: overlay %q is listed more than once", where, o.Title))
-		}
-		byTitle[o.Title] = o
-	}
-	matched := make(map[string]bool, len(overlays))
-	out := slices.Clone(generated)
-	for i := range out {
-		g := &out[i]
-		o, ok := byTitle[g.Title]
-		if !ok {
-			continue
-		}
-		matched[g.Title] = true
-		ow := where + " > " + g.Title
-		fill := func(field string, dst *string, src string) {
-			switch {
-			case src == "":
-			case *dst == "":
-				*dst = src
-			case *dst != src:
-				*errs = append(*errs, xerrors.Errorf("%s: overlay %s %q conflicts with generated %q in %s", ow, field, src, *dst, file))
-			}
-		}
-		fill("description", &g.Description, o.Description)
-		fill("icon_path", &g.IconPath, o.IconPath)
-		switch {
-		case len(o.State) == 0:
-		case len(g.State) == 0:
-			g.State = o.State
-		case !slices.Equal(g.State, o.State):
-			*errs = append(*errs, xerrors.Errorf("%s: overlay state %q conflicts with generated %q in %s", ow, o.State, g.State, file))
-		}
-	}
-	for _, o := range overlays {
-		if !matched[o.Title] {
-			*errs = append(*errs, xerrors.Errorf("%s: overlay %q matches no route in %s; rename or remove it", where, o.Title, file))
-		}
-	}
-	return out
-}
-
-func checkPaths(docsDir string, routes []Route, crumb []string, errs *[]error) {
-	for _, r := range routes {
+func applyPageMetadata(docsDir string, routes []Route, crumb []string, errs *[]error) {
+	for i := range routes {
+		r := &routes[i]
 		c := append(slices.Clip(crumb), r.Title)
 		page := filepath.Join(docsDir, filepath.FromSlash(r.Path))
 		info, err := os.Stat(page)
-		if err != nil || !info.Mode().IsRegular() {
+		switch {
+		case err != nil || !info.Mode().IsRegular():
 			*errs = append(*errs, xerrors.Errorf("%s: path %q does not exist under %s", breadcrumb(c), r.Path, docsDir))
-		} else {
-			checkFrontMatterDescription(page, strings.TrimPrefix(r.Path, "./")+": "+breadcrumb(c), errs)
+		case strings.HasSuffix(page, ".md"):
+			mergePageMetadata(strings.TrimPrefix(r.Path, "./")+": "+breadcrumb(c), page, r, errs)
 		}
-		checkPaths(docsDir, r.Children, c, errs)
+		applyPageMetadata(docsDir, r.Children, c, errs)
 	}
 }
 
-// checkFrontMatterDescription checks the description in a Markdown page's
-// front matter, which the docs site shows in place of the manifest's.
-func checkFrontMatterDescription(page, where string, errs *[]error) {
-	if !strings.HasSuffix(page, ".md") {
-		return
-	}
-	b, err := os.ReadFile(page)
+// mergePageMetadata fills the route's empty metadata from the front matter of
+// the Markdown page at page. A field the route already sets, such as a
+// description from a generated fragment, must match the front matter.
+func mergePageMetadata(where, page string, r *Route, errs *[]error) {
+	pm, err := readFrontMatterMetadata(page)
 	if err != nil {
 		*errs = append(*errs, xerrors.Errorf("%s: %w", where, err))
 		return
 	}
-	body, ok := bytes.CutPrefix(b, []byte("---\n"))
+	checkDescription(where, "front matter description", pm.Description, errs)
+	fill := func(field string, dst *string, src string) {
+		switch {
+		case src == "":
+		case *dst == "":
+			*dst = src
+		case *dst != src:
+			*errs = append(*errs, xerrors.Errorf("%s: front matter %s %q conflicts with %q set on the route", where, field, src, *dst))
+		}
+	}
+	fill("description", &r.Description, pm.Description)
+	fill("icon_path", &r.IconPath, pm.IconPath)
+	switch {
+	case len(pm.State) == 0:
+	case len(r.State) == 0:
+		r.State = pm.State
+	case !slices.Equal(r.State, pm.State):
+		*errs = append(*errs, xerrors.Errorf("%s: front matter state %q conflicts with %q set on the route", where, pm.State, r.State))
+	}
+}
+
+// readFrontMatterMetadata returns the description, icon_path, and state in the
+// YAML front matter of a Markdown page. CRLF line endings are normalized first,
+// so a Windows checkout parses the same as an LF one. A page without front
+// matter has no metadata.
+func readFrontMatterMetadata(page string) (PageMetadata, error) {
+	b, err := os.ReadFile(page)
+	if err != nil {
+		return PageMetadata{}, err
+	}
+	text := strings.ReplaceAll(string(b), "\r\n", "\n")
+	body, ok := strings.CutPrefix(text, "---\n")
 	if !ok {
-		return
+		return PageMetadata{}, nil
 	}
-	end := bytes.Index(body, []byte("\n---\n"))
+	end := strings.Index(body, "\n---\n")
 	if end < 0 {
-		return
+		return PageMetadata{}, nil
 	}
-	var fm struct {
-		Description string `yaml:"description"`
+	var pm PageMetadata
+	if err := yaml.Unmarshal([]byte(body[:end+1]), &pm); err != nil {
+		return PageMetadata{}, xerrors.Errorf("front matter: %w", err)
 	}
-	if err := yaml.Unmarshal(body[:end+1], &fm); err != nil {
-		*errs = append(*errs, xerrors.Errorf("%s: front matter: %w", where, err))
-		return
-	}
-	checkDescription(where, "front matter description", fm.Description, errs)
+	return pm, nil
 }
 
 func unreferencedFiles(dir string, used map[string]bool) []error {

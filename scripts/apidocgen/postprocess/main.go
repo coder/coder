@@ -22,9 +22,9 @@ const (
 	apiSubdir    = "reference/api"
 	apiIndexFile = "index.md"
 	// apiIndexBody is the index page content below its front matter and the
-	// generated-content banner. The front matter is generated from the "REST
-	// API" manifest route (see writeDocs) so the index mirrors the manifest like
-	// every other generated page.
+	// generated-content banner. The front matter comes from the index overlay
+	// (see writeDocs) so the index mirrors the manifest like every other
+	// generated page.
 	apiIndexBody = `Get started with the Coder API:
 
 ## Quickstart
@@ -79,6 +79,7 @@ The limits are fixed. There is no deployment option that raises them.
 var (
 	docsDirectory  string
 	inMdFileSingle string
+	overlaysFile   string
 
 	sectionSeparator     = []byte("<!-- APIDOCGEN: BEGIN SECTION -->\n")
 	nonAlphanumericRegex = regexp.MustCompile(`[^a-z0-9 ]+`)
@@ -89,6 +90,7 @@ func main() {
 
 	flag.StringVar(&docsDirectory, "docs-directory", "../../docs", "Path to Coder docs directory")
 	flag.StringVar(&inMdFileSingle, "in-md-file-single", "", "Path to single Markdown file, output from widdershins.js")
+	flag.StringVar(&overlaysFile, "overlays", "postprocess/overlays.yml", "Path to the overlays file with the page metadata for the REST API index and sections")
 	flag.Parse()
 
 	if inMdFileSingle == "" {
@@ -101,12 +103,17 @@ func main() {
 		log.Fatal("can't load markdown sections: ", err)
 	}
 
+	overlays, err := docgenenv.LoadOverlays(overlaysFile)
+	if err != nil {
+		log.Fatal("can't load overlays: ", err)
+	}
+
 	err = prepareDocsDirectory()
 	if err != nil {
 		log.Fatal("can't prepare docs directory: ", err)
 	}
 
-	err = writeDocs(sections)
+	err = writeDocs(sections, overlays)
 	if err != nil {
 		log.Fatal("can't write docs directory: ", err)
 	}
@@ -148,7 +155,7 @@ func prepareDocsDirectory() error {
 	return nil
 }
 
-func writeDocs(sections [][]byte) error {
+func writeDocs(sections [][]byte, overlays *docgenenv.Overlays) error {
 	log.Println("Write docs to destination")
 
 	sourcesDir := path.Join(docsDirectory, docgenenv.ManifestSourcesDir)
@@ -157,9 +164,8 @@ func writeDocs(sections [][]byte) error {
 		return err
 	}
 
-	// Resolve the REST API route once. Both the page front matter and the
-	// regenerated sidebar fragment read from this single traversal, so the
-	// metadata source and the rewrite target can't drift apart.
+	// Resolve the REST API route for its title and for the fragment its
+	// children_from names.
 	restAPI := m.FindRoute("Reference", "REST API")
 	if restAPI == nil {
 		return xerrors.Errorf("could not find REST API route in sidebar sources %q", sourcesDir)
@@ -168,26 +174,19 @@ func writeDocs(sections [][]byte) error {
 		return xerrors.Errorf("REST API route in sidebar sources %q must set children_from", sourcesDir)
 	}
 
-	// The REST API route's children in the sources are curated metadata
-	// overlays (description, state, icon_path) keyed by title. Index them so
-	// that metadata flows into the page front matter; docsmanifestgen applies
-	// the same overlays to the sidebar.
-	existingByTitle := make(map[string]docgenenv.Route)
-	for _, child := range restAPI.Children {
-		existingByTitle[child.Title] = child
-	}
-
 	apiDir := path.Join(docsDirectory, apiSubdir)
 
-	// The index page mirrors the "REST API" route's own curated metadata
-	// (title/description/icon_path) rather than a hardcoded title, so its front
-	// matter matches the manifest like every other generated page.
-	indexRoute := *restAPI
-	indexRoute.Children = nil
-	indexContent := append([]byte(docgenenv.GeneratedHeader(indexRoute)), []byte(apiIndexBody)...)
+	indexContent := append([]byte(docgenenv.GeneratedHeader(overlays.Index.Route(restAPI.Title))), []byte(apiIndexBody)...)
 	if err := atomicwrite.File(path.Join(apiDir, apiIndexFile), indexContent); err != nil {
 		return xerrors.Errorf(`can't write the index file: %w`, err)
 	}
+
+	// The overlays carry each section's metadata by title.
+	sectionOverlays := make(map[string]docgenenv.SectionMetadata, len(overlays.Sections))
+	for _, s := range overlays.Sections {
+		sectionOverlays[s.Title] = s
+	}
+	matched := make(map[string]bool, len(overlays.Sections))
 
 	type mdFile struct {
 		title string
@@ -203,19 +202,27 @@ func writeDocs(sections [][]byte) error {
 		}
 		log.Printf("Write section: %s", sectionName)
 
-		// Carry the manifest route's curated metadata into the front matter.
-		r := existingByTitle[sectionName]
-		r.Title = sectionName
+		var meta docgenenv.PageMetadata
+		if s, ok := sectionOverlays[sectionName]; ok {
+			meta = s.PageMetadata
+			matched[sectionName] = true
+		}
 
 		mdFilename := toMdFilename(sectionName)
 		docPath := path.Join(apiDir, mdFilename)
-		if err := atomicwrite.File(docPath, prependGeneratedHeader(section, r)); err != nil {
+		if err := atomicwrite.File(docPath, prependGeneratedHeader(section, meta.Route(sectionName))); err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}
 		mdFiles = append(mdFiles, mdFile{
 			title: sectionName,
 			path:  "./" + path.Join(apiSubdir, mdFilename),
 		})
+	}
+
+	for _, s := range overlays.Sections {
+		if !matched[s.Title] {
+			return xerrors.Errorf("section overlay %q matches no generated REST API section", s.Title)
+		}
 	}
 
 	// Sort API pages
@@ -232,7 +239,7 @@ func writeDocs(sections [][]byte) error {
 
 	// Write the generated routes to the sidebar fragment the sources name in
 	// children_from. The fragment carries only structure (title and path);
-	// curated metadata stays in the sources as overlays.
+	// each page's metadata lives in its front matter.
 	var children []docgenenv.Route
 	for _, mdf := range mdFiles {
 		children = append(children, docgenenv.Route{

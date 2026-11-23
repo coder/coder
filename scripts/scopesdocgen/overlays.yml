@@ -1,0 +1,3 @@
+index:
+  description: Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.
+  icon_path: ./images/icons/api.svg

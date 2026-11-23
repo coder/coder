@@ -1,0 +1,8 @@
+index:
+  description: Reference for the Coder REST API, including endpoints, authentication, and schemas.
+  icon_path: ./images/icons/api.svg
+sections:
+  - title: Agents
+    description: REST endpoints for the workspace agent daemon (`coder_agent`).
+  - title: Chats
+    description: REST endpoints for Coder Agents Chats API (programmatic agent sessions).

@@ -129,6 +129,17 @@ func TestActionDescription(t *testing.T) {
 	})
 }
 
+func TestCheckedInOverlays(t *testing.T) {
+	t.Parallel()
+
+	overlays, err := docgenenv.LoadOverlays("overlays.yml")
+	require.NoError(t, err)
+	route := overlays.Index.Route("API key scopes")
+	require.Equal(t, "API key scopes", route.Title)
+	require.NotEmpty(t, route.Description)
+	require.Equal(t, "./images/icons/api.svg", route.IconPath)
+}
+
 func TestRenderLowLevel(t *testing.T) {
 	t.Parallel()
 
