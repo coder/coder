@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import * as Yup from "yup";
@@ -226,6 +226,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	const loginTypeField = getFieldHelpers("login_type", {
 		helperText: "Authentication method for this user.",
 	});
+	const loginTypeOptionId = useId();
 
 	return (
 		<div>
@@ -310,11 +311,16 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 											const opt = loginTypeOptions[key];
 											const requiresPremium =
 												key === "none" && !serviceAccountsEnabled;
+											const labelId = `${loginTypeOptionId}-${key}-label`;
+											const descriptionId = `${loginTypeOptionId}-${key}-description`;
 											return (
 												<SelectPrimitive.Item
 													key={key}
 													value={key}
 													disabled={requiresPremium}
+													// The description is part of what each option means, so
+													// include it in the name instead of only the short label.
+													aria-labelledby={`${labelId} ${descriptionId}`}
 													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link data-disabled:pointer-events-none data-disabled:opacity-50"
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
@@ -323,10 +329,13 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 														</SelectPrimitive.ItemIndicator>
 													</span>
 													<div className="flex flex-col py-0.5">
-														<SelectPrimitive.ItemText>
+														<SelectPrimitive.ItemText id={labelId}>
 															{opt.label}
 														</SelectPrimitive.ItemText>
-														<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
+														<span
+															id={descriptionId}
+															className="text-xs text-content-secondary whitespace-normal wrap-break-word"
+														>
 															{requiresPremium
 																? `Requires a Premium license. ${opt.description}`
 																: opt.description}

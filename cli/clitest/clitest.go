@@ -61,9 +61,9 @@ func NewWithCommand(
 	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
-	// Keyring usage is disabled here when --global-config is set because many existing
-	// tests expect the session token to be stored on disk and is not properly instrumented
-	// for parallel testing against the actual operating system keyring.
+	// Setting --global-config without --use-keyring selects file storage, which many
+	// existing tests expect. They are not instrumented for parallel testing against
+	// the actual operating system keyring.
 	invArgs := append([]string{"--global-config", string(configDir)}, args...)
 	return setupInvocation(t, cmd, invArgs...), configDir
 }
@@ -85,13 +85,6 @@ func setupInvocation(t testing.TB, cmd *serpent.Command, args ...string,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 	return i
-}
-
-func NewWithDefaultKeyringCommand(t testing.TB, cmd *serpent.Command, args ...string,
-) (*serpent.Invocation, config.Root) {
-	configDir := config.Root(t.TempDir())
-	invArgs := append([]string{"--global-config", string(configDir)}, args...)
-	return setupInvocation(t, cmd, invArgs...), configDir
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.
