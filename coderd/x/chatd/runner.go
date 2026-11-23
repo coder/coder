@@ -51,6 +51,7 @@ type runner struct {
 	turnSpan      *runnerTurnSpan
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
+	mcpRefreshes  mcpTokenRefreshTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -209,6 +210,7 @@ func (r *runner) spawnTask(kind taskKind, state runnerStateUpdate) {
 		TurnSpan:                 r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
+		MCPTokenRefreshes:        &r.mcpRefreshes,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

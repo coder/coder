@@ -54,16 +54,42 @@ func expiredTokenChanged(read, leased database.MCPServerUserToken) bool {
 		!leased.Expiry.Time.Equal(read.Expiry.Time)
 }
 
+// rejectedTokenChanged is the comparison for a forced refresh of a token
+// the MCP server rejected: a new access token means another caller
+// already refreshed it, and a new failure reason means another caller
+// marked it dead. A new refresh token alone does not count, because the
+// access token is still the rejected one, so the forced refresh spends
+// the leased row's refresh token.
+func rejectedTokenChanged(read, leased database.MCPServerUserToken) bool {
+	return leased.AccessToken != read.AccessToken ||
+		leased.OauthRefreshFailureReason != read.OauthRefreshFailureReason
+}
+
 // LeasedRefreshOptions configures RefreshOAuth2TokenWithLease.
 type LeasedRefreshOptions struct {
 	// WaitForLease waits, for at most the lease length, while another
 	// caller holds the lease. Without it a held lease returns at once.
 	WaitForLease bool
+	// Force refreshes a token the MCP server rejected with HTTP 401
+	// through ForceRefreshOAuth2Token, even when it is valid by the
+	// clock.
+	Force bool
 }
 
-// LeasedRefreshOutcome says how RefreshOAuth2TokenWithLease ended. The
-// zero value is no outcome, for a token that no refresh was attempted
-// for.
+// tokenChanged reports whether leased, the row read under the refresh
+// lease, differs from read, the row the caller started from, in a way
+// that means another caller already refreshed or marked the token. A
+// changed leased row is returned as it is, without a provider call.
+func (opts LeasedRefreshOptions) tokenChanged(read, leased database.MCPServerUserToken) bool {
+	if opts.Force {
+		return rejectedTokenChanged(read, leased)
+	}
+	return expiredTokenChanged(read, leased)
+}
+
+// LeasedRefreshOutcome says how RefreshOAuth2TokenWithLease or
+// MarkRejectedOAuth2TokenWithLease ended. The zero value is no outcome,
+// for a token that no refresh was attempted for.
 type LeasedRefreshOutcome int
 
 const (
@@ -81,7 +107,8 @@ const (
 	// token and it was saved.
 	LeasedRefreshSaved
 	// LeasedRefreshMarkedDead means the token was marked for reconnect,
-	// because the provider rejected the grant permanently.
+	// because the provider rejected the grant permanently or the MCP
+	// server rejected the token.
 	LeasedRefreshMarkedDead
 	// LeasedRefreshFailed means the provider call failed temporarily, or
 	// that this caller waited while another caller held the lease and
@@ -95,7 +122,8 @@ const (
 	LeasedRefreshLost
 )
 
-// LeasedRefresh is the result of RefreshOAuth2TokenWithLease.
+// LeasedRefresh is the result of RefreshOAuth2TokenWithLease or
+// MarkRejectedOAuth2TokenWithLease.
 type LeasedRefresh struct {
 	Outcome LeasedRefreshOutcome
 	// Token is the row to use next. It is the caller's token for
@@ -109,8 +137,9 @@ type LeasedRefresh struct {
 	RefreshErr error
 }
 
-// RefreshOAuth2TokenWithLease refreshes an expired MCP user token while
-// holding the row's refresh lease, so concurrent callers on any replica
+// RefreshOAuth2TokenWithLease refreshes an expired MCP user token, or
+// with opts.Force a rejected one, while holding the row's refresh lease,
+// so concurrent callers on any replica
 // never spend the same refresh token twice. Under the lease it reads the
 // row again: a row that another caller refreshed or marked is returned
 // without a provider call. An unchanged row after a wait for another
@@ -135,7 +164,7 @@ func RefreshOAuth2TokenWithLease(
 	tok database.MCPServerUserToken,
 	opts LeasedRefreshOptions,
 ) (LeasedRefresh, error) {
-	if oauth2TokenFromRow(tok).Valid() {
+	if !opts.Force && oauth2TokenFromRow(tok).Valid() {
 		return LeasedRefresh{Outcome: LeasedRefreshNotNeeded, Token: tok}, nil
 	}
 	var maxWait time.Duration
@@ -144,19 +173,43 @@ func RefreshOAuth2TokenWithLease(
 	}
 	return withRefreshLease(ctx, logger, store, tok, maxWait,
 		func(ctx context.Context, leased database.MCPServerUserToken, waited bool) (LeasedRefresh, error) {
-			if expiredTokenChanged(tok, leased) {
+			if opts.tokenChanged(tok, leased) {
 				return LeasedRefresh{Outcome: LeasedRefreshChanged, Token: leased}, nil
 			}
 			if waited {
 				return LeasedRefresh{Outcome: LeasedRefreshFailed, Token: leased, RefreshErr: errLeaseHolderLeftTokenUnchanged}, nil
 			}
-			return refreshLeasedToken(ctx, store, httpClient, cfg, leased)
+			return refreshLeasedToken(ctx, store, httpClient, cfg, leased, opts)
 		})
 }
 
 // errLeaseHolderLeftTokenUnchanged is the refresh error of a caller that
 // waited for another holder's lease and found the row unchanged.
 var errLeaseHolderLeftTokenUnchanged = xerrors.New("refresh oauth2 token: another refresh of this token held the lease and did not change it")
+
+// MarkRejectedOAuth2TokenWithLease marks tok for reconnect with reason
+// after an MCP server rejected it, while holding the row's refresh lease.
+// It tries the lease once and never waits: while another caller holds
+// the lease it returns LeasedRefreshLeaseHeld without a mark, because
+// that caller may be saving a new token. Under the lease it marks only a
+// row that still holds tok's access token and failure reason, and only
+// while the row and the lease are unchanged. ctx carries the database
+// subject. Returned errors are database errors.
+func MarkRejectedOAuth2TokenWithLease(
+	ctx context.Context,
+	logger slog.Logger,
+	store RefreshLeaseStore,
+	tok database.MCPServerUserToken,
+	reason string,
+) (LeasedRefresh, error) {
+	return withRefreshLease(ctx, logger, store, tok, 0,
+		func(ctx context.Context, leased database.MCPServerUserToken, _ bool) (LeasedRefresh, error) {
+			if rejectedTokenChanged(tok, leased) {
+				return LeasedRefresh{Outcome: LeasedRefreshChanged, Token: leased}, nil
+			}
+			return markLeasedToken(ctx, store, leased, reason)
+		})
+}
 
 // withRefreshLease runs fn on tok's row while holding its refresh lease,
 // then releases the lease. It retries a held lease for at most maxWait;
@@ -221,8 +274,17 @@ func refreshLeasedToken(
 	httpClient *http.Client,
 	cfg database.MCPServerConfig,
 	leased database.MCPServerUserToken,
+	opts LeasedRefreshOptions,
 ) (LeasedRefresh, error) {
-	result, refreshErr := refreshOAuth2Token(ctx, httpClient, cfg, leased)
+	var (
+		result     refreshResult
+		refreshErr error
+	)
+	if opts.Force {
+		result, refreshErr = ForceRefreshOAuth2Token(ctx, httpClient, cfg, leased)
+	} else {
+		result, refreshErr = refreshOAuth2Token(ctx, httpClient, cfg, leased)
+	}
 	if refreshErr != nil {
 		if !isPermanentRefreshError(refreshErr) {
 			return LeasedRefresh{Outcome: LeasedRefreshFailed, Token: leased, RefreshErr: refreshErr}, nil

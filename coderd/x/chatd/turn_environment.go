@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -558,10 +559,13 @@ func (p *Server) buildTurnEnvironment(
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
-			mcpTokens, err = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			var expiryRefreshes map[uuid.UUID]mcpoauth.LeasedRefreshOutcome
+			mcpTokens, expiryRefreshes, err = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			if err != nil {
 				return err
 			}
+			refresher := p.newMCPTokenRefresher(logger, mcpConnectConfigs, expiryRefreshes,
+				input.MCPTokenRefreshes, stopNudgeKey(input.Messages))
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
@@ -583,16 +587,16 @@ func (p *Server) buildTurnEnvironment(
 				mcpServers = append(mcpServers, srv)
 			}
 			connectCtx, connectSpan := p.stages.Start(ctx, chatloop.StageMCPConnect)
-			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
-				connectCtx,
-				logger,
-				mcpServers,
-				mcpTokens,
-				chat.OwnerID,
-				p.oidcTokenSource,
-				chatprovider.CoderHeaders(chat),
-				p.mcpHTTPClient,
-			)
+			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAllWithRefresh(connectCtx, logger, mcpclient.ConnectAllOptions{
+				Servers:         mcpServers,
+				Tokens:          mcpTokens,
+				UserID:          chat.OwnerID,
+				OIDCTokenSource: p.oidcTokenSource,
+				CoderHeaders:    chatprovider.CoderHeaders(chat),
+				HTTPClient:      p.mcpHTTPClient,
+				Refresher:       refresher,
+				Clock:           p.mcpReconnectClock,
+			})
 			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
 			connectSpan.SetAttributes(

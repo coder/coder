@@ -50,6 +50,10 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
+	// MCPTokenRefreshes limits forced MCP OAuth2 token refreshes to one
+	// per token per turn. Each step builds a new input, so the tracker
+	// comes from the runner.
+	MCPTokenRefreshes *mcpTokenRefreshTracker
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -636,6 +640,7 @@ func (s *taskStarter) runGenerationStep(
 		Chat:                      chat,
 		Messages:                  messages,
 		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
+		MCPTokenRefreshes:         input.MCPTokenRefreshes,
 	}
 	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
 	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (turnEnvironment, error) {

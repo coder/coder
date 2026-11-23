@@ -3,6 +3,7 @@ package mcpoauth_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -204,6 +205,105 @@ func TestRefreshOAuth2TokenWithoutRefreshToken(t *testing.T) {
 	require.Empty(t, row.OauthRefreshFailureReason)
 }
 
+// TestForceRefreshOAuth2Token covers a token the MCP server rejected
+// before its stored expiry: the refresh calls the token endpoint anyway.
+func TestForceRefreshOAuth2Token(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int64
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh","token_type":"Bearer","expires_in":3600,"refresh_token":"rotated"}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	cfg := database.MCPServerConfig{OAuth2ClientID: "cid", OAuth2TokenURL: tokenSrv.URL}
+	result, err := mcpoauth.ForceRefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
+		AccessToken:  "rejected",
+		RefreshToken: "refresh",
+		TokenType:    "Bearer",
+		Expiry:       sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "fresh", result.AccessToken)
+	require.Equal(t, "rotated", result.RefreshToken)
+	require.EqualValues(t, 1, hits.Load())
+}
+
+// TestForceRefreshOAuth2TokenWithLease covers the forced refresh under the
+// refresh lease on a real database, for a token whose stored expiry has
+// not passed.
+func TestForceRefreshOAuth2TokenWithLease(t *testing.T) {
+	t.Parallel()
+
+	forced := mcpoauth.LeasedRefreshOptions{
+		WaitForLease: true,
+		Force:        true,
+	}
+	// newTokenEndpoint answers every refresh with accessToken and
+	// refreshToken, and reports each refresh token it receives.
+	newTokenEndpoint := func(t *testing.T, accessToken, refreshToken string) (string, <-chan string) {
+		received := make(chan string, 4)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !assert.NoError(t, r.ParseForm()) {
+				http.Error(w, "bad form", http.StatusBadRequest)
+				return
+			}
+			received <- r.PostForm.Get("refresh_token")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"access_token":%q,"token_type":"Bearer","expires_in":3600,"refresh_token":%q}`, accessToken, refreshToken)
+		}))
+		t.Cleanup(srv.Close)
+		return srv.URL, received
+	}
+
+	t.Run("SavesRotatedRefreshTokenForUnchangedAccessToken", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		tokenURL, received := newTokenEndpoint(t, "rejected", "rotated")
+		cfg, tok := seedMCPToken(t, db, tokenURL, "rejected", "refresh", time.Hour)
+
+		result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(nil), cfg, tok, forced)
+		require.NoError(t, err)
+		require.Equal(t, mcpoauth.LeasedRefreshSaved, result.Outcome)
+		require.Len(t, received, 1)
+
+		row, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: tok.UserID})
+		require.NoError(t, err)
+		require.Equal(t, "rejected", row.AccessToken)
+		require.Equal(t, "rotated", row.RefreshToken)
+		require.Empty(t, row.OauthRefreshFailureReason)
+	})
+
+	// Another caller rotated only the refresh token after this caller read
+	// the row. The access token is still the rejected one, so the forced
+	// refresh runs with the newer refresh token instead of returning the
+	// row or spending the stale refresh token.
+	t.Run("RefreshesWithLeasedRefreshToken", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		tokenURL, received := newTokenEndpoint(t, "fresh", "rotated")
+		cfg, leased := seedMCPToken(t, db, tokenURL, "rejected", "newer-refresh", time.Hour)
+		read := leased
+		read.RefreshToken = "stale-refresh"
+
+		result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(nil), cfg, read, forced)
+		require.NoError(t, err)
+		require.Equal(t, mcpoauth.LeasedRefreshSaved, result.Outcome)
+		require.Equal(t, "newer-refresh", <-received)
+		require.Empty(t, received)
+
+		row, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: read.UserID})
+		require.NoError(t, err)
+		require.Equal(t, "fresh", row.AccessToken)
+		require.Equal(t, "rotated", row.RefreshToken)
+		require.Empty(t, row.OauthRefreshFailureReason)
+	})
+}
+
 // heldLeaseSignalStore closes held once an acquire finds the refresh
 // lease held by another caller.
 type heldLeaseSignalStore struct {
@@ -237,6 +337,11 @@ func TestRefreshOAuth2TokenWithLeaseAfterHeldLease(t *testing.T) {
 			name:   "Expired",
 			expiry: -time.Minute,
 			opts:   mcpoauth.LeasedRefreshOptions{WaitForLease: true},
+		},
+		{
+			name:   "Forced",
+			expiry: time.Hour,
+			opts:   mcpoauth.LeasedRefreshOptions{WaitForLease: true, Force: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
