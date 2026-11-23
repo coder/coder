@@ -214,7 +214,8 @@ type Options struct {
 	UsageInserter             usage.Inserter
 
 	// ChatMCPReconnectClock times the chat daemon's wait before it sends
-	// an MCP server an OAuth2 token that the server just rejected.
+	// an MCP server an OAuth2 token that the server just rejected. Tests
+	// only, like coderd.Options.ChatMCPReconnectClock.
 	ChatMCPReconnectClock quartz.Clock
 }
 

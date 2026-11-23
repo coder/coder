@@ -286,7 +286,7 @@ type Options struct {
 	ChatWorkerDisabled bool
 	// ChatMCPReconnectClock, when set, times the chat daemon's wait before
 	// it sends an MCP server an OAuth2 token that the server just
-	// rejected. Nil uses the chat daemon's clock.
+	// rejected. Tests only. Nil uses the chat daemon's clock.
 	ChatMCPReconnectClock quartz.Clock
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)

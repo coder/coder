@@ -1255,7 +1255,8 @@ type Config struct {
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
 	// MCPReconnectClock times the wait before chatd sends an MCP server
-	// an OAuth2 token that the server just rejected. Nil uses Clock.
+	// an OAuth2 token that the server just rejected. Tests only. Nil
+	// uses Clock.
 	MCPReconnectClock quartz.Clock
 	// InternalMCPServers are MCP servers that coderd code serves to chats
 	// in process. Slugs must be unique and not empty.

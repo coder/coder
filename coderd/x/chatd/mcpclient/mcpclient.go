@@ -68,8 +68,11 @@ const toolCallTimeout = 60 * time.Second
 
 // rejectedTokenGrace is how long ConnectAllWithRefresh waits before it
 // sends a server a stored OAuth2 token that the server just rejected.
-// An authorization server whose token store is eventually consistent can
-// reject a token it issued seconds earlier.
+// It covers a short lag in an authorization server's token store, where
+// a token issued seconds earlier has not reached every reader yet. It
+// does not cover Cloudflare Workers KV's negative cache: KV caches a
+// missed lookup at a location, so a lookup through the same location can
+// keep missing for up to 60 seconds by default.
 const rejectedTokenGrace = 2 * time.Second
 
 // slowConnectThreshold is the successful-connect duration above
