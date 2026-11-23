@@ -92,6 +92,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									proxyLatencyLoading(selectedProxy)
 										? undefined
 										: latencies?.[selectedProxy.id]?.latencyMS,
+									"icon",
 								)}
 							/>
 
@@ -106,7 +107,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							/>
 						</>
 					) : (
-						"Select Proxy"
+						"Select proxy"
 					)}
 
 					<ChevronDownIcon className="text-content-primary" />
@@ -123,7 +124,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						</div>
 						<div className="text-xs text-content-secondary leading-relaxed">
 							Workspace proxies improve terminal and web app connections.{" "}
-							<Abbr title="Command-Line Interface" pronunciation="initialism">
+							<Abbr title="Command-line interface" pronunciation="initialism">
 								CLI
 							</Abbr>{" "}
 							connections are unaffected. If no region is selected, the primary

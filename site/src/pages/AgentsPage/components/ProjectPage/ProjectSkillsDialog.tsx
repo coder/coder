@@ -24,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -42,9 +43,7 @@ import {
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
-	withDisabledModelInvocation,
 } from "../../utils/skills";
-import { RetryButton } from "../RetryButton";
 import {
 	SkillEditorBodyField,
 	SkillEditorDescriptionField,
@@ -127,11 +126,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			downloadSkillFile(name, (skillName) =>
 				queryClient
 					.fetchQuery(scope.detail(skillName))
-					.then((skill) =>
-						skill.model_invocable
-							? skill.content
-							: withDisabledModelInvocation(skill.content),
-					),
+					.then((skill) => skill.content),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {

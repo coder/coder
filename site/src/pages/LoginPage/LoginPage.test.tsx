@@ -63,11 +63,17 @@ describe("LoginPage", () => {
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText("Sign in");
 		fireEvent.click(signInButton);
 
 		// Then
 		await waitFor(() => expect(errorRegion).toHaveTextContent(apiErrorMessage));
+	});
+
+	it("sets the document title", async () => {
+		render(<LoginPage />);
+		await waitForLoaderToBeRemoved();
+		expect(document.title).toBe("Sign in to Coder");
 	});
 
 	it("associates validation errors with their inputs", async () => {
@@ -89,7 +95,7 @@ describe("LoginPage", () => {
 		);
 
 		const alertsBeforeSubmit = screen.getAllByRole("alert");
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText("Sign in");
 		fireEvent.click(signInButton);
 
 		// Then
@@ -128,7 +134,7 @@ describe("LoginPage", () => {
 		await waitForLoaderToBeRemoved();
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@example.com");
-		await userEvent.click(screen.getByRole("button", { name: "Sign In" }));
+		await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
 		await waitFor(() =>
 			expect(screen.getByLabelText(/Password/)).toHaveAccessibleDescription(
@@ -210,7 +216,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the component uses React Router navigation for standard
 		// redirects so the new session cookie is picked up by the next route.
@@ -262,7 +268,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the malicious redirect must be replaced with the fallback
 		// path on both navigation paths (hard reload and SPA navigation).
@@ -355,7 +361,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the full redirect path (including query params) must be
 		// preserved for the OAuth2 authorization flow to complete.

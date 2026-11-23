@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import {
 	type QueryClient,
 	QueryClientProvider,
@@ -17,10 +18,9 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import { useChatOverview } from "../../hooks/useChatOverview";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { GitPanel } from "./GitPanel";
-import { viewIdFor } from "./gitViews";
+import { type GitView, type GitViewRequest, viewIdFor } from "./gitViews";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
 	LocalDiffPanel: () => null,
@@ -521,17 +521,22 @@ describe("GitPanel view requests", () => {
 		const OverviewHarness: React.FC<{ isMounted: boolean }> = ({
 			isMounted,
 		}) => {
-			const overview = useChatOverview({ isRightPanelOpen: true });
+			const [request, setRequest] = useState<GitViewRequest>();
+			const [appliedId, setAppliedId] = useState<number>();
 			return (
 				<Wrapper queryClient={queryClient}>
 					<button
 						type="button"
-						onClick={() =>
-							overview.recordTarget({
-								tabId: "git",
-								view: { type: "remote", refId: viewIdFor(mockFirstRef) },
-							})
-						}
+						onClick={() => {
+							const view: GitView = {
+								type: "remote",
+								refId: viewIdFor(mockFirstRef),
+							};
+							setRequest((previous) => ({
+								id: (previous?.id ?? 0) + 1,
+								view,
+							}));
+						}}
 					>
 						Open the first ref
 					</button>
@@ -544,8 +549,8 @@ describe("GitPanel view requests", () => {
 							everDirty={new Set()}
 							chatInputRef={{ current: null }}
 							{...refs}
-							viewRequest={overview.gitViewRequest}
-							onViewRequestApplied={overview.onGitViewRequestApplied}
+							viewRequest={request?.id !== appliedId ? request : undefined}
+							onViewRequestApplied={setAppliedId}
 						/>
 					)}
 				</Wrapper>

@@ -76,14 +76,14 @@ export const TemplateSettingsLayout: React.FC = () => {
 	return (
 		<>
 			<title>
-				{pageTitle(template?.display_name ?? templateName, "Template Settings")}
+				{pageTitle(template?.display_name ?? templateName, "Template settings")}
 			</title>
 
 			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbPage>Template Settings</BreadcrumbPage>
+							<BreadcrumbPage>Template settings</BreadcrumbPage>
 						</BreadcrumbItem>
 						{template && (
 							<>
@@ -107,16 +107,14 @@ export const TemplateSettingsLayout: React.FC = () => {
 								)}
 								<BreadcrumbSeparator />
 								<BreadcrumbItem>
-									<BreadcrumbLink to="..">
-										<BreadcrumbPage className="flex items-center gap-2">
-											<Avatar
-												variant="icon"
-												size="sm"
-												fallback={template.display_name || template.name}
-												src={template.icon}
-											/>
-											{template.display_name || template.name}
-										</BreadcrumbPage>
+									<BreadcrumbLink to=".." className="flex items-center gap-2">
+										<Avatar
+											variant="icon"
+											size="sm"
+											fallback={template.display_name || template.name}
+											src={template.icon}
+										/>
+										{template.display_name || template.name}
 									</BreadcrumbLink>
 								</BreadcrumbItem>
 							</>

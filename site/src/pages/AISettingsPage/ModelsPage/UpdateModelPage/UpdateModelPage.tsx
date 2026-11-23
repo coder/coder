@@ -61,7 +61,7 @@ const UpdateModelPage: React.FC = () => {
 	if (modelQuery.isLoading || organizationModelsQuery.isLoading) {
 		return (
 			<>
-				<title>{pageTitle("Loading...", "AI Settings")}</title>
+				<title>{pageTitle("Loading...", "AI settings")}</title>
 				<Loader fullscreen />
 			</>
 		);

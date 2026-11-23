@@ -378,6 +378,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						onClick={panel.onToggleSidebar}
 						className="size-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle panel"
+						aria-expanded={panel.showSidebarPanel}
 					>
 						{panel.showSidebarPanel ? (
 							<PanelRightCloseIcon className="size-4" />

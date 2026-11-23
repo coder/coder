@@ -19,10 +19,7 @@ import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
 } from "../components/ChatConversation/chatError";
-import {
-	bootstrapChatEmbedSession,
-	EmbedContext,
-} from "../components/EmbedContext";
+import { bootstrapChatEmbedSession } from "../components/EmbedContext";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -274,16 +271,14 @@ const AgentEmbedPage: React.FC = () => {
 	// proxy or when metadata is missing, so wait for both.
 	if (auth.isSignedIn && auth.permissions) {
 		return (
-			<EmbedContext value={{ isEmbedded: true }}>
-				<DashboardProvider>
-					<ProxyProvider>
-						{/* Match AgentsPageLayout's flex column so the chat stays bounded under block-level #root. */}
-						<div className="flex h-full min-h-0 min-w-0 flex-col">
-							<Outlet context={outletContext} />
-						</div>
-					</ProxyProvider>
-				</DashboardProvider>
-			</EmbedContext>
+			<DashboardProvider>
+				<ProxyProvider>
+					{/* Match AgentsPageLayout's flex column so the chat stays bounded under block-level #root. */}
+					<div className="flex h-full min-h-0 min-w-0 flex-col">
+						<Outlet context={outletContext} />
+					</div>
+				</ProxyProvider>
+			</DashboardProvider>
 		);
 	}
 

@@ -991,14 +991,47 @@ export const OverviewCardBesideTranscript: Story = {
 	render: renderOverviewCardStory,
 };
 
+export const OverviewToggleTooltip: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "Toggle overview",
+			}),
+		);
+	},
+};
+
 /**
- * Below 84rem the card would cover the transcript, so the chat shows
+ * Below 72rem the card would cover the transcript, so the chat shows
  * neither the card nor its toggle, though the user left the card open.
  */
 export const OverviewCardHiddenWhenNarrow: Story = {
 	decorators: [overviewCardFrame(1280 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
 	beforeEach: resetOverviewCardStorage,
 	render: renderOverviewCardStory,
+};
+
+/**
+ * From 72rem to 84rem the card is open and the transcript leaves 18rem
+ * clear on the right, instead of staying centered underneath it.
+ */
+export const OverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * The loading view shows the card's skeleton and reserves the same 18rem as
+ * the loaded chat, so the transcript does not move when the chat loads.
+ */
+export const LoadingOverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
+	beforeEach: resetOverviewCardStorage,
+	render: Loading.render,
 };
 
 /**
@@ -1065,7 +1098,6 @@ export const OverviewCardOpensPullRequest: Story = {
 	},
 	render: () => <OverviewCardWithRightPanel />,
 	play: async ({ canvasElement }) => {
-		// The card mounts once the chat's width is measured.
 		const card = await within(canvasElement).findByRole("complementary", {
 			name: "Overview",
 		});
@@ -2163,7 +2195,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
-		await body.findByText("New Terminal");
+		await body.findByText("New terminal");
 		for (const label of ["Browser", "Desktop", "Debug"]) {
 			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
 		}

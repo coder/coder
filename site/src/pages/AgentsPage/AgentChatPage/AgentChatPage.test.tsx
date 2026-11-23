@@ -33,7 +33,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { MockSkill } from "#/testHelpers/skills";
 import {
 	createMockWebSocket,
@@ -109,35 +108,15 @@ const renderChatPage = (chat: Chat) =>
 	});
 
 /**
- * Lets the test set the chat width that the overview card measures. Call it
- * before rendering the page.
+ * Waits for the loaded chat. The loading view renders its own overview toggle
+ * and a skeleton card with the same names, and unmounts them when the chat
+ * loads.
  */
-const stubChatWidth = () => {
-	MockResizeObserver.reset();
-	vi.stubGlobal("ResizeObserver", MockResizeObserver);
-	document.documentElement.style.fontSize = "16px";
-	return async (widthPx: number) => {
-		// The page re-renders its top bar while it loads, so look the observer
-		// up again on every try. The last observer of the chat is the live one.
-		const chatObserver = () =>
-			MockResizeObserver.instances.findLast((observer) =>
-				observer.observe.mock.calls.some(
-					([element]) =>
-						element instanceof HTMLElement &&
-						element.contains(
-							screen.queryByRole("button", { name: "Toggle panel" }),
-						),
-				),
-			);
-		await waitFor(() => expect(chatObserver()).toBeDefined());
-		act(() => chatObserver()?.simulateResize(widthPx));
-	};
-};
+const waitForLoadedChat = () =>
+	screen.findByRole("region", { name: "Messages" });
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	vi.unstubAllGlobals();
-	document.documentElement.style.fontSize = "";
 	localStorage.clear();
 });
 
@@ -324,10 +303,9 @@ describe("AgentChatPage", () => {
 
 	it("shows the overview card in a new chat and keeps the toggle's choice", async () => {
 		mockChatPageApi(MockChat);
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		const firstPage = renderChatPage(MockChat);
-		await setChatWidth(1600);
+		await waitForLoadedChat();
 
 		await user.click(
 			await screen.findByRole("button", {
@@ -339,30 +317,33 @@ describe("AgentChatPage", () => {
 
 		firstPage.unmount();
 		renderChatPage(MockChat);
-		await setChatWidth(1600);
+		await waitForLoadedChat();
 		await screen.findByRole("button", {
 			name: "Toggle overview",
 			expanded: false,
 		});
 	});
 
-	it("hides the overview card while a row's panel is open", async () => {
+	it("focuses a row's panel tab and hides the overview card while the panel is open", async () => {
 		const chat = { ...MockChat, diff_statuses: [MockChatDiffStatus] };
 		mockChatPageApi(chat);
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		renderChatPage(chat);
-		await setChatWidth(1600);
+		await waitForLoadedChat();
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
 		});
 		await user.click(within(card).getByRole("button", { name: /#123/ }));
+		expect(screen.getByRole("tab", { name: "Git" })).toHaveFocus();
 		expect(
 			screen.queryByRole("complementary", { name: "Overview" }),
 		).toBeNull();
 
-		await user.click(screen.getByRole("button", { name: "Toggle panel" }));
+		await user.click(
+			screen.getByRole("button", { name: "Toggle panel", expanded: true }),
+		);
+		screen.getByRole("button", { name: "Toggle panel", expanded: false });
 		await screen.findByRole("button", {
 			name: "Toggle overview",
 			expanded: true,
@@ -370,7 +351,7 @@ describe("AgentChatPage", () => {
 		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBeNull();
 	});
 
-	it("opens a pull request row's diff in the Git tab and focuses the tab", async () => {
+	it("opens a pull request row's diff in the Git tab", async () => {
 		const mockOtherRef = {
 			...MockChatDiffStatus,
 			git_branch: "feat/other",
@@ -386,35 +367,19 @@ describe("AgentChatPage", () => {
 		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: mockTwoPullRequestsChat.id,
 		});
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		renderChatPage(mockTwoPullRequestsChat);
-		await setChatWidth(1600);
+		await waitForLoadedChat();
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
 		});
 		await user.click(within(card).getByRole("button", { name: /#23020/ }));
 
-		expect(screen.getByRole("tab", { name: "Git" })).toHaveFocus();
 		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
 			"href",
 			mockOtherRef.url,
 		);
-	});
-
-	it("does not request the overview card's data in a narrow chat", async () => {
-		mockChatPageApi(MockChat);
-		mockOlderMessages();
-		const getChatAttachments = vi
-			.spyOn(API.experimental, "getChatAttachments")
-			.mockResolvedValue({ attachments: [] });
-		const setChatWidth = stubChatWidth();
-		renderChatPage(MockChat);
-
-		await setChatWidth(84 * 16 - 1);
-
-		expect(getChatAttachments).not.toHaveBeenCalled();
 	});
 
 	it("retries the overview card's earlier attachments after a failure", async () => {
@@ -424,10 +389,9 @@ describe("AgentChatPage", () => {
 			.spyOn(API.experimental, "getChatAttachments")
 			.mockRejectedValueOnce(new Error("Failed to get chat attachments."))
 			.mockResolvedValueOnce({ attachments: [] });
-		const setChatWidth = stubChatWidth();
 		const user = userEvent.setup();
 		renderChatPage(MockChat);
-		await setChatWidth(1600);
+		await waitForLoadedChat();
 
 		const card = await screen.findByRole("complementary", {
 			name: "Overview",
@@ -607,7 +571,7 @@ describe("AgentChatPage", () => {
 				}
 				await page.type(" edit");
 				await page.user.click(
-					screen.getByRole("button", { name: "Save Edit" }),
+					screen.getByRole("button", { name: "Save edit" }),
 				);
 
 				await waitFor(() =>
