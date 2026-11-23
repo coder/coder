@@ -24,8 +24,6 @@ export const Idle: Story = {
 			hasConnected: false,
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -45,8 +43,6 @@ export const Connected: Story = {
 			hasConnected: true,
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -62,8 +58,6 @@ export const Disconnected: Story = {
 			hasConnected: true,
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -79,8 +73,6 @@ export const ErrorState: Story = {
 			hasConnected: false,
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
