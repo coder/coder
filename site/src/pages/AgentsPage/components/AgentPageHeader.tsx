@@ -4,6 +4,7 @@ import {
 	BellIcon,
 	BellOffIcon,
 	EllipsisIcon,
+	FoldersIcon,
 	PanelLeftIcon,
 	SettingsIcon,
 	Volume2Icon,
@@ -29,8 +30,10 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { normalizeLocationSearch } from "./ChatsSidebar/locationSearch";
 
 type AgentPageHeaderProps = {
 	children?: React.ReactNode;
@@ -57,6 +60,9 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
+	// Projects need an organization, as in the sidebar.
+	const { organizations } = useDashboard();
+	const chatProjectsEnabled = organizations.length > 0;
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
 		useState(getChimeEnabled);
@@ -177,6 +183,20 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 						align="end"
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-sm"
 					>
+						{/* The sidebar's Projects item hides on a small screen. */}
+						{chatProjectsEnabled && (
+							<DropdownMenuItem asChild>
+								<Link
+									to={{
+										pathname: "/agents/projects",
+										search: normalizeLocationSearch(location.search),
+									}}
+								>
+									<FoldersIcon className="size-icon-sm" />
+									Projects
+								</Link>
+							</DropdownMenuItem>
+						)}
 						<DropdownMenuItem asChild>
 							<Link
 								to="/agents/settings"
