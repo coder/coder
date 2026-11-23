@@ -108,6 +108,7 @@ func TestVerify(t *testing.T) {
 		{name: "signature made with an empty key", header: hdr(id, ts, sign(nil, id, ts, body)), body: body, secret: "whsec_"},
 		{name: "secret without the whsec_ prefix", header: hdr(id, ts, valid), body: body, secret: strings.TrimPrefix(secret, "whsec_")},
 		{name: "secret with a line break", header: hdr(id, ts, valid), body: body, secret: secret + "\n"},
+		{name: "secret in the URL-safe base64 alphabet", header: hdr(id, ts, sign([]byte{0xfb, 0xff, 0xbf}, id, ts, body)), body: body, secret: "whsec_-_-_"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -121,8 +122,10 @@ func TestVerify(t *testing.T) {
 				return
 			}
 			require.Error(t, err)
-			// The error must not show the secret or a received signature.
+			// The error must not show the secret, a received signature or the
+			// expected one.
 			require.NotContains(t, err.Error(), tc.secret)
+			require.NotContains(t, err.Error(), strings.TrimPrefix(valid, "v1,"))
 			for _, sig := range tc.header.Values("webhook-signature") {
 				require.NotContains(t, err.Error(), sig)
 			}
