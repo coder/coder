@@ -2,11 +2,13 @@ import type { ChatProjectTemplatesChange } from "#/api/queries/chatProjects";
 import type {
 	ChatProject,
 	ChatProjectDefaultTemplate,
+	Template,
 } from "#/api/typesGenerated";
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
 	type ChatProjectTemplatesSettings,
 	type ChatProjectTemplatesValues,
+	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
@@ -43,6 +45,21 @@ export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
 		templates.template_ids.toSorted(),
 		serializeDefaultTemplate(templates.default_template),
 	]);
+
+/**
+ * Whether `request` differs from what `base` already saves. Both leave out
+ * templates that are no longer eligible, so a draft that only selects one of
+ * those has nothing to save. False while the eligible templates load.
+ */
+export const hasTemplatesChanges = (
+	request: ChatProjectTemplatesSettings | undefined,
+	base: ChatProjectTemplatesValues,
+	eligible: readonly Template[] | undefined,
+) =>
+	request !== undefined &&
+	eligible !== undefined &&
+	serializeTemplates(request) !==
+		serializeTemplates(chatProjectTemplatesRequest(base, eligible));
 
 /**
  * Returns what saving the draft changes about the saved templates. Templates
