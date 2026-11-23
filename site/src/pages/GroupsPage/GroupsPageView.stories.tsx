@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	GROUP_MEMBER_AVATAR_LIMIT,
@@ -18,6 +18,8 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
 type FilterProps = React.ComponentProps<typeof GroupsPageView>["filterProps"];
@@ -199,9 +201,22 @@ export const WithSearchAndPagination: Story = {
 			hasNextPage: true,
 		} as UsePaginatedQueryResult,
 	},
+};
+
+export const MobileFocusedSearch: Story = {
+	...WithSearchAndPagination,
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+	parameters: {
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () =>
+		setupMatchMedia({
+			[mobileViewportMediaQuery]: true,
+		}).restore,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Search")).toHaveValue("group");
+		await userEvent.click(
+			within(canvasElement).getByRole("textbox", { name: "Search groups…" }),
+		);
 	},
 };
 
