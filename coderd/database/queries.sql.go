@@ -1128,19 +1128,25 @@ WHERE
 		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
 		ELSE true
 	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $9::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.organization_id = $9::uuid
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 `
 
 type CountAIBridgeSessionsParams struct {
-	StartedAfter  time.Time `db:"started_after" json:"started_after"`
-	StartedBefore time.Time `db:"started_before" json:"started_before"`
-	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider      string    `db:"provider" json:"provider"`
-	ProviderName  string    `db:"provider_name" json:"provider_name"`
-	Model         string    `db:"model" json:"model"`
-	Client        string    `db:"client" json:"client"`
-	SessionID     string    `db:"session_id" json:"session_id"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider       string    `db:"provider" json:"provider"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
+	SessionID      string    `db:"session_id" json:"session_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error) {
@@ -1153,6 +1159,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -2217,12 +2224,20 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.workspace_id, aibridge_interceptions.organization_id, aibridge_interceptions.organization_source
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.workspace_id, aibridge_interceptions.organization_id, aibridge_interceptions.organization_source,
+	COALESCE(org.name, '')::text AS organization_name,
+	COALESCE(org.display_name, '')::text AS organization_display_name,
+	COALESCE(org.icon, '')::text AS organization_icon
 FROM
 	aibridge_interceptions
 JOIN
 	paginated_threads pt
 		ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
+LEFT JOIN LATERAL (
+	SELECT o.name, o.display_name, o.icon
+	FROM organizations o
+	WHERE o.id = aibridge_interceptions.organization_id
+) org ON true
 WHERE
 	aibridge_interceptions.session_id = $1::text
 	AND aibridge_interceptions.ended_at IS NOT NULL
@@ -2243,8 +2258,11 @@ type ListAIBridgeSessionThreadsParams struct {
 }
 
 type ListAIBridgeSessionThreadsRow struct {
-	ThreadID             uuid.UUID            `db:"thread_id" json:"thread_id"`
-	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	ThreadID                uuid.UUID            `db:"thread_id" json:"thread_id"`
+	AIBridgeInterception    AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	OrganizationName        string               `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string               `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string               `db:"organization_icon" json:"organization_icon"`
 }
 
 // Returns all interceptions belonging to paginated threads within a session.
@@ -2289,6 +2307,9 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.WorkspaceID,
 			&i.AIBridgeInterception.OrganizationID,
 			&i.AIBridgeInterception.OrganizationSource,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -2384,6 +2405,11 @@ session_page AS (
 			WHEN $9::text != '' THEN ai.session_id = $9::text
 			ELSE true
 		END
+		-- Filter organization_id
+		AND CASE
+			WHEN $10::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.organization_id = $10::uuid
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 	GROUP BY
@@ -2405,8 +2431,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
-	OFFSET $10
+	LIMIT COALESCE(NULLIF($12::integer, 0), 100)
+	OFFSET $11
 )
 SELECT
 	sp.session_id,
@@ -2431,7 +2457,8 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	sorg.organizations::jsonb AS organizations
 FROM
 	session_page sp
 JOIN
@@ -2449,6 +2476,26 @@ LEFT JOIN LATERAL (
 		AND ai.initiator_id = sp.initiator_id
 		AND ai.ended_at IS NOT NULL
 ) sr ON true
+LEFT JOIN LATERAL (
+	-- Organizations this session's interceptions were attributed to, with
+	-- every source used for each organization.
+	SELECT COALESCE(jsonb_agg(jsonb_build_object(
+		'id', o.id,
+		'name', o.name,
+		'display_name', o.display_name,
+		'icon', o.icon,
+		'sources', so.sources
+	) ORDER BY o.name), '[]'::jsonb) AS organizations
+	FROM (
+		SELECT ai.organization_id,
+			ARRAY_AGG(DISTINCT ai.organization_source ORDER BY ai.organization_source) AS sources
+		FROM aibridge_interceptions ai
+		WHERE ai.id = ANY(sr.interception_ids)
+			AND ai.organization_id IS NOT NULL
+		GROUP BY ai.organization_id
+	) so
+	JOIN organizations o ON o.id = so.organization_id
+) sorg ON true
 LEFT JOIN LATERAL (
 	-- Aggregate tokens only for this session's interceptions.
 	SELECT
@@ -2514,6 +2561,7 @@ type ListAIBridgeSessionsParams struct {
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Offset         int32     `db:"offset_" json:"offset_"`
 	Limit          int32     `db:"limit_" json:"limit_"`
 }
@@ -2542,6 +2590,7 @@ type ListAIBridgeSessionsRow struct {
 	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
 	NetworkCallsBlocked   int64           `db:"network_calls_blocked" json:"network_calls_blocked"`
 	FirewallActive        bool            `db:"firewall_active" json:"firewall_active"`
+	Organizations         json.RawMessage `db:"organizations" json:"organizations"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -2568,6 +2617,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -2602,6 +2652,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			&i.Organizations,
 		); err != nil {
 			return nil, err
 		}
@@ -3791,13 +3842,13 @@ WITH unpriced_usage AS (
 		ON interceptions.id = token_usages.interception_id
 	LEFT JOIN groups
 		ON groups.id = token_usages.effective_group_id
-	WHERE token_usages.created_at >= $2::timestamptz
-		AND token_usages.created_at < $3::timestamptz
+	WHERE token_usages.created_at >= $4::timestamptz
+		AND token_usages.created_at < $5::timestamptz
 		AND token_usages.cost_micros IS NULL
 		AND token_usages.priced_model IS NULL
 		AND (
-			$4::uuid IS NULL
-			OR groups.organization_id = $4::uuid
+			$6::uuid IS NULL
+			OR groups.organization_id = $6::uuid
 		)
 	GROUP BY groups.organization_id, interceptions.provider_name, interceptions.model
 )
@@ -3807,7 +3858,8 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	SUM(unpriced_usage.token_count)::bigint AS token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count,
+	COUNT(*) OVER ()::BIGINT AS count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -3839,10 +3891,14 @@ ORDER BY
 	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
 	unpriced_usage.model ASC
+LIMIT NULLIF($3::int, 0)
+OFFSET $2::int
 `
 
 type GetUnpricedAIModelsParams struct {
 	PriceableProviders []string      `db:"priceable_providers" json:"priceable_providers"`
+	OffsetOpt          int32         `db:"offset_opt" json:"offset_opt"`
+	LimitOpt           int32         `db:"limit_opt" json:"limit_opt"`
 	PeriodStart        time.Time     `db:"period_start" json:"period_start"`
 	PeriodEnd          time.Time     `db:"period_end" json:"period_end"`
 	OrganizationID     uuid.NullUUID `db:"organization_id" json:"organization_id"`
@@ -3855,6 +3911,7 @@ type GetUnpricedAIModelsRow struct {
 	ProviderType        string         `db:"provider_type" json:"provider_type"`
 	Model               string         `db:"model" json:"model"`
 	TokenCount          int64          `db:"token_count" json:"token_count"`
+	Count               int64          `db:"count" json:"count"`
 }
 
 // Returns, for each live provider, the requested models with unpriced token
@@ -3865,10 +3922,13 @@ type GetUnpricedAIModelsRow struct {
 // reported by the provider, or whose cost could not be computed from a found
 // price, is not reported as unpriced. openai-compat providers cannot be priced,
 // so they are excluded. @organization_id limits the usage to one organization,
-// and null includes all.
+// and null includes all. count is the number of models before the limit, and a
+// @limit_opt of zero returns every model.
 func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels,
 		pq.Array(arg.PriceableProviders),
+		arg.OffsetOpt,
+		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
 		arg.OrganizationID,
@@ -3887,6 +3947,7 @@ func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIM
 			&i.ProviderType,
 			&i.Model,
 			&i.TokenCount,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -4180,19 +4241,32 @@ const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :man
 WITH spend AS (
 	SELECT
 		ai.initiator_id AS user_id,
+		ai.provider_name,
+		ai.model,
+		COALESCE(ai.client, 'Unknown') AS client,
+		GROUPING(ai.provider_name) = 0 AS is_provider,
+		GROUPING(ai.model) = 0 AS is_model,
+		GROUPING(COALESCE(ai.client, 'Unknown')) = 0 AS is_client,
 		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+		BOOL_OR(tu.cost_micros IS NULL) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN groups ON groups.id = tu.effective_group_id
 	WHERE groups.organization_id = $1
-		AND tu.created_at >= $4::timestamptz
-		AND tu.created_at < $5::timestamptz
+		AND tu.created_at >= $2::timestamptz
+		AND tu.created_at < $3::timestamptz
 		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			WHEN COALESCE(cardinality($4::uuid[]), 0) > 0
+				THEN ai.initiator_id = ANY($4::uuid[])
+			ELSE true
+		END
+		AND (
+			$5::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+			OR tu.effective_group_id = $5
+		)
+		AND CASE
+			WHEN $6::text != ''
+				THEN ai.provider_name = $6::text
 			ELSE true
 		END
 		AND CASE
@@ -4200,74 +4274,136 @@ WITH spend AS (
 			ELSE true
 		END
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $8::text != ''
+				THEN COALESCE(ai.client, 'Unknown') = $8::text
 			ELSE true
 		END
-	GROUP BY ai.initiator_id
+	GROUP BY GROUPING SETS (
+		(ai.initiator_id),
+		(ai.initiator_id, ai.provider_name),
+		(ai.initiator_id, ai.model),
+		(ai.initiator_id, COALESCE(ai.client, 'Unknown'))
+	)
+),
+user_page AS (
+	SELECT
+		spend.user_id,
+		users.username,
+		users.name,
+		users.avatar_url,
+		spend.cost_micros,
+		COUNT(*) OVER ()::BIGINT AS count,
+		COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+		BOOL_OR(spend.has_unpriced_usage) OVER () AS total_has_unpriced_usage
+	FROM spend
+	JOIN users ON users.id = spend.user_id
+	WHERE NOT (spend.is_provider OR spend.is_model OR spend.is_client)
+	ORDER BY spend.cost_micros DESC, LOWER(users.username), spend.user_id
+	LIMIT NULLIF($10::int, 0)
+	OFFSET $9::int
 )
 SELECT
-	spend.user_id,
-	users.username,
-	users.name,
-	users.avatar_url,
+	user_page.user_id,
+	user_page.username,
+	user_page.name,
+	user_page.avatar_url,
 	$1::uuid AS organization_id,
-	spend.cost_micros,
-	spend.unpriced_usage_count,
-	spend.providers,
-	spend.clients,
-	spend.models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM spend
-JOIN users ON users.id = spend.user_id
-ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
-LIMIT NULLIF($3::int, 0)
-OFFSET $2::int
+	user_page.cost_micros,
+	user_page.count,
+	user_page.total_cost_micros,
+	user_page.total_has_unpriced_usage,
+	(CASE
+		WHEN spend.is_provider THEN 'provider'
+		WHEN spend.is_model THEN 'model'
+		WHEN spend.is_client THEN 'client'
+	END)::text AS dimension,
+	(CASE
+		WHEN spend.is_provider THEN spend.provider_name
+		WHEN spend.is_model THEN spend.model
+		WHEN spend.is_client THEN spend.client
+	END)::text AS dimension_name,
+	COALESCE(providers.display_name, '')::text AS provider_display_name,
+	COALESCE(providers.icon, '')::text AS provider_icon,
+	COALESCE(providers.type::text, '')::text AS provider_type,
+	spend.cost_micros AS dimension_cost_micros,
+	spend.has_unpriced_usage AS dimension_has_unpriced_usage
+FROM user_page
+JOIN spend
+	ON spend.user_id = user_page.user_id
+	AND (spend.is_provider OR spend.is_model OR spend.is_client)
+LEFT JOIN LATERAL (
+	SELECT ai_providers.display_name, ai_providers.icon, ai_providers.type
+	FROM ai_providers
+	WHERE ai_providers.name = spend.provider_name
+	ORDER BY ai_providers.deleted ASC, ai_providers.updated_at DESC
+	LIMIT 1
+) AS providers ON spend.is_provider
+ORDER BY
+	user_page.cost_micros DESC,
+	LOWER(user_page.username),
+	user_page.user_id,
+	CASE
+		WHEN spend.is_provider THEN 1
+		WHEN spend.is_model THEN 2
+		WHEN spend.is_client THEN 3
+	END,
+	spend.cost_micros DESC,
+	dimension_name ASC
 `
 
 type ListOrganizationAISpendUsersParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
-	PeriodStart    time.Time `db:"period_start" json:"period_start"`
-	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
-	ProviderName   string    `db:"provider_name" json:"provider_name"`
-	Model          string    `db:"model" json:"model"`
-	Client         string    `db:"client" json:"client"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time   `db:"period_end" json:"period_end"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+	GroupID        uuid.UUID   `db:"group_id" json:"group_id"`
+	ProviderName   string      `db:"provider_name" json:"provider_name"`
+	Model          string      `db:"model" json:"model"`
+	Client         string      `db:"client" json:"client"`
+	OffsetOpt      int32       `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32       `db:"limit_opt" json:"limit_opt"`
 }
 
 type ListOrganizationAISpendUsersRow struct {
-	UserID                  uuid.UUID `db:"user_id" json:"user_id"`
-	Username                string    `db:"username" json:"username"`
-	Name                    string    `db:"name" json:"name"`
-	AvatarURL               string    `db:"avatar_url" json:"avatar_url"`
-	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
-	CostMicros              int64     `db:"cost_micros" json:"cost_micros"`
-	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
-	Providers               []string  `db:"providers" json:"providers"`
-	Clients                 []string  `db:"clients" json:"clients"`
-	Models                  []string  `db:"models" json:"models"`
-	Count                   int64     `db:"count" json:"count"`
-	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
-	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
+	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	Username                  string    `db:"username" json:"username"`
+	Name                      string    `db:"name" json:"name"`
+	AvatarURL                 string    `db:"avatar_url" json:"avatar_url"`
+	OrganizationID            uuid.UUID `db:"organization_id" json:"organization_id"`
+	CostMicros                int64     `db:"cost_micros" json:"cost_micros"`
+	Count                     int64     `db:"count" json:"count"`
+	TotalCostMicros           int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalHasUnpricedUsage     bool      `db:"total_has_unpriced_usage" json:"total_has_unpriced_usage"`
+	Dimension                 string    `db:"dimension" json:"dimension"`
+	DimensionName             string    `db:"dimension_name" json:"dimension_name"`
+	ProviderDisplayName       string    `db:"provider_display_name" json:"provider_display_name"`
+	ProviderIcon              string    `db:"provider_icon" json:"provider_icon"`
+	ProviderType              string    `db:"provider_type" json:"provider_type"`
+	DimensionCostMicros       int64     `db:"dimension_cost_micros" json:"dimension_cost_micros"`
+	DimensionHasUnpricedUsage bool      `db:"dimension_has_unpriced_usage" json:"dimension_has_unpriced_usage"`
 }
 
 // Returns one page of per-user AI spend for @organization_id over the
-// [period_start, period_end) window, most expensive first, together with the
-// providers, clients, and models each user spent through and the count and
-// totals over every matching user. It must keep the same joins and predicates as
-// ExportOrganizationAISpend so both report the same token usage.
+// [period_start, period_end) window, most expensive first. Each user has one
+// row per provider, model, and client they spent through, and every row
+// carries the user's spend and the count and totals over every matching user.
+// It must count the same token usage as the CSV export for the same filters.
+// The page, count, and totals apply to users, not to their provider, model,
+// and client rows.
+// Provider details include deleted providers, since usage still references
+// them, and prefer the live provider when a name was reused.
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
+		pq.Array(arg.UserIds),
+		arg.GroupID,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -4283,13 +4419,16 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 			&i.AvatarURL,
 			&i.OrganizationID,
 			&i.CostMicros,
-			&i.UnpricedUsageCount,
-			pq.Array(&i.Providers),
-			pq.Array(&i.Clients),
-			pq.Array(&i.Models),
 			&i.Count,
 			&i.TotalCostMicros,
-			&i.TotalUnpricedUsageCount,
+			&i.TotalHasUnpricedUsage,
+			&i.Dimension,
+			&i.DimensionName,
+			&i.ProviderDisplayName,
+			&i.ProviderIcon,
+			&i.ProviderType,
+			&i.DimensionCostMicros,
+			&i.DimensionHasUnpricedUsage,
 		); err != nil {
 			return nil, err
 		}
@@ -8278,24 +8417,12 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 
 const getChatProjectSummariesByUserID = `-- name: GetChatProjectSummariesByUserID :many
 WITH accessible AS (
+    -- Grant keys select candidates even while chat sharing is disabled, as
+    -- in GetChatProjectsOwnedOrSharedWithUserID: a role can still let the
+    -- caller read the project.
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
-    WHERE owner_id = $2::uuid
-        OR (
-            -- Grant keys select candidates even while chat sharing is
-            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
-            -- role can still let the caller read the project.
-            (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = $2::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = $2::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = $2::uuid
-                    AND organization_members.organization_id = chat_projects.organization_id
-            )
-        )
+    WHERE id IN (SELECT project_id FROM chat_project_ids_for_user($2::uuid, true))
 ),
 everyone_projects AS (
     SELECT id AS project_id, organization_id FROM accessible
@@ -8480,24 +8607,10 @@ const pinChatProject = `-- name: PinChatProject :exec
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
-            -- Same access predicate as GetChatProjectSummariesByUserID.
-            cp.owner_id = $1::uuid
-            OR (
-                (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
-                    SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
-                    UNION ALL
-                    SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
-                ))
-                AND EXISTS (
-                    SELECT 1 FROM organization_members
-                    WHERE organization_members.user_id = $1::uuid
-                        AND organization_members.organization_id = cp.organization_id
-                )
-            )
+        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
+            SELECT project_id FROM chat_project_ids_for_user($1::uuid, true)
         ) AS stale
         FROM chat_project_pins p
-        JOIN chat_projects cp ON cp.id = p.project_id
         WHERE p.user_id = $1::uuid
     ) pins
 ),
@@ -8553,24 +8666,10 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
-        -- Same access predicate as GetChatProjectSummariesByUserID.
-        cp.owner_id = $1::uuid
-        OR (
-            (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-                    AND organization_members.organization_id = cp.organization_id
-            )
-        )
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
+        SELECT project_id FROM chat_project_ids_for_user($1::uuid, true)
     ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
-    JOIN chat_projects cp ON cp.id = p.project_id
     WHERE p.user_id = $1::uuid AND p.project_id <> $2::uuid
 )
 UPDATE chat_project_pins p
@@ -8946,27 +9045,7 @@ func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, pr
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters, chat_projects.archived_at
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
-    OR (
-        (
-            chat_projects.user_acl ? ($1::uuid)::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = $1::uuid
-                UNION ALL
-                SELECT organization_members.organization_id::text
-                FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-            )
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
-                AND organization_members.organization_id = chat_projects.organization_id
-        )
-    )
+WHERE chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user($1::uuid, true))
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
@@ -12282,28 +12361,9 @@ WHERE
             OR chats_expanded.pin_order > 0
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
-            -- no project list reaches the chat. Same access predicate as
-            -- GetChatProjectSummariesByUserID.
-            OR NOT EXISTS (
-                SELECT 1
-                FROM chat_projects cp
-                WHERE cp.id = chats_expanded.project_id
-                    AND (
-                        cp.owner_id = $3::uuid
-                        OR (
-                            $9::boolean
-                            AND (cp.user_acl ? ($3::uuid)::text OR cp.group_acl ?| ARRAY(
-                                SELECT group_id::text FROM group_members WHERE user_id = $3::uuid
-                                UNION ALL
-                                SELECT organization_id::text FROM organization_members WHERE user_id = $3::uuid
-                            ))
-                            AND EXISTS (
-                                SELECT 1 FROM organization_members
-                                WHERE organization_members.user_id = $3::uuid
-                                    AND organization_members.organization_id = cp.organization_id
-                            )
-                        )
-                    )
+            -- no project list reaches the chat.
+            OR chats_expanded.project_id NOT IN (
+                SELECT project_id FROM chat_project_ids_for_user($3::uuid, $9::boolean)
             )
         )
         ELSE true
@@ -17836,7 +17896,7 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 }
 
 const acquireExternalAuthLinkRefreshLease = `-- name: AcquireExternalAuthLinkRefreshLease :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at from acquire_external_auth_link_refresh_lease($1, $2, $3)
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at, oauth_extra_key_id from acquire_external_auth_link_refresh_lease($1, $2, $3)
 `
 
 type AcquireExternalAuthLinkRefreshLeaseParams struct {
@@ -17863,6 +17923,7 @@ func (q *sqlQuerier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, ar
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
 		&i.RefreshLeaseExpiresAt,
+		&i.OAuthExtraKeyID,
 	)
 	return i, err
 }
@@ -17882,7 +17943,7 @@ func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExter
 }
 
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at, oauth_extra_key_id FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetExternalAuthLinkParams struct {
@@ -17906,12 +17967,13 @@ func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAut
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
 		&i.RefreshLeaseExpiresAt,
+		&i.OAuthExtraKeyID,
 	)
 	return i, err
 }
 
 const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at FROM external_auth_links WHERE user_id = $1
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at, oauth_extra_key_id FROM external_auth_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
@@ -17936,6 +17998,7 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthExtra,
 			&i.OauthRefreshFailureReason,
 			&i.RefreshLeaseExpiresAt,
+			&i.OAuthExtraKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -17961,7 +18024,8 @@ INSERT INTO external_auth_links (
     oauth_refresh_token,
     oauth_refresh_token_key_id,
     oauth_expiry,
-	oauth_extra
+	oauth_extra,
+	oauth_extra_key_id
 ) VALUES (
     $1,
     $2,
@@ -17972,8 +18036,9 @@ INSERT INTO external_auth_links (
     $7,
     $8,
     $9,
-	$10
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
+	$10,
+	$11
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at, oauth_extra_key_id
 `
 
 type InsertExternalAuthLinkParams struct {
@@ -17987,6 +18052,7 @@ type InsertExternalAuthLinkParams struct {
 	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry            time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	OAuthExtraKeyID        sql.NullString        `db:"oauth_extra_key_id" json:"oauth_extra_key_id"`
 }
 
 func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error) {
@@ -18001,6 +18067,7 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.OAuthExtra,
+		arg.OAuthExtraKeyID,
 	)
 	var i ExternalAuthLink
 	err := row.Scan(
@@ -18016,6 +18083,7 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
 		&i.RefreshLeaseExpiresAt,
+		&i.OAuthExtraKeyID,
 	)
 	return i, err
 }
@@ -18052,12 +18120,13 @@ UPDATE external_auth_links SET
 	oauth_refresh_token_key_id = $8,
 	oauth_expiry = $9,
 	oauth_extra = $10,
-	oauth_refresh_failure_reason = $11
+	oauth_extra_key_id = $11,
+	oauth_refresh_failure_reason = $12
 WHERE
 	provider_id = $1
 	AND user_id = $2
 	AND (refresh_lease_expires_at = $3 OR $3 IS NULL)
-RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
+RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at, oauth_extra_key_id
 `
 
 type UpdateExternalAuthLinkParams struct {
@@ -18071,6 +18140,7 @@ type UpdateExternalAuthLinkParams struct {
 	OAuthRefreshTokenKeyID    sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry               time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
 	OAuthExtra                pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	OAuthExtraKeyID           sql.NullString        `db:"oauth_extra_key_id" json:"oauth_extra_key_id"`
 	OauthRefreshFailureReason string                `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
@@ -18087,6 +18157,7 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.OAuthExtra,
+		arg.OAuthExtraKeyID,
 		arg.OauthRefreshFailureReason,
 	)
 	var i ExternalAuthLink
@@ -18103,6 +18174,7 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
 		&i.RefreshLeaseExpiresAt,
+		&i.OAuthExtraKeyID,
 	)
 	return i, err
 }
@@ -31932,7 +32004,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, browser_only, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -31979,6 +32051,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
 		&i.AllowWorkspaceRenames,
+		&i.BrowserOnly,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -31991,7 +32064,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, browser_only, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -32046,6 +32119,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
 		&i.AllowWorkspaceRenames,
+		&i.BrowserOnly,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -32057,7 +32131,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, browser_only, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -32105,6 +32179,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
 			&i.AllowWorkspaceRenames,
+			&i.BrowserOnly,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -32127,7 +32202,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.browser_only, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -32298,6 +32373,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
 			&i.AllowWorkspaceRenames,
+			&i.BrowserOnly,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -32339,10 +32415,11 @@ INSERT INTO
 		use_classic_parameter_flow,
 		cors_behavior,
 		agents_allowed,
-		allow_workspace_renames
+		allow_workspace_renames,
+		browser_only
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 `
 
 type InsertTemplateParams struct {
@@ -32365,6 +32442,7 @@ type InsertTemplateParams struct {
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	BrowserOnly                  bool            `db:"browser_only" json:"browser_only"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -32388,6 +32466,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.CorsBehavior,
 		arg.AgentsAllowed,
 		arg.AllowWorkspaceRenames,
+		arg.BrowserOnly,
 	)
 	return err
 }
@@ -32492,7 +32571,8 @@ SET
 	cors_behavior = $11,
 	disable_module_cache = $12,
 	agents_allowed = $13,
-	allow_workspace_renames = $14
+	allow_workspace_renames = $14,
+	browser_only = $15
 WHERE
 	id = $1
 `
@@ -32512,6 +32592,7 @@ type UpdateTemplateMetaByIDParams struct {
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	BrowserOnly                  bool            `db:"browser_only" json:"browser_only"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -32530,6 +32611,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DisableModuleCache,
 		arg.AgentsAllowed,
 		arg.AllowWorkspaceRenames,
+		arg.BrowserOnly,
 	)
 	return err
 }
@@ -44134,7 +44216,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, browser_only
 	FROM
 		templates
 	WHERE
@@ -44724,6 +44806,11 @@ WHERE
 	-- Filter by owner_id
 	workspaces.owner_id = $1 :: uuid
 	AND workspaces.deleted = false
+	-- Browser-only workspaces refuse tailnet tunnels, so clients should not be told to dial them.
+	AND NOT EXISTS (
+		SELECT 1 FROM templates
+		WHERE templates.id = workspaces.template_id AND templates.browser_only
+	)
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition

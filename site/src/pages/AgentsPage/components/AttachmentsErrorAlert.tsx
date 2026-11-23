@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { RetryButton } from "./RetryButton";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 
 type AttachmentsErrorAlertProps = {
 	isRetrying: boolean;

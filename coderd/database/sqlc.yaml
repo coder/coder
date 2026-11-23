@@ -250,6 +250,7 @@ sql:
           oauth_refresh_token: OAuthRefreshToken
           oauth_refresh_token_key_id: OAuthRefreshTokenKeyID
           oauth_extra: OAuthExtra
+          oauth_extra_key_id: OAuthExtraKeyID
           parameter_type_system_hcl: ParameterTypeSystemHCL
           userstatus: UserStatus
           gitsshkey: GitSSHKey
