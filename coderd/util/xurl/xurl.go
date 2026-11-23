@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"unicode"
+
+	"github.com/coder/safedial"
 )
 
 // ContainsEncodedPath reports whether u's path is unsafe to forward to
@@ -53,8 +55,9 @@ func isPathSeparator(r rune) bool {
 
 // IsPublicHTTPS reports whether u is an https URL whose host could be
 // reachable from the public internet: the host is not localhost and is
-// not a loopback, private, link-local, or unspecified IP literal. Host
-// names are not resolved.
+// not an IP literal in a range that safedial blocks (loopback, private,
+// link-local, multicast, carrier-grade NAT, documentation, and other
+// special-use ranges). Host names are not resolved.
 func IsPublicHTTPS(u *url.URL) bool {
 	if u == nil || u.Scheme != "https" {
 		return false
@@ -64,8 +67,7 @@ func IsPublicHTTPS(u *url.URL) bool {
 		return false
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
-		ip = ip.Unmap()
-		return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
+		return safedial.CheckAddr(ip) == nil
 	}
 	return true
 }

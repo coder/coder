@@ -3419,7 +3419,7 @@ func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
 		// want is the stored method, or "" when the create must fail.
 		want codersdk.MCPServerOAuth2ClientRegistration
 	}{
-		{name: "PrefersMetadataDocument", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: metadataDocument},
+		{name: "PrefersMetadataDocument", accessURL: "https://coder.example.com/", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: metadataDocument},
 		{name: "DynamicOnly", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic}, want: dynamic},
 		{name: "MetadataDocumentNeedsPublicAccessURL", accessURL: "http://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}},
 	}
@@ -3468,7 +3468,7 @@ func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
 			}
 
 			require.Empty(t, discovery.registrations())
-			require.Equal(t, tc.accessURL+documentPath, config.OAuth2ClientID)
+			require.Equal(t, strings.TrimSuffix(tc.accessURL, "/")+documentPath, config.OAuth2ClientID)
 			require.False(t, config.HasOAuth2Secret)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			var document struct {

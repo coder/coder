@@ -2541,7 +2541,7 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 	// section 3).
 	var clientMetadataURL string
 	if xurl.IsPublicHTTPS(api.AccessURL) {
-		clientMetadataURL = api.AccessURL.String() + mcpServerOAuth2ClientMetadataPath(configID)
+		clientMetadataURL = api.AccessURL.JoinPath(mcpServerOAuth2ClientMetadataPath(configID)).String()
 	}
 	// Discovery targets are attacker-influenced (the MCP server URL and
 	// any endpoints or redirects it advertises), so all discovery traffic
