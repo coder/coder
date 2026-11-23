@@ -1,4 +1,4 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockWorkspaceBuild } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -31,5 +31,21 @@ describe("WorkspaceBuildPageView builds sidebar", () => {
 		expect(active).toHaveFocus();
 		await user.tab();
 		expect(last).toHaveFocus();
+	});
+
+	it("describes the focused build link with the build reason", async () => {
+		render(
+			<WorkspaceBuildPageView
+				build={mockBuilds[0]}
+				builds={[{ ...mockBuilds[0], reason: "cli" }]}
+				logs={[]}
+				activeBuildNumber={2}
+			/>,
+		);
+
+		const link = within(screen.getByRole("navigation")).getByRole("link");
+		act(() => link.focus());
+
+		await waitFor(() => expect(link).toHaveAccessibleDescription("CLI"));
 	});
 });

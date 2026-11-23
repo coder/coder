@@ -39,6 +39,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	canManageProviderModels,
@@ -141,7 +142,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchParams] = useSearchParams();
 	const { organization, accessibleOrganizations } = useOrganizationModels();
 
 	// Keep filter state in the URL so it persists across navigation.
@@ -151,16 +152,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	const rawPage = Number.parseInt(searchParams.get(PAGE_PARAM) ?? "1", 10);
 	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
 
-	const updateSearchParams = (mutate: (params: URLSearchParams) => void) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				mutate(next);
-				return next;
-			},
-			{ replace: true },
-		);
-	};
+	const updateSearchParams = useUpdateSearchParams();
 
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();

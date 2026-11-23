@@ -310,6 +310,12 @@ func templateBuilderProvisionerFailureReason(category templatebuilder.Provisione
 	}
 }
 
+// templateBuilderNameConflictValidations attributes a name conflict to the
+// request's name field.
+var templateBuilderNameConflictValidations = []codersdk.ValidationError{
+	{Field: "name", Detail: "A template with this name already exists in the organization."},
+}
+
 // @Summary Compose and create a template
 // @ID compose-and-create-a-template
 // @Security CoderSessionToken
@@ -346,6 +352,9 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInvalidRequest)
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Organization not found.",
+			Validations: []codersdk.ValidationError{
+				{Field: "organization_id", Detail: "Organization not found."},
+			},
 		})
 		return
 	}
@@ -372,7 +381,8 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	if err == nil {
 		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "A template with this name already exists in the organization.",
+			Message:     "A template with this name already exists in the organization.",
+			Validations: templateBuilderNameConflictValidations,
 		})
 		return
 	}
@@ -651,12 +661,14 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			CorsBehavior:                 database.CorsBehaviorSimple,
 			AgentsAllowed:                true,
 			AllowWorkspaceRenames:        false,
+			BrowserOnly:                  false,
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
 				api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
 				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: "A template with this name already exists in the organization.",
+					Message:     "A template with this name already exists in the organization.",
+					Validations: templateBuilderNameConflictValidations,
 				})
 				return nil
 			}

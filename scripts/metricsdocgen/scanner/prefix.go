@@ -35,15 +35,9 @@ type prefixIndex map[string][]string
 
 // prefixFuncs are the registerer wrappers that prepend to every metric name
 // registered through them. Each maps to the index of the argument holding the
-// canonical prefix.
-//
-// NewMetricAliasRegisterer also registers a second, legacy prefix so existing
-// dashboards keep working, and takes it as a later argument. Only the
-// canonical prefix is indexed: the aliases are deprecated and the reference
-// should not teach them.
+// prefix.
 var prefixFuncs = map[string]int{
 	"WrapRegistererWithPrefix": 0,
-	"NewMetricAliasRegisterer": 1,
 }
 
 // buildPrefixIndex scans roots for registerer wrapping and returns the
