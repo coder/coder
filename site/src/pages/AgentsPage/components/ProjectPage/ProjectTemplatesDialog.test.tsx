@@ -65,6 +65,10 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 const findParameterInput = async (name: string) =>
 	within(await screen.findByRole("group", { name })).getByRole("textbox");
 
+/** Save is busy while the dialog loads, refreshes, checks, or saves. */
+const findSave = () =>
+	screen.findByRole("button", { name: /Save/, busy: false });
+
 describe("ProjectTemplatesDialog", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -205,10 +209,7 @@ describe("ProjectTemplatesDialog", () => {
 	it("sends a save once even when Save is pressed again before the dialog closes", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
+		const save = await findSave();
 
 		await user.click(save);
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
@@ -229,9 +230,8 @@ describe("ProjectTemplatesDialog", () => {
 				queryKey: agentTemplatesKey(MockChatProject.organization_id),
 			}),
 		);
-		await user.click(
-			await screen.findByRole("button", { name: /Save/, busy: false }),
-		);
+		await user.click(await findSave());
+		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(props.onSave).not.toHaveBeenCalled();
 		// The first load and the refetch. A save would check the list again.
@@ -247,11 +247,7 @@ describe("ProjectTemplatesDialog", () => {
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({

@@ -11,11 +11,11 @@ import {
 import type {
 	ChatProject,
 	DynamicParametersResponse,
-	Preset,
 	Template,
 } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockPreset,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockTemplate,
@@ -39,21 +39,12 @@ const mockKubernetesTemplate: Template = {
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
 };
-const mockSmallPreset: Preset = {
-	ID: "preset-small",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
 const mockProjectWithDefaultPreset: ChatProject = {
 	...MockChatProject,
 	templates: [mockDockerTemplate, mockKubernetesTemplate],
 	default_template: {
 		template_id: mockDockerTemplate.id,
-		preset_id: mockSmallPreset.ID,
+		preset_id: MockPreset.ID,
 	},
 };
 const mockDefaultParameters = { [MockPreviewParameter1.name]: "custom" };
@@ -156,7 +147,7 @@ export const DefaultPreset: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -181,7 +172,7 @@ export const DefaultParameters: Story = {
 			// Lets the story switch to a preset without a request.
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -205,7 +196,7 @@ export const DefaultParametersRefetchError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -238,7 +229,7 @@ export const Saving: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -275,7 +266,7 @@ export const SaveError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -294,7 +285,7 @@ export const RequestError: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
@@ -326,7 +317,7 @@ export const SavedEmptyParameter: Story = {
 			},
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
