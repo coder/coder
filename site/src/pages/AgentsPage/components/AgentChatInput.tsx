@@ -1027,8 +1027,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					(isEditingMessage || warning) &&
-						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+					(isEditingMessage || warning) && "shadow-(--shadow-border-warning)",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
@@ -1070,7 +1069,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							}
 							onClick={onCancelEdit}
 							disabled={isLoading}
-							className="size-6 rounded text-content-warning hover:text-content-primary"
+							className="size-6 rounded text-border-warning hover:text-content-primary"
 						>
 							<XIcon className="size-3.5" />
 						</Button>
@@ -1534,6 +1533,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 								)}
 								key={workspace.id}
 								value={workspace.name}
+								aria-selected={isSelected}
 								disabled={isUnavailable}
 								onSelect={() => {
 									if (!isUnavailable) {

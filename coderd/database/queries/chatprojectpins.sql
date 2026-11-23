@@ -16,24 +16,10 @@ WHERE user_id = @user_id::uuid;
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
-            -- Same access predicate as GetChatProjectSummariesByUserID.
-            cp.owner_id = @user_id::uuid
-            OR (
-                (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
-                    SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
-                    UNION ALL
-                    SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
-                ))
-                AND EXISTS (
-                    SELECT 1 FROM organization_members
-                    WHERE organization_members.user_id = @user_id::uuid
-                        AND organization_members.organization_id = cp.organization_id
-                )
-            )
+        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
+            SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true)
         ) AS stale
         FROM chat_project_pins p
-        JOIN chat_projects cp ON cp.id = p.project_id
         WHERE p.user_id = @user_id::uuid
     ) pins
 ),
@@ -74,24 +60,10 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
-        -- Same access predicate as GetChatProjectSummariesByUserID.
-        cp.owner_id = @user_id::uuid
-        OR (
-            (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = @user_id::uuid
-                    AND organization_members.organization_id = cp.organization_id
-            )
-        )
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
+        SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true)
     ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
-    JOIN chat_projects cp ON cp.id = p.project_id
     WHERE p.user_id = @user_id::uuid AND p.project_id <> @project_id::uuid
 )
 UPDATE chat_project_pins p
@@ -107,24 +79,12 @@ WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id
 -- so callers must authorize each row; pins on projects the user can no
 -- longer see are never returned.
 WITH accessible AS (
+    -- Grant keys select candidates even while chat sharing is disabled, as
+    -- in GetChatProjectsOwnedOrSharedWithUserID: a role can still let the
+    -- caller read the project.
     SELECT id, organization_id, owner_id, user_acl, group_acl
     FROM chat_projects
-    WHERE owner_id = @user_id::uuid
-        OR (
-            -- Grant keys select candidates even while chat sharing is
-            -- disabled, as in GetChatProjectsOwnedOrSharedWithUserID: a
-            -- role can still let the caller read the project.
-            (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = @user_id::uuid
-                    AND organization_members.organization_id = chat_projects.organization_id
-            )
-        )
+    WHERE id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
 ),
 -- Users who can use each project: the owner and the users its read grants
 -- reach (chat_project_read_grant_members). Counted only while project

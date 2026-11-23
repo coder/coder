@@ -12,9 +12,11 @@ import {
 	MockGroup2,
 	MockGroup3,
 	MockGroupWithoutMembers,
+	MockOrganizationMember,
 	MockWorkspace,
 	MockWorkspaceUser,
 	MockWorkspaceUserAdmin,
+	MockWorkspaceUserLongName,
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
@@ -122,5 +124,59 @@ export const OverflowingMembers: Story = {
 		await openSharing(canvasElement);
 		// Scroll so the screenshot shows rows passing under the sticky header.
 		screen.getAllByRole("row").at(-1)?.scrollIntoView({ block: "end" });
+	},
+};
+
+export const NarrowViewport: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: {
+					...mockOverflowingACL,
+					users: [...mockOverflowingACL.users, MockWorkspaceUserLongName],
+				},
+			},
+		],
+	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
+};
+
+export const MemberSelected: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: { users: [], group: [] },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember],
+			count: 1,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		await userEvent.click(
+			screen.getByRole("button", { name: "Search for user or group" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganizationMember.username),
+			}),
+		);
 	},
 };
