@@ -15,27 +15,10 @@ WHERE user_id = @user_id::uuid;
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
-            -- The user can see a project they own, or one granted to them or
-            -- their groups while grants are honored and they are a member of
-            -- its organization.
-            cp.owner_id = @user_id::uuid
-            OR (
-                @acl_enabled::boolean
-                AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
-                    SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
-                    UNION ALL
-                    SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
-                ))
-                AND EXISTS (
-                    SELECT 1 FROM organization_members
-                    WHERE organization_members.user_id = @user_id::uuid
-                        AND organization_members.organization_id = cp.organization_id
-                )
-            )
+        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
+            SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, @acl_enabled::boolean)
         ) AS stale
         FROM chat_project_pins p
-        JOIN chat_projects cp ON cp.id = p.project_id
         WHERE p.user_id = @user_id::uuid
     ) pins
 ),
@@ -76,25 +59,10 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
-        -- Same access predicate as PinChatProject.
-        cp.owner_id = @user_id::uuid
-        OR (
-            @acl_enabled::boolean
-            AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = @user_id::uuid
-                    AND organization_members.organization_id = cp.organization_id
-            )
-        )
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
+        SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, @acl_enabled::boolean)
     ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
-    JOIN chat_projects cp ON cp.id = p.project_id
     WHERE p.user_id = @user_id::uuid AND p.project_id <> @project_id::uuid
 )
 UPDATE chat_project_pins p

@@ -669,28 +669,9 @@ WHERE
             OR chats_expanded.pin_order > 0
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
-            -- no project list reaches the chat. Same access predicate as
-            -- PinChatProject.
-            OR NOT EXISTS (
-                SELECT 1
-                FROM chat_projects cp
-                WHERE cp.id = chats_expanded.project_id
-                    AND (
-                        cp.owner_id = @viewer_id::uuid
-                        OR (
-                            @acl_enabled::boolean
-                            AND (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
-                                SELECT group_id::text FROM group_members WHERE user_id = @viewer_id::uuid
-                                UNION ALL
-                                SELECT organization_id::text FROM organization_members WHERE user_id = @viewer_id::uuid
-                            ))
-                            AND EXISTS (
-                                SELECT 1 FROM organization_members
-                                WHERE organization_members.user_id = @viewer_id::uuid
-                                    AND organization_members.organization_id = cp.organization_id
-                            )
-                        )
-                    )
+            -- no project list reaches the chat.
+            OR chats_expanded.project_id NOT IN (
+                SELECT project_id FROM chat_project_ids_for_user(@viewer_id::uuid, @acl_enabled::boolean)
             )
         )
         ELSE true

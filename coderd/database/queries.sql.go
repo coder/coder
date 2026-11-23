@@ -8437,27 +8437,10 @@ const pinChatProject = `-- name: PinChatProject :exec
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, NOT (
-            -- The user can see a project they own, or one granted to them or
-            -- their groups while grants are honored and they are a member of
-            -- its organization.
-            cp.owner_id = $1::uuid
-            OR (
-                $3::boolean
-                AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
-                    SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
-                    UNION ALL
-                    SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
-                ))
-                AND EXISTS (
-                    SELECT 1 FROM organization_members
-                    WHERE organization_members.user_id = $1::uuid
-                        AND organization_members.organization_id = cp.organization_id
-                )
-            )
+        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
+            SELECT project_id FROM chat_project_ids_for_user($1::uuid, $3::boolean)
         ) AS stale
         FROM chat_project_pins p
-        JOIN chat_projects cp ON cp.id = p.project_id
         WHERE p.user_id = $1::uuid
     ) pins
 ),
@@ -8518,25 +8501,10 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
-        -- Same access predicate as PinChatProject.
-        cp.owner_id = $1::uuid
-        OR (
-            $3::boolean
-            AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
-                SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
-                UNION ALL
-                SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
-            ))
-            AND EXISTS (
-                SELECT 1 FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-                    AND organization_members.organization_id = cp.organization_id
-            )
-        )
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
+        SELECT project_id FROM chat_project_ids_for_user($1::uuid, $3::boolean)
     ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
-    JOIN chat_projects cp ON cp.id = p.project_id
     WHERE p.user_id = $1::uuid AND p.project_id <> $2::uuid
 )
 UPDATE chat_project_pins p
@@ -8755,27 +8723,7 @@ func (q *sqlQuerier) GetChatProjectTemplatesByProjectIDs(ctx context.Context, pr
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.limit_templates, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
-    OR (
-        (
-            chat_projects.user_acl ? ($1::uuid)::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = $1::uuid
-                UNION ALL
-                SELECT organization_members.organization_id::text
-                FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-            )
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
-                AND organization_members.organization_id = chat_projects.organization_id
-        )
-    )
+WHERE chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user($1::uuid, true))
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
@@ -11944,28 +11892,9 @@ WHERE
             OR chats_expanded.pin_order > 0
             -- A chat in a project the viewer can no longer use stays
             -- listed: the project is missing from the viewer's projects, so
-            -- no project list reaches the chat. Same access predicate as
-            -- PinChatProject.
-            OR NOT EXISTS (
-                SELECT 1
-                FROM chat_projects cp
-                WHERE cp.id = chats_expanded.project_id
-                    AND (
-                        cp.owner_id = $3::uuid
-                        OR (
-                            $9::boolean
-                            AND (cp.user_acl ? ($3::uuid)::text OR cp.group_acl ?| ARRAY(
-                                SELECT group_id::text FROM group_members WHERE user_id = $3::uuid
-                                UNION ALL
-                                SELECT organization_id::text FROM organization_members WHERE user_id = $3::uuid
-                            ))
-                            AND EXISTS (
-                                SELECT 1 FROM organization_members
-                                WHERE organization_members.user_id = $3::uuid
-                                    AND organization_members.organization_id = cp.organization_id
-                            )
-                        )
-                    )
+            -- no project list reaches the chat.
+            OR chats_expanded.project_id NOT IN (
+                SELECT project_id FROM chat_project_ids_for_user($3::uuid, $9::boolean)
             )
         )
         ELSE true
