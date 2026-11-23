@@ -9,7 +9,6 @@ import {
 } from "#/api/queries/templates";
 import type {
 	DynamicParametersResponse,
-	Preset,
 	PreviewParameter,
 	Template,
 } from "#/api/typesGenerated";
@@ -19,6 +18,7 @@ import {
 	MockDropdownParameter,
 	MockDynamicParametersResponseWithError,
 	MockOrganization2,
+	MockPreset,
 	MockSliderParameter,
 	MockSwitchParameter,
 	MockTemplate,
@@ -42,15 +42,6 @@ const mockKubernetesTemplate: Template = {
 	name: "kubernetes",
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
-};
-const mockSmallPreset: Preset = {
-	ID: "preset-small",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
 };
 // An evaluation fills each value with the parameter's default.
 const mockInstanceTypeParameter: PreviewParameter = {
@@ -305,11 +296,17 @@ export const DefaultTemplatePresets: Story = {
 			...meta.parameters.queries,
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
-	play: pickDefaultTemplate,
+	// Opens the preset list so the screenshot shows its None option.
+	play: async (context) => {
+		await pickDefaultTemplate(context);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Default preset" }),
+		);
+	},
 };
 
 export const DefaultTemplatePresetsLoading: Story = {
