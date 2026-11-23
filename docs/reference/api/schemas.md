@@ -6935,6 +6935,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
 | `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
 
+## codersdk.CreateChatAutomationRequest
+
+```json
+{
+  "enabled": true,
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "prompt": "string",
+  "schedule_cron": "string",
+  "schedule_time_zone": "string",
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "target_mode": "existing_chat"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                                         |
+|----------------------------|------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`                  | boolean                                                                | false    |              | Enabled defaults to true.                                                                                                           |
+| `name`                     | string                                                                 | false    |              |                                                                                                                                     |
+| `new_chat_model_config_id` | string                                                                 | false    |              | New chat model config ID and ProjectID apply to new_chat automations.                                                               |
+| `project_id`               | string                                                                 | false    |              |                                                                                                                                     |
+| `prompt`                   | string                                                                 | false    |              |                                                                                                                                     |
+| `schedule_cron`            | string                                                                 | false    |              | Schedule cron is a five-field cron expression that runs at most every five minutes, and ScheduleTimeZone is an IANA time zone name. |
+| `schedule_time_zone`       | string                                                                 | false    |              |                                                                                                                                     |
+| `target_chat_id`           | string                                                                 | false    |              | Target chat ID is the root chat, owned by the caller, of an existing_chat automation.                                               |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                                     |
+
+#### Enumerated Values
+
+| Property      | Value(s)                    |
+|---------------|-----------------------------|
+| `target_mode` | `existing_chat`, `new_chat` |
+
 ## codersdk.CreateChatMessageRequest
 
 ```json

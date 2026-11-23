@@ -3,12 +3,14 @@ package coderd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -33,6 +35,77 @@ func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler
 		}
 		next.ServeHTTP(rw, r)
 	})
+}
+
+// @Summary Create chat automation
+// @ID create-chat-automation
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.CreateChatAutomationRequest true "Create chat automation request"
+// @Success 201 {object} codersdk.ChatAutomation
+// @Router /api/experimental/organizations/{organization}/chats/automations [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	aReq, commitAudit := audit.InitRequest[database.ChatAutomation](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
+
+	var req codersdk.CreateChatAutomationRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	automation, err := chatautomation.Create(ctx, api.Database, organization.ID, req, dbtime.Now())
+	var invalid *chatautomation.InvalidRequestError
+	switch {
+	case errors.As(err, &invalid):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Validation failed.",
+			Validations: invalid.Validations,
+		})
+		return
+	case errors.Is(err, chatautomation.ErrLimitReached):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat automation limit reached.",
+			Detail:  fmt.Sprintf("You can own at most %d chat automations across all organizations. Delete one to create another.", chatautomation.MaxAutomationsPerOwner),
+		})
+		return
+	case errors.Is(err, chatautomation.ErrTargetChatForbidden):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the owner of a chat can make it the target of an automation.",
+		})
+		return
+	case errors.Is(err, chatautomation.ErrCreateForbidden):
+		httpapi.Forbidden(rw)
+		return
+	case errors.Is(err, chatautomation.ErrReferenceUnavailable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A chat, model configuration or project of this automation was deleted while it was created.",
+		})
+		return
+	case err != nil:
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.New = automation
+
+	// The row is committed, so a failed read of the owner and chats leaves
+	// them out of the response instead of failing it.
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, []database.ChatAutomation{automation})
+	if err != nil {
+		api.Logger.Warn(ctx, "load chat automation references for the create response", slog.Error(err))
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatAutomation(automation, refs, dbtime.Now()))
 }
 
 // @Summary List chat automations

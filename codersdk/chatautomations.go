@@ -82,8 +82,34 @@ type ChatAutomation struct {
 	UpdatedAt time.Time              `json:"updated_at" format:"date-time"`
 }
 
+// CreateChatAutomationRequest creates a schedule automation that the caller
+// owns. The type has no validate tags, because the request reader echoes the
+// value of a field that fails one.
+type CreateChatAutomationRequest struct {
+	Name string `json:"name"`
+	// Enabled defaults to true.
+	Enabled    *bool                    `json:"enabled,omitempty"`
+	TargetMode ChatAutomationTargetMode `json:"target_mode" enums:"existing_chat,new_chat"`
+	// TargetChatID is the root chat, owned by the caller, of an
+	// existing_chat automation.
+	TargetChatID *uuid.UUID `json:"target_chat_id,omitempty" format:"uuid"`
+	// NewChatModelConfigID and ProjectID apply to new_chat automations.
+	NewChatModelConfigID *uuid.UUID `json:"new_chat_model_config_id,omitempty" format:"uuid"`
+	ProjectID            *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
+	// ScheduleCron is a five-field cron expression that runs at most every
+	// five minutes, and ScheduleTimeZone is an IANA time zone name.
+	ScheduleCron     string `json:"schedule_cron"`
+	ScheduleTimeZone string `json:"schedule_time_zone"`
+	Prompt           string `json:"prompt"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", organizationID)
+}
+
+// CreateChatAutomation creates a schedule automation that the caller owns.
+func (c *ExperimentalClient) CreateChatAutomation(ctx context.Context, organizationID uuid.UUID, req CreateChatAutomationRequest) (ChatAutomation, error) {
+	return requestJSON[ChatAutomation](ctx, c.Client, http.MethodPost, chatAutomationsPath(organizationID), http.StatusCreated, req)
 }
 
 // ChatAutomations lists the chat automations that the caller can read in an

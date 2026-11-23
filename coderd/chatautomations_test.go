@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -146,5 +147,122 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, status(t, err))
 		require.Equal(t, http.StatusNotFound, status(t, asMember.DeleteChatAutomation(ctx, org, kept.ID)))
 		require.ElementsMatch(t, []uuid.UUID{kept.ID, theirs.ID}, listIDs(t, asAdmin, ""))
+	})
+}
+
+func TestCreateChatAutomation(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	values := coderdtest.DeploymentValues(t)
+	values.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
+	auditor := audit.NewMock()
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: values, Database: db, Pubsub: ps, Auditor: auditor, ChatWorkerDisabled: true,
+	})
+	org := coderdtest.CreateFirstUser(t, ownerClient).OrganizationID
+	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, org)
+	cappedClient, capped := coderdtest.CreateAnotherUser(t, ownerClient, org)
+	_, other := coderdtest.CreateAnotherUser(t, ownerClient, org)
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, org, rbac.ScopedRoleOrgAdmin(org))
+	asMember := codersdk.NewExperimentalClient(memberClient)
+
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org})
+	chat := func(orgID, ownerID uuid.UUID, parent uuid.NullUUID) uuid.UUID {
+		return dbgen.Chat(t, db, database.Chat{OrganizationID: orgID, OwnerID: ownerID, LastModelConfigID: model.ID, ParentChatID: parent}).ID
+	}
+	own := chat(org, member.ID, uuid.NullUUID{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: member.ID})
+	ownElsewhere := chat(otherOrg.ID, member.ID, uuid.NullUUID{})
+	subAgent := chat(org, member.ID, uuid.NullUUID{UUID: own, Valid: true})
+	theirs := chat(org, other.ID, uuid.NullUUID{})
+	cappedChat := chat(org, capped.ID, uuid.NullUUID{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org, OwnerID: member.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: member.ID})
+	request := func(target uuid.UUID, spec string) codersdk.CreateChatAutomationRequest {
+		return codersdk.CreateChatAutomationRequest{
+			Name: "heartbeat", TargetMode: codersdk.ChatAutomationTargetModeExistingChat, TargetChatID: &target,
+			ScheduleCron: spec, ScheduleTimeZone: "Europe/Berlin", Prompt: "Check the build.",
+		}
+	}
+	newChat := func(projectID uuid.UUID) codersdk.CreateChatAutomationRequest {
+		return codersdk.CreateChatAutomationRequest{
+			Name: "report", TargetMode: codersdk.ChatAutomationTargetModeNewChat, NewChatModelConfigID: &model.ID, ProjectID: &projectID,
+			ScheduleCron: "0 9 * * 1-5", ScheduleTimeZone: "UTC", Prompt: "Write the report.",
+		}
+	}
+	status := func(t *testing.T, err error) *codersdk.Error {
+		t.Helper()
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		return sdkErr
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	t.Run("Created", func(t *testing.T) {
+		t.Parallel()
+		got, err := asMember.CreateChatAutomation(ctx, org, request(own, "*/5 * * * *"))
+		require.NoError(t, err)
+		require.True(t, got.Enabled)
+		require.Equal(t, member.ID, got.OwnerID)
+		require.Len(t, got.NextRunTimes, 5)
+		require.WithinDuration(t, got.NextRunTimes[0], *got.ScheduleNextRunAt, 0)
+		for i := 1; i < len(got.NextRunTimes); i++ {
+			require.Equal(t, 5*time.Minute, got.NextRunTimes[i].Sub(got.NextRunTimes[i-1]))
+		}
+		created := 0
+		for _, l := range auditor.AuditLogs() {
+			if l.ResourceID == got.ID && l.Action == database.AuditActionCreate {
+				created++
+			}
+		}
+		require.Equal(t, 1, created)
+
+		got, err = asMember.CreateChatAutomation(ctx, org, newChat(project.ID))
+		require.NoError(t, err)
+		require.Equal(t, &model.ID, got.NewChatModelConfigID)
+		require.Equal(t, &project.ID, got.ProjectID)
+	})
+
+	t.Run("Rejected", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name   string
+			client *codersdk.Client
+			req    codersdk.CreateChatAutomationRequest
+			status int
+			field  string
+		}{
+			{"EveryMinute", memberClient, request(own, "* * * * *"), http.StatusBadRequest, "schedule_cron"},
+			{"ChatInOtherOrganization", memberClient, request(ownElsewhere, "0 9 * * *"), http.StatusBadRequest, "target_chat_id"},
+			{"SubAgentChat", memberClient, request(subAgent, "0 9 * * *"), http.StatusBadRequest, "target_chat_id"},
+			{"ProjectInOtherOrganization", memberClient, newChat(otherProject.ID), http.StatusBadRequest, "project_id"},
+			{"OtherMembersChat", memberClient, request(theirs, "0 9 * * *"), http.StatusForbidden, ""},
+			// An org admin can update the chat, but a run would send into it
+			// as the admin.
+			{"AdminTargetsMembersChat", adminClient, request(own, "0 9 * * *"), http.StatusForbidden, ""},
+		} {
+			_, err := codersdk.NewExperimentalClient(tc.client).CreateChatAutomation(ctx, org, tc.req)
+			sdkErr := status(t, err)
+			require.Equal(t, tc.status, sdkErr.StatusCode(), tc.name)
+			if tc.field != "" {
+				require.Len(t, sdkErr.Validations, 1, tc.name)
+				require.Equal(t, tc.field, sdkErr.Validations[0].Field, tc.name)
+			}
+		}
+	})
+
+	t.Run("Limit", func(t *testing.T) {
+		t.Parallel()
+		// The limit counts every organization of the owner.
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: capped.ID})
+		for range chatautomation.MaxAutomationsPerOwner - 2 {
+			dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org, OwnerID: capped.ID})
+		}
+		asCapped := codersdk.NewExperimentalClient(cappedClient)
+		_, err := asCapped.CreateChatAutomation(ctx, org, request(cappedChat, "0 9 * * *"))
+		require.NoError(t, err)
+		_, err = asCapped.CreateChatAutomation(ctx, org, request(cappedChat, "0 9 * * *"))
+		require.Equal(t, http.StatusBadRequest, status(t, err).StatusCode())
 	})
 }

@@ -4645,6 +4645,38 @@ export interface CreateAIProviderRequest {
 	readonly settings?: AIProviderSettings;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationRequest creates a schedule automation that the caller
+ * owns. The type has no validate tags, because the request reader echoes the
+ * value of a field that fails one.
+ */
+export interface CreateChatAutomationRequest {
+	readonly name: string;
+	/**
+	 * Enabled defaults to true.
+	 */
+	readonly enabled?: boolean;
+	readonly target_mode: ChatAutomationTargetMode;
+	/**
+	 * TargetChatID is the root chat, owned by the caller, of an
+	 * existing_chat automation.
+	 */
+	readonly target_chat_id?: string;
+	/**
+	 * NewChatModelConfigID and ProjectID apply to new_chat automations.
+	 */
+	readonly new_chat_model_config_id?: string;
+	readonly project_id?: string;
+	/**
+	 * ScheduleCron is a five-field cron expression that runs at most every
+	 * five minutes, and ScheduleTimeZone is an IANA time zone name.
+	 */
+	readonly schedule_cron: string;
+	readonly schedule_time_zone: string;
+	readonly prompt: string;
+}
+
 // From codersdk/chats.go
 /**
  * CreateChatMessageRequest is the request to add a message to a chat.
