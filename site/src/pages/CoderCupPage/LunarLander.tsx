@@ -1,10 +1,4 @@
-import {
-	useEffect,
-	useId,
-	useRef,
-	useState,
-	useSyncExternalStore,
-} from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { ROSTER, type RosterEntry } from "./roster";
 
@@ -2053,36 +2047,6 @@ function drawRewindLabel(ctx: CanvasRenderingContext2D) {
 	ctx.restore();
 }
 
-/**
- * Holds the game loop's rewind flag so React can read it with
- * useSyncExternalStore while the loop runs outside React renders.
- */
-function createRewindingStore() {
-	let rewinding = false;
-	const listeners = new Set<() => void>();
-
-	return {
-		get: () => rewinding,
-		set: (next: boolean) => {
-			if (next === rewinding) {
-				return;
-			}
-
-			rewinding = next;
-			for (const listener of listeners) {
-				listener();
-			}
-		},
-		subscribe: (listener: () => void) => {
-			listeners.add(listener);
-
-			return () => {
-				listeners.delete(listener);
-			};
-		},
-	};
-}
-
 export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -2092,12 +2056,7 @@ export const LunarLander: React.FC = () => {
 	const [chosenLimits, setLimits] = useState<LandingLimits | null>(null);
 	const limitsRef = useRef<LandingLimits | null>(null);
 	// Drives the screen reader announcement; the loop owns the replay.
-	const [rewindingStore] = useState(createRewindingStore);
-	const rewinding = useSyncExternalStore(
-		rewindingStore.subscribe,
-		rewindingStore.get,
-	);
-
+	const [rewinding, setRewinding] = useState(false);
 	const selectDifficulty = (picked: LandingLimits) => {
 		limitsRef.current = picked;
 		setLimits(picked);
@@ -2193,7 +2152,7 @@ export const LunarLander: React.FC = () => {
 		}
 
 		// ---- sizing ----
-		function resize() {
+		function fitCanvas() {
 			const dpr = window.devicePixelRatio || 1;
 			const rect = ctr.getBoundingClientRect();
 			logicalW = rect.width;
@@ -2203,6 +2162,10 @@ export const LunarLander: React.FC = () => {
 			cvs.style.width = `${logicalW}px`;
 			cvs.style.height = `${logicalH}px`;
 			cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		}
+
+		function resize() {
+			fitCanvas();
 			// A resize regenerates the terrain, so older snapshots no
 			// longer fit the screen.
 			history = [];
@@ -2281,12 +2244,12 @@ export const LunarLander: React.FC = () => {
 				cursor: gameTime,
 				target: Math.max(history[0].time, gameTime - REWIND_SECONDS),
 			};
-			rewindingStore.set(true);
+			setRewinding(true);
 		}
 
 		function endRewind() {
 			rewind = null;
-			rewindingStore.set(false);
+			setRewinding(false);
 		}
 
 		// Replay history backwards, dropping snapshots as it passes them,
@@ -2919,7 +2882,8 @@ export const LunarLander: React.FC = () => {
 		cvs.addEventListener("wheel", onWheel, { passive: false });
 		cvs.addEventListener("click", onClick);
 
-		resize();
+		fitCanvas();
+		startNewRound();
 		frameId = requestAnimationFrame(loop);
 
 		return () => {
@@ -2932,7 +2896,7 @@ export const LunarLander: React.FC = () => {
 			cvs.removeEventListener("wheel", onWheel);
 			cvs.removeEventListener("click", onClick);
 		};
-	}, [rewindingStore]);
+	}, []);
 
 	return (
 		<div ref={containerRef} className="relative size-full bg-black">

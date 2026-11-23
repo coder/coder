@@ -118,11 +118,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 		open && agent.status === "connected" && portForwardingEnabled,
 	);
 
-	// Leave the mobile-only ports view once the viewport widens.
-	if (!isBelowMd && view === "ports") {
-		setView("main");
-	}
-
 	return (
 		<DropdownMenu
 			open={open}
