@@ -16,6 +16,7 @@ import {
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
+	ProvisionerJobStatus,
 	Template,
 	TemplateVersion,
 	TemplateVersionVariable,
@@ -181,7 +182,16 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 		linkToTemplate(template.organization_name, template.name),
 	);
 
-	// Automatically switch to the template preview tab when the build succeeds.
+	// A successful build saves the edits, so they are no longer dirty.
+	const jobStatus = templateVersion.job.status;
+	const [prevJobStatus, setPrevJobStatus] = useState(jobStatus);
+	if (jobStatus !== prevJobStatus) {
+		setPrevJobStatus(jobStatus);
+		if (isBuildSuccess(prevJobStatus, jobStatus)) {
+			setDirty(false);
+		}
+	}
+
 	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
@@ -190,10 +200,11 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 		}
 
 		if (
-			["running", "pending"].includes(previousVersion.current.job.status) &&
-			templateVersion.job.status === "succeeded"
+			isBuildSuccess(
+				previousVersion.current.job.status,
+				templateVersion.job.status,
+			)
 		) {
-			setDirty(false);
 			toast.success(
 				`Template version "${previousVersion.current.name}" built successfully.`,
 				{
@@ -592,6 +603,16 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 				missingVariables={missingVariables}
 			/>
 		</>
+	);
+};
+
+const isBuildSuccess = (
+	previous: ProvisionerJobStatus,
+	current: ProvisionerJobStatus,
+): boolean => {
+	return (
+		(previous === "running" || previous === "pending") &&
+		current === "succeeded"
 	);
 };
 

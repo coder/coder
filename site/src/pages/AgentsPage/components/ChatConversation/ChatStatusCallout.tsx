@@ -21,17 +21,19 @@ const useDeadlineCountdown = (deadline: string): number => {
 
 	useEffect(() => {
 		const targetMs = new Date(deadline).getTime();
-		if (!Number.isFinite(targetMs)) {
-			setSecondsLeft(0);
-			return;
-		}
+		const isValid = Number.isFinite(targetMs);
 
 		const update = () => {
-			const remaining = Math.max(0, targetMs - Date.now());
+			const remaining = isValid ? Math.max(0, targetMs - Date.now()) : 0;
 			setSecondsLeft(Math.ceil(remaining / 1000));
 		};
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- Reading the clock during render would be impure, so the countdown can only start here.
 		update();
+		if (!isValid) {
+			return;
+		}
+
 		const interval = setInterval(update, 100);
 		return () => clearInterval(interval);
 	}, [deadline]);

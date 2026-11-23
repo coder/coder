@@ -1,4 +1,5 @@
-import { useEffect, useId, useState } from "react";
+import isEqual from "lodash/isEqual";
+import { useId, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -74,37 +75,14 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
-	const {
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		terminal_font,
-		terminal_font_size,
-	} = initialValues;
-
-	useEffect(() => {
-		if (isUpdating) {
-			return;
+	const syncInputs = { isUpdating, initialValues };
+	const [prevSyncInputs, setPrevSyncInputs] = useState(syncInputs);
+	if (!isEqual(syncInputs, prevSyncInputs)) {
+		setPrevSyncInputs(syncInputs);
+		if (!isUpdating) {
+			setValues(toFormValues(initialValues));
 		}
-		const next = toFormValues({
-			theme_preference,
-			theme_mode,
-			theme_light,
-			theme_dark,
-			terminal_font,
-			terminal_font_size,
-		});
-		setValues(next);
-	}, [
-		isUpdating,
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		terminal_font,
-		terminal_font_size,
-	]);
+	}
 
 	const { draft, terminalFont, terminalFontSize } = values;
 

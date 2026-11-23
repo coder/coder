@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import { useEffect, useRef, useState } from "react";
 import { watchBuildLogsByBuildId } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
@@ -8,8 +9,23 @@ export const useWorkspaceBuildLogs = (
 	buildId: string | undefined,
 	enabled = true,
 ) => {
-	const [logs, setLogs] = useState<ProvisionerJobLog[]>();
+	// The logs are tagged with their build so that messages from a socket
+	// that is about to close cannot leak into the next build's logs.
+	const [buildLogs, setBuildLogs] = useState<{
+		buildId: string | undefined;
+		logs: ProvisionerJobLog[] | undefined;
+	}>({ buildId, logs: undefined });
 	const socket = useRef<WebSocket>(undefined);
+
+	// Every new watch starts from empty logs. Disabling keeps the logs.
+	const watch = { buildId, enabled };
+	const [prevWatch, setPrevWatch] = useState(watch);
+	if (!isEqual(watch, prevWatch)) {
+		setPrevWatch(watch);
+		if (buildId && enabled) {
+			setBuildLogs({ buildId, logs: undefined });
+		}
+	}
 
 	useEffect(() => {
 		if (!buildId || !enabled) {
@@ -17,18 +33,15 @@ export const useWorkspaceBuildLogs = (
 			return;
 		}
 
-		// Every time this hook is called reset the values
-		setLogs(undefined);
-
 		socket.current = watchBuildLogsByBuildId(buildId, {
 			// Retrieve all the logs
 			after: -1,
 			onMessage: (log) => {
-				setLogs((previousLogs) => {
-					if (!previousLogs) {
-						return [log];
+				setBuildLogs((previous) => {
+					if (previous.buildId !== buildId) {
+						return previous;
 					}
-					return [...previousLogs, log];
+					return { buildId, logs: [...(previous.logs ?? []), log] };
 				});
 			},
 			onError: () => {
@@ -41,5 +54,5 @@ export const useWorkspaceBuildLogs = (
 		};
 	}, [buildId, enabled]);
 
-	return logs;
+	return buildLogs.logs;
 };

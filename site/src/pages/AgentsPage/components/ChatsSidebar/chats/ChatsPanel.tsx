@@ -15,7 +15,7 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -114,6 +114,36 @@ const dragSensors = [
 	}),
 ];
 
+// Returns expandedById with every ancestor of the chat expanded, or the same
+// object when they already are.
+const expandAncestors = (
+	expandedById: Record<string, boolean>,
+	parentById: ChatTree["parentById"],
+	chatId: string | undefined,
+): Record<string, boolean> => {
+	if (!chatId) {
+		return expandedById;
+	}
+
+	const toExpand: string[] = [];
+	let cursor = parentById.get(chatId);
+	const seen = new Set<string>();
+	while (cursor && !seen.has(cursor)) {
+		seen.add(cursor);
+		toExpand.push(cursor);
+		cursor = parentById.get(cursor);
+	}
+	if (toExpand.every((id) => expandedById[id])) {
+		return expandedById;
+	}
+
+	const next = { ...expandedById };
+	for (const id of toExpand) {
+		next[id] = true;
+	}
+	return next;
+};
+
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	readonly projects: readonly ChatProject[];
@@ -189,7 +219,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
-	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
 	>({});
@@ -201,6 +230,21 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
+
+	// Auto-expand ancestors of the active chat so it's always visible.
+	// Only runs when activeChatId changes, not on every parentById
+	// recalculation, so user-initiated collapse is preserved.
+	const [expandedById, setExpandedById] = useState<Record<string, boolean>>(
+		() => expandAncestors({}, chatTree.parentById, activeChatId),
+	);
+	const [prevActiveChatId, setPrevActiveChatId] = useState(activeChatId);
+	if (activeChatId !== prevActiveChatId) {
+		setPrevActiveChatId(activeChatId);
+		setExpandedById((prev) =>
+			expandAncestors(prev, chatTree.parentById, activeChatId),
+		);
+	}
+
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
 		search: "",
@@ -245,6 +289,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+
+	// Clear the local override when fresh data arrives from
+	// the server (the mutation's onSettled invalidates queries).
+	const [prevChats, setPrevChats] = useState(chats);
+	if (chats !== prevChats) {
+		setPrevChats(chats);
+		setLocalPinOrder(null);
+	}
+
 	const queryClient = useQueryClient();
 	const reorderMutation = useMutation({
 		...reorderPinnedChat(queryClient),
@@ -252,16 +305,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
 		},
 	});
-
-	// Clear the local override when fresh data arrives from
-	// the server (the mutation's onSettled invalidates queries).
-	const chatsRef = useRef(chats);
-	useEffect(() => {
-		if (chats !== chatsRef.current) {
-			chatsRef.current = chats;
-			setLocalPinOrder(null);
-		}
-	}, [chats]);
 
 	const sortedPinnedChats = localPinOrder
 		? localPinOrder
@@ -307,40 +350,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
 		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
 	};
-
-	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes, not on every parentById
-	// recalculation, so user-initiated collapse is preserved.
-	const parentByIdRef = useRef<ChatTree["parentById"]>(chatTree.parentById);
-	useEffect(() => {
-		parentByIdRef.current = chatTree.parentById;
-	});
-	useEffect(() => {
-		if (!activeChatId) {
-			return;
-		}
-		const parentById = parentByIdRef.current;
-		const toExpand: string[] = [];
-		let cursor = parentById.get(activeChatId);
-		const seen = new Set<string>();
-		while (cursor && !seen.has(cursor)) {
-			seen.add(cursor);
-			toExpand.push(cursor);
-			cursor = parentById.get(cursor);
-		}
-		if (toExpand.length > 0) {
-			setExpandedById((prev) => {
-				if (toExpand.every((id) => prev[id])) {
-					return prev;
-				}
-				const next = { ...prev };
-				for (const id of toExpand) {
-					next[id] = true;
-				}
-				return next;
-			});
-		}
-	}, [activeChatId]);
 
 	// Folders default open for the active chat's project or the project page.
 	const activeProjectId =

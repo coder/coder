@@ -337,13 +337,16 @@ const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
 		enabled: isRequiringVariables,
 	});
 	const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
-		useState(false);
+		useState(isRequiringVariables);
 
-	useEffect(() => {
+	const [prevIsRequiringVariables, setPrevIsRequiringVariables] =
+		useState(isRequiringVariables);
+	if (isRequiringVariables !== prevIsRequiringVariables) {
+		setPrevIsRequiringVariables(isRequiringVariables);
 		if (isRequiringVariables) {
 			setIsMissingVariablesDialogOpen(true);
 		}
-	}, [isRequiringVariables]);
+	}
 
 	return {
 		missingVariables: isRequiringVariables ? variables : undefined,

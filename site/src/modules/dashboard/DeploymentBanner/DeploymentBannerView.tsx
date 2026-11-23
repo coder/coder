@@ -59,17 +59,32 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 		return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
 	}, [stats]);
 
-	const [timeUntilRefresh, setTimeUntilRefresh] = useState(0);
+	const [timeUntilRefresh, setTimeUntilRefresh] = useState(() =>
+		stats && fetchStats ? getSecondsUntilRefresh(stats) : 0,
+	);
+
+	// The countdown restarts whenever the effect below re-runs, so it compares
+	// the same inputs by reference.
+	const [prevRefreshInputs, setPrevRefreshInputs] = useState({
+		stats,
+		fetchStats,
+	});
+	if (
+		stats !== prevRefreshInputs.stats ||
+		fetchStats !== prevRefreshInputs.fetchStats
+	) {
+		setPrevRefreshInputs({ stats, fetchStats });
+		if (stats && fetchStats) {
+			setTimeUntilRefresh(getSecondsUntilRefresh(stats));
+		}
+	}
+
 	useEffect(() => {
 		if (!stats || !fetchStats) {
 			return;
 		}
 
-		let timeUntilRefresh = dayjs(stats.next_update_at).diff(
-			stats.collected_at,
-			"seconds",
-		);
-		setTimeUntilRefresh(timeUntilRefresh);
+		let timeUntilRefresh = getSecondsUntilRefresh(stats);
 		let canceled = false;
 		const loop = () => {
 			if (canceled) {
@@ -292,6 +307,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 			</div>
 		</section>
 	);
+};
+
+const getSecondsUntilRefresh = (stats: DeploymentStats): number => {
+	return dayjs(stats.next_update_at).diff(stats.collected_at, "seconds");
 };
 
 /**

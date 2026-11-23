@@ -241,6 +241,11 @@ export const CreateWorkspacePageView: React.FC<
 			(option) => option.value === form.values.template_version_preset_id,
 		),
 	);
+	const selectedPreset = presets.find(
+		(preset) => preset.ID === presetOptions[selectedPresetIndex].value,
+	);
+	const presetParameterNames =
+		selectedPreset?.Parameters?.map((p) => p.Name) ?? [];
 
 	// Apply the URL or default preset whenever the presets or the URL preset
 	// change.
@@ -255,10 +260,6 @@ export const CreateWorkspacePageView: React.FC<
 		const defaultPreset = presets.find((p) => p.Default);
 		setFieldValue("template_version_preset_id", defaultPreset?.ID);
 	}, [presets, setFieldValue, urlPreset]);
-
-	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
-		[],
-	);
 
 	// include any modified parameters and all edited parameters to the websocket request
 	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(
@@ -314,21 +315,9 @@ export const CreateWorkspacePageView: React.FC<
 	);
 
 	useEffect(() => {
-		const selectedPresetOption = presetOptions[selectedPresetIndex];
-		let selectedPreset: TypesGen.Preset | undefined;
-		for (const preset of presets) {
-			if (preset.ID === selectedPresetOption.value) {
-				selectedPreset = preset;
-				break;
-			}
-		}
-
 		if (!selectedPreset?.Parameters) {
-			setPresetParameterNames([]);
 			return;
 		}
-
-		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
 		const currentValues = form.values.rich_parameter_values ?? [];
 
@@ -379,8 +368,7 @@ export const CreateWorkspacePageView: React.FC<
 			);
 		}
 	}, [
-		presetOptions,
-		selectedPresetIndex,
+		selectedPreset,
 		presets,
 		setFieldValue,
 		markParameterEdited,

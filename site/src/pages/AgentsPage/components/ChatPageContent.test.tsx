@@ -667,6 +667,32 @@ describe("ChatPageInput", () => {
 			expect(onSend.mock.calls[0][0].workspaceUploads).toBeUndefined();
 		});
 
+		it("aborts a pending edit upload when the edit is canceled", async () => {
+			const user = userEvent.setup();
+			const uploadFile = vi
+				.mocked(API.experimental.uploadChatWorkspaceFile)
+				.mockImplementation(() => new Promise(() => {}));
+			const { update } = renderUpdatableChatPageInput(createChatStore(), {
+				...draftProps,
+				editingTarget: { kind: "history", id: 1 },
+				editingFileBlocks: [],
+			});
+
+			await user.upload(
+				await screen.findByTestId("chat-attachment-file-input"),
+				new File([new Uint8Array(16)], "archive.tar", {
+					type: "application/x-tar",
+				}),
+			);
+			await waitFor(() => expect(uploadFile).toHaveBeenCalledOnce());
+			const signal = uploadFile.mock.calls[0][2];
+			expect(signal?.aborted).toBe(false);
+
+			update({ editingTarget: null });
+
+			await waitFor(() => expect(signal?.aborted).toBe(true));
+		});
+
 		it("keeps compose uploads out of message edits without clearing the draft", async () => {
 			const user = userEvent.setup();
 			const onSend = vi

@@ -530,7 +530,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		resetAttachments: resetEditAttachments,
 	} = editAttachments;
 	const isEditing = editingTarget !== null;
-	const wasEditingRef = useRef(isEditing);
 	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
@@ -664,50 +663,32 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		);
 	}
 
-	// Each hydration also drops uploads added to the edit bucket. The
-	// reset aborts in-flight uploads, so it runs from an effect rather
-	// than during render; the ref makes it run once per hydration.
+	// Exiting edit mode should only clear the edit bucket. Compose draft
+	// attachments must survive canceling or completing an edit.
+	// History edits clear isEditing before the edit mutation settles and
+	// restore it on failure. Defer cleanup until the submission resolves
+	// so a failed edit keeps its uploads and attachments for retry.
+	if (!isEditing && !isSendPending && hydratedEditBlocks !== null) {
+		setHydratedEditBlocks(null);
+		setPreservedWorkspaceUploads([]);
+	}
+
+	// Each hydration drops uploads added to the edit bucket, and leaving
+	// edit mode also drops its attachments. The resets abort in-flight
+	// uploads, so they run from an effect rather than during render; the
+	// ref makes them run once per change.
 	const lastResetHydrationRef = useRef(hydratedEditBlocks);
 	useEffect(() => {
-		if (
-			hydratedEditBlocks === null ||
-			lastResetHydrationRef.current === hydratedEditBlocks
-		) {
+		if (lastResetHydrationRef.current === hydratedEditBlocks) {
 			return;
 		}
 
 		lastResetHydrationRef.current = hydratedEditBlocks;
+		if (hydratedEditBlocks === null) {
+			resetEditAttachments();
+		}
 		resetEditWorkspaceUploads();
-	}, [hydratedEditBlocks, resetEditWorkspaceUploads]);
-
-	// Exiting edit mode should only clear the edit bucket. Compose draft
-	// attachments must survive canceling or completing an edit.
-	useEffect(() => {
-		if (isEditing) {
-			wasEditingRef.current = true;
-			return;
-		}
-		if (!wasEditingRef.current) {
-			return;
-		}
-		// History edits clear isEditing before the edit mutation
-		// settles and restore it on failure. Defer cleanup until the
-		// submission resolves so a failed edit keeps its uploads and
-		// attachments for retry.
-		if (isSendPending) {
-			return;
-		}
-		wasEditingRef.current = false;
-		setHydratedEditBlocks(null);
-		resetEditAttachments();
-		resetEditWorkspaceUploads();
-		setPreservedWorkspaceUploads([]);
-	}, [
-		isEditing,
-		isSendPending,
-		resetEditAttachments,
-		resetEditWorkspaceUploads,
-	]);
+	}, [hydratedEditBlocks, resetEditAttachments, resetEditWorkspaceUploads]);
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 

@@ -8,7 +8,7 @@ import {
 	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { ParameterValidationError } from "#/api/api";
@@ -119,11 +119,13 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	// need to be sure the menu is closed when the action gets disabled.
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
 	const [open, setOpen] = useState(false);
-	useEffect(() => {
+	const [prevDisabled, setPrevDisabled] = useState(disabled);
+	if (disabled !== prevDisabled) {
+		setPrevDisabled(disabled);
 		if (disabled) {
 			setOpen(false);
 		}
-	}, [disabled]);
+	}
 
 	return (
 		<>

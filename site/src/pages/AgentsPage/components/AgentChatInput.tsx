@@ -427,7 +427,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
 	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
 	const currentCycleValueRef = useRef<string | null>(null);
-	const previousRemountKeyRef = useRef(remountKey);
+
+	// The refs only matter while cycling, and cycling sets them when it starts.
+	const [prevRemountKey, setPrevRemountKey] = useState(remountKey);
+	if (remountKey !== prevRemountKey) {
+		setPrevRemountKey(remountKey);
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+	}
 
 	const resetPromptCycle = () => {
 		setCycleIndex(null);
@@ -443,19 +450,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		editor.setValue(text);
 		editor.focus();
 	};
-
-	useEffect(() => {
-		if (previousRemountKeyRef.current === remountKey) return;
-		previousRemountKeyRef.current = remountKey;
-		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
-		// would force it into the dep array; the React Compiler stabilises
-		// callbacks but the exhaustive-deps lint does not.
-		setCycleIndex(null);
-		setCycleSavedDraft(null);
-		cycleHistorySnapshotRef.current = null;
-		currentCycleValueRef.current = null;
-		// Keep in sync with resetPromptCycle above.
-	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
 	// The draft, including skill chips, as it was when recording started.

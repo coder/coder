@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
@@ -44,21 +44,20 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 	const [formState, setFormState] = useState<{
 		mode: "manual" | "auto";
 		paramValues: Record<string, string>;
-	}>({
+	}>(() => ({
 		mode: "manual",
-		paramValues: {},
-	});
+		paramValues: getServerParamValues(parameters),
+	}));
 
-	useEffect(() => {
-		if (parameters) {
-			const serverParamValues: Record<string, string> = {};
-			for (const p of parameters) {
-				const initialVal = p.value?.valid ? p.value.value : "";
-				serverParamValues[p.name] = initialVal;
-			}
-			setFormState((prev) => ({ ...prev, paramValues: serverParamValues }));
-		}
-	}, [parameters]);
+	// Each server response replaces the parameter values.
+	const [prevParameters, setPrevParameters] = useState(parameters);
+	if (parameters !== prevParameters) {
+		setPrevParameters(parameters);
+		setFormState((prev) => ({
+			...prev,
+			paramValues: getServerParamValues(parameters),
+		}));
+	}
 
 	const buttonValues = useMemo(() => {
 		const values: ButtonValues = { mode: formState.mode };
@@ -221,6 +220,14 @@ const TestHelpPopover: React.FC = () => {
 };
 
 const deploymentUrl = `${location.protocol}//${location.host}`;
+
+function getServerParamValues(
+	parameters: readonly PreviewParameter[],
+): Record<string, string> {
+	return Object.fromEntries(
+		parameters.map((p) => [p.name, p.value?.valid ? p.value.value : ""]),
+	);
+}
 
 function getClipboardCopyContent(
 	template: Template,

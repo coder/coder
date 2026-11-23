@@ -146,9 +146,6 @@ export function useDesktopConnection({
 	useEffect(() => {
 		let visibilityObserver: ResizeObserver | null = null;
 
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- This effect owns the VNC connection; clipboard text is scoped to it, not read from a store.
-		setRemoteClipboardText(null);
-
 		let clipboardKeyListener: ((event: KeyboardEvent) => void) | null = null;
 		let clipboardKeyUpListener: ((event: KeyboardEvent) => void) | null = null;
 		const removeClipboardKeyListener = () => {
@@ -518,6 +515,7 @@ export function useDesktopConnection({
 			teardown();
 			setStatus("idle");
 			setHasConnected(false);
+			setRemoteClipboardText(null);
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
