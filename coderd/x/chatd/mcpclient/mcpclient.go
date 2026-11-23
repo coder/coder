@@ -779,6 +779,14 @@ func createTransport(
 	}
 }
 
+// TokenAttachable reports whether a stored OAuth2 token can be attached
+// to MCP requests: it has an access token and no failure reason, which
+// would mean the user must reconnect. An expired token still counts; the
+// MCP server decides whether to accept it.
+func TokenAttachable(tok database.MCPServerUserToken) bool {
+	return tok.OauthRefreshFailureReason == "" && tok.AccessToken != ""
+}
+
 // buildAuthHeaders constructs HTTP headers for authenticating with the
 // MCP server: the static headers on the Server plus any per-user
 // credential selected by UserAuth.
@@ -805,14 +813,15 @@ func buildAuthHeaders(
 			)
 			break
 		}
-		if tok.OauthRefreshFailureReason != "" {
-			// The grant is permanently unusable (e.g. revoked
-			// upstream) and the user must reconnect. Do not attach
-			// any leftover token material.
-			logger.Warn(ctx,
-				"oauth2 token for MCP server requires reconnect, skipping auth header",
-				slog.F("server_slug", srv.Slug),
-			)
+		if !TokenAttachable(tok) {
+			msg := "oauth2 token record has empty access token"
+			if tok.OauthRefreshFailureReason != "" {
+				// The grant is permanently unusable (e.g. revoked
+				// upstream) and the user must reconnect. Do not attach
+				// any leftover token material.
+				msg = "oauth2 token for MCP server requires reconnect, skipping auth header"
+			}
+			logger.Warn(ctx, msg, slog.F("server_slug", srv.Slug))
 			break
 		}
 		if tok.Expiry.Valid && tok.Expiry.Time.Before(time.Now()) {
@@ -821,13 +830,6 @@ func buildAuthHeaders(
 				slog.F("server_slug", srv.Slug),
 				slog.F("expired_at", tok.Expiry.Time),
 			)
-		}
-		if tok.AccessToken == "" {
-			logger.Warn(ctx,
-				"oauth2 token record has empty access token",
-				slog.F("server_slug", srv.Slug),
-			)
-			break
 		}
 		tokenType := tok.TokenType
 		if tokenType == "" {

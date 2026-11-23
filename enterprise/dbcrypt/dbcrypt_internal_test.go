@@ -1820,6 +1820,17 @@ func TestMCPServerUserTokens(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), tok.RefreshTokenKeyID.String)
 		return cfg, tok
 	}
+	// leaseToken takes tok's refresh lease, which the refresh save and the
+	// failure mark require, and returns its value.
+	leaseToken := func(t *testing.T, crypt *dbCrypt, tok database.MCPServerUserToken) time.Time {
+		t.Helper()
+		leased, err := crypt.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+			ID:        tok.ID,
+			TimeoutMs: time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		return leased.RefreshLeaseExpiresAt.Time
+	}
 
 	t.Run("UpsertMCPServerUserToken", func(t *testing.T) {
 		t.Parallel()
@@ -1840,6 +1851,7 @@ func TestMCPServerUserTokens(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+		lease := leaseToken(t, crypt, tok)
 
 		const (
 			refreshedAccessToken  = "refreshed-access-token"
@@ -1851,6 +1863,7 @@ func TestMCPServerUserTokens(t *testing.T) {
 			AccessToken:  refreshedAccessToken,
 			RefreshToken: refreshedRefreshToken,
 			TokenType:    "Bearer",
+			Lease:        lease,
 		})
 		require.NoError(t, err)
 		require.Equal(t, refreshedAccessToken, updated.AccessToken)
@@ -1872,6 +1885,7 @@ func TestMCPServerUserTokens(t *testing.T) {
 			AccessToken:  "stale-access-token",
 			RefreshToken: "stale-refresh-token",
 			TokenType:    "Bearer",
+			Lease:        lease,
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
@@ -1951,6 +1965,7 @@ func TestMCPServerUserTokens(t *testing.T) {
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
 			OauthRefreshFailureReason: "invalid_grant",
+			Lease:                     leaseToken(t, crypt, tok),
 		})
 		require.NoError(t, err)
 		require.Empty(t, marked.AccessToken)

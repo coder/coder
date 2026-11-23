@@ -8,17 +8,23 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestIsPermanentRefreshError(t *testing.T) {
@@ -238,4 +244,123 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	t.Cleanup(func() {
 		require.Zero(t, hits.Load(), "no token request may be made")
 	})
+}
+
+// heldLeaseSignalStore closes held once an acquire finds the refresh
+// lease held by another caller.
+type heldLeaseSignalStore struct {
+	database.Store
+	once sync.Once
+	held chan struct{}
+}
+
+func (s *heldLeaseSignalStore) AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg database.AcquireMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+	tok, err := s.Store.AcquireMCPServerUserTokenRefreshLease(ctx, arg)
+	if database.IsCheckViolation(err) {
+		s.once.Do(func() { close(s.held) })
+	}
+	return tok, err
+}
+
+// TestRefreshOAuth2TokenWithLeaseAfterHeldLease covers a caller that waits
+// while another caller holds the refresh lease, then finds the row
+// unchanged under the lease. The other caller's refresh failed, so this
+// caller reports a temporary failure without calling the token endpoint,
+// instead of retrying it in series after every failed holder.
+func TestRefreshOAuth2TokenWithLeaseAfterHeldLease(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		expiry time.Duration
+		opts   mcpoauth.LeasedRefreshOptions
+	}{
+		{
+			name:   "Expired",
+			expiry: -time.Minute,
+			opts:   mcpoauth.LeasedRefreshOptions{WaitForLease: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			var calls atomic.Int64
+			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			t.Cleanup(tokenSrv.Close)
+			cfg, tok := seedMCPToken(t, db, tokenSrv.URL, "access", "refresh", tc.expiry)
+
+			// Another caller holds the lease and leaves the row unchanged.
+			held, err := db.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+				ID:        tok.ID,
+				TimeoutMs: time.Minute.Milliseconds(),
+			})
+			require.NoError(t, err)
+			store := &heldLeaseSignalStore{Store: db, held: make(chan struct{})}
+			type refreshed struct {
+				result mcpoauth.LeasedRefresh
+				err    error
+			}
+			done := make(chan refreshed, 1)
+			go func() {
+				result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), store, testMCPHTTPClient(nil), cfg, tok, tc.opts)
+				done <- refreshed{result: result, err: err}
+			}()
+			select {
+			case <-store.held:
+			case <-ctx.Done():
+				t.Fatal("the refresh never found the lease held")
+			}
+			require.NoError(t, db.ReleaseMCPServerUserTokenRefreshLease(ctx, database.ReleaseMCPServerUserTokenRefreshLeaseParams{
+				ID:                    tok.ID,
+				RefreshLeaseExpiresAt: held.RefreshLeaseExpiresAt,
+			}))
+			var got refreshed
+			select {
+			case got = <-done:
+			case <-ctx.Done():
+				t.Fatal("the refresh never returned")
+			}
+
+			require.NoError(t, got.err)
+			require.Zero(t, calls.Load(), "token endpoint calls")
+			require.Equal(t, mcpoauth.LeasedRefreshFailed, got.result.Outcome)
+			require.Error(t, got.result.RefreshErr)
+			row, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
+			require.NoError(t, err)
+			require.Equal(t, "access", row.AccessToken)
+			require.Equal(t, "refresh", row.RefreshToken)
+			require.Empty(t, row.OauthRefreshFailureReason)
+			require.False(t, row.RefreshLeaseExpiresAt.Valid, "lease released")
+		})
+	}
+}
+
+// seedMCPToken stores a token that expires after expiresIn for a new user,
+// on a new oauth2 config whose token endpoint is tokenURL.
+func seedMCPToken(
+	t *testing.T,
+	db database.Store,
+	tokenURL, accessToken, refreshToken string,
+	expiresIn time.Duration,
+) (database.MCPServerConfig, database.MCPServerUserToken) {
+	t.Helper()
+	owner := dbgen.User(t, db, database.User{})
+	cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2TokenURL: tokenURL,
+		CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+	tok := dbgen.MCPServerUserToken(t, db, database.MCPServerUserToken{
+		MCPServerConfigID: cfg.ID,
+		UserID:            owner.ID,
+		AccessToken:       accessToken,
+		RefreshToken:      refreshToken,
+		Expiry:            sql.NullTime{Time: time.Now().Add(expiresIn), Valid: true},
+	})
+	return cfg, tok
 }

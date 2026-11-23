@@ -1526,7 +1526,8 @@ type sqlcQuerier interface {
 	// the dead token material so it is never attached to a request again.
 	// The updated_at predicate provides optimistic concurrency: if another
 	// request refreshed or replaced the token since it was read, this
-	// update matches zero rows and returns sql.ErrNoRows.
+	// update matches zero rows and returns sql.ErrNoRows. The row is only
+	// updated while the caller's refresh lease is still the current one.
 	MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
@@ -1735,6 +1736,8 @@ type sqlcQuerier interface {
 	UpdateMCPServerConfigACLByID(ctx context.Context, arg UpdateMCPServerConfigACLByIDParams) error
 	// Refresh persistence must not recreate a token deleted by disconnect.
 	// The optimistic lock also prevents stale refreshes from replacing newer tokens.
+	// The row is only updated while the caller's refresh lease is still the
+	// current one.
 	UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg UpdateMCPServerUserTokenFromRefreshParams) (MCPServerUserToken, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error

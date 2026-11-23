@@ -38,9 +38,10 @@ type RefreshResult struct {
 	// Expiry is the new token expiry. Zero value means no expiry
 	// was provided by the provider.
 	Expiry time.Time
-	// Refreshed is true when the access token actually changed,
-	// meaning a refresh occurred. When false the token was still
-	// valid and no network call was made.
+	// Refreshed is true when the token endpoint answered with a new
+	// token, even one with an unchanged access token, so the result
+	// must be persisted to keep a rotated refresh token. When false
+	// the token was still valid and no network call was made.
 	Refreshed bool
 }
 
@@ -81,6 +82,19 @@ func RefreshFailureReason(err error) string {
 	return reason
 }
 
+// oauth2TokenFromRow converts a stored MCP user token for expiry checks.
+func oauth2TokenFromRow(tok database.MCPServerUserToken) *oauth2.Token {
+	oauthToken := &oauth2.Token{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+	}
+	if tok.Expiry.Valid {
+		oauthToken.Expiry = tok.Expiry.Time
+	}
+	return oauthToken
+}
+
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
 // the OAuth2 credentials from the server config, sending the config's
@@ -88,21 +102,15 @@ func RefreshFailureReason(err error) string {
 // no network call is made and Refreshed is false.
 //
 // The caller is responsible for persisting the result when
-// Refreshed is true.
+// Refreshed is true. RefreshOAuth2TokenWithLease does both and keeps
+// concurrent callers from spending the same refresh token.
 func RefreshOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
-	oldToken := &oauth2.Token{
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		TokenType:    tok.TokenType,
-	}
-	if tok.Expiry.Valid {
-		oldToken.Expiry = tok.Expiry.Time
-	}
+	oldToken := oauth2TokenFromRow(tok)
 	// Valid uses a 10-second expiry window, so tokens about to
 	// expire are also refreshed proactively.
 	if oldToken.Valid() {
@@ -116,7 +124,16 @@ func RefreshOAuth2Token(
 	if tok.RefreshToken == "" {
 		return RefreshResult{}, xerrors.New("refresh oauth2 token: token expired and refresh token is not set")
 	}
+	return requestOAuth2Refresh(ctx, httpClient, cfg, tok)
+}
 
+// requestOAuth2Refresh spends tok's refresh token at the token endpoint.
+func requestOAuth2Refresh(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (RefreshResult, error) {
 	params := url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {tok.RefreshToken},
@@ -149,17 +166,17 @@ func RefreshOAuth2Token(
 		return RefreshResult{}, xerrors.Errorf("refresh oauth2 token: %w", err)
 	}
 
-	refreshed := newToken.AccessToken != tok.AccessToken
-
 	// Preserve the old refresh token when the provider doesn't
 	// rotate (returns empty).
 	refreshToken := cmp.Or(newToken.RefreshToken, tok.RefreshToken)
 
+	// A provider can return the same access token with a rotated
+	// refresh token, so any successful answer counts as a refresh.
 	return RefreshResult{
 		AccessToken:  newToken.AccessToken,
 		RefreshToken: refreshToken,
 		TokenType:    newToken.TokenType,
 		Expiry:       newToken.Expiry,
-		Refreshed:    refreshed,
+		Refreshed:    true,
 	}, nil
 }

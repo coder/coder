@@ -21470,6 +21470,7 @@ SET
 WHERE
     id = $2::uuid
     AND updated_at = $3::timestamptz
+    AND refresh_lease_expires_at = $4::timestamptz
 RETURNING
     id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
@@ -21478,15 +21479,22 @@ type MarkMCPServerUserTokenRefreshFailureParams struct {
 	OauthRefreshFailureReason string    `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 	ID                        uuid.UUID `db:"id" json:"id"`
 	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
+	Lease                     time.Time `db:"lease" json:"lease"`
 }
 
 // Records a permanent refresh failure (e.g. revoked grant) and clears
 // the dead token material so it is never attached to a request again.
 // The updated_at predicate provides optimistic concurrency: if another
 // request refreshed or replaced the token since it was read, this
-// update matches zero rows and returns sql.ErrNoRows.
+// update matches zero rows and returns sql.ErrNoRows. The row is only
+// updated while the caller's refresh lease is still the current one.
 func (q *sqlQuerier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error) {
-	row := q.db.QueryRowContext(ctx, markMCPServerUserTokenRefreshFailure, arg.OauthRefreshFailureReason, arg.ID, arg.UpdatedAt)
+	row := q.db.QueryRowContext(ctx, markMCPServerUserTokenRefreshFailure,
+		arg.OauthRefreshFailureReason,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.Lease,
+	)
 	var i MCPServerUserToken
 	err := row.Scan(
 		&i.ID,
@@ -21726,6 +21734,7 @@ SET
 WHERE
     id = $7::uuid
     AND updated_at = $8::timestamptz
+    AND refresh_lease_expires_at = $9::timestamptz
 RETURNING
     id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
@@ -21739,10 +21748,13 @@ type UpdateMCPServerUserTokenFromRefreshParams struct {
 	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
 	ID                uuid.UUID      `db:"id" json:"id"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	Lease             time.Time      `db:"lease" json:"lease"`
 }
 
 // Refresh persistence must not recreate a token deleted by disconnect.
 // The optimistic lock also prevents stale refreshes from replacing newer tokens.
+// The row is only updated while the caller's refresh lease is still the
+// current one.
 func (q *sqlQuerier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg UpdateMCPServerUserTokenFromRefreshParams) (MCPServerUserToken, error) {
 	row := q.db.QueryRowContext(ctx, updateMCPServerUserTokenFromRefresh,
 		arg.AccessToken,
@@ -21753,6 +21765,7 @@ func (q *sqlQuerier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, ar
 		arg.Expiry,
 		arg.ID,
 		arg.UpdatedAt,
+		arg.Lease,
 	)
 	var i MCPServerUserToken
 	err := row.Scan(

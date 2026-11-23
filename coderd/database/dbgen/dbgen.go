@@ -469,6 +469,27 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	return cfg
 }
 
+// MCPServerUserToken stores a user's OAuth2 token for an MCP server.
+// seed.MCPServerConfigID and seed.UserID must name existing rows. An empty
+// RefreshToken or Expiry is stored as it is: no refresh token, or no
+// expiry.
+func MCPServerUserToken(t testing.TB, db database.Store, seed database.MCPServerUserToken) database.MCPServerUserToken {
+	t.Helper()
+
+	tok, err := db.UpsertMCPServerUserToken(genCtx, database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: seed.MCPServerConfigID,
+		UserID:            seed.UserID,
+		AccessToken:       takeFirst(seed.AccessToken, "access-"+testutil.GetRandomName(t)),
+		AccessTokenKeyID:  seed.AccessTokenKeyID,
+		RefreshToken:      seed.RefreshToken,
+		RefreshTokenKeyID: seed.RefreshTokenKeyID,
+		TokenType:         takeFirst(seed.TokenType, "Bearer"),
+		Expiry:            seed.Expiry,
+	})
+	require.NoError(t, err, "upsert MCP server user token")
+	return tok
+}
+
 func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer) database.ChatMCPServer {
 	t.Helper()
 

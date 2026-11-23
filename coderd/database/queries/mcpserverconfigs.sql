@@ -272,6 +272,8 @@ RETURNING
 -- name: UpdateMCPServerUserTokenFromRefresh :one
 -- Refresh persistence must not recreate a token deleted by disconnect.
 -- The optimistic lock also prevents stale refreshes from replacing newer tokens.
+-- The row is only updated while the caller's refresh lease is still the
+-- current one.
 UPDATE mcp_server_user_tokens
 SET
     access_token = @access_token::text,
@@ -285,6 +287,7 @@ SET
 WHERE
     id = @id::uuid
     AND updated_at = @updated_at::timestamptz
+    AND refresh_lease_expires_at = @lease::timestamptz
 RETURNING
     *;
 
@@ -293,7 +296,8 @@ RETURNING
 -- the dead token material so it is never attached to a request again.
 -- The updated_at predicate provides optimistic concurrency: if another
 -- request refreshed or replaced the token since it was read, this
--- update matches zero rows and returns sql.ErrNoRows.
+-- update matches zero rows and returns sql.ErrNoRows. The row is only
+-- updated while the caller's refresh lease is still the current one.
 UPDATE mcp_server_user_tokens
 SET
     access_token = '',
@@ -306,6 +310,7 @@ SET
 WHERE
     id = @id::uuid
     AND updated_at = @updated_at::timestamptz
+    AND refresh_lease_expires_at = @lease::timestamptz
 RETURNING
     *;
 
