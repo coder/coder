@@ -72,6 +72,19 @@ func NewPricingExtras(cacheWrite1h *int64, tiers []Tier) *PricingExtras {
 	}
 }
 
+// ParsePricingExtras decodes a pricing_extras value. An empty value, which is
+// how SQL NULL reads, decodes to no extras. Unknown keys are ignored.
+func ParsePricingExtras(data []byte) (PricingExtras, error) {
+	var extras PricingExtras
+	if len(data) == 0 {
+		return extras, nil
+	}
+	if err := json.Unmarshal(data, &extras); err != nil {
+		return PricingExtras{}, err
+	}
+	return extras, nil
+}
+
 // Key identifies a model within a provider.
 type Key struct {
 	Provider string

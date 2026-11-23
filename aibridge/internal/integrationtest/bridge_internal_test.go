@@ -1914,6 +1914,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				{
 					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7545,
 					Input:         7545,
 					Output:        1,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
@@ -1921,12 +1922,14 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				{
 					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7545,
 					Output:        74,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
 					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7763,
 					Input:         7763,
 					Output:        1,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
@@ -1934,6 +1937,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				{
 					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7763,
 					Output:        128,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
@@ -1945,6 +1949,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				{
 					MsgID:         "msg_01FwkWU26guw9EwkL8zeacPL",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7545,
 					Input:         7545,
 					Output:        75,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
@@ -1952,6 +1957,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				{
 					MsgID:         "msg_01Sr5BnPSwodTo8Df4XvUBg5",
 					ProviderModel: "claude-sonnet-4-20250514",
+					PromptTokens:  7763,
 					Input:         7763,
 					Output:        129,
 					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},

@@ -3967,9 +3967,124 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			require.Equal(t, want.CostMicros, tokenUsage.CostMicros, "cost")
 
 			if tt.want == nil {
+				require.False(t, tokenUsage.PricingUsage.Valid, "an unpriced row records no pricing usage")
 				require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
 					prometheus.Labels{"provider": aiProvider.Name, "provider_type": provider, "model": model, "provider_model": tt.providerModel}))
 			}
+		})
+	}
+}
+
+// TestRecordTokenUsageLongContextTiers verifies that stored prices and costs
+// match the selected tier.
+func TestRecordTokenUsageLongContextTiers(t *testing.T) {
+	t.Parallel()
+
+	const model = "claude-tiered"
+	// Base and tier prices in micro-units per million tokens.
+	seed := json.RawMessage(`[{
+		"provider": "anthropic", "model": "claude-tiered",
+		"input_price": 1000000, "output_price": 2000000,
+		"cache_read_price": 100000, "cache_write_price": 1250000,
+		"pricing_extras": {"tiers": [{"threshold_tokens": 1000, "prices": {"input": 2000000, "output": 4000000,
+			"cache_read": 200000, "cache_write": 2500000}}]}
+	}]`)
+
+	tests := []struct {
+		name             string
+		req              *proto.RecordTokenUsageRequest
+		wantPricingUsage string
+		wantPrices       [4]int64 // input, output, cache read, cache write
+		wantCost         int64
+	}{
+		{
+			name:             "BasePricesAtThreshold",
+			req:              &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100},
+			wantPricingUsage: `{"prompt_tokens": 1000}`,
+			wantPrices:       [4]int64{1_000_000, 2_000_000, 100_000, 1_250_000},
+			wantCost:         1025, // 900 + 100*1.25
+		},
+		{
+			name:             "TierPricesOverThreshold",
+			req:              &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100},
+			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000}`,
+			wantPrices:       [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
+			wantCost:         2052, // 901*2 + 100*2.5
+		},
+		{
+			name:             "CacheReadCountsTowardPrompt",
+			req:              &proto.RecordTokenUsageRequest{InputTokens: 1, CacheReadInputTokens: 1000},
+			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000}`,
+			wantPrices:       [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
+			wantCost:         202, // 1*2 + 1000*0.2
+		},
+		{
+			// A message_delta usage record.
+			name:             "OutputOnlyRecordUsesPromptTokens",
+			req:              &proto.RecordTokenUsageRequest{OutputTokens: 10, PromptTokens: 1001},
+			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000}`,
+			wantPrices:       [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
+			wantCost:         40,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+				Seed:   seed,
+				Source: database.AIModelPriceSourceDefault,
+			}))
+			aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+				Name: "anthropic-tiers",
+				Type: database.AIProviderTypeAnthropic,
+			})
+			intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  user.ID,
+				Provider:     "anthropic",
+				ProviderName: aiProvider.Name,
+				Model:        model,
+			}, nil)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			tt.req.InterceptionId = intc.ID.String()
+			tt.req.MsgId = "msg_tiers"
+			tt.req.CreatedAt = timestamppb.Now()
+			_, err = srv.RecordTokenUsage(ctx, tt.req)
+			require.NoError(t, err)
+
+			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.Len(t, tokenUsages, 1)
+			got := tokenUsages[0]
+			require.True(t, got.PricingUsage.Valid, "pricing usage")
+			require.JSONEq(t, tt.wantPricingUsage, string(got.PricingUsage.RawMessage), "pricing usage")
+			require.Equal(t, tt.wantPrices, [4]int64{
+				got.InputPriceMicros.Int64,
+				got.OutputPriceMicros.Int64,
+				got.CacheReadPriceMicros.Int64,
+				got.CacheWritePriceMicros.Int64,
+			}, "snapshotted prices")
+			require.Equal(t, sql.NullInt64{Int64: tt.wantCost, Valid: true}, got.CostMicros, "cost")
 		})
 	}
 }
@@ -5313,6 +5428,7 @@ func TestStructuredLogging(t *testing.T) {
 					OutputTokens:          200,
 					CacheReadInputTokens:  50,
 					CacheWriteInputTokens: 10,
+					PromptTokens:          400,
 					Metadata:              metadataProto,
 					CreatedAt:             timestamppb.Now(),
 				})
@@ -5325,6 +5441,7 @@ func TestStructuredLogging(t *testing.T) {
 				"output_tokens":            float64(200),
 				"cache_read_input_tokens":  float64(50),
 				"cache_write_input_tokens": float64(10),
+				"prompt_tokens":            float64(400),
 			},
 		},
 		{
