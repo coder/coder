@@ -162,7 +162,7 @@ describe("Response", () => {
 		});
 
 		it("strikes text between double tildes", async () => {
-			render(<Response>{"Use ~~the old flag~~ the new one."}</Response>);
+			render(<Response>Use ~~the old flag~~ the new one.</Response>);
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent(
 					"Use the old flag the new one.",

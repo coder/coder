@@ -1,30 +1,38 @@
-import type { List, Nodes, Root } from "mdast";
+import type { List, ListItem, Nodes, Root } from "mdast";
 import remarkGfm from "remark-gfm";
 import { defaultRemarkPlugins } from "streamdown";
-import type { PluggableList, Plugin } from "unified";
+import type { Data, PluggableList, Plugin } from "unified";
 
-const orderedListMarkerPattern = /^[ \t]*(\d{1,9})[.)]/;
+type FromMarkdownExtension = Exclude<
+	NonNullable<Data["fromMarkdownExtensions"]>[number],
+	readonly unknown[]
+>;
 
-const readListItemNumber = (
-	source: string,
-	offset: number | undefined,
-): number | undefined => {
-	if (offset === undefined) {
-		return undefined;
-	}
-	const match = orderedListMarkerPattern.exec(
-		source.slice(offset, offset + 16),
-	);
-	return match ? Number(match[1]) : undefined;
+// mdast keeps only the first item's number, as the list's start, so the
+// number the parser read for each item is kept here until the transform.
+const writtenListItemNumbers = new WeakMap<ListItem, number>();
+
+const listItemNumbersFromMarkdown: FromMarkdownExtension = {
+	exit: {
+		listItemValue(token) {
+			const item = this.stack.at(-1);
+			if (item?.type === "listItem") {
+				writtenListItemNumbers.set(
+					item,
+					Number.parseInt(this.sliceSerialize(token), 10),
+				);
+			}
+		},
+	},
 };
 
-const keepLiteralNumbers = (list: List, source: string) => {
+const keepWrittenNumbers = (list: List) => {
 	if (!list.ordered) {
 		return;
 	}
 	const numbers: number[] = [];
 	for (const item of list.children) {
-		const number = readListItemNumber(source, item.position?.start.offset);
+		const number = writtenListItemNumbers.get(item);
 		if (number === undefined) {
 			return;
 		}
@@ -51,16 +59,16 @@ const keepLiteralNumbers = (list: List, source: string) => {
 	}
 };
 
-const visitLists = (node: Nodes, source: string) => {
+const visitLists = (node: Nodes) => {
 	if (node.type === "list") {
-		keepLiteralNumbers(node, source);
+		keepWrittenNumbers(node);
 	}
 	if (!("children" in node)) {
 		return;
 	}
 	const children: readonly Nodes[] = node.children;
 	for (const child of children) {
-		visitLists(child, source);
+		visitLists(child);
 	}
 };
 
@@ -68,13 +76,15 @@ const visitLists = (node: Nodes, source: string) => {
  * Shows each ordered list item with the number written in the source.
  * CommonMark keeps only the first item's number and the browser counts up
  * from it, so a reply that skips a step ("1. 3. 4.") would show 1, 2, 3.
- * The source comes from the file being parsed, because Streamdown parses
- * each block (and, while streaming, remend's repaired text) separately.
  */
-export const remarkLiteralListNumbers: Plugin<[], Root> =
-	() => (tree, file) => {
-		visitLists(tree, String(file));
+const remarkLiteralListNumbers: Plugin<[], Root> = function () {
+	const data = this.data();
+	data.fromMarkdownExtensions ??= [];
+	data.fromMarkdownExtensions.push(listItemNumbersFromMarkdown);
+	return (tree) => {
+		visitLists(tree);
 	};
+};
 
 /**
  * Remark plugins for chat Markdown: Streamdown's defaults without the
