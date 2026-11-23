@@ -3,19 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { CollapsibleSummary } from "./CollapsibleSummary";
 
 describe("CollapsibleSummary", () => {
-	it("scrolls the children into view when opened, not when closed", async () => {
+	it("scrolls the children into view when opened, not on mount, re-render or close", async () => {
 		const user = userEvent.setup();
 		const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
-		render(
-			<CollapsibleSummary label="details" scrollIntoViewOnOpen>
+		const summary = () => (
+			<CollapsibleSummary label="details" defaultOpen scrollIntoViewOnOpen>
 				<p>Hidden content</p>
-			</CollapsibleSummary>,
+			</CollapsibleSummary>
 		);
+		const { rerender } = render(summary());
+		expect(scrollIntoView).not.toHaveBeenCalled();
 
-		await user.click(screen.getByRole("button", { name: /details/i }));
+		const toggle = screen.getByRole("button", { name: /details/i });
+		await user.click(toggle);
+		await user.click(toggle);
 		expect(scrollIntoView).toHaveBeenCalledOnce();
 
-		await user.click(screen.getByRole("button", { name: /details/i }));
+		rerender(summary());
+		await user.click(toggle);
 		expect(scrollIntoView).toHaveBeenCalledOnce();
 	});
 });
