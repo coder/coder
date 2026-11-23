@@ -30,7 +30,7 @@ Workspace proxies can be used in the browser by navigating to the user `Account 
 ## Step 1: Create the proxy
 
 Create the workspace proxy and make sure to save the returned authentication token for said proxy.
-This is the token the workspace proxy will use to authenticate back to primary coderd.
+This is the token the workspace proxy will use to authenticate back to the control plane.
 
 ```sh
 $ coder wsproxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"

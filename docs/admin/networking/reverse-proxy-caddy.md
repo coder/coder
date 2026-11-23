@@ -179,7 +179,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
    sudo ufw allow 80
    sudo ufw allow 443
 
-   # Deny direct access to Coder server
+   # Deny direct access to the control plane
    sudo ufw deny 3000
 
    # Enable UncomplicatedFirewall

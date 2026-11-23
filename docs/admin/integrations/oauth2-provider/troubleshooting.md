@@ -10,7 +10,7 @@ This page collects the error conditions the OAuth2 provider returns, matched by 
 ## OAuth2 endpoints return 404
 
 The provider is off.
-Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
+Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the control plane.
 Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
 ## "Invalid redirect_uri"

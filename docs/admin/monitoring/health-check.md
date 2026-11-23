@@ -224,7 +224,7 @@ Coder was unable to establish a WebSocket connection over its own Access URL.
 **Solution:**
 There are multiple possible causes of this problem:
 
-1. Make sure Coder's configured Access URL can be reached from the server running Coder, using standard troubleshooting tools like `curl`:
+1. From the control plane host, confirm that Coder's Access URL is reachable, for example with `curl`:
 
    ```sh
    curl -v "https://coder.company.com"
@@ -345,7 +345,7 @@ While the replica is disconnected, it misses events, so features that depend on 
 **Solution:**
 Coder tries to reconnect automatically, so this might be a transient issue.
 If it persists with the `postgres` backend, investigate the health of the database and the network path between Coder and the database.
-If it persists with the `nats` backend, inspect the Coder server logs for NATS errors and restart the affected replica.
+If it persists with the `nats` backend, inspect the `coderd` logs for NATS errors and restart the affected replica.
 
 ### EPS02
 
@@ -356,7 +356,7 @@ The embedded NATS server in the Coder replica isn't running.
 The replica can't send or receive pubsub events until the server runs again.
 
 **Solution:**
-Inspect the Coder server logs for NATS errors, then restart the affected replica.
+Inspect the `coderd` logs for NATS errors, then restart the affected replica.
 
 ### EUNKNOWN
 

@@ -22,8 +22,8 @@ In order for the Coder client and agent to establish a direct connection with ea
 Once communication succeeds in one direction, we can inspect the source address of the received packet to determine the return address.
 
 > [!TIP]
-> The below glosses over a lot of the complexity of traversing NATs.
-> For a more in-depth technical explanation, see [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
+> The following description simplifies NAT traversal.
+> For a more in-depth technical explanation, refer to [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
 
 At a high level, STUN works like this:
 
