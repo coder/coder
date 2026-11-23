@@ -43,7 +43,7 @@ Use Agent Firewall when:
 
 - The agent and the user share one workspace, and only the agent's process needs limits.
 - The template doesn't run on Kubernetes, such as a Docker or Amazon Elastic Container Service (ECS) template.
-- You want the control plane to record each request from the agent and whether Agent Firewall allowed it, such as in the [AI Gateway session audit](../ai-gateway/audit.md).
+- You want each allow and deny decision in the control plane's [audit logs](#audit-logs), and each session's request counts in the [AI Gateway session audit](../ai-gateway/audit.md).
 
 To use both for defense in depth, set the cluster rule as the outer limit for the workspace, and give Agent Firewall a narrower allowlist for the agent's process.
 A request from the agent must pass both layers, so a mistake in one layer doesn't open the other.

@@ -335,6 +335,7 @@ It uses the runtime's default security profile.
 The network policy allows Coder's IP and TCP port, but not DNS.
 Coder selects the agent whose name ends in `-coderd-chat`.
 Use this ending on exactly one top-level agent.
+If no top-level agent name ends in `-coderd-chat`, Coder runs chat tools in another top-level agent, such as the user's `dev` agent, without the sandbox.
 
 To let the agent reach more hosts than Coder, such as an internal Git host or artifact store, add a method that allows host names, such as an egress proxy or Cilium.
 Select the agent's Pod with the `coder.com/agent-role=sandbox` label, so the user's Pod keeps its access.

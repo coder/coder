@@ -235,8 +235,8 @@ Use the column, not a callout for each method.
 | Kubernetes NetworkPolicy | Rules by IP address and port apply to the whole Pod.  | Built in, but IP-based.                         |
 ```
 
-The **Don't** states who provides each method in a different way on each row, inside the tradeoffs.
-"Built in" also reads as built into Coder, when it means built into Kubernetes.
+The **Don't** puts who provides each method in the Tradeoffs column, worded differently on each row.
+"Built in" can also mean built into Coder or built into Kubernetes.
 
 *Documentation-only.
 No Vale rule.*

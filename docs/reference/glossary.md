@@ -532,7 +532,8 @@ Refer to the [API reference](./api/index.md).
 
 An isolated environment that limits what untrusted code, such as an AI agent, can reach.
 A sandbox can isolate the kernel, the network, and secrets, so a compromised or misdirected agent can do less damage.
-In Coder, the sandbox is the [workspace](#workspace) that a template builds, and the isolation applies to every process in that workspace.
+In Coder, a template makes a [workspace](#workspace) a sandbox by adding isolation, such as kernel, network, or secrets limits.
+The isolation applies to every process in the workspace.
 The jail that [Agent Firewall](#agent-firewall) starts is a narrower, process-level sandbox that limits the network access of the process it wraps.
 Not to be confused with [agent-sandbox](https://agent-sandbox.sigs.k8s.io/), a Kubernetes project that a template can use to run workspaces.
 Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).

@@ -16,7 +16,7 @@ Each trait is a building block you add to a template based on your infrastructur
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the previous definitions.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
 
-The tables on this page give each method a type, so you can tell what Coder provides and what you run yourself:
+The method tables on this page give each method a type, so you can tell what Coder provides and what you run yourself:
 
 - **Native**: built into Coder.
   You configure it in Coder, or in the template with the Coder Terraform provider.
