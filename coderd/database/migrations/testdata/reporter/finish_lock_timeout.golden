@@ -1,0 +1,2 @@
+[debu]  acquiring database migration lock  phase=batch
+[erro]  gave up waiting for database migration lock  status=failure  count=0  waited_ms=120000  error="timeout: can't acquire database lock"

@@ -1,5 +1,10 @@
 import { cn } from "cn";
 import { Link, type LinkProps } from "react-router";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
 	children,
@@ -19,7 +24,7 @@ type SidebarLinkProps = LinkProps & {
 	active: boolean;
 };
 
-export const SidebarLink: React.FC<SidebarLinkProps> = ({
+const SidebarLink: React.FC<SidebarLinkProps> = ({
 	children,
 	active,
 	...attrs
@@ -37,6 +42,32 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
 		>
 			{children}
 		</Link>
+	);
+};
+
+type SidebarItemProps = SidebarLinkProps & {
+	tooltip?: React.ReactNode;
+};
+
+/**
+ * A sidebar link that shows `tooltip`, when given, while the link is hovered
+ * or focused.
+ */
+export const SidebarItem: React.FC<SidebarItemProps> = ({
+	tooltip,
+	...linkProps
+}) => {
+	if (!tooltip) {
+		return <SidebarLink {...linkProps} />;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<SidebarLink {...linkProps} />
+			</TooltipTrigger>
+			<TooltipContent side="right">{tooltip}</TooltipContent>
+		</Tooltip>
 	);
 };
 

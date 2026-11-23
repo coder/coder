@@ -343,13 +343,13 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 		wantSessions       int
 	}{
 		{
-			// Proxy mode forwards bridged requests but does not record them yet.
+			// Proxy mode forwards bridged requests and records the interception.
 			name:               "ProxyModeWithoutMCP",
 			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
 			wantStatus:         http.StatusOK,
 			wantBody:           "standalone gateway e2e response",
 			wantUpstreamHits:   1,
-			wantSessions:       0,
+			wantSessions:       1,
 		},
 		{
 			// The experiment is a property of the gateway process, so coderd

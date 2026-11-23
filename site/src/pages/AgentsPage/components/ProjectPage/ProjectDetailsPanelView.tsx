@@ -5,6 +5,7 @@ import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
@@ -12,7 +13,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
-import { RetryButton } from "../RetryButton";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 /** The most avatar tiles the members row shows, including the "+K" tile. */
