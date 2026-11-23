@@ -323,8 +323,8 @@ func TestRedactArgs(t *testing.T) {
 
 	require.Equal(t, []string{
 		"apply",
-		"-var", "db_password=<redacted>",
-		"-var", "token=<redacted>",
+		"-var", "db_password=*redacted*",
+		"-var", "token=*redacted*",
 		// Not flagged sensitive: logged as is, even if the name looks secret-ish.
 		"-var", "region=us-east-2",
 		"-var", "aws_access_key_id=AKIASYNTHETIC",
@@ -332,7 +332,6 @@ func TestRedactArgs(t *testing.T) {
 	}, got)
 	require.Equal(t, orig, args, "input args must not be modified")
 
-	// With no sensitive variables, nothing is redacted.
 	require.Equal(t, args, redactArgs(args, nil))
 }
 

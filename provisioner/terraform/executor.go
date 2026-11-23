@@ -887,7 +887,7 @@ func redactArgs(args []string, sensitive map[string]bool) []string {
 			continue
 		}
 		if name, _, _ := strings.Cut(args[i], "="); sensitive[name] {
-			out[i] = name + "=<redacted>"
+			out[i] = name + "=*redacted*"
 		}
 	}
 	return out
