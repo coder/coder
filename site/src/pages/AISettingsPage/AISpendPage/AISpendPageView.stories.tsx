@@ -63,19 +63,6 @@ type Story = StoryObj<typeof AISpendPageView>;
 
 export const Overview: Story = {};
 
-export const DetailedReport: Story = {
-	args: { tab: "detailed-report" },
-};
-
-export const OverviewMobile: Story = {
-	globals: { viewport: { value: "iphone12", isRotated: false } },
-};
-
-export const DetailedReportMobile: Story = {
-	args: { tab: "detailed-report" },
-	globals: { viewport: { value: "iphone12", isRotated: false } },
-};
-
 export const OverviewLoading: Story = {
 	args: {
 		overview: undefined,
@@ -126,6 +113,19 @@ export const OverviewError: Story = {
 		overview: undefined,
 		overviewError: mockApiQueryError({ message: "Unable to load AI spend." }),
 	},
+};
+
+export const OverviewMobile: Story = {
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const DetailedReport: Story = {
+	args: { tab: "detailed-report" },
+};
+
+export const DetailedReportMobile: Story = {
+	args: { tab: "detailed-report" },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 export const Paywall: Story = {
