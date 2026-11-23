@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/sjson"
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
@@ -20,7 +21,9 @@ import (
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/quartz"
 )
 
 const osSep = string(filepath.Separator)
@@ -152,7 +155,7 @@ func TestAPIDump(t *testing.T) {
 				if info.IsDir() {
 					return nil
 				}
-				// Files are named: {timestamp}-{interceptionID}.{req|resp}.txt
+				// Files are named: {timestamp}-{interceptionID}-{seq}.{req|resp}.txt
 				if strings.Contains(path, interceptionID) {
 					if strings.HasSuffix(path, apidump.SuffixRequest) {
 						reqDumpFile = path
@@ -200,6 +203,138 @@ func TestAPIDump(t *testing.T) {
 			// Compare responses semantically (key order may differ).
 			expectedRespBody := fix.NonStreaming()
 			require.JSONEq(t, string(expectedRespBody), string(dumpRespBody), "response body JSON should match semantically")
+
+			bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+		})
+	}
+}
+
+// TestAPIDump_KeyFailover verifies that each key failover attempt in one
+// interception keeps its own request and response dump, for every bridged
+// interceptor in blocking and streaming mode.
+func TestAPIDump_KeyFailover(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		fixture   []byte
+		path      string
+		streaming bool
+	}{
+		{
+			name:    "anthropic_messages_blocking",
+			fixture: fixtures.AntSimple,
+			path:    pathAnthropicMessages,
+		},
+		{
+			name:      "anthropic_messages_streaming",
+			fixture:   fixtures.AntSimple,
+			path:      pathAnthropicMessages,
+			streaming: true,
+		},
+		{
+			name:    "openai_chat_completions_blocking",
+			fixture: fixtures.OaiChatSimple,
+			path:    pathOpenAIChatCompletions,
+		},
+		{
+			name:      "openai_chat_completions_streaming",
+			fixture:   fixtures.OaiChatSimple,
+			path:      pathOpenAIChatCompletions,
+			streaming: true,
+		},
+		{
+			name:    "openai_responses_blocking",
+			fixture: fixtures.OaiResponsesBlockingSimple,
+			path:    pathOpenAIResponses,
+		},
+		{
+			name:      "openai_responses_streaming",
+			fixture:   fixtures.OaiResponsesStreamingSimple,
+			path:      pathOpenAIResponses,
+			streaming: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			fix := fixtures.Parse(t, tc.fixture)
+
+			// k0 is rate limited, so the interception fails over to k1.
+			upstream := testutil.NewMockUpstream(ctx, t,
+				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),
+				testutil.NewFixtureResponse(fix),
+			)
+
+			dumpDir := t.TempDir()
+			var prov aibridge.Provider
+			if tc.path == pathAnthropicMessages {
+				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
+				require.NoError(t, err)
+				prov = aibridgetest.NewAnthropicProvider(t, config.Anthropic{BaseURL: upstream.URL, KeyPool: pool, APIDumpDir: dumpDir}, nil)
+			} else {
+				pool, err := keypool.New(config.ProviderOpenAI, []string{"k0", "k1"}, quartz.NewMock(t), nil)
+				require.NoError(t, err)
+				prov = provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL, KeyPool: pool, APIDumpDir: dumpDir})
+			}
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withCustomProvider(prov))
+
+			requestBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
+			require.NoError(t, err)
+
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, requestBody)
+			require.NoError(t, err)
+			_, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			received := upstream.ReceivedRequests()
+			require.Len(t, received, 2)
+
+			interceptions := bridgeServer.Recorder.RecordedInterceptions()
+			require.Len(t, interceptions, 1)
+			interceptionID := interceptions[0].ID
+
+			// Walk visits files in lexical order, which the zero-padded
+			// sequence number in the file name makes call order.
+			var reqFiles, respFiles []string
+			err = filepath.Walk(dumpDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.Contains(path, interceptionID) {
+					return err
+				}
+				switch {
+				case strings.HasSuffix(path, apidump.SuffixRequest):
+					reqFiles = append(reqFiles, path)
+				case strings.HasSuffix(path, apidump.SuffixResponse):
+					respFiles = append(respFiles, path)
+				}
+				return nil
+			})
+			require.NoError(t, err)
+			require.Len(t, reqFiles, 2, "one request dump per failover attempt")
+			require.Len(t, respFiles, 2, "one response dump per failover attempt")
+
+			for i, wantStatus := range []int{http.StatusTooManyRequests, http.StatusOK} {
+				reqDumpData, err := os.ReadFile(reqFiles[i])
+				require.NoError(t, err)
+				dumpReq, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(reqDumpData)))
+				require.NoError(t, err)
+				dumpBody, err := io.ReadAll(dumpReq.Body)
+				require.NoError(t, err)
+				require.JSONEq(t, string(received[i].Body), string(dumpBody), "request dump %d", i)
+
+				respDumpData, err := os.ReadFile(respFiles[i])
+				require.NoError(t, err)
+				dumpResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respDumpData)), nil)
+				require.NoError(t, err)
+				require.NoError(t, dumpResp.Body.Close())
+				require.Equal(t, wantStatus, dumpResp.StatusCode, "response dump %d", i)
+			}
 
 			bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 		})
