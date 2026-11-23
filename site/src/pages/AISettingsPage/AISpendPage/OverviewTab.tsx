@@ -25,7 +25,7 @@ type OverviewTabProps = {
 	topSpenderDetailsError: Error | null;
 	organizationName: string;
 	canViewSessions: boolean;
-	onOpenDetailedReport: () => void;
+	onOpenDetailedReport: (username?: string) => void;
 };
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
