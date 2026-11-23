@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -223,6 +226,10 @@ func TestSeedFromBytes(t *testing.T) {
 			OutputPrice:     ptr.Ref(int64(22)),
 			CacheReadPrice:  ptr.Ref(int64(33)),
 			CacheWritePrice: ptr.Ref(int64(44)),
+			PricingExtras: pricebook.NewPricingExtras(ptr.Ref(int64(55)), []pricebook.Tier{{
+				ThresholdTokens: 200_000,
+				Prices:          pricebook.TierPrices{Input: ptr.Ref(int64(66))},
+			}}),
 		}}))
 		require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
 
@@ -234,6 +241,9 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(22), got.OutputPrice.Int64)
 		require.Equal(t, int64(33), got.CacheReadPrice.Int64)
 		require.Equal(t, int64(44), got.CacheWritePrice.Int64)
+		require.JSONEq(t,
+			`{"extra_prices":{"cache_write_1h":55},"tiers":[{"threshold_tokens":200000,"prices":{"input":66}}]}`,
+			string(got.PricingExtras.RawMessage))
 	})
 
 	t.Run("LeavesCustomPricesUntouched", func(t *testing.T) {
@@ -419,4 +429,30 @@ func TestSeed(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
 	require.NoError(t, prices.Seed(ctx, db))
+
+	// Claude bills a 1-hour cache write at twice the input price, and the
+	// docs promise it for the providers whose requests report 1-hour writes.
+	// Every Claude price of those providers, base and tier alike, must carry
+	// it, or their 1-hour writes are billed at the cheaper cache write price.
+	rows, err := db.GetAIModelPrices(ctx, database.GetAIModelPricesParams{Source: string(database.AIModelPriceSourceDefault)})
+	require.NoError(t, err)
+	for _, row := range rows {
+		if !slices.Contains([]string{"anthropic", "bedrock", "copilot"}, row.Provider) ||
+			!strings.Contains(row.Model, "claude") || !row.InputPrice.Valid {
+			continue
+		}
+		var extras pricebook.PricingExtras
+		if row.PricingExtras.Valid {
+			require.NoError(t, json.Unmarshal(row.PricingExtras.RawMessage, &extras), "%s/%s", row.Provider, row.Model)
+		}
+		require.Equal(t, ptr.Ref(2*row.InputPrice.Int64), extras.ExtraPrices.CacheWrite1h,
+			"1-hour cache write price of %s/%s", row.Provider, row.Model)
+		for _, tier := range extras.Tiers {
+			if tier.Prices.Input == nil {
+				continue
+			}
+			require.Equal(t, ptr.Ref(2**tier.Prices.Input), tier.Prices.CacheWrite1h,
+				"1-hour cache write price of %s/%s over %d tokens", row.Provider, row.Model, tier.ThresholdTokens)
+		}
+	}
 }
