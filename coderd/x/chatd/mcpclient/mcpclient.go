@@ -1780,12 +1780,14 @@ func RefreshUserToken(
 				expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 			}
 			out, err = tx.UpdateMCPServerUserTokenFromRefresh(ownerCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
-				ID:           cur.ID,
-				UpdatedAt:    cur.UpdatedAt,
-				AccessToken:  result.AccessToken,
-				RefreshToken: result.RefreshToken,
-				TokenType:    result.TokenType,
-				Expiry:       expiry,
+				ID:                cur.ID,
+				UpdatedAt:         cur.UpdatedAt,
+				AccessToken:       result.AccessToken,
+				AccessTokenKeyID:  sql.NullString{},
+				RefreshToken:      result.RefreshToken,
+				RefreshTokenKeyID: sql.NullString{},
+				TokenType:         result.TokenType,
+				Expiry:            expiry,
 			})
 		}
 		if errors.Is(err, sql.ErrNoRows) {
