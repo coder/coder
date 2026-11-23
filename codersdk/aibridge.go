@@ -49,9 +49,8 @@ type AIBudgetLimit struct {
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the group the spend is attributed to, falling back to
-	// the Everyone group when no budget applies. Null when the user has no
-	// organization membership, or when the group's organization is one the
-	// caller cannot read.
+	// the Everyone group when no budget applies. Null only when the user has no
+	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// EffectiveBudget is the spend limit that applies to the user, whether it
 	// came from a group budget or a user override. Null when no budget
@@ -76,11 +75,18 @@ type UserAISpendStatus struct {
 	// CurrentSpendMicros is the user's spend on their effective group over
 	// the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
-	// OrganizationID is the organization the top-level effective group
-	// belongs to. Null when EffectiveGroupID is null.
+}
+
+// UserOrganizationsAISpendStatus is a user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+type UserOrganizationsAISpendStatus struct {
+	AISpendPeriodWindow
+	// OrganizationID is the organization of the user's site-wide effective
+	// group, as reported by UserAISpendStatus. Null when no group resolves or
+	// when that organization is not in Organizations.
 	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
-	// Organizations is the spend per organization the user is a member of
-	// and the caller can read, ordered by organization name.
+	// Organizations is the spend per organization the user is a current
+	// member of and the caller can read, ordered by organization name.
 	Organizations []UserOrganizationAISpend `json:"organizations"`
 }
 
@@ -1069,6 +1075,25 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 		return UserAISpendStatus{}, ReadBodyAsError(res)
 	}
 	var resp UserAISpendStatus
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UserOrganizationsAISpendStatus returns the user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+func (c *Client) UserOrganizationsAISpendStatus(ctx context.Context, user string) (UserOrganizationsAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/spend/organizations", user),
+		nil,
+	)
+	if err != nil {
+		return UserOrganizationsAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserOrganizationsAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp UserOrganizationsAISpendStatus
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

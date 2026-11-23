@@ -4337,6 +4337,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 
 `GET /api/v2/users/{user}/ai/spend`
 
+Returns the user's site-wide effective AI budget and spend in the current budget period.
+The effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.
+The response does not depend on which organizations the caller can read.
+To see spend per organization, use GET /users/{user}/ai/spend/organizations.
+
 ### Parameters
 
 | Name   | In   | Type   | Required | Description              |
@@ -4355,6 +4360,51 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
     "spend_limit_micros": 0
   },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAISpendStatus](schemas.md#codersdkuseraispendstatus) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user AI spend by organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend/organizations \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai/spend/organizations`
+
+Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.
+Organizations the caller cannot read are omitted, so the response for a given user can differ between callers.
+Each organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.
+organization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.
+Access requires permission to read the user, as for GET /users/{user}/ai/spend.
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organizations": [
     {
@@ -4373,16 +4423,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
-  "period_start": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  "period_start": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAISpendStatus](schemas.md#codersdkuseraispendstatus) |
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserOrganizationsAISpendStatus](schemas.md#codersdkuserorganizationsaispendstatus) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

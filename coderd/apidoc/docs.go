@@ -14429,6 +14429,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/spend": {
             "get": {
+                "description": "Returns the user's site-wide effective AI budget and spend in the current budget period.\nThe effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.\nThe response does not depend on which organizations the caller can read.\nTo see spend per organization, use GET /users/{user}/ai/spend/organizations.",
                 "produces": [
                     "application/json"
                 ],
@@ -14451,6 +14452,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserAISpendStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai/spend/organizations": {
+            "get": {
+                "description": "Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.\nOrganizations the caller cannot read are omitted, so the response for a given user can differ between callers.\nEach organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.\norganization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.\nAccess requires permission to read the user, as for GET /users/{user}/ai/spend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI spend by organization",
+                "operationId": "get-user-ai-spend-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserOrganizationsAISpendStatus"
                         }
                     }
                 },
@@ -34653,21 +34689,9 @@ const docTemplate = `{
                     ]
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null when the user has no\norganization membership, or when the group's organization is one the\ncaller cannot read.",
+                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
                     "type": "string",
                     "format": "uuid"
-                },
-                "organization_id": {
-                    "description": "OrganizationID is the organization the top-level effective group\nbelongs to. Null when EffectiveGroupID is null.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "organizations": {
-                    "description": "Organizations is the spend per organization the user is a member of\nand the caller can read, ordered by organization name.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.UserOrganizationAISpend"
-                    }
                 },
                 "period_end": {
                     "description": "PeriodEnd is the exclusive upper bound of the applied period.",
@@ -34928,6 +34952,33 @@ const docTemplate = `{
                 },
                 "organization": {
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
+                }
+            }
+        },
+        "codersdk.UserOrganizationsAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "OrganizationID is the organization of the user's site-wide effective\ngroup, as reported by UserAISpendStatus. Null when no group resolves or\nwhen that organization is not in Organizations.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organizations": {
+                    "description": "Organizations is the spend per organization the user is a current\nmember of and the caller can read, ordered by organization name.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserOrganizationAISpend"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

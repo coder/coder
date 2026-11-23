@@ -12340,9 +12340,8 @@ export interface UserAIBudgetSummary {
 	readonly user_id: string;
 	/**
 	 * EffectiveGroupID is the group the spend is attributed to, falling back to
-	 * the Everyone group when no budget applies. Null when the user has no
-	 * organization membership, or when the group's organization is one the
-	 * caller cannot read.
+	 * the Everyone group when no budget applies. Null only when the user has no
+	 * organization membership.
 	 */
 	readonly effective_group_id: string | null;
 	/**
@@ -12378,16 +12377,6 @@ export interface UserAISpendStatus
 	 * the current budget period.
 	 */
 	readonly current_spend_micros: number;
-	/**
-	 * OrganizationID is the organization the top-level effective group
-	 * belongs to. Null when EffectiveGroupID is null.
-	 */
-	readonly organization_id: string | null;
-	/**
-	 * Organizations is the spend per organization the user is a member of
-	 * and the caller can read, ordered by organization name.
-	 */
-	readonly organizations: readonly UserOrganizationAISpend[];
 }
 
 // From codersdk/insights.go
@@ -12592,6 +12581,25 @@ export interface UserOrganizationAISpend {
 	 * budget period, the same value the budget check compares.
 	 */
 	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationsAISpendStatus is a user's AI spend in each of their
+ * organizations that the caller can read, within the active budget period.
+ */
+export interface UserOrganizationsAISpendStatus extends AISpendPeriodWindow {
+	/**
+	 * OrganizationID is the organization of the user's site-wide effective
+	 * group, as reported by UserAISpendStatus. Null when no group resolves or
+	 * when that organization is not in Organizations.
+	 */
+	readonly organization_id: string | null;
+	/**
+	 * Organizations is the spend per organization the user is a current
+	 * member of and the caller can read, ordered by organization name.
+	 */
+	readonly organizations: readonly UserOrganizationAISpend[];
 }
 
 // From codersdk/users.go

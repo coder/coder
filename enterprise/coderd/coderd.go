@@ -745,6 +745,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 			r.Route("/spend", func(r chi.Router) {
 				r.Get("/", api.userAISpendStatus)
+				r.Get("/organizations", api.userOrganizationsAISpendStatus)
 			})
 		})
 		r.Route("/prebuilds", func(r chi.Router) {
