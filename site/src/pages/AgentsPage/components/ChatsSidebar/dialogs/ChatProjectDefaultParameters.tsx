@@ -145,16 +145,18 @@ type ChatProjectDefaultParameterProps = {
 const ChatProjectDefaultParameter: React.FC<
 	ChatProjectDefaultParameterProps
 > = ({ parameter, value, onChange, onReset, disabled }) => {
-	const groupRef = useRef<HTMLDivElement>(null);
+	const groupRef = useRef<HTMLFieldSetElement>(null);
 	const name = parameter.display_name || parameter.name;
 
 	return (
-		<div
+		// A fieldset, because `DynamicParameter` does not pass `disabled` on
+		// to its tag input.
+		<fieldset
 			ref={groupRef}
-			role="group"
 			aria-label={name}
 			tabIndex={-1}
-			className="flex flex-col gap-1 outline-hidden"
+			disabled={disabled}
+			className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0 outline-hidden"
 		>
 			<DynamicParameter
 				parameter={parameter}
@@ -182,6 +184,6 @@ const ChatProjectDefaultParameter: React.FC<
 					Use template default
 				</Button>
 			)}
-		</div>
+		</fieldset>
 	);
 };

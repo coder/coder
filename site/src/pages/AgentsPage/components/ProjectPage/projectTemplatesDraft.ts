@@ -4,10 +4,7 @@ import type {
 	ChatProjectDefaultTemplate,
 } from "#/api/typesGenerated";
 import { NIL_UUID } from "../../utils/modelOptions";
-import type {
-	ChatProjectTemplatesSettings,
-	ChatProjectTemplatesValues,
-} from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
+import type { ChatProjectTemplatesSettings } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
 /**
  * The project's saved template settings as the viewer sees them. Attached
@@ -30,6 +27,17 @@ const serializeDefaultTemplate = (
 		Object.entries(template?.parameters ?? {}).sort(([a], [b]) =>
 			a.localeCompare(b),
 		),
+	]);
+
+/**
+ * Serializes template settings so that saved and drafted ones compare by
+ * content: the order of template IDs and of parameter keys is ignored.
+ */
+export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
+	JSON.stringify([
+		templates.limit_templates,
+		templates.template_ids.toSorted(),
+		serializeDefaultTemplate(templates.default_template),
 	]);
 
 /**
@@ -57,13 +65,3 @@ export const templatesChange = (
 		...((limitChanged || defaultChanged) && { request }),
 	};
 };
-
-/** Serializes form values, to tell whether the user changed the draft. */
-export const serializeValues = (values: ChatProjectTemplatesValues) =>
-	JSON.stringify({
-		...values,
-		templateIds: values.templateIds.toSorted(),
-		defaultParameters: Object.entries(values.defaultParameters).sort(
-			([a], [b]) => a.localeCompare(b),
-		),
-	});

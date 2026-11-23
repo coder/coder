@@ -18,7 +18,11 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { SettingSwitch } from "../../SettingSwitch";
 import { ChatProjectDefaultParameters } from "./ChatProjectDefaultParameters";
 
-/** Form state for a project's templates and the defaults its chats use. */
+/**
+ * Empty IDs mean no default template or preset. The default template is one
+ * of `templateIds`, and its preset and parameter values belong to it, so
+ * deselecting that template clears them.
+ */
 export type ChatProjectTemplatesValues = {
 	/** Whether chats can only use the selected templates. */
 	limitTemplates: boolean;
@@ -39,6 +43,7 @@ export type ChatProjectTemplatesValues = {
 };
 
 const noDefaultTemplate = "none";
+const noDefaultPreset = "none";
 
 /** The create request, the saved state, and a draft all take this shape. */
 export type ChatProjectTemplatesSettings = Required<
@@ -151,9 +156,9 @@ type ChatProjectTemplatesFieldsProps = {
 };
 
 /**
- * Fields that pick a project's templates, whether its chats are limited to
- * them, an optional default template, and that template's default preset or
- * parameter values.
+ * Only selected templates can be the default template. Deselecting the
+ * default template, or picking another one, clears its preset and parameter
+ * values.
  */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
@@ -166,7 +171,7 @@ export const ChatProjectTemplatesFields: React.FC<
 	onChange,
 	disabled,
 }) => {
-	const defaultTemplateId = useId();
+	const defaultTemplateSelectId = useId();
 	const hiddenNoteId = useId();
 	const hiddenNote =
 		hiddenTemplateCount > 0
@@ -281,7 +286,7 @@ export const ChatProjectTemplatesFields: React.FC<
 			/>
 			{selectedTemplates.length > 0 && (
 				<div className="flex flex-col gap-2">
-					<Label htmlFor={defaultTemplateId}>Default template</Label>
+					<Label htmlFor={defaultTemplateSelectId}>Default template</Label>
 					<Select
 						value={value.defaultTemplateId || noDefaultTemplate}
 						onValueChange={(id) =>
@@ -294,7 +299,7 @@ export const ChatProjectTemplatesFields: React.FC<
 						}
 						disabled={disabled}
 					>
-						<SelectTrigger id={defaultTemplateId}>
+						<SelectTrigger id={defaultTemplateSelectId}>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -430,11 +435,16 @@ const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
 			{presets.length > 0 && (
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={selectId}>Default preset</Label>
-					<Select value={value} onValueChange={onChange} disabled={disabled}>
+					<Select
+						value={value || noDefaultPreset}
+						onValueChange={(id) => onChange(id === noDefaultPreset ? "" : id)}
+						disabled={disabled}
+					>
 						<SelectTrigger id={selectId}>
-							<SelectValue placeholder="Select a preset" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
+							<SelectItem value={noDefaultPreset}>None</SelectItem>
 							{presets.map((preset) => (
 								<SelectItem key={preset.ID} value={preset.ID}>
 									{preset.Name}
