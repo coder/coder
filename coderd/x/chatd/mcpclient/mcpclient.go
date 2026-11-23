@@ -71,8 +71,9 @@ const toolCallTimeout = 60 * time.Second
 // It covers a short lag in an authorization server's token store, where
 // a token issued seconds earlier has not reached every reader yet. It
 // does not cover Cloudflare Workers KV's negative cache: KV caches a
-// missed lookup at a location, so a lookup through the same location can
-// keep missing for up to 60 seconds by default.
+// missed lookup at a location until its cache TTL ends, 60 seconds by
+// default, so a lookup through the same location can keep missing for
+// that long.
 const rejectedTokenGrace = 2 * time.Second
 
 // slowConnectThreshold is the successful-connect duration above
