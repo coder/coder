@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import type { Organization } from "#/api/typesGenerated";
 import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { OrganizationAutocomplete } from "./OrganizationAutocomplete";
 
@@ -119,5 +120,26 @@ export const OneOrg: Story = {
 			).toBeInTheDocument();
 		});
 		expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+const mockOrganizationWithLongName: Organization = {
+	...MockOrganization2,
+	display_name:
+		"Meridian Systems Platform Engineering and Infrastructure Europe",
+};
+
+export const LongNameTooltip: Story = {
+	args: {
+		value: null,
+		options: [MockOrganization, mockOrganizationWithLongName],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("combobox"));
+		await screen.findAllByRole("option");
 	},
 };
