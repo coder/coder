@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -120,6 +121,13 @@ func recordedErrorMessage(t *testing.T, span sdktrace.ReadOnlySpan) string {
 	}
 	t.Fatalf("span %s recorded no error", span.Name())
 	return ""
+}
+
+func requireNoAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		require.NotEqual(t, key, string(attr.Key), "span %s has %s", span.Name(), key)
+	}
 }
 
 func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
@@ -525,7 +533,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		})
 	})
 
-	t.Run("CleanCloseWithoutFinishRecordsStop", func(t *testing.T) {
+	t.Run("CleanCloseWithoutFinishRecordsNoReason", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
@@ -538,7 +546,8 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Unset, stream.Status().Code)
-		require.Contains(t, stream.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
+		// The provider gave no reason, so none is claimed.
+		requireNoAttribute(t, stream, "gen_ai.response.finish_reasons")
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {
@@ -587,7 +596,8 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
-		require.Contains(t, stream.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"error"}))
+		requireNoAttribute(t, stream, "gen_ai.response.finish_reasons")
+		require.NotEmpty(t, spanAttribute(t, stream, "error.type"))
 		requireStreamObserved(t, fixture)
 	})
 
@@ -830,9 +840,15 @@ func TestModelCallStage(t *testing.T) {
 			ProviderName: "anthropic",
 			ModelName:    "claude",
 			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-				return &fantasy.ObjectResponse{FinishReason: fantasy.FinishReasonStop, Usage: usage}, nil
+				return &fantasy.ObjectResponse{
+					FinishReason: fantasy.FinishReasonStop,
+					Usage:        usage,
+					ProviderMetadata: fantasy.ProviderMetadata{
+						fantasyopenai.Name: &fantasyopenai.ResponsesProviderMetadata{ResponseID: "resp_1"},
+					},
+				}, nil
 			},
-		}, stageModel, ChatIdentity{ChatID: chatID})
+		}, TracedModelOptions{StageModel: stageModel, Identity: ChatIdentity{ChatID: chatID}, JSONObjects: true})
 
 		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
 		require.NoError(t, err)
@@ -841,6 +857,10 @@ func TestModelCallStage(t *testing.T) {
 		requireModelCallSpan(t, span, false)
 		require.Contains(t, span.Attributes(), attribute.String("gen_ai.conversation.id", chatID.String()))
 		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.response.id", "resp_1"))
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.output.type", "json"))
+		// The usage reports no cache breakdown, so none is claimed.
+		requireNoAttribute(t, span, "gen_ai.usage.cache_creation.input_tokens")
 		_, observed := stageSampleCount(t, fixture.registry, StageModelCall)
 		require.False(t, observed, "model calls have no stage histogram")
 	})
@@ -852,9 +872,9 @@ func TestModelCallStage(t *testing.T) {
 			ProviderName: "anthropic",
 			ModelName:    "claude",
 			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-				return nil, &fantasy.NoObjectGeneratedError{Usage: usage, FinishReason: fantasy.FinishReasonStop}
+				return nil, &fantasy.NoObjectGeneratedError{Usage: usage, FinishReason: fantasy.FinishReasonLength}
 			},
-		}, stageModel, ChatIdentity{})
+		}, TracedModelOptions{StageModel: stageModel})
 
 		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
 		require.Error(t, err)
@@ -862,7 +882,10 @@ func TestModelCallStage(t *testing.T) {
 		span := endedSpan(t, fixture.spans, StageModelCall)
 		requireModelCallSpan(t, span, false)
 		require.Equal(t, codes.Error, span.Status().Code)
-		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"error"}))
+		// The model's own reason survives the parse failure.
+		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"length"}))
+		// A client that forces a tool call does not request JSON output.
+		requireNoAttribute(t, span, "gen_ai.output.type")
 	})
 
 	t.Run("EmptyCompactionSummaryEndsWithError", func(t *testing.T) {

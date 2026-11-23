@@ -1207,8 +1207,14 @@ func providerResponseID(part fantasy.StreamPart) string {
 	if part.ID != "" {
 		return part.ID
 	}
-	for _, metadata := range part.ProviderMetadata {
-		if responses, ok := metadata.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
+	return metadataResponseID(part.ProviderMetadata)
+}
+
+// metadataResponseID returns the OpenAI Responses API response ID, the
+// only provider that reports it in metadata rather than a part ID.
+func metadataResponseID(metadata fantasy.ProviderMetadata) string {
+	for _, m := range metadata {
+		if responses, ok := m.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
 			return responses.ResponseID
 		}
 	}

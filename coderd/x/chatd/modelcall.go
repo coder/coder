@@ -186,7 +186,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	// Innermost, so each provider attempt of a fallback records its own span.
 	tracedModel := buildOpts.StageModel
 	tracedModel.Provider = model.Provider()
-	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), tracedModel, chatIdentity(spec.chat)))
+	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), chatloop.TracedModelOptions{
+		StageModel: tracedModel,
+		Identity:   chatIdentity(spec.chat),
+		// chatd builds every client with its default object mode, and only
+		// the native OpenAI client's default sends a JSON schema; the
+		// others force a tool call.
+		JSONObjects: model.Provider() == fantasyopenai.Name,
+	}))
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
 	model = p.withQuickgenParamFallback(model, out.route.Provider.ID)
 	out.reasoningRejected = &atomic.Bool{}

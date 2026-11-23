@@ -10,8 +10,15 @@ Coder Agents follows the span names and `gen_ai.*` attributes in semantic conven
 
 ## Enable tracing
 
-Start the Coder server with [`--trace`](../../reference/cli/server/index.md#--trace) (`CODER_TRACE_ENABLE=true`) and configure an exporter with the standard `OTEL_EXPORTER_OTLP_*` environment variables.
+Start the Coder server with [`--trace`](../../reference/cli/server/index.md#--trace) (`CODER_TRACE_ENABLE=true`).
 Coder Agents spans are exported with the rest of the server's traces.
+
+The server exports traces with OTLP over gRPC.
+Set the collector address with `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, and add headers with `OTEL_EXPORTER_OTLP_HEADERS`.
+`OTEL_EXPORTER_OTLP_PROTOCOL` has no effect, so OTLP over HTTP is not supported.
+
+The connection is unencrypted by default, even for an `https://` endpoint or with `OTEL_EXPORTER_OTLP_INSECURE=false`.
+To use TLS, set `OTEL_EXPORTER_OTLP_CERTIFICATE` to the collector's CA certificate, and set `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE` and `OTEL_EXPORTER_OTLP_CLIENT_KEY` for mutual TLS.
 
 ## Spans
 
@@ -52,16 +59,32 @@ The `chat` span carries the model call's details:
 |--------------------------------------------|---------------------------------------------------------------|
 | `gen_ai.provider.name`                     | The provider, such as `openai`, `anthropic`, or `aws.bedrock` |
 | `gen_ai.request.model`                     | The model name                                                |
-| `gen_ai.request.max_tokens`                | The output token limit, if one is set                         |
-| `gen_ai.request.temperature`               | The sampling temperature, if one is set                       |
+| `gen_ai.request.max_tokens`                | The output token limit Coder Agents requested, if one is set  |
+| `gen_ai.request.temperature`               | The temperature Coder Agents requested, if one is set         |
 | `gen_ai.request.stream`                    | Whether the response was streamed                             |
 | `gen_ai.response.id`                       | The response ID the provider reported, if any                 |
-| `gen_ai.response.finish_reasons`           | Why the model stopped, such as `stop` or `tool_call`          |
+| `gen_ai.response.finish_reasons`           | Why the model stopped, if the provider reported it            |
 | `gen_ai.usage.input_tokens`                | Input tokens, including cache reads and cache writes          |
 | `gen_ai.usage.output_tokens`               | Output tokens, including reasoning tokens                     |
-| `gen_ai.usage.cache_read.input_tokens`     | Input tokens read from the provider's prompt cache            |
-| `gen_ai.usage.cache_creation.input_tokens` | Input tokens written to the provider's prompt cache           |
+| `gen_ai.usage.cache_read.input_tokens`     | Input tokens read from the provider's prompt cache, if any    |
+| `gen_ai.usage.cache_creation.input_tokens` | Input tokens written to the provider's prompt cache, if any   |
 | `gen_ai.usage.reasoning.output_tokens`     | Reasoning tokens, if the provider reports them                |
+| `gen_ai.output.type`                       | `json`, for structured output requested in OpenAI's JSON mode |
+
+The request attributes describe the limits Coder Agents asks for, not always the request sent to the provider.
+For example, a model configuration can set an OpenAI-specific output token limit that replaces the general limit, and some providers ignore temperature for reasoning models.
+
+### Token usage limits
+
+Token counts come from the provider's response, and some providers report less than they bill:
+
+- **Anthropic:** when a response runs server-side tools such as web search, the model works in several internal iterations.
+  `gen_ai.usage.input_tokens` and the cache attributes report the input of the first iteration only, so they undercount the billed input.
+  Output tokens cover the whole response.
+- **OpenAI-compatible providers, such as OpenRouter:** cache writes are not reported, so `gen_ai.usage.cache_creation.input_tokens` is absent.
+  The input token total still includes them.
+
+For spend, use [AI Governance cost control](../../ai-governance/ai-gateway/cost-controls.md), which records the usage AI Gateway receives from the provider, rather than summing span tokens.
 
 The `execute_tool` span carries `gen_ai.tool.name`, `gen_ai.tool.call.id`, and `gen_ai.tool.type`.
 The tool type is `function` for built-in Coder Agents tools and `extension` for other tools, such as tools from MCP servers.
@@ -71,5 +94,11 @@ The `invoke_agent coder` span starts before the turn selects a model, so sampler
 A failed span has an error status and an `error.type` attribute.
 A tool call that returns an error result, such as an MCP server that cannot be reached, ends with `error.type` set to `tool_error`.
 
-Spans contain metadata only.
-Prompts, model responses, and tool arguments and results are not recorded.
+## Recorded content
+
+GenAI attributes contain metadata only.
+Prompts, model responses, and tool arguments and results are not recorded as attributes.
+
+When tracing is enabled, the server also attaches its log messages to the active span as span events.
+Some of those messages contain content, such as the error text a tool returns to the model.
+If your tracing backend must not hold that content, drop span events whose name starts with `log:` in your collector.

@@ -262,27 +262,32 @@ func (s *StageSpan) SetInferenceResponse(resp InferenceResponse) {
 	if resp.ResponseID != "" {
 		attrs = append(attrs, semconv.GenAIResponseID(resp.ResponseID))
 	}
-	attrs = append(attrs, semconv.GenAIResponseFinishReasons(genAIFinishReason(resp.FinishReason)))
+	if reason, ok := genAIFinishReason(resp.FinishReason); ok {
+		attrs = append(attrs, semconv.GenAIResponseFinishReasons(reason))
+	}
 	attrs = append(attrs, usageAttributes(resp.Usage)...)
 	s.span.SetAttributes(attrs...)
 }
 
-// genAIFinishReason maps a fantasy finish reason to the GenAI finish
-// reason enum. The enum has no value for a missing or unclassified
-// reason, so those map to stop. Callers set FinishReasonError for failed
-// calls.
-func genAIFinishReason(reason fantasy.FinishReason) string {
+// genAIFinishReason maps the finish reason the provider reported to its
+// gen_ai.response.finish_reasons value. It reports false when the
+// provider sent no reason or an unclassified one, so the span does not
+// claim a reason the model never gave. A failed call is described by the
+// span status and error.type, not by its finish reason.
+func genAIFinishReason(reason fantasy.FinishReason) (string, bool) {
 	switch reason {
+	case fantasy.FinishReasonStop:
+		return "stop", true
 	case fantasy.FinishReasonLength:
-		return "length"
+		return "length", true
 	case fantasy.FinishReasonToolCalls:
-		return "tool_call"
+		return "tool_call", true
 	case fantasy.FinishReasonContentFilter:
-		return "content_filter"
+		return "content_filter", true
 	case fantasy.FinishReasonError:
-		return "error"
+		return "error", true
 	default:
-		return "stop"
+		return "", false
 	}
 }
 
@@ -290,6 +295,13 @@ func genAIFinishReason(reason fantasy.FinishReason) string {
 // as the conventions require. Every client chatd builds reports them
 // apart from InputTokens: Google providers use the OpenAI-compatible
 // client, which subtracts cached tokens from the prompt count.
+//
+// The cache breakdown is recorded only when nonzero: the OpenAI-compatible
+// client never reports cache writes, so a zero can mean "not reported".
+//
+// For Anthropic, fantasy reports the input counts of the first internal
+// iteration, which measure context occupancy, so a response that ran
+// provider tools such as web search undercounts its billed input.
 func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
 	if usage == (fantasy.Usage{}) {
 		return nil
@@ -298,8 +310,12 @@ func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		semconv.GenAIUsageInputTokens(int(input)),
 		semconv.GenAIUsageOutputTokens(int(usage.OutputTokens)),
-		semconv.GenAIUsageCacheReadInputTokens(int(usage.CacheReadTokens)),
-		semconv.GenAIUsageCacheCreationInputTokens(int(usage.CacheCreationTokens)),
+	}
+	if usage.CacheReadTokens != 0 {
+		attrs = append(attrs, semconv.GenAIUsageCacheReadInputTokens(int(usage.CacheReadTokens)))
+	}
+	if usage.CacheCreationTokens != 0 {
+		attrs = append(attrs, semconv.GenAIUsageCacheCreationInputTokens(int(usage.CacheCreationTokens)))
 	}
 	if usage.ReasoningTokens != 0 {
 		attrs = append(attrs, semconv.GenAIUsageReasoningOutputTokens(int(usage.ReasoningTokens)))
