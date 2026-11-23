@@ -1944,6 +1944,16 @@ func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
 			wantErr: "workspace hostname prefix",
 		},
 		{
+			name:    "HostnamePrefixGlob",
+			flag:    "--ssh-hostname-prefix=*",
+			wantErr: `workspace hostname prefix "*" must not contain glob characters`,
+		},
+		{
+			name:    "HostnamePrefixQuestionMark",
+			flag:    "--ssh-hostname-prefix=coder?.",
+			wantErr: `workspace hostname prefix "coder?." must not contain glob characters`,
+		},
+		{
 			name:    "SSHOptionUnparseable",
 			flag:    "--ssh-config-options=NoSeparatorOption",
 			wantErr: "parse ssh config options",
