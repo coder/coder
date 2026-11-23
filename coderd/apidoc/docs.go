@@ -25358,7 +25358,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_registration": {
-                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\" or \"metadata_document\", Coder discovers the\nauthorization server of URL and gets a client automatically, so the\nclient ID, client secret, auth URL, and token URL must be empty.\nCoder uses a Client ID Metadata Document when the authorization\nserver supports one and the access URL is a public https URL, and\nRFC 7591 registration otherwise; the stored value names the method\nused. With \"manual\", the client ID, auth URL, and token URL are\nrequired. When empty, Coder registers automatically if those three\nfields are empty, and uses \"manual\" otherwise.",
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both register automatically, so\nthe client ID, client secret, auth URL, and token URL must be empty;\nthe stored value names the method Coder used. With \"manual\", the\nclient ID, auth URL, and token URL are required. When empty, Coder\nregisters automatically if those three fields are empty, and uses\n\"manual\" otherwise.",
                     "enum": [
                         "manual",
                         "dynamic",
@@ -33848,7 +33848,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_registration": {
-                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both select automatic\nregistration, as on create; a config that already registers\nautomatically keeps its method. When a request that sets the URL or\nan auth field omits it, Coder registers automatically if the\nresulting config has no client ID, auth URL, and token URL, and\nkeeps the stored value otherwise. Coder gets a new client when the\nconfig becomes automatic or when the URL of an automatic config\nchanges. A new client deletes the stored user tokens. An automatic\nconfig ignores empty and unchanged values for the client ID, client\nsecret, auth URL, and token URL. Other values fail unless the\nrequest also sets \"manual\".",
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both select automatic\nregistration; an automatic config keeps its stored method. When a\nrequest that sets the URL or an auth field omits it, Coder registers\nautomatically if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. A new client,\nmade when the config becomes automatic or the URL of an automatic\nconfig changes, deletes the stored user tokens. An automatic config\nignores empty and unchanged client fields; other values fail unless\nthe request also sets \"manual\".",
                     "enum": [
                         "manual",
                         "dynamic",
