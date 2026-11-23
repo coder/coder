@@ -6,10 +6,10 @@ import {
 	updateOrganizationSkillSettings,
 } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Switch } from "#/components/Switch/Switch";
 import { toast } from "#/components/Toaster/toast";
-import { RetryButton } from "#/pages/AgentsPage/components/RetryButton";
 import { SectionHeader } from "#/pages/AgentsPage/components/SectionHeader";
 
 type MembersCanDisableSkillsSettingProps = {
