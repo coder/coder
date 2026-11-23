@@ -3,6 +3,7 @@ import { type UseQueryResult, useQuery } from "react-query";
 import { organizationSkillPreferences } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getMemberOrganizations,
@@ -10,7 +11,6 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { OrganizationSkillPreferenceSwitch } from "../../components/OrganizationSkillPreferenceSwitch";
 import { OrganizationSkillsMasterSwitch } from "../../components/OrganizationSkillsMasterSwitch";
-import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
 import { SkillsTable } from "../../components/SkillsTable";
 import {

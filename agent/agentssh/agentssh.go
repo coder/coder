@@ -266,6 +266,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					}
 				}
 			}
+			s.logger.Flush(ctx)
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
@@ -601,6 +602,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				} else {
 					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 				}
+				if !reason.Expected() {
+					logger.Flush(ctx)
+				}
 				logger.Info(ctx, "ssh session closed",
 					fields...,
 				)
@@ -653,6 +657,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
+		} else {
+			closeCause(string(codersdk.DisconnectReasonGraceful))
 		}
 		return
 	default:

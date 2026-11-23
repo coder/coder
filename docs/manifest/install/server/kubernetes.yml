@@ -3,6 +3,9 @@ description: Install Coder on a Kubernetes cluster using the official Helm chart
 path: ./install/server/kubernetes/index.md
 icon_path: ./images/icons/kubernetes.svg
 children:
+  - title: Install Coder on K3s in an air-gapped environment
+    description: Install Coder on a single-node K3s cluster with no internet access, using artifacts staged on a connected workstation.
+    path: ./install/server/kubernetes/k3s-air-gapped.md
   - title: Deploy Coder on Azure with an Application Gateway
     description: Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.
     path: ./install/server/kubernetes/kubernetes-azure-app-gateway.md

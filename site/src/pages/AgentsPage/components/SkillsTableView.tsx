@@ -20,6 +20,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -43,7 +44,6 @@ import {
 	type SkillsCopy,
 	type SkillsScope,
 } from "../utils/skills";
-import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay, SkillSubmitHandler } from "./SkillEditor";
 import { SkillEditorDialog } from "./SkillEditor";
