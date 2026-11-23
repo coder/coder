@@ -740,8 +740,10 @@ describe("ProjectDetailsPanel templates", () => {
 		await user.click(
 			screen.getByRole("switch", { name: "Limit chats to these templates" }),
 		);
-		const save = screen.getByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: "Save",
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
