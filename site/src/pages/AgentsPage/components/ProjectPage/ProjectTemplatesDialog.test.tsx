@@ -263,8 +263,10 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		const callsBeforeSave = getProjects.mock.calls.length;
 		getProjects.mockResolvedValue([mockProjectWithDefault]);
 
@@ -310,8 +312,10 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -332,8 +336,10 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, props } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -355,8 +361,10 @@ describe("ProjectTemplatesDialog", () => {
 		const { user, rerenderWithProject } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		const newer = mockProjectWithDefault;
 		getProjects.mockResolvedValue([newer]);
 
@@ -378,8 +386,10 @@ describe("ProjectTemplatesDialog", () => {
 		const { user } = renderDialog();
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		getProjects.mockRejectedValueOnce(
 			mockApiError({ message: "Network error." }),
 		);
@@ -444,8 +454,10 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
@@ -461,8 +473,10 @@ describe("ProjectTemplatesDialog", () => {
 	it("saves nothing when an eligible template changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		vi.mocked(API.getTemplates).mockResolvedValue([
 			{ ...MockTemplate, active_version_id: "new-active-version" },
 		]);
@@ -536,8 +550,10 @@ describe("ProjectTemplatesDialog", () => {
 	it("saves when only a template outside the draft changes during the check", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		vi.mocked(API.getTemplates).mockResolvedValue([
 			MockTemplate,
 			{ ...MockTemplate, id: "unrelated-template" },

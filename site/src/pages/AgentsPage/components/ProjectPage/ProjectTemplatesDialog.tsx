@@ -430,7 +430,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				<div
 					ref={conflictAlertRef}
 					tabIndex={-1}
-					className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+					className="rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					<ProjectEditConflictAlert
 						disabled={isSaving}
