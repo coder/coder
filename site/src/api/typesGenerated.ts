@@ -4648,8 +4648,8 @@ export interface CreateAIProviderRequest {
 // From codersdk/chatautomations.go
 /**
  * CreateChatAutomationRequest creates a schedule automation that the caller
- * owns. The type has no validate tags, because the request reader echoes the
- * value of a field that fails one.
+ * owns. The only validate tag is required: the request reader echoes the
+ * value of a field that fails a tag, and a missing field has an empty value.
  */
 export interface CreateChatAutomationRequest {
 	readonly name: string;

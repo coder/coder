@@ -130,11 +130,25 @@ func checkReferences(ctx context.Context, db database.Store, organizationID, own
 	}
 	if req.ProjectID != nil {
 		project, err := db.GetChatProjectByID(ctx, *req.ProjectID)
-		switch {
-		case httpapi.Is404Error(err), err == nil && project.OrganizationID != organizationID:
-			v.add("project_id", "Project not found in this organization.")
-		case err != nil:
+		if err != nil && !httpapi.Is404Error(err) {
 			return nil, xerrors.Errorf("get project: %w", err)
+		}
+		usable := err == nil && project.OrganizationID == organizationID
+		if usable && project.OwnerID != owner {
+			// As chat create does (chatd.ChatProjectUsableBy), count only an
+			// ACL grant: a role that can read the project does not share its
+			// memory, instructions and skills with the owner's chats.
+			//nolint:gocritic // The check answers for the owner, who is the actor.
+			usable, err = db.IsChatProjectUsableByUserID(dbauthz.AsChatd(ctx), database.IsChatProjectUsableByUserIDParams{
+				ProjectID: project.ID,
+				UserID:    owner,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("check project access: %w", err)
+			}
+		}
+		if !usable {
+			v.add("project_id", "Project not found in this organization.")
 		}
 	}
 	return v, nil

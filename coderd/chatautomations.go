@@ -65,7 +65,9 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	automation, err := chatautomation.Create(ctx, api.Database, organization.ID, req, dbtime.Now())
+	// One time for the first run and the listed runs, so they agree.
+	now := dbtime.Now()
+	automation, err := chatautomation.Create(ctx, api.Database, organization.ID, req, now)
 	var invalid *chatautomation.InvalidRequestError
 	switch {
 	case errors.As(err, &invalid):
@@ -105,7 +107,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Warn(ctx, "load chat automation references for the create response", slog.Error(err))
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatAutomation(automation, refs, dbtime.Now()))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatAutomation(automation, refs, now))
 }
 
 // @Summary List chat automations

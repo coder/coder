@@ -25292,6 +25292,13 @@ const docTemplate = `{
         },
         "codersdk.CreateChatAutomationRequest": {
             "type": "object",
+            "required": [
+                "name",
+                "prompt",
+                "schedule_cron",
+                "schedule_time_zone",
+                "target_mode"
+            ],
             "properties": {
                 "enabled": {
                     "description": "Enabled defaults to true.",

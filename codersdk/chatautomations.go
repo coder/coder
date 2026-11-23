@@ -83,13 +83,13 @@ type ChatAutomation struct {
 }
 
 // CreateChatAutomationRequest creates a schedule automation that the caller
-// owns. The type has no validate tags, because the request reader echoes the
-// value of a field that fails one.
+// owns. The only validate tag is required: the request reader echoes the
+// value of a field that fails a tag, and a missing field has an empty value.
 type CreateChatAutomationRequest struct {
-	Name string `json:"name"`
+	Name string `json:"name" validate:"required"`
 	// Enabled defaults to true.
 	Enabled    *bool                    `json:"enabled,omitempty"`
-	TargetMode ChatAutomationTargetMode `json:"target_mode" enums:"existing_chat,new_chat"`
+	TargetMode ChatAutomationTargetMode `json:"target_mode" validate:"required" enums:"existing_chat,new_chat"`
 	// TargetChatID is the root chat, owned by the caller, of an
 	// existing_chat automation.
 	TargetChatID *uuid.UUID `json:"target_chat_id,omitempty" format:"uuid"`
@@ -98,9 +98,9 @@ type CreateChatAutomationRequest struct {
 	ProjectID            *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// ScheduleCron is a five-field cron expression that runs at most every
 	// five minutes, and ScheduleTimeZone is an IANA time zone name.
-	ScheduleCron     string `json:"schedule_cron"`
-	ScheduleTimeZone string `json:"schedule_time_zone"`
-	Prompt           string `json:"prompt"`
+	ScheduleCron     string `json:"schedule_cron" validate:"required"`
+	ScheduleTimeZone string `json:"schedule_time_zone" validate:"required"`
+	Prompt           string `json:"prompt" validate:"required"`
 }
 
 func chatAutomationsPath(organizationID uuid.UUID) string {

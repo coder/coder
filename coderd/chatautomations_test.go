@@ -237,6 +237,9 @@ func TestCreateChatAutomation(t *testing.T) {
 			{"ChatInOtherOrganization", memberClient, request(ownElsewhere, "0 9 * * *"), http.StatusBadRequest, "target_chat_id"},
 			{"SubAgentChat", memberClient, request(subAgent, "0 9 * * *"), http.StatusBadRequest, "target_chat_id"},
 			{"ProjectInOtherOrganization", memberClient, newChat(otherProject.ID), http.StatusBadRequest, "project_id"},
+			// An org admin can read the member's project, but only an ACL
+			// grant shares it with the admin's chats.
+			{"AdminUsesMembersProject", adminClient, newChat(project.ID), http.StatusBadRequest, "project_id"},
 			{"OtherMembersChat", memberClient, request(theirs, "0 9 * * *"), http.StatusForbidden, ""},
 			// An org admin can update the chat, but a run would send into it
 			// as the admin.
