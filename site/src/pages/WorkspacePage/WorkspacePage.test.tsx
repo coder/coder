@@ -92,29 +92,27 @@ afterEach(() => {
 });
 
 describe("WorkspacePage", () => {
-	it("requests a delete job when the user presses Delete and confirms", async () => {
+	it("requests a delete job after confirmation", async () => {
 		const user = userEvent.setup({ delay: 0 });
 		const deleteWorkspaceMock = vi
 			.spyOn(API, "deleteWorkspace")
 			.mockResolvedValueOnce(MockWorkspaceBuild);
 		await renderWorkspacePage(MockWorkspace);
 
-		// open the workspace action popover so we have access to all available ctas
-		const trigger = screen.getByTestId("workspace-options-button");
+		const trigger = screen.getByRole("button", { name: "Workspace actions" });
 		await user.click(trigger);
 
-		// Click on delete
-		const button = await screen.findByTestId("delete-button");
+		const button = await screen.findByRole("menuitem", { name: "Delete…" });
 		await user.click(button);
 
-		// Get dialog and confirm
-		const dialog = await screen.findByTestId("dialog");
+		const dialog = await screen.findByRole("dialog", {
+			name: /delete workspace/i,
+		});
 		const labelText = "Workspace name";
 		const textField = within(dialog).getByLabelText(labelText);
 		await user.type(textField, MockWorkspace.name);
 		const confirmButton = within(dialog).getByRole("button", {
 			name: "Delete",
-			hidden: false,
 		});
 		await user.click(confirmButton);
 		expect(deleteWorkspaceMock).toBeCalled();
@@ -127,7 +125,11 @@ describe("WorkspacePage", () => {
 		server.use(
 			http.post("/api/v2/authcheck", async () => {
 				const permissions: WorkspacePermissions = {
+					createWorkspace: true,
 					readWorkspace: true,
+					startWorkspace: true,
+					stopWorkspace: true,
+					deleteWorkspace: true,
 					shareWorkspace: true,
 					updateWorkspace: true,
 					updateWorkspaceVersion: true,
@@ -402,7 +404,11 @@ describe("WorkspacePage", () => {
 			server.use(
 				http.post("/api/v2/authcheck", () => {
 					const permissions: WorkspacePermissions = {
+						createWorkspace: true,
 						readWorkspace: true,
+						startWorkspace: true,
+						stopWorkspace: true,
+						deleteWorkspace: true,
 						shareWorkspace: true,
 						updateWorkspace: true,
 						updateWorkspaceVersion: false,

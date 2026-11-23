@@ -9,19 +9,20 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import {
 	getTemplatesQueryKey,
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
-import { workspacesKey } from "#/api/queries/workspaces";
+import {
+	workspacePermissionsKey,
+	workspacesKey,
+} from "#/api/queries/workspaces";
 import type {
 	Workspace,
 	WorkspaceAppHealth,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
-import { workspaceChecks } from "#/modules/workspaces/permissions";
 import {
 	MockDefaultOrganization,
 	MockDormantOutdatedWorkspace,
@@ -98,9 +99,13 @@ const meta = {
 				},
 			},
 			{
-				key: getAuthorizationKey({ checks: workspaceChecks(workspace) }),
+				key: workspacePermissionsKey(workspace.id),
 				data: {
+					createWorkspace: true,
 					readWorkspace: true,
+					startWorkspace: true,
+					stopWorkspace: true,
+					deleteWorkspace: true,
 					shareWorkspace: true,
 					updateWorkspace: true,
 					updateWorkspaceVersion: true,

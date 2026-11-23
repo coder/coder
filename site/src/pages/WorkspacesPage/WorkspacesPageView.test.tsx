@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { API } from "#/api/api";
+import { workspacePermissionsKey } from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
@@ -331,3 +332,66 @@ describe("WorkspacesPageView", () => {
 		).not.toBeInTheDocument();
 	});
 });
+
+const bulkActions = [
+	{
+		name: /^Start$/,
+		permission: "startWorkspace",
+		workspace: MockStoppedWorkspace,
+		callback: "onBatchStartTransition",
+	},
+	{
+		name: /^Stop$/,
+		permission: "stopWorkspace",
+		workspace: MockWorkspace,
+		callback: "onBatchStopTransition",
+	},
+	{
+		name: /Update/,
+		permission: "startWorkspace",
+		workspace: { ...MockWorkspace, outdated: true },
+		callback: "onBatchUpdateTransition",
+	},
+	{
+		name: /Delete/,
+		permission: "deleteWorkspace",
+		workspace: MockWorkspace,
+		callback: "onBatchDeleteTransition",
+	},
+] as const;
+
+test.each(
+	bulkActions.flatMap((action) => [
+		{ ...action, allowed: true },
+		{ ...action, allowed: false },
+	]),
+)(
+	"bulk $callback respects $permission (allowed: $allowed)",
+	async ({ name, permission, workspace, callback, allowed }) => {
+		vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.keys(checks).map((key) => [key, key !== permission || allowed]),
+			),
+		);
+		const onAction = vi.fn();
+		const { queryClient } = renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				checkedWorkspaces={[workspace]}
+				{...{ [callback]: onAction }}
+			/>,
+		);
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryState(workspacePermissionsKey(workspace.id))
+					?.status,
+			).toBe("success"),
+		);
+		const user = userEvent.setup();
+		await user.click(
+			await screen.findByRole("button", { name: "Bulk actions" }),
+		);
+		await user.click(screen.getByRole("menuitem", { name }));
+		expect(onAction).toHaveBeenCalledTimes(allowed ? 1 : 0);
+	},
+);

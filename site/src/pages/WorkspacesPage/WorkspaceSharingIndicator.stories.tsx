@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { workspacePermissionsKey } from "#/api/queries/workspaces";
 import type { SharedWorkspaceActor } from "#/api/typesGenerated";
+import { MockWorkspace } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
+import { MockReadOnlyWorkspacePermissions } from "#/testHelpers/workspacePermissions";
 import { generateUUID } from "#/utils/random";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 
@@ -35,10 +39,16 @@ const hoverTrigger = async (canvasElement: HTMLElement) => {
 const meta: Meta<typeof WorkspaceSharingIndicator> = {
 	title: "pages/WorkspacesPage/WorkspaceSharingIndicator",
 	component: WorkspaceSharingIndicator,
-	args: {
-		settingsPath: "/@owner/my-workspace/settings/sharing",
+	parameters: {
+		queries: [
+			{
+				key: workspacePermissionsKey(MockWorkspace.id),
+				data: { ...MockReadOnlyWorkspacePermissions, shareWorkspace: true },
+			},
+		],
 	},
 	decorators: [
+		withDashboardProvider,
 		(Story) => (
 			<div className="p-8">
 				<Story />
@@ -52,7 +62,7 @@ type Story = StoryObj<typeof WorkspaceSharingIndicator>;
 
 export const SingleUser: Story = {
 	args: {
-		sharedWith: [mockUser("alice")],
+		workspace: { ...MockWorkspace, shared_with: [mockUser("alice")] },
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("activate hover trigger", async () => {
@@ -66,7 +76,10 @@ export const SingleUser: Story = {
 
 export const SingleAdmin: Story = {
 	args: {
-		sharedWith: [mockUser("alice", ["admin"])],
+		workspace: {
+			...MockWorkspace,
+			shared_with: [mockUser("alice", ["admin"])],
+		},
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("activate hover trigger", async () => {
@@ -82,7 +95,7 @@ export const SingleAdmin: Story = {
 
 export const SingleGroup: Story = {
 	args: {
-		sharedWith: [mockGroup("Engineering")],
+		workspace: { ...MockWorkspace, shared_with: [mockGroup("Engineering")] },
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("activate hover trigger", async () => {
@@ -98,7 +111,7 @@ export const SingleGroup: Story = {
 // which must be at least 24px (WCAG 2.5.8).
 export const TriggerFocused: Story = {
 	args: {
-		sharedWith: [mockUser("alice")],
+		workspace: { ...MockWorkspace, shared_with: [mockUser("alice")] },
 	},
 	play: async () => {
 		await userEvent.tab();
@@ -107,12 +120,15 @@ export const TriggerFocused: Story = {
 
 export const UsersAndGroups: Story = {
 	args: {
-		sharedWith: [
-			mockGroup("Engineering"),
-			mockUser("alice", ["admin"]),
-			mockGroup("DevOps", ["admin"]),
-			mockUser("bob"),
-		],
+		workspace: {
+			...MockWorkspace,
+			shared_with: [
+				mockGroup("Engineering"),
+				mockUser("alice", ["admin"]),
+				mockGroup("DevOps", ["admin"]),
+				mockUser("bob"),
+			],
+		},
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("activate hover trigger", async () => {
@@ -130,27 +146,30 @@ export const UsersAndGroups: Story = {
 
 export const ManyActors: Story = {
 	args: {
-		sharedWith: [
-			mockUser("alice", ["admin"]),
-			mockUser("bob", ["admin"]),
-			mockUser("charlie"),
-			mockGroup("QA"),
-			mockGroup("HR"),
-			mockGroup("Finance"),
-			mockGroup("Marketing"),
-			mockGroup("Sales"),
-			mockUser("david"),
-			mockUser("eve"),
-			mockUser("frank"),
-			mockGroup("Engineering"),
-			mockGroup("DevOps"),
-			mockGroup("Platform", ["admin"]),
-			mockGroup("Security", ["admin"]),
-			mockGroup("IT"),
-			mockGroup("Legal"),
-			mockGroup("Customer Support"),
-			mockGroup("Product"),
-		],
+		workspace: {
+			...MockWorkspace,
+			shared_with: [
+				mockUser("alice", ["admin"]),
+				mockUser("bob", ["admin"]),
+				mockUser("charlie"),
+				mockGroup("QA"),
+				mockGroup("HR"),
+				mockGroup("Finance"),
+				mockGroup("Marketing"),
+				mockGroup("Sales"),
+				mockUser("david"),
+				mockUser("eve"),
+				mockUser("frank"),
+				mockGroup("Engineering"),
+				mockGroup("DevOps"),
+				mockGroup("Platform", ["admin"]),
+				mockGroup("Security", ["admin"]),
+				mockGroup("IT"),
+				mockGroup("Legal"),
+				mockGroup("Customer Support"),
+				mockGroup("Product"),
+			],
+		},
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("activate hover trigger", async () => {

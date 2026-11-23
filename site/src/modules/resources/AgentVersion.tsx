@@ -7,7 +7,7 @@ import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
 type AgentVersionProps = {
 	agent: WorkspaceAgent;
-	onUpdate: () => void;
+	onUpdate?: () => void;
 };
 
 export const AgentVersion: React.FC<AgentVersionProps> = ({

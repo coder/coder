@@ -128,12 +128,15 @@ Note: If a template is updated such that new parameter inputs are required from 
 
 ## Bulk operations
 
-Admins can apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
-Select the workspaces you'd like to modify with the checkboxes on the left, then use the top-right **Actions** dropdown to apply the operation.
+From the **Workspaces** tab, you can update, delete, start, or stop multiple workspaces.
+Select the workspaces to modify with the checkboxes on the left.
+From the **Bulk actions** menu, select the operation.
+You need permission on every workspace the operation applies to.
 
 The start and stop operations can be applied even when the selected workspaces are not all in the same state.
 Bulk start will only apply to selected workspaces that are currently stopped, and bulk stop will only apply to selected workspaces that are currently running.
-For update, delete, and stop, the admin applying the operation is prompted for confirmation before any action is taken. The owners of the selected workspaces are not prompted.
+If you select update, delete, or stop, Coder prompts you to confirm the operation.
+The owners of the selected workspaces receive no confirmation prompt.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 

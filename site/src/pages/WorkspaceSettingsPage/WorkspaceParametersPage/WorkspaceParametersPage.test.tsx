@@ -51,11 +51,11 @@ async function connectWithInitialParameters(
 
 describe("WorkspaceParametersPage", () => {
 	const renderWorkspaceParametersPage = (
-		route = `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/settings`,
+		route = `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/settings/parameters`,
 	) => {
 		return renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
 			route,
-			path: "/:username/:workspace/settings",
+			path: "/:username/:workspace/settings/parameters",
 			extraRoutes: [
 				{
 					// Need this because after submit the user is redirected.
@@ -278,7 +278,11 @@ describe("WorkspaceParametersPage", () => {
 			.mockReset()
 			.mockResolvedValue(workspace);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			createWorkspace: true,
 			readWorkspace: true,
+			startWorkspace: true,
+			stopWorkspace: true,
+			deleteWorkspace: true,
 			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: false,
@@ -289,7 +293,7 @@ describe("WorkspaceParametersPage", () => {
 		const [, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage(
-			`/@${workspace.owner_name}/${workspace.name}/settings?templateVersionId=${workspace.template_active_version_id}`,
+			`/@${workspace.owner_name}/${workspace.name}/settings/parameters?templateVersionId=${workspace.template_active_version_id}`,
 		);
 
 		await connectWithInitialParameters(mockPublisher, [
@@ -325,7 +329,11 @@ describe("WorkspaceParametersPage", () => {
 			.mockReset()
 			.mockResolvedValue(workspace);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			createWorkspace: true,
 			readWorkspace: true,
+			startWorkspace: true,
+			stopWorkspace: true,
+			deleteWorkspace: true,
 			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: false,
@@ -336,7 +344,7 @@ describe("WorkspaceParametersPage", () => {
 		const [, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage(
-			`/@${workspace.owner_name}/${workspace.name}/settings`,
+			`/@${workspace.owner_name}/${workspace.name}/settings/parameters`,
 		);
 
 		await connectWithInitialParameters(mockPublisher, [

@@ -95,9 +95,14 @@ export const setWorkspaceUserRole = (
 				},
 			}),
 		onSuccess: async (_res, { workspaceId }) => {
-			await queryClient.invalidateQueries({
-				queryKey: workspaceACLKey(workspaceId),
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: workspaceACLKey(workspaceId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: workspacePermissionsKey(workspaceId),
+				}),
+			]);
 		},
 	};
 };
@@ -117,9 +122,14 @@ export const setWorkspaceGroupRole = (
 				},
 			}),
 		onSuccess: async (_res, { workspaceId }) => {
-			await queryClient.invalidateQueries({
-				queryKey: workspaceACLKey(workspaceId),
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: workspaceACLKey(workspaceId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: workspacePermissionsKey(workspaceId),
+				}),
+			]);
 		},
 	};
 };
@@ -576,14 +586,44 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 	};
 };
 
+/** Cache key for resource-scoped workspace authorization results. */
+export const workspacePermissionsKey = (workspaceId: string | undefined) => [
+	"workspaces",
+	workspaceId,
+	"permissions",
+];
+
 export const workspacePermissions = (workspace?: Workspace) => {
 	return {
-		...checkAuthorization<WorkspacePermissions>({
-			checks: workspace ? workspaceChecks(workspace) : {},
+		...checkAuthorization<
+			WorkspacePermissions & { deletePrebuiltWorkspace: boolean }
+		>({
+			checks: workspace
+				? {
+						...workspaceChecks(workspace),
+						deletePrebuiltWorkspace: {
+							object: {
+								resource_type: "prebuilt_workspace",
+								organization_id: workspace.organization_id,
+								owner_id: workspace.owner_id,
+							},
+							action: "delete",
+						},
+					}
+				: {},
 		}),
-		queryKey: ["workspaces", workspace?.id, "permissions"],
+		select: (
+			permissions: WorkspacePermissions & { deletePrebuiltWorkspace: boolean },
+		): WorkspacePermissions => ({
+			...permissions,
+			deleteWorkspace:
+				permissions.deleteWorkspace ||
+				Boolean(workspace?.is_prebuild && permissions.deletePrebuiltWorkspace),
+		}),
+		queryKey: workspacePermissionsKey(workspace?.id),
 		enabled: Boolean(workspace),
-		staleTime: Number.POSITIVE_INFINITY,
+		staleTime: 30_000,
+		refetchOnWindowFocus: true,
 	};
 };
 

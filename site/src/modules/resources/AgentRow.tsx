@@ -83,7 +83,7 @@ type AgentRowProps = {
 	template: Template;
 	initialMetadata?: WorkspaceAgentMetadata[];
 	agentScriptTimings?: readonly AgentScriptTiming[];
-	onUpdateAgent: () => void;
+	onUpdateAgent?: () => void;
 };
 
 const statusBorderClassByStatus: Partial<

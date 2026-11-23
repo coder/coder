@@ -23,6 +23,7 @@ import {
 	setOptimisticWorkspaceListBuildStatus,
 	startWorkspace,
 	stopWorkspace,
+	workspacePermissions,
 } from "#/api/queries/workspaces";
 import type {
 	Template,
@@ -70,6 +71,7 @@ import { useAppLink } from "#/modules/apps/useAppLink";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
+import { canPerformWorkspaceAction } from "#/modules/workspaces/permissions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -259,10 +261,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 												{workspace.owner_name}
 												{workspace.shared_with &&
 													workspace.shared_with.length > 0 && (
-														<WorkspaceSharingIndicator
-															sharedWith={workspace.shared_with}
-															settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-														/>
+														<WorkspaceSharingIndicator workspace={workspace} />
 													)}
 											</div>
 										</div>
@@ -419,10 +418,17 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 	const { user } = useAuthenticated();
 
 	const queryClient = useQueryClient();
+	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const abilities = abilitiesByWorkspaceStatus(workspace, {
 		canDebug: false,
 		isOwner: user.roles.find((role) => role.name === "owner") !== undefined,
 	});
+
+	const allowedActions = abilities.actions.filter((action) =>
+		canPerformWorkspaceAction(workspace, permissions, action),
+	);
+	const canCancel =
+		abilities.canCancel && permissions?.updateWorkspace === true;
 
 	const startWorkspaceOptions = startWorkspace(workspace, queryClient);
 	const startWorkspaceMutation = useMutation({
@@ -541,7 +547,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 						<WorkspaceApps workspace={workspace} />
 					))}
 
-				{abilities.actions.includes("start") && (
+				{allowedActions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
 						isLoading={startWorkspaceMutation.isPending}
@@ -551,7 +557,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
-				{abilities.actions.includes("updateAndStart") && (
+				{allowedActions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
 							onClick={workspaceUpdate.update}
@@ -564,7 +570,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</>
 				)}
 
-				{abilities.actions.includes("updateAndStartRequireActiveVersion") && (
+				{allowedActions.includes("updateAndStartRequireActiveVersion") && (
 					<>
 						<PrimaryAction
 							onClick={workspaceUpdate.update}
@@ -577,7 +583,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</>
 				)}
 
-				{abilities.actions.includes("updateAndRestart") && (
+				{allowedActions.includes("updateAndRestart") && (
 					<>
 						<PrimaryAction
 							onClick={workspaceUpdate.update}
@@ -590,7 +596,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</>
 				)}
 
-				{abilities.actions.includes("updateAndRestartRequireActiveVersion") && (
+				{allowedActions.includes("updateAndRestartRequireActiveVersion") && (
 					<>
 						<PrimaryAction
 							onClick={workspaceUpdate.update}
@@ -603,7 +609,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</>
 				)}
 
-				{abilities.canCancel && (
+				{canCancel && (
 					<PrimaryAction
 						onClick={() => setIsCancelConfirmOpen(true)}
 						isLoading={cancelBuildMutation.isPending}
@@ -613,7 +619,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
-				{abilities.actions.includes("retry") && (
+				{allowedActions.includes("retry") && (
 					<PrimaryAction
 						onClick={retry}
 						isLoading={isRetrying}

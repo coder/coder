@@ -7,7 +7,10 @@ import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
 } from "#/modules/workspaces/actions";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import {
+	canPerformWorkspaceAction,
+	type WorkspacePermissions,
+} from "#/modules/workspaces/permissions";
 import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import {
 	ActivateButton,
@@ -68,6 +71,20 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 			canDebug: Boolean(deployment?.config.enable_terraform_debug_mode),
 			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
+	);
+
+	// Retrying a failed start from this page stops the workspace before starting it.
+	const canCleanUpBeforeRetry =
+		workspace.latest_build.transition !== "start" || permissions.stopWorkspace;
+
+	// Show restart progress even while the build status reports stopping.
+	const displayedActions: readonly ActionType[] = isUpdating
+		? ["updating"]
+		: isRestarting
+			? ["restarting"]
+			: actions;
+	const allowedActions = displayedActions.filter((action) =>
+		canPerformWorkspaceAction(workspace, permissions, action),
 	);
 
 	const tooltipText = getTooltipText(
@@ -146,14 +163,14 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 		pending: <DisabledButton label="Pending..." />,
 		activate: <ActivateButton handleAction={handleDormantActivate} />,
 		activating: <ActivateButton loading handleAction={handleDormantActivate} />,
-		retry: (
+		retry: canCleanUpBeforeRetry && (
 			<RetryButton
 				handleAction={handleRetry}
 				workspace={workspace}
 				enableBuildParameters={workspace.latest_build.transition === "start"}
 			/>
 		),
-		debug: (
+		debug: canCleanUpBeforeRetry && (
 			<DebugButton
 				handleAction={handleDebug}
 				workspace={workspace}
@@ -167,16 +184,13 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 			className="flex flex-wrap items-center justify-end gap-2"
 			data-testid="workspace-actions"
 		>
-			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
-			{isUpdating
-				? buttonMapping.updating
-				: isRestarting
-					? buttonMapping.restarting
-					: actions.map((action) => (
-							<Fragment key={action}>{buttonMapping[action]}</Fragment>
-						))}
+			{allowedActions.map((action) => (
+				<Fragment key={action}>{buttonMapping[action]}</Fragment>
+			))}
 
-			{canCancel && <CancelButton handleAction={handleCancel} />}
+			{canCancel && permissions.updateWorkspace && (
+				<CancelButton handleAction={handleCancel} />
+			)}
 
 			{/* Only the owner can favorite a workspace. */}
 			{user.id === workspace.owner_id && (

@@ -1,6 +1,7 @@
 import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
-import type { UseQueryResult } from "react-query";
+import { type UseQueryResult, useQueries } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
+import { workspacePermissions } from "#/api/queries/workspaces";
 import type { Template, Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -23,6 +24,7 @@ import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { canEditWorkspaceParameters } from "#/modules/workspaces/permissions";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
 import { WorkspacesFilter } from "./filter/WorkspacesFilter";
@@ -79,6 +81,35 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 	onActionError,
 	chatsByWorkspace,
 }) => {
+	const selectedPermissions = useQueries({
+		queries: checkedWorkspaces.map((workspace) =>
+			workspacePermissions(workspace),
+		),
+	});
+	const canBatchStart = checkedWorkspaces.every(
+		(workspace, index) =>
+			workspace.latest_build.status !== "stopped" ||
+			selectedPermissions[index]?.data?.startWorkspace,
+	);
+	const canBatchStop = checkedWorkspaces.every(
+		(workspace, index) =>
+			workspace.latest_build.status !== "running" ||
+			selectedPermissions[index]?.data?.stopWorkspace,
+	);
+	const canBatchDelete = checkedWorkspaces.every(
+		(_, index) => selectedPermissions[index]?.data?.deleteWorkspace,
+	);
+	const canBatchUpdate = checkedWorkspaces.every(
+		(workspace, index) =>
+			!workspace.outdated ||
+			Boolean(workspace.dormant_at) ||
+			canEditWorkspaceParameters(workspace, selectedPermissions[index]?.data),
+	);
+
+	const permissionsError = selectedPermissions.find(
+		(query) => query.error,
+	)?.error;
+
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which
 	// does not exist. In this case, the page is not valid and we want to show a
 	// better error message.
@@ -107,6 +138,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
+				{Boolean(permissionsError) && <ErrorAlert error={permissionsError} />}
 				<WorkspacesFilter filter={filter} error={error} />
 			</div>
 
@@ -136,28 +168,33 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									disabled={
+										!canBatchStart ||
 										!checkedWorkspaces?.some(
 											(w) =>
 												w.latest_build.status === "stopped" &&
 												!mustUpdateWorkspace(w, canChangeVersions),
 										)
 									}
-									onClick={onBatchStartTransition}
+									onSelect={onBatchStartTransition}
 								>
 									<PlayIcon /> Start
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
+										!canBatchStop ||
 										!checkedWorkspaces?.some(
 											(w) => w.latest_build.status === "running",
 										)
 									}
-									onClick={onBatchStopTransition}
+									onSelect={onBatchStopTransition}
 								>
 									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={onBatchUpdateTransition}>
+								<DropdownMenuItem
+									disabled={!canBatchUpdate}
+									onSelect={onBatchUpdateTransition}
+								>
 									<RotateCcwIcon
 										className="size-icon-sm"
 										data-testid="bulk-action-update"
@@ -166,7 +203,8 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
-									onClick={onBatchDeleteTransition}
+									disabled={!canBatchDelete}
+									onSelect={onBatchDeleteTransition}
 								>
 									<TrashIcon /> Delete&hellip;
 								</DropdownMenuItem>

@@ -16,8 +16,12 @@ import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
+import {
+	canEditWorkspaceParameters,
+	canPerformWorkspaceAction,
+	type WorkspacePermissions,
+} from "#/modules/workspaces/permissions";
 import { formatDate } from "#/utils/time";
-import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	type Notification,
 	NotificationActionButton,
@@ -58,7 +62,7 @@ export const WorkspaceNotifications: React.FC<WorkspaceNotificationsProps> = ({
 	const requiresManualUpdate = updateRequired && autoStartFailing;
 
 	if (workspace.outdated && latestVersion) {
-		const actions = (
+		const actions = canEditWorkspaceParameters(workspace, permissions) && (
 			<NotificationActionButton onClick={onUpdateWorkspace}>
 				Update
 			</NotificationActionButton>
@@ -108,27 +112,32 @@ export const WorkspaceNotifications: React.FC<WorkspaceNotificationsProps> = ({
 				) : undefined,
 			});
 		} else {
-			const hasActions = permissions.updateWorkspace || troubleshootingURL;
+			const canRestart = canPerformWorkspaceAction(
+				workspace,
+				permissions,
+				"restart",
+			);
 			notifications.push({
 				title: "One or more workspace agents need attention",
 				severity: "warning",
 				detail: "Expand an agent's logs to view per-agent health details.",
-				actions: hasActions ? (
-					<>
-						{permissions.updateWorkspace && (
-							<NotificationActionButton onClick={onRestartWorkspace}>
-								Restart
-							</NotificationActionButton>
-						)}
-						{troubleshootingURL && (
-							<NotificationActionButton
-								onClick={() => window.open(troubleshootingURL, "_blank")}
-							>
-								Troubleshooting
-							</NotificationActionButton>
-						)}
-					</>
-				) : undefined,
+				actions:
+					canRestart || troubleshootingURL ? (
+						<>
+							{canRestart && (
+								<NotificationActionButton onClick={onRestartWorkspace}>
+									Restart
+								</NotificationActionButton>
+							)}
+							{troubleshootingURL && (
+								<NotificationActionButton
+									onClick={() => window.open(troubleshootingURL, "_blank")}
+								>
+									Troubleshooting
+								</NotificationActionButton>
+							)}
+						</>
+					) : undefined,
 			});
 		}
 	}
@@ -147,7 +156,11 @@ export const WorkspaceNotifications: React.FC<WorkspaceNotificationsProps> = ({
 				...(timestamp ? { hour: "numeric", minute: "numeric" } : {}),
 			});
 		};
-		const actions = (
+		const actions = canPerformWorkspaceAction(
+			workspace,
+			permissions,
+			"activate",
+		) && (
 			<NotificationActionButton onClick={onActivateWorkspace}>
 				Activate
 			</NotificationActionButton>

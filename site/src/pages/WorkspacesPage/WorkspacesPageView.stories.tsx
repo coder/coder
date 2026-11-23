@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { workspacePermissionsKey } from "#/api/queries/workspaces";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -28,6 +29,7 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
+import { MockReadOnlyWorkspacePermissions } from "#/testHelpers/workspacePermissions";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -800,5 +802,50 @@ export const WithFilterError: Story = {
 		expect(input).toHaveAttribute("aria-invalid", "true");
 		const alert = canvas.getByRole("alert");
 		expect(input).toHaveAttribute("aria-errormessage", alert.id);
+	},
+};
+
+const mockOutdatedWorkspace = { ...MockWorkspace, outdated: true };
+
+export const BulkActionsDenied: Story = {
+	args: {
+		workspaces: [mockOutdatedWorkspace],
+		checkedWorkspaces: [mockOutdatedWorkspace],
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspacePermissionsKey(MockWorkspace.id),
+				data: {
+					...MockReadOnlyWorkspacePermissions,
+					createWorkspace: true,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Bulk actions" }),
+		);
+	},
+};
+
+export const RowActionsDenied: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: 1,
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspacePermissionsKey(MockWorkspace.id),
+				data: MockReadOnlyWorkspacePermissions,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Workspace actions" }),
+		);
 	},
 };

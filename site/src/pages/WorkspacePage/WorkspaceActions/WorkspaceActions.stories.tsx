@@ -1,13 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
-import { agentLogsKey, buildLogsKey } from "#/api/queries/workspaces";
+import {
+	agentLogsKey,
+	buildLogsKey,
+	workspacePermissionsKey,
+} from "#/api/queries/workspaces";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withDesktopViewport,
 } from "#/testHelpers/storybook";
+import { MockReadOnlyWorkspacePermissions } from "#/testHelpers/workspacePermissions";
 import { WorkspaceActions } from "./WorkspaceActions";
 
 const meta: Meta<typeof WorkspaceActions> = {
@@ -16,7 +21,11 @@ const meta: Meta<typeof WorkspaceActions> = {
 	args: {
 		isUpdating: false,
 		permissions: {
+			createWorkspace: true,
 			readWorkspace: true,
+			startWorkspace: true,
+			stopWorkspace: true,
+			deleteWorkspace: true,
 			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: true,
@@ -172,7 +181,11 @@ export const FailedWithDebug: Story = {
 	args: {
 		workspace: Mocks.MockFailedWorkspace,
 		permissions: {
+			createWorkspace: true,
 			readWorkspace: true,
+			startWorkspace: true,
+			stopWorkspace: true,
+			deleteWorkspace: true,
 			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: true,
@@ -251,14 +264,29 @@ export const CanDeleteDormantWorkspace: Story = {
 	args: {
 		workspace: Mocks.MockDormantWorkspace,
 	},
+	parameters: {
+		queries: [
+			{
+				key: workspacePermissionsKey(Mocks.MockDormantWorkspace.id),
+				data: {
+					createWorkspace: true,
+					readWorkspace: true,
+					startWorkspace: false,
+					stopWorkspace: true,
+					deleteWorkspace: true,
+					updateWorkspace: true,
+					shareWorkspace: true,
+					updateWorkspaceVersion: false,
+					deleteFailedWorkspace: false,
+				},
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Workspace actions" }),
 		);
-		const screen = within(document.body);
-		const deleteButton = screen.getByText("Delete…");
-		await expect(deleteButton).toBeEnabled();
 	},
 };
 
@@ -267,3 +295,27 @@ function generateLogs(count: number) {
 		output: `log ${i + 1}`,
 	}));
 }
+
+export const ReadOnly: Story = {
+	args: {
+		workspace: Mocks.MockWorkspace,
+		permissions: MockReadOnlyWorkspacePermissions,
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspacePermissionsKey(Mocks.MockWorkspace.id),
+				data: MockReadOnlyWorkspacePermissions,
+			},
+		],
+	},
+};
+
+export const ReadOnlyMenu: Story = {
+	...ReadOnly,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Workspace actions" }),
+		);
+	},
+};

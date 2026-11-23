@@ -29,10 +29,16 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
+import {
+	canEditWorkspaceParameters,
+	canPerformWorkspaceAction,
+	workspaceSettingsSections,
+} from "#/modules/workspaces/permissions";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
@@ -60,14 +66,22 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
-
 	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
 		open: boolean;
 		error?: ApiError;
 	}>({ open: false });
 
 	// Permissions
-	const { data: permissions } = useQuery(workspacePermissions(workspace));
+	const { data: permissions, isError: isPermissionsError } = useQuery(
+		workspacePermissions(workspace),
+	);
+	const canDuplicate = permissions?.createWorkspace ?? false;
+
+	const canEditParameters = canEditWorkspaceParameters(workspace, permissions);
+	const settingsSection = workspaceSettingsSections(
+		workspace,
+		permissions,
+	).find((section) => section.allowed);
 
 	// Download logs
 	const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
@@ -112,8 +126,9 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	});
 
 	// Duplicate
-	const { duplicateWorkspace, isDuplicationReady } =
-		useWorkspaceDuplication(workspace);
+	const { duplicateWorkspace, isDuplicationReady } = useWorkspaceDuplication(
+		canDuplicate ? workspace : undefined,
+	);
 
 	// Since the workspace state is not updated immediately after the mutation, we
 	// need to be sure the menu is closed when the action gets disabled.
@@ -133,7 +148,6 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 						size="icon-lg"
 						variant="subtle"
 						data-testid="workspace-options-button"
-						aria-controls="workspace-options"
 						disabled={disabled}
 					>
 						<EllipsisVerticalIcon aria-hidden="true" />
@@ -141,31 +155,50 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 
-				<DropdownMenuContent id="workspace-options" align="end">
+				<DropdownMenuContent align="end">
+					{isPermissionsError && !permissions && (
+						<DropdownMenuLabel>
+							Unable to load workspace permissions
+						</DropdownMenuLabel>
+					)}
 					{onStop && (
-						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
+						<DropdownMenuItem
+							onSelect={onStop}
+							disabled={
+								isStopping ||
+								!canPerformWorkspaceAction(workspace, permissions, "stop")
+							}
+						>
 							<SquareIcon />
 							Stop&hellip;
 						</DropdownMenuItem>
 					)}
 
 					{onRestart && (
-						<DropdownMenuItem onClick={onRestart} disabled={isRestarting}>
+						<DropdownMenuItem
+							onSelect={onRestart}
+							disabled={
+								isRestarting ||
+								!canPerformWorkspaceAction(workspace, permissions, "restart")
+							}
+						>
 							<RotateCcwIcon />
 							Restart&hellip;
 						</DropdownMenuItem>
 					)}
 
-					<DropdownMenuItem asChild>
-						<RouterLink
-							to={`/@${workspace.owner_name}/${workspace.name}/settings`}
-						>
-							<SettingsIcon />
-							Settings
-						</RouterLink>
-					</DropdownMenuItem>
+					{settingsSection && (
+						<DropdownMenuItem asChild>
+							<RouterLink
+								to={`/@${workspace.owner_name}/${workspace.name}/settings${settingsSection.path ? `/${settingsSection.path}` : ""}`}
+							>
+								<SettingsIcon />
+								Settings
+							</RouterLink>
+						</DropdownMenuItem>
+					)}
 
-					{permissions?.updateWorkspaceVersion && (
+					{permissions?.updateWorkspaceVersion && canEditParameters && (
 						<DropdownMenuItem
 							onClick={() => {
 								setChangeVersionDialogOpen(true);
@@ -176,31 +209,37 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 						</DropdownMenuItem>
 					)}
 
-					<DropdownMenuItem
-						onClick={duplicateWorkspace}
-						disabled={!isDuplicationReady}
-					>
-						<CopyIcon />
-						Duplicate&hellip;
-					</DropdownMenuItem>
+					{canDuplicate && (
+						<DropdownMenuItem
+							onClick={duplicateWorkspace}
+							disabled={!isDuplicationReady}
+						>
+							<CopyIcon />
+							Duplicate&hellip;
+						</DropdownMenuItem>
+					)}
 
 					<DropdownMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
 						<DownloadIcon />
 						Download logs&hellip;
 					</DropdownMenuItem>
 
-					<DropdownMenuSeparator />
+					{permissions?.deleteWorkspace && (
+						<>
+							<DropdownMenuSeparator />
 
-					<DropdownMenuItem
-						className="text-content-destructive focus:text-content-destructive"
-						onClick={() => {
-							setIsConfirmingDelete(true);
-						}}
-						data-testid="delete-button"
-					>
-						<TrashIcon />
-						Delete&hellip;
-					</DropdownMenuItem>
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={() => {
+									setIsConfirmingDelete(true);
+								}}
+								data-testid="delete-button"
+							>
+								<TrashIcon />
+								Delete&hellip;
+							</DropdownMenuItem>
+						</>
+					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
 

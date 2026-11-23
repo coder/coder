@@ -8,6 +8,7 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 import { permissionChecks } from "#/modules/permissions";
+import { workspaceChecks } from "#/modules/workspaces/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
@@ -222,7 +223,7 @@ export const handlers = [
 		const permissions = [
 			...Object.keys(permissionChecks),
 			"canUpdateTemplate",
-			"updateWorkspace",
+			...Object.keys(workspaceChecks(M.MockWorkspace)),
 		];
 		const response = Object.fromEntries(
 			permissions.map((permission) => [permission, true]),

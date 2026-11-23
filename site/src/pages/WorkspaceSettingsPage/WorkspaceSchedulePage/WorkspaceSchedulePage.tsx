@@ -18,6 +18,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
+import { canPerformWorkspaceAction } from "#/modules/workspaces/permissions";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -38,7 +39,12 @@ const WorkspaceSchedulePage: React.FC = () => {
 	const username = params.username.replace("@", "");
 	const workspaceName = params.workspace;
 	const queryClient = useQueryClient();
-	const { permissions, workspace } = useWorkspaceSettings();
+	const { workspace, permissions } = useWorkspaceSettings();
+	const canRestart = canPerformWorkspaceAction(
+		workspace,
+		permissions,
+		"restart",
+	);
 	const { data: template, error: getTemplateError } = useQuery(
 		templateByName(workspace.organization_id, workspace.template_name),
 	);
@@ -85,13 +91,6 @@ const WorkspaceSchedulePage: React.FC = () => {
 			{error && <ErrorAlert error={error} />}
 
 			{isLoading && <Loader />}
-
-			{permissions && !permissions.updateWorkspace && (
-				<Alert severity="error">
-					You don&apos;t have permissions to update the schedule for this
-					workspace.
-				</Alert>
-			)}
 
 			{template &&
 				(workspace.is_prebuild ? (
@@ -140,20 +139,13 @@ const WorkspaceSchedulePage: React.FC = () => {
 
 							await submitScheduleMutation.mutateAsync(data);
 
-							// A running build's autostop deadline is calculated when the
-							// build starts, so updating the TTL does not retroactively
-							// change it. Prompt the user to restart so the new value takes
-							// effect immediately, but only when all of the following hold:
-							//   - autostop actually changed (toggled or new TTL value),
-							//   - autostop is enabled after the change; disabling clears the
-							//     running build's deadline server-side, so no restart is
-							//     needed, and
-							//   - the workspace is running; a stopped workspace picks up the
-							//     new value on its next start.
+							// An enabled autostop deadline is calculated at build start.
+							// Disabling autostop clears the current deadline immediately.
 							if (
 								data.autostopChanged &&
 								values.autostopEnabled &&
-								workspace.latest_build.status === "running"
+								workspace.latest_build.status === "running" &&
+								canRestart
 							) {
 								setIsConfirmingApply(true);
 							}
@@ -163,6 +155,7 @@ const WorkspaceSchedulePage: React.FC = () => {
 
 			<ConfirmDialog
 				open={isConfirmingApply}
+				disabled={!canRestart}
 				title="Restart workspace?"
 				description="Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
 				confirmText="Restart"

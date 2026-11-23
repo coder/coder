@@ -16,7 +16,7 @@ type AgentOutdatedTooltipProps = {
 	agent: WorkspaceAgent;
 	serverVersion: string;
 	status: agentVersionStatus;
-	onUpdate: () => void;
+	onUpdate?: () => void;
 };
 
 export const AgentOutdatedTooltip: React.FC<AgentOutdatedTooltipProps> = ({
@@ -65,18 +65,20 @@ export const AgentOutdatedTooltip: React.FC<AgentOutdatedTooltipProps> = ({
 						<span>{serverVersion}</span>
 					</div>
 
-					<HelpPopoverLinksGroup>
-						<HelpPopoverAction
-							icon={RotateCcwIcon}
-							onClick={() => {
-								onUpdate();
-								setIsOpen(false);
-							}}
-							ariaLabel="Update workspace"
-						>
-							Update workspace
-						</HelpPopoverAction>
-					</HelpPopoverLinksGroup>
+					{onUpdate && (
+						<HelpPopoverLinksGroup>
+							<HelpPopoverAction
+								icon={RotateCcwIcon}
+								onClick={() => {
+									onUpdate();
+									setIsOpen(false);
+								}}
+								ariaLabel="Update workspace"
+							>
+								Update workspace
+							</HelpPopoverAction>
+						</HelpPopoverLinksGroup>
+					)}
 				</div>
 			</HelpPopoverContent>
 		</HelpPopover>
