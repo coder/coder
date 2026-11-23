@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
@@ -113,16 +113,7 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 
 	// Favicon
 	const favicon = getFaviconByStatus(workspace.latest_build);
-	const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
-	useEffect(() => {
-		if (!window.matchMedia) {
-			return;
-		}
-
-		const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-		// We want the favicon the opposite of the theme.
-		setFaviconTheme(isDark.matches ? "light" : "dark");
-	}, []);
+	const [faviconTheme] = useState(getFaviconTheme);
 
 	// Active version
 	const { data: latestVersion } = useQuery({
@@ -469,6 +460,13 @@ type FaviconType =
 	| "favicon-error"
 	| "favicon-warning"
 	| "favicon-running";
+
+// We want the favicon the opposite of the theme.
+const getFaviconTheme = (): "light" | "dark" => {
+	return window.matchMedia("(prefers-color-scheme: dark)").matches
+		? "light"
+		: "dark";
+};
 
 const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
 	switch (build.status) {
