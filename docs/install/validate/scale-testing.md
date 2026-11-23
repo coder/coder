@@ -94,7 +94,7 @@ Database:
 
 To maintain stability and reliability of the Coder control plane, it's essential to focus on node sizing, resource limits, and the number of replicas.
 We recommend referencing public cloud providers such as AWS, GCP, and Azure for guidance on optimal configurations.
-A reasonable approach involves using scaling formulas based on factors like CPU, memory, and the number of users.
+A reasonable approach involves using scaling formulas based on factors like CPU, memory, and the number of concurrent running workspaces.
 
 While the minimum requirements specify 1&nbsp;CPU core and 2&nbsp;GB of memory per `coderd` replica, we recommend that you allocate additional resources depending on the workload size to maintain deployment stability.
 
@@ -111,7 +111,7 @@ Inactive users do not consume Coder resources.
 
 When determining scaling requirements, consider the following factors:
 
-- `1 vCPU x 2 GB memory` for every 250 users: A reasonable formula to determine resource allocation based on the number of users and their expected usage patterns.
+- Concurrent running workspaces: Start from the `coderd` vCPU, memory, and replica count in the [reference architecture](../plan/sizing/index.md#node-sizing) that matches your number of concurrent running workspaces.
 - API latency/response time: Monitor API latency and response times to make sure performance stays optimal under varying loads.
 - Average number of HTTP requests: Track the average number of HTTP requests to gauge system usage and identify potential bottlenecks.
   The number of proxied connections: For a very high number of proxied connections, more memory is required.
@@ -134,7 +134,7 @@ Autoscaling can cause interruptions for user connections, see [Autoscaling](./sc
 
 When scaling [workspace proxies](../../admin/networking/workspace-proxies.md), follow the same guidelines as for `coderd` above:
 
-- `1 vCPU x 2 GB memory` for every 250 users.
+- Match the workspace proxy vCPU, memory, and replica count in the [reference architecture](../plan/sizing/index.md#node-sizing) for your number of concurrent running workspaces.
 - Disable autoscaling.
 
 ### Control plane: provisionerd
@@ -148,7 +148,7 @@ By default, the control plane runs 3 built-in provisioner daemons, but the _Prem
 
 When determining scaling requirements, consider the following factors:
 
-- `1 vCPU x 1 GB memory x 2 concurrent workspace build`: A formula to determine resource allocation based on the number of concurrent workspace builds, and standard complexity of a Terraform template.
+- `1 vCPU x 1 GB memory x 1 concurrent workspace build`: A formula to determine resource allocation based on the number of concurrent workspace builds, and standard complexity of a Terraform template.
   _Rule of thumb_: the more provisioners are free/available, the more concurrent workspace builds can be performed.
 
 #### Node Autoscaling
@@ -166,7 +166,7 @@ To determine workspace resource limits and keep the best developer experience fo
   - Evaluate the workspace utilization pattern.
     For instance, web application development does not require high CPU capacity at all times, but will spike during builds or testing.
   - Evaluate minimal limits for single workspace.
-    Include in the calculation requirements for Coder agent running in an idle workspace - 0.1&nbsp;vCPU and 256&nbsp;MB.
+    Include in the calculation requirements for Coder agent running in an idle workspace - 0.1&nbsp;vCPU and 128&nbsp;MB.
     For instance, developers can choose between 0.5-8&nbsp;vCPUs, and 1-16&nbsp;GB memory.
 
 #### Scaling formula

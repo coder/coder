@@ -34,7 +34,7 @@ The provisioner replica count is the total across all regions, and the workspace
 - If deploying on Kubernetes:
   - Set CPU request and limit to `8000m`
   - Set Memory request and limit to `16Gi`
-- `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
+- `coderd` does not typically benefit from high performance disks like solid-state drives (SSDs), unless you are co-locating provisioners.
 - `coderd` instances should be deployed in the same region as the database.
 - Set `CODER_PG_CONN_MAX_OPEN` to `60` and `CODER_PG_CONN_MAX_IDLE` to `30`.
   To learn how to tune these values, refer to [Connection pool tuning](../../validate/scale-coder.md#connection-pool-tuning).

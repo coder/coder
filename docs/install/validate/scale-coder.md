@@ -96,8 +96,8 @@ The control plane can be scaled both vertically for bigger instances and horizon
 
 Aim to keep the number of control plane instances relatively small, preferably under ten instances, and opt for vertical scale over horizontal scale after meeting availability requirements.
 
-Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
-These are a useful starting point, but very few deployments will remain stable at a predetermined user level over the long term.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various numbers of concurrent running workspaces.
+These are a useful starting point, but very few deployments will remain stable at a predetermined level of use over the long term.
 We recommend monitoring and adjusting resources as needed.
 
 We don't recommend that you autoscale the control plane instances.
@@ -153,7 +153,7 @@ Make sure your autoscaler waits long enough for your build jobs to complete befo
 If you deploy in Kubernetes, we recommend a single provisioner daemon per pod.
 On a virtual machine (VM), you can deploy multiple provisioner daemons, making sure each has a unique `CODER_CACHE_DIRECTORY` value.
 
-Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various numbers of concurrent running workspaces.
 Since the complexity of builds varies significantly depending on the workspace template, consider this a starting point.
 Monitor queue times and build times and adjust the number and size of your provisioner daemon instances.
 
@@ -170,7 +170,7 @@ If you use multiple PostgreSQL replicas in a clustered config, these must also b
 ### Scaling
 
 Prefer scaling PostgreSQL vertically rather than horizontally for best performance.
-Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
+Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various numbers of concurrent running workspaces.
 
 ### Connection pool tuning
 
