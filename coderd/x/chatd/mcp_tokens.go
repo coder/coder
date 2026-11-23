@@ -213,7 +213,8 @@ func (r *mcpTokenRefresher) RefreshRejected(
 	}
 	switch r.expiryRefreshes[tok.ID] {
 	case mcpoauth.LeasedRefreshSaved, mcpoauth.LeasedRefreshChanged:
-		return tok, true
+		// The grace for the new token is this turn's attempt.
+		return tok, r.tracker.claim(r.turnKey, tok.ID)
 	case mcpoauth.LeasedRefreshFailed, mcpoauth.LeasedRefreshLeaseHeld:
 		// The failed expiry refresh is this turn's attempt.
 		_ = r.tracker.claim(r.turnKey, tok.ID)
@@ -341,10 +342,12 @@ func (p *Server) currentMCPToken(
 	return tok, nil
 }
 
-// mcpTokenRefreshTracker allows at most one forced refresh of each MCP
-// OAuth2 token per turn, or for a token without a refresh token one
-// reconnect after the grace, so an MCP server that keeps rejecting a
-// token costs one attempt per turn, not one per step. It lives on the
+// mcpTokenRefreshTracker allows each MCP OAuth2 token one attempt per
+// turn after a 401: a forced refresh, or a reconnect after the grace for
+// a token without a refresh token or one that the step's expiry refresh
+// just issued. A failed expiry refresh also spends the attempt. So an MCP
+// server that keeps rejecting a token costs one attempt per turn, not
+// one per step. It lives on the
 // runner, which keeps its chat across queued-message promotions, so
 // claims are keyed by the turn's prompt (see stopNudgeKey) and a new key
 // clears them. On one runner the key changes only with a newly inserted
@@ -358,8 +361,8 @@ type mcpTokenRefreshTracker struct {
 	tried   map[uuid.UUID]struct{}
 }
 
-// claim reports whether the token may get a forced refresh now in the
-// turn identified by turnKey (see stopNudgeKey), and records the attempt.
+// claim reports whether the token may get its attempt now in the turn
+// identified by turnKey (see stopNudgeKey), and records the attempt.
 func (t *mcpTokenRefreshTracker) claim(turnKey int64, tokenID uuid.UUID) bool {
 	if t == nil {
 		return true

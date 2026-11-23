@@ -50,9 +50,9 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
-	// MCPTokenRefreshes limits forced MCP OAuth2 token refreshes to one
-	// per token per turn. Each step builds a new input, so the tracker
-	// comes from the runner.
+	// MCPTokenRefreshes limits the attempts to reconnect an MCP server
+	// that rejected an OAuth2 token to one per token per turn. Each step
+	// builds a new input, so the tracker comes from the runner.
 	MCPTokenRefreshes *mcpTokenRefreshTracker
 }
 

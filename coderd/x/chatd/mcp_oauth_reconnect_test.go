@@ -206,6 +206,11 @@ const (
 	// tokenAnswerRotateRejected issues a new token pair that the MCP
 	// server rejects.
 	tokenAnswerRotateRejected
+	// tokenAnswerRotateExpiring issues a new token pair that the MCP
+	// server accepts and that expires within golang.org/x/oauth2's
+	// 10 second expiry window, so every step's expiry refresh replaces
+	// it.
+	tokenAnswerRotateExpiring
 	tokenAnswerInvalidGrant
 	tokenAnswerUnavailable
 	tokenAnswerInvalidClient
@@ -264,10 +269,15 @@ func (s *reconnectTokenServer) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(http.StatusBadRequest, grantNotFound)
 		return
 	}
-	if s.answer == tokenAnswerRotate {
+	expiresIn := 3600
+	switch s.answer {
+	case tokenAnswerRotate:
 		s.mcp.accept(accessToken)
+	case tokenAnswerRotateExpiring:
+		s.mcp.accept(accessToken)
+		expiresIn = 5
 	}
-	writeJSON(http.StatusOK, fmt.Sprintf(`{"access_token":%q,"token_type":"bearer","expires_in":3600,"refresh_token":%q}`, accessToken, issuedRT))
+	writeJSON(http.StatusOK, fmt.Sprintf(`{"access_token":%q,"token_type":"bearer","expires_in":%d,"refresh_token":%q}`, accessToken, expiresIn, issuedRT))
 }
 
 // reconnectEnv is one coderd deployment with one OAuth MCP server
@@ -843,6 +853,20 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 			wantRow:        tokenRowCleared,
 			wantReason:     noRTReason,
 		},
+		{
+			// Each step's expiry refresh issues a token that the MCP server
+			// rejects on its first connect. Step 1's grace is the turn's one
+			// attempt for the token, so step 2's 401 gets no grace.
+			name:               "19 expiry refresh in every step, 401 on every step's first connect",
+			expiry:             hourAgo,
+			answer:             tokenAnswerRotateExpiring,
+			inject401:          everyOtherInitialize401,
+			turns:              []reconnectTurnWant{{callsPerStep: 1, step1: "connected", step1Tools: true, graceWaits: 1}},
+			wantRow:            tokenRowIssued,
+			wantConnected:      true,
+			wantListCalls:      1,
+			skipFirstRejection: true,
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -918,8 +942,11 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 			tok := e.tokenRow()
 			switch row.wantRow {
 			case tokenRowIssued:
-				assert.Equal(t, "issued-access-1", tok.AccessToken)
-				assert.Equal(t, "issued-refresh-1", tok.RefreshToken)
+				// Every token endpoint call of these rows issues a new pair,
+				// so the row holds the pair of the last call.
+				issued := tokens.calls.Load()
+				assert.Equal(t, fmt.Sprintf("issued-access-%d", issued), tok.AccessToken)
+				assert.Equal(t, fmt.Sprintf("issued-refresh-%d", issued), tok.RefreshToken)
 			case tokenRowCleared:
 				assert.Empty(t, tok.AccessToken)
 				assert.Empty(t, tok.RefreshToken)
