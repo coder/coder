@@ -62,6 +62,40 @@ describe("parsePullRequestUrl", () => {
 		).toBeNull();
 	});
 
+	it("ignores Gitea commit URLs that contain pull-like path segments", () => {
+		expect(
+			parsePullRequestUrl(
+				"https://git.example.com/org/repo/src/commit/abc123/pulls/1",
+			),
+		).toBeNull();
+	});
+
+	it("parses pull request URLs whose repository is named src", () => {
+		expect(parsePullRequestUrl("https://github.com/acme/src/pull/42")).toEqual({
+			owner: "acme",
+			repo: "src",
+			number: "42",
+		});
+	});
+
+	it("parses pull request URLs whose owner is named src", () => {
+		expect(parsePullRequestUrl("https://github.com/src/repo/pull/7")).toEqual({
+			owner: "src",
+			repo: "repo",
+			number: "7",
+		});
+	});
+
+	it("parses pull request URLs behind a path prefix named src", () => {
+		expect(
+			parsePullRequestUrl("https://git.example.com/src/org/repo/pulls/3"),
+		).toEqual({
+			owner: "org",
+			repo: "repo",
+			number: "3",
+		});
+	});
+
 	it("ignores branch URLs that only contain pull-like path segments", () => {
 		expect(
 			parsePullRequestUrl(
