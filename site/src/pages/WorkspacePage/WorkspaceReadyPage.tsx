@@ -23,6 +23,7 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { toast } from "#/components/Toaster/toast";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -113,7 +114,9 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 
 	// Favicon
 	const favicon = getFaviconByStatus(workspace.latest_build);
-	const [faviconTheme] = useState(getFaviconTheme);
+	const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+	// We want the favicon the opposite of the theme.
+	const faviconTheme = prefersDark ? "light" : "dark";
 
 	// Active version
 	const { data: latestVersion } = useQuery({
@@ -460,13 +463,6 @@ type FaviconType =
 	| "favicon-error"
 	| "favicon-warning"
 	| "favicon-running";
-
-// We want the favicon the opposite of the theme.
-const getFaviconTheme = (): "light" | "dark" => {
-	return window.matchMedia("(prefers-color-scheme: dark)").matches
-		? "light"
-		: "dark";
-};
 
 const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
 	switch (build.status) {
