@@ -800,8 +800,10 @@ describe("ProjectDetailsPanel templates", () => {
 		rerenderWithProject(mockProjectWithTemplates);
 		failUpdate(mockApiError({ message: "Failed to update chat project." }));
 
-		const save = await screen.findByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: "Save",
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() => expect(updateProject).toHaveBeenCalledTimes(2));

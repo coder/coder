@@ -381,7 +381,6 @@ const serverProject = (() => {
 	};
 })();
 
-/** Another user saved different templates while this editor was open. */
 export const Conflict: Story = {
 	parameters: {
 		queries: [
