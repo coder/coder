@@ -802,10 +802,7 @@ describe("ProjectDetailsPanel templates", () => {
 			await user.click(
 				await screen.findByRole("button", { name: "Clear all" }),
 			);
-			const save = await screen.findByRole("button", {
-				name: "Save",
-				busy: false,
-			});
+			const save = await findSave();
 			const refreshesBeforeSave = getProjects.mock.calls.length;
 			await user.click(save);
 
