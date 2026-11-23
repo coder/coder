@@ -3975,9 +3975,9 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	}
 }
 
-// TestRecordTokenUsageLongContextTiers verifies that stored prices and costs
-// match the selected tier.
-func TestRecordTokenUsageLongContextTiers(t *testing.T) {
+// TestRecordTokenUsageCacheTTLAndTiers verifies persisted prices, costs, and
+// pricing usage for tiered requests and mixed cache TTLs.
+func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 	t.Parallel()
 
 	const model = "claude-tiered"
@@ -3986,8 +3986,11 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 		"provider": "anthropic", "model": "claude-tiered",
 		"input_price": 1000000, "output_price": 2000000,
 		"cache_read_price": 100000, "cache_write_price": 1250000,
-		"pricing_extras": {"tiers": [{"threshold_tokens": 1000, "prices": {"input": 2000000, "output": 4000000,
-			"cache_read": 200000, "cache_write": 2500000}}]}
+		"pricing_extras": {
+			"extra_prices": {"cache_write_1h": 2000000},
+			"tiers": [{"threshold_tokens": 1000, "prices": {"input": 2000000, "output": 4000000,
+				"cache_read": 200000, "cache_write": 2500000, "cache_write_1h": 4000000}}]
+		}
 	}]`)
 
 	tests := []struct {
@@ -3999,17 +4002,17 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 	}{
 		{
 			name:             "BasePricesAtThreshold",
-			req:              &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100},
-			wantPricingUsage: `{"prompt_tokens": 1000}`,
+			req:              &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			wantPricingUsage: `{"prompt_tokens": 1000, "extra_units": {"cache_write_1h": {"tokens": 40, "price": 2000000}}}`,
 			wantPrices:       [4]int64{1_000_000, 2_000_000, 100_000, 1_250_000},
-			wantCost:         1025, // 900 + 100*1.25
+			wantCost:         1055, // 900 + 60*1.25 + 40*2
 		},
 		{
 			name:             "TierPricesOverThreshold",
-			req:              &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100},
-			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000}`,
+			req:              &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000, "extra_units": {"cache_write_1h": {"tokens": 40, "price": 4000000}}}`,
 			wantPrices:       [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
-			wantCost:         2052, // 901*2 + 100*2.5
+			wantCost:         2112, // 901*2 + 60*2.5 + 40*4
 		},
 		{
 			name:             "CacheReadCountsTowardPrompt",
@@ -4025,6 +4028,14 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 			wantPricingUsage: `{"prompt_tokens": 1001, "tier_threshold_tokens": 1000}`,
 			wantPrices:       [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
 			wantCost:         40,
+		},
+		{
+			// A 1h count above the cache write count is capped to it.
+			name:             "OneHourCountClamped",
+			req:              &proto.RecordTokenUsageRequest{CacheWriteInputTokens: 10, CacheWriteOneHourInputTokens: 50},
+			wantPricingUsage: `{"prompt_tokens": 10, "extra_units": {"cache_write_1h": {"tokens": 10, "price": 2000000}}}`,
+			wantPrices:       [4]int64{1_000_000, 2_000_000, 100_000, 1_250_000},
+			wantCost:         20,
 		},
 	}
 
@@ -5422,26 +5433,28 @@ func TestStructuredLogging(t *testing.T) {
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-					InterceptionId:        intcID.String(),
-					MsgId:                 "msg_123",
-					InputTokens:           100,
-					OutputTokens:          200,
-					CacheReadInputTokens:  50,
-					CacheWriteInputTokens: 10,
-					PromptTokens:          400,
-					Metadata:              metadataProto,
-					CreatedAt:             timestamppb.Now(),
+					InterceptionId:               intcID.String(),
+					MsgId:                        "msg_123",
+					InputTokens:                  100,
+					OutputTokens:                 200,
+					CacheReadInputTokens:         50,
+					CacheWriteInputTokens:        10,
+					CacheWriteOneHourInputTokens: 4,
+					PromptTokens:                 400,
+					Metadata:                     metadataProto,
+					CreatedAt:                    timestamppb.Now(),
 				})
 				return err
 			},
 			expectedFields: map[string]any{
-				"record_type":              "token_usage",
-				"interception_id":          interceptionID.String(),
-				"input_tokens":             float64(100), // JSON numbers are float64.
-				"output_tokens":            float64(200),
-				"cache_read_input_tokens":  float64(50),
-				"cache_write_input_tokens": float64(10),
-				"prompt_tokens":            float64(400),
+				"record_type":                       "token_usage",
+				"interception_id":                   interceptionID.String(),
+				"input_tokens":                      float64(100), // JSON numbers are float64.
+				"output_tokens":                     float64(200),
+				"cache_read_input_tokens":           float64(50),
+				"cache_write_input_tokens":          float64(10),
+				"cache_write_one_hour_input_tokens": float64(4),
+				"prompt_tokens":                     float64(400),
 			},
 		},
 		{

@@ -55,6 +55,7 @@ func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
 		{"output_tokens", in.GetOutputTokens()},
 		{"cache_read_input_tokens", in.GetCacheReadInputTokens()},
 		{"cache_write_input_tokens", in.GetCacheWriteInputTokens()},
+		{"cache_write_one_hour_input_tokens", in.GetCacheWriteOneHourInputTokens()},
 		{"prompt_tokens", in.GetPromptTokens()},
 	} {
 		if category.count < 0 || category.count > maxAllowedTokenUsage {
@@ -91,7 +92,21 @@ type pricingUsage struct {
 	// TierThresholdTokens is the threshold of the long-context tier that
 	// applied. Absent when the base prices applied.
 	TierThresholdTokens *int64 `json:"tier_threshold_tokens,omitempty"`
+	// ExtraUnits holds the tokens billed at a price beyond the four price
+	// columns, keyed by price type. Their tokens are also counted in the
+	// matching token column, so for example the 5-minute cache writes are
+	// cache_write_input_tokens minus extra_units.cache_write_1h.tokens.
+	ExtraUnits map[string]extraUnit `json:"extra_units,omitempty"`
 }
+
+// extraUnit is a token count and the per-million-token price it was billed at.
+type extraUnit struct {
+	Tokens int64 `json:"tokens"`
+	Price  int64 `json:"price"`
+}
+
+// extraUnitCacheWrite1h is the extra_units key of 1-hour cache writes.
+const extraUnitCacheWrite1h = "cache_write_1h"
 
 func (p pricingUsage) rawMessage() (pqtype.NullRawMessage, error) {
 	data, err := json.Marshal(p)
@@ -101,8 +116,9 @@ func (p pricingUsage) rawMessage() (pqtype.NullRawMessage, error) {
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
+// cacheWrite1h is part of cacheWrite, not an additional count.
 type usageTokens struct {
-	input, output, cacheRead, cacheWrite, prompt int64
+	input, output, cacheRead, cacheWrite, cacheWrite1h, prompt int64
 }
 
 // The inserted row and its cost both read the counts through
@@ -114,6 +130,9 @@ func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 		cacheRead:  in.GetCacheReadInputTokens(),
 		cacheWrite: in.GetCacheWriteInputTokens(),
 	}
+	// The 1h writes are part of the cache writes, so a larger reported count
+	// is capped to keep the 5-minute count from going negative.
+	u.cacheWrite1h = min(in.GetCacheWriteOneHourInputTokens(), u.cacheWrite)
 	// A record carries at least its own input. An output-only record of a
 	// stream carries the prompt size of its message in PromptTokens.
 	u.prompt = max(in.GetPromptTokens(), u.input+u.cacheRead+u.cacheWrite)
@@ -124,15 +143,19 @@ func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 // record. A NULL price is treated as zero.
 type priceSet struct {
 	input, output, cacheRead, cacheWrite sql.NullInt64
+	// cacheWrite1h is the price of 1-hour cache writes. NULL when none is set,
+	// in which case they are billed at cacheWrite like other cache writes.
+	cacheWrite1h sql.NullInt64
 	// tierThreshold is the threshold of the applied tier, NULL for the base
 	// prices.
 	tierThreshold sql.NullInt64
 }
 
-// pricesForPrompt returns the prices for one upstream request. Of the
-// long-context tiers in pricing_extras, the one with the highest threshold
-// below the prompt size applies, and a tier price that is absent uses the base
-// price.
+// pricesForPrompt returns the prices for one upstream request from the four
+// base prices and pricing_extras. Of the long-context tiers, the one with the
+// highest threshold below the prompt size applies, and a tier price that is
+// absent uses the base price. The 1-hour cache write price comes from the
+// applied tier when one applies, and otherwise from extra_prices.
 func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (priceSet, error) {
 	set := priceSet{
 		input:      row.InputPrice,
@@ -144,6 +167,7 @@ func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (
 	if err != nil {
 		return priceSet{}, xerrors.Errorf("decode pricing extras: %w", err)
 	}
+	set.cacheWrite1h = priceOr(extras.ExtraPrices.CacheWrite1h, sql.NullInt64{})
 	var applied *pricebook.Tier
 	for i, t := range extras.Tiers {
 		if prompt > t.ThresholdTokens && (applied == nil || t.ThresholdTokens > applied.ThresholdTokens) {
@@ -152,10 +176,13 @@ func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (
 	}
 	if applied != nil {
 		set = priceSet{
-			input:         priceOr(applied.Prices.Input, row.InputPrice),
-			output:        priceOr(applied.Prices.Output, row.OutputPrice),
-			cacheRead:     priceOr(applied.Prices.CacheRead, row.CacheReadPrice),
-			cacheWrite:    priceOr(applied.Prices.CacheWrite, row.CacheWritePrice),
+			input:      priceOr(applied.Prices.Input, row.InputPrice),
+			output:     priceOr(applied.Prices.Output, row.OutputPrice),
+			cacheRead:  priceOr(applied.Prices.CacheRead, row.CacheReadPrice),
+			cacheWrite: priceOr(applied.Prices.CacheWrite, row.CacheWritePrice),
+			// An absent tier 1h price uses the tier's cache write price, not
+			// the base 1h price.
+			cacheWrite1h:  priceOr(applied.Prices.CacheWrite1h, sql.NullInt64{}),
 			tierThreshold: sql.NullInt64{Int64: applied.ThresholdTokens, Valid: true},
 		}
 	}
@@ -267,6 +294,11 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	if prices.tierThreshold.Valid {
 		usageSnapshot.TierThresholdTokens = &prices.tierThreshold.Int64
 	}
+	if usage.cacheWrite1h > 0 && prices.cacheWrite1h.Valid {
+		usageSnapshot.ExtraUnits = map[string]extraUnit{
+			extraUnitCacheWrite1h: {Tokens: usage.cacheWrite1h, Price: prices.cacheWrite1h.Int64},
+		}
+	}
 	result.pricingUsage, err = usageSnapshot.rawMessage()
 	if err != nil {
 		return tokenUsageCost{}, err
@@ -287,6 +319,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
 			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.F("cache_write_one_hour_input_tokens", usage.cacheWrite1h),
 			slog.F("prompt_tokens", usage.prompt),
 			slog.Error(err))
 		return result, nil
@@ -301,12 +334,22 @@ func computeCost(price priceSet, u usageTokens) (int64, error) {
 	total := tokenCost(u.input, price.input).
 		Add(tokenCost(u.output, price.output)).
 		Add(tokenCost(u.cacheRead, price.cacheRead)).
-		Add(tokenCost(u.cacheWrite, price.cacheWrite))
+		Add(cacheWriteCost(price, u))
 
 	if err := validateTotalCost(total); err != nil {
 		return 0, err
 	}
 	return total.IntPart(), nil
+}
+
+// cacheWriteCost bills 1-hour cache writes at their own price when one is set,
+// and every cache write at the cache write price otherwise.
+func cacheWriteCost(price priceSet, u usageTokens) decimal.Decimal {
+	if !price.cacheWrite1h.Valid {
+		return tokenCost(u.cacheWrite, price.cacheWrite)
+	}
+	return tokenCost(u.cacheWrite-u.cacheWrite1h, price.cacheWrite).
+		Add(tokenCost(u.cacheWrite1h, price.cacheWrite1h))
 }
 
 // validateTotalCost rejects a computed cost outside [0, maxCostMicros].

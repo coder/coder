@@ -24,6 +24,7 @@ func TestComputeCost(t *testing.T) {
 		name                                                         string
 		price                                                        priceSet
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
+		cacheWrite1hTokens                                           int64
 		want                                                         int64
 		wantOutOfRange                                               bool
 	}{
@@ -56,6 +57,24 @@ func TestComputeCost(t *testing.T) {
 			cacheWriteTokens: 10,
 			// 300 + 1200 + 15 + 0.
 			want: 1515,
+		},
+		{
+			name: "1h cache writes use the 1h price",
+			price: priceSet{
+				cacheWrite:   nullInt64(3_750_000),
+				cacheWrite1h: nullInt64(6_000_000),
+			},
+			cacheWriteTokens:   10,
+			cacheWrite1hTokens: 4,
+			// 22 + 24 (6*3_750_000/1e6 = 22, integer division).
+			want: 46,
+		},
+		{
+			name:               "without a 1h price every cache write uses the cache write price",
+			price:              priceSet{cacheWrite: nullInt64(3_750_000)},
+			cacheWriteTokens:   10,
+			cacheWrite1hTokens: 4,
+			want:               37,
 		},
 		{
 			name:             "all prices null is zero cost",
@@ -177,10 +196,11 @@ func TestComputeCost(t *testing.T) {
 			t.Parallel()
 
 			got, err := computeCost(tt.price, usageTokens{
-				input:      tt.inputTokens,
-				output:     tt.outputTokens,
-				cacheRead:  tt.cacheReadTokens,
-				cacheWrite: tt.cacheWriteTokens,
+				input:        tt.inputTokens,
+				output:       tt.outputTokens,
+				cacheRead:    tt.cacheReadTokens,
+				cacheWrite:   tt.cacheWriteTokens,
+				cacheWrite1h: tt.cacheWrite1hTokens,
 			})
 			if tt.wantOutOfRange {
 				if !errors.Is(err, errCostOutOfRange) {
@@ -233,6 +253,11 @@ func TestValidateTokenUsage(t *testing.T) {
 			// The last category is checked too, not just the first.
 			name:           "negative cache write",
 			request:        &proto.RecordTokenUsageRequest{CacheWriteInputTokens: -1},
+			wantOutOfRange: true,
+		},
+		{
+			name:           "negative 1h cache write",
+			request:        &proto.RecordTokenUsageRequest{CacheWriteOneHourInputTokens: -1},
 			wantOutOfRange: true,
 		},
 		{
@@ -334,6 +359,38 @@ func TestPricesForPrompt(t *testing.T) {
 			want: priceSet{
 				input: nullInt64(3_000), output: nullInt64(2_000), cacheRead: nullInt64(300),
 				cacheWrite: nullInt64(1_250), tierThreshold: nullInt64(200),
+			},
+		},
+		{
+			name:   "1h price comes from extra prices",
+			row:    withExtras(`{"extra_prices": {"cache_write_1h": 2000}}`),
+			prompt: 1,
+			want: priceSet{
+				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
+				cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(2_000),
+			},
+		},
+		{
+			name: "tier 1h price applies with its tier",
+			row: withExtras(`{"extra_prices": {"cache_write_1h": 2000}, "tiers": [
+				{"threshold_tokens": 200, "prices": {"cache_write": 3000, "cache_write_1h": 4000}}
+			]}`),
+			prompt: 201,
+			want: priceSet{
+				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
+				cacheWrite: nullInt64(3_000), cacheWrite1h: nullInt64(4_000), tierThreshold: nullInt64(200),
+			},
+		},
+		{
+			// The tier's cache write price then applies to 1h writes too.
+			name: "tier without a 1h price does not use the base 1h price",
+			row: withExtras(`{"extra_prices": {"cache_write_1h": 2000}, "tiers": [
+				{"threshold_tokens": 200, "prices": {"cache_write": 3000}}
+			]}`),
+			prompt: 201,
+			want: priceSet{
+				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
+				cacheWrite: nullInt64(3_000), tierThreshold: nullInt64(200),
 			},
 		},
 		{

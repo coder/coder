@@ -129,6 +129,9 @@ type TokenUsageRecord struct {
 	Output                int64
 	CacheReadInputTokens  int64
 	CacheWriteInputTokens int64
+	// CacheWrite1hInputTokens is the part of CacheWriteInputTokens written
+	// with a 1-hour TTL.
+	CacheWrite1hInputTokens int64
 	// PromptTokens is the prompt size of the upstream request, which selects
 	// the long-context price. A record that carries only output tokens still
 	// carries the prompt size of its message. 0 when not reported.
