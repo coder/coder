@@ -218,6 +218,10 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
 	const [portQuery, setPortQuery] = useState("");
+	const listeningPortsTitleId = useId();
+	const sharedPortsTitleId = useId();
+	const listeningPortProtocolFieldId = useId();
+	const portQueryFieldId = useId();
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -301,7 +305,9 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 			<div className="max-h-80 overflow-y-auto">
 				<div className="flex flex-col p-5">
 					<div className="flex justify-between items-start">
-						<HelpPopoverTitle>Listening ports</HelpPopoverTitle>
+						<HelpPopoverTitle id={listeningPortsTitleId}>
+							Listening ports
+						</HelpPopoverTitle>
 						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
@@ -313,30 +319,37 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpPopoverText>
-						<div className="mt-2 flex items-center gap-2 pb-2">
-							<Select
-								value={listeningPortProtocol}
-								onValueChange={(value) => {
-									if (!isListeningPortProtocol(value)) {
-										return;
-									}
-									setListeningPortProtocol(value);
-									saveWorkspaceListeningPortsProtocol(workspace.id, value);
-								}}
-							>
-								<SelectTrigger
-									aria-label="Listening port protocol"
-									className="h-9 min-w-25 w-auto"
+						<div
+							role="group"
+							aria-labelledby={listeningPortsTitleId}
+							className="mt-2 flex items-end gap-2 pb-2"
+						>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={listeningPortProtocolFieldId}>Protocol</Label>
+								<Select
+									value={listeningPortProtocol}
+									onValueChange={(value) => {
+										if (!isListeningPortProtocol(value)) {
+											return;
+										}
+										setListeningPortProtocol(value);
+										saveWorkspaceListeningPortsProtocol(workspace.id, value);
+									}}
 								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="http">HTTP</SelectItem>
-									<SelectItem value="https">HTTPS</SelectItem>
-								</SelectContent>
-							</Select>
+									<SelectTrigger
+										id={listeningPortProtocolFieldId}
+										className="h-9 min-w-25 w-auto"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="http">HTTP</SelectItem>
+										<SelectItem value="https">HTTPS</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
 							<form
-								className="flex flex-1 items-center gap-2"
+								className="flex flex-1 items-end gap-2"
 								onSubmit={(event) => {
 									event.preventDefault();
 									if (typedPort === undefined) {
@@ -355,13 +368,16 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									);
 								}}
 							>
-								<SearchField
-									className="h-9 flex-1 [&_input]:h-9"
-									value={portQuery}
-									onChange={(query) => setPortQuery(query.trim())}
-									placeholder="Filter ports..."
-									aria-label="Filter ports"
-								/>
+								<div className="flex flex-1 flex-col gap-2">
+									<Label htmlFor={portQueryFieldId}>Port</Label>
+									<SearchField
+										id={portQueryFieldId}
+										className="h-9 [&_input]:h-9"
+										value={portQuery}
+										onChange={(query) => setPortQuery(query.trim())}
+										placeholder="Filter ports..."
+									/>
+								</div>
 								<Button
 									type="submit"
 									size="sm"
@@ -446,7 +462,9 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 				</div>
 			</div>
 			<div className="p-5 border-t">
-				<HelpPopoverTitle>Shared ports</HelpPopoverTitle>
+				<HelpPopoverTitle id={sharedPortsTitleId}>
+					Shared ports
+				</HelpPopoverTitle>
 				<HelpPopoverText>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
@@ -556,7 +574,11 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							);
 						})}
 						<form onSubmit={form.handleSubmit}>
-							<div className="mt-4 flex flex-col gap-4 justify-end">
+							<div
+								role="group"
+								aria-labelledby={sharedPortsTitleId}
+								className="mt-4 flex flex-col gap-4 justify-end"
+							>
 								<FormField
 									field={getFieldHelpers("port")}
 									label="Port"

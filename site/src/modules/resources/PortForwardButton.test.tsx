@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	MockListeningPortsResponse,
@@ -41,7 +41,13 @@ const expectedURL = (port: number) =>
 	);
 
 const typePort = (text: string) =>
-	userEvent.type(screen.getByRole("textbox", { name: "Filter ports" }), text);
+	userEvent.type(
+		within(screen.getByRole("group", { name: "Listening ports" })).getByRole(
+			"textbox",
+			{ name: "Port" },
+		),
+		text,
+	);
 
 describe("PortForwardPopoverView", () => {
 	it("adds an accessible name to each shared-port delete button", () => {

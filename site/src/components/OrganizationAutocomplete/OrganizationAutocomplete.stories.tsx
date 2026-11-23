@@ -82,7 +82,7 @@ export const SelectedOptionNotHighlighted: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByRole("option", { name: MockOrganization2.display_name }),
-			).toHaveAttribute("aria-selected", "true");
+			).toHaveAttribute("data-selected", "true");
 		});
 	},
 };
