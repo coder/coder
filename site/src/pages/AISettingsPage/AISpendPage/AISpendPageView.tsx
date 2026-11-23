@@ -46,6 +46,7 @@ type AISpendPageViewProps = {
 	hasRunReport: boolean;
 	isReportOutdated: boolean;
 	onRunReport: () => void;
+	onCancelReport: () => void;
 	onOpenDetailedReport: () => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
@@ -75,6 +76,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	hasRunReport,
 	isReportOutdated,
 	onRunReport,
+	onCancelReport,
 	onOpenDetailedReport,
 	overview,
 	overviewError,
@@ -184,6 +186,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							hasRunReport={hasRunReport}
 							isReportOutdated={isReportOutdated}
 							onRunReport={onRunReport}
+							onCancelReport={onCancelReport}
 						/>
 					</TabsContent>
 				</Tabs>

@@ -243,17 +243,21 @@ it("runs the report for the picked days and filter, resolving the user and group
 	);
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
 	await waitFor(() =>
-		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-03-01T00:00:00.000Z",
-			period_end: "2026-03-04T00:00:00.000Z",
-			provider_name: "openai",
-			model: "gpt-5.4",
-			client: "Claude Code",
-			user_ids: [MockUserOwner.id],
-			group_id: MockGroup.id,
-			limit: 10,
-			offset: 0,
-		}),
+		expect(usersSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-01T00:00:00.000Z",
+				period_end: "2026-03-04T00:00:00.000Z",
+				provider_name: "openai",
+				model: "gpt-5.4",
+				client: "Claude Code",
+				user_ids: [MockUserOwner.id],
+				group_id: MockGroup.id,
+				limit: 10,
+				offset: 0,
+			},
+			expect.any(AbortSignal),
+		),
 	);
 	expect(getUserSpy).toHaveBeenCalledWith("admin");
 	expect(getGroupSpy).toHaveBeenCalledWith(
@@ -264,6 +268,38 @@ it("runs the report for the picked days and filter, resolving the user and group
 	);
 });
 
+it("cancels a report before it has results", async () => {
+	const user = userEvent.setup();
+	const { usersSpy } = renderAISpendPage("tab=detailed-report");
+	let reportSignal: AbortSignal | undefined;
+	usersSpy.mockImplementation((_organizationId, _params, signal) => {
+		reportSignal = signal;
+		return new Promise(() => {});
+	});
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await user.click(await screen.findByRole("button", { name: "Cancel" }));
+	expect(reportSignal?.aborted).toBe(true);
+	expect(
+		await screen.findByText("Create a detailed report"),
+	).toBeInTheDocument();
+});
+
+it("cancels a report while it loads another page", async () => {
+	const user = userEvent.setup();
+	const { usersSpy, searchParam } = renderAISpendPage("tab=detailed-report");
+	usersSpy.mockImplementation(async (_organizationId, params) => {
+		if ((params.offset ?? 0) > 0) {
+			return new Promise(() => {});
+		}
+		return { ...MockOrganizationAISpendReport, count: 20 };
+	});
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await user.click(await screen.findByRole("button", { name: "Next page" }));
+	await waitFor(() => expect(searchParam("page")).toBe("2"));
+	await user.click(await screen.findByRole("button", { name: "Cancel" }));
+	await waitFor(() => expect(searchParam("page")).toBe("1"));
+});
+
 it("ignores the URL filter when the viewer can't use it", async () => {
 	const user = userEvent.setup();
 	const getUserSpy = vi.spyOn(API, "getUser");
@@ -272,12 +308,16 @@ it("ignores the URL filter when the viewer can't use it", async () => {
 	);
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
 	await waitFor(() =>
-		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
-			period_start: "2026-03-01T00:00:00.000Z",
-			period_end: "2026-03-04T00:00:00.000Z",
-			limit: 10,
-			offset: 0,
-		}),
+		expect(usersSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-01T00:00:00.000Z",
+				period_end: "2026-03-04T00:00:00.000Z",
+				limit: 10,
+				offset: 0,
+			},
+			expect.any(AbortSignal),
+		),
 	);
 	expect(getUserSpy).not.toHaveBeenCalled();
 });

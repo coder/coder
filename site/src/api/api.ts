@@ -540,9 +540,10 @@ class ApiMethods {
 			return response.data;
 		};
 
-	getUser = async (usernameOrId: string) => {
+	getUser = async (usernameOrId: string, signal?: AbortSignal) => {
 		const response = await this.axios.get<TypesGen.User>(
 			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -3667,6 +3668,7 @@ class ExperimentalApiMethods {
 	getOrganizationAISpendUsers = async (
 		organizationId: string,
 		{ limit, offset, ...filter }: OrganizationAISpendParams,
+		signal?: AbortSignal,
 	): Promise<TypesGen.OrganizationAISpendReport> => {
 		// Like the Go SDK, a zero page value means the server default; the
 		// endpoint rejects an explicit limit=0.
@@ -3678,8 +3680,10 @@ class ExperimentalApiMethods {
 				offset: offset !== undefined && offset > 0 ? offset : undefined,
 			},
 		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		const response = await this.axios.get<TypesGen.OrganizationAISpendReport>(
+			url,
+			{ signal },
+		);
 		return response.data;
 	};
 
