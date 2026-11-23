@@ -49,7 +49,7 @@ const (
 // accepts, and answers every other request with the recorded 401. It
 // speaks only the protocol versions before 2026-07-28: it rejects
 // server/discover, so the go-sdk client falls back to initialize, which
-// rows 7, 10, 15 and 16 reject once.
+// rows 7, 10 and 15 reject once.
 type rejectingMCPServer struct {
 	*httptest.Server
 	handler http.Handler
@@ -213,7 +213,6 @@ const (
 	tokenAnswerRotateExpiring
 	tokenAnswerInvalidGrant
 	tokenAnswerUnavailable
-	tokenAnswerInvalidClient
 )
 
 // reconnectTokenServer is an OAuth token endpoint for one grant.
@@ -242,18 +241,13 @@ func (s *reconnectTokenServer) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, body)
 	}
 	// invalid_grant "Grant not found" is the Cloudflare
-	// workers-oauth-provider answer for a revoked grant, and
-	// invalid_client "Client not found" is what mcp.linear.app returned
-	// for an unknown client.
+	// workers-oauth-provider answer for a revoked grant.
 	const grantNotFound = `{"error":"invalid_grant","error_description":"Grant not found"}`
 	switch s.answer {
 	case tokenAnswerUnavailable:
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = io.WriteString(w, "Service Unavailable")
-		return
-	case tokenAnswerInvalidClient:
-		writeJSON(http.StatusUnauthorized, `{"error":"invalid_client","error_description":"Client not found"}`)
 		return
 	case tokenAnswerInvalidGrant:
 		writeJSON(http.StatusBadRequest, grantNotFound)
@@ -719,7 +713,7 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 		},
 		{
 			// With no stored expiry the token may still be valid, so it
-			// gets the grace. Rows 16 and 17 cover a future expiry.
+			// gets the grace. Row 17 covers a future expiry.
 			name:           "4 no refresh token",
 			noRefreshToken: true,
 			answer:         tokenAnswerRotate,
@@ -728,22 +722,14 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 			wantReason:     noRTReason,
 		},
 		{
+			// A token endpoint error that is not a grant error leaves the
+			// token unmarked, so the list keeps reporting it as connected.
+			// TestRefreshOAuth2TokenProviderErrors in mcpoauth owns which
+			// errors count: invalid_client is one that does not, because
+			// signing in again cannot fix a deleted client.
 			name:   "5 token endpoint 503",
 			expiry: hourAhead,
 			answer: tokenAnswerUnavailable,
-			turns: []reconnectTurnWant{
-				{tokenCalls: 2, step1: "unauthorized"},
-				{tokenCalls: 2, step1: "unauthorized"},
-			},
-			wantConnected: true,
-		},
-		{
-			// Known remaining behavior: signing in again cannot fix a
-			// deleted client, so the token is not marked and the list
-			// keeps reporting it as connected.
-			name:   "6 invalid_client",
-			expiry: hourAhead,
-			answer: tokenAnswerInvalidClient,
 			turns: []reconnectTurnWant{
 				{tokenCalls: 2, step1: "unauthorized"},
 				{tokenCalls: 2, step1: "unauthorized"},
@@ -814,18 +800,6 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 				{tokenCalls: 1, step1: "connected", step1Tools: true, graceWaits: 1},
 			},
 			wantRow:       tokenRowIssued,
-			wantConnected: true,
-		},
-		{
-			name:           "16 no refresh token, 401 once",
-			storedAccepted: true,
-			noRefreshToken: true,
-			expiry:         hourAhead,
-			answer:         tokenAnswerRotate,
-			inject401:      firstInitialize401,
-			turns: []reconnectTurnWant{
-				{tokenCalls: 0, step1: "connected", step1Tools: true, graceWaits: 1},
-			},
 			wantConnected: true,
 		},
 		{

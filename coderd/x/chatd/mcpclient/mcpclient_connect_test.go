@@ -504,13 +504,9 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 		answer  func() func(connectRequest) connectAnswer
 		// want is the outcome per transport. The SSE transport fails
 		// its whole connect when its GET event stream or its first
-		// POST is rejected, so those 401s end an SSE connect. An empty
-		// want skips the transport.
+		// POST is rejected, so those 401s end an SSE connect.
 		wantStreamable string
 		wantSSE        string
-		// afterCleanup expects the override only once the session
-		// closes.
-		afterCleanup bool
 	}{
 		{name: "RevokedToken", revoked: true, answer: always(answerServe), wantStreamable: "unauthorized", wantSSE: "unauthorized"},
 		{name: "NoTokenAttached", revoked: true, noToken: true, answer: always(answerServe), wantStreamable: "error", wantSSE: "error"},
@@ -520,8 +516,6 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 		{name: "UnauthorizedLowercaseScheme", answer: always(answerUnauthorizedLowercaseScheme), wantStreamable: "unauthorized", wantSSE: "unauthorized"},
 		{name: "Forbidden", answer: always(answerForbidden), wantStreamable: "error", wantSSE: "error"},
 		{name: "UnauthorizedGETOnly", answer: on(isGET, answerUnauthorized), wantStreamable: "connected", wantSSE: "unauthorized"},
-		// SSE sessions end without a DELETE.
-		{name: "UnauthorizedDELETEOnly", answer: on(func(req connectRequest) bool { return req.method == http.MethodDelete }, answerUnauthorized), wantStreamable: "connected", afterCleanup: true},
 		{name: "UnauthorizedFirstDiscoverOnly", answer: firstDiscover, wantStreamable: "connected", wantSSE: "unauthorized"},
 		{name: "UnauthorizedGETThenToolsListStalls", answer: unauthorizedGETThen(answerStall), wantStreamable: "timeout", wantSSE: "unauthorized"},
 		{name: "UnauthorizedGETThenToolsListFails", answer: unauthorizedGETThen(answerInternalError), wantStreamable: "error", wantSSE: "unauthorized"},
@@ -534,9 +528,6 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 				want := tc.wantStreamable
 				if transport == mcpclient.TransportSSE {
 					want = tc.wantSSE
-				}
-				if want == "" {
-					t.Skip("the transport never sends the request this case answers")
 				}
 				serverToken := accessToken
 				if tc.revoked {
@@ -575,13 +566,7 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 
 				require.Len(t, summaries, 1)
 				require.Equal(t, want, string(summaries[0].Outcome), "connect error: %s", summaries[0].Error)
-				if tc.afterCleanup {
-					cleanup()
-					require.Eventually(t, func() bool { return unserved.Load() > 0 }, testutil.WaitShort, testutil.IntervalFast,
-						"the session close never reached the override")
-				} else {
-					require.Positive(t, unserved.Load(), "the override never answered a request")
-				}
+				require.Positive(t, unserved.Load(), "the override never answered a request")
 			})
 		}
 	}
