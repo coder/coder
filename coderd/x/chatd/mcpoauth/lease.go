@@ -84,8 +84,8 @@ const (
 	LeasedRefreshMarkedDead
 	// LeasedRefreshFailed means the provider call failed temporarily, or
 	// that this caller waited while another caller held the lease and
-	// that caller left the row unchanged, so its refresh failed and this
-	// caller made no provider call. Nothing was saved.
+	// that caller did not change the row, so this caller made no
+	// provider call. Nothing was saved.
 	LeasedRefreshFailed
 	// LeasedRefreshLost means the token row no longer exists, or the
 	// save or the failure mark matched no row, because a
@@ -113,7 +113,7 @@ type LeasedRefresh struct {
 // never spend the same refresh token twice. Under the lease it reads the
 // row again: a row that another caller refreshed or marked is returned
 // without a provider call. An unchanged row after a wait for another
-// holder means that holder's refresh failed, so it returns
+// holder means that holder did not change the row, so it returns
 // LeasedRefreshFailed without a provider call rather than retrying the
 // provider once per waiting caller. Otherwise it refreshes with the
 // leased row's refresh token, then saves any successful answer or marks

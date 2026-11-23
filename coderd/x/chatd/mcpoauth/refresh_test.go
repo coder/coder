@@ -264,9 +264,9 @@ func (s *heldLeaseSignalStore) AcquireMCPServerUserTokenRefreshLease(ctx context
 
 // TestRefreshOAuth2TokenWithLeaseAfterHeldLease covers a caller that waits
 // while another caller holds the refresh lease, then finds the row
-// unchanged under the lease. The other caller's refresh failed, so this
-// caller reports a temporary failure without calling the token endpoint,
-// instead of retrying it in series after every failed holder.
+// unchanged under the lease. The other caller did not change the row, so
+// this caller reports a temporary failure without calling the token
+// endpoint, instead of retrying it in series after every such holder.
 func TestRefreshOAuth2TokenWithLeaseAfterHeldLease(t *testing.T) {
 	t.Parallel()
 
