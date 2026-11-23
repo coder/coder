@@ -23,6 +23,7 @@ import {
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
+	mcpServerConfigsKey,
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
@@ -401,6 +402,14 @@ const AgentChatPage: React.FC = () => {
 		chatID: agentId,
 		setChatErrorReason,
 		clearChatErrorReason,
+		// A turn can mark an MCP server's OAuth token for reconnect, so the
+		// server list must not keep showing it as connected.
+		onStoppedRunning: () => {
+			void queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(chatOrganizationId),
+				exact: true,
+			});
+		},
 		aiGatewayDisabled,
 	});
 	const liveChatStatus =

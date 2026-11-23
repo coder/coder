@@ -270,6 +270,33 @@ describe("AgentChatPage", () => {
 		);
 	});
 
+	it("reloads the MCP servers when a turn stops running", async () => {
+		const page = renderQueuedChat({
+			queuedMessages: [],
+			chat: { ...MockChat, status: "running" },
+		});
+		const getMCPServerConfigs = vi.mocked(API.experimental.getMCPServerConfigs);
+		await waitForLoadedChat();
+		await waitFor(() => expect(getMCPServerConfigs).toHaveBeenCalledTimes(1));
+
+		// The stream sends the chat's current status when it opens.
+		await page.publish({
+			type: "status",
+			chat_id: MockChat.id,
+			status: { status: "running" },
+		});
+		await page.publish({
+			type: "status",
+			chat_id: MockChat.id,
+			status: { status: "waiting" },
+		});
+
+		await waitFor(() => expect(getMCPServerConfigs).toHaveBeenCalledTimes(2));
+		expect(getMCPServerConfigs).toHaveBeenLastCalledWith(
+			MockChat.organization_id,
+		);
+	});
+
 	it.each(["resolves", "rejects"] as const)(
 		"starts a send only after an earlier queue request %s",
 		async (outcome) => {

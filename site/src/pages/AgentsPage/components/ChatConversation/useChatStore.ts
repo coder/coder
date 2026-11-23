@@ -50,6 +50,8 @@ type UseChatStoreOptions = {
 	chatID: string;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
+	/** Runs when a stream status event moves the chat out of "running". */
+	onStoppedRunning?: () => void;
 	aiGatewayDisabled?: boolean;
 };
 
@@ -69,6 +71,7 @@ export const useChatStore = (
 		chatID,
 		setChatErrorReason,
 		clearChatErrorReason,
+		onStoppedRunning,
 		aiGatewayDisabled = false,
 	} = options;
 
@@ -95,10 +98,11 @@ export const useChatStore = (
 	const store = storeQuery.data ?? emptyStore;
 	const initialDataLoaded = storeQuery.isSuccess;
 
-	// Wrap error-reason callbacks so the WebSocket effect can call
+	// Wrap the caller's callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
+	const stoppedRunningEvent = useEffectEvent(() => onStoppedRunning?.());
 
 	const invalidatePromptAndSearchQueries = useEffectEvent(
 		(messages: readonly TypesGen.ChatMessage[]) => {
@@ -345,6 +349,9 @@ export const useChatStore = (
 							store.applyServerChatStatus(nextStatus);
 							if (streamReportedTurnCompleted) {
 								discardBufferedParts();
+							}
+							if (prevStatus === "running" && nextStatus !== "running") {
+								stoppedRunningEvent();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
