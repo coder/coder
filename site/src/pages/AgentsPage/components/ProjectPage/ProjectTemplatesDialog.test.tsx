@@ -62,7 +62,7 @@ const renderDialog = (
 		onResetError: vi.fn(),
 		...props,
 	};
-	const { rerender, unmount } = render(
+	const { rerender } = render(
 		<QueryClientProvider client={queryClient}>
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
@@ -78,8 +78,13 @@ const renderDialog = (
 				</QueryClientProvider>,
 			);
 		},
+		rerenderWith: (next: Partial<DialogProps>) =>
+			rerender(
+				<QueryClientProvider client={queryClient}>
+					<ProjectTemplatesDialog {...allProps} {...next} />
+				</QueryClientProvider>,
+			),
 		queryClient,
-		unmount,
 	};
 };
 
@@ -153,11 +158,7 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		});
 
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
@@ -204,11 +205,7 @@ describe("ProjectTemplatesDialog", () => {
 			{ ...MockTemplate, use_classic_parameter_flow: true },
 		);
 
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
@@ -540,11 +537,7 @@ describe("ProjectTemplatesDialog", () => {
 		expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave);
 
 		await user.click(retry);
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
@@ -559,11 +552,11 @@ describe("ProjectTemplatesDialog", () => {
 		expect(getPresets).toHaveBeenCalledTimes(2);
 	});
 
-	it("requests the default presets again after closing with a request in flight", async () => {
+	it("requests the default presets again when reopened with a request in flight", async () => {
 		const getPresets = vi
 			.spyOn(API, "getTemplateVersionPresets")
 			.mockReturnValue(new Promise(() => {}));
-		const { props, queryClient, unmount } = renderDialog({
+		const { rerenderWith } = renderDialog({
 			project: {
 				...mockProjectWithDefault,
 				default_template: {
@@ -574,12 +567,8 @@ describe("ProjectTemplatesDialog", () => {
 		});
 		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(1));
 
-		unmount();
-		render(
-			<QueryClientProvider client={queryClient}>
-				<ProjectTemplatesDialog {...props} />
-			</QueryClientProvider>,
-		);
+		rerenderWith({ open: false });
+		rerenderWith({ open: true });
 
 		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(2));
 	});
@@ -603,11 +592,7 @@ describe("ProjectTemplatesDialog", () => {
 		const first = await findParameterInput(MockPreviewParameter1.display_name);
 		await user.clear(first);
 		await user.type(first, "x");
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
