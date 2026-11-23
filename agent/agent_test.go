@@ -541,8 +541,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			remotePort := sc.Text()
 
 			sink := testutil.NewFakeSink(t)
+			logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1)
+			logger.Debug(ctx, "making sure there is at least one debug log")
 			conn, agentClient, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-				o.Logger = sink.Logger()
+				o.Logger = logger
 			})
 			sshClient, err := conn.SSHClient(ctx)
 			require.NoError(t, err)
@@ -576,6 +578,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 					},
 				)
 				requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonServerShutdown)
+				requireDebugFlushed(t, sink, codersdk.DisconnectReasonServerShutdown)
 				return
 			}
 
@@ -596,11 +599,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
 				proto.DisconnectEvent{
-					Reason:  "normal close",
+					Reason:  string(codersdk.DisconnectReasonGraceful),
 					RxBytes: int64(written),
 					TxBytes: int64(written),
 				},
 			)
+			requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonGraceful)
+			requireDebugFlushed(t, sink, codersdk.DisconnectReasonGraceful)
 		})
 	}
 }
@@ -1587,6 +1592,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},
@@ -1626,6 +1632,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},

@@ -1,18 +1,11 @@
 import { useSearchParams } from "react-router";
 import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
 import { useFilter } from "#/components/Filter/Filter";
-import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
-import {
-	useMethodFilterMenu,
-	useStatusFilterMenu,
-} from "./ConnectionLogFilter";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 const ConnectionLogPage: React.FC = () => {
@@ -25,8 +18,6 @@ const ConnectionLogPage: React.FC = () => {
 	// see: https://github.com/coder/coder/issues/14798
 	const isConnectionLogVisible = feats.connection_log || false;
 
-	const { showOrganizations } = useDashboard();
-
 	const [searchParams, setSearchParams] = useSearchParams();
 	const connectionlogsQuery = usePaginatedQuery(
 		paginatedConnectionLogs(searchParams),
@@ -35,43 +26,6 @@ const ConnectionLogPage: React.FC = () => {
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: connectionlogsQuery.goToFirstPage,
-	});
-
-	const userMenu = useUserFilterMenu({
-		value: filter.values.workspace_owner,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				workspace_owner: option?.value,
-			}),
-	});
-
-	const statusMenu = useStatusFilterMenu({
-		value: filter.values.status,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				status: option?.value,
-			}),
-	});
-
-	const methodMenu = useMethodFilterMenu({
-		value: filter.values.method,
-		onChange: (option) => {
-			// Saved links can carry the deprecated type filter, which the API
-			// rejects when combined with method.
-			const { type: _legacyType, ...values } = filter.values;
-			filter.update({ ...values, method: option?.value });
-		},
-	});
-
-	const organizationsMenu = useOrganizationsFilterMenu({
-		value: filter.values.organization,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				organization: option?.value,
-			}),
 	});
 
 	return (
@@ -88,12 +42,6 @@ const ConnectionLogPage: React.FC = () => {
 				filterProps={{
 					filter,
 					error: connectionlogsQuery.error,
-					menus: {
-						user: userMenu,
-						status: statusMenu,
-						method: methodMenu,
-						organization: showOrganizations ? organizationsMenu : undefined,
-					},
 				}}
 			/>
 		</>

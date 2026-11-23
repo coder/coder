@@ -9,6 +9,10 @@ import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
 import { ClientFilter, type ClientFilterMenu } from "../filters/ClientFilter";
 import { ModelFilter, type ModelFilterMenu } from "../filters/ModelFilter";
 import {
+	OrganizationFilter,
+	type OrganizationFilterMenu,
+} from "../filters/OrganizationFilter";
+import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
@@ -25,6 +29,7 @@ type ListSessionsFilterProps = {
 		provider: ProviderFilterMenu;
 		client: ClientFilterMenu;
 		model: ModelFilterMenu;
+		organization?: OrganizationFilterMenu;
 	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
@@ -60,6 +65,12 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
 					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
+					{menus.organization && (
+						<OrganizationFilter
+							menu={menus.organization}
+							width={FILTER_WIDTH}
+						/>
+					)}
 				</>
 			}
 		/>
