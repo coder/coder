@@ -299,6 +299,9 @@ func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
 		{name: "Tab", prefix: "coder.\t*", wantErr: true},
 		{name: "NUL", prefix: "coder.\x00", wantErr: true},
 		{name: "NonBreakingSpace", prefix: "coder.\u00A0x", wantErr: true},
+		{name: "Glob", prefix: "*", wantErr: true},
+		{name: "GlobSuffix", prefix: "coder.*", wantErr: true},
+		{name: "QuestionMark", prefix: "code?.", wantErr: true},
 	}
 
 	for _, tt := range testCases {
@@ -393,6 +396,11 @@ func TestSSHConfigResponse_Validate(t *testing.T) {
 			name:     "PrefixUnsafe",
 			response: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
 			wantErr:  "workspace hostname prefix",
+		},
+		{
+			name:     "PrefixGlob",
+			response: codersdk.SSHConfigResponse{HostnamePrefix: "*"},
+			wantErr:  `workspace hostname prefix "*" must not contain glob characters`,
 		},
 		{
 			name:     "SuffixUnsafe",
