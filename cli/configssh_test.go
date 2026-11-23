@@ -196,6 +196,11 @@ func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
 			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "*"},
 			wantErr:   "glob",
 		},
+		{
+			name:      "HostnamePrefixGlob",
+			configSSH: codersdk.SSHConfigResponse{HostnamePrefix: "*"},
+			wantErr:   "glob",
+		},
 	}
 
 	for _, tc := range testCases {
