@@ -6,7 +6,7 @@ import {
 	agentTemplatesKey,
 	templateVersionPresetsKey,
 } from "#/api/queries/templates";
-import type { Template } from "#/api/typesGenerated";
+import type { Preset, Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
@@ -29,6 +29,15 @@ const mockKubernetesTemplate: Template = {
 	name: "kubernetes",
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
+};
+const mockSmallPreset: Preset = {
+	ID: "preset-small",
+	Name: "Small",
+	Parameters: [],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Description: "",
+	Icon: "",
 };
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
@@ -237,6 +246,28 @@ const pickDefaultTemplate: Story["play"] = async () => {
 		screen.getByRole("combobox", { name: "Default template" }),
 	);
 	await userEvent.click(await screen.findByRole("option", { name: "Docker" }));
+};
+
+export const DefaultTemplatePresets: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplatePresetsLoading: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: pickDefaultTemplate,
 };
 
 export const DefaultTemplateWithoutPresets: Story = {

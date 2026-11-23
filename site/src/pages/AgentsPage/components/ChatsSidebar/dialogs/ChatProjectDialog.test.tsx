@@ -590,6 +590,31 @@ describe("ChatProjectDialog templates", () => {
 		});
 	});
 
+	it("submits a default template without a preset after choosing None", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
+		const presetSelect = await screen.findByRole("combobox", {
+			name: "Default preset",
+		});
+		await user.click(presetSelect);
+		await user.click(screen.getByRole("option", { name: "Small" }));
+		await user.click(presetSelect);
+		await user.click(screen.getByRole("option", { name: "None" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					default_template: { template_id: mockSecondTemplate.id },
+				}),
+			);
+		});
+	});
+
 	it("clears the default when its template is removed", async () => {
 		useTemplateHandlers();
 		const user = userEvent.setup();
