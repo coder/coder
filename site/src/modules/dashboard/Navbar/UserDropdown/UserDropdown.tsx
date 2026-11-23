@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { meAISpend } from "#/api/queries/users";
+import { meAISpend, meOrganizationsAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -16,7 +16,7 @@ import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 import { UserDropdownOrgSelect } from "./UserDropdownOrgSelect";
 import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
-import { getSpendSeverity, getViewedSpend } from "./viewedSpend";
+import { getSpendSeverity, getUserMenuSpend } from "./viewedSpend";
 
 type UserDropdownProps = {
 	user: TypesGen.User;
@@ -36,17 +36,29 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 	canViewLicenses,
 }) => {
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
-	const { data, error } = useQuery({
+	const siteWideQuery = useQuery({
 		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+	const byOrganizationQuery = useQuery({
+		...meOrganizationsAISpend(),
 		enabled: aibridgeVisible,
 	});
 	const [selectedOrgId, setSelectedOrgId] = useState<string>();
 
 	// A failed poll keeps the last spend and the open selector on screen, with
 	// the error beside them.
-	const viewed =
-		aibridgeVisible && data ? getViewedSpend(data, selectedOrgId) : undefined;
-	const spend = viewed?.spend ?? null;
+	const menuSpend = aibridgeVisible
+		? getUserMenuSpend(
+				siteWideQuery.data,
+				byOrganizationQuery.data,
+				selectedOrgId,
+			)
+		: undefined;
+	const spend = menuSpend?.spend ?? null;
+	const error = menuSpend?.orgSelection
+		? byOrganizationQuery.error
+		: siteWideQuery.error;
 	const indicator = severityIndicators[getSpendSeverity(spend)];
 
 	return (
@@ -74,22 +86,22 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 					user={user}
 					buildInfo={buildInfo}
 					profileExtra={
-						data &&
-						(viewed?.shownOrgSpend || spend) && (
+						menuSpend &&
+						(menuSpend.orgSelection || spend) && (
 							<>
 								<DropdownMenuSeparator />
-								{viewed?.shownOrgSpend && (
+								{menuSpend.orgSelection && (
 									<UserDropdownOrgSelect
-										organizations={data.organizations}
-										selected={viewed.shownOrgSpend.organization}
+										organizations={menuSpend.orgSelection.organizations}
+										selected={menuSpend.orgSelection.shown.organization}
 										onSelectedOrgIdChange={setSelectedOrgId}
 									/>
 								)}
 								{spend ? (
 									<UserDropdownAISpend
 										{...spend}
-										periodStart={data.period_start}
-										periodEnd={data.period_end}
+										periodStart={menuSpend.period.period_start}
+										periodEnd={menuSpend.period.period_end}
 									/>
 								) : (
 									<div className="px-2 py-2 text-xs text-content-secondary">

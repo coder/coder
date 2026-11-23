@@ -6110,35 +6110,49 @@ export const MockUserAISpendStatus: TypesGen.UserAISpendStatus = {
 	current_spend_micros: MockUserOrganizationAISpend.current_spend_micros,
 	period_start: "2026-06-01T00:00:00Z",
 	period_end: "2026-07-01T00:00:00Z",
-	organization_id: MockOrganization.id,
-	organizations: [MockUserOrganizationAISpend],
 };
+
+/** The per-organization spend of the single-organization user above. */
+export const MockUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		period_start: MockUserAISpendStatus.period_start,
+		period_end: MockUserAISpendStatus.period_end,
+		organization_id: MockOrganization.id,
+		organizations: [MockUserOrganizationAISpend],
+	};
 
 /**
  * A user in three organizations: normal spend in the first, which the
- * top-level fields resolve to, exceeded in the second and warning in the
- * third.
+ * site-wide effective group resolves to, exceeded in the second and warning
+ * in the third. Pairs with MockUserAISpendStatus.
  */
-export const MockMultiOrgUserAISpendStatus: TypesGen.UserAISpendStatus = {
-	...MockUserAISpendStatus,
-	organizations: [
-		MockUserOrganizationAISpend,
-		mockUserOrganization2AISpend,
-		mockUserOrganization3AISpend,
-	],
-};
+export const MockMultiOrgUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		...MockUserOrganizationsAISpendStatus,
+		organizations: [
+			MockUserOrganizationAISpend,
+			mockUserOrganization2AISpend,
+			mockUserOrganization3AISpend,
+		],
+	};
 
 /**
- * The same user when the top-level fields resolve to the second organization,
- * where spend exceeds the budget.
+ * The site-wide spend of the same user when their effective group resolves
+ * to the second organization, where spend exceeds the budget.
  */
 export const MockMultiOrgExceededUserAISpendStatus: TypesGen.UserAISpendStatus =
 	{
-		...MockMultiOrgUserAISpendStatus,
-		organization_id: MockOrganization2.id,
+		...MockUserAISpendStatus,
 		effective_group_id: mockUserOrganization2AISpend.effective_group_id,
 		effective_budget: mockUserOrganization2AISpend.effective_budget,
 		current_spend_micros: mockUserOrganization2AISpend.current_spend_micros,
+	};
+
+/** The per-organization spend matching MockMultiOrgExceededUserAISpendStatus. */
+export const MockMultiOrgExceededUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		...MockMultiOrgUserOrganizationsAISpendStatus,
+		organization_id: MockOrganization2.id,
 	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [

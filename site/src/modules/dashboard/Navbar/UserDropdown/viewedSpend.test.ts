@@ -1,13 +1,14 @@
 import {
-	MockMultiOrgExceededUserAISpendStatus,
+	MockMultiOrgExceededUserOrganizationsAISpendStatus,
 	MockOrganization,
 	MockOrganization2,
 	MockUserAISpendStatus,
+	MockUserOrganizationsAISpendStatus,
 } from "#/testHelpers/entities";
-import { getViewedSpend } from "./viewedSpend";
+import { getUserMenuSpend } from "./viewedSpend";
 
-describe("getViewedSpend", () => {
-	const multiOrg = MockMultiOrgExceededUserAISpendStatus;
+describe("getUserMenuSpend", () => {
+	const multiOrg = MockMultiOrgExceededUserOrganizationsAISpendStatus;
 
 	it.each([
 		[
@@ -22,43 +23,42 @@ describe("getViewedSpend", () => {
 		],
 	])("shows %s", (_name, selectedOrgId, expectedOrgId) => {
 		expect(
-			getViewedSpend(multiOrg, selectedOrgId).shownOrgSpend?.organization.id,
+			getUserMenuSpend(MockUserAISpendStatus, multiOrg, selectedOrgId)
+				?.orgSelection?.shown.organization.id,
 		).toBe(expectedOrgId);
 	});
 
 	it("falls back to the first entry when organization_id matches none", () => {
-		const { shownOrgSpend } = getViewedSpend(
-			{
-				...multiOrg,
-				organization_id: null,
-				effective_group_id: null,
-				effective_budget: null,
-				current_spend_micros: 0,
-			},
+		const viewed = getUserMenuSpend(
+			MockUserAISpendStatus,
+			{ ...multiOrg, organization_id: null },
 			undefined,
 		);
-		expect(shownOrgSpend?.organization.id).toBe(MockOrganization.id);
+		expect(viewed?.orgSelection?.shown.organization.id).toBe(
+			MockOrganization.id,
+		);
 	});
 
-	const { organizations: _, ...mockAISpendWithoutOrganizations } =
-		MockUserAISpendStatus;
-	it.each<[string, Parameters<typeof getViewedSpend>[0]]>([
+	it.each([
 		[
 			"a single organization",
 			{
-				...MockUserAISpendStatus,
+				...MockUserOrganizationsAISpendStatus,
 				organizations: [
 					{
-						...MockUserAISpendStatus.organizations[0],
+						...MockUserOrganizationsAISpendStatus.organizations[0],
 						current_spend_micros: 1,
 					},
 				],
 			},
 		],
-		["a server that omits organizations", mockAISpendWithoutOrganizations],
-	])("shows the top-level spend without a selector for %s", (_name, data) => {
-		expect(getViewedSpend(data, MockOrganization.id)).toEqual({
+		["a per-organization request without data", undefined],
+	])("shows the site-wide spend without a selector for %s", (_name, byOrg) => {
+		expect(
+			getUserMenuSpend(MockUserAISpendStatus, byOrg, MockOrganization.id),
+		).toEqual({
 			spend: { currentSpend: 819_000_000, spendLimit: 1_200_000_000 },
+			period: MockUserAISpendStatus,
 		});
 	});
 });

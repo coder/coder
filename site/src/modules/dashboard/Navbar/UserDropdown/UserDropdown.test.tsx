@@ -2,11 +2,12 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { withDefaultFeatures } from "#/api/api";
-import { meAISpendKey } from "#/api/queries/users";
+import { meOrganizationsAISpendKey } from "#/api/queries/users";
 import {
 	MockBuildInfo,
 	MockEntitlements,
 	MockMultiOrgExceededUserAISpendStatus,
+	MockMultiOrgExceededUserOrganizationsAISpendStatus,
 	MockOrganization,
 	MockOrganization2,
 	MockUserOwner,
@@ -27,12 +28,15 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	}),
 }));
 
-const aiSpendPath = "/api/v2/users/me/ai/spend";
+const aiSpendByOrgPath = "/api/v2/users/me/ai/spend/organizations";
 
 const renderOpenMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 	server.use(
-		http.get(aiSpendPath, () =>
+		http.get("/api/v2/users/me/ai/spend", () =>
 			HttpResponse.json(MockMultiOrgExceededUserAISpendStatus),
+		),
+		http.get(aiSpendByOrgPath, () =>
+			HttpResponse.json(MockMultiOrgExceededUserOrganizationsAISpendStatus),
 		),
 	);
 	const { queryClient } = render(
@@ -106,14 +110,16 @@ describe("UserDropdown AI spend", () => {
 		await user.click(orgTrigger);
 
 		server.use(
-			http.get(aiSpendPath, () =>
+			http.get(aiSpendByOrgPath, () =>
 				HttpResponse.json(
 					{ message: "AI spend is temporarily unavailable" },
 					{ status: 500 },
 				),
 			),
 		);
-		await queryClient.refetchQueries({ queryKey: meAISpendKey });
+		await queryClient.refetchQueries({
+			queryKey: meOrganizationsAISpendKey,
+		});
 
 		await vi.waitFor(() =>
 			expect(menu).toHaveTextContent("AI spend is temporarily unavailable"),

@@ -63,6 +63,7 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 			</DropdownMenuItem>
 			{open && (
 				<DropdownMenuRadioGroup
+					aria-label="Organization"
 					className="max-h-64 overflow-y-auto"
 					value={selected.id}
 					onValueChange={(orgId) => {

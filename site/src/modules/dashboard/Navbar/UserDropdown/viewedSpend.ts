@@ -1,6 +1,8 @@
 import type {
+	AISpendPeriodWindow,
 	UserAISpendStatus,
 	UserOrganizationAISpend,
+	UserOrganizationsAISpendStatus,
 } from "#/api/typesGenerated";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
 
@@ -8,10 +10,6 @@ type SpendFields = Pick<
 	UserOrganizationAISpend,
 	"current_spend_micros" | "effective_budget"
 >;
-
-// Servers older than the per-organization breakdown omit `organizations`.
-type SpendStatus = Omit<UserAISpendStatus, "organizations"> &
-	Partial<Pick<UserAISpendStatus, "organizations">>;
 
 /** AI spend and its limit, in micros, as the user menu shows them. */
 export type ViewedSpend = {
@@ -47,23 +45,44 @@ export function getSpendSeverity(spend: ViewedSpend | null): UsageSeverity {
 	return getSeverity(spend.currentSpend, spend.spendLimit);
 }
 
+/** The spend the user menu shows, and the period it covers. */
+type UserMenuSpend = {
+	/** Set only for users in more than one organization. */
+	orgSelection?: {
+		organizations: readonly UserOrganizationAISpend[];
+		shown: UserOrganizationAISpend;
+	};
+	/** Null when the server sent a negative spend or limit. */
+	spend: ViewedSpend | null;
+	period: AISpendPeriodWindow;
+};
+
 /**
- * Picks the spend shown in the user menu. `shownOrgSpend` is set only for
- * users in more than one organization, even when the selection is gone after
- * a refetch. Everyone else, and servers that omit `organizations`, gets the
- * top-level fields.
+ * Users in more than one organization see the selected organization's spend,
+ * or else the `organization_id` entry, or else the first entry. Everyone else
+ * sees the site-wide spend.
  */
-export function getViewedSpend(
-	data: SpendStatus,
+export function getUserMenuSpend(
+	siteWide: UserAISpendStatus | undefined,
+	byOrganization: UserOrganizationsAISpendStatus | undefined,
 	selectedOrgId: string | undefined,
-): { shownOrgSpend?: UserOrganizationAISpend; spend: ViewedSpend | null } {
-	const organizations = data.organizations ?? [];
-	if (organizations.length <= 1) {
-		return { spend: toViewedSpend(data) };
+): UserMenuSpend | undefined {
+	if (byOrganization && byOrganization.organizations.length > 1) {
+		const { organizations } = byOrganization;
+		const findOrg = (id: string | null | undefined) =>
+			organizations.find((entry) => entry.organization.id === id);
+		const shown =
+			findOrg(selectedOrgId) ??
+			findOrg(byOrganization.organization_id) ??
+			organizations[0];
+		return {
+			orgSelection: { organizations, shown },
+			spend: toViewedSpend(shown),
+			period: byOrganization,
+		};
 	}
-	const findOrg = (id: string | null | undefined) =>
-		organizations.find((entry) => entry.organization.id === id);
-	const shownOrgSpend =
-		findOrg(selectedOrgId) ?? findOrg(data.organization_id) ?? organizations[0];
-	return { shownOrgSpend, spend: toViewedSpend(shownOrgSpend) };
+	if (!siteWide) {
+		return undefined;
+	}
+	return { spend: toViewedSpend(siteWide), period: siteWide };
 }

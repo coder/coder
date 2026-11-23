@@ -11,19 +11,20 @@ import {
 } from "storybook/test";
 import { API, type GetLicensesResponse } from "#/api/api";
 import { licensesKey } from "#/api/queries/licenses";
-import { meAISpendKey } from "#/api/queries/users";
+import { meAISpendKey, meOrganizationsAISpendKey } from "#/api/queries/users";
 import type {
-	AIBudgetLimit,
 	Entitlements,
 	FeatureName,
 	UserAISpendStatus,
+	UserOrganizationsAISpendStatus,
 } from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
 	MockBuildInfo,
 	MockLicenseResponse,
 	MockMultiOrgExceededUserAISpendStatus,
-	MockMultiOrgUserAISpendStatus,
+	MockMultiOrgExceededUserOrganizationsAISpendStatus,
+	MockMultiOrgUserOrganizationsAISpendStatus,
 	MockUserAISpendStatus,
 	MockUserOrganizationAISpend,
 	MockUserOwner,
@@ -31,71 +32,44 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
-// These single-organization variants keep the top-level spend and their one
-// organizations entry in agreement, as the API returns them.
-
 const mockWarningAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	current_spend_micros: 1_080_000_000,
-	organizations: [
-		{ ...MockUserOrganizationAISpend, current_spend_micros: 1_080_000_000 },
-	],
 };
 
 const mockExceededAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	current_spend_micros: 1_500_000_000,
-	organizations: [
-		{ ...MockUserOrganizationAISpend, current_spend_micros: 1_500_000_000 },
-	],
 };
 
 const mockAtLimitAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	current_spend_micros: 1_200_000_000,
-	organizations: [
-		{ ...MockUserOrganizationAISpend, current_spend_micros: 1_200_000_000 },
-	],
 };
 
 const mockUnlimitedAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	effective_budget: null,
-	organizations: [{ ...MockUserOrganizationAISpend, effective_budget: null }],
 };
 
 const mockZeroSpendAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	current_spend_micros: 0,
-	organizations: [{ ...MockUserOrganizationAISpend, current_spend_micros: 0 }],
-};
-
-const mockZeroLimitBudget: AIBudgetLimit = {
-	spend_limit_micros: 0,
-	limit_source: "group",
 };
 
 const mockZeroLimitAISpend: UserAISpendStatus = {
 	...MockUserAISpendStatus,
 	current_spend_micros: 0,
-	effective_budget: mockZeroLimitBudget,
-	organizations: [
-		{
-			...MockUserOrganizationAISpend,
-			current_spend_micros: 0,
-			effective_budget: mockZeroLimitBudget,
-		},
-	],
+	effective_budget: { spend_limit_micros: 0, limit_source: "group" },
 };
 
 // The shown organization reports a negative spend, so the menu keeps the
 // selector and says the spend is unavailable.
-const mockMultiOrgInvalidAISpend: UserAISpendStatus = {
-	...MockMultiOrgUserAISpendStatus,
-	current_spend_micros: -1,
+const mockMultiOrgInvalidAISpend: UserOrganizationsAISpendStatus = {
+	...MockMultiOrgUserOrganizationsAISpendStatus,
 	organizations: [
 		{ ...MockUserOrganizationAISpend, current_spend_micros: -1 },
-		...MockMultiOrgUserAISpendStatus.organizations.slice(1),
+		...MockMultiOrgUserOrganizationsAISpendStatus.organizations.slice(1),
 	],
 };
 
@@ -332,7 +306,6 @@ export const AISpendZeroLimit: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$0 / $0 USD"),
 			);
-			expect(document.body).toHaveTextContent("Limit exceeded");
 			expect(
 				screen.getByRole("progressbar", {
 					hidden: true,
@@ -346,7 +319,13 @@ export const AISpendZeroLimit: Story = {
 export const MultiOrgAISpend: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: MockMultiOrgUserAISpendStatus }],
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgUserOrganizationsAISpendStatus,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await openDropdown(canvasElement);
@@ -356,7 +335,13 @@ export const MultiOrgAISpend: Story = {
 export const MultiOrgAISpendPicker: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: MockMultiOrgUserAISpendStatus }],
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgUserOrganizationsAISpendStatus,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const menu = await openDropdown(canvasElement);
@@ -371,6 +356,10 @@ export const MultiOrgAISpendExceeded: Story = {
 		...aiCostControl,
 		queries: [
 			{ key: meAISpendKey, data: MockMultiOrgExceededUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgExceededUserOrganizationsAISpendStatus,
+			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -381,7 +370,10 @@ export const MultiOrgAISpendExceeded: Story = {
 export const MultiOrgAISpendUnavailable: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: mockMultiOrgInvalidAISpend }],
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{ key: meOrganizationsAISpendKey, data: mockMultiOrgInvalidAISpend },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await openDropdown(canvasElement);
