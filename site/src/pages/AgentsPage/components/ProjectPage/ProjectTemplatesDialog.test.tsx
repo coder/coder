@@ -33,6 +33,10 @@ const mockProjectWithDefault: ChatProject = {
 	templates: [MockTemplate],
 	default_template: { template_id: MockTemplate.id },
 };
+const mockProjectWithDefaultPreset: ChatProject = {
+	...mockProjectWithDefault,
+	default_template: { template_id: MockTemplate.id, preset_id: "preset-id" },
+};
 
 const renderDialog = (
 	props: Partial<DialogProps> = {},
@@ -67,23 +71,20 @@ const renderDialog = (
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
 	);
+	const rerenderWith = (next: Partial<DialogProps>) =>
+		rerender(
+			<QueryClientProvider client={queryClient}>
+				<ProjectTemplatesDialog {...allProps} {...next} />
+			</QueryClientProvider>,
+		);
 	return {
 		user: userEvent.setup(),
 		props: allProps,
 		rerenderWithProject: (project: ChatProject) => {
 			getProjects.mockResolvedValue([project]);
-			rerender(
-				<QueryClientProvider client={queryClient}>
-					<ProjectTemplatesDialog {...allProps} project={project} />
-				</QueryClientProvider>,
-			);
+			rerenderWith({ project });
 		},
-		rerenderWith: (next: Partial<DialogProps>) =>
-			rerender(
-				<QueryClientProvider client={queryClient}>
-					<ProjectTemplatesDialog {...allProps} {...next} />
-				</QueryClientProvider>,
-			),
+		rerenderWith,
 		queryClient,
 	};
 };
@@ -517,13 +518,7 @@ describe("ProjectTemplatesDialog", () => {
 			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
 			.mockResolvedValue([]);
 		const { user, props } = renderDialog({
-			project: {
-				...mockProjectWithDefault,
-				default_template: {
-					template_id: MockTemplate.id,
-					preset_id: "preset-id",
-				},
-			},
+			project: mockProjectWithDefaultPreset,
 		});
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 
@@ -557,13 +552,7 @@ describe("ProjectTemplatesDialog", () => {
 			.spyOn(API, "getTemplateVersionPresets")
 			.mockReturnValue(new Promise(() => {}));
 		const { rerenderWith } = renderDialog({
-			project: {
-				...mockProjectWithDefault,
-				default_template: {
-					template_id: MockTemplate.id,
-					preset_id: "preset-id",
-				},
-			},
+			project: mockProjectWithDefaultPreset,
 		});
 		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(1));
 
@@ -578,13 +567,7 @@ describe("ProjectTemplatesDialog", () => {
 			mockApiError({ message: "Network error." }),
 		);
 		const { user, props } = renderDialog({
-			project: {
-				...mockProjectWithDefault,
-				default_template: {
-					template_id: MockTemplate.id,
-					preset_id: "preset-id",
-				},
-			},
+			project: mockProjectWithDefaultPreset,
 		});
 
 		await screen.findByRole("button", { name: "Retry" });

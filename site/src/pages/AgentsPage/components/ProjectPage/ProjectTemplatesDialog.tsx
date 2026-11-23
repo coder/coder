@@ -36,6 +36,7 @@ import {
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 import {
+	hasTemplatesChanges,
 	rebaseValues,
 	savedTemplates,
 	serializeEligibleTemplates,
@@ -265,16 +266,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const request =
 		eligibleTemplates &&
 		chatProjectTemplatesRequest(formValue, eligibleTemplates);
-	const baseRequest =
-		eligibleTemplates &&
-		chatProjectTemplatesRequest(initialValue, eligibleTemplates);
-	// A request leaves out templates that are no longer eligible, so a draft
-	// that only selects one of those has nothing to save. An untouched draft
-	// with a stale default does, because saving clears that default.
-	const hasChanges =
-		request !== undefined &&
-		baseRequest !== undefined &&
-		serializeTemplates(request) !== serializeTemplates(baseRequest);
+	// The request has the stale defaults cleared, so an untouched draft with
+	// one has changes: saving clears it.
+	const hasChanges = hasTemplatesChanges(
+		request,
+		initialValue,
+		eligibleTemplates,
+	);
 	// A change saved elsewhere can touch what the draft changes, so the user
 	// resolves it first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
