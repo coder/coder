@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -473,6 +474,9 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CostMicros:            cost.costMicros,
 			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
 			PricedModel:           cost.pricedModel,
+			// No price beyond the four price columns is billed yet, so there
+			// is nothing to record.
+			PricingUsage: pqtype.NullRawMessage{},
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
