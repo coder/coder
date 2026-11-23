@@ -16,7 +16,8 @@ import (
 
 const (
 	// refreshBudget bounds one leased refresh: the token endpoint call,
-	// which RefreshOAuth2Token caps at tokenRequestTimeout, plus the save.
+	// which requestOAuth2Refresh caps at tokenRequestTimeout, plus the
+	// save.
 	refreshBudget = 15 * time.Second
 	// refreshLeaseLength exceeds refreshBudget, so a holder always runs
 	// out of time before its lease expires and another caller takes it.
@@ -221,11 +222,9 @@ func refreshLeasedToken(
 	cfg database.MCPServerConfig,
 	leased database.MCPServerUserToken,
 ) (LeasedRefresh, error) {
-	// The leased row matches the caller's expired token, so
-	// RefreshOAuth2Token never reports it as still valid.
-	result, refreshErr := RefreshOAuth2Token(ctx, httpClient, cfg, leased)
+	result, refreshErr := refreshOAuth2Token(ctx, httpClient, cfg, leased)
 	if refreshErr != nil {
-		if !IsPermanentRefreshError(refreshErr) {
+		if !isPermanentRefreshError(refreshErr) {
 			return LeasedRefresh{Outcome: LeasedRefreshFailed, Token: leased, RefreshErr: refreshErr}, nil
 		}
 		return markRefreshFailure(ctx, store, leased, refreshErr)

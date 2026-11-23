@@ -3,7 +3,6 @@ package mcpoauth_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -26,42 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func TestIsPermanentRefreshError(t *testing.T) {
-	t.Parallel()
-
-	retrieveErr := func(code string, status int) error {
-		body, err := json.Marshal(map[string]string{"error": code})
-		require.NoError(t, err)
-		return &oauth2.RetrieveError{
-			Response:  &http.Response{StatusCode: status},
-			Body:      body,
-			ErrorCode: code,
-		}
-	}
-
-	cases := []struct {
-		name      string
-		err       error
-		permanent bool
-	}{
-		{"InvalidGrant", retrieveErr("invalid_grant", http.StatusBadRequest), true},
-		{"BadRefreshToken", retrieveErr("bad_refresh_token", http.StatusOK), true},
-		{"WrappedInvalidGrant", xerrors.Errorf("refresh: %w", retrieveErr("invalid_grant", http.StatusBadRequest)), true},
-		{"InvalidClient", retrieveErr("invalid_client", http.StatusUnauthorized), false},
-		{"UnauthorizedClient", retrieveErr("unauthorized_client", http.StatusBadRequest), false},
-		{"ServerError", retrieveErr("", http.StatusInternalServerError), false},
-		{"RateLimited", retrieveErr("", http.StatusTooManyRequests), false},
-		{"PlainError", xerrors.New("connection refused"), false},
-		{"Nil", nil, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.permanent, mcpoauth.IsPermanentRefreshError(tc.err))
-		})
-	}
-}
 
 func TestRefreshFailureReason(t *testing.T) {
 	t.Parallel()
@@ -73,30 +35,58 @@ func TestRefreshFailureReason(t *testing.T) {
 	require.Len(t, reason, 400)
 }
 
-func TestRefreshOAuth2TokenInvalidGrant(t *testing.T) {
+// TestRefreshOAuth2TokenProviderErrors covers how a token endpoint error
+// ends a leased refresh of an expired token. Only an error code tied to
+// the grant marks the token for reconnect (RFC 6749 section 5.2). Client,
+// config and server errors affect every user of the server, so they fail
+// temporarily and leave the row as it was.
+func TestRefreshOAuth2TokenProviderErrors(t *testing.T) {
 	t.Parallel()
 
-	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"grant revoked"}`))
-	}))
-	defer tokenSrv.Close()
+	db, _ := dbtestutil.NewDB(t)
+	for _, tc := range []struct {
+		name    string
+		status  int
+		body    string
+		outcome mcpoauth.LeasedRefreshOutcome
+	}{
+		{name: "InvalidGrant", status: http.StatusBadRequest, body: `{"error":"invalid_grant","error_description":"grant revoked"}`, outcome: mcpoauth.LeasedRefreshMarkedDead},
+		// GitHub rejects a revoked refresh token with HTTP 200.
+		{name: "BadRefreshToken", status: http.StatusOK, body: `{"error":"bad_refresh_token"}`, outcome: mcpoauth.LeasedRefreshMarkedDead},
+		{name: "InvalidClient", status: http.StatusUnauthorized, body: `{"error":"invalid_client"}`, outcome: mcpoauth.LeasedRefreshFailed},
+		{name: "UnauthorizedClient", status: http.StatusBadRequest, body: `{"error":"unauthorized_client"}`, outcome: mcpoauth.LeasedRefreshFailed},
+		{name: "ServerError", status: http.StatusInternalServerError, outcome: mcpoauth.LeasedRefreshFailed},
+		{name: "RateLimited", status: http.StatusTooManyRequests, outcome: mcpoauth.LeasedRefreshFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(tokenSrv.Close)
+			cfg, tok := seedMCPToken(t, db, tokenSrv.URL, "expired", "refresh", -time.Hour)
 
-	cfg := database.MCPServerConfig{
-		OAuth2ClientID: "cid",
-		OAuth2TokenURL: tokenSrv.URL,
-	}
-	tok := database.MCPServerUserToken{
-		AccessToken:  "expired",
-		RefreshToken: "refresh",
-		TokenType:    "Bearer",
-		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	}
+			result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(nil), cfg, tok, mcpoauth.LeasedRefreshOptions{})
+			require.NoError(t, err)
+			require.Equal(t, tc.outcome, result.Outcome)
+			require.Error(t, result.RefreshErr)
 
-	_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
-	require.Error(t, err)
-	require.True(t, mcpoauth.IsPermanentRefreshError(err))
+			row, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
+			require.NoError(t, err)
+			if tc.outcome == mcpoauth.LeasedRefreshMarkedDead {
+				require.Empty(t, row.AccessToken)
+				require.Empty(t, row.RefreshToken)
+				require.NotEmpty(t, row.OauthRefreshFailureReason)
+				return
+			}
+			require.Equal(t, "expired", row.AccessToken)
+			require.Equal(t, "refresh", row.RefreshToken)
+			require.Empty(t, row.OauthRefreshFailureReason)
+		})
+	}
 }
 
 func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
@@ -114,20 +104,15 @@ func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
 	}))
 	defer tokenSrv.Close()
 
-	cfg := database.MCPServerConfig{
-		OAuth2ClientID:     "cid",
-		OAuth2ClientSecret: "secret",
-		OAuth2TokenURL:     tokenSrv.URL,
-	}
-	tok := database.MCPServerUserToken{
-		AccessToken:  "expired",
-		RefreshToken: "refresh",
-		TokenType:    "Bearer",
-		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	}
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	cfg, tok := seedMCPToken(t, db, tokenSrv.URL, "expired", "refresh", -time.Hour)
+	cfg.OAuth2ClientSecret = "secret"
 
-	_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(tokenSrv.Client()), cfg, tok)
-	require.Error(t, err)
+	result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(tokenSrv.Client()), cfg, tok, mcpoauth.LeasedRefreshOptions{})
+	require.NoError(t, err)
+	require.Equal(t, mcpoauth.LeasedRefreshFailed, result.Outcome)
+	require.Error(t, result.RefreshErr)
 	require.Zero(t, targetHits.Load())
 }
 
@@ -135,6 +120,7 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 	t.Parallel()
 
 	const resource = "https://mcp.example.com/mcp"
+	db, _ := dbtestutil.NewDB(t)
 	cases := []struct {
 		name     string
 		resource string
@@ -146,6 +132,7 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := testutil.Context(t, testutil.WaitLong)
 			forms := make(chan url.Values, 1)
 			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if !assert.NoError(t, r.ParseForm()) {
@@ -167,24 +154,15 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 			}))
 			defer tokenSrv.Close()
 
-			cfg := database.MCPServerConfig{
-				OAuth2ClientID: "cid",
-				OAuth2TokenURL: tokenSrv.URL,
-				OAuth2Resource: tc.resource,
-			}
-			tok := database.MCPServerUserToken{
-				AccessToken:  "expired",
-				RefreshToken: "refresh",
-				TokenType:    "Bearer",
-				Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-			}
+			cfg, tok := seedMCPToken(t, db, tokenSrv.URL, "expired", "refresh", -time.Hour)
+			cfg.OAuth2Resource = tc.resource
 
-			result, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
+			result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(nil), cfg, tok, mcpoauth.LeasedRefreshOptions{})
 			require.NoError(t, err)
-			require.True(t, result.Refreshed)
-			require.Equal(t, "fresh", result.AccessToken)
+			require.Equal(t, mcpoauth.LeasedRefreshSaved, result.Outcome)
+			require.Equal(t, "fresh", result.Token.AccessToken)
 			// The provider did not rotate, so the stored refresh token is kept.
-			require.Equal(t, "refresh", result.RefreshToken)
+			require.Equal(t, "refresh", result.Token.RefreshToken)
 
 			form := <-forms
 			require.Equal(t, "refresh_token", form.Get("grant_type"))
@@ -197,7 +175,10 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 	}
 }
 
-func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
+// TestRefreshOAuth2TokenWithoutRefreshToken covers an expired token that
+// has no refresh token: nothing can renew it, so the refresh fails
+// without a token request and leaves the row as it was.
+func TestRefreshOAuth2TokenWithoutRefreshToken(t *testing.T) {
 	t.Parallel()
 
 	var hits atomic.Int64
@@ -208,42 +189,19 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	}))
 	t.Cleanup(tokenSrv.Close)
 
-	cfg := database.MCPServerConfig{
-		OAuth2ClientID: "cid",
-		OAuth2TokenURL: tokenSrv.URL,
-		OAuth2Resource: "https://mcp.example.com/mcp",
-	}
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	cfg, tok := seedMCPToken(t, db, tokenSrv.URL, "expired", "", -time.Hour)
 
-	t.Run("ValidToken", func(t *testing.T) {
-		t.Parallel()
-		expiry := time.Now().Add(time.Hour)
-		result, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
-			AccessToken:  "still-valid",
-			RefreshToken: "refresh",
-			TokenType:    "Bearer",
-			Expiry:       sql.NullTime{Time: expiry, Valid: true},
-		})
-		require.NoError(t, err)
-		require.False(t, result.Refreshed)
-		require.Equal(t, "still-valid", result.AccessToken)
-		require.Equal(t, "refresh", result.RefreshToken)
-		require.Equal(t, "Bearer", result.TokenType)
-		require.True(t, expiry.Equal(result.Expiry))
-	})
-
-	t.Run("ExpiredWithoutRefreshToken", func(t *testing.T) {
-		t.Parallel()
-		_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
-			AccessToken: "expired",
-			TokenType:   "Bearer",
-			Expiry:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-		})
-		require.Error(t, err)
-	})
-
-	t.Cleanup(func() {
-		require.Zero(t, hits.Load(), "no token request may be made")
-	})
+	result, err := mcpoauth.RefreshOAuth2TokenWithLease(ctx, slogtest.Make(t, nil), db, testMCPHTTPClient(nil), cfg, tok, mcpoauth.LeasedRefreshOptions{})
+	require.NoError(t, err)
+	require.Equal(t, mcpoauth.LeasedRefreshFailed, result.Outcome)
+	require.Error(t, result.RefreshErr)
+	require.Zero(t, hits.Load(), "token endpoint calls")
+	row, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
+	require.NoError(t, err)
+	require.Equal(t, "expired", row.AccessToken)
+	require.Empty(t, row.OauthRefreshFailureReason)
 }
 
 // heldLeaseSignalStore closes held once an acquire finds the refresh
