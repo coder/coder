@@ -5160,6 +5160,8 @@ type AIBridgeTokenUsage struct {
 	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
 	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
 	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
+	// How the row was billed beyond the four price columns, such as the prompt size, the long-context tier that applied, and extra billed units, as a JSON object. NULL when the row was not priced or was recorded before it was tracked.
+	PricingUsage pqtype.NullRawMessage `db:"pricing_usage" json:"pricing_usage"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5233,6 +5235,8 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
+	// Prices beyond the four base price columns, such as the 1-hour cache write price and long-context tiers, as a JSON object. NULL when the model has none.
+	PricingExtras pqtype.NullRawMessage `db:"pricing_extras" json:"pricing_extras"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

@@ -20871,7 +20871,7 @@ func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 
-		// The site-wide price sets all four prices.
+		// The site-wide price sets all four prices and pricing extras.
 		seed, err := json.Marshal([]map[string]any{{
 			"provider":          string(provider.Type),
 			"model":             model,
@@ -20879,6 +20879,7 @@ func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
 			"output_price":      2,
 			"cache_read_price":  3,
 			"cache_write_price": 4,
+			"pricing_extras":    map[string]any{"extra_prices": map[string]any{"cache_write_1h": 5}},
 		}})
 		require.NoError(t, err)
 		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
@@ -20905,6 +20906,9 @@ func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
 		require.False(t, got.OutputPrice.Valid)
 		require.False(t, got.CacheReadPrice.Valid)
 		require.False(t, got.CacheWritePrice.Valid)
+		// Organization prices carry no pricing extras, so none of the
+		// site-wide extras apply.
+		require.False(t, got.PricingExtras.Valid)
 	})
 
 	t.Run("NoPricesFallsBackToSite", func(t *testing.T) {
@@ -20922,6 +20926,8 @@ func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
 		require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, got.OutputPrice)
 		require.Equal(t, sql.NullInt64{Int64: 3, Valid: true}, got.CacheReadPrice)
 		require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, got.CacheWritePrice)
+		require.True(t, got.PricingExtras.Valid)
+		require.JSONEq(t, `{"extra_prices":{"cache_write_1h":5}}`, string(got.PricingExtras.RawMessage))
 	})
 }
 

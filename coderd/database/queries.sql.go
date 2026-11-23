@@ -1488,7 +1488,7 @@ func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAI
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, pricing_usage
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -1523,6 +1523,7 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.CostMicros,
 			&i.ProviderModel,
 			&i.PricedModel,
+			&i.PricingUsage,
 		); err != nil {
 			return nil, err
 		}
@@ -1745,32 +1746,33 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, pricing_usage
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
-  $10, $11, $12, $13, $14, $15, $16, $17
+  $10, $11, $12, $13, $14, $15, $16, $17, $18
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, pricing_usage
 `
 
 type InsertAIBridgeTokenUsageParams struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	InterceptionID        uuid.UUID       `db:"interception_id" json:"interception_id"`
-	ProviderResponseID    string          `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens           int64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens          int64           `db:"output_tokens" json:"output_tokens"`
-	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
-	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
-	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	EffectiveGroupID      uuid.NullUUID   `db:"effective_group_id" json:"effective_group_id"`
-	InputPriceMicros      sql.NullInt64   `db:"input_price_micros" json:"input_price_micros"`
-	OutputPriceMicros     sql.NullInt64   `db:"output_price_micros" json:"output_price_micros"`
-	CacheReadPriceMicros  sql.NullInt64   `db:"cache_read_price_micros" json:"cache_read_price_micros"`
-	CacheWritePriceMicros sql.NullInt64   `db:"cache_write_price_micros" json:"cache_write_price_micros"`
-	CostMicros            sql.NullInt64   `db:"cost_micros" json:"cost_micros"`
-	ProviderModel         sql.NullString  `db:"provider_model" json:"provider_model"`
-	PricedModel           sql.NullString  `db:"priced_model" json:"priced_model"`
+	ID                    uuid.UUID             `db:"id" json:"id"`
+	InterceptionID        uuid.UUID             `db:"interception_id" json:"interception_id"`
+	ProviderResponseID    string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64                 `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens  int64                 `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64                 `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	Metadata              json.RawMessage       `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
+	EffectiveGroupID      uuid.NullUUID         `db:"effective_group_id" json:"effective_group_id"`
+	InputPriceMicros      sql.NullInt64         `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros     sql.NullInt64         `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	ProviderModel         sql.NullString        `db:"provider_model" json:"provider_model"`
+	PricedModel           sql.NullString        `db:"priced_model" json:"priced_model"`
+	PricingUsage          pqtype.NullRawMessage `db:"pricing_usage" json:"pricing_usage"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -1792,6 +1794,7 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.CostMicros,
 		arg.ProviderModel,
 		arg.PricedModel,
+		arg.PricingUsage,
 	)
 	var i AIBridgeTokenUsage
 	err := row.Scan(
@@ -1812,6 +1815,7 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.CostMicros,
 		&i.ProviderModel,
 		&i.PricedModel,
+		&i.PricingUsage,
 	)
 	return i, err
 }
@@ -2669,7 +2673,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, pricing_usage
 FROM
 	aibridge_token_usages
 WHERE
@@ -2706,6 +2710,7 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.CostMicros,
 			&i.ProviderModel,
 			&i.PricedModel,
+			&i.PricingUsage,
 		); err != nil {
 			return nil, err
 		}
@@ -3069,7 +3074,8 @@ WITH prices AS (
 		input_price,
 		output_price,
 		cache_read_price,
-		cache_write_price
+		cache_write_price,
+		pricing_extras
 	FROM ai_model_prices
 	WHERE ai_model_prices.provider = $2::text
 		AND ai_model_prices.model IN ($1::text, $3::text)
@@ -3080,7 +3086,8 @@ WITH prices AS (
 		input_price,
 		output_price,
 		cache_read_price,
-		cache_write_price
+		cache_write_price,
+		NULL::jsonb
 	FROM ai_model_configs
 	WHERE ai_model_configs.organization_id = $4::uuid
 		AND ai_model_configs.provider_id = $5::uuid
@@ -3098,7 +3105,8 @@ SELECT
 	prices.input_price,
 	prices.output_price,
 	prices.cache_read_price,
-	prices.cache_write_price
+	prices.cache_write_price,
+	prices.pricing_extras
 FROM prices
 ORDER BY
 	CASE WHEN prices.model = $1::text THEN 0 ELSE 1 END ASC,
@@ -3115,11 +3123,12 @@ type GetAIModelPriceForProviderParams struct {
 }
 
 type GetAIModelPriceForProviderRow struct {
-	Model           string        `db:"model" json:"model"`
-	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	Model           string                `db:"model" json:"model"`
+	InputPrice      sql.NullInt64         `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64         `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64         `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64         `db:"cache_write_price" json:"cache_write_price"`
+	PricingExtras   pqtype.NullRawMessage `db:"pricing_extras" json:"pricing_extras"`
 }
 
 // Returns the price in effect for the model served by the configured provider.
@@ -3132,8 +3141,9 @@ type GetAIModelPriceForProviderRow struct {
 // A NULL organization_id matches no organization price, so only site-wide
 // prices apply. Soft-deleted organization configs, and those that set no
 // price, are ignored. A matched price is used as a whole: its NULL prices are
-// not filled in from a less specific price. Each branch is a unique index
-// lookup.
+// not filled in from a less specific price. Organization prices carry no
+// pricing_extras, so an organization match returns NULL for it and gets no
+// long-context tiers or extra prices. Each branch is a unique index lookup.
 func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceForProvider,
 		arg.Model,
@@ -3149,6 +3159,7 @@ func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIMo
 		&i.OutputPrice,
 		&i.CacheReadPrice,
 		&i.CacheWritePrice,
+		&i.PricingExtras,
 	)
 	return i, err
 }
@@ -3158,7 +3169,7 @@ SELECT DISTINCT ON (
     provider,
     model,
     CASE WHEN $1::text = 'all' THEN source::text ELSE '' END
-) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
+) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source, pricing_extras
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
@@ -3216,6 +3227,7 @@ func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesP
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Source,
+			&i.PricingExtras,
 		); err != nil {
 			return nil, err
 		}
@@ -4445,7 +4457,8 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
+	provider, model, input_price, output_price, cache_read_price, cache_write_price,
+	pricing_extras, source
 )
 SELECT
 	elem->>'provider',
@@ -4454,6 +4467,7 @@ SELECT
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
 	(elem->>'cache_write_price')::bigint,
+	NULLIF(elem->'pricing_extras', 'null'::jsonb),
 	$1::ai_model_price_source
 FROM jsonb_array_elements($2::jsonb) AS elem
 ON CONFLICT (provider, model, source) DO UPDATE SET
@@ -4461,17 +4475,20 @@ ON CONFLICT (provider, model, source) DO UPDATE SET
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
+	pricing_extras    = EXCLUDED.pricing_extras,
 	updated_at        = NOW()
 WHERE (
 	ai_model_prices.input_price,
 	ai_model_prices.output_price,
 	ai_model_prices.cache_read_price,
-	ai_model_prices.cache_write_price
+	ai_model_prices.cache_write_price,
+	ai_model_prices.pricing_extras
 ) IS DISTINCT FROM (
 	EXCLUDED.input_price,
 	EXCLUDED.output_price,
 	EXCLUDED.cache_read_price,
-	EXCLUDED.cache_write_price
+	EXCLUDED.cache_write_price,
+	EXCLUDED.pricing_extras
 )
 `
 
@@ -4482,7 +4499,8 @@ type UpsertAIModelPricesParams struct {
 
 // Upsert a batch of model prices from a JSON array, all recorded under the
 // given source. Each element must have provider, model, and the four price
-// fields, and null prices are written as SQL NULL.
+// fields, and null prices are written as SQL NULL. pricing_extras is optional;
+// an absent or null key is written as SQL NULL.
 // Each source keeps its own row, so the price book and a custom price never
 // overwrite each other. A conflicting row is only rewritten when a price
 // differs, so updated_at records when a price last changed. Prices are
