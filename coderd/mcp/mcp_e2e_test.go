@@ -28,9 +28,11 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1708,8 +1710,8 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	}).WithAgent().Do()
 
 	fs := afero.NewMemMapFs()
-	require.NoError(t, fs.MkdirAll("/tmp", 0o755))
-	require.NoError(t, afero.WriteFile(fs, "/tmp/secret.txt", []byte("secret-content"), 0o644))
+	filePath := filepath.Join(os.TempDir(), "secret.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("secret-content"), 0o644))
 
 	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
 		opts.Filesystem = fs
@@ -1744,7 +1746,7 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 		Name: toolsdk.ToolNameWorkspaceReadFile,
 		Arguments: map[string]any{
 			"workspace": workspaceIdent,
-			"path":      "/tmp/secret.txt",
+			"path":      filePath,
 		},
 	})
 	require.NoError(t, err)
@@ -1753,6 +1755,92 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
+}
+
+// TestMCPHTTP_E2E_TemplateBrowserOnly verifies that workspace tools that
+// dial the agent are refused once the workspace's template is browser-only.
+func TestMCPHTTP_E2E_TemplateBrowserOnly(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	defer closer.Close()
+
+	admin := coderdtest.CreateFirstUser(t, coderClient)
+
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "browser-only-ws",
+		OrganizationID: admin.OrganizationID,
+		OwnerID:        admin.UserID,
+	}).WithAgent().Do()
+
+	fs := afero.NewMemMapFs()
+	filePath := filepath.Join(os.TempDir(), "file.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("content"), 0o644))
+
+	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
+		opts.Filesystem = fs
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, coderClient, r.Workspace.ID).Wait()
+
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-browser-only", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
+	require.NoError(t, err)
+	defer func() {
+		_ = mcpClient.Close()
+	}()
+
+	readFile := &mcp.CallToolParams{
+		Name: toolsdk.ToolNameWorkspaceReadFile,
+		Arguments: map[string]any{
+			"workspace": r.Workspace.Name,
+			"path":      filePath,
+		},
+	}
+	toolResult, err := mcpClient.CallTool(ctx, readFile)
+	require.NoError(t, err)
+	require.Len(t, toolResult.Content, 1)
+	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	require.False(t, toolResult.IsError, "tool call failed before the template is browser-only: %s", textContent.Text)
+
+	me, err := coderClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	// The API refuses to turn browser_only on without an enterprise license.
+	ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(me))
+	tpl, err := api.Database.GetTemplateByID(ownerCtx, r.Workspace.TemplateID)
+	require.NoError(t, err)
+	require.NoError(t, api.Database.UpdateTemplateMetaByID(ownerCtx, database.UpdateTemplateMetaByIDParams{
+		ID:                           tpl.ID,
+		UpdatedAt:                    dbtime.Now(),
+		Description:                  tpl.Description,
+		Name:                         tpl.Name,
+		Icon:                         tpl.Icon,
+		DisplayName:                  tpl.DisplayName,
+		AllowUserCancelWorkspaceJobs: tpl.AllowUserCancelWorkspaceJobs,
+		GroupACL:                     tpl.GroupACL,
+		MaxPortSharingLevel:          tpl.MaxPortSharingLevel,
+		UseClassicParameterFlow:      tpl.UseClassicParameterFlow,
+		CorsBehavior:                 tpl.CorsBehavior,
+		DisableModuleCache:           tpl.DisableModuleCache,
+		AgentsAllowed:                tpl.AgentsAllowed,
+		AllowWorkspaceRenames:        tpl.AllowWorkspaceRenames,
+		BrowserOnly:                  true,
+	}))
+
+	toolResult, err = mcpClient.CallTool(ctx, readFile)
+	require.NoError(t, err)
+	require.True(t, toolResult.IsError, "expected tool call to fail for a browser-only template")
+	require.Len(t, toolResult.Content, 1)
+	textContent, ok = toolResult.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Equal(t, "failed to dial agent: non-browser connections are disabled for this template", textContent.Text)
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {

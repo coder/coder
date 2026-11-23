@@ -6,6 +6,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -23,7 +24,6 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 import { needsSignIn } from "../../components/mcpMenuServers";
-import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
 
 type AgentSettingsMCPConnectionsPageViewProps = {

@@ -12,6 +12,7 @@ import {
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
+	WithBuildReasonTooltip,
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
@@ -36,13 +37,14 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
 				<div className="flex flex-col gap-px">
 					{builds
 						? builds.map((build) => (
-								<SidebarLink
-									target="_blank"
-									key={build.id}
-									to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
-								>
-									<WorkspaceBuildData build={build} />
-								</SidebarLink>
+								<WithBuildReasonTooltip key={build.id} build={build}>
+									<SidebarLink
+										target="_blank"
+										to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+									>
+										<WorkspaceBuildData build={build} />
+									</SidebarLink>
+								</WithBuildReasonTooltip>
 							))
 						: Array.from({ length: 15 }, (_, i) => (
 								<SidebarItem key={i}>

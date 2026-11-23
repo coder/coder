@@ -75,6 +75,39 @@ describe("WorkspaceSharingForm", () => {
 		);
 	});
 
+	it("ignores role changes while that member's update is pending", async () => {
+		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
+			sharing_disabled: false,
+			sharing_globally_disabled: false,
+			shareable_workspace_owners: "everyone",
+		});
+		const onUpdateUser = vi.fn();
+
+		render(
+			<WorkspaceSharingForm
+				organizationId={MockWorkspace.organization_id}
+				workspaceACL={mockWorkspaceACL}
+				canShareWorkspace
+				error={undefined}
+				onUpdateUser={onUpdateUser}
+				updatingUserId={MockUserMember.id}
+				onRemoveUser={vi.fn()}
+				onUpdateGroup={vi.fn()}
+				onRemoveGroup={vi.fn()}
+			/>,
+		);
+
+		const user = userEvent.setup();
+		await user.click(
+			await screen.findByRole("combobox", {
+				name: `Role for ${MockUserMember.username}: Use`,
+			}),
+		);
+		// Typeahead on the closed trigger selects a matching option.
+		await user.keyboard("{ArrowDown}{Enter}a");
+		expect(onUpdateUser).not.toHaveBeenCalled();
+	});
+
 	it("names each member's menu after the member", async () => {
 		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
 			sharing_disabled: false,

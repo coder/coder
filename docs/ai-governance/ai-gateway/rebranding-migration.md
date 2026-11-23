@@ -18,14 +18,14 @@ Adopt the `ai_gateway` names for gateway and proxy settings so your configuratio
 
 ## At a glance
 
-| Area                  | Old name                                       | New (canonical) name                              | Old name still works?              |
-|-----------------------|------------------------------------------------|---------------------------------------------------|------------------------------------|
-| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes, except provider setup         |
-| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes, except provider setup         |
-| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes, except provider setup         |
-| HTTP API              | `/api/v2/aibridge`                             | `/api/v2/ai-gateway`                              | Yes (legacy route retained)        |
-| Prometheus metrics    | `coder_aibridged_*` / `coder_aibridgeproxyd_*` | `coder_ai_gateway_*` / `coder_ai_gateway_proxy_*` | Yes (both emitted, old deprecated) |
-| Database              | (no change)                                    | (no change)                                       | n/a                                |
+| Area                  | Old name                                       | New (canonical) name                              | Old name still works?       |
+|-----------------------|------------------------------------------------|---------------------------------------------------|-----------------------------|
+| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes, except provider setup  |
+| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes, except provider setup  |
+| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes, except provider setup  |
+| HTTP API              | `/api/v2/aibridge`                             | `/api/v2/ai-gateway`                              | Yes (legacy route retained) |
+| Prometheus metrics    | `coder_aibridged_*` / `coder_aibridgeproxyd_*` | `coder_ai_gateway_*` / `coder_ai_gateway_proxy_*` | No (removed in v2.40)       |
+| Database              | (no change)                                    | (no change)                                       | n/a                         |
 
 ## What did not change
 
@@ -127,34 +127,14 @@ AI clients (such as Claude Code, Codex, and other tools) that are configured wit
 
 ## Metrics
 
-The metric prefixes have been renamed:
+The deprecated metric prefixes were removed in Coder v2.40.
+Only the new prefixes are emitted:
 
-| Deprecated prefix        | New prefix                 |
+| Removed prefix           | Current prefix             |
 |--------------------------|----------------------------|
 | `coder_aibridged_*`      | `coder_ai_gateway_*`       |
 | `coder_aibridgeproxyd_*` | `coder_ai_gateway_proxy_*` |
 
-**For the embedded gateway and AI Gateway Proxy, both the old and new metric names are emitted simultaneously today.**
-Their series are exported under both prefixes from the same underlying collector, so existing dashboards, alerts, and recording rules keep working immediately after upgrade with no changes.
-Cost control and standalone gateway metrics use only the new prefix.
-Refer to [Metric name migration](monitoring.md#metric-name-migration) for the exceptions.
-
-The old prefixes are deprecated and will be removed in a future release.
-To keep your observability aligned with the new names:
-
-1. Update Grafana dashboards, Prometheus alerting rules, and recording rules to reference the new `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*` names.
-2. Verify the new series are present in your monitoring stack (they are emitted as of this release).
-
-### Optional: dropping the old names
-
-If you have already migrated to the new names and do not want both prefixes ingested (for example, to avoid doubling cardinality in your time-series database), you can drop the deprecated series at scrape time with Prometheus `metric_relabel_configs`:
-
-```yaml
-metric_relabel_configs:
-  - source_labels: [__name__]
-    regex: 'coder_aibridged_.*|coder_aibridgeproxyd_.*'
-    action: drop
-```
-
-This keeps the canonical `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*` series and discards the deprecated `coder_aibridged_*` and `coder_aibridgeproxyd_*` ones before they are stored.
-Only do this once your dashboards, alerts, and recording rules reference the new names.
+Coder v2.35 through v2.39 emit both the removed and current prefixes.
+Before you upgrade to v2.40, update Grafana dashboards, Prometheus alerting rules, and recording rules that reference the removed prefixes to use `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*`, and confirm the new series are present in your monitoring stack.
+If you upgrade from v2.34 or earlier, the new prefixes are not available before the upgrade, so update your dashboards and alerts as part of the upgrade or use the temporary bridge in [Metric name migration](monitoring.md#metric-name-migration).
