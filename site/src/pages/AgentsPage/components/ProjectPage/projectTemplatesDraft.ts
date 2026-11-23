@@ -2,6 +2,7 @@ import type { ChatProjectTemplatesChange } from "#/api/queries/chatProjects";
 import type {
 	ChatProject,
 	ChatProjectDefaultTemplate,
+	Template,
 } from "#/api/typesGenerated";
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
@@ -43,6 +44,24 @@ export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
 		templates.template_ids.toSorted(),
 		serializeDefaultTemplate(templates.default_template),
 	]);
+
+/**
+ * Covers what a request for the draft's templates depends on: which of them
+ * are eligible, their active versions, and their parameter mode.
+ */
+export const serializeEligibleTemplates = (
+	templates: readonly Template[] | undefined,
+	draftTemplateIds: readonly string[],
+) =>
+	JSON.stringify(
+		(templates ?? [])
+			.filter(({ id }) => draftTemplateIds.includes(id))
+			.map(
+				({ id, active_version_id, use_classic_parameter_flow }) =>
+					`${id}:${active_version_id}:${use_classic_parameter_flow}`,
+			)
+			.sort(),
+	);
 
 /**
  * Returns what saving the draft changes about the saved templates. Templates
