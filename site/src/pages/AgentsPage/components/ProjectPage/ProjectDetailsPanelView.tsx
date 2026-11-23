@@ -199,7 +199,7 @@ export const ProjectDetailsPanelView: React.FC<
 							<span
 								ref={templateCountRef}
 								tabIndex={-1}
-								className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								className="rounded-sm outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 							>
 								{templateCountLabel}
 							</span>

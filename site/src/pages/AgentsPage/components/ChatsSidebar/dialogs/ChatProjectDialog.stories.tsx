@@ -9,6 +9,7 @@ import {
 } from "#/api/queries/templates";
 import type {
 	DynamicParametersResponse,
+	Preset,
 	PreviewParameter,
 	Template,
 } from "#/api/typesGenerated";
@@ -41,6 +42,15 @@ const mockKubernetesTemplate: Template = {
 	name: "kubernetes",
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
+};
+const mockSmallPreset: Preset = {
+	ID: "preset-small",
+	Name: "Small",
+	Parameters: [],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Description: "",
+	Icon: "",
 };
 // An evaluation fills each value with the parameter's default.
 const mockInstanceTypeParameter: PreviewParameter = {
@@ -287,6 +297,28 @@ const pickDefaultParameters: Story["play"] = async (context) => {
 	await userEvent.click(
 		await screen.findByRole("radio", { name: "Parameter values" }),
 	);
+};
+
+export const DefaultTemplatePresets: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [mockSmallPreset],
+			},
+		],
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplatePresetsLoading: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: pickDefaultTemplate,
 };
 
 export const DefaultTemplateWithoutPresets: Story = {

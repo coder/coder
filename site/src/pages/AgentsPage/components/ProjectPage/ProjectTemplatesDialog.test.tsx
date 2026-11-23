@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { agentTemplatesKey } from "#/api/queries/templates";
 import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -68,6 +69,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 				</QueryClientProvider>,
 			);
 		},
+		queryClient,
 	};
 };
 
@@ -193,8 +195,10 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
 	});
@@ -473,8 +477,10 @@ describe("ProjectTemplatesDialog", () => {
 	it("sends a save once even when Save is pressed again before the dialog closes", async () => {
 		const { user, props } = renderDialog();
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 
 		await user.click(save);
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
@@ -483,6 +489,25 @@ describe("ProjectTemplatesDialog", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(props.onSave).toHaveBeenCalledTimes(1);
+	});
+
+	it("has nothing to save when the only selected template is no longer eligible", async () => {
+		const { user, props, queryClient } = renderDialog();
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+
+		const getTemplates = vi.mocked(API.getTemplates).mockResolvedValue([]);
+		await act(() =>
+			queryClient.invalidateQueries({
+				queryKey: agentTemplatesKey(MockChatProject.organization_id),
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: /Save/, busy: false }),
+		);
+
+		expect(props.onSave).not.toHaveBeenCalled();
+		// The first load and the refetch. A save would check the list again.
+		expect(getTemplates).toHaveBeenCalledTimes(2);
 	});
 
 	it("leaves alone an attached template that is missing from the eligible list", async () => {
@@ -494,8 +519,10 @@ describe("ProjectTemplatesDialog", () => {
 		});
 
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
