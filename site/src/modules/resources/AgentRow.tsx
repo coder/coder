@@ -266,29 +266,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
 
-	// Undefined until a tab is picked by the user or auto-selected.
+	// Undefined until the user picks a tab.
 	const [chosenLogTab, setChosenLogTab] = useState<string>();
 
-	// Auto-select the first log tab whose script failed and has rendered output.
-	if (chosenLogTab === undefined) {
-		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
-			const script = agent.scripts.find(
-				(s) => s.log_source_id === logSource.id,
-			);
-			if (!isScriptFailed(script)) {
-				return false;
-			}
-			return agentLogs.some(
-				(log) =>
-					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-			);
-		});
-		if (failedSourceWithLogs) {
-			setChosenLogTab(failedSourceWithLogs.id);
+	// Until then, show the first log tab whose script failed and has rendered output.
+	const failedSourceWithLogs = agent.log_sources.find((logSource) => {
+		const script = agent.scripts.find((s) => s.log_source_id === logSource.id);
+		if (!isScriptFailed(script)) {
+			return false;
 		}
-	}
+		return agentLogs.some(
+			(log) => log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+		);
+	});
 
-	const selectedLogTab = chosenLogTab ?? "all";
+	const selectedLogTab = chosenLogTab ?? failedSourceWithLogs?.id ?? "all";
 
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
