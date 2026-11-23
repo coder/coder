@@ -16,6 +16,14 @@ Each trait is a building block you add to a template based on your infrastructur
 This page is a guide for Coder administrators on how to build and configure Coder templates and the underlying infrastructure to sandbox AI agents, according to the previous definitions.
 Because Coder is flexible and infrastructure-agnostic, this page outlines several ways to achieve each trait, and the tradeoffs of each.
 
+The tables on this page give each method a type, so you can tell what Coder provides and what you run yourself:
+
+- **Native**: built into Coder.
+  You configure it in Coder, or in the template with the Coder Terraform provider.
+  **Native (Premium)** marks a method that needs a Premium license.
+- **Integrated**: provided by a third-party tool, runtime, or cloud service that Coder works with.
+  You install and run it alongside Coder.
+
 | Trait                                   | Options                                                       | Main tradeoff                                                          |
 |-----------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
 | [Kernel isolation](#kernel-isolation)   | VMs, gVisor, Kata Containers, Nitro Sandboxes                 | Stronger isolation needs node support that managed node pools can lack |
@@ -123,12 +131,12 @@ Template names, descriptions, and organization instructions help the agent pick 
 Containers on a node share its kernel, so a kernel exploit can escape to the node and its other workloads.
 Kernel isolation gives each workspace its own kernel, or a kernel in user space, so the exploit stays inside.
 
-| Method                                                                              | How it works                                                                                                                       | Tradeoffs                                                                                                                                                                     |
-|-------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| VM-based templates                                                                  | Each workspace is its own virtual machine, such as the [AWS Linux](https://registry.coder.com/templates/coder/aws-linux) template. | More expensive, and slower to start than a container.                                                                                                                         |
-| [gVisor](https://gvisor.dev/docs/user_guide/containerd/quick_start/)                | A kernel that runs in user space and handles the workspace's system calls.                                                         | Slower, especially for file-heavy work. It still uses some host kernel features, and some Linux features don't work.                                                          |
-| [Kata Containers](https://katacontainers.io/)                                       | Each Pod runs in a small VM with its own kernel, with a hypervisor such as QEMU or Cloud Hypervisor.                               | Needs bare metal or nested virtualization, which many managed nodes don't have. Uses more memory for each Pod.                                                                |
-| [Nitro Sandboxes](https://docs.aws.amazon.com/eks/latest/userguide/sandboxing.html) | Each Pod runs in its own Firecracker VM on the AWS Nitro hypervisor, with the `isolated-sandbox` RuntimeClass.                     | Amazon Elastic Kubernetes Service (EKS) only. Built into EKS Auto Mode; managed node groups need a custom Amazon Machine Image (AMI). No GPUs, and a fixed size for each Pod. |
+| Method                                                                              | Type       | How it works                                                                                                                       | Tradeoffs                                                                                                                                                                     |
+|-------------------------------------------------------------------------------------|------------|------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| VM-based templates                                                                  | Integrated | Each workspace is its own virtual machine, such as the [AWS Linux](https://registry.coder.com/templates/coder/aws-linux) template. | More expensive, and slower to start than a container.                                                                                                                         |
+| [gVisor](https://gvisor.dev/docs/user_guide/containerd/quick_start/)                | Integrated | A kernel that runs in user space and handles the workspace's system calls.                                                         | Slower, especially for file-heavy work. It still uses some host kernel features, and some Linux features don't work.                                                          |
+| [Kata Containers](https://katacontainers.io/)                                       | Integrated | Each Pod runs in a small VM with its own kernel, with a hypervisor such as QEMU or Cloud Hypervisor.                               | Needs bare metal or nested virtualization, which many managed nodes don't have. Uses more memory for each Pod.                                                                |
+| [Nitro Sandboxes](https://docs.aws.amazon.com/eks/latest/userguide/sandboxing.html) | Integrated | Each Pod runs in its own Firecracker VM on the AWS Nitro hypervisor, with the `isolated-sandbox` RuntimeClass.                     | Amazon Elastic Kubernetes Service (EKS) only. Built into EKS Auto Mode; managed node groups need a custom Amazon Machine Image (AMI). No GPUs, and a fixed size for each Pod. |
 
 [Sysbox](./docker-in-workspaces.md#sysbox-container-runtime) isn't kernel isolation.
 It runs Docker and systemd in the workspace without a privileged container, by mapping root in the workspace to an unprivileged user on the node, but every system call still goes to the node's kernel.
@@ -177,12 +185,12 @@ The workspace always needs to reach the Coder server.
 The Coder workspace agent relays connections through it, so the workspace needs no inbound access.
 For the connections Coder uses, refer to [Outbound network access](../../admin/security/security-best-practices.md#outbound-network-access).
 
-| Method                                                                                                | Rules by                                       | Applies to        | Tradeoffs                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------|------------------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) | IP address and port                            | The whole Pod     | Built in, but IP-based, so services that change addresses, such as GitHub, are hard to allow.                                  |
-| Egress proxy, such as [Squid](https://www.squid-cache.org/)                                           | Host name                                      | The whole Pod     | Another component to run and update, as a separate Pod or a sidecar.                                                           |
-| [NVIDIA OpenShell](https://docs.nvidia.com/openshell/latest/about/overview)                           | Host name and the binary that connects         | The whole sandbox | Nested setup: a cluster gateway, plus a launcher Pod and a supervisor Pod for each workspace. Slower to stop than a plain Pod. |
-| [Cilium](https://docs.cilium.io/en/stable/security/dns/)                                              | Host name, IP address, port, and HTTP requests | The whole Pod     | Cilium must be the cluster's network plugin.                                                                                   |
+| Method                                                                                                | Type       | Rules by                                       | Applies to        | Tradeoffs                                                                                                                      |
+|-------------------------------------------------------------------------------------------------------|------------|------------------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) | Integrated | IP address and port                            | The whole Pod     | Part of Kubernetes, but IP-based, so services that change addresses, such as GitHub, are hard to allow.                        |
+| Egress proxy, such as [Squid](https://www.squid-cache.org/)                                           | Integrated | Host name                                      | The whole Pod     | Another component to run and update, as a separate Pod or a sidecar.                                                           |
+| [NVIDIA OpenShell](https://docs.nvidia.com/openshell/latest/about/overview)                           | Integrated | Host name and the binary that connects         | The whole sandbox | Nested setup: a cluster gateway, plus a launcher Pod and a supervisor Pod for each workspace. Slower to stop than a plain Pod. |
+| [Cilium](https://docs.cilium.io/en/stable/security/dns/)                                              | Integrated | Host name, IP address, port, and HTTP requests | The whole Pod     | Cilium must be the cluster's network plugin.                                                                                   |
 
 > [!WARNING]
 > Kubernetes accepts a NetworkPolicy even when the network plugin doesn't enforce it.
@@ -256,12 +264,12 @@ An AI agent that reads this token can use it to get:
 So the identity that owns the workspace sets the blast radius.
 To limit what an agent can read:
 
-| Method                                                                | How it works                                                                                                                        | Tradeoffs                                                                                                                                                                       |
-|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [API key scopes](../../admin/users/sessions-tokens.md#api-key-scopes) | Give the agent a token with only the scopes it needs, instead of the owner's session token.                                         | Available in Coder. You pick the scopes for each task, and a scope that's too narrow fails the task.                                                                            |
-| [AI Gateway](../../ai-governance/ai-gateway/index.md)                 | The agent calls model providers through Coder with a Coder token, so the provider API keys stay on the server.                      | Coder Premium. The agent still needs a Coder token to authenticate, so pair it with a scoped token or a service account.                                                        |
-| [Service accounts](../../admin/users/headless-auth.md)                | Run autonomous agents as a headless user with no linked external auth, no personal secrets, and only the template access they need. | Coder Premium. Work isn't tied to the person who asked for it, so set a [Git identity](../../coder-agents/platform-controls/template-optimization.md#git-identity) for commits. |
-| [Dynamic secrets](../../admin/security/secrets.md#dynamic-secrets)    | Create a short-lived credential or cloud identity for each workspace in the template, tied to the workspace lifecycle.              | A leaked credential expires on its own. Needs a secrets manager or cloud identity setup for each provider.                                                                      |
+| Method                                                                | Type             | How it works                                                                                                                        | Tradeoffs                                                                                                                                                        |
+|-----------------------------------------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [API key scopes](../../admin/users/sessions-tokens.md#api-key-scopes) | Native           | Give the agent a token with only the scopes it needs, instead of the owner's session token.                                         | You pick the scopes for each task, and a scope that's too narrow fails the task.                                                                                 |
+| [AI Gateway](../../ai-governance/ai-gateway/index.md)                 | Native (Premium) | The agent calls model providers through Coder with a Coder token, so the provider API keys stay on the server.                      | The agent still needs a Coder token to authenticate, so pair it with a scoped token or a service account.                                                        |
+| [Service accounts](../../admin/users/headless-auth.md)                | Native (Premium) | Run autonomous agents as a headless user with no linked external auth, no personal secrets, and only the template access they need. | Work isn't tied to the person who asked for it, so set a [Git identity](../../coder-agents/platform-controls/template-optimization.md#git-identity) for commits. |
+| [Dynamic secrets](../../admin/security/secrets.md#dynamic-secrets)    | Integrated       | Create a short-lived credential or cloud identity for each workspace in the template, tied to the workspace lifecycle.              | A leaked credential expires on its own. Needs a secrets manager or cloud identity setup for each provider.                                                       |
 
 ### Scope the workspace agent token
 
@@ -407,11 +415,11 @@ If the sandbox takes minutes to start, users run the agent on their own machine 
 
 To see a Kubernetes template go from 98&nbsp;seconds to 1.8&nbsp;seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs&t=514s).
 
-| Method                                                         | How it works                                                                                       | Tradeoffs                                                                                 |
-|----------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| [Prebuilt workspaces](./prebuilt-workspaces.md)                | Coder keeps a pool of ready workspaces for each preset, and a user claims one at create.           | Coder Premium. Idle workspaces cost compute, and a slow claim can cancel out the gain.    |
-| [Speed up templates](../../workspaces/speed-up-templates.md)   | Find slow steps with the build timeline, and move tools into the image instead of startup scripts. | Available in Coder, with no idle cost. A larger image takes longer to pull on a new node. |
-| [agent-sandbox](https://agent-sandbox.sigs.k8s.io/) warm pools | A `SandboxWarmPool` keeps booted sandboxes ready in the cluster.                                   | Another controller to run in the cluster, and idle sandboxes cost compute.                |
+| Method                                                         | Type             | How it works                                                                                       | Tradeoffs                                                                  |
+|----------------------------------------------------------------|------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| [Prebuilt workspaces](./prebuilt-workspaces.md)                | Native (Premium) | Coder keeps a pool of ready workspaces for each preset, and a user claims one at create.           | Idle workspaces cost compute, and a slow claim can cancel out the gain.    |
+| [Speed up templates](../../workspaces/speed-up-templates.md)   | Native           | Find slow steps with the build timeline, and move tools into the image instead of startup scripts. | No idle cost. A larger image takes longer to pull on a new node.           |
+| [agent-sandbox](https://agent-sandbox.sigs.k8s.io/) warm pools | Integrated       | A `SandboxWarmPool` keeps booted sandboxes ready in the cluster.                                   | Another controller to run in the cluster, and idle sandboxes cost compute. |
 
 A claim changes the workspace owner, so a resource that uses the owner's name in an immutable field is replaced at claim, and the claim is slow.
 To keep the claim fast, refer to [Prevent resource replacement](./prebuilt-workspaces.md#prevent-resource-replacement).
@@ -435,12 +443,12 @@ Examples and references:
 A sandbox limits what an agent can do.
 Logs show what it did, so you can tell whether the limits worked.
 
-| Method                                                       | Provided by   | What it records                                             |
-|--------------------------------------------------------------|---------------|-------------------------------------------------------------|
-| [AI Gateway audit](../../ai-governance/ai-gateway/audit.md)  | Coder Premium | Prompts, tool calls, and token use for each model request.  |
-| [Workspace process logging](./process-logging.md)            | Coder Premium | Each process started in the workspace container, with eBPF. |
-| [Connection logs](../../admin/monitoring/connection-logs.md) | Coder Premium | SSH, app, and port-forward sessions into the workspace.     |
-| [Audit logs](../../admin/security/audit-logs.md)             | Coder Premium | Changes to templates, workspaces, users, and tokens.        |
+| Method                                                       | Type             | What it records                                             |
+|--------------------------------------------------------------|------------------|-------------------------------------------------------------|
+| [AI Gateway audit](../../ai-governance/ai-gateway/audit.md)  | Native (Premium) | Prompts, tool calls, and token use for each model request.  |
+| [Workspace process logging](./process-logging.md)            | Native (Premium) | Each process started in the workspace container, with eBPF. |
+| [Connection logs](../../admin/monitoring/connection-logs.md) | Native (Premium) | SSH, app, and port-forward sessions into the workspace.     |
+| [Audit logs](../../admin/security/audit-logs.md)             | Native (Premium) | Changes to templates, workspaces, users, and tokens.        |
 
 ## Learn more
 
