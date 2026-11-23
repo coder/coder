@@ -5,7 +5,7 @@ title: Rules engine documentation
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../index.md), which is included with a Premium license.
 
-## Overview
+## How the rules engine works
 
 The `rulesengine` package provides a flexible rule-based filtering system for HTTP/HTTPS requests.
 Rules use a simple key-value syntax with support for wildcards and multiple values.

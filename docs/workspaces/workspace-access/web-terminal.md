@@ -7,7 +7,7 @@ It's automatically enabled for all workspaces and requires no additional configu
 
 ![Terminal Access](../../images/user-guides/terminal-access.png)
 
-## Overview
+## What the Web Terminal provides
 
 The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standard terminal emulator, combined with WebSocket technology to provide a responsive and feature-rich terminal experience in your browser.
 

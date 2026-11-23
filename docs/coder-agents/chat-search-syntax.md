@@ -91,7 +91,7 @@ Multiple filters in one query combine with AND logic.
 ?q=search:refactor+pr_status:open
 ```
 
-## Notes
+## Status and filter behavior
 
 - `status:waiting` is an idle conversation, `status:running` is a turn in progress, and `status:interrupting` is a turn being stopped.
 - `status:requires_action` means the agent needs you before it can continue, and `status:error` means the turn failed.

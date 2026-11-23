@@ -122,7 +122,7 @@ On NixOS, also set these options in your flake's `nix.settings` so they apply be
 To host your own cache for faster download speeds and full coverage of packages, follow the nix.dev [binary cache tutorial](https://nix.dev/tutorials/nixos/binary-cache-setup.html).
 Its [Alternatives](https://nix.dev/tutorials/nixos/binary-cache-setup.html#alternatives) section lists ready-made options, such as hosted and S3-backed caches.
 
-### Other
+### Other ways to improve startup times
 
 Other caching methods are available, such as prebuilding your Nix image in continuous integration (CI) (if you use containers) or using a base disk that you refresh frequently.
 

@@ -264,7 +264,7 @@ func TestRenderPipeline(t *testing.T) {
 	got := render(buildTree(opts))
 
 	wantContains := []string{
-		"## General",
+		"## Core server options",
 		"### Access URL",
 		"- Environment variable: `CODER_ACCESS_URL`",
 		"- CLI flag: [`--access-url`](../../reference/cli/server/index.md#--access-url)",
@@ -295,7 +295,7 @@ func TestRenderPipeline(t *testing.T) {
 	}
 
 	// General (rank -1) sorts before every other top-level section.
-	if i, j := strings.Index(got, "## General"), strings.Index(got, "## Email"); i < 0 || j < 0 || i > j {
+	if i, j := strings.Index(got, "## Core server options"), strings.Index(got, "## Email"); i < 0 || j < 0 || i > j {
 		t.Errorf("General should render before Email (got indexes %d, %d)", i, j)
 	}
 	// Active options sort before deprecated ones within a section.

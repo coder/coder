@@ -7,7 +7,7 @@ title: STUN and NAT
 [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation) is commonly used in private networks to allow multiple devices to share a single public IP address.
 The vast majority of home and corporate internet connections use at least one level of NAT.
 
-## Overview
+## How STUN works in Coder
 
 In order for one application to connect to another across a network, the connecting application needs to know the IP address and port under which the target application is reachable.
 If both applications reside on the same network, then they can most likely connect directly to each other.

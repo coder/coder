@@ -5,7 +5,7 @@ title: Data retention
 Coder supports configurable retention policies that automatically purge old Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway records.
 These policies help manage database growth by removing records older than a specified duration.
 
-## Overview
+## Why use retention policies
 
 Large deployments can accumulate significant amounts of data over time.
 Retention policies help you:

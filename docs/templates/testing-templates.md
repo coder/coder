@@ -11,7 +11,7 @@ November 15, 2024
 
 ---
 
-## Overview
+## What this guide covers
 
 This guide demonstrates how to test and publish Coder templates in a Continuous Integration (CI) pipeline using the [coder/setup-action](https://github.com/coder/setup-coder).
 This workflow makes sure your templates are validated, tested, and promoted seamlessly.

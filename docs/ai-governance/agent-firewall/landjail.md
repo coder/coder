@@ -7,7 +7,7 @@ title: landjail jail type
 
 landjail is Agent Firewall's alternative jail type that uses Landlock V4 for network isolation.
 
-## Overview
+## How landjail works
 
 Agent Firewall uses Landlock V4 to enforce network restrictions:
 

@@ -77,6 +77,33 @@ Even if the levels were correct, the first H1 has no paragraph before the next h
 *Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1), and by `Coder.HeadingOrder` and `Coder.EmptyHeading`.
 The "content between headings" rule is documentation-only.*
 
+## Descriptive headings
+
+An H2 or H3 names the topic of its section.
+The "On this page" list and a screen reader's heading navigation present each heading out of context, so a heading such as `Overview` or `General` gives the reader nothing to choose by.
+Name the topic instead: `How STUN works in Coder`, not `Overview`.
+
+Avoid an H2 or H3 whose whole text is `Overview`, `Details`, `Introduction`, `More`, `Notes`, `Miscellaneous`, `Other`, `General`, `Info`, `Information`, `Summary`, or `Background`.
+A heading that adds a noun passes, such as `Other clouds`.
+
+The rule is a [WCAG 2.2 Level AA](https://www.w3.org/TR/WCAG22/#headings-and-labels) requirement: headings and labels describe topic or purpose.
+When you rename a heading that other pages link to, keep the old anchor with an explicit ID such as `{#overview}`.
+
+**Do**:
+
+```md
+## How STUN works in Coder
+```
+
+**Don't**:
+
+```md
+## Overview
+```
+
+*Enforced by `Coder.VagueHeading` (`warning`).
+The check covers H2 and H3 headings that match the list, not whether a longer heading is descriptive.*
+
 ## Inclusive pronouns
 
 Use the singular `they` when the subject's gender is unknown or irrelevant.
