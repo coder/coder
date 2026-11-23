@@ -28,7 +28,7 @@ export const TemplateBuilderAvatarData: React.FC<
 							size="sm"
 							className="text-xs font-normal ml-1"
 						>
-							View details
+							View details <span className="sr-only">for {name}</span>
 						</Link>
 					)}
 				</>

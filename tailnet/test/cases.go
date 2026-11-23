@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -81,4 +83,34 @@ func ReadyForHandshakeNoPermissionTest(ctx context.Context, t *testing.T, coordi
 
 	p2.ReadyForHandshake(p1.ID)
 	p2.AssertEventuallyGetsError(fmt.Sprintf("you do not share a tunnel with %q", p1.ID.String()))
+}
+
+type policyRefusingAuthorizer struct {
+	refused uuid.UUID
+}
+
+func (a policyRefusingAuthorizer) AuthorizeTunnel(_ context.Context, agentID uuid.UUID) error {
+	if agentID == a.refused {
+		return tailnet.TunnelPolicyError{Message: "refused by policy"}
+	}
+	return nil
+}
+
+// TunnelPolicyRefusalTest checks that a policy refusal of one tunnel leaves
+// the peer connected and able to reach other destinations.
+func TunnelPolicyRefusalTest(ctx context.Context, t *testing.T, coordinator tailnet.CoordinatorV2) {
+	refused := NewPeer(ctx, t, coordinator, "refused")
+	defer refused.Close(ctx)
+	allowed := NewPeer(ctx, t, coordinator, "allowed")
+	defer allowed.Close(ctx)
+	allowed.UpdateDERP(2)
+	client := NewPeer(ctx, t, coordinator, "client", WithAuth(tailnet.ClientUserCoordinateeAuth{
+		Auth: policyRefusingAuthorizer{refused: refused.ID},
+	}))
+	defer client.Close(ctx)
+
+	client.AddTunnel(refused.ID)
+	client.AssertEventuallyGetsError(tailnet.TunnelRefusedError + ": refused by policy")
+	client.AddTunnel(allowed.ID)
+	client.AssertEventuallyHasDERP(allowed.ID, 2)
 }

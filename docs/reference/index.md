@@ -115,3 +115,5 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   ```
 
   A user token used in a script is long-lived, so store it in a secret store, not in the script itself.
+
+  For other ways to keep a workspace running, refer to [Keep a workspace running without a connection](../workspaces/workspace-scheduling.md#keep-a-workspace-running-without-a-connection).

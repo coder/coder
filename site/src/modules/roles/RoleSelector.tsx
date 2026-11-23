@@ -195,9 +195,12 @@ const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
 	hideLabel,
 	children,
 }) => {
+	const labelId = useId();
 	return (
-		<div className="flex flex-col gap-2">
-			{!hideLabel && <span className="text-sm">Roles</span>}
+		<div role="group" aria-labelledby={labelId} className="flex flex-col gap-2">
+			<span id={labelId} className={cn("text-sm", hideLabel && "sr-only")}>
+				Roles
+			</span>
 			{children}
 		</div>
 	);

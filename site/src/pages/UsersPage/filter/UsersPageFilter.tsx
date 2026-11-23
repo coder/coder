@@ -21,7 +21,7 @@ import {
 	getStatusFilterOptions,
 	getUserTypeFilterOptions,
 	USER_TYPE_CHIP_KEYS,
-} from "./categoryOptions";
+} from "#/components/Filter/userFilterOptions";
 import {
 	LAST_SEEN_AFTER_KEY,
 	LAST_SEEN_BEFORE_KEY,

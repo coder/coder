@@ -90,12 +90,16 @@ type MultiSelectComboboxProps = {
 	selectFirstItem?: boolean;
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
-	/** Props of `Command` */
+	/**
+	 * Props of `Command`. Set `commandProps.label` to name the input:
+	 * `<label htmlFor>` will not be associated with the input, because cmdk
+	 * replaces the input's `id` and `aria-labelledby`.
+	 */
 	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
 		React.ComponentProps<typeof CommandPrimitive.Input>,
-		"ref" | "value" | "placeholder" | "disabled"
+		"ref" | "value" | "placeholder" | "disabled" | "id" | "aria-labelledby"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
@@ -400,6 +404,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		const Item = (
 			<CommandItem
 				value={inputValue}
+				aria-selected={false}
 				className="cursor-pointer"
 				onMouseDown={(e) => {
 					e.preventDefault();
@@ -706,6 +711,8 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 														value={option.value}
 														keywords={[option.label]}
 														disabled={option.disable}
+														// Picked options leave the list, so no listed option is selected.
+														aria-selected={false}
 														onMouseDown={(e) => {
 															e.preventDefault();
 															e.stopPropagation();
