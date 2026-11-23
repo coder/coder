@@ -21,6 +21,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import {
 	Select,
 	SelectContent,
@@ -43,7 +44,6 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
-import { RetryButton } from "../RetryButton";
 import type {
 	AccessChangeCallbacks,
 	ProjectAccessEntry,

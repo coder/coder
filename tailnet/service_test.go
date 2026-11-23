@@ -313,6 +313,24 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 	require.Len(t, auditor.decisions, 3)
 }
 
+func TestClientUserCoordinateeAuthPolicyError(t *testing.T) {
+	t.Parallel()
+
+	auth := tailnet.ClientUserCoordinateeAuth{Auth: policyTunnelAuth{}}
+	err := auth.Authorize(t.Context(), &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(uuid.New())},
+	})
+	require.EqualError(t, err, "connections are refused by policy")
+}
+
+// policyTunnelAuth refuses every tunnel with a message that is safe to return
+// to the client.
+type policyTunnelAuth struct{}
+
+func (policyTunnelAuth) AuthorizeTunnel(context.Context, uuid.UUID) error {
+	return tailnet.TunnelPolicyError{Message: "connections are refused by policy"}
+}
+
 func TestClientCoordinateeAuthTunnelAuditor(t *testing.T) {
 	t.Parallel()
 

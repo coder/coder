@@ -395,6 +395,19 @@ export const AllStates: Story = {
 	},
 };
 
+export const WorkspaceNameFocused: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 3),
+		count: 3,
+	},
+	play: async ({ canvasElement }) => {
+		const link = await within(canvasElement).findByRole("link", {
+			name: allWorkspaces[0].name,
+		});
+		link.focus();
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		workspaces: undefined,

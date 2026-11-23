@@ -54,6 +54,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -123,6 +124,7 @@ Status Code **200**
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
+|`» browser_only`|boolean|false||Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one.|
 |`» build_time_stats`|[codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats)|false|||
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
@@ -201,6 +203,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
@@ -251,6 +254,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -407,6 +411,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -572,6 +577,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
+Returns the template version that precedes the named version.
+
 ### Parameters
 
 | Name                  | In   | Type         | Required | Description           |
@@ -656,10 +663,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema                                                         |
-|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
+| Status | Meaning                                                         | Description                                  | Schema                                                         |
+|--------|-----------------------------------------------------------------|----------------------------------------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK                                           | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | The template version has no previous version |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -833,6 +840,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -902,6 +910,7 @@ Status Code **200**
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
+|`» browser_only`|boolean|false||Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one.|
 |`» build_time_stats`|[codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats)|false|||
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
@@ -1045,6 +1054,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -1173,6 +1183,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "deprecation_message": "string",
@@ -1226,6 +1237,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,

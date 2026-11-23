@@ -6,15 +6,19 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 )
@@ -103,18 +107,6 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `unknown agent "nonexistent"`)
 	})
 
-	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "aws-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, result.ExtraFiles, "aws-linux should have extra files")
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
-		require.Contains(t, result.ExtraFiles, "cloud-init/userdata.sh.tftpl")
-	})
-
 	t.Run("GCPLinuxBaseWithProjectID", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
@@ -153,16 +145,6 @@ func TestCompose(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `variable "project_id" is required`)
-	})
-
-	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "azure-linux",
-			RegistryURL:    "registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
 	})
 
 	t.Run("SensitiveVariable", func(t *testing.T) {
@@ -717,8 +699,6 @@ func TestQuickstartCppInstallGuard(t *testing.T) {
 	}
 	bash, err := exec.LookPath("bash")
 	require.NoError(t, err)
-	head, err := exec.LookPath("head")
-	require.NoError(t, err)
 
 	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
 	require.NoError(t, err)
@@ -743,32 +723,90 @@ func TestQuickstartCppInstallGuard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// PATH holds only stubs, so the host's real toolchain can't
-			// influence the result.
-			binDir := t.TempDir()
-			writeExecutable := func(name, content string) {
-				path := filepath.Join(binDir, name)
-				require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-				require.NoError(t, os.Chmod(path, 0o700))
-			}
-			require.NoError(t, os.Symlink(head, filepath.Join(binDir, "head")))
-			stub := "#!" + bash + "\necho stub 1.0\n"
+			// Stubs are shell functions rather than files on PATH: writing
+			// and executing files races with concurrent forks (ETXTBSY,
+			// golang/go#22315). PATH is an empty directory, so the host's
+			// toolchain can't influence the result.
+			var prelude strings.Builder
 			for _, tool := range tt.present {
-				writeExecutable(tool, stub)
+				prelude.WriteString(tool + "() { echo stub 1.0; }\n")
 			}
-			// The sudo stub records its arguments and "installs" nothing.
-			logPath := filepath.Join(t.TempDir(), "sudo.log")
-			sudo := "#!" + bash + "\necho \"$@\" >> " + logPath + "\n"
-			writeExecutable("sudo", sudo)
+			// sudo records its arguments and "installs" nothing.
+			prelude.WriteString("sudo() { echo \"SUDO: $*\"; }\n")
+			prelude.WriteString("head() { IFS= read -r l; printf '%s\\n' \"$l\"; }\n")
 
-			cmd := exec.Command(bash, "-c", script)
-			cmd.Env = []string{"PATH=" + binDir, "HOME=" + t.TempDir()}
+			cmd := exec.Command(bash, "-c", prelude.String()+script)
+			cmd.Env = []string{"PATH=" + t.TempDir()}
 			out, err := cmd.CombinedOutput()
 			require.NoError(t, err, string(out))
 
-			logged, _ := os.ReadFile(logPath)
-			installed := strings.Contains(string(logged), "install")
+			installed := strings.Contains(string(out), "SUDO: apt-get install")
 			require.Equal(t, tt.wantInstall, installed, "output: %s", out)
 		})
 	}
+}
+
+// TestBaseBundlesReferencedFiles verifies every file a base's main.tf passes
+// to file() or templatefile() is bundled with the base, so terraform plan can
+// read it.
+func TestBaseBundlesReferencedFiles(t *testing.T) {
+	t.Parallel()
+
+	ids := templatebuilder.BaseTemplateIDs()
+	slices.Sort(ids)
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", testRenderContext(id))
+			require.NoError(t, err)
+			extraFiles := templatebuilder.BaseExtraFiles(id)
+			refs := fileReferences(t, rendered)
+			if len(extraFiles) > 0 {
+				require.NotEmpty(t, refs, "bundles files but no file() or templatefile() call was found")
+			}
+			for _, ref := range refs {
+				_, ok := extraFiles[ref]
+				assert.True(t, ok, "%q is referenced but not bundled", ref)
+			}
+		})
+	}
+}
+
+// fileReferences returns the paths that mainTF passes to file() and
+// templatefile(), relative to the template root.
+func fileReferences(t *testing.T, mainTF []byte) []string {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig(mainTF, "main.tf", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s", diags)
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+
+	// path.module is the template root, where ExtraFiles are written.
+	pathObj := cty.ObjectVal(map[string]cty.Value{
+		"module": cty.StringVal("."),
+	})
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{"path": pathObj},
+	}
+
+	var refs []string
+	diags = hclsyntax.VisitAll(body, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if !ok || len(call.Args) == 0 {
+			return nil
+		}
+		if call.Name != "file" && call.Name != "templatefile" {
+			return nil
+		}
+		val, diags := call.Args[0].Value(evalCtx)
+		if diags.HasErrors() {
+			return diags
+		}
+		refs = append(refs, path.Clean(val.AsString()))
+		return nil
+	})
+	require.False(t, diags.HasErrors(), "file path must be a literal: %s", diags)
+	return refs
 }
