@@ -556,7 +556,7 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 					// A deadline on ctx ends the connect like the 10 s connect
 					// timeout does, without the wait.
 					var cancel context.CancelFunc
-					ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+					ctx, cancel = context.WithTimeout(ctx, testutil.IntervalSlow)
 					t.Cleanup(cancel)
 				}
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
