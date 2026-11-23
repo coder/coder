@@ -112,10 +112,12 @@ Coder discovers the provider and gets a client in this order:
 
 1. RFC 9728: Protected Resource Metadata
 1. RFC 8414: Authorization Server Metadata
-1. A Client ID Metadata Document or RFC 7591: Dynamic Client Registration
+1. RFC 7591: Dynamic Client Registration, or a Client ID Metadata Document
 
-Coder uses a Client ID Metadata Document when the authorization server metadata sets `client_id_metadata_document_supported` and the Coder access URL is a public HTTPS URL, which means its host is not `localhost` or an IP address in a private, loopback, link-local, or other special-use range.
-Otherwise, Coder uses Dynamic Client Registration.
+Coder uses Dynamic Client Registration when the authorization server metadata has a `registration_endpoint`.
+Otherwise, Coder uses a Client ID Metadata Document when the metadata sets `client_id_metadata_document_supported` and the Coder access URL is a public HTTPS URL, which means its host is not `localhost` or an IP address in a private, loopback, link-local, or other special-use range.
+Coder doesn't resolve the access URL host name.
+If the authorization server can't reach that host, for example behind a VPN, users can't connect, so register a client manually.
 Coder serves the document without authentication at `<access URL>/api/experimental/mcp/servers/<server ID>/oauth2/client-metadata.json`, which is also the client ID.
 It serves the document as long as the client ID of the configuration is that URL, also after you change the configuration to `manual`.
 An authorization server that supports only Client ID Metadata Documents fails registration when the access URL is not a public HTTPS URL.

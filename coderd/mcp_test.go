@@ -3419,8 +3419,9 @@ func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
 		// want is the stored method, or "" when the create must fail.
 		want codersdk.MCPServerOAuth2ClientRegistration
 	}{
-		{name: "PrefersMetadataDocument", accessURL: "https://coder.example.com/", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: metadataDocument},
-		{name: "DynamicOnly", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic}, want: dynamic},
+		// The access URL may be private behind its DNS name, so DCR wins.
+		{name: "PrefersDynamic", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: dynamic},
+		{name: "MetadataDocumentOnly", accessURL: "https://coder.example.com/", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}, want: metadataDocument},
 		{name: "MetadataDocumentNeedsPublicAccessURL", accessURL: "http://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}},
 	}
 	for _, tc := range cases {
@@ -3435,13 +3436,15 @@ func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
 			discovery := newMCPDiscoveryServer(t, nil, tc.supports...)
 
 			config, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-				DisplayName:  "Metadata Document",
-				Slug:         "metadata-document",
-				Transport:    "streamable_http",
-				URL:          discovery.url,
-				AuthType:     "oauth2",
-				Availability: "default_on",
-				Enabled:      true,
+				DisplayName: "Metadata Document",
+				Slug:        "metadata-document",
+				Transport:   "streamable_http",
+				URL:         discovery.url,
+				AuthType:    "oauth2",
+				// Selects automatic registration; discovery picks the method.
+				OAuth2ClientRegistration: metadataDocument,
+				Availability:             "default_on",
+				Enabled:                  true,
 			})
 			if tc.want == "" {
 				var sdkErr *codersdk.Error
@@ -3585,6 +3588,8 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 			redirect.RawQuery = q.Encode()
 			http.Redirect(w, r, redirect.String(), http.StatusFound)
 		case "/token":
+			// A public client sends client_id in the body, not Basic auth.
+			assert.Empty(t, r.Header.Get("Authorization"))
 			if err := r.ParseForm(); err != nil {
 				invalidTarget(w)
 				return

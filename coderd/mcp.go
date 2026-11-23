@@ -2582,11 +2582,14 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 //  1. Discover the authorization server via Protected Resource
 //     Metadata (RFC 9728).
 //  2. Fetch Authorization Server Metadata (RFC 8414).
-//  3. Use clientMetadataURL as the client ID when the authorization
-//     server supports Client ID Metadata Documents, else register a
-//     client via Dynamic Client Registration (RFC 7591), the priority
-//     order of MCP authorization 2025-11-25. clientMetadataURL is ""
-//     when Coder cannot serve a document at a public https URL.
+//  3. Register a client via Dynamic Client Registration (RFC 7591)
+//     when the authorization server offers it, else use
+//     clientMetadataURL as the client ID when the server supports
+//     Client ID Metadata Documents. clientMetadataURL is "" when the
+//     access URL is not public https. MCP authorization 2025-11-25
+//     recommends the other order, but the document works only when
+//     the authorization server can reach the access URL, which Coder
+//     cannot check, so DCR comes first wherever it works.
 //  4. Return the discovered endpoints and credentials.
 //
 // Unlike a root-only approach, this implementation follows the
@@ -2630,9 +2633,6 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 	method := codersdk.MCPServerOAuth2ClientRegistrationDynamic
 	var clientID, clientSecret string
 	switch {
-	case asMeta.ClientIDMetadataDocumentSupported && clientMetadataURL != "":
-		method = codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument
-		clientID = clientMetadataURL
 	case asMeta.RegistrationEndpoint != "":
 		clientID, clientSecret, err = registerOAuth2Client(
 			ctx, httpClient, asMeta.RegistrationEndpoint, callbackURL, "Coder",
@@ -2642,6 +2642,9 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 				"dynamic client registration: %w", err,
 			)
 		}
+	case asMeta.ClientIDMetadataDocumentSupported && clientMetadataURL != "":
+		method = codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument
+		clientID = clientMetadataURL
 	case asMeta.ClientIDMetadataDocumentSupported:
 		return nil, xerrors.New(
 			"authorization server supports only Client ID Metadata " +
