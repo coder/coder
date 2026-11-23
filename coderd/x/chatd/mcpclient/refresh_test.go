@@ -309,6 +309,8 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		// it must get the first call's result. A provider outage keeps the
 		// claim until it lapses, so that row has no late caller.
 		lateCaller bool
+		// saveFails fails the first call's save with a database error.
+		saveFails bool
 	}{
 		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1, lateCaller: true},
 		{name: "RevokedGrant", refresh: "revoked", wantFailure: true, lateCaller: true},
@@ -316,12 +318,17 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		{name: "Disconnected", refresh: "disconnect", wantGrants: 1, lateCaller: true},
 		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1, lateCaller: true},
 		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1, lateCaller: true},
+		{name: "SaveFails", refresh: "refresh-0", wantAccess: "expired-access", wantGrants: 1, saveFails: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			store, _ := dbtestutil.NewDB(t)
-			authzDB := dbauthz.New(store, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+			var db database.Store = store
+			if tc.saveFails {
+				db = failingSaveStore{store}
+			}
+			authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
 			user := dbgen.User(t, store, database.User{})
 
 			var requests, grants, reuses atomic.Int64
@@ -381,7 +388,7 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 			first := make(chan database.MCPServerUserToken, 1)
 			go func() {
 				got, err := refresh(ctx)
-				assert.NoError(t, err)
+				assert.Equal(t, tc.saveFails, err != nil, "error: %v", err)
 				first <- got
 			}()
 			testutil.Eventually(ctx, t, func(context.Context) bool { return requests.Load() == 1 }, testutil.IntervalFast)
@@ -409,4 +416,11 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 			require.Zero(t, reuses.Load(), "a spent refresh token was sent again")
 		})
 	}
+}
+
+// failingSaveStore fails saving a refreshed token with a database error.
+type failingSaveStore struct{ database.Store }
+
+func (failingSaveStore) UpdateMCPServerUserTokenFromRefresh(context.Context, database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	return database.MCPServerUserToken{}, xerrors.New("connection reset")
 }

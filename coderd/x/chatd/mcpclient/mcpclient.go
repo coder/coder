@@ -1702,10 +1702,16 @@ func RefreshOAuth2Token(
 	}, nil
 }
 
+// refreshSaveTimeout bounds the claimant's save of the provider's
+// response.
+const refreshSaveTimeout = 5 * time.Second
+
 // refreshLease is how long a refresh claim keeps other refreshers of the
-// token waiting. It outlasts the provider call that RefreshOAuth2Token
-// bounds with connectTimeout, so a live claim does not lapse mid-call.
-const refreshLease = connectTimeout + 5*time.Second
+// token waiting. It covers the provider call that RefreshOAuth2Token
+// bounds with connectTimeout and the save that refreshSaveTimeout bounds,
+// with a margin for the round trips around them, so a claim does not
+// lapse before its result lands.
+const refreshLease = connectTimeout + refreshSaveTimeout + 5*time.Second
 
 // refreshPollInterval is how often a refresher that lost the claim
 // re-reads the token while it waits for the claimant.
@@ -1778,6 +1784,10 @@ func refreshClaimedUserToken(
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
 	result, err := RefreshOAuth2Token(ctx, httpClient, cfg, tok)
+	// The save outlives a canceled caller: the provider may have spent
+	// the refresh token, and only the saved response keeps the grant.
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), refreshSaveTimeout)
+	defer cancel()
 	var out database.MCPServerUserToken
 	switch {
 	case err != nil && !IsPermanentRefreshError(err):
@@ -1786,7 +1796,7 @@ func refreshClaimedUserToken(
 		return tok, nil
 	case err != nil:
 		logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect", slog.Error(err))
-		out, err = store.MarkMCPServerUserTokenRefreshFailure(ownerCtx, database.MarkMCPServerUserTokenRefreshFailureParams{
+		out, err = store.MarkMCPServerUserTokenRefreshFailure(saveCtx, database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
 			OauthRefreshFailureReason: RefreshFailureReason(err),
@@ -1800,7 +1810,7 @@ func refreshClaimedUserToken(
 		if !result.Expiry.IsZero() {
 			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 		}
-		out, err = store.UpdateMCPServerUserTokenFromRefresh(ownerCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
+		out, err = store.UpdateMCPServerUserTokenFromRefresh(saveCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
 			ID:                tok.ID,
 			UpdatedAt:         tok.UpdatedAt,
 			AccessToken:       result.AccessToken,
