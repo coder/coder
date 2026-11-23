@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,10 +18,12 @@ import (
 var (
 	safeParams  = []string{"page", "limit", "offset", "path"}
 	countParams = []string{"ids", "template_ids"}
-	// secretRouteParams are route params whose values are credentials. They
-	// are masked in both the params_* fields and the logged path.
-	secretRouteParams = []string{"provisionerkey"}
 )
+
+// provisionerKeyRoute carries the provisioner key itself in the URL path, which
+// was a mistake. The org-scoped route, /api/v2/organizations/{organization}/
+// provisionerkeys/{provisionerkey}, carries only a key name and is not masked.
+const provisionerKeyRoute = "/api/v2/provisionerkeys/{provisionerkey}"
 
 // maskSecret keeps at most a 4 character prefix of s, enough to identify a
 // token without disclosing it.
@@ -181,9 +182,7 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 			if val == "" {
 				continue
 			}
-			// Only the top-level /provisionerkeys/{provisionerkey} route carries a
-			// secret; the org-scoped route carries a key name.
-			if slices.Contains(secretRouteParams, v) && !strings.Contains(chiCtx.RoutePattern(), "{organization}") {
+			if chiCtx.RoutePattern() == provisionerKeyRoute && v == "provisionerkey" {
 				masked := maskSecret(val)
 				path = strings.ReplaceAll(path, val, masked)
 				val = masked
