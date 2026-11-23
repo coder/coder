@@ -521,28 +521,7 @@ func connectOne(
 	if opts.kind == connectionKindInProcess {
 		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
 	} else {
-		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
-
-		// When opted-in, merge Coder identity headers BEFORE the
-		// transport is created so any auth header already set above
-		// wins on a conflict. Conflict detection uses
-		// http.CanonicalHeaderKey because the upstream transport applies
-		// http.Header.Set, which canonicalizes keys; without that, an
-		// admin-configured header that differs only in case from a Coder
-		// identity header would land in the request map twice and the
-		// surviving value would be non-deterministic.
-		if srv.ForwardCoderHeaders {
-			canonicalAuth := make(map[string]struct{}, len(headers))
-			for k := range headers {
-				canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-			}
-			for k, v := range coderHeaders {
-				if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-					continue
-				}
-				headers[k] = v
-			}
-		}
+		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders)
 
 		maxEventSize := 0
 		if opts.kind == connectionKindInline {
@@ -786,7 +765,8 @@ func createTransport(
 
 // buildAuthHeaders constructs HTTP headers for authenticating with the
 // MCP server: the static headers on the Server plus any per-user
-// credential selected by UserAuth.
+// credential selected by UserAuth and, when the server opts in, the
+// Coder identity headers.
 func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
@@ -794,6 +774,7 @@ func buildAuthHeaders(
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) map[string]string {
 	headers := maps.Clone(srv.Headers)
 	if headers == nil {
@@ -881,6 +862,26 @@ func buildAuthHeaders(
 		headers["Authorization"] = "Bearer " + token
 	case UserAuthNone:
 		// Only the static headers apply.
+	}
+
+	// When opted-in, merge Coder identity headers last so any auth
+	// header set above wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
+	if srv.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+		for k, v := range coderHeaders {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+				continue
+			}
+			headers[k] = v
+		}
 	}
 
 	return headers

@@ -128,8 +128,9 @@ func newEventsTestServer(t *testing.T, extensions map[string]any) *eventsTestSer
 
 func connectEventsTest(t *testing.T, es *eventsTestServer) *mcpclient.EventsSession {
 	t.Helper()
-	cfg := database.MCPServerConfig{ID: uuid.New(), Slug: "events", Url: es.url, Transport: "streamable_http", AuthType: "none"}
-	s, err := mcpclient.ConnectEvents(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), cfg, nil, testMCPHTTPClient(nil))
+	cfg := database.MCPServerConfig{ID: uuid.New(), Slug: "events", Url: es.url, Transport: "streamable_http", AuthType: "none", ForwardCoderHeaders: true}
+	coderHeaders := map[string]string{"X-Coder-Owner-Id": "owner-1"}
+	s, err := mcpclient.ConnectEvents(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), cfg, nil, coderHeaders, testMCPHTTPClient(nil))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = s.Close() })
 	return s
@@ -184,6 +185,7 @@ func TestEventsRequests(t *testing.T) {
 			require.Equal(t, tc.method, req.method)
 			assert.Equal(t, tc.method, req.header.Get("Mcp-Method"))
 			assert.Equal(t, "a.created", req.header.Get("Mcp-Name"))
+			assert.Equal(t, "owner-1", req.header.Get("X-Coder-Owner-Id"))
 			// The encoded form is the example in the transport's Value Encoding table.
 			assert.Equal(t, "=?base64?SGVsbG8sIOS4lueVjA==?=", req.header.Get("Mcp-Param-Region"))
 			for key, want := range tc.params {

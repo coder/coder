@@ -171,29 +171,37 @@ type EventsSession struct {
 }
 
 // ConnectEvents opens an events session to an org-configured MCP server,
-// with the owner's OAuth2 token when the server uses one. A server
-// without the extension connects too; Supported tells them apart.
+// with the owner's OAuth2 token when the server uses one, and with
+// coderHeaders when the server forwards Coder identity headers. It
+// refuses user_oidc servers. A server without the extension connects
+// too; Supported tells them apart.
 func ConnectEvents(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tok *database.MCPServerUserToken,
+	coderHeaders map[string]string,
 	hc *http.Client,
 ) (*EventsSession, error) {
 	srv, err := ServerFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
+	if srv.UserAuth == UserAuthOIDC {
+		return nil, xerrors.New("event sessions do not support user_oidc auth")
+	}
 	tokens := map[uuid.UUID]database.MCPServerUserToken{}
 	if tok != nil {
-		tokens[cfg.ID] = *tok
+		// Keyed by the token's own config, so a token for another server
+		// is never sent here.
+		tokens[tok.MCPServerConfigID] = *tok
 	}
 	if hc == nil || hc.Transport == nil {
 		hc = NewHTTPClient(hc)
 	}
 	eventsHTTPClient := *hc
 	eventsHTTPClient.Transport = &eventsHeaderRoundTripper{base: hc.Transport}
-	headers := buildAuthHeaders(ctx, logger, srv, tokens, uuid.Nil, nil)
+	headers := buildAuthHeaders(ctx, logger, srv, tokens, uuid.Nil, nil, coderHeaders)
 	tr, err := createTransport(srv, headers, &eventsHTTPClient, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("create transport: %w", err)
@@ -214,13 +222,33 @@ func ConnectEvents(
 		return nil, xerrors.Errorf("register events methods: %w", err)
 	}
 
+	// As in connectOne, enforce the budget outside the SDK: Connect can
+	// block past its context on a server that stops answering.
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
-	session, err := client.Connect(connectCtx, tr, nil)
-	if err != nil {
-		return nil, xerrors.Errorf("connect: %w", err)
+	type connectResult struct {
+		session *mcp.ClientSession
+		err     error
 	}
-	return &EventsSession{session: session, logger: logger}, nil
+	resCh := make(chan connectResult, 1)
+	go func() {
+		session, err := client.Connect(connectCtx, tr, nil)
+		resCh <- connectResult{session: session, err: err}
+	}()
+	select {
+	case res := <-resCh:
+		if res.err != nil {
+			return nil, xerrors.Errorf("connect: %w", res.err)
+		}
+		return &EventsSession{session: res.session, logger: logger}, nil
+	case <-connectCtx.Done():
+		go func() {
+			if late := <-resCh; late.session != nil {
+				_ = late.session.Close()
+			}
+		}()
+		return nil, xerrors.Errorf("connect: %w", connectCtx.Err())
+	}
 }
 
 // Close ends the session.
