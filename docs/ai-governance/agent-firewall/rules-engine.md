@@ -128,9 +128,9 @@ allowlist:
 ```
 
 The first rule allows `GET` and `HEAD` requests to `api.github.com`, such as `GET https://api.github.com/repos/coder/coder`, and denies `POST`, `PATCH`, `PUT`, and `DELETE` to that host.
-The other two rules allow the requests that a clone or fetch sends to `github.com`, and no other requests on that host.
+The other two rules allow the Git smart HTTP requests that a clone or fetch sends to `github.com`, and deny other requests to that host.
 Web pages such as `https://github.com/coder/coder` are denied because they match neither path pattern.
-A push starts with a `GET` to `info/refs`, which this policy allows, but the `POST` to `git-receive-pack` that sends the changes is denied, so the push fails.
+Git sends the changes in a push as a `POST` to `git-receive-pack`, which this policy denies, so the push fails.
 
 ### Path-scoped internal API
 
@@ -171,4 +171,4 @@ allowlist:
 
 This policy allows requests to the model provider and `POST /run` on the task service.
 It denies `GET` requests to the task service, `POST` to other paths such as `/run/abort`, and every other host, including package registries.
-A compromised or misbehaving agent can therefore reach only the model provider and the run endpoint.
+With this policy, the agent's HTTP requests can reach only the model provider and the run endpoint.
