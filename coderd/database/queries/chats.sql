@@ -2566,6 +2566,13 @@ SELECT *
 FROM chats_expanded
 WHERE id = ANY(@ids::uuid[]);
 
+-- name: GetReadableChatsByIDs :many
+-- Returns the chats among ids that exist. dbauthz leaves out the chats that the
+-- caller cannot read, where GetChatsByIDs fails when one of them is unreadable.
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
 FROM chats_expanded

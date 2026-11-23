@@ -59,8 +59,8 @@ const (
 	ResourceTypeChatProjectMemory    ResourceType = "chat_project_memory"
 	ResourceTypeMCPServerConfig      ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig      ResourceType = "chat_model_config"
-	// ResourceTypeChatAutomation is retained for audit logs recorded before
-	// the chat automations experiment was removed.
+	// ResourceTypeChatAutomation is an automation that sends a saved prompt
+	// to a chat as its owner.
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeUserSecret                   ResourceType = "user_secret"
 	ResourceTypeUserSkill                    ResourceType = "user_skill"

@@ -330,6 +330,37 @@ Actions: `create`, `write`
 </tbody>
 </table>
 
+### ChatAutomation
+
+Actions: `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by_chat_id</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>kind</code></td><td>Yes</td></tr>
+<tr><td><code>last_run_at</code></td><td>No</td></tr>
+<tr><td><code>last_run_chat_id</code></td><td>No</td></tr>
+<tr><td><code>last_run_outcome</code></td><td>No</td></tr>
+<tr><td><code>last_run_reason</code></td><td>No</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>prompt</code></td><td>Yes</td></tr>
+<tr><td><code>schedule_cron</code></td><td>Yes</td></tr>
+<tr><td><code>schedule_next_run_at</code></td><td>No</td></tr>
+<tr><td><code>schedule_time_zone</code></td><td>Yes</td></tr>
+<tr><td><code>target_chat_id</code></td><td>Yes</td></tr>
+<tr><td><code>target_mode</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### ChatInstructionSettings
 
 Actions: `write`
