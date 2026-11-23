@@ -6,12 +6,13 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import type { Preset, Template } from "#/api/typesGenerated";
+import type { Template } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockPreset,
 	MockTemplate,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -502,15 +503,6 @@ const mockSecondTemplate: Template = {
 	display_name: "Kubernetes",
 	active_version_id: "version-2",
 };
-const mockPreset: Preset = {
-	ID: "preset-1",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
 describe("ChatProjectDialog templates", () => {
 	const useTemplateHandlers = () => {
 		server.use(
@@ -518,7 +510,7 @@ describe("ChatProjectDialog templates", () => {
 				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
 			),
 			http.get("/api/v2/templateversions/:versionId/presets", () =>
-				HttpResponse.json([mockPreset]),
+				HttpResponse.json([MockPreset]),
 			),
 		);
 	};
@@ -583,7 +575,7 @@ describe("ChatProjectDialog templates", () => {
 					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
 					default_template: {
 						template_id: mockSecondTemplate.id,
-						preset_id: mockPreset.ID,
+						preset_id: MockPreset.ID,
 					},
 				}),
 			);

@@ -2012,6 +2012,16 @@ const _MockWorkspacesResponseWithDeletions = {
 	count: MockWorkspacesResponse.count + 1,
 };
 
+export const MockPreset: TypesGen.Preset = {
+	ID: "preset-1",
+	Name: "Small",
+	Parameters: [],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Description: "",
+	Icon: "",
+};
+
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
 	{
 		name: "first_parameter",

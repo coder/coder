@@ -6,11 +6,12 @@ import {
 	agentTemplatesKey,
 	templateVersionPresetsKey,
 } from "#/api/queries/templates";
-import type { Preset, Template } from "#/api/typesGenerated";
+import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockPreset,
 	MockTemplate,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -29,15 +30,6 @@ const mockKubernetesTemplate: Template = {
 	name: "kubernetes",
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
-};
-const mockSmallPreset: Preset = {
-	ID: "preset-small",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
 };
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
@@ -254,11 +246,17 @@ export const DefaultTemplatePresets: Story = {
 			...meta.parameters.queries,
 			{
 				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-				data: [mockSmallPreset],
+				data: [MockPreset],
 			},
 		],
 	},
-	play: pickDefaultTemplate,
+	// Opens the preset list so the screenshot shows its None option.
+	play: async (context) => {
+		await pickDefaultTemplate(context);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Default preset" }),
+		);
+	},
 };
 
 export const DefaultTemplatePresetsLoading: Story = {

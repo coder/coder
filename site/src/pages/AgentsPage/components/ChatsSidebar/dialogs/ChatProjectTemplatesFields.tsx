@@ -16,22 +16,19 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { SettingSwitch } from "../../SettingSwitch";
 
-/**
- * Empty IDs mean no default template or preset. The default template is one
- * of `templateIds` and the preset belongs to it, so deselecting that template
- * clears both.
- */
+/** The default template is always one of `templateIds`. */
 export type ChatProjectTemplatesValues = {
 	/** Whether chats can only use the selected templates. */
 	limitTemplates: boolean;
 	templateIds: readonly string[];
 	/** Empty when the project has no default template. */
 	defaultTemplateId: string;
+	/** Empty when the default template has no default preset. */
 	defaultPresetId: string;
 };
 
-const noDefaultTemplate = "none";
-const noDefaultPreset = "none";
+/** The value of a select's None option, which stands for an empty ID. */
+const noSelection = "none";
 
 /** The create request, the saved state, and a draft all take this shape. */
 export type ChatProjectTemplatesSettings = Required<
@@ -224,11 +221,11 @@ export const ChatProjectTemplatesFields: React.FC<
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={defaultTemplateSelectId}>Default template</Label>
 					<Select
-						value={value.defaultTemplateId || noDefaultTemplate}
+						value={value.defaultTemplateId || noSelection}
 						onValueChange={(id) =>
 							onChange({
 								...value,
-								defaultTemplateId: id === noDefaultTemplate ? "" : id,
+								defaultTemplateId: id === noSelection ? "" : id,
 								defaultPresetId: "",
 							})
 						}
@@ -238,7 +235,7 @@ export const ChatProjectTemplatesFields: React.FC<
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={noDefaultTemplate}>None</SelectItem>
+							<SelectItem value={noSelection}>None</SelectItem>
 							{selectedTemplates.map((template) => (
 								<SelectItem key={template.id} value={template.id}>
 									{templateLabel(template)}
@@ -301,15 +298,15 @@ const ChatProjectDefaultPreset: React.FC<ChatProjectDefaultPresetProps> = ({
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={selectId}>Default preset</Label>
 					<Select
-						value={value || noDefaultPreset}
-						onValueChange={(id) => onChange(id === noDefaultPreset ? "" : id)}
+						value={value || noSelection}
+						onValueChange={(id) => onChange(id === noSelection ? "" : id)}
 						disabled={disabled}
 					>
 						<SelectTrigger id={selectId}>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={noDefaultPreset}>None</SelectItem>
+							<SelectItem value={noSelection}>None</SelectItem>
 							{presets.map((preset) => (
 								<SelectItem key={preset.ID} value={preset.ID}>
 									{preset.Name}
