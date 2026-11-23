@@ -561,6 +561,13 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 					})
 				}
 				ctx := testutil.Context(t, testutil.WaitShort)
+				if want == string(mcpclient.ConnectOutcomeTimeout) {
+					// A deadline on ctx ends the connect like the 10 s connect
+					// timeout does, without the wait.
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+					t.Cleanup(cancel)
+				}
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 				_, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{srv}, tokens, uuid.New(), nil, nil, loopbackHTTPClient())
