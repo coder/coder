@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
 	MockOrganizationAISpendOverview,
 	MockOrganizationAISpendReport,
@@ -23,7 +23,7 @@ it("links a user to their AI session logs for the same period", async () => {
 						topSpenderDetailsError={null}
 						organizationName="Coder"
 						canViewSessions
-						onOpenDetailedReport={() => {}}
+						onOpenDetailedReport={vi.fn()}
 					/>
 				),
 			},
@@ -82,7 +82,7 @@ it("counts a model priced after some of its usage as unpriced", async () => {
 						topSpenderDetailsError={null}
 						organizationName="Coder"
 						canViewSessions
-						onOpenDetailedReport={() => {}}
+						onOpenDetailedReport={vi.fn()}
 					/>
 				),
 			},
