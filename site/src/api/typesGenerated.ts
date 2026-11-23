@@ -2537,6 +2537,16 @@ export interface ChatConfig {
 	 */
 	readonly max_concurrent_recording_uploads: number;
 	/**
+	 * MaxAutomationsPerOwner is the maximum number of chat automations
+	 * that one user can own across all organizations.
+	 */
+	readonly max_automations_per_owner: number;
+	/**
+	 * MinAutomationScheduleInterval is the minimum time between two runs of
+	 * a chat automation schedule.
+	 */
+	readonly min_automation_schedule_interval: number;
+	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
 	 */
@@ -4559,6 +4569,68 @@ export interface CreateAIProviderRequest {
 	readonly settings?: AIProviderSettings;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationRequest creates a chat automation owned by the caller.
+ * An empty optional field, or JSON null, means that the field is not set. The
+ * API rejects a field that does not apply to the kind or the target mode. The
+ * type has no validate tags, because the request reader echoes the value of a
+ * field that fails one.
+ */
+export interface CreateChatAutomationRequest {
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+	/**
+	 * Enabled defaults to true.
+	 */
+	readonly enabled?: boolean;
+	readonly target_mode: ChatAutomationTargetMode;
+	/**
+	 * TargetChatID is the root chat of an existing_chat automation.
+	 */
+	readonly target_chat_id?: string;
+	/**
+	 * WhenBusy applies to existing_chat. It defaults to skip for a schedule
+	 * and to queue for a webhook.
+	 */
+	readonly when_busy?: ChatAutomationWhenBusy;
+	/**
+	 * NewChatModelConfigID, ProjectID and ReasoningEffort apply to new_chat.
+	 * An existing_chat automation keeps the model and reasoning effort of its
+	 * chat.
+	 */
+	readonly new_chat_model_config_id?: string;
+	readonly project_id?: string;
+	readonly reasoning_effort?: string;
+	/**
+	 * ScheduleCron is a five-field cron expression and ScheduleTimeZone is an
+	 * IANA time zone name.
+	 */
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+	/**
+	 * WebhookAuth is required for a webhook.
+	 */
+	readonly webhook_auth?: ChatAutomationWebhookAuth;
+	/**
+	 * WebhookSecret is the whsec_ secret that the sender created. Set it for
+	 * standard_webhooks only: Coder creates the secret of the other schemes.
+	 */
+	readonly webhook_secret?: string;
+	readonly prompt: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationResponse is the response to a create. WebhookSecret is
+ * the one and only time that the API returns a secret. It is set for bearer
+ * and github, and empty for standard_webhooks, where the caller supplied it.
+ */
+export interface CreateChatAutomationResponse {
+	readonly automation: ChatAutomation;
+	readonly webhook_secret?: string;
+}
+
 // From codersdk/chats.go
 /**
  * CreateChatMessageRequest is the request to add a message to a chat.
@@ -5495,6 +5567,14 @@ export const DefaultChatDebugRetentionDays = 30;
  * files linked to a chat.
  */
 export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAutomationsPerOwner is the default maximum number of
+ * chat automations that one user can own across all organizations.
+ */
+export const DefaultChatMaxAutomationsPerOwner = 50;
 
 // From codersdk/chats.go
 /**

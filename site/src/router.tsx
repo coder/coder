@@ -375,6 +375,12 @@ const DesktopPopoutPage = lazy(
 const AgentAutomationsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAutomationsPage/AgentAutomationsPage"),
 );
+const AgentCreateAutomationPage = lazy(
+	() =>
+		import(
+			"./pages/AgentsPage/AgentCreateAutomationPage/AgentCreateAutomationPage"
+		),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
@@ -870,6 +876,10 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="automations" element={<AgentAutomationsPage />} />
+					<Route
+						path="automations/new"
+						element={<AgentCreateAutomationPage />}
+					/>
 					<Route path="settings" element={<AgentSettingsLayout />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />

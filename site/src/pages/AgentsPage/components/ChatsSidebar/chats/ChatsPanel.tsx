@@ -149,6 +149,7 @@ type ChatsPanelProps = {
 	readonly activeChatId: string | undefined;
 	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
+	readonly isAutomationsActive: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
@@ -187,6 +188,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	activeChatId,
 	viewedProjectId,
 	isSettingsPanel,
+	isAutomationsActive,
 	isChatsActive,
 	location,
 	currentUserId,
@@ -559,7 +561,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					<SettingsNavItem
 						icon={RotateCwFadingClockIcon}
 						label="Automations"
-						active={location.pathname === "/agents/automations"}
+						active={isAutomationsActive}
 						to={{ pathname: "/agents/automations", search: locationSearch }}
 					/>
 				)}

@@ -225,17 +225,19 @@ export const AgentAutomationsPageView: React.FC<
 				description="Manage automations for your agents."
 				badge={<ExperimentalBadge />}
 				action={
-					<Button disabled>
-						<PlusIcon />
-						Create automation
+					<Button asChild>
+						<Link to="/agents/automations/new">
+							<PlusIcon />
+							Create automation
+						</Link>
 					</Button>
 				}
 			/>
 			<div className="flex flex-col gap-4">
 				<p className="m-0 text-sm text-content-secondary">
-					This preview supports viewing and deleting automations. Creation,
-					editing, manual runs, and enabling or disabling automations are not
-					available yet.
+					This preview supports creating, viewing, and deleting automation
+					configurations. Editing, execution, and changing an existing
+					automation’s enabled state are not available yet.
 				</p>
 				{loadErrors.map(({ organization, error, isRetrying }) => (
 					<div key={organization.id} className="flex flex-col gap-2">

@@ -50,6 +50,12 @@ const (
 	// number of virtual desktop recordings that each Coder server stores
 	// at the same time.
 	DefaultChatMaxConcurrentRecordingUploads = 25
+	// DefaultChatMaxAutomationsPerOwner is the default maximum number of
+	// chat automations that one user can own across all organizations.
+	DefaultChatMaxAutomationsPerOwner = 50
+	// DefaultChatMinAutomationScheduleInterval is the default minimum time
+	// between two runs of a chat automation schedule.
+	DefaultChatMinAutomationScheduleInterval = 5 * time.Minute
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat

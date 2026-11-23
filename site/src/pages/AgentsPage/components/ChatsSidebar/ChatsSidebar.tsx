@@ -231,6 +231,9 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	}>();
 	const activeChatId = agentId ?? chatId;
 	const isSettingsPanel = isSettingsView(sidebarView);
+	const isAutomationsActive =
+		location.pathname === "/agents/automations" ||
+		location.pathname.startsWith("/agents/automations/");
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
@@ -288,11 +291,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				activeChatId={activeChatId}
 				viewedProjectId={viewedProjectId}
 				isSettingsPanel={isSettingsPanel}
+				isAutomationsActive={isAutomationsActive}
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
 					!sidebarView.projectId &&
-					location.pathname !== "/agents/automations"
+					!isAutomationsActive
 				}
 				location={location}
 				currentUserId={currentUserId}

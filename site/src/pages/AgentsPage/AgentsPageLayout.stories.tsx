@@ -14,10 +14,12 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { chatAutomationsKey } from "#/api/queries/chatAutomations";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatEntityKey,
 	chatMessagesKey,
 	chatPromptsKey,
+	organizationChatModelsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -31,7 +33,11 @@ import {
 	MockMCPServerConfig,
 	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
-import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
+import {
+	MockChatModelProviderDescriptor,
+	MockDefaultChatModel,
+	MockUnsetUserChatPersonalModelOverrides,
+} from "#/testHelpers/chatModels";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
@@ -52,6 +58,7 @@ import {
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAutomationsPage from "./AgentAutomationsPage/AgentAutomationsPage";
 import AgentChatPage from "./AgentChatPage/AgentChatPage";
+import AgentCreateAutomationPage from "./AgentCreateAutomationPage/AgentCreateAutomationPage";
 import AgentCreatePage from "./AgentCreatePage/AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
@@ -171,6 +178,7 @@ const agentsRouting = {
 			],
 		},
 		{ path: "automations", element: <AgentAutomationsPage /> },
+		{ path: "automations/new", element: <AgentCreateAutomationPage /> },
 		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
@@ -415,6 +423,182 @@ export const Automations: Story = {
 			location: { path: "/agents/automations" },
 			routing: [agentsRouting, aiSettingsRouting],
 		}),
+	},
+};
+
+export const CreateAutomationDefault: Story = {
+	parameters: {
+		experiments: ["chat-automations"],
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: {
+					models: [MockDefaultChatModel],
+					providers: [MockChatModelProviderDescriptor],
+					unsupported_providers: [],
+				},
+			},
+			{ key: chatProjectsKey, data: [MockChatProject] },
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations/new" },
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
+
+export const CreateAutomationMobile: Story = {
+	...CreateAutomationDefault,
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const CreateAutomationNoOrganizations: Story = {
+	parameters: {
+		experiments: ["chat-automations"],
+		organizations: [],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations/new" },
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
+
+export const CreateAutomationResourceError: Story = {
+	parameters: {
+		experiments: ["chat-automations"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations/new" },
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockRejectedValue(
+			mockApiError({ message: "Models are temporarily unavailable." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", {
+			name: "Retry loading models",
+		});
+	},
+};
+
+export const CreateAutomationGeneratedSecret: Story = {
+	...CreateAutomationDefault,
+	beforeEach: () => {
+		spyOn(API.experimental, "createChatAutomation").mockResolvedValue({
+			automation: {
+				...MockWebhookChatAutomation,
+				name: "Daily PR review",
+			},
+			webhook_secret: "story-only-generated-token",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", { name: "Name" }),
+			"Daily PR review",
+		);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Prompt" }),
+			"Summarize the open pull requests.",
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Trigger type" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Webhook" }),
+		);
+		await userEvent.click(await canvas.findByRole("button", { name: "Model" }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /gpt-5/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Create automation" }),
+		);
+		await canvas.findByRole("region", { name: "Automation created" });
+	},
+};
+
+export const CreateAutomationSaved: Story = {
+	...CreateAutomationDefault,
+	beforeEach: () => {
+		spyOn(API.experimental, "createChatAutomation").mockResolvedValue({
+			automation: { ...MockChatAutomation, name: "Daily review" },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", { name: "Name" }),
+			"Daily review",
+		);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Prompt" }),
+			"Summarize the open pull requests.",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Model" }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /gpt-5/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Create automation" }),
+		);
+		await canvas.findByRole("region", { name: "Automation created" });
+	},
+};
+
+export const CreateAutomationPendingNavigation: Story = {
+	...CreateAutomationDefault,
+	beforeEach: () => {
+		spyOn(API.experimental, "createChatAutomation").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", { name: "Name" }),
+			"Daily review",
+		);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Prompt" }),
+			"Summarize the open pull requests.",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Model" }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /gpt-5/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Create automation" }),
+		);
+		await userEvent.click(canvas.getByRole("link", { name: "Automations" }));
+	},
+};
+
+export const CreateAutomationUnsavedDraft: Story = {
+	...CreateAutomationDefault,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", { name: "Name" }),
+			"Daily review",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Cancel" }));
+	},
+};
+
+export const CreateAutomationUnsavedSecret: Story = {
+	...CreateAutomationGeneratedSecret,
+	play: async (context) => {
+		await CreateAutomationGeneratedSecret.play?.(context);
+		await userEvent.click(
+			within(context.canvasElement).getByRole("link", {
+				name: "View automations",
+			}),
+		);
 	},
 };
 

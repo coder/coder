@@ -3321,6 +3321,18 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	createChatAutomation = async (
+		organizationId: string,
+		req: TypesGen.CreateChatAutomationRequest,
+	): Promise<TypesGen.CreateChatAutomationResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatAutomationResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations`,
+				req,
+			);
+		return response.data;
+	};
+
 	deleteChatAutomation = async (
 		organizationId: string,
 		automationId: string,

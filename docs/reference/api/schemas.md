@@ -1162,11 +1162,13 @@ title: Schemas
       "user": {}
     },
     "max_attachments_per_chat": 0,
+    "max_automations_per_owner": 0,
     "max_concurrent_recording_uploads": 0,
     "max_generation_retries": 0,
     "max_prompt_bytes": 0,
     "max_queued_messages_per_chat": 0,
     "max_steps_per_turn": 0,
+    "min_automation_schedule_interval": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -3169,11 +3171,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "user": {}
   },
   "max_attachments_per_chat": 0,
+  "max_automations_per_owner": 0,
   "max_concurrent_recording_uploads": 0,
   "max_generation_retries": 0,
   "max_prompt_bytes": 0,
   "max_queued_messages_per_chat": 0,
   "max_steps_per_turn": 0,
+  "min_automation_schedule_interval": 0,
   "stream_silence_timeout": 0
 }
 ```
@@ -3190,11 +3194,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
 | `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
 | `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_automations_per_owner`        | integer                    | false    |              | Max automations per owner is the maximum number of chat automations that one user can own across all organizations.                       |
 | `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
 | `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
 | `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
 | `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
 | `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
+| `min_automation_schedule_interval` | integer                    | false    |              | Min automation schedule interval is the minimum time between two runs of a chat automation schedule.                                      |
 | `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
 
 ## codersdk.ChatContext
@@ -6771,6 +6777,121 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
 | `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
 
+## codersdk.CreateChatAutomationRequest
+
+```json
+{
+  "enabled": true,
+  "kind": "webhook",
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "prompt": "string",
+  "reasoning_effort": "string",
+  "schedule_cron": "string",
+  "schedule_time_zone": "string",
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "target_mode": "existing_chat",
+  "webhook_auth": "bearer",
+  "webhook_secret": "string",
+  "when_busy": "queue"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                     | Required | Restrictions | Description                                                                                                                                             |
+|----------------------------|--------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`                  | boolean                                                                  | false    |              | Enabled defaults to true.                                                                                                                               |
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)               | false    |              |                                                                                                                                                         |
+| `name`                     | string                                                                   | false    |              |                                                                                                                                                         |
+| `new_chat_model_config_id` | string                                                                   | false    |              | New chat model config ID ProjectID and ReasoningEffort apply to new_chat. An existing_chat automation keeps the model and reasoning effort of its chat. |
+| `project_id`               | string                                                                   | false    |              |                                                                                                                                                         |
+| `prompt`                   | string                                                                   | false    |              |                                                                                                                                                         |
+| `reasoning_effort`         | string                                                                   | false    |              |                                                                                                                                                         |
+| `schedule_cron`            | string                                                                   | false    |              | Schedule cron is a five-field cron expression and ScheduleTimeZone is an IANA time zone name.                                                           |
+| `schedule_time_zone`       | string                                                                   | false    |              |                                                                                                                                                         |
+| `target_chat_id`           | string                                                                   | false    |              | Target chat ID is the root chat of an existing_chat automation.                                                                                         |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode)   | false    |              |                                                                                                                                                         |
+| `webhook_auth`             | [codersdk.ChatAutomationWebhookAuth](#codersdkchatautomationwebhookauth) | false    |              | Webhook auth is required for a webhook.                                                                                                                 |
+| `webhook_secret`           | string                                                                   | false    |              | Webhook secret is the whsec_secret that the sender created. Set it for standard_webhooks only: Coder creates the secret of the other schemes.           |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)       | false    |              | When busy applies to existing_chat. It defaults to skip for a schedule and to queue for a webhook.                                                      |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                |
+|----------------|-----------------------------------------|
+| `kind`         | `schedule`, `webhook`                   |
+| `target_mode`  | `existing_chat`, `new_chat`             |
+| `webhook_auth` | `bearer`, `github`, `standard_webhooks` |
+| `when_busy`    | `queue`, `skip`                         |
+
+## codersdk.CreateChatAutomationResponse
+
+```json
+{
+  "automation": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_chat": {
+      "archived": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
+    "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
+    "enabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "webhook",
+    "last_run": {
+      "at": "2019-08-24T14:15:22Z",
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "outcome": "accepted",
+      "reason": "string"
+    },
+    "name": "string",
+    "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+    "next_run_times": [
+      "2019-08-24T14:15:22Z"
+    ],
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "paused_reasons": [
+      "owner_inactive"
+    ],
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+    "prompt": "string",
+    "reasoning_effort": "string",
+    "schedule_cron": "string",
+    "schedule_next_run_at": "2019-08-24T14:15:22Z",
+    "schedule_time_zone": "string",
+    "target_chat": {
+      "archived": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
+    "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+    "target_mode": "existing_chat",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "webhook_auth": "bearer",
+    "webhook_secret_version": 0,
+    "when_busy": "queue"
+  },
+  "webhook_secret": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description |
+|------------------|----------------------------------------------------|----------|--------------|-------------|
+| `automation`     | [codersdk.ChatAutomation](#codersdkchatautomation) | false    |              |             |
+| `webhook_secret` | string                                             | false    |              |             |
+
 ## codersdk.CreateChatMessageRequest
 
 ```json
@@ -8530,11 +8651,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "user": {}
         },
         "max_attachments_per_chat": 0,
+        "max_automations_per_owner": 0,
         "max_concurrent_recording_uploads": 0,
         "max_generation_retries": 0,
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
+        "min_automation_schedule_interval": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -9170,11 +9293,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "user": {}
       },
       "max_attachments_per_chat": 0,
+      "max_automations_per_owner": 0,
       "max_concurrent_recording_uploads": 0,
       "max_generation_retries": 0,
       "max_prompt_bytes": 0,
       "max_queued_messages_per_chat": 0,
       "max_steps_per_turn": 0,
+      "min_automation_schedule_interval": 0,
       "stream_silence_timeout": 0
     }
   },

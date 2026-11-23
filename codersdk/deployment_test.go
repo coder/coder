@@ -1019,6 +1019,7 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
 		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
 		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+		{"chat-max-automations-per-owner", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAutomationsPerOwner }},
 	}
 	values := []struct {
 		value int64
@@ -1045,6 +1046,34 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 				require.ErrorContains(t, err, fmt.Sprintf("--%s (%d) must be between 1 and", limit.flag, tc.value))
 			})
 		}
+	}
+}
+
+func TestDeploymentValues_Validate_ChatAutomationScheduleInterval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		interval time.Duration
+		valid    bool
+	}{
+		{interval: 0},
+		{interval: time.Minute - time.Nanosecond},
+		{interval: time.Minute, valid: true},
+		{interval: 24 * time.Hour, valid: true},
+		{interval: 24*time.Hour + time.Nanosecond},
+	}
+	for _, tc := range tests {
+		t.Run(tc.interval.String(), func(t *testing.T) {
+			t.Parallel()
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.MinAutomationScheduleInterval = serpent.Duration(tc.interval)
+			err := dv.Validate()
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "--chat-min-automation-schedule-interval")
+		})
 	}
 }
 
