@@ -116,7 +116,7 @@ const MissingVariablesBanner: React.FC<MissingVariablesBannerProps> = ({
 	return (
 		<div className="flex items-center justify-center p-10">
 			<div className="flex max-w-90 flex-col items-center text-center">
-				<TriangleAlertIcon className="size-icon-lg text-content-warning" />
+				<TriangleAlertIcon className="size-icon-lg text-border-warning" />
 				<h4 className="m-0 mt-4 font-medium leading-none">Missing variables</h4>
 				<p className="m-0 mt-2 text-sm leading-6 text-content-secondary">
 					During the build process, we identified some missing variables. Rest
