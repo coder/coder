@@ -110,6 +110,8 @@ You must have the certificate `.key` and `.crt` files in your working directory 
 Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.
 Use `CODER_PG_CONNECTION_URL` to set the database that Coder connects to.
 If unset, PostgreSQL binaries will be downloaded from Maven (<https://repo1.maven.org/maven2>) and store all data in the config root.
+The built-in database uses PostgreSQL 13.
+If its data directory exists but `PG_VERSION` is missing or does not identify version 13, Coder refuses to start and leaves the data unchanged.
 
 > [!NOTE]
 > Postgres 13 is the minimum supported version.

@@ -26,6 +26,11 @@ export interface AIBridgeAgenticAction {
 	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
+	 * Organization is the organization of this interception. Nil when none
+	 * was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
+	/**
 	 * PricedModel is the model and prices used for this interception. Nil
 	 * when it was not priced.
 	 */
@@ -95,6 +100,24 @@ export interface AIBridgeConfig {
 	 */
 	readonly disable_content_recording: boolean;
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeInterceptionOrganization is the organization a single
+ * interception was attributed to and how it was chosen.
+ */
+export interface AIBridgeInterceptionOrganization extends MinimalOrganization {
+	readonly source: AIBridgeInterceptionOrganizationSource;
+}
+
+// From codersdk/aibridge.go
+export type AIBridgeInterceptionOrganizationSource =
+	| "chatd"
+	| "effective_group"
+	| "workspace";
+
+export const AIBridgeInterceptionOrganizationSources: AIBridgeInterceptionOrganizationSource[] =
+	["chatd", "effective_group", "workspace"];
 
 // From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
@@ -173,6 +196,11 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
+	/**
 	 * NetworkCalls summarizes the Agent Firewall network requests made during the
 	 * session. A nil value means the session did not pass through Agent
 	 * Firewall, so network call monitoring was not active, which the UI
@@ -206,6 +234,15 @@ export interface AIBridgeSessionNetworkDomain {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionOrganization is an organization a session's interceptions
+ * were attributed to, with every source used for it.
+ */
+export interface AIBridgeSessionOrganization extends MinimalOrganization {
+	readonly sources: readonly AIBridgeInterceptionOrganizationSource[];
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionThreadsResponse is the response for GET
  * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
@@ -223,6 +260,11 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organizations are the organizations this session's interceptions were
+	 * attributed to.
+	 */
+	readonly organizations: readonly AIBridgeSessionOrganization[];
 	/**
 	 * NetworkCalls summarizes the Agent Firewall network calls made during the
 	 * session. A nil value means the session did not pass through Agent
@@ -295,6 +337,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Organization is the organization of the root interception. Nil when
+	 * none was stored.
+	 */
+	readonly organization?: AIBridgeInterceptionOrganization;
 	/**
 	 * PricedModel is the model and prices used for the root interception
 	 * (the prompt). Other requests in the thread may use different models
@@ -1853,6 +1900,11 @@ export interface AuthMethods {
 	readonly password: AuthMethod;
 	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
+	/**
+	 * SetupTokenRequired is true when the first user can only be
+	 * created with a setup token.
+	 */
+	readonly setup_token_required?: boolean;
 }
 
 // From codersdk/authorization.go
@@ -3591,6 +3643,27 @@ export interface ChatProject {
 	 * default folder glyph.
 	 */
 	readonly icon: string;
+	/**
+	 * LimitTemplates restricts the project's chats to its attached
+	 * templates, and to none when nothing is attached. When false, the chats
+	 * can use every template their owner can use.
+	 */
+	readonly limit_templates: boolean;
+	/**
+	 * Templates are the attached templates the caller can access. Deprecated
+	 * templates and templates that do not allow agents are left out.
+	 */
+	readonly templates: readonly ChatProjectTemplate[];
+	/**
+	 * HiddenTemplateCount is the number of attached templates the caller
+	 * cannot access. Nothing else about them is returned.
+	 */
+	readonly hidden_template_count: number;
+	/**
+	 * DefaultTemplate is omitted when the project has none or the caller
+	 * cannot access it.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly permissions: ChatProjectPermissions;
@@ -3608,6 +3681,28 @@ export interface ChatProjectACL {
 	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectDefaultTemplate is the attached template a project recommends
+ * to its chats, with the preset or parameter values to create workspaces
+ * from it.
+ */
+export interface ChatProjectDefaultTemplate {
+	readonly template_id: string;
+	/**
+	 * PresetID is a preset of the template's active version, applied when a
+	 * chat creates a workspace from the template without choosing a preset.
+	 * It is mutually exclusive with Parameters.
+	 */
+	readonly preset_id?: string;
+	/**
+	 * Parameters are parameter values, keyed by name, applied when a chat
+	 * creates a workspace from the template. Values the chat passes take
+	 * precedence.
+	 */
+	readonly parameters?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -3663,6 +3758,18 @@ export interface ChatProjectPermissions {
 export type ChatProjectRole = "admin" | "" | "use";
 
 export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTemplate is a workspace template attached to a chat project.
+ * Attaching a template does not grant access to it.
+ */
+export interface ChatProjectTemplate {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly icon: string;
+}
 
 // From codersdk/chats.go
 export interface ChatProjectUser extends MinimalUser {
@@ -4522,6 +4629,18 @@ export interface CreateChatProjectRequest {
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;
+	/**
+	 * LimitTemplates restricts the project's chats to TemplateIDs.
+	 */
+	readonly limit_templates?: boolean;
+	/**
+	 * TemplateIDs are attached to the new project.
+	 */
+	readonly template_ids?: readonly string[];
+	/**
+	 * DefaultTemplate must name one of TemplateIDs.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
@@ -4592,6 +4711,11 @@ export interface CreateFirstUserRequest {
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
 	readonly onboarding_info?: CreateFirstUserOnboardingInfo;
+	/**
+	 * SetupToken is required when AuthMethods.SetupTokenRequired is
+	 * true. The server prints it at startup.
+	 */
+	readonly setup_token?: string;
 }
 
 // From codersdk/users.go
@@ -4863,6 +4987,13 @@ export interface CreateTemplateRequest {
 	 * references the workspace name, so this defaults to false.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Defaults to false. Enabling it requires the browser-only
+	 * entitlement.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -5542,6 +5673,7 @@ export interface DeploymentValues {
 	readonly external_auth_github_default_provider_enable?: boolean;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
+	readonly setup_token?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
@@ -8076,6 +8208,28 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendClient is a user's AI spend from one client, summed
+ * over every (provider, model, client) tuple with that client.
+ */
+export interface OrganizationAISpendClient {
+	/**
+	 * Name is the client recorded on the intercepted request. Usage without a
+	 * recorded client is reported as Unknown.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend from the client over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage from the client was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
  */
 export interface OrganizationAISpendDetailsFilter {
@@ -8101,6 +8255,14 @@ export interface OrganizationAISpendFilter {
 	readonly period_start?: string;
 	readonly period_end?: string;
 	/**
+	 * UserIDs restricts the report to these users.
+	 */
+	readonly user_ids?: readonly string[];
+	/**
+	 * GroupID matches the effective group recorded on the token usage.
+	 */
+	readonly group_id?: string;
+	/**
 	 * ProviderName matches the configured provider name recorded on the
 	 * intercepted request.
 	 */
@@ -8111,6 +8273,27 @@ export interface OrganizationAISpendFilter {
 	 * matches usage without a recorded client.
 	 */
 	readonly client?: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendModel is a user's AI spend on one model, summed over
+ * every (provider, model, client) tuple with that model.
+ */
+export interface OrganizationAISpendModel {
+	/**
+	 * Name is the model the client requested.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend on the model over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage of the model was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8215,6 +8398,40 @@ export interface OrganizationAISpendPage {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendProvider is a user's AI spend through one configured
+ * provider, summed over every (provider, model, client) tuple with that
+ * provider.
+ */
+export interface OrganizationAISpendProvider {
+	/**
+	 * Name is the name of the configured provider.
+	 */
+	readonly name: string;
+	/**
+	 * DisplayName falls back to the provider name when unset.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is empty when the provider has no configured icon.
+	 */
+	readonly icon: string;
+	/**
+	 * Type is omitted when the provider name was never configured.
+	 */
+	readonly type?: AIProviderType;
+	/**
+	 * CostMicros is the priced spend through the provider over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage through the provider
+	 * was recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendReport is one page of per-user AI spend for an
  * organization over the applied period. Count and Totals cover every
  * matching user, not only the returned page.
@@ -8248,10 +8465,10 @@ export interface OrganizationAISpendTotals {
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of token usage records without a cost
-	 * across every matching user.
+	 * HasUnpricedUsage reports whether any matching token usage was recorded
+	 * without a price.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8265,28 +8482,24 @@ export interface OrganizationAISpendUser {
 	readonly name: string;
 	readonly avatar_url: string;
 	/**
-	 * CostMicros is the user's priced spend over the period.
+	 * CostMicros is the user's priced spend over the period. It is a lower
+	 * bound when any entry in ModelSpend has unpriced usage.
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of the user's token usage records that
-	 * carry no cost because their model had no price when they were recorded.
+	 * ProviderSpend is the user's spend per configured provider, most
+	 * expensive first.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly provider_spend: readonly OrganizationAISpendProvider[];
 	/**
-	 * Providers are the configured provider names the user spent through,
-	 * sorted.
+	 * ModelSpend is the user's spend per model, most expensive first.
 	 */
-	readonly providers: readonly string[];
+	readonly model_spend: readonly OrganizationAISpendModel[];
 	/**
-	 * Clients are the clients the user spent through, sorted. Usage without a
-	 * recorded client is reported as Unknown.
+	 * ClientSpend is the user's spend per client, most expensive first. Usage
+	 * without a recorded client is reported as Unknown.
 	 */
-	readonly clients: readonly string[];
-	/**
-	 * Models are the models the user spent through, sorted.
-	 */
-	readonly models: readonly string[];
+	readonly client_spend: readonly OrganizationAISpendClient[];
 }
 
 // From codersdk/chats.go
@@ -10542,6 +10755,13 @@ export interface Template {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. The deployment-wide browser-only setting applies on top of
+	 * this one.
+	 */
+	readonly browser_only: boolean;
 }
 
 // From codersdk/templates.go
@@ -11142,11 +11362,12 @@ export interface UnpricedAIModel {
  */
 export interface UnpricedAIModels extends AISpendPeriodWindow {
 	/**
-	 * Count is the number of models listed.
+	 * Count is the number of models over every page.
 	 */
 	readonly count: number;
 	/**
-	 * Models are ordered by unpriced token count, highest first.
+	 * Models are one page of the models, ordered by unpriced token count,
+	 * highest first.
 	 */
 	readonly models: readonly UnpricedAIModel[];
 }
@@ -11306,12 +11527,21 @@ export interface UpdateChatProjectInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProjectRequest updates a chat project.
+ * UpdateChatProjectRequest updates a chat project. Templates are attached
+ * and detached one at a time with AttachChatProjectTemplate and
+ * DetachChatProjectTemplate, so a caller never replaces attachments they
+ * cannot see.
  */
 export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	readonly limit_templates?: boolean;
+	/**
+	 * DefaultTemplate replaces the project's default template, preset, and
+	 * parameters as a whole when set. A zero TemplateID clears them.
+	 */
+	readonly default_template?: ChatProjectDefaultTemplate;
 }
 
 // From codersdk/chats.go
@@ -11720,6 +11950,13 @@ export interface UpdateTemplateMeta {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * BrowserOnly makes coderd refuse non-browser client connections, such as
+	 * SSH, port forwarding and desktop IDEs, to workspaces built from this
+	 * template. Enabling it requires the browser-only entitlement; disabling it
+	 * does not.
+	 */
+	readonly browser_only?: boolean;
 }
 
 // From codersdk/users.go

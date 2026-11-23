@@ -481,6 +481,7 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 	filter.SessionID = parser.String(values, "", "session_id")
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")

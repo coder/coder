@@ -59,7 +59,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				label={label}
 				secondaryLabel={
 					showLimitReached ? (
-						<TriangleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-border-warning" />
 					) : null
 				}
 			/>
