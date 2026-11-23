@@ -13,10 +13,14 @@ To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing
 |------------------------------:|----------------------------:|
 |                        10,000 |                       1,020 |
 
-**Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+**Observability**:
+Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations
+
+These recommendations assume a deployment across three regions: `coderd` in the primary region, a workspace proxy in each of the other two regions, and workspaces and provisioners split evenly across all three.
+The provisioner replica count is the total across all regions, and the workspace proxy replica count applies to each proxy region.
 
 ### Coderd
 
@@ -32,6 +36,8 @@ This allows operators to respond quickly to incidents and continuously improve t
   - Set Memory request and limit to `16Gi`
 - `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
 - `coderd` instances should be deployed in the same region as the database.
+- Set `CODER_PG_CONN_MAX_OPEN` to `60` and `CODER_PG_CONN_MAX_IDLE` to `30`.
+  To learn how to tune these values, refer to [Connection pool tuning](../../validate/scale-coder.md#connection-pool-tuning).
 
 ### Workspace Proxies
 
@@ -75,13 +81,14 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 **Notes**:
 
 - "General purpose" virtual machines, such as the M8-series in AWS work well.
-- Deploy in the same region as `coderd`
+- Deploy in the same region as `coderd`.
+- Set `max_connections` to at least 1,000.
 
 ### Workspaces
 
-The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
+The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users' work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
 Size your workspaces to fit the use case your users will be undertaking.
-If in doubt, chose sizes based on the development environments your users are migrating from onto Coder.
+If in doubt, choose sizes based on the development environments your users are migrating from onto Coder.
 
 | vCPU | Memory      |
 |------|-------------|

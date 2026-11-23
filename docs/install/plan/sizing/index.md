@@ -202,7 +202,7 @@ For example, 1,000 developers who don't use agents run fewer than 1,000 concurre
 If half of those developers each run 4 agents at the same time, the agents add 2,000 running workspaces.
 The deployment then needs the [6,000 workspace architecture](./6000-workspaces.md).
 
-Coder derives these architectures from [scale tests](../../validate/scale-testing.md) that run each load scenario with a safety margin.
+Coder derives these architectures from [scale tests](../../validate/scale-testing.md) that run each tier at its full number of concurrent running workspaces.
 Your actual load depends on how your users work, for example whether they rely on prebuilds or create workspaces from automated systems.
 Monitor CPU and memory usage of the control plane and the database, and adjust resources to match.
 

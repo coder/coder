@@ -53,15 +53,15 @@
   },
   {
     "source": "architecture/1k-users",
-    "destination": "install/plan/sizing/1k-users"
+    "destination": "install/plan/sizing/600-workspaces"
   },
   {
     "source": "architecture/2k-users",
-    "destination": "install/plan/sizing/2k-users"
+    "destination": "install/plan/sizing/1200-workspaces"
   },
   {
     "source": "architecture/3k-users",
-    "destination": "install/plan/sizing/3k-users"
+    "destination": "install/plan/sizing/1800-workspaces"
   },
   {
     "source": "install/plan/migrate-from-ona",
@@ -1332,6 +1332,26 @@
   {
     "source": "contributing/templates",
     "destination": "https://github.com/coder/coder/blob/main/contributing/templates.md"
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures/1k-users",
+    "destination": "install/plan/sizing/600-workspaces",
+    "permanent": false
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures/2k-users",
+    "destination": "install/plan/sizing/1200-workspaces",
+    "permanent": false
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures/3k-users",
+    "destination": "install/plan/sizing/1800-workspaces",
+    "permanent": false
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures/10k-users",
+    "destination": "install/plan/sizing/6000-workspaces",
+    "permanent": false
   },
   {
     "source": "admin/infrastructure/validated-architectures/*",
