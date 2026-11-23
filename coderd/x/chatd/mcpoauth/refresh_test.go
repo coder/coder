@@ -1,4 +1,4 @@
-package mcpclient_test
+package mcpoauth_test
 
 import (
 	"context"
@@ -12,15 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
 )
 
 func TestIsPermanentRefreshError(t *testing.T) {
@@ -54,7 +52,7 @@ func TestIsPermanentRefreshError(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.permanent, mcpclient.IsPermanentRefreshError(tc.err))
+			require.Equal(t, tc.permanent, mcpoauth.IsPermanentRefreshError(tc.err))
 		})
 	}
 }
@@ -62,10 +60,10 @@ func TestIsPermanentRefreshError(t *testing.T) {
 func TestRefreshFailureReason(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "boom", mcpclient.RefreshFailureReason(xerrors.New("boom")))
+	require.Equal(t, "boom", mcpoauth.RefreshFailureReason(xerrors.New("boom")))
 
 	long := strings.Repeat("x", 1000)
-	reason := mcpclient.RefreshFailureReason(xerrors.New(long))
+	reason := mcpoauth.RefreshFailureReason(xerrors.New(long))
 	require.Len(t, reason, 400)
 }
 
@@ -90,9 +88,9 @@ func TestRefreshOAuth2TokenInvalidGrant(t *testing.T) {
 		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
 	}
 
-	_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
+	_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
 	require.Error(t, err)
-	require.True(t, mcpclient.IsPermanentRefreshError(err))
+	require.True(t, mcpoauth.IsPermanentRefreshError(err))
 }
 
 func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
@@ -122,52 +120,9 @@ func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
 		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
 	}
 
-	_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(tokenSrv.Client()), cfg, tok)
+	_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(tokenSrv.Client()), cfg, tok)
 	require.Error(t, err)
 	require.Zero(t, targetHits.Load())
-}
-
-func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
-	t.Parallel()
-
-	logger := slogtest.Make(t, nil)
-	cfg := mcpclient.Server{
-		ID:       uuid.New(),
-		Slug:     "revoked",
-		UserAuth: mcpclient.UserAuthOAuth2,
-	}
-
-	t.Run("FailureReasonSet", func(t *testing.T) {
-		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
-			context.Background(), logger, cfg,
-			map[uuid.UUID]database.MCPServerUserToken{
-				cfg.ID: {
-					MCPServerConfigID:         cfg.ID,
-					AccessToken:               "leftover",
-					OauthRefreshFailureReason: "invalid_grant",
-				},
-			},
-			uuid.New(), nil,
-		)
-		require.NotContains(t, headers, "Authorization")
-	})
-
-	t.Run("HealthyToken", func(t *testing.T) {
-		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
-			context.Background(), logger, cfg,
-			map[uuid.UUID]database.MCPServerUserToken{
-				cfg.ID: {
-					MCPServerConfigID: cfg.ID,
-					AccessToken:       "valid",
-					TokenType:         "Bearer",
-				},
-			},
-			uuid.New(), nil,
-		)
-		require.Equal(t, "Bearer valid", headers["Authorization"])
-	})
 }
 
 func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
@@ -218,7 +173,7 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 				Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
 			}
 
-			result, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
+			result, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
 			require.NoError(t, err)
 			require.True(t, result.Refreshed)
 			require.Equal(t, "fresh", result.AccessToken)
@@ -256,7 +211,7 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	t.Run("ValidToken", func(t *testing.T) {
 		t.Parallel()
 		expiry := time.Now().Add(time.Hour)
-		result, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
+		result, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
 			AccessToken:  "still-valid",
 			RefreshToken: "refresh",
 			TokenType:    "Bearer",
@@ -272,7 +227,7 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 
 	t.Run("ExpiredWithoutRefreshToken", func(t *testing.T) {
 		t.Parallel()
-		_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
+		_, err := mcpoauth.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
 			AccessToken: "expired",
 			TokenType:   "Bearer",
 			Expiry:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},

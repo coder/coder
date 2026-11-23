@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
 )
@@ -325,7 +326,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if trimmed := strings.TrimSpace(req.OAuth2RevocationURL); trimmed != "" {
-		if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+		if err := mcpoauth.ValidateRevocationEndpoint(trimmed); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid OAuth2 revocation URL.",
 				Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
@@ -615,7 +616,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 			// Same policy as RevokeOAuth2Token, so stored URLs are
 			// not refused later at disconnect time.
-			if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+			if err := mcpoauth.ValidateRevocationEndpoint(trimmed); err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Invalid OAuth2 revocation URL.",
 					Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
@@ -1608,7 +1609,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	if config.AuthType == "oauth2" {
 		// The local token is already deleted, so a client abort must
 		// not cancel the provider revocation; it has its own timeout.
-		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.mcpHTTPClient, config, token)
+		revoked, err := mcpoauth.RevokeOAuth2Token(context.WithoutCancel(ctx), api.mcpHTTPClient, config, token)
 		resp.TokenRevoked = revoked
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to revoke MCP oauth2 token at provider",
@@ -1647,13 +1648,13 @@ func (api *API) refreshMCPUserToken(
 		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
 	}
 
-	result, err := mcpclient.RefreshOAuth2Token(ctx, api.mcpHTTPClient, cfg, tok)
+	result, err := mcpoauth.RefreshOAuth2Token(ctx, api.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to refresh MCP oauth2 token",
 			slog.F("server_slug", cfg.Slug),
 			slog.Error(err),
 		)
-		if mcpclient.IsPermanentRefreshError(err) {
+		if mcpoauth.IsPermanentRefreshError(err) {
 			return api.markMCPTokenRefreshFailure(ctx, cfg, tok, err)
 		}
 		// Transient failure; the token is unusable right now but a
@@ -1742,7 +1743,7 @@ func (api *API) markMCPTokenRefreshFailure(
 		database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
-			OauthRefreshFailureReason: mcpclient.RefreshFailureReason(refreshErr),
+			OauthRefreshFailureReason: mcpoauth.RefreshFailureReason(refreshErr),
 		},
 	)
 	if err == nil {
@@ -2464,7 +2465,7 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 		return nil, err
 	}
 	if result.revocationURL != "" {
-		if err := mcpclient.ValidateRevocationEndpoint(result.revocationURL); err != nil {
+		if err := mcpoauth.ValidateRevocationEndpoint(result.revocationURL); err != nil {
 			api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
 				slog.F("url", serverURL),
 				slog.Error(err),
