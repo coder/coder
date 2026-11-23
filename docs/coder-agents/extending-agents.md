@@ -241,9 +241,9 @@ It is experimental and might change.
 To check which organization skills you can use, open the **Agents** page and go to **Settings** > **Skills**.
 The **From your organizations** section shows one organization at a time and lists that organization's skills that are turned on and that you can use.
 For site owners, organization admins, and auditors, it lists every organization skill that is turned on.
-If more than one of your organizations has such skills, choose an organization in the section's organization picker.
-The section starts on your default organization when that organization has such skills.
-An organization with no such skills doesn't appear in the picker, and the section doesn't appear when none of your organizations has any.
+If you belong to more than one organization, choose an organization in the section's organization picker.
+The picker lists every organization you belong to, and the section starts on your default organization.
+An organization with no such skills shows an empty list.
 
 To read a skill, open its row menu and select **View**, which shows its name, description, and body in a read-only dialog.
 To save its `SKILL.md` content as a file, select **Download** instead.
@@ -262,7 +262,6 @@ When an administrator [lets members turn off organization skills](./platform-con
   These switches are unavailable while **Use organization skills in my chats** is off.
 
 When the organization doesn't let members turn off organization skills, the section is read-only.
-An organization stays in the picker after you turn off all of its skills, so you can turn them back on.
 
 ## Project skills
 
