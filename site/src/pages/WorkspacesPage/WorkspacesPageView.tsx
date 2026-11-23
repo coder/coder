@@ -106,9 +106,32 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 			canEditWorkspaceParameters(workspace, selectedPermissions[index]?.data),
 	);
 
+	const hasStartableWorkspace = checkedWorkspaces.some(
+		(workspace) =>
+			workspace.latest_build.status === "stopped" &&
+			!mustUpdateWorkspace(workspace, canChangeVersions),
+	);
+	const hasRunningWorkspace = checkedWorkspaces.some(
+		(workspace) => workspace.latest_build.status === "running",
+	);
 	const permissionsError = selectedPermissions.find(
 		(query) => query.error,
 	)?.error;
+	const restrictedActions = [
+		hasStartableWorkspace && !canBatchStart && "Start",
+		hasRunningWorkspace && !canBatchStop && "Stop",
+		!canBatchUpdate && "Update",
+		!canBatchDelete && "Delete",
+	].filter(Boolean);
+	const permissionsMessage = selectedPermissions.some(
+		(query) => query.isLoadingError,
+	)
+		? "Unable to load permissions for all selected workspaces."
+		: selectedPermissions.some((query) => query.isPending)
+			? "Checking workspace permissions…"
+			: restrictedActions.length > 0
+				? `Missing permissions for ${restrictedActions.join(", ")} on one or more selected workspaces.`
+				: undefined;
 
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which
 	// does not exist. In this case, the page is not valid and we want to show a
@@ -165,27 +188,15 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
+							<DropdownMenuContent align="end" description={permissionsMessage}>
 								<DropdownMenuItem
-									disabled={
-										!canBatchStart ||
-										!checkedWorkspaces?.some(
-											(w) =>
-												w.latest_build.status === "stopped" &&
-												!mustUpdateWorkspace(w, canChangeVersions),
-										)
-									}
+									disabled={!canBatchStart || !hasStartableWorkspace}
 									onSelect={onBatchStartTransition}
 								>
 									<PlayIcon /> Start
 								</DropdownMenuItem>
 								<DropdownMenuItem
-									disabled={
-										!canBatchStop ||
-										!checkedWorkspaces?.some(
-											(w) => w.latest_build.status === "running",
-										)
-									}
+									disabled={!canBatchStop || !hasRunningWorkspace}
 									onSelect={onBatchStopTransition}
 								>
 									<SquareIcon /> Stop

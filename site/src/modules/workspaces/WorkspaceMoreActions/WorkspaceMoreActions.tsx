@@ -29,7 +29,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
@@ -72,10 +71,27 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	}>({ open: false });
 
 	// Permissions
-	const { data: permissions, isError: isPermissionsError } = useQuery(
+	const { data: permissions, isLoadingError } = useQuery(
 		workspacePermissions(workspace),
 	);
 	const canDuplicate = permissions?.createWorkspace ?? false;
+	const canStop = canPerformWorkspaceAction(workspace, permissions, "stop");
+	const canRestart = canPerformWorkspaceAction(
+		workspace,
+		permissions,
+		"restart",
+	);
+	const restrictedActions = [
+		onStop && !canStop && "Stop",
+		onRestart && !canRestart && "Restart",
+	].filter(Boolean);
+	const permissionsMessage = !permissions
+		? isLoadingError
+			? "Unable to load workspace permissions."
+			: "Checking workspace permissions…"
+		: restrictedActions.length > 0
+			? `Missing permissions for ${restrictedActions.join(" and ")}.`
+			: undefined;
 
 	const canEditParameters = canEditWorkspaceParameters(workspace, permissions);
 	const settingsSection = workspaceSettingsSections(
@@ -155,19 +171,11 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 
-				<DropdownMenuContent align="end">
-					{isPermissionsError && !permissions && (
-						<DropdownMenuLabel>
-							Unable to load workspace permissions
-						</DropdownMenuLabel>
-					)}
+				<DropdownMenuContent align="end" description={permissionsMessage}>
 					{onStop && (
 						<DropdownMenuItem
 							onSelect={onStop}
-							disabled={
-								isStopping ||
-								!canPerformWorkspaceAction(workspace, permissions, "stop")
-							}
+							disabled={isStopping || !canStop}
 						>
 							<SquareIcon />
 							Stop&hellip;
@@ -177,10 +185,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					{onRestart && (
 						<DropdownMenuItem
 							onSelect={onRestart}
-							disabled={
-								isRestarting ||
-								!canPerformWorkspaceAction(workspace, permissions, "restart")
-							}
+							disabled={isRestarting || !canRestart}
 						>
 							<RotateCcwIcon />
 							Restart&hellip;

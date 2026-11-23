@@ -586,7 +586,7 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 	};
 };
 
-/** Cache key for resource-scoped workspace authorization results. */
+/** Invalidate after ACL changes to refresh permissions for every observer of the workspace. */
 export const workspacePermissionsKey = (workspaceId: string | undefined) => [
 	"workspaces",
 	workspaceId,

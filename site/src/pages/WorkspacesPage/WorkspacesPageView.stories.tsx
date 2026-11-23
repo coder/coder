@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { workspacePermissionsKey } from "#/api/queries/workspaces";
 import {
 	type Workspace,
@@ -811,6 +812,7 @@ export const BulkActionsDenied: Story = {
 	args: {
 		workspaces: [mockOutdatedWorkspace],
 		checkedWorkspaces: [mockOutdatedWorkspace],
+		count: 1,
 	},
 	parameters: {
 		queries: [
@@ -848,4 +850,52 @@ export const RowActionsDenied: Story = {
 			within(canvasElement).getByRole("button", { name: "Workspace actions" }),
 		);
 	},
+};
+
+const rejectWorkspacePermissions = () => {
+	spyOn(API, "checkAuthorization").mockRejectedValue(
+		mockApiError({ message: "Unable to load workspace permissions." }),
+	);
+};
+
+const deferWorkspacePermissions = () => {
+	spyOn(API, "checkAuthorization").mockReturnValue(new Promise(() => {}));
+};
+
+export const RowActionsPermissionsError: Story = {
+	args: RowActionsDenied.args,
+	beforeEach: rejectWorkspacePermissions,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Workspace actions" }),
+		);
+		const menu = await screen.findByRole("menu");
+		await within(menu).findByText("Unable to load workspace permissions.");
+	},
+};
+
+export const RowActionsPermissionsPending: Story = {
+	args: RowActionsDenied.args,
+	beforeEach: deferWorkspacePermissions,
+	play: RowActionsDenied.play,
+};
+
+export const BulkActionsPermissionsError: Story = {
+	args: BulkActionsDenied.args,
+	beforeEach: rejectWorkspacePermissions,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Bulk actions" }),
+		);
+		const menu = await screen.findByRole("menu");
+		await within(menu).findByText(
+			"Unable to load permissions for all selected workspaces.",
+		);
+	},
+};
+
+export const BulkActionsPermissionsPending: Story = {
+	args: BulkActionsDenied.args,
+	beforeEach: deferWorkspacePermissions,
+	play: BulkActionsDenied.play,
 };

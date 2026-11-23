@@ -9,6 +9,7 @@
 import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import { useId } from "react";
 import {
 	menuContentClass,
 	menuItemClass,
@@ -64,51 +65,88 @@ const swallowNextClick = (doc: Document) => {
 };
 
 export const DropdownMenuContent: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
+	React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+		/** Text shown above the items and announced as it changes. */
+		description?: string;
+	}
 > = ({
 	className,
 	sideOffset = 4,
 	onFocusOutside,
 	onPointerDownOutside,
+	description,
+	children,
+	"aria-describedby": ariaDescribedBy,
 	...props
 }) => {
+	const descriptionId = useId();
+	const menuDescription = props.asChild ? undefined : description;
+	const describedBy = menuDescription
+		? [ariaDescribedBy, descriptionId].filter(Boolean).join(" ")
+		: ariaDescribedBy;
 	return (
-		<DropdownMenuPrimitive.Portal>
-			<DropdownMenuPrimitive.Content
-				sideOffset={sideOffset}
-				className={cn(menuContentClass, className)}
-				onPointerDownOutside={(event) => {
-					onPointerDownOutside?.(event);
-					const { target } = event.detail.originalEvent;
-					const doc = target instanceof Node ? target.ownerDocument : null;
-					if (event.defaultPrevented || !(target instanceof Node) || !doc) {
-						return;
-					}
-					// A dialog or popover the press lands outside dismisses on the same
-					// click, and Radix keeps it open when that click is stopped.
-					if (
-						[...doc.querySelectorAll(DIALOG_SELECTOR)].every((dialog) =>
-							dialog.contains(target),
-						)
-					) {
-						swallowNextClick(doc);
-					}
-				}}
-				// An item that opens a dialog moves focus into it. Keep that from
-				// counting as an outside interaction, so focus returns to the
-				// trigger when the dialog closes.
-				onFocusOutside={(event) => {
-					onFocusOutside?.(event);
-					if (
-						event.target instanceof Element &&
-						event.target.closest(DIALOG_SELECTOR)
-					) {
-						event.preventDefault();
-					}
-				}}
-				{...props}
-			/>
-		</DropdownMenuPrimitive.Portal>
+		<>
+			{menuDescription && (
+				<DropdownMenuPrimitive.Portal>
+					<span id={descriptionId} className="sr-only" role="status">
+						{menuDescription}
+					</span>
+				</DropdownMenuPrimitive.Portal>
+			)}
+			<DropdownMenuPrimitive.Portal>
+				<DropdownMenuPrimitive.Content
+					sideOffset={sideOffset}
+					className={cn(menuContentClass, className)}
+					aria-describedby={describedBy}
+					onPointerDownOutside={(event) => {
+						onPointerDownOutside?.(event);
+						const { target } = event.detail.originalEvent;
+						const doc = target instanceof Node ? target.ownerDocument : null;
+						if (event.defaultPrevented || !(target instanceof Node) || !doc) {
+							return;
+						}
+						// A dialog or popover the press lands outside dismisses on the same
+						// click, and Radix keeps it open when that click is stopped.
+						if (
+							[...doc.querySelectorAll(DIALOG_SELECTOR)].every((dialog) =>
+								dialog.contains(target),
+							)
+						) {
+							swallowNextClick(doc);
+						}
+					}}
+					// An item that opens a dialog moves focus into it. Keep that from
+					// counting as an outside interaction, so focus returns to the
+					// trigger when the dialog closes.
+					onFocusOutside={(event) => {
+						onFocusOutside?.(event);
+						if (
+							event.target instanceof Element &&
+							event.target.closest(DIALOG_SELECTOR)
+						) {
+							event.preventDefault();
+						}
+					}}
+					{...props}
+				>
+					{props.asChild ? (
+						children
+					) : (
+						<>
+							{menuDescription && (
+								<DropdownMenuLabel
+									aria-hidden="true"
+									className="max-w-56 font-normal"
+								>
+									{menuDescription}
+								</DropdownMenuLabel>
+							)}
+							{children}
+						</>
+					)}
+				</DropdownMenuPrimitive.Content>
+			</DropdownMenuPrimitive.Portal>
+		</>
 	);
 };
 
