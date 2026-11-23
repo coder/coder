@@ -313,6 +313,10 @@ export const ModelFormFields: React.FC<{
 							<>
 								Estimated price per million tokens in USD. Prices are read-only.{" "}
 								Model prices are managed by AI Gateway.{" "}
+								{selectedProviderType === "zai" &&
+									"Z.ai Coding Plan has a subscription fee and usage limits. Included tokens have no per-token charge. "}
+								{selectedProviderType === "opencode-go" &&
+									"OpenCode Go rates estimate token value before applying your subscription allowance. "}
 								<Link
 									href={docs(
 										"/ai-governance/ai-gateway/cost-controls#configure-model-prices",

@@ -35,6 +35,10 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/gemini.svg";
 		case "openrouter":
 			return "/icon/openrouter.svg";
+		case "opencode-go":
+			return "/icon/opencode.svg";
+		case "zai":
+			return "/icon/zai.svg";
 		default:
 			return undefined;
 	}

@@ -98,6 +98,7 @@ const PROPER_NOUNS = [
 	"VS Code Remote SSH",
 	"VSCode Insiders",
 	"Visual Studio Code",
+	"Z.ai Coding Plan",
 
 	// Standards and protocols.
 	"Cross-Origin Resource Sharing",

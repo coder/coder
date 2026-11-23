@@ -855,6 +855,212 @@
 			"cacheReadCost": 0.175
 		}
 	],
+	"opencode-go": [
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "glm-5.3",
+			"displayName": "GLM-5.3",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 1.4,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.26
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "glm-5.3-flash",
+			"displayName": "GLM-5.3-Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.15,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.03
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "glm-5.2",
+			"displayName": "GLM-5.2",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 1.4,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.26
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "kimi-k3.1-pro",
+			"displayName": "Kimi K3.1 Pro",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 1048576,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "kimi-k3",
+			"displayName": "Kimi K3",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 1048576,
+			"inputCost": 3,
+			"outputCost": 15,
+			"cacheReadCost": 0.3,
+			"cacheWriteCost": 3
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "kimi-k2.7-code",
+			"displayName": "Kimi K2.7 Code",
+			"aliases": [],
+			"contextLimit": 262144,
+			"maxOutputTokens": 262144,
+			"inputCost": 0.95,
+			"outputCost": 4,
+			"cacheReadCost": 0.19
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "deepseek-v4-pro",
+			"displayName": "DeepSeek V4 Pro",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 384000,
+			"inputCost": 0.66,
+			"outputCost": 1.98,
+			"cacheReadCost": 0.022
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "deepseek-v4.1-flash",
+			"displayName": "DeepSeek V4.1 Flash 1017",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 384000,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.003
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "minimax-m3",
+			"displayName": "MiniMax-M3",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.3,
+			"outputCost": 1.2,
+			"cacheReadCost": 0.06
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "minimax-m3.1-flash",
+			"displayName": "MiniMax M3.1 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 512000,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.015
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "mimo-v2.6-pro",
+			"displayName": "MiMo-V2.6-Pro",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.435,
+			"outputCost": 0.87,
+			"cacheReadCost": 0.003625
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "mimo-v2.6-flash",
+			"displayName": "MiMo-V2.6-Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.14,
+			"outputCost": 0.28,
+			"cacheReadCost": 0.0028
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "qwen4-max",
+			"displayName": "Qwen4 Max",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 262144,
+			"inputCost": 1.5,
+			"outputCost": 4.5,
+			"cacheReadCost": 0.075,
+			"cacheWriteCost": 1.875
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "qwen3.8-max",
+			"displayName": "Qwen3.8 Max",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 2,
+			"outputCost": 6,
+			"cacheReadCost": 0.25,
+			"cacheWriteCost": 2.5
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "qwen3.8-flash",
+			"displayName": "Qwen3.8 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.15,
+			"outputCost": 0.47,
+			"cacheReadCost": 0.016,
+			"cacheWriteCost": 0.2
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "gemini-4-argon",
+			"displayName": "Gemini 4 Argon",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "gpt-6-luna",
+			"displayName": "GPT-6 Luna",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 0.1,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.01,
+			"cacheWriteCost": 0.125
+		},
+		{
+			"provider": "opencode-go",
+			"modelIdentifier": "beam-free",
+			"displayName": "Beam Free",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0
+		}
+	],
 	"openrouter": [
 		{
 			"provider": "openrouter",
@@ -1770,6 +1976,104 @@
 			"inputCost": 0.3,
 			"outputCost": 1.2,
 			"cacheReadCost": 0.06
+		}
+	],
+	"zai": [
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.4",
+			"displayName": "GLM-5.4",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.3",
+			"displayName": "GLM-5.3",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.3-highspeed",
+			"displayName": "GLM-5.3 Highspeed",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.3-flash",
+			"displayName": "GLM-5.3-Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.2",
+			"displayName": "GLM-5.2",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5.2-highspeed",
+			"displayName": "GLM-5.2 Highspeed",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-5-turbo",
+			"displayName": "GLM-5-Turbo",
+			"aliases": [],
+			"contextLimit": 200000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
+		},
+		{
+			"provider": "zai",
+			"modelIdentifier": "glm-4.7",
+			"displayName": "GLM-4.7",
+			"aliases": [],
+			"contextLimit": 204800,
+			"maxOutputTokens": 131072,
+			"inputCost": 0,
+			"outputCost": 0,
+			"cacheReadCost": 0,
+			"cacheWriteCost": 0
 		}
 	]
 }

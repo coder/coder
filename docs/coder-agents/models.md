@@ -89,6 +89,9 @@ Select **Z.ai** for a [Z.ai GLM Coding Plan](https://docs.z.ai/devpack/overview)
 Use the API key associated with your subscription and enter the upstream model ID when you add the Agents model.
 Coder sends a stable `X-Opencode-Session` header for each OpenCode Go conversation.
 AI Gateway records token usage under the configured provider name.
+The model picker suggests models for each subscription.
+Z.ai Coding Plan estimates show zero per-token charges for included usage.
+OpenCode Go estimates use published token rates, which can also apply to extra usage if you enable it.
 Check your provider's dashboard for remaining subscription allowance.
 
 ## Provider credentials and security

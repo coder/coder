@@ -14,8 +14,10 @@ var Supported = []database.AIProviderType{
 	database.AIProviderTypeCopilot,
 	database.AIProviderTypeGoogle,
 	database.AIProviderTypeOpenai,
+	database.AIProviderTypeOpencodeGo,
 	database.AIProviderTypeOpenrouter,
 	database.AIProviderTypeVercel,
+	database.AIProviderTypeZai,
 }
 
 // SupportedStrings returns the supported providers as plain strings.

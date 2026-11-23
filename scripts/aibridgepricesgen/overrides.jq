@@ -88,6 +88,7 @@ end
 # Ref. table definition for ai_provider_type
 # amazon-bedrock -> bedrock
 # github-copilot -> copilot
+# zai-coding-plan -> zai (Coder uses the subscription endpoint)
 | if (has("amazon-bedrock") | not) then
    error("overrides.jq: amazon-bedrock not present upstream; drop or update the rename")
 else
@@ -97,4 +98,9 @@ end
    error("overrides.jq: github-copilot not present upstream; drop or update the rename")
 else
   .copilot = ."github-copilot" | del(."github-copilot")
+end
+| if (has("zai-coding-plan") | not) then
+   error("overrides.jq: zai-coding-plan not present upstream; drop or update the rename")
+else
+  .zai = ."zai-coding-plan" | del(."zai-coding-plan")
 end
