@@ -98,6 +98,14 @@ export const Fetching: Story = {
 	},
 };
 
+export const ChangingPage: Story = {
+	args: {
+		isFetching: true,
+		sessions: [MockSession],
+		sessionsQuery: { ...mockSuccessResult, isPlaceholderData: true },
+	},
+};
+
 export const MultipleSessions: Story = {
 	args: {
 		sessions: Array.from({ length: 5 }, (_, i) => ({

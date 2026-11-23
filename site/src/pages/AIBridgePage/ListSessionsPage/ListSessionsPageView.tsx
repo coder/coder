@@ -90,7 +90,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 				query={sessionsQuery}
 				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
 			>
-				<Table className="text-sm font-normal">
+				<Table className="text-sm font-normal" aria-busy={isFetching}>
 					<TableHeader>
 						<TableRow>
 							<TableHead className="text-nowrap">Last prompt</TableHead>
@@ -136,7 +136,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading || isFetching ? (
+						{isLoading || sessionsQuery.isPlaceholderData ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />
