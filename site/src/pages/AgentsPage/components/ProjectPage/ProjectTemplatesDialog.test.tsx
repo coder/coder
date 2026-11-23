@@ -62,7 +62,7 @@ const renderDialog = (
 		onResetError: vi.fn(),
 		...props,
 	};
-	const { rerender } = render(
+	const { rerender, unmount } = render(
 		<QueryClientProvider client={queryClient}>
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
@@ -79,6 +79,7 @@ const renderDialog = (
 			);
 		},
 		queryClient,
+		unmount,
 	};
 };
 
@@ -148,8 +149,10 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		});
 
-		const save = await screen.findByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
@@ -197,8 +200,10 @@ describe("ProjectTemplatesDialog", () => {
 			{ ...MockTemplate, use_classic_parameter_flow: true },
 		);
 
-		const save = await screen.findByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
@@ -542,20 +547,60 @@ describe("ProjectTemplatesDialog", () => {
 				},
 			},
 		});
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
 
-		await user.click(await screen.findByRole("button", { name: "Retry" }));
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const retry = await screen.findByRole("button", { name: "Retry" });
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		const refreshesBeforeSave = getProjects.mock.calls.length;
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+		// A save starts by refreshing the project, so none has started.
+		expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave);
+
+		await user.click(retry);
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
 			expect(props.onSave).toHaveBeenCalledWith({
 				attach: [],
 				detach: [],
-				request: { default_template: { template_id: MockTemplate.id } },
+				request: {
+					limit_templates: true,
+					default_template: { template_id: MockTemplate.id },
+				},
 			}),
 		);
 		expect(getPresets).toHaveBeenCalledTimes(2);
+	});
+
+	it("requests the default presets again after closing with a request in flight", async () => {
+		const getPresets = vi
+			.spyOn(API, "getTemplateVersionPresets")
+			.mockReturnValue(new Promise(() => {}));
+		const { props, queryClient, unmount } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					preset_id: "preset-id",
+				},
+			},
+		});
+		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(1));
+
+		unmount();
+		render(
+			<QueryClientProvider client={queryClient}>
+				<ProjectTemplatesDialog {...props} />
+			</QueryClientProvider>,
+		);
+
+		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(2));
 	});
 
 	it("ignores a failed preset list after switching to parameter values", async () => {
@@ -577,8 +622,10 @@ describe("ProjectTemplatesDialog", () => {
 		const first = await findParameterInput(MockPreviewParameter1.display_name);
 		await user.clear(first);
 		await user.type(first, "x");
-		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		const save = await screen.findByRole("button", {
+			name: /Save/,
+			busy: false,
+		});
 		await user.click(save);
 
 		await waitFor(() =>
