@@ -3455,6 +3455,13 @@ func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
 
 			documentPath := "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/client-metadata.json"
 			callbackURL := tc.accessURL + "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/callback"
+			if tc.want == metadataDocument {
+				// A switch to manual keeps the client, so its document must stay.
+				_, err = client.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+					OAuth2ClientRegistration: ptr.Ref(codersdk.MCPServerOAuth2ClientRegistrationManual),
+				})
+				require.NoError(t, err)
+			}
 			// Authorization servers fetch the document without a session.
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+documentPath, nil)
 			require.NoError(t, err)

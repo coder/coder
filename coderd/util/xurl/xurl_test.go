@@ -65,6 +65,7 @@ func TestIsPublicHTTPS(t *testing.T) {
 		"http://coder.example.com":   false,
 		"https://localhost":          false,
 		"https://dev.localhost":      false,
+		"https://localhost.":         false,
 		// safedial owns the IP ranges; one blocked literal shows the delegation.
 		"https://100.64.1.2": false,
 	} {

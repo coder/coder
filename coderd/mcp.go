@@ -1843,7 +1843,11 @@ func (api *API) mcpServerOAuth2ClientMetadata(rw http.ResponseWriter, r *http.Re
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	if config.AuthType != "oauth2" || config.OAuth2ClientRegistration != string(codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument) {
+	// Serve while the config's client ID is this document's URL, also after
+	// an admin switches the config to manual and keeps the client. The path
+	// match, not the host, keeps a client ID from before an access URL host
+	// change working while the old host still reaches this deployment.
+	if config.AuthType != "oauth2" || !strings.HasSuffix(config.OAuth2ClientID, mcpServerOAuth2ClientMetadataPath(config.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
