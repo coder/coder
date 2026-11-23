@@ -1,7 +1,3 @@
----
-review-personas: [audience, learner, structure]
----
-
 # Audience and scope
 
 Every page in the Coder documentation targets one audience working toward one outcome.

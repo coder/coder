@@ -44,7 +44,6 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 - Answer informational questions directly. Requests to implement, fix, or investigate authorize that work even when phrased as a question.
 - Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
-- Before you open or update a PR that touches `docs/` or user-facing behavior, run the [doc-check skill](.claude/skills/doc-check/SKILL.md) on your branch in author self-check mode and fix every blocking finding.
 - When you add or change a test, apply the authoring gate of the [test-audit skill](.agents/skills/test-audit/SKILL.md). Before you open or update a PR that adds or changes tests, run the skill in audit mode on the branch's test diff and remove the low-value and duplicate tests it finds.
 - Do not force-push unless explicitly requested.
 - Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file, except files under `docs/`. Use a broader scope or no scope for cross-cutting changes.

@@ -1,7 +1,3 @@
----
-review-personas: [language]
----
-
 # Voice and tone
 
 Coder documentation addresses the reader directly, uses active voice, and describes the product in the present tense.
