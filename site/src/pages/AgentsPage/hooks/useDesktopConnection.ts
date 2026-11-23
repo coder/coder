@@ -35,10 +35,6 @@ export type UseDesktopConnectionResult = {
 	 * without reconnecting.
 	 */
 	attach: (container: HTMLElement) => void;
-	/** Latest text received from the remote desktop clipboard. */
-	remoteClipboardText: string | null;
-	/** The underlying RFB instance, if connected. */
-	rfb: RFB | null;
 };
 
 const MAX_BACKOFF_MS = 30_000;
@@ -88,15 +84,10 @@ export function useDesktopConnection({
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 
 	const [hasConnected, setHasConnected] = useState(false);
-	const [remoteClipboardText, setRemoteClipboardText] = useState<string | null>(
-		null,
-	);
 
-	// rfbRef provides synchronous access for cleanup and event
-	// handlers. rfbInstance (state) provides reactivity so consumers
-	// re-render when the RFB instance changes.
-	const [rfbInstance, setRfbInstance] = useState<RFB | null>(null);
 	const rfbRef = useRef<RFB | null>(null);
+	// Read when a connection is created, so it starts at the current scale.
+	const scaleViewportRef = useRef(scaleViewport);
 
 	const offscreenContainerRef = useRef<HTMLElement | null>(null);
 	const reconnectAttemptRef = useRef(0);
@@ -169,7 +160,6 @@ export function useDesktopConnection({
 					// Ignore errors during disconnect.
 				}
 				rfbRef.current = null;
-				setRfbInstance(null);
 			}
 		};
 
@@ -238,7 +228,7 @@ export function useDesktopConnection({
 					shared: true,
 				});
 
-				rfb.scaleViewport = false;
+				rfb.scaleViewport = scaleViewportRef.current;
 				rfb.resizeSession = false;
 				rfb.focusOnClick = true;
 
@@ -263,7 +253,6 @@ export function useDesktopConnection({
 					if (gen !== generationRef.current || !sessionConnected) {
 						return;
 					}
-					setRemoteClipboardText(text);
 					syncRemoteClipboardToLocal(text).catch((err) => {
 						console.error("Failed to sync remote clipboard to local:", err);
 					});
@@ -420,7 +409,6 @@ export function useDesktopConnection({
 						connectTimeoutRef.current = null;
 					}
 					rfbRef.current = null;
-					setRfbInstance(null);
 
 					// Security failures are terminal — the
 					// securityfailure handler already moved to
@@ -458,12 +446,10 @@ export function useDesktopConnection({
 					if (gen !== generationRef.current) return;
 					securityFailed = true;
 					rfbRef.current = null;
-					setRfbInstance(null);
 					setStatus("error");
 				});
 
 				rfbRef.current = rfb;
-				setRfbInstance(rfb);
 
 				// Work around a noVNC rendering bug: when an ancestor
 				// hides this container (display: none), the canvas
@@ -506,7 +492,7 @@ export function useDesktopConnection({
 		};
 
 		if (activated) {
-			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- doConnect creates the RFB connection that setRfbInstance exposes; there is no snapshot to read.
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- doConnect opens the noVNC connection this effect owns; there is no store snapshot to read.
 			doConnect();
 		}
 
@@ -515,22 +501,20 @@ export function useDesktopConnection({
 			teardown();
 			setStatus("idle");
 			setHasConnected(false);
-			setRemoteClipboardText(null);
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
 	useEffect(() => {
-		if (rfbInstance && rfbRef.current) {
+		scaleViewportRef.current = scaleViewport;
+		if (rfbRef.current) {
 			rfbRef.current.scaleViewport = scaleViewport;
 		}
-	}, [rfbInstance, scaleViewport]);
+	}, [scaleViewport]);
 
 	return {
 		status,
 		hasConnected,
 		reconnect,
 		attach,
-		remoteClipboardText,
-		rfb: rfbInstance,
 	};
 }
