@@ -8,7 +8,7 @@ import {
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 
 describe("MissingTemplateVariablesDialog", () => {
-	it("submits the values of variables that load after opening", async () => {
+	it("submits the edited values of variables that load after opening", async () => {
 		const onSubmit = vi.fn();
 		const dialog = (missingVariables?: TemplateVersionVariable[]) => (
 			<MissingTemplateVariablesDialog
@@ -27,10 +27,13 @@ describe("MissingTemplateVariablesDialog", () => {
 			]),
 		);
 
+		const firstField = screen.getByLabelText(/var\.first_variable/);
+		await userEvent.clear(firstField);
+		await userEvent.type(firstField, "edited");
 		await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
 		expect(onSubmit).toHaveBeenCalledWith([
-			{ name: MockTemplateVersionVariable1.name, value: "first" },
+			{ name: MockTemplateVersionVariable1.name, value: "edited" },
 			{ name: MockTemplateVersionVariable2.name, value: "second" },
 		]);
 	});
