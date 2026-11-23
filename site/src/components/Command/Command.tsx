@@ -113,6 +113,10 @@ export const CommandSeparator: React.FC<
 	);
 };
 
+/**
+ * A cmdk row. Pass `aria-selected` to mark the row holding the chosen value;
+ * otherwise cmdk marks the highlighted row as selected.
+ */
 export const CommandItem: React.FC<
 	React.ComponentProps<typeof CommandPrimitive.Item>
 > = ({ className, ...props }) => {

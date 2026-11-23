@@ -41,6 +41,25 @@ func Test_parsePortForwards(t *testing.T) {
 			},
 		},
 		{
+			name: "TCP maximum port",
+			args: args{
+				tcpSpecs: []string{"65535"},
+			},
+			want: []portForwardSpec{
+				{"tcp", noAddr, 65535, 65535},
+			},
+		},
+		{
+			name: "UDP range to maximum remote port",
+			args: args{
+				udpSpecs: []string{"8000-8001:65534-65535"},
+			},
+			want: []portForwardSpec{
+				{"udp", noAddr, 8000, 65534},
+				{"udp", noAddr, 8001, 65535},
+			},
+		},
+		{
 			name: "TCP IPv4 local",
 			args: args{
 				tcpSpecs: []string{"127.0.0.1:8080:8081"},

@@ -132,6 +132,7 @@ const meta: Meta<typeof AgentRow> = {
 		},
 		workspace: M.MockWorkspace,
 		initialMetadata: defaultAgentMetadata,
+		template: M.MockTemplate,
 	},
 	decorators: [
 		withAuthProvider,
@@ -505,6 +506,19 @@ export const HideApp: Story = {
 				},
 			],
 		},
+	},
+};
+
+export const TemplateBrowserOnly: Story = {
+	args: {
+		agent: M.MockWorkspaceAgentReady,
+		template: { ...M.MockTemplate, browser_only: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(M.MockWorkspaceAgentReady.name);
+		expect(canvas.queryByText("Connect via SSH")).not.toBeInTheDocument();
+		expect(canvas.queryByText("VS Code Desktop")).not.toBeInTheDocument();
 	},
 };
 
