@@ -2028,24 +2028,26 @@ func AIModelPrice(dbPrice database.AIModelPrice) (codersdk.AIModelPrice, error) 
 	tiers := make([]codersdk.AIModelPriceTier, 0, len(extras.Tiers))
 	for _, t := range extras.Tiers {
 		tiers = append(tiers, codersdk.AIModelPriceTier{
-			ThresholdTokens: t.ThresholdTokens,
-			InputPrice:      t.Prices.Input,
-			OutputPrice:     t.Prices.Output,
-			CacheReadPrice:  t.Prices.CacheRead,
-			CacheWritePrice: t.Prices.CacheWrite,
+			ThresholdTokens:   t.ThresholdTokens,
+			InputPrice:        t.Prices.Input,
+			OutputPrice:       t.Prices.Output,
+			CacheReadPrice:    t.Prices.CacheRead,
+			CacheWritePrice:   t.Prices.CacheWrite,
+			CacheWrite1hPrice: t.Prices.CacheWrite1h,
 		})
 	}
 	return codersdk.AIModelPrice{
-		Provider:        dbPrice.Provider,
-		Model:           dbPrice.Model,
-		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
-		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
-		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
-		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
-		Tiers:           tiers,
-		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
-		CreatedAt:       dbPrice.CreatedAt,
-		UpdatedAt:       dbPrice.UpdatedAt,
+		Provider:          dbPrice.Provider,
+		Model:             dbPrice.Model,
+		InputPrice:        nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:       nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:    nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice:   nullInt64Ptr(dbPrice.CacheWritePrice),
+		CacheWrite1hPrice: extras.ExtraPrices.CacheWrite1h,
+		Tiers:             tiers,
+		Source:            codersdk.AIModelPriceSource(dbPrice.Source),
+		CreatedAt:         dbPrice.CreatedAt,
+		UpdatedAt:         dbPrice.UpdatedAt,
 	}, nil
 }
 

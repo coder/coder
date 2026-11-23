@@ -177,7 +177,9 @@ Prices come from a curated [models.dev](https://models.dev) snapshot that ships 
 When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
 The prompt size counts the input, cache read, and cache write tokens of the request.
 When a model has more than one long-context size, the largest size that the prompt is over applies.
-A long-context price that isn't set uses the base price.
+A long-context price that isn't set uses the base price, except a long-context 1-hour cache write price, which uses the long-context cache write price.
+A cache write with a 1-hour TTL costs twice the input price on Claude models served through Anthropic, Amazon Bedrock, or GitHub Copilot.
+Other providers don't report 1-hour cache writes, so every cache write of their requests uses the cache write price.
 
 Coder prices a request by the model the client requested.
 When that model has no price, Coder uses the price of the model the provider reports serving, for example when the provider resolves an alias to a specific model.
@@ -262,8 +264,8 @@ To see every price a model holds, both at once:
 coder exp ai-model-prices list --source all
 ```
 
-The table leaves out the long-context prices.
-To see them, add `--output json`, which reports them as `tiers`.
+The table leaves out the 1-hour cache write price and the long-context prices.
+To see them, add `--output json`, which reports them as `cache_write_1h_price` and `tiers`.
 
 Price a single model.
 Prices are micro-units per million tokens, so `3000000` is $3.00 per million tokens.
@@ -277,7 +279,7 @@ coder exp ai-model-prices update --provider anthropic --model my-model \
 
 Price several models at once from a JSON document.
 The document is an array of prices that uses the keys `coder exp ai-model-prices list --output json` prints, not the keys of the price book.
-Long-context prices go in `tiers`, in ascending `threshold_tokens` order:
+The 1-hour cache write price goes in `cache_write_1h_price`, and long-context prices go in `tiers`, in ascending `threshold_tokens` order:
 
 ```json
 [
@@ -288,13 +290,15 @@ Long-context prices go in `tiers`, in ascending `threshold_tokens` order:
     "output_price": 15000000,
     "cache_read_price": 300000,
     "cache_write_price": 3750000,
+    "cache_write_1h_price": 6000000,
     "tiers": [
       {
         "threshold_tokens": 200000,
         "input_price": 6000000,
         "output_price": 22500000,
         "cache_read_price": 600000,
-        "cache_write_price": 7500000
+        "cache_write_price": 7500000,
+        "cache_write_1h_price": 12000000
       }
     ]
   }
@@ -310,8 +314,10 @@ coder exp ai-model-prices update prices.json
 > - Prices are not retroactive.
 >   Usage recorded before you set a price stays unpriced, so past spend does not change.
 > - A price you set takes precedence over the default and stays in effect across upgrades, so it does not pick up later price books.
->   It also replaces the default long-context prices, so set `tiers` on it too.
->   Long-context prices can only be set from a JSON document, and an update that leaves out `tiers` clears them.
+>   It also replaces the default 1-hour and long-context prices, so set `cache_write_1h_price` and `tiers` on it too.
+>   Set the 1-hour price with `--cache-write-1h-price` or in a JSON document.
+>   Long-context prices can only be set from a JSON document.
+>   An update that leaves out `cache_write_1h_price` or `tiers` clears that price.
 > - A price is keyed by provider type and model, so every configured provider of that type shares it.
 > - `openai-compat` providers cannot be priced.
 >   They pass through to any upstream vendor, so a single price would be wrong for most of them.

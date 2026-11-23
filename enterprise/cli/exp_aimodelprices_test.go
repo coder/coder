@@ -246,6 +246,43 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
+	t.Run("SetsAndPreviewsThe1hPriceFromFlags", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: anthropic/ttl-model priced with a 1h cache write price.
+		client := setupAIModelPricesCLI(t)
+		exp := codersdk.NewExperimentalClient(client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		update := func(cacheWrite1h string) string {
+			inv, conf := newCLI(t,
+				"exp", "ai-model-prices", "update",
+				"--provider", "anthropic", "--model", "ttl-model",
+				"--input-price", "3000000", "--output-price", "15000000",
+				"--cache-read-price", "300000", "--cache-write-price", "3750000",
+				"--cache-write-1h-price", cacheWrite1h,
+				"--yes",
+			)
+			clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+			var stdout bytes.Buffer
+			inv.Stdout = &stdout
+			require.NoError(t, inv.Run())
+			return stdout.String()
+		}
+		update("6000000")
+
+		// When: only the 1h price changes.
+		out := update("8000000")
+
+		// Then: the plan shows it as a change, and it is stored.
+		require.Contains(t, out, "Plan: 1 to change.")
+		require.Contains(t, out, "cache_write_1h_price $6.00 -> $8.00")
+		prices, err := exp.ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "ttl-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(8_000_000), *prices[0].CacheWrite1hPrice)
+	})
+
 	t.Run("PreviewsAChangedPrice", func(t *testing.T) {
 		t.Parallel()
 

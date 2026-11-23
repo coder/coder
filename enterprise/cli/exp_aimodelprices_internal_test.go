@@ -99,6 +99,17 @@ func TestDiffAIModelPrices(t *testing.T) {
 			wantChanged: 1,
 		},
 		{
+			name: "Changed1hPriceIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), CacheWrite1hPrice: new(int64(200)),
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), CacheWrite1hPrice: new(int64(300)),
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
 			name: "ChangedTierIsAChange",
 			current: []codersdk.AIModelPrice{{
 				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
@@ -133,6 +144,19 @@ func TestDiffAIModelPrices(t *testing.T) {
 			requested: []codersdk.AIModelPriceUpsert{{
 				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
 				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, CacheWritePrice: new(int64(300))}},
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			name: "ChangedTier1hPriceIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, CacheWrite1hPrice: new(int64(200))}},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, CacheWrite1hPrice: new(int64(300))}},
 			}},
 			wantAdded:   0,
 			wantChanged: 1,

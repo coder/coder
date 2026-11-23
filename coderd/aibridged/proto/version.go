@@ -36,9 +36,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.7:
 //   - Adds prompt_tokens to RecordTokenUsageRequest.
+//
+// API v1.8:
+//   - Adds cache_write_one_hour_input_tokens to RecordTokenUsageRequest.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 7
+	CurrentMinor = 8
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

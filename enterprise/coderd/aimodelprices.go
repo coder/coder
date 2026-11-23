@@ -221,7 +221,7 @@ type modelKey struct {
 // validateAIModelPrices reports every problem with the requested prices: a
 // supported provider, a model, all four price keys, non-negative prices with
 // at least one set, positive and strictly ascending tier thresholds, and no
-// repeated model. The tiers are optional.
+// repeated model. The 1h price and tiers are optional.
 func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiModelPriceKeys) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -438,8 +438,8 @@ func (api *API) organizationUnpricedAIModels(rw http.ResponseWriter, r *http.Req
 }
 
 // aiModelPriceSeed converts requested prices to price book rows, the format
-// the batch upsert reads, so the request's flat tiers are stored as
-// pricing_extras.
+// the batch upsert reads, so the request's flat 1h cache write price and tiers
+// are stored as pricing_extras.
 func aiModelPriceSeed(requested []codersdk.AIModelPriceUpsert) []pricebook.Row {
 	rows := make([]pricebook.Row, 0, len(requested))
 	for _, price := range requested {
@@ -448,10 +448,11 @@ func aiModelPriceSeed(requested []codersdk.AIModelPriceUpsert) []pricebook.Row {
 			tiers = append(tiers, pricebook.Tier{
 				ThresholdTokens: tier.ThresholdTokens,
 				Prices: pricebook.TierPrices{
-					Input:      tier.InputPrice,
-					Output:     tier.OutputPrice,
-					CacheRead:  tier.CacheReadPrice,
-					CacheWrite: tier.CacheWritePrice,
+					Input:        tier.InputPrice,
+					Output:       tier.OutputPrice,
+					CacheRead:    tier.CacheReadPrice,
+					CacheWrite:   tier.CacheWritePrice,
+					CacheWrite1h: tier.CacheWrite1hPrice,
 				},
 			})
 		}
@@ -462,7 +463,7 @@ func aiModelPriceSeed(requested []codersdk.AIModelPriceUpsert) []pricebook.Row {
 			OutputPrice:     price.OutputPrice,
 			CacheReadPrice:  price.CacheReadPrice,
 			CacheWritePrice: price.CacheWritePrice,
-			PricingExtras:   pricebook.NewPricingExtras(nil, tiers),
+			PricingExtras:   pricebook.NewPricingExtras(price.CacheWrite1hPrice, tiers),
 		})
 	}
 	return rows
@@ -480,6 +481,7 @@ func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpse
 			})
 		}
 	}
+	negative(field+".cache_write_1h_price", price.CacheWrite1hPrice)
 	for j, tier := range price.Tiers {
 		tierField := fmt.Sprintf("%s.tiers[%d]", field, j)
 		switch {
@@ -498,6 +500,7 @@ func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpse
 		negative(tierField+".output_price", tier.OutputPrice)
 		negative(tierField+".cache_read_price", tier.CacheReadPrice)
 		negative(tierField+".cache_write_price", tier.CacheWritePrice)
+		negative(tierField+".cache_write_1h_price", tier.CacheWrite1hPrice)
 	}
 	return validations
 }
