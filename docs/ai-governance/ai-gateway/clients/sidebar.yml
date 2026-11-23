@@ -1,0 +1,40 @@
+title: Client configuration
+description: Configure your AI coding tools to route their model requests through AI Gateway.
+path: ./index.md
+children:
+  - title: Claude Code
+    description: Configure Claude Code to route requests through AI Gateway using environment variables.
+    path: ./claude-code.md
+  - title: Codex
+    description: Configure the Codex CLI to route requests through AI Gateway with a custom model provider.
+    path: ./codex.md
+  - title: Xum
+    description: Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.
+    path: ./xum.md
+  - title: OpenCode
+    description: Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.
+    path: ./opencode.md
+  - title: Factory
+    description: Configure Factory's Droid agent to route its model requests through AI Gateway.
+    path: ./factory.md
+  - title: Cline
+    description: Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.
+    path: ./cline.md
+  - title: Kilo Code
+    description: Configure Kilo Code to route its model requests through AI Gateway from the UI.
+    path: ./kilo-code.md
+  - title: VS Code
+    description: Configure VS Code to route its AI model requests through Coder's AI Gateway.
+    path: ./vscode.md
+  - title: JetBrains
+    description: Use Claude Agent and Codex in JetBrains IDEs with AI Gateway.
+    path: ./jetbrains.md
+  - title: Junie
+    description: Configure Junie CLI to route requests through AI Gateway with a custom model profile.
+    path: ./junie.md
+  - title: Zed
+    description: Configure the Zed editor's language models to route requests through AI Gateway.
+    path: ./zed.md
+  - title: GitHub Copilot
+    description: Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.
+    path: ./copilot.md

@@ -1,0 +1,38 @@
+title: Reference
+description: Reference for automating Coder through the REST API, command-line interface, and Agent API.
+path: ./index.md
+icon_path: ./images/icons/notes.svg
+children:
+  - title: Glossary
+    description: Definitions of Coder terms and product names.
+    path: ./glossary.md
+  - title: Releases
+    description: Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.
+    path: ./releases.md
+    icon_path: ./images/icons/star.svg
+  - title: Feature stages
+    description: Understand Coder's feature stages, including early access, beta, and general availability.
+    path: ./feature-stages.md
+  - title: REST API
+    description: Reference for the Coder REST API, including endpoints, authentication, and schemas.
+    path: ./api/index.md
+    icon_path: ./images/icons/api.svg
+    folder: api
+    children:
+      - title: Agents
+        description: REST endpoints for the workspace agent daemon (`coder_agent`).
+      - title: Chats
+        description: REST endpoints for Coder Agents Chats API (programmatic agent sessions).
+  - title: Command Line
+    description: Reference for the Coder command-line interface, with usage and flags for every command.
+    path: ./cli/index.md
+    icon_path: ./images/icons/terminal.svg
+    folder: cli
+  - title: API key scopes
+    description: Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.
+    path: ./api-key-scopes.md
+    icon_path: ./images/icons/api.svg
+  - folder: agent-api
+  - title: FAQs
+    description: Answers to frequently asked questions about Coder OSS and licensed deployments.
+    path: ./faqs.md

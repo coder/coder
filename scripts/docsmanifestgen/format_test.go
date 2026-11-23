@@ -113,20 +113,20 @@ children:
 `,
 		},
 		{
-			name: "Include",
+			name: "Folder",
 			rel:  "section.yml",
-			in:   "title: A\npath: ./a.md\nchildren:\n  - {include: \"section/b.yml\"}\n",
-			want: "title: A\npath: ./a.md\nchildren:\n  - include: section/b.yml\n",
+			in:   "title: A\npath: ./a.md\nchildren:\n  - {folder: \"b\"}\n",
+			want: "title: A\npath: ./a.md\nchildren:\n  - folder: b\n",
 		},
 		{
-			name: "Index",
-			rel:  docgenenv.ManifestIndexFile,
-			in:   "# Header.\n\nsections: [a.yml, b.yml]\nversions:\n  - main\n",
-			want: "# Header.\n\nversions: [main]\nsections:\n  - a.yml\n  - b.yml\n",
+			name: "Root",
+			rel:  docgenenv.SidebarFile,
+			in:   "# Header.\n\nroutes: [{path: ./a.md, title: A}, {folder: b}]\nversions:\n  - main\n",
+			want: "# Header.\n\nversions: [main]\nroutes:\n  - title: A\n    path: ./a.md\n  - folder: b\n",
 		},
 		{
 			name: "Fragment",
-			rel:  "generated/frag.yml",
+			rel:  "ref/api/sidebar.yml",
 			in:   "- path: ./a.md\n  title: A\n",
 			want: "- title: A\n  path: ./a.md\n",
 		},
@@ -162,14 +162,17 @@ func TestCheckReportsUnformattedFiles(t *testing.T) {
 	t.Parallel()
 
 	docsDir := t.TempDir()
-	sources := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
-	require.NoError(t, os.MkdirAll(sources, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(docsDir, "index.md"), []byte("# page\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(sources, docgenenv.ManifestIndexFile), []byte("versions: [main]\nsections:\n  - home.yml\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(sources, "home.yml"), []byte("path: ./index.md\ntitle: Home\n"), 0o600))
+	write := func(name, content string) {
+		p := filepath.Join(docsDir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
+	}
+	write("sidebar.yml", "versions: [main]\nroutes:\n  - folder: home\n")
+	write("home/index.md", "# page\n")
+	write("home/sidebar.yml", "path: ./index.md\ntitle: Home\n")
 
 	err := run([]string{"check", "-docs", docsDir})
-	require.ErrorContains(t, err, "home.yml: not formatted")
+	require.ErrorContains(t, err, "home/sidebar.yml: not formatted")
 
 	require.NoError(t, run([]string{"fmt", "-docs", docsDir}))
 	require.NoError(t, run([]string{"check", "-docs", docsDir}))
@@ -178,5 +181,5 @@ func TestCheckReportsUnformattedFiles(t *testing.T) {
 	require.NoError(t, run([]string{"build", "-docs", docsDir, "-out", out}))
 	b, err := os.ReadFile(out)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"versions": ["main"], "routes": [{"title": "Home", "path": "./index.md"}]}`, string(b))
+	require.JSONEq(t, `{"versions": ["main"], "routes": [{"title": "Home", "path": "./home/index.md"}]}`, string(b))
 }

@@ -12,106 +12,131 @@ import (
 	"github.com/coder/coder/v2/scripts/docgenenv"
 )
 
-// writeTree writes files (sources-relative name to content) under a new docs
-// directory's manifest sources and returns the docs and sources directories.
-// Every route path used by the tests exists as a page under the docs dir.
-func writeTree(t *testing.T, files map[string]string) (docsDir, sourcesDir string) {
+// writeTree writes files (docs-relative name to content) under a new docs
+// directory and returns it. Every route path used by the tests exists as a
+// page under the docs directory.
+func writeTree(t *testing.T, files map[string]string) string {
 	t.Helper()
-	docsDir = t.TempDir()
-	sourcesDir = filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
+	docsDir := t.TempDir()
 	for _, page := range []string{"index.md", "ref/index.md", "ref/api/index.md", "ref/api/general.md", "ref/api/users.md"} {
-		p := filepath.Join(docsDir, page)
+		p := filepath.Join(docsDir, filepath.FromSlash(page))
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, []byte("# page\n"), 0o600))
 	}
 	for name, content := range files {
-		p := filepath.Join(sourcesDir, name)
+		p := filepath.Join(docsDir, filepath.FromSlash(name))
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
 	}
-	return docsDir, sourcesDir
+	return docsDir
 }
 
 const (
-	testIndex = "versions: [main]\nsections:\n  - home.yml\n  - ref.yml\n"
-	testHome  = "title: Home\npath: ./index.md\n"
-	testRef   = `title: Reference
-path: ./ref/index.md
+	testRoot = "versions: [main]\nroutes:\n  - title: Home\n    path: ./index.md\n  - folder: ref\n"
+	testRef  = `title: Reference
+path: ./index.md
 children:
-  - include: ref/api.yml
+  - title: REST API
+    path: ./api/index.md
+    folder: api
+    children:
+      - title: Users
+        description: Manage users.
+        state: [beta]
 `
-	testRefAPI = `title: REST API
-path: ./ref/api/index.md
-children_from: generated/api.json
-children:
-  - title: Users
-    description: Manage users.
-    state: [beta]
-`
-	testAPI = `[{"title": "General", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
+	testAPI = "- title: General\n  path: ./general.md\n- title: Users\n  path: ./users.md\n"
 )
 
 func validTree() map[string]string {
 	return map[string]string{
-		"index.yml":          testIndex,
-		"home.yml":           testHome,
-		"ref.yml":            testRef,
-		"ref/api.yml":        testRefAPI,
-		"generated/api.json": testAPI,
+		"sidebar.yml":         testRoot,
+		"ref/sidebar.yml":     testRef,
+		"ref/api/sidebar.yml": testAPI,
 	}
 }
 
 func TestBuildManifest(t *testing.T) {
 	t.Parallel()
 
-	docsDir, sourcesDir := writeTree(t, validTree())
-	m, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+	docsDir := writeTree(t, validTree())
+	m, err := docgenenv.BuildManifest(docsDir)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"main"}, m.Versions)
 	require.Len(t, m.Routes, 2)
+	require.Equal(t, "./ref/index.md", m.FindRoute("Reference").Path)
 	api := m.FindRoute("Reference", "REST API")
 	require.NotNil(t, api)
-	require.Empty(t, api.ChildrenFrom)
-	// Generated routes keep their order; the overlay fills in metadata.
+	require.Empty(t, api.Folder)
+	require.Equal(t, "./ref/api/index.md", api.Path)
+	// Generated routes keep their order and take paths relative to the docs
+	// directory; the overlay fills in metadata.
 	require.Equal(t, []docgenenv.Route{
 		{Title: "General", Path: "./ref/api/general.md"},
 		{Title: "Users", Description: "Manage users.", Path: "./ref/api/users.md", State: []string{"beta"}},
 	}, api.Children)
 
-	// Keys follow the struct order and children_from never reaches the JSON.
+	// Keys follow the struct order and folder never reaches the JSON.
 	b, err := docgenenv.MarshalJSON(api)
 	require.NoError(t, err)
-	require.NotContains(t, string(b), "children_from")
+	require.NotContains(t, string(b), "folder")
 	require.Regexp(t, `(?s)"title": "Users",\s*"description".*"path".*"state"`, string(b))
 }
 
-func TestBuildManifestYAMLFragment(t *testing.T) {
+func TestBuildManifestFolderEntry(t *testing.T) {
 	t.Parallel()
 
 	files := validTree()
-	delete(files, "generated/api.json")
-	files["ref/api.yml"] = `title: REST API
-path: ./ref/api/index.md
-children_from: generated/api.yml
+	files["sidebar.yml"] = "versions: [main]\nroutes:\n  - folder: ref\n"
+	files["ref/sidebar.yml"] = `title: Reference
+path: ./index.md
+children:
+  - folder: api
+  - title: Bare
+    path: general.md
 `
-	files["generated/api.yml"] = "- title: General\n  path: ./ref/api/general.md\n"
-	docsDir, sourcesDir := writeTree(t, files)
-	m, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+	files["ref/api/sidebar.yml"] = "title: REST API\npath: ./index.md\nchildren:\n  - title: Users\n    path: users.md\n"
+	docsDir := writeTree(t, files)
+	require.NoError(t, os.WriteFile(filepath.Join(docsDir, "ref", "general.md"), []byte("# page\n"), 0o600))
+	m, err := docgenenv.BuildManifest(docsDir)
 	require.NoError(t, err)
-	require.Equal(t, []docgenenv.Route{{Title: "General", Path: "./ref/api/general.md"}}, m.FindRoute("Reference", "REST API").Children)
+	// A folder entry carries its paths with it. Each path keeps its leading
+	// "./" or the lack of one.
+	require.Equal(t, []docgenenv.Route{{
+		Title: "Reference",
+		Path:  "./ref/index.md",
+		Children: []docgenenv.Route{
+			{Title: "REST API", Path: "./ref/api/index.md", Children: []docgenenv.Route{{Title: "Users", Path: "ref/api/users.md"}}},
+			{Title: "Bare", Path: "ref/general.md"},
+		},
+	}}, m.Routes)
 }
 
-func TestLoadManifestSourcesLeavesOverlaysUnresolved(t *testing.T) {
+func TestLoadSources(t *testing.T) {
 	t.Parallel()
 
-	_, sourcesDir := writeTree(t, validTree())
-	m, err := docgenenv.LoadManifestSources(sourcesDir)
+	docsDir := writeTree(t, validTree())
+	s, err := docgenenv.LoadSources(docsDir)
 	require.NoError(t, err)
-	api := m.FindRoute("Reference", "REST API")
+	api := s.Manifest.FindRoute("Reference", "REST API")
 	require.NotNil(t, api)
-	require.Equal(t, "generated/api.json", api.ChildrenFrom)
+	// The generated sidebar stays unresolved, so the generators read the
+	// curated overlays without depending on the file they rewrite.
+	require.Equal(t, "ref/api", api.Folder)
 	require.Equal(t, []docgenenv.Route{{Title: "Users", Description: "Manage users.", State: []string{"beta"}}}, api.Children)
+	require.Equal(t, []string{"ref/api"}, s.GeneratedDirs)
+	require.Equal(t, map[string]string{"index.md": ".", "ref/index.md": "ref", "ref/api/index.md": "ref"}, s.ListedBy)
+}
+
+func TestBuildManifestJSONSidebar(t *testing.T) {
+	t.Parallel()
+
+	files := validTree()
+	files["ref/api/sidebar.yml"] = `[{"title": "General", "path": "./general.md"}, {"title": "Users", "path": "./users.md"}]`
+	docsDir := writeTree(t, files)
+	m, err := docgenenv.BuildManifest(docsDir)
+	require.NoError(t, err)
+	require.Len(t, m.FindRoute("Reference", "REST API").Children, 2)
 }
 
 func TestBuildManifestErrors(t *testing.T) {
@@ -125,204 +150,187 @@ func TestBuildManifestErrors(t *testing.T) {
 		wantErrIs error
 	}{
 		{
-			name:    "UnknownKey",
-			edit:    func(f map[string]string) { f["home.yml"] = "title: Home\ntitel: typo\npath: ./index.md\n" },
+			name: "UnknownKey",
+			edit: func(f map[string]string) {
+				f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n    titel: typo\n    path: ./index.md\n"
+			},
 			wantErr: "field titel not found",
 		},
 		{
-			name:    "UnknownFragmentKey",
-			edit:    func(f map[string]string) { f["generated/api.json"] = `[{"title": "General", "paht": "x"}]` },
-			wantErr: `unknown field "paht"`,
+			name:    "UnknownGeneratedKey",
+			edit:    func(f map[string]string) { f["ref/api/sidebar.yml"] = `[{"title": "General", "paht": "x"}]` },
+			wantErr: "field paht not found",
 		},
 		{
-			name:    "MissingPage",
-			edit:    func(f map[string]string) { f["home.yml"] = "title: Home\npath: ./nope.md\n" },
+			name: "MissingPage",
+			edit: func(f map[string]string) {
+				f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n    path: ./nope.md\n"
+			},
 			wantErr: `Home: path "./nope.md" does not exist`,
 		},
 		{
 			name:    "MissingPath",
-			edit:    func(f map[string]string) { f["home.yml"] = "title: Home\n" },
-			wantErr: "home.yml: Home: route is missing a path",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n" },
+			wantErr: "sidebar.yml: Home: route is missing a path",
 		},
 		{
-			name:    "UnreferencedFile",
-			edit:    func(f map[string]string) { f["orphan.yml"] = testHome },
-			wantErr: "orphan.yml: not listed",
+			name:    "NoVersions",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = "routes:\n  - folder: ref\n" },
+			wantErr: "versions must list at least one version",
 		},
 		{
-			name:    "DuplicateSection",
-			edit:    func(f map[string]string) { f["index.yml"] = testIndex + "  - home.yml\n" },
-			wantErr: `section "home.yml" is listed more than once`,
+			name:    "NoRoutes",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = "versions: [main]\n" },
+			wantErr: "routes must list at least one route",
 		},
 		{
-			name:    "SectionOutsideSources",
-			edit:    func(f map[string]string) { f["index.yml"] = "versions: [main]\nsections:\n  - ../home.yml\n" },
-			wantErr: "must be a relative path inside the sources directory",
+			name:    "UnreferencedSidebar",
+			edit:    func(f map[string]string) { f["orphan/sidebar.yml"] = "title: Orphan\npath: ./index.md\n" },
+			wantErr: "orphan/sidebar.yml: no folder entry in the parent sidebar names this folder",
 		},
 		{
 			name: "UnmatchedOverlay",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "General", "path": "./ref/api/general.md"}]`
+				f["ref/api/sidebar.yml"] = "- title: General\n  path: ./general.md\n"
 			},
-			wantErr: `overlay "Users" matches no route in generated/api.json`,
+			wantErr: `overlay "Users" matches no route in ref/api/sidebar.yml`,
 		},
 		{
 			name: "ConflictingOverlay",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "Users", "description": "Generated.", "path": "./ref/api/users.md"}]`
+				f["ref/api/sidebar.yml"] = "- title: Users\n  description: Generated.\n  path: ./users.md\n"
 			},
 			wantErr: `overlay description "Manage users." conflicts with generated "Generated."`,
 		},
 		{
 			name: "OverlayWithPath",
 			edit: func(f map[string]string) {
-				f["ref/api.yml"] = `title: REST API
-path: ./ref/api/index.md
-children_from: generated/api.json
-children:
-  - title: Users
-    path: ./ref/api/users.md
-`
+				f["ref/sidebar.yml"] = strings.Replace(testRef, "      - title: Users\n", "      - title: Users\n        path: ./users.md\n", 1)
 			},
-			wantErr: "overlays under children_from may set only",
+			wantErr: "overlays under a generated folder may set only",
 		},
 		{
 			name: "GrandchildrenInOneFile",
 			edit: func(f map[string]string) {
-				delete(f, "ref/api.yml")
-				f["ref.yml"] = `title: Reference
-path: ./ref/index.md
+				f["ref/sidebar.yml"] = `title: Reference
+path: ./index.md
 children:
   - title: REST API
-    path: ./ref/api/index.md
+    path: ./api/index.md
     children:
       - title: General
-        path: ./ref/api/general.md
+        path: ./api/general.md
 `
 			},
-			wantErr: "ref.yml: Reference > REST API: a source file holds one level of children; move this route into its own file and include it",
+			wantErr: "ref/sidebar.yml: Reference > REST API: a sidebar file holds one level of children; move this route into its own folder",
 		},
 		{
-			name: "ChildWithChildrenFromInOneFile",
+			name: "GrandchildrenOfSecondChild",
 			edit: func(f map[string]string) {
-				delete(f, "ref/api.yml")
-				f["ref.yml"] = `title: Reference
-path: ./ref/index.md
-children:
-  - title: REST API
-    path: ./ref/api/index.md
-    children_from: generated/api.json
-`
+				f["ref/sidebar.yml"] = testRef + "  - title: Extra\n    path: ./index.md\n    children:\n      - title: Deep\n        path: ./index.md\n"
 			},
-			wantErr: "move this route into its own file and include it",
+			wantErr: "Reference > Extra: a sidebar file holds one level of children",
 		},
 		{
-			name:    "IncludeWithOtherKeys",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "    title: REST API\n" },
-			wantErr: `include "ref/api.yml": an include entry may set only include`,
+			name:    "FolderListedTwice",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = testRoot + "  - folder: ref\n" },
+			wantErr: `folder "ref": ref/sidebar.yml is already listed elsewhere`,
 		},
 		{
-			name:    "IncludedTwice",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/api.yml\n" },
-			wantErr: `include "ref/api.yml": file is already listed in index.yml or included elsewhere`,
+			name:    "FolderOutsideDocs",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = testRoot + "  - folder: ../ref\n" },
+			wantErr: "folder must be a relative path to a folder inside the docs directory",
 		},
 		{
-			name:    "IncludeSection",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: home.yml\n" },
-			wantErr: `include "home.yml": file is already listed`,
+			name:    "FolderIsOwnFolder",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = testRoot + "  - folder: .\n" },
+			wantErr: "folder must be a relative path to a folder inside the docs directory",
 		},
 		{
-			name:    "IncludeOutsideSources",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ../api.yml\n" },
-			wantErr: "must be a relative path inside the sources directory",
+			name:    "FolderAbsolute",
+			edit:    func(f map[string]string) { f["sidebar.yml"] = testRoot + "  - folder: /ref\n" },
+			wantErr: "folder must be a relative path to a folder inside the docs directory",
 		},
 		{
-			name:    "IncludeNotYAML",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: generated/api.json\n" },
-			wantErr: `include "generated/api.json": must be a .yml file`,
+			name: "PathOutsideDocs",
+			edit: func(f map[string]string) {
+				f["ref/sidebar.yml"] = testRef + "  - title: Escape\n    path: ../../outside.md\n"
+			},
+			wantErr: `Reference > Escape: path "../../outside.md": must be relative and stay inside the docs directory`,
 		},
 		{
-			name:      "IncludeMissingFile",
-			edit:      func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/nope.yml\n" },
-			wantErr:   "nope.yml",
+			name:      "FolderMissingSidebar",
+			edit:      func(f map[string]string) { f["sidebar.yml"] = testRoot + "  - folder: nope\n" },
+			wantErr:   "sidebar.yml",
 			wantErrIs: fs.ErrNotExist,
 		},
 		{
-			name:    "IncludeOnFileRoute",
-			edit:    func(f map[string]string) { f["home.yml"] = testHome + "include: ref/api.yml\n" },
-			wantErr: "home.yml: Home: include is allowed only on a child entry",
+			name:    "FolderInFolderFile",
+			edit:    func(f map[string]string) { f["ref/sidebar.yml"] = "folder: api\n" },
+			wantErr: "ref/sidebar.yml: folder is allowed only on a child entry",
 		},
 		{
-			name:    "MissingPathInIncludedFile",
-			edit:    func(f map[string]string) { f["ref/api.yml"] = "title: REST API\n" },
-			wantErr: "ref/api.yml: Reference > REST API: route is missing a path",
+			name:    "MissingPathInFolderFile",
+			edit:    func(f map[string]string) { f["ref/sidebar.yml"] = "title: Reference\n" },
+			wantErr: "ref/sidebar.yml: Reference: route is missing a path",
 		},
 		{
-			name:    "UnreferencedNestedFile",
-			edit:    func(f map[string]string) { f["ref/orphan.yml"] = testHome },
-			wantErr: "ref/orphan.yml: not listed",
-		},
-		{
-			name: "IncludeInFragment",
+			name: "FolderInGeneratedSidebar",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "General", "path": "./ref/api/general.md", "include": "x.yml"}]`
+				f["ref/api/sidebar.yml"] = "- title: General\n  path: ./general.md\n  folder: x\n"
 			},
-			wantErr: `unknown field "include"`,
+			wantErr: "ref/api/sidebar.yml: General: a generated sidebar can't set folder",
 		},
 		{
-			name: "IncludeInYAMLFragment",
-			edit: func(f map[string]string) {
-				delete(f, "generated/api.json")
-				f["ref/api.yml"] = "title: REST API\npath: ./ref/api/index.md\nchildren_from: generated/api.yml\n"
-				f["generated/api.yml"] = "- title: General\n  path: ./ref/api/general.md\n  include: x.yml\n"
-			},
-			wantErr: "generated/api.yml: General: fragments can't set children_from or include",
+			name:    "GeneratedPathOutsideFolder",
+			edit:    func(f map[string]string) { f["ref/api/sidebar.yml"] = "- title: General\n  path: ../../../x.md\n" },
+			wantErr: `ref/api/sidebar.yml: General: path "../../../x.md": must be relative`,
 		},
 		{
 			name: "TrailingCommentOnDescription",
 			edit: func(f map[string]string) {
-				f["home.yml"] = "title: Home\ndescription: Use #tags here\npath: ./index.md\n"
+				f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n    description: Use #tags here\n    path: ./index.md\n"
 			},
-			wantErr: "home.yml: line 2: description has a trailing comment",
+			wantErr: "sidebar.yml: line 4: description has a trailing comment",
 		},
 		{
 			name: "DescriptionWithoutPeriod",
 			edit: func(f map[string]string) {
-				f["home.yml"] = "title: Home\ndescription: The home page\npath: ./index.md\n"
+				f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n    description: The home page\n    path: ./index.md\n"
 			},
-			wantErr: `home.yml: Home: description must end with a period: "The home page"`,
+			wantErr: `sidebar.yml: Home: description must end with a period: "The home page"`,
 		},
 		{
 			name: "DescriptionWithQuestionMark",
 			edit: func(f map[string]string) {
-				f["home.yml"] = "title: Home\ndescription: Where do I start?\npath: ./index.md\n"
+				f["sidebar.yml"] = "versions: [main]\nroutes:\n  - title: Home\n    description: Where do I start?\n    path: ./index.md\n"
 			},
-			wantErr: `home.yml: Home: description must end with a period: "Where do I start?"`,
+			wantErr: `sidebar.yml: Home: description must end with a period: "Where do I start?"`,
 		},
 		{
 			name: "ChildDescriptionWithoutPeriod",
 			edit: func(f map[string]string) {
-				f["ref.yml"] = testRef + "  - title: Home again\n    description: Same page\n    path: ./index.md\n"
+				f["ref/sidebar.yml"] = testRef + "  - title: Home again\n    description: Same page\n    path: ./index.md\n"
 			},
-			wantErr: `ref.yml: Reference > Home again: description must end with a period: "Same page"`,
+			wantErr: `ref/sidebar.yml: Reference > Home again: description must end with a period: "Same page"`,
 		},
 		{
 			name: "OverlayDescriptionWithoutPeriod",
 			edit: func(f map[string]string) {
-				f["ref/api.yml"] = strings.Replace(testRefAPI, "Manage users.", "Manage users", 1)
+				f["ref/sidebar.yml"] = strings.Replace(testRef, "Manage users.", "Manage users", 1)
 			},
-			wantErr: `ref/api.yml: Reference > REST API > Users: description must end with a period: "Manage users"`,
+			wantErr: `ref/sidebar.yml: Reference > REST API > Users: description must end with a period: "Manage users"`,
 		},
 		{
-			name: "FragmentDescriptionWithoutPeriod",
+			name: "GeneratedDescriptionWithoutPeriod",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "General", "description": "General endpoints", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
+				f["ref/api/sidebar.yml"] = "- title: General\n  description: General endpoints\n  path: ./general.md\n- title: Users\n  path: ./users.md\n"
 			},
-			wantErr: `generated/api.json: General: description must end with a period: "General endpoints"`,
+			wantErr: `ref/api/sidebar.yml: General: description must end with a period: "General endpoints"`,
 		},
 		{
 			name:    "MultipleDocuments",
-			edit:    func(f map[string]string) { f["home.yml"] = testHome + "---\n" + testHome },
+			edit:    func(f map[string]string) { f["ref/sidebar.yml"] = testRef + "---\n" + testRef },
 			wantErr: "single YAML document",
 		},
 	} {
@@ -330,8 +338,8 @@ children:
 			t.Parallel()
 			files := validTree()
 			tc.edit(files)
-			docsDir, sourcesDir := writeTree(t, files)
-			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+			docsDir := writeTree(t, files)
+			_, err := docgenenv.BuildManifest(docsDir)
 			require.ErrorContains(t, err, tc.wantErr)
 			if tc.wantErrIs != nil {
 				require.ErrorIs(t, err, tc.wantErrIs)
@@ -385,9 +393,9 @@ func TestBuildManifestFrontMatterDescription(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			docsDir, sourcesDir := writeTree(t, validTree())
+			docsDir := writeTree(t, validTree())
 			require.NoError(t, os.WriteFile(filepath.Join(docsDir, "index.md"), []byte(tc.page), 0o600))
-			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+			_, err := docgenenv.BuildManifest(docsDir)
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 				return

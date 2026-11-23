@@ -1,0 +1,37 @@
+title: Networking
+description: Understand Coder's networking model, including how workspaces, servers, and clients connect.
+path: ./index.md
+icon_path: ./images/icons/networking.svg
+children:
+  - title: Port forwarding
+    description: Learn how port forwarding works in Coder and how to expose workspace ports to users.
+    path: ./port-forwarding.md
+  - title: STUN and NAT
+    description: Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.
+    path: ./stun.md
+  - title: Self-host a STUN server
+    description: Run your own STUN server with coturn and configure Coder to use it for direct connections.
+    path: ./self-hosted-stun.md
+  - title: Workspace proxies
+    description: Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.
+    path: ./workspace-proxies.md
+    state: [premium]
+  - title: High availability
+    description: Configure Coder in high availability (HA) mode for horizontal scalability and failover.
+    path: ./high-availability.md
+    state: [premium]
+  - title: Wildcard access URLs
+    description: Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.
+    path: ./wildcard-access-url.md
+  - title: Apache reverse proxy
+    description: Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./reverse-proxy-apache.md
+  - title: Caddy
+    description: Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.
+    path: ./reverse-proxy-caddy.md
+  - title: NGINX reverse proxy
+    description: Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./reverse-proxy-nginx.md
+  - title: Troubleshooting
+    description: Diagnose and resolve Coder networking issues using coder ping and other built-in tools.
+    path: ./troubleshooting.md

@@ -217,12 +217,20 @@ func matchesAny(res []*regexp.Regexp, path string) bool {
 }
 
 // globRegexp converts the glob forms the docs and docs-gen filters use: a
-// literal path, "*" within one path segment, and a literal directory followed
-// by "/**", which matches the directory and everything under it, as picomatch
-// does. Any other syntax is rejected, so a pattern this check might read
-// differently from dorny/paths-filter fails the lint instead of matching
-// wrongly.
+// literal path, "*" within one path segment, a literal directory followed by
+// "/**", which matches the directory and everything under it, as picomatch
+// does, and a literal directory and file name joined by "/**/", which matches
+// the file at any depth under the directory, including directly in it. Any
+// other syntax is rejected, so a pattern this check might read differently
+// from dorny/paths-filter fails the lint instead of matching wrongly.
 func globRegexp(glob string) (*regexp.Regexp, error) {
+	if dir, file, ok := strings.Cut(glob, "/**/"); ok {
+		const special = `*?[]{}()+@\`
+		if dir == "" || file == "" || strings.HasPrefix(dir, "!") || strings.Contains(dir+file, "**") || strings.ContainsAny(dir+file, special) {
+			return nil, xerrors.Errorf("unsupported pattern %q: use a literal directory and file name around /**/", glob)
+		}
+		return regexp.Compile("^" + regexp.QuoteMeta(dir) + "/(?:.*/)?" + regexp.QuoteMeta(file) + "$")
+	}
 	base, recursive := strings.CutSuffix(glob, "/**")
 	unsupported := base == "" || strings.HasPrefix(base, "!") || strings.Contains(base, "**") || strings.ContainsAny(base, `?[]{}()+@\`)
 	// picomatch does not match "a/b" against "a/*/**", but the optional

@@ -82,6 +82,11 @@ func TestGlobRegexp(t *testing.T) {
 			noMatch: []string{"docs/admin/setup/index.md"},
 		},
 		{
+			glob:    "docs/**/sidebar.yml",
+			match:   []string{"docs/sidebar.yml", "docs/admin/sidebar.yml", "docs/admin/users/oidc-auth/sidebar.yml"},
+			noMatch: []string{"docs/admin/sidebar.yaml", "docs/admin/xsidebar.yml", "docsx/sidebar.yml", "site/docs/sidebar.yml"},
+		},
+		{
 			glob:    "docs/manifest.json",
 			match:   []string{"docs/manifest.json"},
 			noMatch: []string{"docs/manifestXjson", "docs/manifest.json.bak"},
@@ -101,7 +106,7 @@ func TestGlobRegexp(t *testing.T) {
 		})
 	}
 
-	for _, glob := range []string{"", "**", "/**", "!docs/**", "docs/*/**", "docs/**/index.md", "docs/reference/**.md", `docs/\*.md`, "docs/?.md", "docs/{a,b}.md", "docs/[ab].md"} {
+	for _, glob := range []string{"", "**", "/**", "!docs/**", "docs/*/**", "docs/**/*.md", "docs/**/", "**/sidebar.yml", "docs/**/a/**/b.md", "docs/reference/**.md", `docs/\*.md`, "docs/?.md", "docs/{a,b}.md", "docs/[ab].md"} {
 		_, err := globRegexp(glob)
 		require.Error(t, err, "%q should be rejected", glob)
 	}

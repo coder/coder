@@ -248,7 +248,7 @@ Each entry includes the reason it belongs in the docs.
 
 These govern *how* content enters the docs, for both humans and the doc-check agent.
 
-- **Every new page must be added to the sidebar sources in `docs/manifest/`.**
+- **Every new page must be added to the `sidebar.yml` in its folder.**
   Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
   Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources.
   Do not edit the JSON directly.
@@ -257,7 +257,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   Changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
 - **Feature states are marked in navigation metadata.**
-  A route in `docs/manifest/` carries the feature's state, such as `state: [premium]` or `state: [beta]`.
+  A route in a `sidebar.yml` carries the feature's state, such as `state: [premium]` or `state: [beta]`.
   A state on a route applies to the route and all of its descendants, so put it on the highest route it applies to.
   Add a state to a descendant only when it differs from what the descendant inherits, such as an early access subfeature inside a Premium feature.
   Do not repeat an ancestor's state on a descendant.

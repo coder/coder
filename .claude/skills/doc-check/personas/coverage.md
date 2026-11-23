@@ -56,7 +56,7 @@ In every other mode, leave them to the Architect.
    One that does not is `broken`.
 2. Check that every HTML element and class, alert, table, and code block in the changed text is one the docs renderer supports, with the blank lines it needs to render.
    A wrong component class, such as `tab` where the component needs `tabs`, is `broken`.
-3. Check that a staged or Premium feature the change documents carries its `state:` on its highest route in `docs/manifest/`.
+3. Check that a staged or Premium feature the change documents carries its `state:` on its highest route in a `sidebar.yml`.
    A missing state is `broken`.
 
 Say in your result which of these checks you ran.

@@ -98,19 +98,19 @@ func TestCLIManifestChildren(t *testing.T) {
 
 	got := cliManifestChildren(newCommandTree().root)
 	want := []docgenenv.Route{
-		{Title: "`ping`", Description: "Ping a workspace.", Path: "reference/cli/ping.md"},
+		{Title: "`ping`", Description: "Ping a workspace.", Path: "ping.md"},
 		{
 			Title:       "`users`",
 			Description: "Manage users.",
-			Path:        "reference/cli/users/index.md",
+			Path:        "users/index.md",
 			Children: []docgenenv.Route{{
 				Title:       "`roles`",
 				Description: "Manage user roles.",
-				Path:        "reference/cli/users/roles/index.md",
+				Path:        "users/roles/index.md",
 				Children: []docgenenv.Route{{
 					Title:       "`list`",
 					Description: "List user roles.",
-					Path:        "reference/cli/users/roles/list.md",
+					Path:        "users/roles/list.md",
 				}},
 			}},
 		},
@@ -131,7 +131,7 @@ func TestCLIIndexRouteMirrorsManifest(t *testing.T) {
 		Description: "Learn how to use Coder CLI",
 		IconPath:    "./images/icons/terminal.svg",
 		State:       []string{"beta"},
-		Children:    []docgenenv.Route{{Title: "ping", Path: "reference/cli/ping.md"}},
+		Children:    []docgenenv.Route{{Title: "ping", Path: "ping.md"}},
 	}
 	got := cliIndexRouteFrom(src)
 	require.Equal(t, src.Title, got.Title)

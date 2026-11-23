@@ -79,7 +79,7 @@ jobs:
             # check inputs.
             docs-gen:
               - "docs/manifest.json"
-              - "docs/manifest/**"
+              - "docs/**/sidebar.yml"
               - "docs/reference/api/**"
               - "docs/reference/api-key-scopes.md"
               - "docs/reference/cli/**"

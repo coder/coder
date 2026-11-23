@@ -1,0 +1,23 @@
+title: Operate and maintain
+description: Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.
+path: ./index.md
+icon_path: ./images/icons/wrench.svg
+children:
+  - folder: provisioners
+  - folder: upgrade
+  - title: Disaster recovery
+    description: Plan database backups and restores, and learn what users experience during a control plane outage.
+    path: ./disaster-recovery.md
+  - title: Google Cloud to AWS federation
+    description: Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.
+    path: ./gcp-to-aws.md
+  - title: Azure federation
+    description: Federate Coder's control plane to Azure so it can authenticate to Azure services.
+    path: ./azure-federation.md
+  - title: Image pull secrets
+    description: Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.
+    path: ./image-pull-secret.md
+  - title: Uninstall
+    description: Learn how to uninstall your Coder deployment and remove its associated resources.
+    path: ./uninstall.md
+    icon_path: ./images/icons/trash.svg

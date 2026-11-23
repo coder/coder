@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,49 +19,64 @@ import (
 )
 
 const (
-	// ManifestSourcesDir is the directory, relative to the docs directory,
-	// that holds the hand-edited YAML sidebar sources compiled into
-	// manifest.json.
-	ManifestSourcesDir = "manifest"
-	// ManifestIndexFile is the sources file that lists the manifest versions
-	// and the top-level section files in sidebar order.
-	ManifestIndexFile = "index.yml"
+	// SidebarFile is the name of the sidebar source file. The docs root holds
+	// one, which lists the manifest versions and the top-level routes, and
+	// each docs folder with pages to order holds one next to them.
+	SidebarFile = "sidebar.yml"
 )
 
-// ManifestIndex is the decoded ManifestIndexFile. Its field order is the key
+// ManifestIndex is the decoded root SidebarFile. Its field order is the key
 // order enforced in the source file.
 type ManifestIndex struct {
 	Versions []string `yaml:"versions"`
-	Sections []string `yaml:"sections"`
+	Routes   []Route  `yaml:"routes"`
 }
 
-// LoadManifestSources reads the sidebar sources in dir: the index plus one
-// top-level route per section file, with every include resolved. Routes that
-// set children_from are returned unresolved, so their Children hold only the
-// curated metadata overlays. The doc generators use this to read curated
-// metadata without depending on the generated fragments they are about to
-// rewrite.
-func LoadManifestSources(dir string) (*Manifest, error) {
-	m, _, err := loadSources(dir)
-	return m, err
+// Sources is the decoded sidebar source tree under a docs directory.
+type Sources struct {
+	// Manifest holds the top-level routes with every folder entry resolved.
+	// Routes whose children come from a generator are returned unresolved:
+	// Folder holds the generated folder, relative to the docs directory, and
+	// Children holds only the curated metadata overlays.
+	Manifest *Manifest
+	// ListedBy maps each page that a hand-written sidebar lists, as a slash
+	// path relative to the docs directory, to the folder of the sidebar that
+	// lists it.
+	ListedBy map[string]string
+	// GeneratedDirs lists the folders, relative to the docs directory, whose
+	// sidebar file a doc generator writes.
+	GeneratedDirs []string
+
+	used map[string]bool
 }
 
-// BuildManifest reads the sidebar sources in dir, splices every children_from
-// fragment into its route, and validates the result. When docsDir is not
-// empty, every route path must name an existing file under it. It fails on any
-// file in dir that nothing references, so a section can't silently drop out
-// of the sidebar.
-func BuildManifest(dir, docsDir string) (*Manifest, error) {
-	m, used, err := loadSources(dir)
+// LoadManifestSources reads the sidebar sources under docsDir: the root
+// sidebar plus the sidebar of every folder entry it reaches. The doc
+// generators use this to read curated metadata without depending on the
+// generated sidebar files they are about to rewrite.
+func LoadManifestSources(docsDir string) (*Manifest, error) {
+	s, err := LoadSources(docsDir)
 	if err != nil {
 		return nil, err
 	}
-	var errs []error
-	m.Routes = resolveRoutes(dir, m.Routes, nil, used, &errs)
-	if docsDir != "" {
-		checkPaths(docsDir, m.Routes, nil, &errs)
+	return s.Manifest, nil
+}
+
+// BuildManifest reads the sidebar sources under docsDir, splices every
+// generated sidebar into its route, and validates the result. Every route
+// path must name an existing file under docsDir. It fails on any sidebar file
+// that nothing references, so a folder can't silently drop out of the
+// sidebar.
+func BuildManifest(docsDir string) (*Manifest, error) {
+	s, err := LoadSources(docsDir)
+	if err != nil {
+		return nil, err
 	}
-	errs = append(errs, unreferencedFiles(dir, used)...)
+	m := s.Manifest
+	var errs []error
+	m.Routes = resolveRoutes(docsDir, m.Routes, nil, s.used, &errs)
+	checkPaths(docsDir, m.Routes, nil, &errs)
+	errs = append(errs, unreferencedSidebars(docsDir, s.used)...)
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
@@ -102,97 +118,157 @@ func MarshalYAML(v any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func loadSources(dir string) (*Manifest, map[string]bool, error) {
-	used := map[string]bool{ManifestIndexFile: true}
+// LoadSources reads the sidebar sources under docsDir. See Sources.
+func LoadSources(docsDir string) (*Sources, error) {
+	l := &loader{
+		docsDir:  docsDir,
+		used:     map[string]bool{SidebarFile: true},
+		listedBy: map[string]string{},
+	}
 	var idx ManifestIndex
-	if err := DecodeSourceFile(filepath.Join(dir, ManifestIndexFile), &idx); err != nil {
-		return nil, nil, err
+	if err := DecodeSourceFile(filepath.Join(docsDir, SidebarFile), &idx); err != nil {
+		return nil, err
 	}
-	var errs []error
 	if len(idx.Versions) == 0 {
-		errs = append(errs, xerrors.Errorf("%s: versions must list at least one version", ManifestIndexFile))
+		l.errs = append(l.errs, xerrors.Errorf("%s: versions must list at least one version", SidebarFile))
 	}
-	if len(idx.Sections) == 0 {
-		errs = append(errs, xerrors.Errorf("%s: sections must list at least one section file", ManifestIndexFile))
+	if len(idx.Routes) == 0 {
+		l.errs = append(l.errs, xerrors.Errorf("%s: routes must list at least one route", SidebarFile))
 	}
 	m := &Manifest{Versions: idx.Versions}
-	for _, section := range idx.Sections {
-		name, err := sourceRel(section)
-		if err != nil {
-			errs = append(errs, xerrors.Errorf("%s: section %q: %w", ManifestIndexFile, section, err))
-			continue
-		}
-		if !isYAMLFile(name) {
-			errs = append(errs, xerrors.Errorf("%s: section %q must be a .yml file", ManifestIndexFile, section))
-			continue
-		}
-		if used[name] {
-			errs = append(errs, xerrors.Errorf("%s: section %q is listed more than once", ManifestIndexFile, section))
-			continue
-		}
-		used[name] = true
-		if r, ok := loadRouteFile(dir, name, nil, used, &errs); ok {
+	for _, e := range idx.Routes {
+		if r, ok := l.entry(".", SidebarFile, e, nil, true); ok {
 			m.Routes = append(m.Routes, r)
 		}
 	}
-	if len(errs) > 0 {
-		return nil, nil, errors.Join(errs...)
+	if len(l.errs) > 0 {
+		return nil, errors.Join(l.errs...)
 	}
-	return m, used, nil
+	return &Sources{Manifest: m, ListedBy: l.listedBy, GeneratedDirs: l.generated, used: l.used}, nil
 }
 
-// loadRouteFile decodes the route in the source file name and replaces each
-// include entry among its children with the route loaded from the named file.
-// A source file holds one route and one level of children, so a child with
-// children or children_from of its own must live in its own file.
-func loadRouteFile(dir, name string, crumb []string, used map[string]bool, errs *[]error) (Route, bool) {
+type loader struct {
+	docsDir   string
+	used      map[string]bool // Sidebar files read, relative to docsDir.
+	listedBy  map[string]string
+	generated []string
+	errs      []error
+}
+
+// onlyFolder reports whether r is a folder entry: it sets folder and no other
+// key, so the route lives in that folder's sidebar file.
+func (r Route) onlyFolder() bool {
+	return r.Folder != "" && r.Title == "" && r.Description == "" && r.Path == "" && r.IconPath == "" && len(r.State) == 0 && len(r.Children) == 0
+}
+
+// entry loads the route for one entry in the sidebar file named file, which
+// sits in dir. A folder entry is replaced with the route in that folder's
+// sidebar file. top is true for the route a file describes and false for its
+// children, which can't have children of their own.
+func (l *loader) entry(dir, file string, e Route, crumb []string, top bool) (Route, bool) {
+	if e.onlyFolder() {
+		return l.folderFile(dir, file, e.Folder, crumb)
+	}
+	crumb = append(slices.Clip(crumb), e.Title)
+	where := file + ": " + breadcrumb(crumb)
+	return l.route(dir, file, where, e, crumb, top)
+}
+
+// folderFile loads the sidebar file of the folder subfolder of dir. The file
+// holds one route and its direct children, with paths relative to the folder.
+func (l *loader) folderFile(dir, file, subfolder string, crumb []string) (Route, bool) {
+	iw := fmt.Sprintf("%s > folder %q", file, subfolder)
+	rel, name, ok := l.claimFolder(dir, subfolder, iw)
+	if !ok {
+		return Route{}, false
+	}
 	var r Route
-	if err := DecodeSourceFile(filepath.Join(dir, name), &r); err != nil {
-		*errs = append(*errs, err)
+	if err := DecodeSourceFile(filepath.Join(l.docsDir, filepath.FromSlash(name)), &r); err != nil {
+		l.errs = append(l.errs, xerrors.Errorf("%s: %w", name, err))
+		return Route{}, false
+	}
+	if r.Folder != "" {
+		l.errs = append(l.errs, xerrors.Errorf("%s: folder is allowed only on a child entry", name))
 		return Route{}, false
 	}
 	crumb = append(slices.Clip(crumb), r.Title)
-	where := name + ": " + breadcrumb(crumb)
-	checkSourceRoute(where, r, errs)
-	if r.Include != "" {
-		*errs = append(*errs, xerrors.Errorf("%s: include is allowed only on a child entry", where))
+	return l.route(rel, name, name+": "+breadcrumb(crumb), r, crumb, true)
+}
+
+// claimFolder validates subfolder as a folder inside dir and marks its sidebar
+// file as used. It returns the folder and the sidebar file, both relative to
+// the docs directory.
+func (l *loader) claimFolder(dir, subfolder, where string) (rel, name string, ok bool) {
+	rel = path.Join(dir, subfolder)
+	if path.IsAbs(subfolder) || rel == dir || !filepath.IsLocal(filepath.FromSlash(rel)) {
+		l.errs = append(l.errs, xerrors.Errorf("%s: folder must be a relative path to a folder inside the docs directory", where))
+		return "", "", false
 	}
-	if r.ChildrenFrom != "" {
-		checkOverlays(where, r, errs)
+	name = path.Join(rel, SidebarFile)
+	if l.used[name] {
+		l.errs = append(l.errs, xerrors.Errorf("%s: %s is already listed elsewhere", where, name))
+		return "", "", false
+	}
+	l.used[name] = true
+	return rel, name, true
+}
+
+// route checks the hand-written route r from the sidebar file named file,
+// which sits in dir, and makes its paths and its children's relative to the
+// docs directory. A route that sets folder and other keys takes its children
+// from the sidebar file a doc generator writes in that folder; its children
+// here are metadata overlays.
+func (l *loader) route(dir, file, where string, r Route, crumb []string, top bool) (Route, bool) {
+	checkSourceRoute(where, r, &l.errs)
+	if r.Path != "" {
+		p, err := resolveSourcePath(dir, r.Path)
+		if err != nil {
+			l.errs = append(l.errs, xerrors.Errorf("%s: path %q: %w", where, r.Path, err))
+		} else {
+			r.Path = p
+			if strings.HasSuffix(p, ".md") {
+				l.listedBy[strings.TrimPrefix(p, "./")] = dir
+			}
+		}
+	}
+	if r.Folder != "" {
+		checkOverlays(where, r, &l.errs)
+		rel, _, ok := l.claimFolder(dir, r.Folder, where)
+		if !ok {
+			return Route{}, false
+		}
+		l.generated = append(l.generated, rel)
+		r.Folder = rel
 		return r, true
 	}
-	for i, c := range r.Children {
-		if c.Include == "" {
-			cw := where + " > " + c.Title
-			checkSourceRoute(cw, c, errs)
-			if len(c.Children) > 0 || c.ChildrenFrom != "" {
-				*errs = append(*errs, xerrors.Errorf("%s: a source file holds one level of children; move this route into its own file and include it", cw))
-			}
-			continue
-		}
-		iw := fmt.Sprintf("%s > include %q", where, c.Include)
-		if c.Title != "" || c.Description != "" || c.Path != "" || c.IconPath != "" || len(c.State) > 0 || c.ChildrenFrom != "" || len(c.Children) > 0 {
-			*errs = append(*errs, xerrors.Errorf("%s: an include entry may set only include; put the route's keys in the included file", iw))
-			continue
-		}
-		inc, err := sourceRel(c.Include)
-		switch {
-		case err != nil:
-			*errs = append(*errs, xerrors.Errorf("%s: %w", iw, err))
-			continue
-		case !isYAMLFile(inc):
-			*errs = append(*errs, xerrors.Errorf("%s: must be a .yml file", iw))
-			continue
-		case used[inc]:
-			*errs = append(*errs, xerrors.Errorf("%s: file is already listed in %s or included elsewhere", iw, ManifestIndexFile))
-			continue
-		}
-		used[inc] = true
-		if child, ok := loadRouteFile(dir, inc, crumb, used, errs); ok {
-			r.Children[i] = child
+	if !top && len(r.Children) > 0 {
+		l.errs = append(l.errs, xerrors.Errorf("%s: a sidebar file holds one level of children; move this route into its own folder", where))
+		return r, true
+	}
+	children := make([]Route, 0, len(r.Children))
+	for _, c := range r.Children {
+		if child, ok := l.entry(dir, file, c, crumb, false); ok {
+			children = append(children, child)
 		}
 	}
+	if len(r.Children) > 0 {
+		r.Children = children
+	}
 	return r, true
+}
+
+// resolveSourcePath returns the docs-relative form of page path p written in a
+// sidebar file in dir. A path that starts with a dot keeps the "./" prefix and
+// a bare path stays bare, so the compiled manifest keeps each path's spelling.
+func resolveSourcePath(dir, p string) (string, error) {
+	joined := path.Join(dir, p)
+	if path.IsAbs(p) || !filepath.IsLocal(filepath.FromSlash(joined)) {
+		return "", xerrors.New("must be relative and stay inside the docs directory")
+	}
+	if strings.HasPrefix(p, ".") {
+		return "./" + joined, nil
+	}
+	return joined, nil
 }
 
 // checkSourceRoute checks the keys every hand-edited route needs.
@@ -215,46 +291,59 @@ func checkDescription(where, field, desc string, errs *[]error) {
 	}
 }
 
-// checkOverlays checks a children_from route before its fragment is resolved.
+// checkOverlays checks a generated route's overlays before its sidebar is
+// resolved. With a generated sidebar, children are metadata overlays matched by
+// title onto the generated routes, so they can't carry structure of their own.
 func checkOverlays(where string, r Route, errs *[]error) {
-	if _, err := sourceRel(r.ChildrenFrom); err != nil {
-		*errs = append(*errs, xerrors.Errorf("%s: children_from %q: %w", where, r.ChildrenFrom, err))
-	}
-	// With children_from, children are metadata overlays matched by title
-	// onto the generated routes, so they can't carry structure of their own.
 	for _, o := range r.Children {
 		ow := where + " > " + o.Title
 		switch {
 		case o.Title == "":
 			*errs = append(*errs, xerrors.Errorf("%s: overlay is missing a title", where))
-		case o.Path != "" || len(o.Children) > 0 || o.ChildrenFrom != "" || o.Include != "":
-			*errs = append(*errs, xerrors.Errorf("%s: overlays under children_from may set only title, description, icon_path, and state", ow))
+		case o.Path != "" || len(o.Children) > 0 || o.Folder != "":
+			*errs = append(*errs, xerrors.Errorf("%s: overlays under a generated folder may set only title, description, icon_path, and state", ow))
 		}
 		checkDescription(ow, "description", o.Description, errs)
 	}
 }
 
-// resolveRoutes returns routes with every children_from fragment spliced in
-// and its overlays applied.
-func resolveRoutes(dir string, routes []Route, crumb []string, used map[string]bool, errs *[]error) []Route {
+// resolveRoutes returns routes with every generated sidebar spliced in and its
+// overlays applied. Paths in a generated sidebar are relative to its folder.
+func resolveRoutes(docsDir string, routes []Route, crumb []string, used map[string]bool, errs *[]error) []Route {
 	out := slices.Clone(routes)
 	for i := range out {
 		r := &out[i]
 		c := append(slices.Clip(crumb), r.Title)
-		if r.ChildrenFrom == "" {
-			r.Children = resolveRoutes(dir, r.Children, c, used, errs)
+		if r.Folder == "" {
+			r.Children = resolveRoutes(docsDir, r.Children, c, used, errs)
 			continue
 		}
-		name, _ := sourceRel(r.ChildrenFrom) // Validated by loadSources.
-		used[name] = true
+		name := path.Join(r.Folder, SidebarFile)
 		var generated []Route
-		if err := DecodeSourceFile(filepath.Join(dir, name), &generated); err != nil {
+		if err := DecodeSourceFile(filepath.Join(docsDir, filepath.FromSlash(name)), &generated); err != nil {
 			*errs = append(*errs, xerrors.Errorf("%s: %w", breadcrumb(c), err))
 			continue
 		}
 		validateFragment(name, generated, nil, errs)
+		generated = resolveFragmentPaths(r.Folder, generated, name, errs)
 		r.Children = applyOverlays(name, generated, r.Children, breadcrumb(c), errs)
-		r.ChildrenFrom = ""
+		r.Folder = ""
+	}
+	return out
+}
+
+// resolveFragmentPaths makes the paths in a generated sidebar in dir relative
+// to the docs directory.
+func resolveFragmentPaths(dir string, routes []Route, file string, errs *[]error) []Route {
+	out := slices.Clone(routes)
+	for i := range out {
+		r := &out[i]
+		if p, err := resolveSourcePath(dir, r.Path); err != nil {
+			*errs = append(*errs, xerrors.Errorf("%s: %s: path %q: %w", file, r.Title, r.Path, err))
+		} else {
+			r.Path = p
+		}
+		r.Children = resolveFragmentPaths(dir, r.Children, file, errs)
 	}
 	return out
 }
@@ -267,8 +356,8 @@ func validateFragment(file string, routes []Route, crumb []string, errs *[]error
 			*errs = append(*errs, xerrors.Errorf("%s: %s: route is missing a title", file, breadcrumb(c)))
 		case r.Path == "":
 			*errs = append(*errs, xerrors.Errorf("%s: %s: route is missing a path", file, breadcrumb(c)))
-		case r.ChildrenFrom != "" || r.Include != "":
-			*errs = append(*errs, xerrors.Errorf("%s: %s: fragments can't set children_from or include", file, breadcrumb(c)))
+		case r.Folder != "":
+			*errs = append(*errs, xerrors.Errorf("%s: %s: a generated sidebar can't set folder", file, breadcrumb(c)))
 		}
 		checkDescription(file+": "+breadcrumb(c), "description", r.Description, errs)
 		validateFragment(file, r.Children, c, errs)
@@ -368,28 +457,51 @@ func checkFrontMatterDescription(page, where string, errs *[]error) {
 	checkDescription(where, "front matter description", fm.Description, errs)
 }
 
-func unreferencedFiles(dir string, used map[string]bool) []error {
+// unreferencedSidebars reports every sidebar file under docsDir that is not in
+// used, because no entry names its folder.
+func unreferencedSidebars(docsDir string, used map[string]bool) []error {
 	var errs []error
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	names, err := SidebarFiles(docsDir)
+	if err != nil {
+		return []error{err}
+	}
+	for _, name := range names {
+		if !used[name] {
+			errs = append(errs, xerrors.Errorf("%s: no folder entry in the parent sidebar names this folder", name))
+		}
+	}
+	return errs
+}
+
+// SidebarFiles returns every sidebar file under docsDir as a slash path
+// relative to docsDir, in lexical order. It skips hidden and node_modules
+// directories.
+func SidebarFiles(docsDir string) ([]string, error) {
+	var names []string
+	err := filepath.WalkDir(docsDir, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || strings.HasPrefix(d.Name(), ".") {
+		if d.IsDir() {
+			if p != docsDir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		rel, err := filepath.Rel(dir, path)
+		if d.Name() != SidebarFile {
+			return nil
+		}
+		rel, err := filepath.Rel(docsDir, p)
 		if err != nil {
 			return err
 		}
-		if rel = filepath.ToSlash(rel); !used[rel] {
-			errs = append(errs, xerrors.Errorf("%s: not listed in %s sections, any include, or any children_from", rel, ManifestIndexFile))
-		}
+		names = append(names, filepath.ToSlash(rel))
 		return nil
 	})
 	if err != nil {
-		errs = append(errs, xerrors.Errorf("walk %q: %w", dir, err))
+		return nil, xerrors.Errorf("walk %q: %w", docsDir, err)
 	}
-	return errs
+	return names, nil
 }
 
 // DecodeSourceFile strictly decodes one sidebar source or fragment into v:
@@ -447,16 +559,6 @@ func checkProseComments(file string, n *yaml.Node, errs *[]error) {
 	for _, c := range n.Content {
 		checkProseComments(file, c, errs)
 	}
-}
-
-// sourceRel validates a sources-relative file name and returns it in slash
-// form.
-func sourceRel(name string) (string, error) {
-	clean := filepath.Clean(filepath.FromSlash(name))
-	if name == "" || !filepath.IsLocal(clean) {
-		return "", xerrors.New("must be a relative path inside the sources directory")
-	}
-	return filepath.ToSlash(clean), nil
 }
 
 func isYAMLFile(path string) bool {

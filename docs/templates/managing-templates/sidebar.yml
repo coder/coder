@@ -1,0 +1,26 @@
+title: Work with templates
+description: Learn how to edit, version, and manage Coder templates, along with recommended best practices.
+path: ./index.md
+children:
+  - title: Image management
+    description: Learn how to build and manage the container images that back your Coder templates.
+    path: ./image-management.md
+  - title: Security updates
+    description: Roll out a patched image to every new and existing workspace by publishing a template version and updating outdated workspaces.
+    path: ./roll-out-security-updates.md
+  - title: Change management
+    description: Manage Coder template changes with source control, versioning, and CI/CD publishing.
+    path: ./change-management.md
+  - title: Envbuilder
+    description: Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.
+    path: ./envbuilder.md
+  - title: Template dependencies
+    description: Manage provider and module dependencies in your Coder templates to keep builds reproducible.
+    path: ./dependencies.md
+  - title: Workspace scheduling
+    description: Configure template settings that control how workspaces autostart, autostop, and stay available.
+    path: ./schedule.md
+  - title: External workspaces
+    description: Connect externally managed servers and machines to Coder as external workspaces.
+    path: ./external-workspaces.md
+    state: [premium, early access]

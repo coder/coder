@@ -77,8 +77,8 @@ endif
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	docs/manifest.json \
-	docs/manifest/generated/cli.json \
-	docs/manifest/generated/rest-api.json \
+	docs/reference/cli/sidebar.yml \
+	docs/reference/api/sidebar.yml \
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
@@ -117,10 +117,18 @@ CLIDOCGEN_INPUTS := \
 	$(CLIDOC_SRC_FILES)
 
 # Hand-edited YAML sidebar sources that docsmanifestgen compiles, together
-# with the generated fragments under docs/manifest/generated, into
-# docs/manifest.json. Each file holds one route and one level of children, so
-# the sources nest in subdirectories.
-DOCS_MANIFEST_SOURCES := $(shell find docs/manifest -type f -name '*.yml' -not -path 'docs/manifest/generated/*')
+# with the sidebar files the CLI and REST API doc generators write, into
+# docs/manifest.json. Each sidebar.yml sits in the docs folder it orders.
+DOCS_GENERATED_SIDEBARS := docs/reference/cli/sidebar.yml docs/reference/api/sidebar.yml
+DOCS_MANIFEST_SOURCES := $(filter-out $(DOCS_GENERATED_SIDEBARS),$(shell find docs -type f -name sidebar.yml -not -path '*/node_modules/*'))
+
+# Copies the hand-edited sidebar sources into the docs directory $(1), so a
+# doc generator reads them without touching the working tree.
+define copy-docs-sidebar-sources
+	for f in $$(find docs -type f -name sidebar.yml -not -path 'docs/reference/cli/*' -not -path 'docs/reference/api/*' -not -path '*/node_modules/*'); do \
+		mkdir -p "$(1)/$$(dirname "$${f#docs/}")" && cp "$$f" "$(1)/$${f#docs/}" || exit 1; \
+	done
+endef
 
 DOCSMANIFESTGEN_INPUTS := \
 	$(filter-out %_test.go,$(wildcard scripts/docsmanifestgen/*.go)) \
@@ -773,7 +781,7 @@ else
 endif
 .PHONY: fmt/markdown
 
-# Formats the YAML sidebar sources under docs/manifest: canonical key order,
+# Formats the YAML sidebar.yml files under docs: canonical key order,
 # two-space indentation, and quoting only where YAML needs it.
 fmt/docs-manifest: _gen/bin/docsmanifestgen
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/docs-manifest$(RESET)"
@@ -781,8 +789,8 @@ fmt/docs-manifest: _gen/bin/docsmanifestgen
 .PHONY: fmt/docs-manifest
 
 # Formats the sidebar sources and rebuilds docs/manifest.json from them and
-# the committed generated fragments. Run this after editing the sidebar. It
-# skips regenerating the CLI and REST API fragments, which make gen does.
+# the committed generated sidebars. Run this after editing the sidebar. It
+# skips regenerating the CLI and REST API sidebars, which make gen does.
 gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 	$(build-docs-manifest)
 .PHONY: gen/docs-manifest
@@ -862,11 +870,12 @@ lint/docs-html:
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
-# Fails when the YAML sidebar sources under docs/manifest are unformatted or
-# invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, source files that nothing references, a page description
-# (in the sources, a generated fragment, or page front matter) that doesn't end
-# with a period, or a route state that repeats a state set on an ancestor.
+# Fails when the YAML sidebar.yml files under docs are unformatted or invalid:
+# unknown or misordered keys, missing pages, overlays that match no generated
+# route, sidebar files that no folder entry references, a page that its own
+# folder's sidebar does not list, a page description (in the sources, a
+# generated sidebar, or page front matter) that doesn't end with a period, or a
+# route state that repeats a state set on an ancestor.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
@@ -1139,8 +1148,8 @@ GEN_FILES := \
 	docs/reference/api-key-scopes.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
-	docs/manifest/generated/cli.json \
-	docs/manifest/generated/rest-api.json \
+	docs/reference/cli/sidebar.yml \
+	docs/reference/api/sidebar.yml \
 	provisioner/terraform/testdata/generation.sha1 \
 	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
@@ -1247,8 +1256,8 @@ gen/mark-fresh:
 		docs/reference/api-key-scopes.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
-		docs/manifest/generated/cli.json \
-		docs/manifest/generated/rest-api.json \
+		docs/reference/cli/sidebar.yml \
+		docs/reference/api/sidebar.yml \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
@@ -1472,12 +1481,13 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json $(DOCS_MANIFEST_SOURCES) _gen/bin/clidocgen _gen/bin/docsmanifestgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
-		cp -R docs/manifest "$$tmpdir/docs/manifest" && \
+		$(call copy-docs-sidebar-sources,$$tmpdir/docs) && \
 		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
+		_gen/bin/docsmanifestgen fmt -docs "$$tmpdir/docs" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/**/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/**/*.md" && \
 		rm -rf docs/reference/cli && \
@@ -1517,42 +1527,40 @@ coderd/apidoc/.gen: \
 	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
+	$(DOCS_MANIFEST_SOURCES) \
 	.swaggo \
 	scripts/apidocgen/generate.sh \
 	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
-	$(wildcard scripts/apidocgen/markdown-template/*) | _gen
+	$(wildcard scripts/apidocgen/markdown-template/*) \
+	_gen/bin/docsmanifestgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && swagtmp=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
 		mkdir -p "$$tmpdir/reference/api" && \
-		cp -R docs/manifest "$$tmpdir/manifest" && \
+		$(call copy-docs-sidebar-sources,$$tmpdir) && \
 		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
-		./scripts/biome_format.sh "$$tmpdir/manifest/generated/rest-api.json" && \
+		_gen/bin/docsmanifestgen fmt -docs "$$tmpdir" && \
 		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
-		mv "$$tmpdir/manifest/generated/rest-api.json" docs/manifest/generated/rest-api.json && \
+		mv "$$tmpdir/reference/api/sidebar.yml" docs/reference/api/sidebar.yml && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
 		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-# apidocgen writes the REST API sidebar fragment named by children_from in
-# docs/manifest; the rule above moves it into place.
-docs/manifest/generated/rest-api.json: coderd/apidoc/.gen
+# apidocgen writes the REST API sidebar into docs/reference/api; the rule
+# above moves it into place.
+docs/reference/api/sidebar.yml: coderd/apidoc/.gen
 	touch "$@"
 
-# clidocgen writes the "Command Line" sidebar fragment named by children_from
-# in docs/manifest, built from the command tree.
-docs/manifest/generated/cli.json: site/node_modules/.installed _gen/bin/clidocgen | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpdir=$$(realpath "$$tmpdir") && \
-		cp -R docs/manifest "$$tmpdir/manifest" && \
-		CI=true DOCS_DIR="$$tmpdir" _gen/bin/clidocgen -manifest-only && \
-		./scripts/biome_format.sh "$$tmpdir/manifest/generated/cli.json" && \
-		mv "$$tmpdir/manifest/generated/cli.json" "$@" && rm -rf "$$tmpdir"
+# clidocgen writes the "Command Line" sidebar into docs/reference/cli along
+# with the reference pages.
+docs/reference/cli/sidebar.yml: docs/reference/cli/index.md
+	touch "$@"
 
-# Compiles the sidebar sources and generated fragments into docs/manifest.json.
+# Compiles the sidebar sources and generated sidebars into docs/manifest.json.
 define build-docs-manifest
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/manifest.json && \
 		_gen/bin/docsmanifestgen build -out "$$tmpfile" && \
@@ -1560,7 +1568,7 @@ define build-docs-manifest
 		mv "$$tmpfile" docs/manifest.json && rm -rf "$$tmpdir"
 endef
 
-docs/manifest.json: $(DOCS_MANIFEST_SOURCES) docs/manifest/generated/cli.json docs/manifest/generated/rest-api.json site/node_modules/.installed _gen/bin/docsmanifestgen docs/reference/cli/index.md | _gen
+docs/manifest.json: $(DOCS_MANIFEST_SOURCES) docs/reference/api/sidebar.yml site/node_modules/.installed _gen/bin/docsmanifestgen docs/reference/cli/index.md | _gen
 	$(build-docs-manifest)
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen

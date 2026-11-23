@@ -277,7 +277,7 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
+Add every documentation page to the `sidebar.yml` in its own folder; pages missing from the sidebar do not appear in navigation. `docs/sidebar.yml` lists the top-level routes in sidebar order. Each `sidebar.yml` holds one route and its direct children, with paths relative to its folder; a child with children of its own lives in the `sidebar.yml` of a subfolder, such as `docs/admin/users/sidebar.yml`, and the parent lists it with `- folder: users`. Find the `sidebar.yml` for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
 
 ## Documentation lands with the change
 
@@ -376,5 +376,5 @@ When you rename or move a doc page, add the rule to `docs/redirects.json` in the
    [Evidence justifies a claim and does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim)
 3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
-5. **Manifest inclusion** - Add to `docs/manifest/` for navigation
+5. **Manifest inclusion** - Add to the `sidebar.yml` in the page's folder for navigation
 6. **Add redirects** - When moving/renaming pages, add a rule to `docs/redirects.json` in the same PR

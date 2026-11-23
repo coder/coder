@@ -1,0 +1,22 @@
+title: Security
+description: Secure your Coder deployment with audit logs, secrets management, and database encryption.
+path: ./index.md
+icon_path: ./images/icons/lock.svg
+children:
+  - title: Audit logs
+    description: Track user and administrator actions across your Coder deployment with audit logs.
+    path: ./audit-logs.md
+    state: [premium]
+  - title: Secrets
+    description: Learn the recommended ways to get secrets into your Coder workspaces securely.
+    path: ./secrets.md
+  - title: Database encryption
+    description: Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.
+    path: ./database-encryption.md
+    state: [premium]
+  - title: Security - best practices
+    description: Follow security best practices to harden your Coder deployment against common risks.
+    path: ./security-best-practices.md
+  - title: Verify releases
+    description: Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.
+    path: ./verify-releases.md

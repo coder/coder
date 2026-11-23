@@ -1,0 +1,560 @@
+- title: "`agent-firewall`"
+  description: Network isolation tool for monitoring and restricting HTTP/HTTPS requests.
+  path: agent-firewall.md
+- title: "`ai-gateway`"
+  description: Manage AI Gateway.
+  path: ai-gateway/index.md
+  children:
+    - title: "`keys`"
+      description: Manage AI Gateway keys.
+      path: ai-gateway/keys/index.md
+      children:
+        - title: "`create`"
+          description: Create an AI Gateway key.
+          path: ai-gateway/keys/create.md
+        - title: "`delete`"
+          description: Delete an AI Gateway key.
+          path: ai-gateway/keys/delete.md
+        - title: "`list`"
+          description: List AI Gateway keys.
+          path: ai-gateway/keys/list.md
+    - title: "`start`"
+      description: Run a standalone AI Gateway server.
+      path: ai-gateway/start.md
+- title: "`autoupdate`"
+  description: Toggle auto-update policy for a workspace.
+  path: autoupdate.md
+- title: "`completion`"
+  description: Install or update shell completion scripts for the detected or chosen shell.
+  path: completion.md
+- title: "`config-ssh`"
+  description: Add an SSH Host entry for your workspaces "ssh workspace.coder".
+  path: config-ssh.md
+- title: "`create`"
+  description: Create a workspace.
+  path: create.md
+- title: "`delete`"
+  description: Delete a workspace.
+  path: delete.md
+- title: "`dotfiles`"
+  description: Personalize your workspace by applying a canonical dotfiles repository.
+  path: dotfiles.md
+- title: "`external-auth`"
+  description: Manage external authentication.
+  path: external-auth/index.md
+  children:
+    - title: "`access-token`"
+      description: Print auth for an external provider.
+      path: external-auth/access-token.md
+- title: "`external-workspaces`"
+  description: Create or manage external workspaces.
+  path: external-workspaces/index.md
+  children:
+    - title: "`agent-instructions`"
+      description: Get the instructions for an external agent.
+      path: external-workspaces/agent-instructions.md
+    - title: "`create`"
+      description: Create a new external workspace.
+      path: external-workspaces/create.md
+    - title: "`list`"
+      description: List external workspaces.
+      path: external-workspaces/list.md
+- title: "`favorite`"
+  description: Add a workspace to your favorites.
+  path: favorite.md
+- title: "`features`"
+  description: List license features and entitlements.
+  path: features/index.md
+  children:
+    - title: "`list`"
+      path: features/list.md
+- title: "`groups`"
+  description: Manage groups.
+  path: groups/index.md
+  children:
+    - title: "`create`"
+      description: Create a user group.
+      path: groups/create.md
+    - title: "`delete`"
+      description: Delete a user group.
+      path: groups/delete.md
+    - title: "`edit`"
+      description: Edit a user group.
+      path: groups/edit.md
+    - title: "`list`"
+      description: List user groups.
+      path: groups/list.md
+- title: "`licenses`"
+  description: Add, delete, and list licenses.
+  path: licenses/index.md
+  children:
+    - title: "`add`"
+      description: Add license to Coder deployment.
+      path: licenses/add.md
+    - title: "`delete`"
+      description: Delete license by ID.
+      path: licenses/delete.md
+    - title: "`list`"
+      description: List licenses (including expired).
+      path: licenses/list.md
+- title: "`list`"
+  description: List workspaces.
+  path: list.md
+- title: "`login`"
+  description: Authenticate with Coder deployment.
+  path: login/index.md
+  children:
+    - title: "`token`"
+      description: Print the current session token.
+      path: login/token.md
+- title: "`logout`"
+  description: Unauthenticate your local session.
+  path: logout.md
+- title: "`logs`"
+  description: View logs for a workspace.
+  path: logs.md
+- title: "`netcheck`"
+  description: Print network debug information for DERP and STUN.
+  path: netcheck.md
+- title: "`notifications`"
+  description: Manage Coder notifications.
+  path: notifications/index.md
+  children:
+    - title: "`custom`"
+      description: Send a custom notification.
+      path: notifications/custom.md
+    - title: "`pause`"
+      description: Pause notifications.
+      path: notifications/pause.md
+    - title: "`resume`"
+      description: Resume notifications.
+      path: notifications/resume.md
+    - title: "`test`"
+      description: Send a test notification.
+      path: notifications/test.md
+- title: "`oauth2-provider`"
+  description: Manage Coder OAuth2 provider settings.
+  path: oauth2-provider/index.md
+  children:
+    - title: "`dcr`"
+      description: Manage OAuth2 dynamic client registration (RFC 7591).
+      path: oauth2-provider/dcr/index.md
+      children:
+        - title: "`disable`"
+          description: Disable OAuth2 dynamic client registration.
+          path: oauth2-provider/dcr/disable.md
+        - title: "`enable`"
+          description: Enable OAuth2 dynamic client registration.
+          path: oauth2-provider/dcr/enable.md
+- title: "`open`"
+  description: Open a workspace.
+  path: open/index.md
+  children:
+    - title: "`app`"
+      description: Open a workspace application.
+      path: open/app.md
+    - title: "`vscode`"
+      description: Open a workspace in VS Code Desktop.
+      path: open/vscode.md
+- title: "`organizations`"
+  description: Organization related commands.
+  path: organizations/index.md
+  children:
+    - title: "`create`"
+      description: Create a new organization.
+      path: organizations/create.md
+    - title: "`delete`"
+      description: Delete an organization.
+      path: organizations/delete.md
+    - title: "`edit`"
+      description: Edit organization settings.
+      path: organizations/edit.md
+    - title: "`list`"
+      description: List all organizations.
+      path: organizations/list.md
+    - title: "`members`"
+      description: Manage organization members.
+      path: organizations/members/index.md
+      children:
+        - title: "`add`"
+          description: Add a new member to the current organization.
+          path: organizations/members/add.md
+        - title: "`edit-roles`"
+          description: Edit organization member's roles.
+          path: organizations/members/edit-roles.md
+        - title: "`list`"
+          description: List all organization members.
+          path: organizations/members/list.md
+        - title: "`remove`"
+          description: Remove a new member to the current organization.
+          path: organizations/members/remove.md
+    - title: "`roles`"
+      description: Manage organization roles.
+      path: organizations/roles/index.md
+      children:
+        - title: "`create`"
+          description: Create a new organization custom role.
+          path: organizations/roles/create.md
+        - title: "`show`"
+          description: Show role(s).
+          path: organizations/roles/show.md
+        - title: "`update`"
+          description: Update an organization custom role.
+          path: organizations/roles/update.md
+    - title: "`settings`"
+      description: Manage organization settings.
+      path: organizations/settings/index.md
+      children:
+        - title: "`set`"
+          description: Update specified organization setting.
+          path: organizations/settings/set/index.md
+          children:
+            - title: "`group-sync`"
+              description: Group sync settings to sync groups from an IdP.
+              path: organizations/settings/set/group-sync.md
+            - title: "`organization-sync`"
+              description: Organization sync settings to sync organization memberships from an IdP.
+              path: organizations/settings/set/organization-sync.md
+            - title: "`role-sync`"
+              description: Role sync settings to sync organization roles from an IdP.
+              path: organizations/settings/set/role-sync.md
+            - title: "`workspace-sharing`"
+              description: Workspace sharing settings for the organization.
+              path: organizations/settings/set/workspace-sharing.md
+        - title: "`show`"
+          description: Outputs specified organization setting.
+          path: organizations/settings/show/index.md
+          children:
+            - title: "`group-sync`"
+              description: Group sync settings to sync groups from an IdP.
+              path: organizations/settings/show/group-sync.md
+            - title: "`organization-sync`"
+              description: Organization sync settings to sync organization memberships from an IdP.
+              path: organizations/settings/show/organization-sync.md
+            - title: "`role-sync`"
+              description: Role sync settings to sync organization roles from an IdP.
+              path: organizations/settings/show/role-sync.md
+            - title: "`workspace-sharing`"
+              description: Workspace sharing settings for the organization.
+              path: organizations/settings/show/workspace-sharing.md
+    - title: "`show`"
+      description: Show the organization. Using "selected" will show the selected organization from the "--org" flag. Using "me" will show all organizations you are a member of.
+      path: organizations/show.md
+- title: "`ping`"
+  description: Ping a workspace.
+  path: ping.md
+- title: "`port-forward`"
+  description: Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".
+  path: port-forward.md
+- title: "`prebuilds`"
+  description: Manage Coder prebuilds.
+  path: prebuilds/index.md
+  children:
+    - title: "`pause`"
+      description: Pause prebuilds.
+      path: prebuilds/pause.md
+    - title: "`resume`"
+      description: Resume prebuilds.
+      path: prebuilds/resume.md
+- title: "`provisioner`"
+  description: View and manage provisioner daemons and jobs.
+  path: provisioner/index.md
+  children:
+    - title: "`jobs`"
+      description: View and manage provisioner jobs.
+      path: provisioner/jobs/index.md
+      children:
+        - title: "`cancel`"
+          description: Cancel a provisioner job.
+          path: provisioner/jobs/cancel.md
+        - title: "`list`"
+          description: List provisioner jobs.
+          path: provisioner/jobs/list.md
+    - title: "`keys`"
+      description: Manage provisioner keys.
+      path: provisioner/keys/index.md
+      children:
+        - title: "`create`"
+          description: Create a new provisioner key.
+          path: provisioner/keys/create.md
+        - title: "`delete`"
+          description: Delete a provisioner key.
+          path: provisioner/keys/delete.md
+        - title: "`list`"
+          description: List provisioner keys in an organization.
+          path: provisioner/keys/list.md
+    - title: "`list`"
+      description: List provisioner daemons in an organization.
+      path: provisioner/list.md
+    - title: "`start`"
+      description: Run a provisioner daemon.
+      path: provisioner/start.md
+- title: "`publickey`"
+  description: Output your Coder public key used for Git operations.
+  path: publickey.md
+- title: "`rename`"
+  description: Rename a workspace.
+  path: rename.md
+- title: "`reset-password`"
+  description: Directly connect to the database to reset a user's password.
+  path: reset-password.md
+- title: "`restart`"
+  description: Restart a workspace.
+  path: restart.md
+- title: "`schedule`"
+  description: Schedule automated start and stop times for workspaces.
+  path: schedule/index.md
+  children:
+    - title: "`extend`"
+      description: Extend the stop time of a currently running workspace instance.
+      path: schedule/extend.md
+    - title: "`show`"
+      description: Show workspace schedules.
+      path: schedule/show.md
+    - title: "`start`"
+      description: Edit workspace start schedule.
+      path: schedule/start.md
+    - title: "`stop`"
+      description: Edit workspace stop schedule.
+      path: schedule/stop.md
+- title: "`secret`"
+  description: Manage secrets.
+  path: secret/index.md
+  children:
+    - title: "`create`"
+      description: Create a secret.
+      path: secret/create.md
+    - title: "`delete`"
+      description: Delete a secret.
+      path: secret/delete.md
+    - title: "`disable`"
+      description: Disable a secret without removing it.
+      path: secret/disable.md
+    - title: "`enable`"
+      description: Enable a secret so it is injected into workspaces.
+      path: secret/enable.md
+    - title: "`import`"
+      description: Import secrets from a file.
+      path: secret/import.md
+    - title: "`list`"
+      description: List secrets, or show one by name.
+      path: secret/list.md
+    - title: "`update`"
+      description: Update a secret.
+      path: secret/update.md
+- title: "`server`"
+  description: Start a Coder server.
+  path: server/index.md
+  children:
+    - title: "`create-admin-user`"
+      description: Create a new admin user with the given username, email and password and adds it to every organization.
+      path: server/create-admin-user.md
+    - title: "`dbcrypt`"
+      description: Manage database encryption.
+      path: server/dbcrypt/index.md
+      children:
+        - title: "`decrypt`"
+          description: Decrypt a previously encrypted database.
+          path: server/dbcrypt/decrypt.md
+        - title: "`delete`"
+          description: Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.
+          path: server/dbcrypt/delete.md
+        - title: "`rotate`"
+          description: Rotate database encryption keys.
+          path: server/dbcrypt/rotate.md
+    - title: "`fix-oidc-links`"
+      description: Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.
+      path: server/fix-oidc-links.md
+    - title: "`postgres-builtin-serve`"
+      description: Run the built-in PostgreSQL deployment.
+      path: server/postgres-builtin-serve.md
+    - title: "`postgres-builtin-url`"
+      description: Output the connection URL for the built-in PostgreSQL deployment.
+      path: server/postgres-builtin-url.md
+- title: "`sharing`"
+  description: Commands for managing shared workspaces.
+  path: sharing/index.md
+  children:
+    - title: "`add`"
+      description: Share a workspace with a user or group.
+      path: sharing/add.md
+    - title: "`remove`"
+      description: Remove shared access for users or groups from a workspace.
+      path: sharing/remove.md
+    - title: "`status`"
+      description: List all users and groups the given Workspace is shared with.
+      path: sharing/status.md
+- title: "`show`"
+  description: Display details of a workspace's resources and agents.
+  path: show.md
+- title: "`speedtest`"
+  description: Run upload and download tests from your machine to a workspace.
+  path: speedtest.md
+- title: "`ssh`"
+  description: Start a shell into a workspace or run a command.
+  path: ssh.md
+- title: "`start`"
+  description: Start a workspace.
+  path: start.md
+- title: "`stat`"
+  description: Show resource usage for the current workspace.
+  path: stat/index.md
+  children:
+    - title: "`cpu`"
+      description: Show CPU usage, in cores.
+      path: stat/cpu.md
+    - title: "`disk`"
+      description: Show disk usage, in gigabytes.
+      path: stat/disk.md
+    - title: "`mem`"
+      description: Show memory usage, in gigabytes.
+      path: stat/mem.md
+- title: "`state`"
+  description: Manually manage Terraform state to fix broken workspaces.
+  path: state/index.md
+  children:
+    - title: "`pull`"
+      description: Pull a Terraform state file from a workspace.
+      path: state/pull.md
+    - title: "`push`"
+      description: Push a Terraform state file to a workspace.
+      path: state/push.md
+- title: "`stop`"
+  description: Stop a workspace.
+  path: stop.md
+- title: "`support`"
+  description: Commands for troubleshooting issues with a Coder deployment.
+  path: support/index.md
+  children:
+    - title: "`bundle`"
+      description: Generate a support bundle to troubleshoot issues connecting to a workspace.
+      path: support/bundle.md
+- title: "`templates`"
+  description: Manage templates.
+  path: templates/index.md
+  children:
+    - title: "`archive`"
+      description: Archive unused or failed template versions from a given template(s).
+      path: templates/archive.md
+    - title: "`create`"
+      description: "DEPRECATED: Create a template from the current directory or as specified by flag."
+      path: templates/create.md
+    - title: "`delete`"
+      description: Delete templates.
+      path: templates/delete.md
+    - title: "`edit`"
+      description: Edit the metadata of a template by name.
+      path: templates/edit.md
+    - title: "`init`"
+      description: Get started with a templated template.
+      path: templates/init.md
+    - title: "`list`"
+      description: List all the templates available for the organization.
+      path: templates/list.md
+    - title: "`presets`"
+      description: Manage presets of the specified template.
+      path: templates/presets/index.md
+      children:
+        - title: "`list`"
+          description: List all presets of the specified template. Defaults to the active template version.
+          path: templates/presets/list.md
+    - title: "`pull`"
+      description: Download the active, latest, or specified version of a template to a path.
+      path: templates/pull.md
+    - title: "`push`"
+      description: Create or update a template from the current directory or as specified by flag.
+      path: templates/push.md
+    - title: "`versions`"
+      description: Manage different versions of the specified template.
+      path: templates/versions/index.md
+      children:
+        - title: "`archive`"
+          description: Archive a template version(s).
+          path: templates/versions/archive.md
+        - title: "`list`"
+          description: List all the versions of the specified template.
+          path: templates/versions/list.md
+        - title: "`promote`"
+          description: Promote a template version to active.
+          path: templates/versions/promote.md
+        - title: "`unarchive`"
+          description: Unarchive a template version(s).
+          path: templates/versions/unarchive.md
+- title: "`tokens`"
+  description: Manage personal access tokens.
+  path: tokens/index.md
+  children:
+    - title: "`create`"
+      description: Create a token.
+      path: tokens/create.md
+    - title: "`list`"
+      description: List tokens.
+      path: tokens/list.md
+    - title: "`remove`"
+      description: Expire or delete a token.
+      path: tokens/remove.md
+    - title: "`view`"
+      description: Display detailed information about a token.
+      path: tokens/view.md
+- title: "`unfavorite`"
+  description: Remove a workspace from your favorites.
+  path: unfavorite.md
+- title: "`update`"
+  description: Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.
+  path: update.md
+- title: "`users`"
+  description: Manage users.
+  path: users/index.md
+  children:
+    - title: "`activate`"
+      description: Update a user's status to 'active'. Active users can fully interact with the platform.
+      path: users/activate.md
+    - title: "`create`"
+      description: Create a new user.
+      path: users/create.md
+    - title: "`delete`"
+      description: Delete a user by username or user_id.
+      path: users/delete.md
+    - title: "`edit-roles`"
+      description: Edit a user's roles by username or id.
+      path: users/edit-roles.md
+    - title: "`list`"
+      description: Prints the list of users.
+      path: users/list.md
+    - title: "`oidc-claims`"
+      description: Display the OIDC claims for the authenticated user.
+      path: users/oidc-claims.md
+    - title: "`show`"
+      description: Show a single user. Use 'me' to indicate the currently authenticated user.
+      path: users/show.md
+    - title: "`suspend`"
+      description: Update a user's status to 'suspended'. A suspended user cannot log into the platform. Suspending a user stops their running workspaces; activating the user again does not restart them.
+      path: users/suspend.md
+- title: "`version`"
+  description: Show coder version.
+  path: version.md
+- title: "`whoami`"
+  description: Fetch authenticated user info for Coder deployment.
+  path: whoami.md
+- title: "`workspace-proxy`"
+  description: Workspace proxies provide low-latency experiences for geo-distributed teams.
+  path: workspace-proxy/index.md
+  children:
+    - title: "`create`"
+      description: Create a workspace proxy.
+      path: workspace-proxy/create.md
+    - title: "`delete`"
+      description: Delete a workspace proxy.
+      path: workspace-proxy/delete.md
+    - title: "`edit`"
+      description: Edit a workspace proxy.
+      path: workspace-proxy/edit.md
+    - title: "`ls`"
+      description: List all workspace proxies.
+      path: workspace-proxy/ls.md
+    - title: "`regenerate-token`"
+      description: Regenerate a workspace proxy authentication token. This will invalidate the existing authentication token.
+      path: workspace-proxy/regenerate-token.md
+    - title: "`server`"
+      description: Start a workspace proxy server.
+      path: workspace-proxy/server.md

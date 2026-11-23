@@ -143,7 +143,7 @@ func cliManifestRoute(cmd *serpent.Command) docgenenv.Route {
 	return docgenenv.Route{
 		Title:       inlineCode(cmd.Name()),
 		Description: docsDescription(cmd),
-		Path:        path.Join("reference/cli", fmtDocFilename(cmd)),
+		Path:        fmtDocFilename(cmd),
 		Children:    cliManifestChildren(cmd),
 	}
 }

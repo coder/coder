@@ -51,7 +51,7 @@ voice or product names:
 ## Feature states
 
 A feature state, such as `premium`, `beta`, or `early access`, marks a page in the sidebar and under the page title.
-Set it with the `state` key on the page's route in the YAML sidebar sources under [`docs/manifest/`](../docs/manifest/), not in the page title or H1.
+Set it with the `state` key on the page's route in the `sidebar.yml` file of the page's folder (the root is [`docs/sidebar.yml`](../docs/sidebar.yml)), not in the page title or H1.
 
 A state on a route applies to that route and to every route beneath it.
 Follow these rules:
@@ -63,8 +63,8 @@ Follow these rules:
 3. Add a state to a descendant only when the descendant has a state that its ancestors lack, such as an early access subfeature inside a Premium feature.
    List only the new state; the inherited one still applies.
 
-`make lint/docs-manifest` fails when a route repeats a state that an ancestor already sets, and names the file, the route, and the ancestor.
-Include files count: an ancestor in another file still counts as an ancestor.
+`make lint/docs-manifest` fails when a route repeats a state that an ancestor already sets, and names the route and the ancestor.
+Folder entries count: an ancestor in another `sidebar.yml` still counts as an ancestor.
 The lint also fails when a route lists the same state twice.
 
 ### Example
@@ -72,18 +72,18 @@ The lint also fails when a route lists the same state twice.
 A Premium feature with an early access subfeature:
 
 ```yaml
-# docs/manifest/admin/widgets.yml
+# docs/admin/widgets/sidebar.yml
 title: Widgets
 description: Manage widgets across your deployment.
-path: ./admin/widgets/index.md
+path: ./index.md
 state: [premium]
 children:
   - title: Widget setup
     description: Enable and configure widgets.
-    path: ./admin/widgets/setup.md
+    path: ./setup.md
   - title: Widget sync
     description: Sync widgets between deployments.
-    path: ./admin/widgets/sync.md
+    path: ./sync.md
     state: [early access]
 ```
 

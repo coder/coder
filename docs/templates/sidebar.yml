@@ -1,0 +1,26 @@
+title: Templates
+description: Learn how to author, publish, and maintain the Coder templates that define your workspaces.
+path: ./index.md
+icon_path: ./images/icons/picture.svg
+children:
+  - title: Creating templates
+    description: Create a Coder template with Terraform to define the infrastructure for your workspaces.
+    path: ./creating-templates.md
+  - title: Write a template from scratch
+    description: Learn how to write a Coder template from scratch with Terraform, step by step.
+    path: ./template-from-scratch.md
+  - folder: managing-templates
+  - folder: extending-templates
+  - title: Open in Coder
+    description: Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.
+    path: ./open-in-coder.md
+  - title: Permissions
+    description: Control which users and groups can use, edit, and administer each Coder template.
+    path: ./template-permissions.md
+    state: [premium]
+  - title: Test templates through CI/CD
+    description: Test and publish your Coder templates automatically through a CI/CD pipeline.
+    path: ./testing-templates.md
+  - title: Troubleshoot templates
+    description: Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.
+    path: ./troubleshooting.md

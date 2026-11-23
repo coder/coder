@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
 
@@ -41,9 +40,6 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
-	manifestOnly := flag.Bool("manifest-only", false, "Only rebuild the \"Command Line\" sidebar fragment; do not write reference pages.")
-	flag.Parse()
-
 	docgenenv.Prepare()
 
 	workdir, err := os.Getwd()
@@ -65,17 +61,16 @@ func main() {
 	// Load the sidebar sources up front so the generated index page can mirror
 	// the "Command Line" route's curated metadata (title/description/icon_path)
 	// instead of the root command name.
-	sourcesDir := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
-	man, err := docgenenv.LoadManifestSources(sourcesDir)
+	man, err := docgenenv.LoadManifestSources(docsDir)
 	if err != nil {
 		flog.Fatalf("%v", err)
 	}
 	cmdLine := man.FindRoute("Reference", "Command Line")
 	if cmdLine == nil {
-		flog.Fatalf("could not find Command Line route in sidebar sources %q", sourcesDir)
+		flog.Fatalf("could not find Command Line route in the sidebar sources under %q", docsDir)
 	}
-	if cmdLine.ChildrenFrom == "" {
-		flog.Fatalf("Command Line route in sidebar sources %q must set children_from", sourcesDir)
+	if cmdLine.Folder == "" {
+		flog.Fatalf("Command Line route in the sidebar sources under %q must set folder", docsDir)
 	}
 	// Mirror the whole "Command Line" route (minus its nav children) so the
 	// index page front matter carries every current and future per-page field
@@ -86,14 +81,12 @@ func main() {
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)
 	}
-	if !*manifestOnly {
-		writePages(cliMarkdownDir, cmd)
-	}
+	writePages(cliMarkdownDir, cmd)
 
 	// Write the "Command Line" route's children, built from the command tree
-	// so the nav nests the same way the generated pages do, to the fragment
-	// the sources name in children_from.
-	fragment := filepath.Join(sourcesDir, filepath.FromSlash(cmdLine.ChildrenFrom))
+	// so the nav nests the same way the generated pages do, to the sidebar
+	// file in the generated folder.
+	fragment := filepath.Join(docsDir, filepath.FromSlash(cmdLine.Folder), docgenenv.SidebarFile)
 	if err := docgenenv.WriteRouteFragment(fragment, cliManifestChildren(cmd)); err != nil {
 		flog.Fatalf("%v", err)
 	}

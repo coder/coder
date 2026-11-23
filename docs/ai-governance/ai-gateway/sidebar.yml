@@ -1,0 +1,40 @@
+title: AI Gateway
+description: Govern and observe AI coding traffic with AI Gateway.
+path: ./index.md
+icon_path: ./images/icons/api.svg
+children:
+  - title: Setup
+    description: Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.
+    path: ./setup.md
+  - title: Standalone deployment
+    description: Deploy and operate AI Gateway as a standalone service.
+    path: ./standalone.md
+  - title: Authentication
+    description: Authenticate AI coding tools against AI Gateway using your Coder API token.
+    path: ./auth.md
+  - folder: clients
+  - title: MCP tools injection
+    description: Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.
+    path: ./mcp.md
+  - folder: ai-gateway-proxy
+  - title: Provider configuration
+    description: Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.
+    path: ./providers.md
+  - title: Audit AI sessions
+    description: Audit AI coding sessions and threads captured by AI Gateway for governance and review.
+    path: ./audit.md
+  - title: Monitoring
+    description: Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.
+    path: ./monitoring.md
+  - title: AI Governance cost control
+    description: Configure AI Gateway budgets, enforcement, notifications, and spend reporting.
+    path: ./cost-controls.md
+  - title: Request organization
+    description: How AI Gateway assigns each request to an organization, and how that affects budgets and spend.
+    path: ./request-organization.md
+  - title: Reference
+    description: Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.
+    path: ./reference.md
+  - title: Rebranding migration
+    description: Update configuration and references after the AI Bridge rename to AI Gateway.
+    path: ./rebranding-migration.md
