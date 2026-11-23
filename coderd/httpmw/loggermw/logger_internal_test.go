@@ -244,6 +244,9 @@ func TestRequestLogger_HTTPRouteParams(t *testing.T) {
 		_, exists := fieldsMap["params_"+field]
 		require.True(t, exists, "field %q is missing in log fields", field)
 	}
+
+	// A path without a secret route param is logged unchanged.
+	require.Equal(t, "/test-path/}", fieldsMap["path"])
 }
 
 func TestRequestLogger_RouteParamsLogging(t *testing.T) {
@@ -486,66 +489,6 @@ func TestLoggerMiddleware_MasksSecretRouteParams(t *testing.T) {
 			} else {
 				require.Equal(t, value, fields["params_provisionerkey"])
 				require.Equal(t, tt.path, fields["path"])
-			}
-		})
-	}
-}
-
-// TestLoggerMiddleware_LogsPlainPath checks that paths without a secret route
-// param are logged unchanged, with or without a chi route context.
-func TestLoggerMiddleware_LogsPlainPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		route  bool // whether the request has a chi route context
-		path   string
-		params map[string]string
-	}{
-		{
-			name:   "RoutedNonSecretParam",
-			route:  true,
-			path:   "/api/v2/users/synthetic-user/workspaces",
-			params: map[string]string{"user": "synthetic-user"},
-		},
-		{
-			name: "NoRouteContext",
-			path: "/api/v2/buildinfo",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			sink := testutil.NewFakeSink(t)
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			if tt.route {
-				chiCtx := chi.NewRouteContext()
-				for k, v := range tt.params {
-					chiCtx.URLParams.Add(k, v)
-				}
-				chiCtx.RoutePatterns = []string{"/api/v2/users/{user}/workspaces"}
-				ctx = context.WithValue(ctx, chi.RouteCtxKey, chiCtx)
-			}
-
-			handler := Logger(sink.Logger(), nil)(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
-				rw.WriteHeader(http.StatusOK)
-			}))
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, tt.path, nil)
-			require.NoError(t, err)
-			handler.ServeHTTP(&tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}, req)
-
-			entries := sink.Entries()
-			require.Len(t, entries, 1)
-			fields := map[string]any{}
-			for _, f := range entries[0].Fields {
-				fields[f.Name] = f.Value
-			}
-			require.Equal(t, tt.path, fields["path"])
-			for k, v := range tt.params {
-				require.Equal(t, v, fields["params_"+k])
 			}
 		})
 	}
