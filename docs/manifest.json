@@ -2679,6 +2679,12 @@
 					"icon_path": "./images/icons/api.svg"
 				},
 				{
+					"title": "Workspace related data",
+					"description": "Reference for the `include_related` query parameter, which selects the related data that workspace API responses return.",
+					"path": "./reference/workspace-related-data.md",
+					"icon_path": "./images/icons/api.svg"
+				},
+				{
 					"title": "Agent API",
 					"description": "Reference for the Coder Agent API used by workspace agents to communicate with the control plane.",
 					"path": "./reference/agent-api/index.md",

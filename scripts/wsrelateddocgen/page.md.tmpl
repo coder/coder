@@ -1,0 +1,57 @@
+{{ .Header -}}
+This reference is for developers who read workspaces through the Coder Representational State Transfer (REST) API.
+It lists the related data that the `include_related` query parameter selects and the response fields that each selection returns.
+
+The following endpoints accept `include_related`:
+
+- `GET /api/v2/workspaces/{workspace}`
+- `GET /api/v2/users/{user}/workspace/{workspacename}`
+
+For the full request and response schema of each endpoint, refer to the [Workspaces API reference](./api/workspaces.md).
+In the Go SDK, pass a `wsrelated.Config` as the `IncludeRelated` field of `codersdk.WorkspaceOptions`.
+
+## Select related data
+
+Select only the related data you read, because loading less related data makes the request cheaper.
+The value of `include_related` is a comma-separated list of paths, such as `{{ .Example }}`.
+Each path is one of the following:
+{{ range .Paths }}
+- `{{ . }}`
+{{- end }}
+
+The parameter follows these rules:
+
+- Omit `include_related` to return all related data.
+- Pass an empty value, `include_related=`, to return only the fields that are always returned.
+- Selecting a path also selects its ancestors.
+  For example, `latest_build.job` also selects `latest_build`.
+- End a path with `.*` to select it and every path below it, or pass `*` to select everything.
+
+An unknown path, an empty entry such as `template,,latest_build`, or a `*` before the end of a path returns `400 Bad Request`.
+
+The following request returns the workspace with its template data and its latest build, including the build's resources and agents:
+
+```shell
+curl "https://coder.example.com/api/v2/workspaces/<workspace-id>?include_related={{ .Example }}" \
+  -H "Coder-Session-Token: <your-token>"
+```
+
+## Fields that aren't selected
+
+A field that needs related data you didn't select doesn't hold a meaningful value, so don't read it.
+Most of these fields are returned with zero values, such as `null`, an empty string, `0`, `false`, or a zero ID.
+Fields that Coder computes from related data, such as `health`, `outdated`, and `latest_build.status`, can hold values computed from the missing data.
+For example, without `latest_build.resources.agents`, `health.healthy` is `true` even when an agent is unhealthy.
+
+## Response fields
+
+The following table lists each response field and the `include_related` paths that return it.
+A field that holds an object or array returns everything in it.
+A field that lists more than one path needs all of them.
+These endpoints never populate a field marked Not returned.
+
+| Response field | `include_related` |
+|----------------|-------------------|
+{{- range .Rows }}
+| `{{ .Field }}` | {{ .Paths }} |
+{{- end }}

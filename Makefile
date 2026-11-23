@@ -83,6 +83,7 @@ endif
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
 	docs/reference/api-key-scopes.md \
+	docs/reference/workspace-related-data.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -205,6 +206,12 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 _gen/bin/scopesdocgen: $(wildcard scripts/scopesdocgen/*.go) $(wildcard scripts/docgenenv/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/scopesdocgen
+
+# wsrelateddocgen reads the wsrelated struct tags on codersdk.Workspace to
+# produce the workspace related data reference page.
+_gen/bin/wsrelateddocgen: $(wildcard scripts/wsrelateddocgen/*.go) scripts/wsrelateddocgen/page.md.tmpl $(wildcard scripts/docgenenv/*.go) $(wildcard codersdk/*.go) $(wildcard codersdk/wsrelated/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/wsrelateddocgen
 
 _gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
@@ -1137,6 +1144,7 @@ GEN_FILES := \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
 	docs/reference/api-key-scopes.md \
+	docs/reference/workspace-related-data.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	docs/manifest/generated/cli.json \
@@ -1245,6 +1253,7 @@ gen/mark-fresh:
 		docs/admin/security/audit-logs.md \
 		docs/admin/setup/configuration-reference.md \
 		docs/reference/api-key-scopes.md \
+		docs/reference/workspace-related-data.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		docs/manifest/generated/cli.json \
@@ -1501,6 +1510,13 @@ docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard 
 docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/scopesdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/reference/workspace-related-data.md: node_modules/.installed $(DOCS_MANIFEST_SOURCES) _gen/bin/wsrelateddocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/wsrelateddocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
