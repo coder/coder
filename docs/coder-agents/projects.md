@@ -37,12 +37,15 @@ Coder records changes to projects, including their attached templates, and to in
 1. On the **Agents** page, select **New project** in the **Projects** section of the sidebar.
 1. Enter a **Project name** and an optional **Description**, and pick an icon.
 1. Choose the **Organization**.
-1. Under **Templates**, select the templates to attach to the project.
+1. To attach templates to the project, select them under **Templates**.
 
    You can skip this step and attach templates later.
    If you change the **Organization** afterward, the dialog clears the selected templates.
-   To limit the project's chats to these templates, turn on **Limit chats to these templates**.
-   To also set a default template, refer to [Default template](#default-template).
+
+1. To limit the project's chats to these templates, turn on **Limit chats to these templates**.
+1. To set a default template, choose one of the selected templates under **Default template**.
+
+   For the default values that you can set with it, refer to [Default template](#default-template).
 
 1. Select **Create project**.
 
@@ -218,6 +221,7 @@ For the default template, you can also set default values as either a **Preset**
 
 - **Preset:** when the agent creates a workspace from the default template without choosing a preset, Coder uses the default preset.
   Coder skips the default preset when the agent sets a parameter that the preset also sets.
+  To have no default preset, choose **None**.
 - **Parameter values:** when the agent creates a workspace from the default template, Coder fills in each default value that the agent doesn't set.
   Values the agent sets take precedence.
   The dialog shows the template's parameters in the same fields as the workspace creation form, each with the template's own default.
