@@ -994,3 +994,79 @@ export const AIBudgetShowcase: Story = {
 		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };
+
+export const MemberFiltersOpen: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getGroupQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ exclude_members: true },
+				),
+				data: MockGroupWithoutMembers,
+			},
+			{
+				key: getGroupMembersQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ limit: 25, offset: 0, q: "" },
+				),
+				data: { users: MockGroup.members, count: MockGroup.members.length },
+			},
+			{
+				key: groupPermissionsKey(MockGroupWithoutMembers.id),
+				data: { canUpdateGroup: true },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const SelectedMemberFilters: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockDefaultOrganization.name,
+					groupName: MockGroupWithoutMembers.name,
+				},
+				searchParams: { filter: "status:active service_account:true" },
+			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName" },
+				<GroupMembersPage />,
+			),
+		}),
+		queries: [
+			{
+				key: getGroupQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ exclude_members: true },
+				),
+				data: MockGroupWithoutMembers,
+			},
+			{
+				key: getGroupMembersQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{
+						limit: 25,
+						offset: 0,
+						q: "status:active service_account:true",
+					},
+				),
+				data: { users: [], count: 0 },
+			},
+			{
+				key: groupPermissionsKey(MockGroupWithoutMembers.id),
+				data: { canUpdateGroup: true },
+			},
+		],
+	},
+};

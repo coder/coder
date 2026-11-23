@@ -590,6 +590,7 @@ func TestSSHShutdownReason(t *testing.T) {
 		{name: "ServerShutdownAfterStdinEOF", stdinEOF: true},
 		{name: "ForwardOnly", forwardOnly: true},
 		{name: "ClientDisconnectBeforeShutdown", remoteClose: true},
+		{name: "ClientDisconnectWhileProcessRuns", remoteClose: true, stdinEOF: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

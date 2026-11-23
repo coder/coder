@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
@@ -54,20 +55,33 @@ const getRoleSelectLabel = (label: string, value: WorkspaceRole) =>
 type RoleSelectProps = {
 	value: WorkspaceRole;
 	memberOrGroupName: string;
-	disabled?: boolean;
+	isUpdating: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
 };
 
 const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
 	memberOrGroupName,
-	disabled,
+	isUpdating,
 	onValueChange,
 }) => {
+	const [open, setOpen] = useState(false);
+
 	return (
-		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
+		<Select
+			value={value}
+			onValueChange={(newValue: WorkspaceRole) => {
+				if (!isUpdating) {
+					onValueChange(newValue);
+				}
+			}}
+			open={open}
+			onOpenChange={(nextOpen) => setOpen(nextOpen && !isUpdating)}
+		>
 			<SelectTrigger
-				className="w-40 h-auto"
+				className="w-40 h-auto aria-disabled:opacity-50"
+				// Unlike disabled, aria-disabled keeps focus on the trigger while pending.
+				aria-disabled={isUpdating || undefined}
 				aria-label={getRoleSelectLabel(`Role for ${memberOrGroupName}`, value)}
 			>
 				<SelectValue>
@@ -108,10 +122,23 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 	children,
 }) => {
 	return (
-		<form action={onSubmit}>
-			<div className="flex items-center gap-2">
+		<form
+			action={() => {
+				if (!isLoading) {
+					onSubmit();
+				}
+			}}
+		>
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 				{children}
-				<Button disabled={disabled || isLoading} type="submit">
+				{/* aria-disabled, unlike disabled, keeps focus here while pending. */}
+				<Button
+					disabled={disabled}
+					aria-disabled={isLoading || undefined}
+					type="submit"
+					variant="outline"
+					className="w-full sm:w-auto"
+				>
 					<Spinner loading={isLoading}>
 						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
@@ -140,7 +167,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			disabled={disabled}
 		>
 			<SelectTrigger
-				className="w-40"
+				className="w-full sm:w-40"
 				aria-label={getRoleSelectLabel("Role", value)}
 			>
 				<SelectValue />
@@ -152,6 +179,8 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 		</Select>
 	);
 };
+
+const TABLE_LABEL = "Shared workspace members and groups";
 
 type WorkspaceSharingFormProps = {
 	organizationId: string;
@@ -190,7 +219,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (sharingSettingsQuery.isLoading) {
 		return (
-			<Table>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableLoader />
 				</TableBody>
@@ -200,7 +229,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (!sharingSettingsQuery.data) {
 		return (
-			<Table>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableRow>
 						<TableCell colSpan={999}>
@@ -214,7 +243,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 	if (sharingSettingsQuery.data.sharing_disabled) {
 		return (
-			<Table>
+			<Table aria-label={TABLE_LABEL}>
 				<TableBody>
 					<TableEmpty
 						message="This workspace cannot be shared"
@@ -238,8 +267,10 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		>
 			<TableRow>
 				<TableHead className="w-[50%] py-2">Member</TableHead>
-				<TableHead className="w-[40%] py-2">Role</TableHead>
-				<TableHead className="w-[10%] py-2" />
+				<TableHead className="w-[40%] py-2 max-sm:px-1">Role</TableHead>
+				<TableHead className="w-[10%] py-2 max-sm:px-1">
+					<span className="sr-only">Actions</span>
+				</TableHead>
 			</TableRow>
 		</TableHeader>
 	);
@@ -258,7 +289,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 				<>
 					{workspaceACL.group.map((group) => (
 						<TableRow key={group.id}>
-							<TableCell className="py-2 w-[50%]">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									avatar={
 										<Avatar
@@ -271,12 +302,12 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 									subtitle={getGroupSubtitle(group)}
 								/>
 							</TableCell>
-							<TableCell className="py-2 w-[40%]">
+							<TableCell className="py-2 w-[40%] max-sm:px-1">
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
 										memberOrGroupName={group.display_name || group.name}
-										disabled={updatingGroupId === group.id}
+										isUpdating={updatingGroupId === group.id}
 										onValueChange={(value) => onUpdateGroup(group, value)}
 									/>
 								) : (
@@ -284,7 +315,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								)}
 							</TableCell>
 
-							<TableCell className="py-2 w-[10%]">
+							<TableCell className="py-2 w-[10%] max-sm:px-1">
 								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
@@ -312,19 +343,19 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
-							<TableCell className="py-2 w-[50%]">
+							<TableCell className="py-2 w-[50%] max-sm:whitespace-nowrap">
 								<AvatarData
 									title={user.username}
 									subtitle={user.name}
 									src={user.avatar_url}
 								/>
 							</TableCell>
-							<TableCell className="py-2 w-[40%]">
+							<TableCell className="py-2 w-[40%] max-sm:px-1">
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
 										memberOrGroupName={user.username}
-										disabled={updatingUserId === user.id}
+										isUpdating={updatingUserId === user.id}
 										onValueChange={(value) => onUpdateUser(user, value)}
 									/>
 								) : (
@@ -332,7 +363,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								)}
 							</TableCell>
 
-							<TableCell className="py-2 w-[10%]">
+							<TableCell className="py-2 w-[10%] max-sm:px-1">
 								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
@@ -373,15 +404,15 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			)}
 			{/* Screen readers associate headers with cells only within one table. */}
 			<Table
-				aria-label="Shared workspace members and groups"
+				aria-label={TABLE_LABEL}
 				wrapperClassName={cn(isCompact && "max-h-60")}
 				// Without row controls, keyboard users need the scroll area itself to be focusable.
 				wrapperProps={
-					isCompact && !canShareWorkspace
+					!canShareWorkspace
 						? {
 								tabIndex: 0,
 								role: "region",
-								"aria-label": "Shared workspace members and groups",
+								"aria-label": TABLE_LABEL,
 							}
 						: undefined
 				}

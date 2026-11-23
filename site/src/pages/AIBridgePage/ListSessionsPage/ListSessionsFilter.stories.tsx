@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { Avatar } from "#/components/Avatar/Avatar";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
+import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 
 type FilterProps = React.ComponentProps<typeof ListSessionsFilter>;
@@ -109,5 +111,47 @@ export const Loading: Story = {
 			client: MockMenu,
 			model: MockMenu,
 		},
+	},
+};
+
+export const WithOrganizations: Story = {
+	args: {
+		...defaultFilterProps,
+		menus: {
+			...defaultFilterProps.menus,
+			organization: {
+				...MockMenu,
+				searchOptions: [
+					{
+						label: MockOrganization.display_name,
+						value: MockOrganization.name,
+						startIcon: (
+							<Avatar
+								size="sm"
+								fallback={MockOrganization.display_name}
+								src={MockOrganization.icon}
+							/>
+						),
+					},
+					{
+						label: MockOrganization2.display_name,
+						value: MockOrganization2.name,
+						startIcon: (
+							<Avatar
+								size="sm"
+								fallback={MockOrganization2.display_name}
+								src={MockOrganization2.icon}
+							/>
+						),
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Select an organization" }),
+		);
 	},
 };
