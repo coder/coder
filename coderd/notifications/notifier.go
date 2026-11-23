@@ -101,6 +101,12 @@ func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchRes
 
 	// run the ticker with the graceful context, so we stop fetching after stop() is called
 	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
+		// The ticker can deliver one more tick after the graceful context is
+		// canceled, so do not start a new fetch during shutdown.
+		if n.gracefulCtx.Err() != nil {
+			return nil
+		}
+
 		// Check if notifier is not paused.
 		ok, err := n.ensureRunning(n.outerCtx)
 		if err != nil {
