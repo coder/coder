@@ -25,7 +25,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 type TokensPageViewProps = {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
-	isLoading: boolean;
+	isFetching: boolean;
 	hasLoaded: boolean;
 	onDelete: (token: APIKeyWithOwner) => void;
 	deleteTokenError?: unknown;
@@ -35,7 +35,7 @@ type TokensPageViewProps = {
 export const TokensPageView: React.FC<TokensPageViewProps> = ({
 	tokens,
 	getTokensError,
-	isLoading,
+	isFetching,
 	hasLoaded,
 	onDelete,
 	deleteTokenError,
@@ -59,7 +59,7 @@ export const TokensPageView: React.FC<TokensPageViewProps> = ({
 				<TableBody>
 					<TokensTableBody
 						tokens={tokens}
-						isLoading={isLoading}
+						isFetching={isFetching}
 						hasLoaded={hasLoaded}
 						onDelete={onDelete}
 					/>
@@ -71,18 +71,18 @@ export const TokensPageView: React.FC<TokensPageViewProps> = ({
 
 type TokensTableBodyProps = {
 	tokens?: APIKeyWithOwner[];
-	isLoading: boolean;
+	isFetching: boolean;
 	hasLoaded: boolean;
 	onDelete: (token: APIKeyWithOwner) => void;
 };
 
 const TokensTableBody: React.FC<TokensTableBodyProps> = ({
 	tokens,
-	isLoading,
+	isFetching,
 	hasLoaded,
 	onDelete,
 }) => {
-	if (isLoading) {
+	if (isFetching && !tokens) {
 		return <TableLoader />;
 	}
 	if (hasLoaded && (!tokens || tokens.length === 0)) {
