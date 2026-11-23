@@ -1778,7 +1778,7 @@ func refreshClaimedUserToken(
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
 	result, err := RefreshOAuth2Token(ctx, httpClient, cfg, tok)
-	out := tok
+	var out database.MCPServerUserToken
 	switch {
 	case err != nil && !IsPermanentRefreshError(err):
 		// The claim lapses after refreshLease, which spaces out retries.
