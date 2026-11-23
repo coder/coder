@@ -205,32 +205,6 @@ func TestRefreshOAuth2TokenWithoutRefreshToken(t *testing.T) {
 	require.Empty(t, row.OauthRefreshFailureReason)
 }
 
-// TestForceRefreshOAuth2Token covers a token the MCP server rejected
-// before its stored expiry: the refresh calls the token endpoint anyway.
-func TestForceRefreshOAuth2Token(t *testing.T) {
-	t.Parallel()
-
-	var hits atomic.Int64
-	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"fresh","token_type":"Bearer","expires_in":3600,"refresh_token":"rotated"}`))
-	}))
-	t.Cleanup(tokenSrv.Close)
-
-	cfg := database.MCPServerConfig{OAuth2ClientID: "cid", OAuth2TokenURL: tokenSrv.URL}
-	result, err := mcpoauth.ForceRefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, database.MCPServerUserToken{
-		AccessToken:  "rejected",
-		RefreshToken: "refresh",
-		TokenType:    "Bearer",
-		Expiry:       sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
-	})
-	require.NoError(t, err)
-	require.Equal(t, "fresh", result.AccessToken)
-	require.Equal(t, "rotated", result.RefreshToken)
-	require.EqualValues(t, 1, hits.Load())
-}
-
 // TestForceRefreshOAuth2TokenWithLease covers the forced refresh under the
 // refresh lease on a real database, for a token whose stored expiry has
 // not passed.

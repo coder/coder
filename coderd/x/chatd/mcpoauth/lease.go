@@ -70,9 +70,10 @@ type LeasedRefreshOptions struct {
 	// WaitForLease waits, for at most the lease length, while another
 	// caller holds the lease. Without it a held lease returns at once.
 	WaitForLease bool
-	// Force refreshes a token the MCP server rejected with HTTP 401
-	// through ForceRefreshOAuth2Token, even when it is valid by the
-	// clock.
+	// Force refreshes a token the MCP server rejected with HTTP 401,
+	// even when it is valid by the clock. Every refresh error then
+	// starts with "mcp server rejected the access token (HTTP 401)", so
+	// a stored failure reason says why the token was refreshed.
 	Force bool
 }
 
@@ -276,14 +277,9 @@ func refreshLeasedToken(
 	leased database.MCPServerUserToken,
 	opts LeasedRefreshOptions,
 ) (LeasedRefresh, error) {
-	var (
-		result     refreshResult
-		refreshErr error
-	)
-	if opts.Force {
-		result, refreshErr = ForceRefreshOAuth2Token(ctx, httpClient, cfg, leased)
-	} else {
-		result, refreshErr = refreshOAuth2Token(ctx, httpClient, cfg, leased)
+	result, refreshErr := refreshOAuth2Token(ctx, httpClient, cfg, leased)
+	if refreshErr != nil && opts.Force {
+		refreshErr = xerrors.Errorf("mcp server rejected the access token (HTTP 401): %w", refreshErr)
 	}
 	if refreshErr != nil {
 		if !isPermanentRefreshError(refreshErr) {
