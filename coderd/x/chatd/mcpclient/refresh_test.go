@@ -324,7 +324,7 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			store, _ := dbtestutil.NewDB(t)
-			var db database.Store = store
+			db := store
 			if tc.saveFails {
 				db = failingSaveStore{store}
 			}
