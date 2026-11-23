@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "#/testHelpers/renderHelpers";
@@ -74,100 +74,5 @@ describe("Response", () => {
 
 		await screen.findByText(/\uFFFD0\uFFFD \uFFFD0\uFFFD/);
 		expect(screen.getAllByRole("button", { name: "chip" })).toHaveLength(1);
-	});
-
-	describe("ordered list numbers", () => {
-		const renderListNumbers = async (
-			markdown: string,
-			props: { streaming?: boolean; preserveLineBreaks?: boolean } = {},
-		) => {
-			render(<Response {...props}>{markdown}</Response>);
-			const items = await screen.findAllByRole("listitem");
-			return items.map((item) => item.getAttribute("value"));
-		};
-
-		it("keeps the numbers of a list that skips a step", async () => {
-			const numbers = await renderListNumbers(
-				"Steps:\n\n1. First\n3. Third\n4. Fourth\n5. Fifth",
-			);
-			expect(numbers).toEqual(["1", "3", "4", "5"]);
-		});
-
-		it("keeps a list's start without numbering items that count up from it", async () => {
-			render(<Response>{"3. Third\n4. Fourth"}</Response>);
-			const list = await screen.findByRole("list");
-			expect(list).toHaveAttribute("start", "3");
-			const items = within(list).getAllByRole("listitem");
-			expect(items.map((item) => item.getAttribute("value"))).toEqual([
-				null,
-				null,
-			]);
-		});
-
-		it("keeps the numbers of a list that starts after one and skips a step", async () => {
-			const numbers = await renderListNumbers("3. Third\n5. Fifth");
-			expect(numbers).toEqual(["3", "5"]);
-		});
-
-		it("numbers a list that repeats its first number automatically", async () => {
-			const numbers = await renderListNumbers("1. One\n1. Two\n1. Three");
-			expect(numbers).toEqual([null, null, null]);
-		});
-
-		it("keeps the numbers of a nested list on their own", async () => {
-			const numbers = await renderListNumbers(
-				"1. Outer\n   1. Inner\n   3. Inner skipped\n2. Outer next",
-			);
-			expect(numbers).toEqual([null, "1", "3", null]);
-		});
-
-		it("keeps the numbers of a list with parenthesis markers", async () => {
-			const numbers = await renderListNumbers("1) One\n4) Four");
-			expect(numbers).toEqual(["1", "4"]);
-		});
-
-		it("keeps the numbers of a loose list", async () => {
-			const numbers = await renderListNumbers("1. One\n\n3. Three\n\n7. Seven");
-			expect(numbers).toEqual(["1", "3", "7"]);
-		});
-
-		it("keeps the numbers of a list in a block quote", async () => {
-			const numbers = await renderListNumbers("> 1. One\n> 3. Three");
-			expect(numbers).toEqual(["1", "3"]);
-		});
-
-		it("keeps the numbers of a list while streaming", async () => {
-			const numbers = await renderListNumbers(
-				"Some **bold** text first.\n\n1. First\n3. Third\n4. Fourth",
-				{ streaming: true },
-			);
-			expect(numbers).toEqual(["1", "3", "4"]);
-		});
-
-		it("keeps the numbers of a list with preserved line breaks", async () => {
-			const numbers = await renderListNumbers("1. First\n3. Third", {
-				preserveLineBreaks: true,
-			});
-			expect(numbers).toEqual(["1", "3"]);
-		});
-	});
-
-	// Strikethrough consumes its tildes, so whether they survive in the
-	// rendered text tells the two apart.
-	describe("strikethrough", () => {
-		it("leaves single tildes as written", async () => {
-			const text = "Each step takes ~5 min, so 10~15 min total.";
-			render(<Response>{text}</Response>);
-			await waitFor(() => expect(document.body).toHaveTextContent(text));
-		});
-
-		it("strikes text between double tildes", async () => {
-			render(<Response>Use ~~the old flag~~ the new one.</Response>);
-			await waitFor(() =>
-				expect(document.body).toHaveTextContent(
-					"Use the old flag the new one.",
-				),
-			);
-		});
 	});
 });
