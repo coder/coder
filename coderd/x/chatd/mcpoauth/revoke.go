@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/safedial"
 )
 
@@ -40,9 +39,6 @@ func RevokeOAuth2Token(
 		return false, err
 	}
 
-	if httpClient == nil {
-		httpClient = mcpclient.NewHTTPClient(nil)
-	}
 	// Copy so CheckRedirect does not leak into the shared client.
 	redirectSafe := *httpClient
 	redirectSafe.CheckRedirect = safedial.CheckSameOriginRedirect

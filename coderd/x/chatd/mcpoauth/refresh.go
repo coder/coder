@@ -1,5 +1,7 @@
 // Package mcpoauth refreshes, serializes and revokes the OAuth2 tokens
-// that users store for MCP servers.
+// that users store for MCP servers. Every function that calls a provider
+// takes a non-nil *http.Client, normally the caller's guarded MCP HTTP
+// client.
 package mcpoauth
 
 import (
@@ -14,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/safedial"
 )
 
@@ -139,9 +140,6 @@ func RefreshOAuth2Token(
 	// cannot block the entire MCP connection phase.
 	refreshCtx, cancel := context.WithTimeout(ctx, tokenRequestTimeout)
 	defer cancel()
-	if httpClient == nil {
-		httpClient = mcpclient.NewHTTPClient(nil)
-	}
 	refreshClient := *httpClient
 	refreshClient.CheckRedirect = safedial.CheckSameOriginRedirect
 	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)

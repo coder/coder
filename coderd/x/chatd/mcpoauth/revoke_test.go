@@ -38,7 +38,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
-			nil,
+			testMCPHTTPClient(nil),
 			database.MCPServerConfig{OAuth2ClientID: "cid"},
 			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
 		)
@@ -249,7 +249,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		} {
 			revoked, err := mcpoauth.RevokeOAuth2Token(
 				context.Background(),
-				nil,
+				testMCPHTTPClient(nil),
 				database.MCPServerConfig{
 					OAuth2ClientID:      "cid",
 					OAuth2RevocationURL: u,
