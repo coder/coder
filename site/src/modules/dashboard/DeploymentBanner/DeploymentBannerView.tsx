@@ -14,7 +14,7 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import { Fragment, memo, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useEffect, useId, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { appFamilyDisplayNames } from "#/api/appFamiliesGenerated";
 import {
@@ -92,9 +92,18 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 
 	const healthErrors = health ? getHealthErrors(health) : [];
 	const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+	const workspacesLabelId = useId();
+	const workspaceStatusCounts = [
+		{ status: "pending", count: stats?.workspaces.pending },
+		{ status: "starting", count: stats?.workspaces.building },
+		{ status: "running", count: stats?.workspaces.running },
+		{ status: "stopped", count: stats?.workspaces.stopped },
+		{ status: "failed", count: stats?.workspaces.failed },
+	] satisfies WorkspaceBuildValueProps[];
 
 	return (
-		<div
+		<section
+			aria-label="Deployment stats"
 			className={cn(
 				"sticky bottom-0 z-1 flex h-9 w-full items-center gap-8",
 				"overflow-x-auto overflow-y-hidden whitespace-nowrap border-t",
@@ -150,35 +159,19 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 				</TooltipContent>
 			</Tooltip>
 
-			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Workspaces</div>
-				<div className="flex gap-2 text-content-secondary">
-					<WorkspaceBuildValue
-						status="pending"
-						count={stats?.workspaces.pending}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="starting"
-						count={stats?.workspaces.building}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="running"
-						count={stats?.workspaces.running}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="stopped"
-						count={stats?.workspaces.stopped}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="failed"
-						count={stats?.workspaces.failed}
-					/>
+			<nav aria-labelledby={workspacesLabelId} className="flex items-center">
+				<div id={workspacesLabelId} className="mr-4 text-content-primary">
+					Workspaces
 				</div>
-			</div>
+				<ul className="flex gap-2 text-content-secondary">
+					{workspaceStatusCounts.map(({ status, count }, index) => (
+						<li key={status} className="flex gap-2">
+							{index > 0 && <ValueSeparator />}
+							<WorkspaceBuildValue status={status} count={count} />
+						</li>
+					))}
+				</ul>
+			</nav>
 
 			<div className="flex items-center">
 				<Tooltip>
@@ -297,7 +290,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 					</TooltipContent>
 				</Tooltip>
 			</div>
-		</div>
+		</section>
 	);
 };
 
@@ -467,7 +460,11 @@ const WorkspaceBuildValue: React.FC<WorkspaceBuildValueProps> = ({
 };
 
 const ValueSeparator: React.FC = () => {
-	return <div className="text-content-disabled self-center">/</div>;
+	return (
+		<div aria-hidden="true" className="text-content-disabled self-center">
+			/
+		</div>
+	);
 };
 
 const HealthIssue: React.FC<React.PropsWithChildren> = ({ children }) => {

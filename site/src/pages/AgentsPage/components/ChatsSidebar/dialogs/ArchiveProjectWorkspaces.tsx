@@ -11,6 +11,7 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { persistentToast, toast } from "#/components/Toaster/toast";
@@ -19,7 +20,6 @@ import type {
 	ProjectWorkspaceAction,
 	ProjectWorkspaceActionResult,
 } from "../../../utils/agentWorkspaceUtils";
-import { RetryButton } from "../../RetryButton";
 
 /** Prefixes the count; only exactly 1 takes the singular, 0 and all else the plural. */
 export const plural = (count: number, singular: string, pluralForm: string) =>
