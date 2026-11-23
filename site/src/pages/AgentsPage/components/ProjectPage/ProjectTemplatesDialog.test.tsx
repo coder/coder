@@ -199,11 +199,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
-		const save = await screen.findByRole("button", {
-			name: /Save/,
-			busy: false,
-		});
-		await user.click(save);
+		await user.click(await findSave());
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
 	});
 

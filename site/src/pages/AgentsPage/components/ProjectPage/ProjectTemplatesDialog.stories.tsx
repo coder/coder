@@ -350,9 +350,8 @@ export const RequestError: Story = {
 };
 
 /**
- * Stands in for the server's copy of the project, so the Conflict story's
- * play function can save a change from "another user" while the dialog is
- * open.
+ * Stands in for the server's copy of the project, so a story can save a
+ * change from "another user" while the dialog is open.
  */
 const serverProject = (() => {
 	let value = mockProjectWithDefaultPreset;
@@ -372,6 +371,22 @@ const serverProject = (() => {
 	};
 })();
 
+const ServerProjectDialog: React.FC<
+	React.ComponentProps<typeof ProjectTemplatesDialog>
+> = (props) => {
+	const project = useSyncExternalStore(
+		serverProject.subscribe,
+		serverProject.get,
+	);
+	return <ProjectTemplatesDialog {...props} project={project} />;
+};
+
+const mockNewerProject: ChatProject = {
+	...mockProjectWithDefaultPreset,
+	templates: [mockKubernetesTemplate],
+	default_template: undefined,
+};
+
 export const Conflict: Story = {
 	parameters: {
 		queries: [
@@ -389,24 +404,14 @@ export const Conflict: Story = {
 	beforeEach: () => {
 		serverProject.set(mockProjectWithDefaultPreset);
 	},
-	render: function ConflictStory(args) {
-		const project = useSyncExternalStore(
-			serverProject.subscribe,
-			serverProject.get,
-		);
-		return <ProjectTemplatesDialog {...args} project={project} />;
-	},
+	render: (args) => <ServerProjectDialog {...args} />,
 	play: async () => {
 		// An untouched draft follows the saved templates, so edit it first.
 		await userEvent.click(
 			await screen.findByRole("button", { name: "Remove Kubernetes" }),
 		);
 		await userEvent.keyboard("{Escape}");
-		serverProject.set({
-			...mockProjectWithDefaultPreset,
-			templates: [mockKubernetesTemplate],
-			default_template: undefined,
-		});
+		serverProject.set(mockNewerProject);
 	},
 };
 
