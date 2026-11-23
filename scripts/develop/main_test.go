@@ -295,7 +295,6 @@ func TestDevConfigValidate(t *testing.T) {
 			webPort:          8080,
 			proxyPort:        3010,
 			coderMetricsPort: 2114,
-			password:         defaultPassword,
 			bindAddress:      defaultBindAddress,
 		}
 	}
@@ -337,6 +336,15 @@ func TestDevConfigValidate(t *testing.T) {
 				cfg.multiOrg = true
 			},
 			wantErrs: []string{"--agpl and --multi-organization"},
+		},
+		{
+			name:     "OldDefaultPassword",
+			mutate:   func(cfg *devConfig) { cfg.password = oldDefaultPassword },
+			wantErrs: []string{"--password must not be the old default password"},
+		},
+		{
+			name:   "PasswordContainingOldDefault",
+			mutate: func(cfg *devConfig) { cfg.password = oldDefaultPassword + "-and-more" },
 		},
 		{
 			name:     "PortTooLow",
@@ -713,6 +721,19 @@ func TestDevConfigCmd(t *testing.T) {
 	// Verify childEnv is cloned, not shared.
 	cmd.Env = append(cmd.Env, "C=3")
 	assert.Len(t, cfg.childEnv, 2, "original childEnv must not be mutated")
+}
+
+func TestDevConfigServerCmdSetupToken(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{childEnv: []string{"A=1"}}
+	cmd := cfg.serverCmd(context.Background(), "coder", "server")
+	assert.Equal(t, []string{"A=1"}, cmd.Env)
+
+	cfg.setupToken = "0123456789abcdefghijklmnopqrstuv"
+	cmd = cfg.serverCmd(context.Background(), "coder", "server")
+	assert.Equal(t, []string{"A=1", "CODER_SETUP_TOKEN=0123456789abcdefghijklmnopqrstuv"}, cmd.Env)
+	assert.NotContains(t, cmd.Args, cfg.setupToken)
 }
 
 func TestProcGroupProcessExit(t *testing.T) {

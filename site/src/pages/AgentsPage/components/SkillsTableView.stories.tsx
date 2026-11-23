@@ -55,6 +55,16 @@ const MockDebugHTTPSkill = {
 	description: "",
 };
 
+const MockManualReviewSQLSkill = {
+	...MockReviewSQLSkill,
+	model_invocable: false,
+};
+
+const MockManualFrontendReviewSkill = {
+	...MockFrontendReviewSkill,
+	model_invocable: false,
+};
+
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
@@ -109,6 +119,16 @@ export const LongDescription: Story = {
 export const LongDescriptionNarrow: Story = {
 	...LongDescription,
 	globals: { viewport: { value: "ipad" } },
+};
+
+export const ManualOnlySkills: Story = {
+	args: {
+		skills: [
+			MockManualReviewSQLSkill,
+			MockReleaseNotesSkill,
+			MockManualFrontendReviewSkill,
+		],
+	},
 };
 
 export const DownloadingSkill: Story = {
@@ -270,13 +290,15 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
+const mockReviewSQLFormValues = {
+	name: "review-sql",
+	description: "Review SQL changes for query and index risks.",
+	body: "Check query plans, missing indexes, and transaction boundaries.",
+};
+
 const mockReviewSQLEditorState: SkillEditorState = {
 	mode: "edit",
-	initialValues: {
-		name: "review-sql",
-		description: "Review SQL changes for query and index risks.",
-		body: "Check query plans, missing indexes, and transaction boundaries.",
-	},
+	initialValues: mockReviewSQLFormValues,
 	existingNames: MockPersonalSkills.map((skill) => skill.name),
 	isLoading: false,
 	isRetrying: false,
@@ -289,6 +311,15 @@ const mockReviewSQLEditorState: SkillEditorState = {
 export const EditDialogOpen: Story = {
 	args: {
 		editorState: mockReviewSQLEditorState,
+	},
+};
+
+export const EditManualOnlyDialogOpen: Story = {
+	args: {
+		editorState: {
+			...mockReviewSQLEditorState,
+			initialValues: { ...mockReviewSQLFormValues, modelInvocable: false },
+		},
 	},
 };
 
