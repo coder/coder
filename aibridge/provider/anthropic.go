@@ -194,7 +194,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 // CreateExtractor serves the messages route.
 func (p *Anthropic) CreateExtractor(path string) extractors.Extractor {
 	if path == p.RoutePrefix()+routeMessages {
-		return extractors.NewMessages()
+		return extractors.NewMessages(p.cfg.Logger.With(slog.F("provider", p.Name())))
 	}
 	return nil
 }

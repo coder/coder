@@ -264,7 +264,8 @@ func (b *signalReadBody) Read(p []byte) (int, error) {
 }
 
 // Closing the inflight gate unblocks a request whose body stalls mid-read, so
-// shutdown does not wait for the client to finish sending.
+// shutdown does not wait for the client to finish sending, and the stalled
+// client still receives the rejection.
 func TestForwardingStalledBodyShutdown(t *testing.T) {
 	t.Parallel()
 	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
@@ -274,14 +275,11 @@ func TestForwardingStalledBodyShutdown(t *testing.T) {
 		t.Error("stalled requests must not call upstream")
 		return nil, io.ErrUnexpectedEOF
 	})
-	reading, served := make(chan struct{}), make(chan struct{})
-	// The handler response is recorded here, the stalled client cannot read it.
-	response := httptest.NewRecorder()
-	gateway := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		defer close(served)
+	reading := make(chan struct{})
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = &signalReadBody{ReadCloser: r.Body, read: reading}
 		ctx := aibcontext.AsActor(r.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
-		h.ServeHTTP(response, r.WithContext(ctx))
+		h.ServeHTTP(w, r.WithContext(ctx))
 	}))
 	t.Cleanup(gateway.Close)
 	// The client sends one byte, then stalls until cleanup ends the body.
@@ -290,11 +288,15 @@ func TestForwardingStalledBodyShutdown(t *testing.T) {
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/openai/v1/chat/completions", body)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+userSecretKey)
+	status := make(chan int, 1)
 	go func() {
 		resp, err := gateway.Client().Do(req)
-		if err == nil {
-			_ = resp.Body.Close()
+		if !assert.NoError(t, err, "client must receive the rejection") {
+			status <- 0
+			return
 		}
+		_ = resp.Body.Close()
+		status <- resp.StatusCode
 	}()
 	_, err = stall.Write([]byte("{"))
 	require.NoError(t, err)
@@ -303,8 +305,9 @@ func TestForwardingStalledBodyShutdown(t *testing.T) {
 	codertestutil.TryReceive(ctx, t, reading)
 	h.inflight.Close()
 	require.NoError(t, h.inflight.Shutdown(ctx), "a stalled body must not hold admission after close")
-	codertestutil.TryReceive(ctx, t, served)
-	require.Equal(t, http.StatusServiceUnavailable, response.Code, "cancellation is not a client error")
+	// Full duplex lets the reply reach the client without draining the
+	// stalled body first.
+	require.Equal(t, http.StatusServiceUnavailable, codertestutil.TryReceive(ctx, t, status), "cancellation is not a client error")
 	require.Empty(t, rec.RecordedInterceptions(), "canceled requests must not record a start")
 }
 
