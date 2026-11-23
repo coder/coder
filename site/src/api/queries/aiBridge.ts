@@ -1,9 +1,14 @@
-import { hashKey, type UseInfiniteQueryOptions } from "react-query";
+import {
+	hashKey,
+	queryOptions,
+	type UseInfiniteQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
+	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
 } from "#/api/typesGenerated";
@@ -81,6 +86,67 @@ export const paginatedOrganizationAISpend = (
 				: undefined,
 	};
 };
+
+/**
+ * The organization's AI spend over `period`, in whole UTC days, with the
+ * first `limit` users by spend.
+ */
+export const organizationAISpendOverview = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	limit: number,
+) =>
+	queryOptions({
+		queryKey: [
+			"organizations",
+			organizationId,
+			"aiSpendOverview",
+			period,
+			limit,
+		],
+		queryFn: () =>
+			API.experimental.getOrganizationAISpendOverview(
+				organizationId,
+				period,
+				limit,
+			),
+	});
+
+/**
+ * The given users' spend over `period`, broken down by provider, model, and
+ * client.
+ */
+export const organizationAISpendUsers = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	userIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: [
+			"organizations",
+			organizationId,
+			"aiSpendUsers",
+			period,
+			userIds,
+		],
+		queryFn: () =>
+			API.experimental.getOrganizationAISpendUsers(organizationId, {
+				...period,
+				user_ids: userIds,
+				limit: userIds.length,
+			}),
+	});
+
+/** The models used in the period that still have no price. */
+export const organizationUnpricedAIModels = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+) =>
+	queryOptions({
+		queryKey: ["organizations", organizationId, "unpricedAIModels", period],
+		queryFn: () =>
+			API.experimental.getOrganizationUnpricedAIModels(organizationId, period),
+	});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {
