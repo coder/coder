@@ -45,7 +45,7 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 		case drpcerr.Unimplemented:
 			return nil, ErrPushUnimplemented
 		case uint64(codes.InvalidArgument):
-			return nil, xerrors.Errorf("%w: %s", ErrPushInvalid, err.Error())
+			return nil, xerrors.Errorf("%s: %w", err.Error(), ErrPushInvalid)
 		}
 		return nil, err
 	}
