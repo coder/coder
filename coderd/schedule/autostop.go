@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -17,26 +18,21 @@ const (
 	// requirement where we skip the requirement and fall back to the next
 	// scheduled stop. This avoids workspaces being stopped too soon.
 	//
-	// E.g. If the workspace is started within two hours of the quiet hours, we
+	// E.g. If the workspace is started shortly before the quiet hours, we
 	//      will skip the autostop requirement and use the next scheduled
 	//      stop time instead.
 	autostopRequirementLeeway = 2 * time.Hour
 
 	// autostopRequirementBuffer is the duration of time we subtract from the
-	// time when calculating the next scheduled stop time. This avoids issues
-	// where autostart happens on the hour and the scheduled quiet hours are
-	// also on the hour.
+	// time when calculating the next scheduled stop time. This is necessary
+	// because Schedule.Next returns occurrences strictly after its input, so
+	// a lookup from midnight skips quiet hours that start exactly then.
 	//
-	// E.g. If the workspace is started at 12am (perhaps due to scheduled
-	//      autostart) and the quiet hours is also 12am, the workspace will skip
-	//      the day it's supposed to stop and use the next day instead. This is
-	//      because getting the next cron schedule time will never include the
-	//      time fed to the calculation (i.e. it's not inclusive). This happens
-	//      because we always check for the next cron time by rounding down to
-	//      midnight.
-	//
-	//      This resolves that problem by subtracting 15 minutes from midnight
-	//      when we check the next cron time.
+	// E.g. If the workspace is started Friday at noon, and the required day
+	//      is Saturday, and quiet hours start at 00:00,
+	//      Schedule.Next(Saturday 00:00) will skip that valid occurrence and
+	//      return Sunday at 00:00. Starting the lookup at Friday 23:45 lets
+	//      it return Saturday at 00:00.
 	autostopRequirementBuffer = -15 * time.Minute
 )
 
@@ -53,16 +49,27 @@ type CalculateAutostopParams struct {
 	// WorkspaceBuildCompletedAt is the time when the workspace build was
 	// completed.
 	//
-	// We always want to calculate using the build completion time, and not just
-	// the current time, to avoid forcing a workspace build's max_deadline being
-	// pushed to the next potential cron instance.
+	// We always want to calculate startup leeway using the build completion
+	// time to avoid forcing a workspace build's max_deadline to be pushed to
+	// the next potential cron instance.
 	//
 	// E.g. if this function is called for an existing workspace build, which
 	//      currently has a max_deadline within the next 2 hours (see leeway
-	//      above), and the current time is passed into this function, the
-	//      max_deadline will be updated to be much later than expected.
+	//      above), and the current time is passed in as the completion time,
+	//      the max_deadline will be updated to be much later than expected.
 	WorkspaceBuildCompletedAt time.Time
 	Workspace                 database.WorkspaceTable
+
+	// AutostopRequirementNotBefore is the earliest required stop when
+	// recalculating an existing build. Build startup leeway still applies.
+	//
+	// E.g. if a build completes on Friday and an admin adds a weekly Sunday
+	//      requirement the following Wednesday, pass the template save time
+	//      to select the upcoming Sunday's quiet hours. A zero value starts
+	//      from build completion plus startup leeway and selects the previous
+	//      Sunday's quiet hours. That past deadline can cause an unexpected
+	//      stop on Wednesday, outside quiet hours.
+	AutostopRequirementNotBefore time.Time
 }
 
 type AutostopTime struct {
@@ -145,95 +152,9 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		}
 	}
 
-	// Enforce the template autostop requirement if it's configured correctly.
-	if templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
-		// The template has a autostop requirement, so determine the max deadline
-		// of this workspace build.
-
-		// First, get the user's quiet hours schedule (this will return the
-		// default if the user has not set their own schedule).
-		userQuietHoursSchedule, err := params.UserQuietHoursScheduleStore.Get(ctx, db, workspace.OwnerID)
-		if err != nil {
-			return autostop, xerrors.Errorf("get user quiet hours schedule options: %w", err)
-		}
-
-		// If the schedule is nil, that means the deployment isn't entitled to
-		// use quiet hours. In this case, do not set a max deadline on the
-		// workspace.
-		if userQuietHoursSchedule.Schedule != nil {
-			loc := userQuietHoursSchedule.Schedule.Location()
-			buildCompletedAtInLoc := buildCompletedAt.In(loc)
-			// Add the leeway here so we avoid checking today's quiet hours if
-			// the workspace was started <1h before midnight.
-			startOfStopDay := truncateMidnight(buildCompletedAtInLoc.Add(autostopRequirementLeeway))
-
-			// If the template schedule wants to only autostop on n-th weeks
-			// then change the startOfDay to be the Monday of the next
-			// applicable week.
-			if templateSchedule.AutostopRequirement.Weeks > 1 {
-				startOfStopDay, err = GetNextApplicableMondayOfNWeeks(startOfStopDay, templateSchedule.AutostopRequirement.Weeks)
-				if err != nil {
-					return autostop, xerrors.Errorf("determine start of stop week: %w", err)
-				}
-			}
-
-			// Determine if we should skip the first day because the schedule is
-			// too near or has already passed.
-			//
-			// Allow an hour of leeway (i.e. any workspaces started within an
-			// hour of the scheduled stop time will always bounce to the next
-			// stop window).
-			checkSchedule := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(autostopRequirementBuffer))
-			if checkSchedule.Before(buildCompletedAtInLoc.Add(autostopRequirementLeeway)) {
-				// Set the first stop day we try to tomorrow because today's
-				// schedule is too close to now or has already passed.
-				startOfStopDay = nextDayMidnight(startOfStopDay)
-			}
-
-			// Iterate from 0 to 7, check if the current startOfDay is in the
-			// autostop requirement. If it isn't then add a day and try again.
-			requirementDays := templateSchedule.AutostopRequirement.DaysMap()
-			for i := 0; i < len(DaysOfWeek)+1; i++ {
-				if i == len(DaysOfWeek) {
-					// We've wrapped, so somehow we couldn't find a day in the
-					// autostop requirement in the next week.
-					//
-					// This shouldn't be able to happen, as we've already
-					// checked that there is a day in the autostop requirement
-					// above with the
-					// `if templateSchedule.AutoStopRequirement.DaysOfWeek != 0`
-					// check.
-					//
-					// The eighth bit shouldn't be set, as we validate the
-					// bitmap in the enterprise TemplateScheduleStore.
-					return autostop, xerrors.New("could not find suitable day for template autostop requirement in the next 7 days")
-				}
-				if requirementDays[startOfStopDay.Weekday()] {
-					break
-				}
-				startOfStopDay = nextDayMidnight(startOfStopDay)
-			}
-
-			// If the startOfDay is within an hour of the build completion time,
-			// then we add an hour.
-			checkTime := startOfStopDay
-			if checkTime.Before(buildCompletedAtInLoc.Add(time.Hour)) {
-				checkTime = buildCompletedAtInLoc.Add(time.Hour)
-			} else {
-				// If it's not within an hour of the build completion time,
-				// subtract 15 minutes to give a little leeway. This prevents
-				// skipped stop events because the build time (e.g. autostart
-				// time) perfectly lines up with the max_deadline minus the
-				// leeway.
-				checkTime = checkTime.Add(autostopRequirementBuffer)
-			}
-
-			// Get the next occurrence of the schedule.
-			autostop.MaxDeadline = userQuietHoursSchedule.Schedule.Next(checkTime)
-			if autostop.MaxDeadline.IsZero() {
-				return autostop, xerrors.Errorf("could not find next occurrence of template autostop requirement in user quiet hours schedule, checked from time %q", checkTime)
-			}
-		}
+	autostop.MaxDeadline, err = calculateMaxDeadline(ctx, params, templateSchedule.AutostopRequirement)
+	if err != nil {
+		return autostop, err
 	}
 
 	// If the workspace doesn't have a deadline or the max deadline is sooner
@@ -249,6 +170,122 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 	}
 
 	return autostop, nil
+}
+
+func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, requirement TemplateAutostopRequirement) (time.Time, error) {
+	if requirement.DaysOfWeek == 0 {
+		return time.Time{}, nil
+	}
+
+	// Get the user's quiet hours schedule (this will return the default if
+	// the user has not set their own schedule).
+	userQuietHoursSchedule, err := params.UserQuietHoursScheduleStore.Get(ctx, params.Database, params.Workspace.OwnerID)
+	if err != nil {
+		return time.Time{}, xerrors.Errorf("get user quiet hours schedule options: %w", err)
+	}
+
+	// If the schedule is nil, that means the deployment isn't entitled to
+	// use quiet hours. In this case, do not set a max deadline on the
+	// workspace.
+	if userQuietHoursSchedule.Schedule == nil {
+		return time.Time{}, nil
+	}
+
+	loc := userQuietHoursSchedule.Schedule.Location()
+	buildCompletedAtInLoc := params.WorkspaceBuildCompletedAt.In(loc)
+	// Add the leeway here so we avoid checking today's quiet hours if
+	// the workspace was started shortly before midnight.
+	notBefore := buildCompletedAtInLoc.Add(autostopRequirementLeeway)
+	if params.AutostopRequirementNotBefore.After(notBefore) {
+		notBefore = params.AutostopRequirementNotBefore.In(loc)
+	}
+	// A bitmap with only the unused bit set would never match a date.
+	if requirement.DaysOfWeek&0b01111111 == 0 {
+		return time.Time{}, xerrors.New("autostop requirement has no valid weekdays")
+	}
+	requirementDays := requirement.DaysMap()
+
+	var prevStopDay time.Time
+	for stopDay := notBefore; ; stopDay = stopDay.AddDate(0, 0, 1) {
+		// If a clock change returns the cursor to an earlier date,
+		// recover by finding the next quiet-hours start on a later
+		// date (if a stop is required, a late one is better than
+		// none).
+		for !prevStopDay.IsZero() && cmp.Or(
+			cmp.Compare(stopDay.Year(), prevStopDay.Year()),
+			cmp.Compare(stopDay.YearDay(), prevStopDay.YearDay()),
+		) <= 0 {
+			// The daily cron search advances through elapsed hours,
+			// so it can cross a skipped date.
+			next := userQuietHoursSchedule.Schedule.Next(stopDay)
+			if !next.After(stopDay) {
+				return time.Time{}, xerrors.Errorf("could not find next quiet hours after %q", stopDay)
+			}
+			stopDay = next
+		}
+		// Recovery can move the cursor into a different week. Apply
+		// the cadence to the recovered date before checking its weekday.
+		if requirement.Weeks > 1 {
+			stopDay, err = GetNextApplicableMondayOfNWeeks(stopDay, requirement.Weeks)
+			if err != nil {
+				return time.Time{}, xerrors.Errorf("determine start of stop week: %w", err)
+			}
+		}
+		// Advance calendar days from noon, since a timezone transition
+		// such as a daylight saving time change is more likely to skip
+		// midnight than noon.
+		year, month, day := stopDay.Date()
+		noon := time.Date(year, month, day, 12, 0, 0, 0, loc)
+		// Keep the original cursor if a skipped noon resolves to a
+		// different local date.
+		if noon.Year() == year && noon.Month() == month && noon.Day() == day {
+			stopDay = noon
+		}
+		if !prevStopDay.IsZero() && !stopDay.After(prevStopDay) {
+			return time.Time{}, xerrors.Errorf("required stop date search did not advance past %q", prevStopDay)
+		}
+		prevStopDay = stopDay
+		if !requirementDays[stopDay.Weekday()] {
+			continue
+		}
+
+		startOfStopDay := truncateMidnight(stopDay)
+		quietStart := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(autostopRequirementBuffer))
+
+		// The buffered lookup can return quiet hours from the previous day.
+		// E.g. a Saturday lookup starting at Friday 23:45 can find Friday's
+		// quiet hours at 23:50. A rollback across midnight can repeat it.
+		for !quietStart.IsZero() && truncateMidnight(quietStart).Before(startOfStopDay) {
+			quietStart = userQuietHoursSchedule.Schedule.Next(quietStart)
+		}
+		firstQuietStart := quietStart
+		// When clocks move backward, quiet hours can repeat on this date.
+		// E.g. in Seattle, 01:30 can occur in PDT and again in PST. The
+		// second occurrence can qualify when the first is too early.
+		// And a cutoff at 01:45 PST requires skipping both.
+		for !quietStart.IsZero() && quietStart.Before(notBefore) {
+			quietStart = userQuietHoursSchedule.Schedule.Next(quietStart)
+		}
+
+		if quietStart.IsZero() {
+			return time.Time{}, xerrors.Errorf("could not find next quiet hours from %q", startOfStopDay)
+		}
+
+		// A template save or startup leeway can skip the first quiet-hours
+		// start and move the lookup to a date outside the requirement.
+		// E.g. if a build completes shortly before Saturday's quiet hours,
+		// startup leeway can move the lookup to Sunday. A Saturday-only
+		// rule still requires the next eligible Saturday.
+		if !firstQuietStart.Equal(quietStart) {
+			// When clocks move backward, the later quiet-hours start can
+			// still fall on the selected date.
+			if !truncateMidnight(quietStart).Equal(startOfStopDay) {
+				continue
+			}
+		}
+
+		return quietStart, nil
+	}
 }
 
 // workspaceTTL returns the TTL to use for a workspace.
@@ -278,15 +315,6 @@ func workspaceTTL(workspace database.WorkspaceTable, templateSchedule TemplateSc
 // See: https://github.com/golang/go/issues/10894
 func truncateMidnight(t time.Time) time.Time {
 	yy, mm, dd := t.Date()
-	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
-}
-
-// nextDayMidnight returns the next midnight in the time object's timezone.
-func nextDayMidnight(t time.Time) time.Time {
-	yy, mm, dd := t.Date()
-	// time.Date will correctly normalize the date if it's past the end of the
-	// month. E.g. October 32nd will be November 1st.
-	dd++
 	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
 }
 

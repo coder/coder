@@ -49,8 +49,10 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("fridayEveningSydney", fridayEveningSydney)
 	t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
 
-	dstIn := time.Date(2023, 10, 1, 2, 0, 0, 0, sydneyLoc)   // 1 hour backward
-	dstInQuietHours := "CRON_TZ=Australia/Sydney 30 2 * * *" // never
+	// In Sydney, clocks jump from 02:00 to 03:00 on October 1, 2023,
+	// skipping that day's 02:30 quiet-hours start.
+	dstIn := time.Date(2023, 10, 1, 2, 0, 0, 0, sydneyLoc)
+	dstInQuietHours := "CRON_TZ=Australia/Sydney 30 2 * * *"
 	// The expected behavior is that we will pick the next time that falls on
 	// quiet hours after the DST transition. In this case, it will be the same
 	// time the next day.
@@ -78,6 +80,7 @@ func TestCalculateAutoStop(t *testing.T) {
 	cases := []struct {
 		name             string
 		buildCompletedAt time.Time
+		notBefore        time.Time
 
 		wsAutostart       string
 		templateAutoStart schedule.TemplateAutostartRequirement
@@ -361,6 +364,21 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: dstInQuietHoursExpectedTime,
 		},
 		{
+			// The save cutoff moves the search from the previous Sunday to
+			// the spring-forward Sunday. The clock jump skips 02:30 that day,
+			// so the deadline is Monday at 02:30.
+			name:                   "DaylightSavings/TemplateSaveOnSpringForward",
+			buildCompletedAt:       beforeDstIn.AddDate(0, 0, -7),
+			notBefore:              beforeDstIn,
+			templateAllowAutostop:  true,
+			userQuietHoursSchedule: dstInQuietHours,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			expectedMaxDeadline: dstInQuietHoursExpectedTime,
+		},
+		{
 			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/Out",
 			buildCompletedAt:       beforeDstOut.Add(-24 * time.Hour),
 			templateAllowAutostop:  true,
@@ -373,6 +391,47 @@ func TestCalculateAutoStop(t *testing.T) {
 			workspaceTTL: 0,
 			// expectedDeadline is copied from expectedMaxDeadline.
 			expectedMaxDeadline: dstOutQuietHoursExpectedTime,
+		},
+		{
+			// In Seattle, 01:30 occurs twice on this Sunday. The cutoff at
+			// 01:45 PDT falls between the two quiet-hours starts.
+			name:                   "DaylightSavings/UsesSecondOccurrenceAfterCutoff",
+			buildCompletedAt:       time.Date(2025, time.November, 1, 19, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.November, 2, 8, 45, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Los_Angeles 30 1 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// Sunday 01:30 PST.
+			expectedMaxDeadline: time.Date(2025, time.November, 2, 9, 30, 0, 0, time.UTC),
+		},
+		{
+			// Goose Bay rolled back from Sunday 00:01 to Saturday 22:01,
+			// so the buffered Sunday lookup finds two Saturday starts.
+			name:                   "DaylightSavings/SkipsBothPreviousDayOccurrences",
+			buildCompletedAt:       time.Date(1988, time.October, 30, 0, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Goose_Bay 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// October 30 at 23:50 in Goose Bay.
+			expectedMaxDeadline: time.Date(1988, time.October, 31, 3, 50, 0, 0, time.UTC),
+		},
+		{
+			// Manila skipped December 31, 1844. Adding one calendar day at
+			// noon on December 30 resolves back to December 30 in Go.
+			name: "SkippedCalendarDay",
+			// December 30 at 08:00 in Manila, when the local offset was UTC-15:56:08.
+			buildCompletedAt:       time.Date(1844, time.December, 30, 23, 56, 8, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Asia/Manila 0 0 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00010000, // Friday
+				Weeks:      1,
+			},
+			// January 3 at 00:00 in Manila, after the offset advanced to UTC+08:03:52.
+			expectedMaxDeadline: time.Date(1845, time.January, 2, 15, 56, 8, 0, time.UTC),
 		},
 		{
 			// A user expects this workspace to be online from 9am -> 9pm.
@@ -568,12 +627,13 @@ func TestCalculateAutoStop(t *testing.T) {
 			})
 
 			autostop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
-				Database:                    db,
-				TemplateScheduleStore:       templateScheduleStore,
-				UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
-				WorkspaceBuildCompletedAt:   c.buildCompletedAt,
-				Workspace:                   workspace,
-				WorkspaceAutostart:          c.wsAutostart,
+				Database:                     db,
+				TemplateScheduleStore:        templateScheduleStore,
+				UserQuietHoursScheduleStore:  userQuietHoursScheduleStore,
+				WorkspaceBuildCompletedAt:    c.buildCompletedAt,
+				Workspace:                    workspace,
+				WorkspaceAutostart:           c.wsAutostart,
+				AutostopRequirementNotBefore: c.notBefore,
 			})
 			if c.errContains != "" {
 				require.Error(t, err)
