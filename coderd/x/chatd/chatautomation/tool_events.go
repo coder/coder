@@ -84,9 +84,6 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 	if args.MCPServer == "" {
 		rejected.add("mcp_server", "Required.")
 	}
-	if args.Event == "" {
-		rejected.add("event", "Required.")
-	}
 	arguments, ok := args.Arguments.(map[string]any)
 	if args.Arguments != nil && !ok {
 		rejected.add("arguments", "Must be a JSON object.")
