@@ -173,14 +173,14 @@ func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 		if ctx.Err() != nil {
 			return
 		}
-		p.renewWebhook(ctx, sub, now)
+		p.renewWebhook(ctx, sub)
 	}
 }
 
 // renewWebhook subscribes sub with its stored cursor and secret and stores
 // the grant. It renews nothing for an owner whose runs are refused; the
 // lease retries.
-func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMCPSubscription, now time.Time) {
+func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMCPSubscription) {
 	if !sub.MCPServerConfigID.Valid {
 		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPServerUnavailable)
 		return
@@ -206,7 +206,7 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 		// The gap goes first: appendInbox clears the error that the grant
 		// records. A pending subscription has no cursor to fall behind.
 		if res.Truncated {
-			if err := p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Truncated: true}); err != nil && !errors.Is(err, errSubscriptionInactive) {
+			if err := p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Cursor: res.Cursor, Truncated: true}); err != nil && !errors.Is(err, errSubscriptionInactive) {
 				return err
 			}
 		}
@@ -218,7 +218,7 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 	if err == nil || errors.Is(err, errSubscriptionInactive) {
 		return
 	}
-	p.handleEventError(ctx, sub.AutomationID, err, conn, func(backoff time.Duration, message string) error {
+	p.handleEventError(ctx, sub.AutomationID, err, conn, func(now time.Time, backoff time.Duration, message string) error {
 		return p.db.SetChatAutomationWebhookRenewAt(ctx, database.SetChatAutomationWebhookRenewAtParams{
 			AutomationID: sub.AutomationID,
 			RenewAt:      now.Add(backoff),

@@ -1,14 +1,17 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
+	"mime"
 	"net/http"
-	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -79,10 +82,10 @@ var eventErrorActions = map[int64]eventErrorAction{
 }
 
 // inboxAppend is what one delivery adds to a subscription's inbox. A nil
-// Cursor and an invalid NextPollAt keep the stored ones. Truncated adds a
-// gap row: the server dropped events before these. GapKey deduplicates a
-// retried gap delivery. A positive MaxPending refuses the delivery while that
-// many rows are pending.
+// Cursor and an invalid NextPollAt keep the stored ones. Truncated with a
+// Cursor adds a gap row: the server dropped events before these. GapKey
+// deduplicates a retried gap delivery. A positive MaxPending refuses the
+// delivery while that many rows are pending.
 type inboxAppend struct {
 	AutomationID uuid.UUID
 	Events       []mcpclient.EventOccurrence
@@ -102,18 +105,29 @@ var (
 
 // appendInbox is the only writer of the event inbox. Every delivery mode
 // calls it. It holds the automation lock and no chat row, so it cannot form a
-// cycle with a drain, which locks the chat first.
+// cycle with a drain, which locks the chat first. Events that it cannot store
+// become a gap, so that one bad event cannot stall the subscription.
 func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
-	in.Events = slices.DeleteFunc(in.Events, func(e mcpclient.EventOccurrence) bool {
-		return len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes
-	})
-	for i, e := range in.Events {
-		if len(e.Data) > maxEventDataBytes {
-			in.Events[i].Data = json.RawMessage(`{"omitted":"The event data is larger than 16 KiB."}`)
+	stored := make([]mcpclient.EventOccurrence, 0, min(len(in.Events), maxEventsPerMessage))
+	for _, e := range in.Events {
+		if len(stored) == maxEventsPerMessage {
+			break
+		}
+		if e, ok := storableEvent(e); ok {
+			stored = append(stored, e)
 		}
 	}
+	var gaps []string
+	// An event type without replay answers a null cursor, and the events
+	// extension tells clients to ignore its truncated flag.
+	if in.Truncated && in.Cursor != nil {
+		gaps = append(gaps, "The MCP server dropped events before the ones that follow.")
+	}
+	if dropped := len(in.Events) - len(stored); dropped > 0 {
+		gaps = append(gaps, fmt.Sprintf("Coder dropped %d of the batch's events: invalid, or past the first %d.", dropped, maxEventsPerMessage))
+	}
 	// The query reads the occurrences in their wire shape.
-	events, err := json.Marshal(in.Events)
+	events, err := json.Marshal(stored)
 	if err != nil {
 		return xerrors.Errorf("encode events: %w", err)
 	}
@@ -146,18 +160,15 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 		if updated == 0 {
 			return errSubscriptionInactive
 		}
-		if in.Truncated {
+		if len(gaps) > 0 {
 			if err := tx.InsertChatAutomationInboxNotice(ctx, database.InsertChatAutomationInboxNoticeParams{
 				AutomationID: in.AutomationID,
 				Kind:         database.ChatAutomationInboxKindGap,
 				EventID:      sql.NullString{String: in.GapKey, Valid: in.GapKey != ""},
-				Detail:       "The MCP server dropped events before the ones that follow, so some events are missing.",
+				Detail:       "Some events are missing. " + strings.Join(gaps, " "),
 			}); err != nil {
 				return xerrors.Errorf("insert gap: %w", err)
 			}
-		}
-		if len(in.Events) == 0 {
-			return nil
 		}
 		if _, err := tx.InsertChatAutomationInboxEvents(ctx, database.InsertChatAutomationInboxEventsParams{
 			AutomationID: in.AutomationID,
@@ -167,6 +178,75 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 		}
 		return nil
 	}, nil)
+}
+
+// storableEvent returns the fields of e that the inbox keeps, in a form that
+// PostgreSQL takes, or false when it cannot store them: text and jsonb hold
+// no NUL, and timestamptz has no year 0. Data that PostgreSQL would print
+// longer than maxEventDataBytes becomes a notice.
+func storableEvent(e mcpclient.EventOccurrence) (mcpclient.EventOccurrence, bool) {
+	if len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes ||
+		strings.ContainsRune(e.EventID+e.Name, 0) || e.Timestamp.Year() < 1 {
+		return mcpclient.EventOccurrence{}, false
+	}
+	data := json.RawMessage(`{"omitted":"The event data is larger than 16 KiB."}`)
+	if len(e.Data) <= maxEventDataBytes {
+		// Encoding the decoded value replaces invalid UTF-8 and lone
+		// surrogates, which jsonb refuses.
+		var value any
+		dec := json.NewDecoder(bytes.NewReader(e.Data))
+		dec.UseNumber()
+		if len(e.Data) > 0 && dec.Decode(&value) != nil {
+			return mcpclient.EventOccurrence{}, false
+		}
+		growth, ok := jsonbGrowth(value)
+		encoded, err := json.Marshal(value)
+		if !ok || err != nil {
+			return mcpclient.EventOccurrence{}, false
+		}
+		if int64(len(encoded))+growth <= maxEventDataBytes {
+			data = encoded
+		}
+	}
+	return mcpclient.EventOccurrence{EventID: e.EventID, Name: e.Name, Timestamp: e.Timestamp, Data: data}, true
+}
+
+// jsonbGrowth returns how many bytes more PostgreSQL prints for the numbers
+// of a decoded JSON value than the JSON holds, as numeric writes out every
+// digit of an exponent. It reports false for what jsonb refuses: a NUL in a
+// key or a string, or an exponent past 32 bits.
+func jsonbGrowth(value any) (int64, bool) {
+	var total int64
+	switch v := value.(type) {
+	case string:
+		return 0, !strings.ContainsRune(v, 0)
+	case json.Number:
+		mantissa, exp, _ := strings.Cut(strings.ToLower(string(v)), "e")
+		if exp == "" {
+			return 0, true
+		}
+		e, err := strconv.ParseInt(exp, 10, 32)
+		whole, frac, _ := strings.Cut(strings.TrimPrefix(mantissa, "-"), ".")
+		digits := max(int64(len(whole))+e, 1) + max(int64(len(frac))-e, 0)
+		return max(digits-int64(len(v)), 0), err == nil
+	case []any:
+		for _, elem := range v {
+			n, ok := jsonbGrowth(elem)
+			if !ok {
+				return 0, false
+			}
+			total += n
+		}
+	case map[string]any:
+		for key, elem := range v {
+			n, ok := jsonbGrowth(elem)
+			if !ok || strings.ContainsRune(key, 0) {
+				return 0, false
+			}
+			total += n
+		}
+	}
+	return total, true
 }
 
 // terminateSubscription ends a subscription for good, tells the chat in its
@@ -268,7 +348,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 		}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			p.pollEventGroup(ctx, key.owner, key.config, subs, now)
+			p.pollEventGroup(ctx, key.owner, key.config, subs)
 		})
 	}
 	wg.Wait()
@@ -276,7 +356,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 
 // pollEventGroup polls the subscriptions of one owner on one MCP server. It
 // polls nothing for an owner whose runs are refused; the lease retries.
-func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
+func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow) {
 	if !p.eventOwnerActive(ctx, owner) {
 		return
 	}
@@ -291,7 +371,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 	}
 	if err != nil {
 		for _, sub := range subs {
-			p.handlePollError(ctx, sub.AutomationID, err, conn, now)
+			p.handlePollError(ctx, sub.AutomationID, err, conn)
 		}
 		return
 	}
@@ -301,7 +381,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 			p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPEventUnsupported)
 			continue
 		}
-		p.pollSubscription(ctx, conn, sub, now)
+		p.pollSubscription(ctx, conn, sub)
 	}
 }
 
@@ -313,7 +393,7 @@ func (p *Server) eventOwnerActive(ctx context.Context, owner uuid.UUID) bool {
 
 // pollSubscription polls one subscription and appends what it returns. It
 // polls again at once while the server has more, up to the pending limit.
-func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
+func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow) {
 	var args map[string]any
 	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
 		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPInvalidArguments)
@@ -332,12 +412,8 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			MaxEvents: ptr.Ref(int64(maxEventsPerMessage)),
 		})
 		if err != nil {
-			p.handlePollError(ctx, sub.AutomationID, err, conn, now)
+			p.handlePollError(ctx, sub.AutomationID, err, conn)
 			return
-		}
-		// maxEvents is only a request; the rest of an oversized page is a gap.
-		if len(res.Events) > maxEventsPerMessage {
-			res.Events, res.Truncated = res.Events[:maxEventsPerMessage], true
 		}
 		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated}
 		more := res.HasMore && page < maxPendingInboxRows/maxEventsPerMessage
@@ -345,8 +421,11 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			in.NextPollAt = sql.NullTime{Time: nextPollAt(p.clock.Now("chatd", "automation-events"), res.NextPollMs), Valid: true}
 		}
 		if err := p.appendInbox(ctx, in); err != nil {
+			// The batch retries after a backoff, with its error on the
+			// subscription.
 			if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
 				p.logger.Warn(ctx, "append chat automation events", slog.F("automation_id", sub.AutomationID), slog.Error(err))
+				p.handlePollError(ctx, sub.AutomationID, xerrors.Errorf("store events: %w", err), nil)
 			}
 			return
 		}
@@ -369,8 +448,8 @@ func nextPollAt(now time.Time, nextPollMs int64) time.Time {
 
 // handlePollError terminates the subscription or schedules a retry, as
 // eventErrorActions says.
-func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, now time.Time) {
-	p.handleEventError(ctx, automationID, err, conn, func(backoff time.Duration, message string) error {
+func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn) {
+	p.handleEventError(ctx, automationID, err, conn, func(now time.Time, backoff time.Duration, message string) error {
 		_, err := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
 			AutomationID: automationID,
 			Cursor:       sql.NullString{},
@@ -383,11 +462,14 @@ func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, er
 }
 
 // handleEventError terminates the subscription, or records the error and
-// retries after the backoff that eventErrorActions gives, through retry.
-func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, retry func(backoff time.Duration, message string) error) {
+// retries after the backoff that eventErrorActions gives, through retry. The
+// backoff starts now, not at the tick, whose calls can take up to
+// eventPollBudget.
+func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, retry func(now time.Time, backoff time.Duration, message string) error) {
 	if ctx.Err() != nil {
 		return
 	}
+	now := p.clock.Now("chatd", "automation-events")
 	action := eventErrorAction{backoff: eventErrorBackoff}
 	var eventsErr *mcpclient.EventsError
 	authFailed := errors.Is(err, chatautomation.ErrMCPAuthRequired) || (conn != nil && conn.unauthorized.Load())
@@ -403,11 +485,10 @@ func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, e
 		p.terminateSubscription(ctx, automationID, action.terminate)
 		return
 	}
-	message := err.Error()
-	if len(message) > maxLastErrorBytes {
-		message = message[:maxLastErrorBytes]
-	}
-	if rerr := retry(action.backoff, message); rerr != nil {
+	// The error can quote the server, and text takes no NUL or invalid UTF-8.
+	message := strings.ReplaceAll(err.Error(), "\x00", "")
+	message = strings.ToValidUTF8(message[:min(len(message), maxLastErrorBytes)], "")
+	if rerr := retry(now, action.backoff, message); rerr != nil {
 		p.logger.Warn(ctx, "record chat automation event error", slog.F("automation_id", automationID), slog.Error(rerr))
 	}
 	if authFailed {
@@ -488,7 +569,7 @@ func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	// A longer JSON body fails to decode, which retries after a backoff.
 	// ConnectEvents bounds each event of an SSE stream instead.
-	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+	if mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); err != nil || mediaType != "text/event-stream" {
 		resp.Body = struct {
 			io.Reader
 			io.Closer

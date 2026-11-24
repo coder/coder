@@ -2503,7 +2503,7 @@ export interface ChatAutomationRunResult {
 	 */
 	readonly reason: string;
 	/**
-	 * ChatID is the chat that received the message.
+	 * ChatID is the target chat, or the chat a new_chat run created.
 	 */
 	readonly chat_id: string | null;
 }
@@ -11638,7 +11638,7 @@ export interface UpdateChatAutoArchiveDaysRequest {
  * resumes with the next occurrence; missed occurrences do not run.
  */
 export interface UpdateChatAutomationRequest {
-	readonly enabled: boolean | null;
+	readonly enabled: boolean;
 }
 
 // From codersdk/chats.go

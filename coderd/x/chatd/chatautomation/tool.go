@@ -152,14 +152,18 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now, options.unsubscriber())
+		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now, options.unsubscriber())
 		if err != nil {
-			return nil, err
+			return nil, notInThisChatIfGone(err)
 		}
 		if before.Enabled {
 			options.Audit(ctx, database.AuditActionWrite, before, after)
 		}
-		return toToolAutomation(after, db2sdk.ChatAutomationRefs{}, now), nil
+		refs, err := subscriptionRefs(ctx, options, []uuid.UUID{after.ID})
+		if err != nil {
+			return nil, err
+		}
+		return toToolAutomation(after, refs, now), nil
 	case toolActionDelete, toolActionUnsubscribe:
 		automation, err := automationOfChat(ctx, options, args.AutomationID)
 		if err != nil {
@@ -167,7 +171,7 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		}
 		deleted, err := Delete(ctx, options.DB, options.Chat.OrganizationID, automation.ID, options.unsubscriber())
 		if err != nil {
-			return nil, err
+			return nil, notInThisChatIfGone(err)
 		}
 		options.Audit(ctx, database.AuditActionDelete, deleted, database.ChatAutomation{})
 		return map[string]uuid.UUID{"deleted_automation_id": deleted.ID}, nil
@@ -213,16 +217,9 @@ func listAutomations(ctx context.Context, options ToolOptions, now time.Time) (m
 			}
 		}
 	}
-	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{}}
-	if len(events) > 0 {
-		//nolint:gocritic // The chat owner read these automations above.
-		subs, err := options.DB.GetChatAutomationMCPSubscriptionsByAutomationIDs(dbauthz.AsSystemRestricted(ctx), events)
-		if err != nil {
-			return nil, xerrors.Errorf("list subscriptions: %w", err)
-		}
-		for _, sub := range subs {
-			refs.Subscriptions[sub.AutomationID] = sub
-		}
+	refs, err := subscriptionRefs(ctx, options, events)
+	if err != nil {
+		return nil, err
 	}
 	automations := []toolAutomation{}
 	for _, row := range rows {
@@ -231,6 +228,24 @@ func listAutomations(ctx context.Context, options ToolOptions, now time.Time) (m
 		}
 	}
 	return map[string][]toolAutomation{"automations": automations}, nil
+}
+
+// subscriptionRefs reads the MCP event subscriptions of automations that the
+// chat owner already read.
+func subscriptionRefs(ctx context.Context, options ToolOptions, ids []uuid.UUID) (db2sdk.ChatAutomationRefs, error) {
+	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{}}
+	if len(ids) == 0 {
+		return refs, nil
+	}
+	//nolint:gocritic // The chat owner read these automations.
+	subs, err := options.DB.GetChatAutomationMCPSubscriptionsByAutomationIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return refs, xerrors.Errorf("get subscriptions: %w", err)
+	}
+	for _, sub := range subs {
+		refs.Subscriptions[sub.AutomationID] = sub
+	}
+	return refs, nil
 }
 
 // automationOfChat reads an automation as the chat owner and returns it only
@@ -253,6 +268,15 @@ func automationOfChat(ctx context.Context, options ToolOptions, rawID string) (d
 		return database.ChatAutomation{}, errNotInThisChat
 	}
 	return automation, nil
+}
+
+// notInThisChatIfGone maps the error of an automation that someone deleted
+// after automationOfChat read it to the refusal that a missing ID gets.
+func notInThisChatIfGone(err error) error {
+	if httpapi.Is404Error(err) {
+		return errNotInThisChat
+	}
+	return err
 }
 
 func toToolAutomation(a database.ChatAutomation, refs db2sdk.ChatAutomationRefs, now time.Time) toolAutomation {

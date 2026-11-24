@@ -1679,6 +1679,10 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	// Setting the current state keeps the schedule and updated_at, so the
+	// caller still needs update permission and a run in flight is not voided.
+	// Turning an automation on clears the cursor of its MCP event subscription,
+	// so that polls resume from now and events missed meanwhile do not run.
 	UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error)
 	// updated_at tracks changes by people, so a run leaves it alone. A run that
 	// was not accepted is recorded only while the automation is still enabled and

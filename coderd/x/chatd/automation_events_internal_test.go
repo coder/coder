@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -43,13 +44,16 @@ const fakeSubscriptionID = "sub_1"
 
 // fakeEventsServer is an MCP server that offers one event type in the
 // delivery modes of delivery. Its cursor is "seq:<index>" into the emitted
-// events. Each webhook subscribe sends a verification to receive.
+// events, unless cursor replaces it. Each webhook subscribe sends a
+// verification to receive.
 type fakeEventsServer struct {
 	mu            sync.Mutex
 	events        []mcpclient.EventOccurrence
 	pageSize      int
 	truncate      bool
 	failCode      int64
+	unauthorized  bool
+	cursor        string
 	polls         int
 	delivery      []mcpclient.DeliveryMode
 	subscribeCode int64
@@ -122,13 +126,23 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 		}
 		to := min(len(fake.events), from+fake.pageSize)
 		res := &mcpclient.PollResult{
-			Events: append([]mcpclient.EventOccurrence{}, fake.events[from:to]...), Cursor: new(fmt.Sprintf("seq:%d", to)),
+			Events: append([]mcpclient.EventOccurrence{}, fake.events[from:to]...), Cursor: new(cmp.Or(fake.cursor, fmt.Sprintf("seq:%d", to))),
 			Truncated: fake.truncate, HasMore: to < len(fake.events), NextPollMs: 1000,
 		}
 		fake.truncate = false
 		return res, nil
 	}))
-	ts := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{Stateless: true}))
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{Stateless: true})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		unauthorized := fake.unauthorized
+		fake.mu.Unlock()
+		if unauthorized {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(ts.Close)
 	return fake, ts.URL
 }
@@ -200,8 +214,9 @@ func TestAutomationEvents(t *testing.T) {
 		require.NoError(t, err)
 		return resp
 	}
+	const subscribeInput = `{"action":"subscribe","name":"pushes","prompt":"Review the push.","mcp_server":"events","event":"repo.push","arguments":{"repo":"coder/coder"}}`
 	subscribe := func(ctx context.Context, t *testing.T, f fixture) database.ChatAutomation {
-		resp := call(ctx, t, f, f.chat, `{"action":"subscribe","name":"pushes","prompt":"Review the push.","mcp_server":"events","event":"repo.push","arguments":{"repo":"coder/coder"}}`)
+		resp := call(ctx, t, f, f.chat, subscribeInput)
 		require.False(t, resp.IsError, resp.Content)
 		var created struct {
 			ID uuid.UUID `json:"id"`
@@ -317,7 +332,16 @@ func TestAutomationEvents(t *testing.T) {
 				require.LessOrEqual(t, f.events.polls, 2, "polled a terminated subscription")
 				f.events.mu.Unlock()
 
-				// The chat learns of the end, and the refusal stays the last run.
+				// The chat learns of the end once the owner is active again,
+				// and the refusal stays the last run.
+				setOwnerStatus := func(status database.UserStatus) {
+					_, err := f.worker.db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: f.worker.user.ID, Status: status, UpdatedAt: time.Now()})
+					require.NoError(t, err)
+				}
+				setOwnerStatus(database.UserStatusSuspended)
+				f.server.tickEventDrains(ctx, now)
+				setOwnerStatus(database.UserStatusActive)
+				now = now.Add(eventRefusedBackoff + time.Minute)
 				f.server.tickEventDrains(ctx, now)
 				texts := sent(ctx, t, f, automation.ID)
 				require.Len(t, texts, 1)
@@ -386,7 +410,7 @@ func TestAutomationEvents(t *testing.T) {
 		// Disable unsubscribes, enable subscribes at the next tick, and
 		// delete unsubscribes.
 		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID)).IsError)
-		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(true)}, time.Now(), nil)
+		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now(), nil)
 		require.NoError(t, err)
 		f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
 		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"delete","automation_id":%q}`, automation.ID)).IsError)
@@ -457,6 +481,110 @@ func TestAutomationEvents(t *testing.T) {
 				all, err := f.worker.db.GetChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{OrganizationID: f.worker.org.ID, OwnerID: f.worker.user.ID})
 				require.NoError(t, err)
 				require.Len(t, all, 1, "a failed webhook subscribe left its automation")
+			})
+		}
+	})
+
+	t.Run("ReEnable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t)
+		automation := subscribe(ctx, t, f)
+		resp := call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID))
+		require.False(t, resp.IsError, resp.Content)
+		require.Contains(t, resp.Content, `"event_name":"repo.push"`)
+
+		// An event from while it was off does not run once it is on again.
+		f.events.emit("evt_missed")
+		_, _, err := chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now(), nil)
+		require.NoError(t, err)
+		now := time.Now().Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		f.events.emit("evt_new")
+		now = now.Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		f.server.tickEventDrains(ctx, now)
+		texts := sent(ctx, t, f, automation.ID)
+		require.Len(t, texts, 1)
+		require.Contains(t, texts[0], `"event_id":"evt_new"`)
+		require.NotContains(t, texts[0], `"event_id":"evt_missed"`)
+	})
+
+	t.Run("AuthRequired", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t)
+		automation := subscribe(ctx, t, f)
+		f.events.mu.Lock()
+		f.events.unauthorized = true
+		f.events.mu.Unlock()
+
+		// A 401 keeps the subscription and records the refusal once.
+		now := time.Now().Add(time.Minute)
+		for range 2 {
+			f.server.tickEventPolls(ctx, now)
+			now = now.Add(eventAuthBackoff + time.Minute)
+		}
+		require.Equal(t, database.ChatAutomationSubscriptionStateActive, subscription(ctx, t, f, automation.ID).State)
+		automation, err := f.worker.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, string(runReasonMCPAuthRequired), automation.LastRunReason.String)
+		require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
+
+		resp := call(ctx, t, f, f.chat, subscribeInput)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "must connect")
+	})
+
+	// A page that the inbox cannot store whole still moves the subscription
+	// on, or shows why it does not.
+	t.Run("UntrustedPage", func(t *testing.T) {
+		t.Parallel()
+		occurrence := func(id, data string) mcpclient.EventOccurrence {
+			return mcpclient.EventOccurrence{EventID: id, Name: fakeEventName, Timestamp: time.Now(), Data: json.RawMessage(data)}
+		}
+		long := make([]mcpclient.EventOccurrence, maxEventsPerMessage+1)
+		for i := range long {
+			long[i] = occurrence(fmt.Sprintf("evt_%d", i), `{}`)
+		}
+		for _, tc := range []struct {
+			name   string
+			page   []mcpclient.EventOccurrence
+			cursor string
+			// want is in the one message; nil when the poll fails.
+			want []string
+		}{
+			{"UnstorableData", []mcpclient.EventOccurrence{
+				occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_surrogate", `{"note":"\ud800"}`), occurrence("evt_ok", `{}`),
+			}, "", []string{`"kind":"gap"`, `"event_id":"evt_surrogate"`, `"event_id":"evt_ok"`}},
+			{"LargeData", []mcpclient.EventOccurrence{
+				occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`), occurrence("evt_exponent", `{"n":1e131072}`),
+			}, "", []string{`"event_id":"evt_big"`, `"event_id":"evt_exponent"`, "larger than 16 KiB"}},
+			{"LongPage", long, "", []string{`"kind":"gap"`, `"event_id":"evt_48"`}},
+			{"NULInCursor", []mcpclient.EventOccurrence{occurrence("evt_ok", `{}`)}, "seq:\x00", nil},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f := setup(t)
+				automation := subscribe(ctx, t, f)
+				f.events.mu.Lock()
+				f.events.events, f.events.pageSize, f.events.cursor = tc.page, len(tc.page), tc.cursor
+				f.events.mu.Unlock()
+
+				now := time.Now().Add(time.Minute)
+				f.server.tickEventPolls(ctx, now)
+				f.server.tickEventDrains(ctx, now)
+				texts := sent(ctx, t, f, automation.ID)
+				if tc.want == nil {
+					require.Empty(t, texts)
+					require.NotEmpty(t, subscription(ctx, t, f, automation.ID).LastError.String, "a failed append left no error")
+					return
+				}
+				require.Len(t, texts, 1)
+				for _, want := range tc.want {
+					require.Contains(t, texts[0], want)
+				}
 			})
 		}
 	})

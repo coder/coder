@@ -130,7 +130,7 @@ type CreateChatAutomationRequest struct {
 // UpdateChatAutomationRequest turns an automation on or off. Turning it on
 // resumes with the next occurrence; missed occurrences do not run.
 type UpdateChatAutomationRequest struct {
-	Enabled *bool `json:"enabled" validate:"required"`
+	Enabled bool `json:"enabled"`
 }
 
 // ChatAutomationRunResult is the outcome of a Run now request.
@@ -138,7 +138,7 @@ type ChatAutomationRunResult struct {
 	Outcome ChatAutomationRunOutcome `json:"outcome" enums:"accepted,skipped,refused"`
 	// Reason says why the run was skipped or refused. It is empty otherwise.
 	Reason string `json:"reason"`
-	// ChatID is the chat that received the message.
+	// ChatID is the target chat, or the chat a new_chat run created.
 	ChatID *uuid.UUID `json:"chat_id" format:"uuid"`
 }
 

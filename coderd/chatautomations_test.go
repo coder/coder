@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -37,8 +37,15 @@ func TestChatAutomations(t *testing.T) {
 	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, org)
 	_, other := coderdtest.CreateAnotherUser(t, ownerClient, org)
 	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, org, rbac.ScopedRoleOrgAdmin(org))
+	// dbgen copies SitePermissions into every permission set.
+	reader := dbgen.CustomRole(t, db, database.CustomRole{
+		OrganizationID:  uuid.NullUUID{UUID: org, Valid: true},
+		SitePermissions: []database.CustomRolePermission{{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionRead}},
+	})
+	readerClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, org, rbac.RoleIdentifier{Name: reader.Name, OrganizationID: org})
 	asMember := codersdk.NewExperimentalClient(memberClient)
 	asAdmin := codersdk.NewExperimentalClient(adminClient)
+	asReader := codersdk.NewExperimentalClient(readerClient)
 
 	provider := dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -132,12 +139,17 @@ func TestChatAutomations(t *testing.T) {
 	})
 
 	t.Run("Disable", func(t *testing.T) {
-		got, err := asAdmin.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		// A reader is refused whether or not the request changes the state.
+		for _, enabled := range []bool{true, false} {
+			_, err := asReader.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: enabled})
+			require.Equal(t, http.StatusForbidden, status(t, err), "enabled %v", enabled)
+		}
+		got, err := asAdmin.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: false})
 		require.NoError(t, err)
 		require.False(t, got.Enabled)
 		require.Nil(t, got.ScheduleNextRunAt)
 		// Turning it on again schedules the next occurrence, not a missed one.
-		got, err = asMember.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
+		got, err = asMember.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: true})
 		require.NoError(t, err)
 		require.NotNil(t, got.ScheduleNextRunAt)
 		require.WithinDuration(t, got.NextRunTimes[0], *got.ScheduleNextRunAt, 0)

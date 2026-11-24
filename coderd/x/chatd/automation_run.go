@@ -142,7 +142,7 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 			return result, nil
 		}
 	}
-	if result.Outcome == database.ChatAutomationRunOutcomeAccepted && run.trigger == automationTriggerMCPEvent {
+	if run.trigger == automationTriggerMCPEvent {
 		return result, p.recordEventDelivery(ctx, automation, result)
 	}
 	if !p.recordAutomationRun(ctx, automation, result) {
@@ -178,9 +178,9 @@ func (p *Server) lastRunParams(read database.ChatAutomation, result AutomationRu
 	}
 }
 
-// recordEventDelivery records a sent batch of events unless the subscription
-// has ended, so the refusal that ended it stays the last run. The automation
-// lock orders it with terminateSubscription.
+// recordEventDelivery records the outcome of a batch of events unless the
+// subscription has ended, so the refusal that ended it stays the last run.
+// The automation lock orders it with terminateSubscription.
 func (p *Server) recordEventDelivery(ctx context.Context, read database.ChatAutomation, result AutomationRunResult) error {
 	return p.db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(read.ID)); err != nil {
