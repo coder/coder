@@ -758,11 +758,14 @@ export const ResizableSidebarContextMenu: Story = {
 		viewport: { defaultViewport: "ipad" },
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.pointer({
-			keys: "[MouseRight]",
-			target: canvas.getByRole("separator", { name: "Resize agents sidebar" }),
+		const handle = within(canvasElement).getByRole("separator", {
+			name: "Resize agents sidebar",
 		});
+		fireEvent.contextMenu(handle, {
+			clientX: handle.getBoundingClientRect().left,
+			clientY: 120,
+		});
+		await within(document.body).findByText("Reset width");
 	},
 };
 

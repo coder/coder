@@ -151,7 +151,7 @@ export const ResizableChatsSidebarFrame = ({
 						className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
 					/>
 				</ContextMenuTrigger>
-				<ContextMenuContent>
+				<ContextMenuContent aria-label="Sidebar width">
 					<ContextMenuItem
 						disabled={width <= LEFT_SIDEBAR_MIN_WIDTH}
 						onSelect={() => setUserWidth(width - MENU_RESIZE_STEP)}
