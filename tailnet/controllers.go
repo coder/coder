@@ -347,7 +347,8 @@ func (c *BasicCoordination) respLoop() {
 		if resp.Error != "" {
 			// ReadyForHandshake error can occur during race conditions, where we send a ReadyForHandshake message,
 			// but the source has already disconnected from the tunnel by the time we do. So, just log at warning.
-			if strings.HasPrefix(resp.Error, ReadyForHandshakeError) {
+			// A tunnel refused by policy is expected and leaves the connection up, so it is a warning too.
+			if strings.HasPrefix(resp.Error, ReadyForHandshakeError) || strings.HasPrefix(resp.Error, TunnelRefusedError) {
 				c.logger.Warn(context.Background(), "coordination warning", slog.F("msg", resp.Error))
 			} else {
 				c.logger.Error(context.Background(),

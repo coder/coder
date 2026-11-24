@@ -78,6 +78,7 @@ export function Autocomplete<TOption>({
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
 	const inlineInputRef = useRef<HTMLInputElement>(null);
+	const popoverTriggerRef = useRef<HTMLButtonElement>(null);
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
 	const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
@@ -138,6 +139,9 @@ export function Autocomplete<TOption>({
 	const handleClear = useCallback(() => {
 		onChange(null);
 		handleInputChange("");
+		// The clear button unmounts once the value is null, which would drop
+		// focus to the document body.
+		popoverTriggerRef.current?.focus();
 	}, [onChange, handleInputChange]);
 
 	const handleKeyDown = useCallback(
@@ -345,7 +349,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
-													aria-selected={index === highlightedIndex}
+													aria-selected={isSelected(option)}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
@@ -370,14 +374,14 @@ export function Autocomplete<TOption>({
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<div className={cn("relative w-full", className)}>
 				{loadingStatus}
-				<PopoverTrigger asChild disabled={disabled}>
+				{/* The asChild slot merges this ref with triggerRef on the button. */}
+				<PopoverTrigger asChild disabled={disabled} ref={popoverTriggerRef}>
 					<button
 						type="button"
 						ref={triggerRef}
 						id={id}
 						data-testid={testId}
 						aria-expanded={isOpen}
-						aria-haspopup="listbox"
 						aria-describedby={triggerAriaDescribedBy}
 						aria-labelledby={triggerAriaLabelledBy}
 						disabled={disabled}
@@ -434,6 +438,7 @@ export function Autocomplete<TOption>({
 			<PopoverContent
 				className="w-(--radix-popover-trigger-width) p-0"
 				align="start"
+				aria-label={placeholder}
 				onKeyDownCapture={handleKeyDown}
 			>
 				<Command
@@ -464,6 +469,7 @@ export function Autocomplete<TOption>({
 												key={optionValue}
 												value={optionValue}
 												keywords={[optionLabel]}
+												aria-selected={selected}
 												onSelect={() => handleSelect(option)}
 												className="cursor-pointer"
 											>
