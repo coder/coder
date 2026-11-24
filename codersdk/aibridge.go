@@ -761,10 +761,6 @@ type OrganizationAISpendTotals struct {
 // matching user, not only the returned page.
 type OrganizationAISpendReport struct {
 	AISpendPeriodWindow
-	// RetentionStart is the oldest instant for which token usage is still
-	// retained. An explicit period must not start before it. Omitted when the
-	// deployment does not purge AI Gateway data.
-	RetentionStart *time.Time `json:"retention_start,omitempty" format:"date-time"`
 	// Count is the number of users with token usage matching the filter.
 	Count  int64                     `json:"count"`
 	Totals OrganizationAISpendTotals `json:"totals"`
