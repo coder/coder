@@ -51,20 +51,25 @@ export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 		setIsControlling(false);
 	}
 
-	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isPoppedOut, setIsPoppedOut] = useState(false);
 
 	// Gating the connection on the live workspace watch tears the session
 	// down when the workspace stops and dials again as soon as the agent
 	// reconnects, without manual retries.
-	const { status, reconnect, attach } = useDesktopConnection({
-		chatId: isPoppedOut ? undefined : chatId,
-		activated:
-			activated &&
-			!isPoppedOut &&
-			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
-		scaleViewport: scaleMode === "fit",
-	});
+	const { status, reconnect, attach, scaleViewport, setScaleViewport } =
+		useDesktopConnection({
+			chatId: isPoppedOut ? undefined : chatId,
+			activated:
+				activated &&
+				!isPoppedOut &&
+				isDesktopReachable(
+					workspace.latest_build.status,
+					workspaceAgent?.status,
+				),
+			initialScaleViewport: true,
+		});
+	const scaleMode: ScaleMode = scaleViewport ? "fit" : "native";
+	const setScaleMode = (mode: ScaleMode) => setScaleViewport(mode === "fit");
 
 	useZoomShortcuts(setScaleMode, isActive);
 
