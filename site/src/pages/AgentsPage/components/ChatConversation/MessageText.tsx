@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { Response } from "../ChatElements/Response";
+import { Response, showsResponseContent } from "../ChatElements/Response";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { useSmoothStreamingText } from "./SmoothText";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
@@ -150,8 +150,9 @@ export const ResponseBlock = memo<{
 	const responseRef = useRef<HTMLDivElement>(null);
 	const reportedShown = useRef(false);
 	useLayoutEffect(() => {
+		const response = responseRef.current;
 		const shown = Boolean(
-			onTextShownChange && responseRef.current?.textContent?.trim(),
+			onTextShownChange && response && showsResponseContent(response),
 		);
 		if (shown !== reportedShown.current) {
 			reportedShown.current = shown;

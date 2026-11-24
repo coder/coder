@@ -306,7 +306,10 @@ const createComponents = (
 					// and rounding from its direct child, so the frame must stay
 					// on the outermost element rather than the scroll container.
 					const codeBlock = (
-						<div className="group/code-block relative my-4 overflow-hidden rounded-md border bg-surface-primary">
+						<div
+							data-code-block
+							className="group/code-block relative my-4 overflow-hidden rounded-md border bg-surface-primary"
+						>
 							{/* Not ScrollArea: its per-instance <style> makes WebKit restyle the
 							    whole document each time a code block mounts or unmounts. */}
 							<div className="overflow-auto scrollbar-thin">
@@ -348,6 +351,15 @@ const createComponents = (
 		},
 	};
 };
+
+/**
+ * Whether a rendered Response shows any content. A code block, which renders
+ * only for code that is not empty, paints its text in the viewer's shadow
+ * root, outside the element's text content.
+ */
+export const showsResponseContent = (element: HTMLElement): boolean =>
+	Boolean(element.textContent?.trim()) ||
+	element.querySelector("[data-code-block]") !== null;
 
 // Precompute component maps for both themes at module scope so
 // every Response instance shares the same stable references. This
