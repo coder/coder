@@ -326,6 +326,57 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
+func TestRenderPermissionsAIBridgeInterceptionIsSiteWide(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Permissions }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry:  telemetry.NewNoop(),
+		Database:   db,
+		SiteFS:     siteFS,
+		Authorizer: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+	})
+	require.NoError(t, err)
+
+	permissionsFor := func(t *testing.T, userID uuid.UUID) codersdk.AuthorizationResponse {
+		t.Helper()
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    userID,
+			ExpiresAt: time.Now().Add(time.Hour),
+		})
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		var perms codersdk.AuthorizationResponse
+		err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &perms)
+		require.NoError(t, err)
+		return perms
+	}
+
+	// Interceptions belong to no organization, so an organization role
+	// that grants interception read does not let the user list them.
+	org := dbgen.Organization(t, db, database.Organization{})
+	orgAdmin := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         orgAdmin.ID,
+		Roles:          []string{rbac.RoleOrgAdmin()},
+	})
+	assert.False(t, permissionsFor(t, orgAdmin.ID)["viewAnyAIBridgeInterception"], "organization admin should not view any AI Bridge interception")
+
+	auditor := dbgen.User(t, db, database.User{
+		RBACRoles: []string{codersdk.RoleAuditor},
+	})
+	assert.True(t, permissionsFor(t, auditor.ID)["viewAnyAIBridgeInterception"], "site auditor should view any AI Bridge interception")
+}
+
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	t.Parallel()
 

@@ -132,7 +132,7 @@
 		"action": "read"
 	},
 	"viewAnyAIBridgeInterception": {
-		"object": { "resource_type": "aibridge_interception", "any_org": true },
+		"object": { "resource_type": "aibridge_interception" },
 		"action": "read"
 	},
 	"viewAnyAIProvider": {
