@@ -51,28 +51,35 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
 func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
-	}
-	out := codersdk.AIProvider{
-		ID:          row.ID,
-		Type:        codersdk.AIProviderType(row.Type),
-		Name:        row.Name,
-		DisplayName: display,
-		Icon:        row.Icon,
-		Enabled:     row.Enabled,
-		BaseURL:     row.BaseUrl,
-		APIKeys:     maskAIProviderKeys(keys),
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
-	}
+	out := AIProviderRedacted(row)
+	out.BaseURL = row.BaseUrl
+	out.APIKeys = maskAIProviderKeys(keys)
 	s, err := AIProviderSettings(row.Settings)
 	if err != nil {
 		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
 	}
 	out.Settings = redactAIProviderSettings(s)
 	return out, nil
+}
+
+// AIProviderRedacted converts a provider row for callers who may not read
+// provider configuration: the base URL, keys and settings stay empty.
+func AIProviderRedacted(row database.AIProvider) codersdk.AIProvider {
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	return codersdk.AIProvider{
+		ID:          row.ID,
+		Type:        codersdk.AIProviderType(row.Type),
+		Name:        row.Name,
+		DisplayName: display,
+		Icon:        row.Icon,
+		Enabled:     row.Enabled,
+		APIKeys:     []codersdk.AIProviderKey{},
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

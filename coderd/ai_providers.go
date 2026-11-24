@@ -46,6 +46,7 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 }
 
 // @Summary List AI providers
+// @Description Any authenticated user can list providers, including disabled ones. Callers without the `ai_provider:read` permission get an empty `base_url`, an empty `api_keys` array, `null` `settings`, and no `status`. A token whose scopes do not allow `ai_provider:read` gets a 403 response.
 // @ID list-ai-providers
 // @Security CoderSessionToken
 // @Produce json
@@ -55,20 +56,38 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	rows, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{
+	// api.Authorize would log a warning for every caller without this
+	// permission, so the authorizer is called directly.
+	fullView := api.HTTPAuth.Authorizer.Authorize(ctx, httpmw.UserAuthorization(ctx),
+		policy.ActionRead, rbac.ResourceAIProvider) == nil
+	dbCtx := ctx
+	if !fullView {
+		if !api.aiProviderReadInKeyScope(ctx) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // Any user may list providers; the rows are redacted below.
+		dbCtx = dbauthz.AsAIProviderMetadataReader(ctx)
+	}
+
+	rows, err := api.Database.GetAIProviders(dbCtx, database.GetAIProvidersParams{
 		IncludeDisabled: true,
 	})
-	if dbauthz.IsNotAuthorizedError(err) {
-		api.Logger.Error(ctx, "list AI providers", slog.Error(err))
-		httpapi.Forbidden(rw)
-		return
-	}
 	if err != nil {
 		api.Logger.Error(ctx, "list AI providers", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error listing AI providers.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+
+	if !fullView {
+		out := make([]codersdk.AIProvider, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, db2sdk.AIProviderRedacted(row))
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, out)
 		return
 	}
 
@@ -98,6 +117,21 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// aiProviderReadInKeyScope reports whether the caller's API key scope
+// allows reading AI providers, whatever roles the caller holds.
+func (api *API) aiProviderReadInKeyScope(ctx context.Context) bool {
+	caller := httpmw.UserAuthorization(ctx)
+	scopeOnly := rbac.Subject{
+		Type:         caller.Type,
+		FriendlyName: caller.FriendlyName,
+		ID:           caller.ID,
+		Roles:        rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Scope:        caller.Scope,
+	}
+	return api.HTTPAuth.Authorizer.Authorize(ctx, scopeOnly,
+		policy.ActionRead, rbac.ResourceAIProvider) == nil
 }
 
 // @Summary Get an AI provider

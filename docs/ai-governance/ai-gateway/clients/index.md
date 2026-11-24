@@ -32,6 +32,10 @@ The exact configuration method varies by client, some use environment variables,
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
+The `openai` and `anthropic` path segments are provider names, which your administrator chooses.
+To find the names on your deployment, [list the AI providers](../../../reference/api/aiproviders.md#list-ai-providers).
+The list includes disabled providers, which reject requests.
+
 If you run a [standalone AI gateway](../standalone.md), point clients at the gateway endpoint and drop the `/api/v2/ai-gateway` path prefix (for example, `https://ai-gateway.example.com/openai/v1` or `https://ai-gateway.example.com/anthropic`).
 
 ## Authentication

@@ -1810,7 +1810,7 @@ func TestAIBridgeListProviders(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// Auditors cannot read provider configuration.
-		_, err := auditorClient.AIProviders(ctx)
+		_, err := auditorClient.AIProvider(ctx, "anthropic-prod")
 		require.Error(t, err)
 
 		providers, err := auditorClient.AIBridgeListProviders(ctx)
