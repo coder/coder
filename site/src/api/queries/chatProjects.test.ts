@@ -298,6 +298,7 @@ describe("setChatProjectRole", () => {
 	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),
 		chatProjectACLKey("other-project"),
+		chatProjectSummariesKey,
 	];
 	const setup = () => {
 		const queryClient = createTestQueryClient();
