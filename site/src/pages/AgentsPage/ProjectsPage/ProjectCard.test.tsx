@@ -10,7 +10,10 @@ import {
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { ProjectCard } from "./ProjectCard";
 
-const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
+const renderCard = (
+	overrides: Partial<ChatProjectSummary> = {},
+	memberCount = 1,
+) => {
 	const callbacks = {
 		onPin: vi.fn(),
 		onUnpin: vi.fn(),
@@ -20,7 +23,12 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 	renderComponent(
 		<MemoryRouter>
 			<ProjectCard
-				summary={{ ...MockChatProjectSummary, ...overrides }}
+				summary={{
+					...MockChatProjectSummary,
+					...overrides,
+					project: MockChatProject,
+				}}
+				memberCount={memberCount}
 				to="/agents/projects/chat-project-1"
 				pinPending={false}
 				{...callbacks}
@@ -31,11 +39,11 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 };
 
 describe("ProjectCard", () => {
-	it.each<[string, Partial<ChatProjectSummary>, RegExp]>([
-		["a private project", { member_count: 1 }, /Only you$/],
-		["a shared project", { member_count: 1234 }, /1,234 members$/],
-	])("describes %s", (_, overrides, description) => {
-		renderCard(overrides);
+	it.each<[string, number, RegExp]>([
+		["a private project", 1, /Only you$/],
+		["a shared project", 1234, /1,234 members$/],
+	])("describes %s", (_, memberCount, description) => {
+		renderCard({}, memberCount);
 		expect(
 			screen.getByRole("link", { name: MockChatProject.name }),
 		).toHaveAccessibleDescription(description);

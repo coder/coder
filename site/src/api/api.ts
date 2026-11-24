@@ -3325,6 +3325,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatProjectMemberCounts = async (): Promise<
+		TypesGen.ChatProjectMemberCount[]
+	> => {
+		const response = await this.axios.get<TypesGen.ChatProjectMemberCount[]>(
+			"/api/experimental/chats/projects/member-counts",
+		);
+		return response.data;
+	};
+
 	pinChatProject = async (
 		organizationId: string,
 		projectId: string,

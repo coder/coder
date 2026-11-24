@@ -221,8 +221,28 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
+// RBACObject authorizes a summary through its project, which the row
+// carries only the authorization columns of.
 func (r GetChatProjectSummariesByUserIDRow) RBACObject() rbac.Object {
-	return r.ChatProject.RBACObject()
+	return ChatProject{
+		ID:             r.ProjectID,
+		OrganizationID: r.OrganizationID,
+		OwnerID:        r.OwnerID,
+		UserACL:        r.UserACL,
+		GroupACL:       r.GroupACL,
+	}.RBACObject()
+}
+
+// RBACObject authorizes a member count through its project, like
+// GetChatProjectSummariesByUserIDRow.
+func (r GetChatProjectMemberCountsByUserIDRow) RBACObject() rbac.Object {
+	return ChatProject{
+		ID:             r.ProjectID,
+		OrganizationID: r.OrganizationID,
+		OwnerID:        r.OwnerID,
+		UserACL:        r.UserACL,
+		GroupACL:       r.GroupACL,
+	}.RBACObject()
 }
 
 // RBACObject authorizes an attachment through its project. Access to the
