@@ -39,10 +39,20 @@ func NewParser() *Parser {
 	}
 }
 
-// Parse reads events from reader until EOF and stores them by type. A
-// trailing event without a terminating blank line is discarded.
+// maxLineBytes bounds a single line of the stream.
+// Default bufio.Scanner buffer size is 64 KiB, which may be too small.
+// The limit matches the upstream openai-go SSE decoder:
+// https://github.com/openai/openai-go/blob/v3.50.0/packages/ssestream/ssestream.go#L36
+const maxLineBytes = bufio.MaxScanTokenSize << 9
+
+// Parse reads events from reader until EOF and stores them by type.
+// A trailing event without a terminating blank line is discarded.
+// Blocks without data lines, such as comment-only keepalives, a lone
+// event: line or repeated blank lines, do not produce events.
+// A line longer than 32 MiB stops parsing with an error.
 func (p *Parser) Parse(reader io.Reader) error {
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(nil, maxLineBytes)
 
 	var currentEvent Event
 	var dataLines []string
@@ -52,9 +62,12 @@ func (p *Parser) Parse(reader io.Reader) error {
 
 		// Empty line indicates end of event
 		if line == "" {
-			if len(dataLines) > 0 {
-				currentEvent.Data = strings.Join(dataLines, "\n")
+			// Ignore events with no data lines, as per the SSE spec.
+			if len(dataLines) == 0 {
+				currentEvent = Event{}
+				continue
 			}
+			currentEvent.Data = strings.Join(dataLines, "\n")
 
 			// Default to message type if no event type specified
 			if currentEvent.Type == "" {
