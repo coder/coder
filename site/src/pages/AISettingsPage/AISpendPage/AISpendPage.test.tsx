@@ -290,13 +290,20 @@ it("ignores the URL filter when the viewer can't use it", async () => {
 	expect(getUserSpy).not.toHaveBeenCalled();
 });
 
+// Like a real request, this stays pending until it is aborted.
+function pendingUntilAborted(signal?: AbortSignal): Promise<never> {
+	return new Promise((_, reject) => {
+		signal?.addEventListener("abort", () => reject(signal.reason));
+	});
+}
+
 it("cancels a report before it has results", async () => {
 	const user = userEvent.setup();
 	const { usersSpy } = renderAISpendPage("tab=detailed-report");
 	let reportSignal: AbortSignal | undefined;
 	usersSpy.mockImplementation((_organizationId, _params, signal) => {
 		reportSignal = signal;
-		return new Promise(() => {});
+		return pendingUntilAborted(signal);
 	});
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
 	await user.click(await screen.findByRole("button", { name: "Cancel" }));
@@ -309,9 +316,9 @@ it("cancels a report before it has results", async () => {
 it("cancels a report while it loads another page", async () => {
 	const user = userEvent.setup();
 	const { usersSpy, searchParam } = renderAISpendPage("tab=detailed-report");
-	usersSpy.mockImplementation(async (_organizationId, params) => {
+	usersSpy.mockImplementation(async (_organizationId, params, signal) => {
 		if ((params.offset ?? 0) > 0) {
-			return new Promise(() => {});
+			return pendingUntilAborted(signal);
 		}
 		return { ...MockOrganizationAISpendReport, count: 20 };
 	});
