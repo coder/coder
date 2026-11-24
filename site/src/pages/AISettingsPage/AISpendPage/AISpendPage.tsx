@@ -1,17 +1,16 @@
 import { saveAs } from "file-saver";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
+	exportOrganizationAISpend,
 	organizationAISpendOverview,
 	organizationAISpendReportsScopeKey,
 	organizationAISpendUsers,
 	organizationUnpricedAIModels,
 	paginatedOrganizationAISpendReport,
-	resolveAISpendReportFilter,
 } from "#/api/queries/aiBridge";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { toast } from "#/components/Toaster/toast";
@@ -167,42 +166,33 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		}
 	};
 
-	const [isExportingReport, setIsExportingReport] = useState(false);
-	const exportReport = async () => {
-		if (lastReportRun === undefined || organization === undefined) {
-			return;
-		}
-		try {
-			setIsExportingReport(true);
-			// TODO(AIGOV-733): export the client filter once the endpoint supports it.
-			const { user_ids, group_id, provider_name, model } =
-				await resolveAISpendReportFilter(
-					queryClient,
-					lastReportRun.organizationId,
-					toReportFilter(lastReportRun.filter),
-				);
-			const file = await API.getOrganizationAISpendExport(
-				lastReportRun.organizationId,
-				{
-					...toSpendPeriod(lastReportRun.days),
-					user_id: user_ids?.[0],
-					group_id,
-					provider_name,
-					model,
-				},
-			);
-			const { startDate, endDate } = lastReportRun.days;
-			saveAs(
-				file,
-				`ai-spend-export-${organization.name}-${startDate}-to-${endDate}.csv`,
-			);
-		} catch (error) {
+	const exportReportMutation = useMutation({
+		...exportOrganizationAISpend(queryClient),
+		onError: (error) => {
 			toast.error("Failed to export the report.", {
 				description: getErrorDetail(error),
 			});
-		} finally {
-			setIsExportingReport(false);
+		},
+	});
+	const exportReport = () => {
+		if (lastReportRun === undefined || organization === undefined) {
+			return;
 		}
+		const { startDate, endDate } = lastReportRun.days;
+		exportReportMutation.mutate(
+			{
+				organizationId: lastReportRun.organizationId,
+				period: toSpendPeriod(lastReportRun.days),
+				filter: toReportFilter(lastReportRun.filter),
+			},
+			{
+				onSuccess: (file) =>
+					saveAs(
+						file,
+						`ai-spend-export-${organization.name}-${startDate}-to-${endDate}.csv`,
+					),
+			},
+		);
 	};
 
 	const openDetailedReport = (username?: string) => {
@@ -286,7 +276,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				onRunReport={runReport}
 				onCancelReport={cancelReport}
 				canExportReport={(reportQuery.data?.count ?? 0) > 0}
-				isExportingReport={isExportingReport}
+				isExportingReport={exportReportMutation.isPending}
 				onExportReport={exportReport}
 				onOpenDetailedReport={openDetailedReport}
 				overview={overviewQuery.data}

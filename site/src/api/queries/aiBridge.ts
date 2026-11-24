@@ -115,7 +115,7 @@ export type AISpendReportFilter = Pick<
 };
 
 /** Resolves the username and group name to the IDs the spend endpoints filter by. */
-export const resolveAISpendReportFilter = async (
+const resolveAISpendReportFilter = async (
 	queryClient: QueryClient,
 	organizationId: string,
 	{ username, group_name, ...dimensions }: AISpendReportFilter,
@@ -134,6 +134,30 @@ export const resolveAISpendReportFilter = async (
 		group_id: resolvedGroup?.id,
 	};
 };
+
+/** Exports the organization's AI spend for the period as CSV. */
+export const exportOrganizationAISpend = (queryClient: QueryClient) => ({
+	mutationFn: async ({
+		organizationId,
+		period,
+		filter,
+	}: {
+		organizationId: string;
+		period: AISpendPeriodWindow;
+		filter: AISpendReportFilter;
+	}): Promise<Blob> => {
+		// TODO(AIGOV-733): export the client filter once the endpoint supports it.
+		const { user_ids, group_id, provider_name, model } =
+			await resolveAISpendReportFilter(queryClient, organizationId, filter);
+		return API.getOrganizationAISpendExport(organizationId, {
+			...period,
+			user_id: user_ids?.[0],
+			group_id,
+			provider_name,
+			model,
+		});
+	},
+});
 
 export const organizationAISpendReportsScopeKey = (organizationId: string) =>
 	["organizations", organizationId, "aiSpendReport"] as const;
