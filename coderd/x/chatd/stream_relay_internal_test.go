@@ -258,9 +258,17 @@ func TestStreamRelayForwarderDeliversLivePartsAfterSameEpisodeReconfigures(t *te
 	})
 }
 
+// closingSession replaces a session's parts channel with one the test closes.
+type closingSession struct {
+	StreamPartsSession
+	parts chan StreamPart
+}
+
+func (s closingSession) Parts() <-chan StreamPart { return s.parts }
+
 // TestStreamRelayForwarderDialBackoff configures the forwarder on a mock
-// clock with failing dials and expects a worker to be redialed on the retry
-// backoff, however often it is configured.
+// clock with failing dials and lost sessions and expects a worker to be
+// redialed on the retry backoff, however often it is configured.
 func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -299,22 +307,23 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 	cases := []struct {
 		name       string
 		configures []configure
-		// failDials is the number of dials that fail. Negative fails all.
-		failDials     int
+		// succeedDial is the only dial that succeeds, counting from 1. Zero
+		// fails all.
+		succeedDial   int
 		unrecoverable bool
-		wantDials     []dial
+		// closeSessionAt closes the connected session's parts channel.
+		closeSessionAt time.Duration
+		wantDials      []dial
 		// connects expects the last target's parts on relay.Parts().
 		connects bool
 	}{
 		{
 			name:      "NoUpdates",
-			failDials: -1,
 			wantDials: backoff,
 		},
 		{
 			name:       "SameWorkerEverySecond",
 			configures: sameWorkerEvery(time.Second, attemptOne),
-			failDials:  -1,
 			wantDials:  backoff,
 		},
 		{
@@ -324,13 +333,11 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 			configures: sameWorkerEvery(100*time.Millisecond, func(tick int) int64 {
 				return int64(tick % 2)
 			}),
-			failDials: -1,
 			wantDials: backoff,
 		},
 		{
 			name:       "WorkerChange",
 			configures: []configure{{at: 2 * time.Second, worker: 1, generationAttempt: 1}},
-			failDials:  -1,
 			wantDials: append(
 				dialsAt(0, 0, 100, 300, 700, 1500),
 				dialsAt(1, 2000, 2100, 2300, 2700, 3500, 5100, 8300, 13300, 18300)...,
@@ -342,10 +349,20 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 				{at: 50 * time.Millisecond, generationAttempt: 1},
 				{at: time.Second, generationAttempt: 1},
 			},
-			failDials:     1,
+			succeedDial:   2,
 			unrecoverable: true,
 			wantDials:     dialsAt(0, 0, 1000),
 			connects:      true,
+		},
+		{
+			// The successful connection resets the backoff, so the first
+			// redial after the session closes waits 100 ms. Configurations
+			// every 100 ms from 1.1 s must not redial sooner.
+			name:           "SessionClose",
+			configures:     sameWorkerEvery(100*time.Millisecond, attemptOne)[10:],
+			succeedDial:    2,
+			closeSessionAt: time.Second,
+			wantDials:      dialsAt(0, 0, 100, 1100, 1300, 1700, 2500, 4100, 7300, 12300, 17300),
 		},
 	}
 	for _, tc := range cases {
@@ -363,13 +380,21 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 
 				logger := slogtest.Make(t, nil)
 				local := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
-				var dials []dial
+				var (
+					dials   []dial
+					session closingSession
+				)
 				dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
 					dials = append(dials, dial{at: clock.Since(start), worker: slices.Index(workers, input.WorkerID)})
-					if tc.failDials < 0 || len(dials) <= tc.failDials {
+					if len(dials) != tc.succeedDial {
 						return nil, fakeDialError{unrecoverable: tc.unrecoverable}
 					}
-					return local(ctx, input)
+					connected, err := local(ctx, input)
+					if err != nil || tc.closeSessionAt == 0 {
+						return connected, err
+					}
+					session = closingSession{StreamPartsSession: connected, parts: make(chan StreamPart)}
+					return session, nil
 				}
 				relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
 				defer relay.Close()
@@ -385,6 +410,9 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 					// The forwarder arms its retry timer before the clock moves.
 					synctest.Wait()
 					clock.Advance(step).MustWait(ctx)
+					if elapsed == tc.closeSessionAt {
+						close(session.parts)
+					}
 					if len(configures) > 0 && configures[0].at == elapsed {
 						target = streamRelayTarget{
 							workerID:          uuid.NullUUID{UUID: workers[configures[0].worker], Valid: true},
