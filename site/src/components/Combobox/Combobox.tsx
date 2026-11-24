@@ -81,7 +81,11 @@ type ComboboxButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
-	/** Visible label rendered before the value. */
+	/**
+	 * Visible label rendered before the value. It also sets the accessible name
+	 * to `${label}: ${value}`, so don't pass `aria-label` with it: a caller's
+	 * `aria-label` overrides that name and drops the visible label from it.
+	 */
 	label?: string;
 };
 
