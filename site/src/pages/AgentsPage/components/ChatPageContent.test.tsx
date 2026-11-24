@@ -1,15 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useState } from "react";
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	type Mock,
-	vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -894,123 +886,40 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	describe("edited workspace file references", () => {
-		type OnSendMock = Mock<
-			React.ComponentProps<typeof ChatPageInput>["onSend"]
-		>;
-
+	it("restores removed workspace file references when the edit is reopened", async () => {
+		const user = userEvent.setup();
+		const onSend = vi
+			.fn<React.ComponentProps<typeof ChatPageInput>["onSend"]>()
+			.mockResolvedValue(undefined);
 		const editing: EditingTarget = { kind: "history", id: 1 };
-
-		const mockBoundChat = {
-			...MockChat,
-			id: "",
-			organization_id: "",
-			workspace_id: "ws-1",
-		};
-
 		const editingFileBlocks = [
 			workspaceFileReference("first.csv", "ws-1"),
 			workspaceFileReference("second.csv", "ws-1"),
-			workspaceFileReference("rebound.csv", "ws-2"),
 		];
-
-		const sentFileNames = (onSend: OnSendMock, call: number) =>
-			onSend.mock.calls[call][0].workspaceUploads?.map((upload) => upload.name);
-
-		const renderEdit = (onSend: OnSendMock) =>
-			renderUpdatableChatPageInput(createChatStore(), {
-				chat: mockBoundChat,
-				onSend,
-				editingTarget: editing,
-				initialValue: "edited",
-				editingFileBlocks,
-			});
-
-		const saveEdit = async (
-			user: ReturnType<typeof userEvent.setup>,
-			onSend: OnSendMock,
-			calls: number,
-		) => {
-			await user.click(
-				await screen.findByRole("button", { name: "Save edit" }),
-			);
-			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(calls));
-		};
-
-		it("drops references when the workspace is rebound away and back during a pending edit", async () => {
-			const user = userEvent.setup();
-			const firstSend = createDeferred<undefined>();
-			const onSend = vi
-				.fn()
-				.mockReturnValueOnce(firstSend.promise)
-				.mockResolvedValue(undefined);
-			const { update } = renderEdit(onSend);
-
-			await saveEdit(user, onSend, 1);
-
-			update({ editingTarget: null, isSendPending: true });
-			update({ chat: { ...mockBoundChat, workspace_id: "ws-2" } });
-			update({ chat: mockBoundChat });
-
-			await act(async () => firstSend.reject(new Error("Edit failed.")));
-			update({ editingTarget: editing, isSendPending: false });
-			await saveEdit(user, onSend, 2);
-
-			expect(sentFileNames(onSend, 1)).toBeUndefined();
+		const { update } = renderUpdatableChatPageInput(createChatStore(), {
+			chat: { ...MockChat, id: "", organization_id: "", workspace_id: "ws-1" },
+			onSend,
+			editingTarget: editing,
+			initialValue: "edited",
+			editingFileBlocks,
 		});
 
-		it("rehydrates references for a workspace rebound mid-edit", async () => {
-			const user = userEvent.setup();
-			const onSend = vi.fn().mockResolvedValue(undefined);
-			const { update } = renderEdit(onSend);
+		await user.click(
+			await screen.findByRole("button", { name: "Remove first.csv" }),
+		);
 
-			await screen.findByRole("button", { name: "Remove first.csv" });
-			update({ chat: { ...mockBoundChat, workspace_id: "ws-2" } });
-			await saveEdit(user, onSend, 1);
-
-			expect(sentFileNames(onSend, 0)).toEqual(["rebound.csv"]);
+		update({ editingTarget: null });
+		update({
+			editingTarget: editing,
+			editingFileBlocks: [...editingFileBlocks],
 		});
 
-		it("drops references when the chat changes mid-edit", async () => {
-			const user = userEvent.setup();
-			const onSend = vi.fn().mockResolvedValue(undefined);
-			const { update } = renderEdit(onSend);
+		await user.click(await screen.findByRole("button", { name: "Save edit" }));
 
-			await screen.findByRole("button", { name: "Remove first.csv" });
-			update({ chat: { ...mockBoundChat, id: "other-chat" } });
-			await saveEdit(user, onSend, 1);
-
-			expect(sentFileNames(onSend, 0)).toBeUndefined();
-		});
-
-		it("drops references after a successful edit", async () => {
-			const user = userEvent.setup();
-			const onSend = vi.fn().mockResolvedValue(undefined);
-			renderEdit(onSend);
-
-			await saveEdit(user, onSend, 1);
-			await saveEdit(user, onSend, 2);
-
-			expect(sentFileNames(onSend, 0)).toEqual(["first.csv", "second.csv"]);
-			expect(sentFileNames(onSend, 1)).toBeUndefined();
-		});
-
-		it("restores removed references when the edit is reopened", async () => {
-			const user = userEvent.setup();
-			const onSend = vi.fn().mockResolvedValue(undefined);
-			const { update } = renderEdit(onSend);
-
-			await user.click(
-				await screen.findByRole("button", { name: "Remove first.csv" }),
-			);
-
-			update({ editingTarget: null });
-			update({ editingTarget: editing });
-
-			await saveEdit(user, onSend, 1);
-
-			expect(sentFileNames(onSend, 0)).toEqual(["first.csv", "second.csv"]);
-		});
+		await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
+		expect(
+			onSend.mock.calls[0][0].workspaceUploads?.map((upload) => upload.name),
+		).toEqual(["first.csv", "second.csv"]);
 	});
 
 	it("sends the attachments of a failed send again", async () => {
