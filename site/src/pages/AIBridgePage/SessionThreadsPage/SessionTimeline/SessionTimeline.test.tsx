@@ -73,6 +73,9 @@ describe(SessionTimeline.name, () => {
 		expect(secondToggle).toHaveAttribute("aria-expanded", "false");
 		await user.click(secondToggle);
 		expect(secondToggle).toHaveAttribute("aria-expanded", "true");
+		expect(
+			document.getElementById(secondToggle.getAttribute("aria-controls") ?? ""),
+		).toContainElement(screen.getByRole("region", { name: "read_file input" }));
 	});
 
 	it("lets keyboard users focus the tool call input to scroll it", async () => {

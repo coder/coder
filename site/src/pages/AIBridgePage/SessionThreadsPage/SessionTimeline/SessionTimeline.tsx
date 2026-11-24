@@ -122,10 +122,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 type CollapseButtonProps = {
 	isOpen: boolean;
-	/**
-	 * Follows the accordion pattern: the heading level tells screen reader
-	 * users how deep the toggle is nested in the timeline.
-	 */
+	/** Heading level tells screen readers how deep the toggle is nested. */
 	heading: "h3" | "h4";
 	panelId: string;
 	accessibleNameSuffix?: string;
