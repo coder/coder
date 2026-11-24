@@ -9,7 +9,7 @@ import {
 } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
-import { findWorkspaceAgent } from "#/utils/workspace";
+import { findWorkspaceAgent, getMatchingAgentOrFirst } from "#/utils/workspace";
 
 /**
  * Built-in panels that the user shows or hides from the add-tab dropdown.
@@ -64,12 +64,30 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
+	  }
+	| {
+			id: string;
+			kind: "preview";
+			label: string;
+			workspaceId: string;
+			agentName: string;
+			slug: string;
+			urlPath?: string;
+			/** The tool call this tab last showed. Opening it again only focuses the tab. */
+			toolCallId?: string;
 	  };
+
+/** A preview tab before it has an ID. */
+export type NewPreviewTab = Omit<
+	Extract<UserRightPanelTab, { kind: "preview" }>,
+	"id"
+>;
 
 type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	openPreviewEnabled: boolean;
 };
 
 export function isUserRightPanelTab(
@@ -114,6 +132,18 @@ export function isUserRightPanelTab(
 		);
 	}
 
+	if (record.kind === "preview") {
+		return (
+			typeof record.label === "string" &&
+			typeof record.workspaceId === "string" &&
+			typeof record.agentName === "string" &&
+			record.agentName !== "" &&
+			typeof record.slug === "string" &&
+			(record.urlPath === undefined || typeof record.urlPath === "string") &&
+			(record.toolCallId === undefined || typeof record.toolCallId === "string")
+		);
+	}
+
 	return false;
 }
 
@@ -123,6 +153,7 @@ export function validateUserRightPanelTabs(
 		workspace,
 		workspaceAgent,
 		wildcardHostname,
+		openPreviewEnabled,
 	}: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
 	return tabs.filter((tab) => {
@@ -132,6 +163,14 @@ export function validateUserRightPanelTabs(
 
 		if (!workspace) {
 			return false;
+		}
+
+		if (tab.kind === "preview") {
+			return (
+				openPreviewEnabled &&
+				tab.workspaceId === workspace.id &&
+				getMatchingAgentOrFirst(workspace, tab.agentName) !== undefined
+			);
 		}
 
 		if (tab.kind === "workspace_app") {

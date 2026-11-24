@@ -72,6 +72,7 @@ import {
 } from "../utils/rightPanelTabStorage";
 import {
 	isSingletonRightPanelTabId,
+	type NewPreviewTab,
 	type PortSelection,
 	type SingletonRightPanelTabId,
 	singletonRightPanelTabIds,
@@ -146,6 +147,7 @@ type AgentChatPageViewProps = {
 
 	// Sidebar content data.
 	debugLoggingEnabled: boolean;
+	openPreviewEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -215,6 +217,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
+	openPreviewEnabled,
 	gitWatcher,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -299,6 +302,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		SingletonRightPanelTabId[]
 	>(() => getPersistedVisibleSingletonTabs(agentId));
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	// Counts how often each preview tab was opened again, so its frame
+	// reloads. Not persisted: after a page load each preview frame mounts fresh.
+	const [previewReloadCounts, setPreviewReloadCounts] = useState<
+		Record<string, number>
+	>({});
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
@@ -381,7 +389,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
-		{ workspace, workspaceAgent, wildcardHostname },
+		{ workspace, workspaceAgent, wildcardHostname, openPreviewEnabled },
 	);
 
 	// The built-in Terminal renders like any other terminal tab. Its
@@ -564,6 +572,59 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
+	const openPreviewTab = (preview: NewPreviewTab) => {
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab): tab is Extract<UserRightPanelTab, { kind: "preview" }> =>
+				tab.kind === "preview" &&
+				tab.agentName === preview.agentName &&
+				tab.slug === preview.slug &&
+				tab.urlPath === preview.urlPath,
+		);
+		if (existingTab) {
+			// The same result only focuses its tab, keeping the frame's state.
+			// A newer result renames the tab and reloads its frame, so the tab
+			// shows what the agent just opened.
+			if (
+				preview.toolCallId !== undefined &&
+				existingTab.toolCallId === preview.toolCallId
+			) {
+				activateRightPanelTab(existingTab.id);
+				return;
+			}
+			setUserRightPanelTabsState((currentTabs) =>
+				currentTabs.map((tab) =>
+					tab.id === existingTab.id
+						? { ...tab, label: preview.label, toolCallId: preview.toolCallId }
+						: tab,
+				),
+			);
+			setPreviewReloadCounts((counts) => ({
+				...counts,
+				[existingTab.id]: (counts[existingTab.id] ?? 0) + 1,
+			}));
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+
+		const tab: UserRightPanelTab = {
+			...preview,
+			id: createUserRightPanelTabId("preview"),
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
+	const previewAccess =
+		!openPreviewEnabled || !workspace || !workspaceAgent
+			? undefined
+			: workspace.owner_id === currentUser.id
+				? { open: openPreviewTab }
+				: {
+						unavailableReason:
+							"Only the workspace owner can open this preview.",
+					};
+
 	const handleCloseTab = (
 		tabId: string,
 		nextActiveTabId: string | undefined,
@@ -667,6 +728,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								workspaceId: workspace?.id,
 								buildId: chat.build_id,
 								agentId: chat.agent_id,
+								agentName: workspaceAgent?.name,
+								previewAccess,
 							}}
 						>
 							<ChatPageTimeline
@@ -881,6 +944,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										workspaceAgent={workspaceAgent}
 										wildcardHostname={wildcardHostname}
 										isPending={pendingTabId === tab.id}
+										previewReloadCount={previewReloadCounts[tab.id] ?? 0}
 										onTerminalReady={handleTerminalTabReady}
 									/>
 								</SidebarTab>

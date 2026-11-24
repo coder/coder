@@ -13,6 +13,7 @@ import {
 	MockACPSpawnArgs,
 	MockACPWaitResult,
 } from "#/testHelpers/acp";
+import { MockOpenPreviewResult } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -331,6 +332,11 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: {},
 		providerExecuted: true,
 		foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+	},
+	{
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
 	},
 	{
 		name: "unknown_tool",
@@ -3039,6 +3045,81 @@ export const StopWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+export const OpenPreviewCompleted: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
+					previewAccess: { open: fn() },
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const OpenPreviewOwnerOnly: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: MockOpenPreviewResult,
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
+					previewAccess: {
+						unavailableReason:
+							"Only the workspace owner can open this preview.",
+					},
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const OpenPreviewOtherWorkspace: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: { ...MockOpenPreviewResult, workspace_id: "other-workspace" },
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					agentName: MockWorkspaceAgent.name,
+					previewAccess: { open: fn() },
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const OpenPreviewError: Story = {
+	args: {
+		name: "open_preview",
+		args: { title: "Docs site", port: "3000" },
+		result: { error: "port must be between 9 and 65535" },
+		isError: true,
 	},
 };
 

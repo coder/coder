@@ -221,6 +221,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 							<Tool
 								organizationId={organizationId}
 								key={tool.id}
+								toolCallId={tool.id}
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
@@ -286,6 +287,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 				<Tool
 					organizationId={organizationId}
 					key={tool.id}
+					toolCallId={tool.id}
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
