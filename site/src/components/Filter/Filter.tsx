@@ -192,7 +192,13 @@ export const Filter: React.FC<FilterProps> = ({
 								filter.cancelDebounce();
 								filter.update("");
 							}}
-							onBlur={() => setDraftQuery(undefined)}
+							onBlur={() => {
+								if (draftQuery !== undefined) {
+									filter.cancelDebounce();
+									filter.update(draftQuery);
+								}
+								setDraftQuery(undefined);
+							}}
 							placeholder="Search..."
 						/>
 						{hasError(error) && (
