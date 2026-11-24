@@ -479,6 +479,7 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, deliver(ctx, f, automation.ID, webhookEvent, func(h http.Header) {
 			h.Set("X-MCP-Subscription-Id", "sub_other")
 		}))
+		require.Equal(t, http.StatusBadRequest, deliver(ctx, f, automation.ID, strings.Replace(webhookEvent, "repo.push", "repo.other", 1), nil))
 		// A retried gap, like a retried event, appends nothing.
 		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"gap","cursor":"seq:7"}`, nil))
 		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"gap","cursor":"seq:7"}`, nil))
@@ -512,9 +513,10 @@ func TestAutomationEvents(t *testing.T) {
 		require.WithinDuration(t, time.Now().Add(time.Hour), renewed.RefreshBefore.Time, time.Minute)
 		require.True(t, renewed.RenewAt.Time.After(sub.RenewAt.Time))
 
-		// Disable unsubscribes, enable subscribes at the next tick, and
-		// delete unsubscribes.
+		// Disable unsubscribes and stops renewals, enable subscribes at the
+		// next tick, and delete unsubscribes.
 		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID)).IsError)
+		f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
 		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now(), nil)
 		require.NoError(t, err)
 		f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
