@@ -28,6 +28,8 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
+	CheckChatAutomationEventInboxShape                       CheckConstraint = "chat_automation_event_inbox_shape"                         // chat_automation_event_inbox
+	CheckChatAutomationMcpSubscriptionsPollShape             CheckConstraint = "chat_automation_mcp_subscriptions_poll_shape"              // chat_automation_mcp_subscriptions
 	CheckChatAutomationsLastRunShape                         CheckConstraint = "chat_automations_last_run_shape"                           // chat_automations
 	CheckChatAutomationsNameCheck                            CheckConstraint = "chat_automations_name_check"                               // chat_automations
 	CheckChatAutomationsProjectTargetMode                    CheckConstraint = "chat_automations_project_target_mode"                      // chat_automations

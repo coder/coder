@@ -365,14 +365,30 @@ CREATE TYPE build_reason AS ENUM (
     'jetbrains_connection'
 );
 
+CREATE TYPE chat_automation_event_delivery AS ENUM (
+    'poll'
+);
+
+CREATE TYPE chat_automation_inbox_kind AS ENUM (
+    'event',
+    'gap',
+    'terminated'
+);
+
 CREATE TYPE chat_automation_kind AS ENUM (
-    'schedule'
+    'schedule',
+    'mcp_event'
 );
 
 CREATE TYPE chat_automation_run_outcome AS ENUM (
     'accepted',
     'skipped',
     'refused'
+);
+
+CREATE TYPE chat_automation_subscription_state AS ENUM (
+    'active',
+    'terminated'
 );
 
 CREATE TYPE chat_automation_target_mode AS ENUM (
@@ -2143,6 +2159,59 @@ COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests
 COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
+CREATE TABLE chat_automation_event_inbox (
+    id bigint NOT NULL,
+    automation_id uuid NOT NULL,
+    kind chat_automation_inbox_kind NOT NULL,
+    event_id text,
+    event_name text,
+    occurred_at timestamp with time zone,
+    data jsonb,
+    detail text,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    delivered_at timestamp with time zone,
+    CONSTRAINT chat_automation_event_inbox_shape CHECK (((kind = 'event'::chat_automation_inbox_kind) = ((event_id IS NOT NULL) AND (occurred_at IS NOT NULL) AND (data IS NOT NULL))))
+);
+
+COMMENT ON TABLE chat_automation_event_inbox IS 'Events and notices that every delivery mode appends, in arrival order, until a run sends them to the chat.';
+
+COMMENT ON COLUMN chat_automation_event_inbox.detail IS 'The note of a gap row or the reason of a terminated row.';
+
+CREATE SEQUENCE chat_automation_event_inbox_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_automation_event_inbox_id_seq OWNED BY chat_automation_event_inbox.id;
+
+CREATE TABLE chat_automation_mcp_subscriptions (
+    automation_id uuid NOT NULL,
+    mcp_server_config_id uuid,
+    event_name text NOT NULL,
+    arguments jsonb DEFAULT '{}'::jsonb NOT NULL,
+    delivery chat_automation_event_delivery NOT NULL,
+    state chat_automation_subscription_state DEFAULT 'active'::chat_automation_subscription_state NOT NULL,
+    cursor text,
+    next_poll_at timestamp with time zone,
+    drain_after timestamp with time zone DEFAULT now() NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_automation_mcp_subscriptions_poll_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) = (next_poll_at IS NOT NULL)))
+);
+
+COMMENT ON TABLE chat_automation_mcp_subscriptions IS 'The MCP event that an mcp_event chat automation subscribes to.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.mcp_server_config_id IS 'NULL after the MCP server config is deleted; the poll loop then terminates the subscription.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.cursor IS 'Opaque server cursor. NULL polls from now, or the event type does not replay.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.next_poll_at IS 'When the next poll is due. A claim moves it ahead as a lease.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.drain_after IS 'When pending inbox rows may next be sent to the chat. A claim moves it ahead as a lease.';
 
 CREATE TABLE chat_automations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4723,6 +4792,8 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+ALTER TABLE ONLY chat_automation_event_inbox ALTER COLUMN id SET DEFAULT nextval('chat_automation_event_inbox_id_seq'::regclass);
+
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
@@ -4791,6 +4862,12 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
+
+ALTER TABLE ONLY chat_automation_event_inbox
+    ADD CONSTRAINT chat_automation_event_inbox_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_automation_mcp_subscriptions
+    ADD CONSTRAINT chat_automation_mcp_subscriptions_pkey PRIMARY KEY (automation_id);
 
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
@@ -5222,6 +5299,16 @@ CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
+CREATE INDEX chat_automation_event_inbox_delivered_at_idx ON chat_automation_event_inbox USING btree (delivered_at) WHERE (delivered_at IS NOT NULL);
+
+CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox USING btree (automation_id, event_id) WHERE (event_id IS NOT NULL);
+
+CREATE INDEX chat_automation_event_inbox_pending_idx ON chat_automation_event_inbox USING btree (automation_id, id) WHERE (delivered_at IS NULL);
+
+CREATE INDEX chat_automation_mcp_subscriptions_config_idx ON chat_automation_mcp_subscriptions USING btree (mcp_server_config_id) WHERE (mcp_server_config_id IS NOT NULL);
+
+CREATE INDEX chat_automation_mcp_subscriptions_next_poll_at_idx ON chat_automation_mcp_subscriptions USING btree (next_poll_at) WHERE (state = 'active'::chat_automation_subscription_state);
 
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
 
@@ -5744,6 +5831,15 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_automation_event_inbox
+    ADD CONSTRAINT chat_automation_event_inbox_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automation_mcp_subscriptions(automation_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_mcp_subscriptions
+    ADD CONSTRAINT chat_automation_mcp_subscriptions_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_mcp_subscriptions
+    ADD CONSTRAINT chat_automation_mcp_subscriptions_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_created_by_chat_id_fkey FOREIGN KEY (created_by_chat_id) REFERENCES chats(id) ON DELETE SET NULL;

@@ -88,6 +88,15 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Leases the subscriptions of enabled automations that have undelivered
+	// inbox rows and whose drain_after has passed, by moving drain_after to
+	// @lease_until.
+	ClaimChatAutomationInboxDrains(ctx context.Context, arg ClaimChatAutomationInboxDrainsParams) ([]ChatAutomationMCPSubscription, error)
+	// Leases the active poll subscriptions of enabled automations that are due
+	// and have fewer than @max_pending undelivered inbox rows, by moving
+	// next_poll_at to @lease_until. SKIP LOCKED lets every replica claim a
+	// different set.
+	ClaimDueChatAutomationMCPPolls(ctx context.Context, arg ClaimDueChatAutomationMCPPollsParams) ([]ClaimDueChatAutomationMCPPollsRow, error)
 	// Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
 	// a different set; the caller advances each row in the same transaction.
 	ClaimDueChatAutomationSchedules(ctx context.Context, arg ClaimDueChatAutomationSchedulesParams) ([]ChatAutomation, error)
@@ -240,6 +249,9 @@ type sqlcQuerier interface {
 	// Deletes boundary sessions that have aged past retention and no longer
 	// have any associated logs.
 	DeleteOldBoundarySessions(ctx context.Context, arg DeleteOldBoundarySessionsParams) (int64, error)
+	// Delivered rows are kept for a while so that a late retry of an event
+	// still deduplicates.
+	DeleteOldChatAutomationInboxRows(ctx context.Context, arg DeleteOldChatAutomationInboxRowsParams) (int64, error)
 	// updated_at is the retention clock, so the window starts after the run
 	// stops being written to.
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
@@ -486,6 +498,7 @@ type sqlcQuerier interface {
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]ChatAutomationMCPSubscription, error)
 	// The all-zero owner_id means every owner.
 	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -868,6 +881,7 @@ type sqlcQuerier interface {
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPendingChatAutomationInboxRows(ctx context.Context, arg GetPendingChatAutomationInboxRowsParams) ([]ChatAutomationEventInbox, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -1302,6 +1316,12 @@ type sqlcQuerier interface {
 	// wait for this transaction, so its cleanup trigger then deletes the new row.
 	// The insert trigger refuses an owner that is already deleted.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
+	// Appends events in their order in @events, a JSON array of
+	// {event_id, event_name, occurred_at, data}. An event_id that the
+	// subscription already received inserts nothing.
+	InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error)
+	InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error
+	InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
@@ -1541,6 +1561,7 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	MarkChatAutomationInboxDelivered(ctx context.Context, arg MarkChatAutomationInboxDeliveredParams) (int64, error)
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
@@ -1589,6 +1610,7 @@ type sqlcQuerier interface {
 	// for the table.
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
+	SetChatAutomationMCPDrainAfter(ctx context.Context, arg SetChatAutomationMCPDrainAfterParams) error
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the
 	// refresh endpoint. Does not bump updated_at: context pinning is
@@ -1624,6 +1646,7 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -1653,6 +1676,10 @@ type sqlcQuerier interface {
 	// unchanged since the run read it, so a disable or change that commits first
 	// wins. An accepted run sent its message, so it is always recorded.
 	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
+	// Records a delivery or a failed poll of an active subscription: the cursor
+	// to resume from, the next poll and the error. A NULL cursor or next poll
+	// keeps the stored one; a NULL error clears it.
+	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a

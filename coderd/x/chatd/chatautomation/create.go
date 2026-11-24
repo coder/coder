@@ -33,13 +33,9 @@ func Create(ctx context.Context, db database.Store, organizationID uuid.UUID, re
 // createAutomation is Create with the chat whose agent made the automation,
 // or NULL for a person.
 func createAutomation(ctx context.Context, db database.Store, organizationID uuid.UUID, createdByChatID uuid.NullUUID, req codersdk.CreateChatAutomationRequest, now time.Time) (database.ChatAutomation, error) {
-	actor, ok := dbauthz.ActorFromContext(ctx)
-	if !ok {
-		return database.ChatAutomation{}, dbauthz.ErrNoActor
-	}
-	owner, err := uuid.Parse(actor.ID)
+	owner, err := actorID(ctx)
 	if err != nil {
-		return database.ChatAutomation{}, xerrors.Errorf("parse actor ID: %w", err)
+		return database.ChatAutomation{}, err
 	}
 
 	sched, rejected := validateRequest(req)
@@ -73,8 +69,59 @@ func createAutomation(ctx context.Context, db database.Store, organizationID uui
 		ScheduleTimeZone:  sql.NullString{String: req.ScheduleTimeZone, Valid: true},
 		ScheduleNextRunAt: sql.NullTime{Time: sched.Next(now), Valid: enabled},
 	}
+	return insertAutomation(ctx, db, params, nil)
+}
+
+// createEventAutomation creates an enabled mcp_event automation that the
+// actor in ctx owns, that targets chat and that chat created. subscribe
+// inserts its subscription in the same transaction. Errors follow Create.
+func createEventAutomation(ctx context.Context, db database.Store, chat database.Chat, name, prompt string, subscribe func(tx database.Store, created database.ChatAutomation) error) (database.ChatAutomation, error) {
+	owner, err := actorID(ctx)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	rejected := validateNameAndPrompt(name, prompt)
+	if len(rejected) == 0 {
+		rejected, err = checkReferences(ctx, db, chat.OrganizationID, owner, codersdk.CreateChatAutomationRequest{TargetChatID: &chat.ID})
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if len(rejected) > 0 {
+		return database.ChatAutomation{}, &InvalidRequestError{Validations: rejected}
+	}
+	thisChat := uuid.NullUUID{UUID: chat.ID, Valid: true}
+	return insertAutomation(ctx, db, database.InsertChatAutomationParams{
+		OrganizationID:  chat.OrganizationID,
+		OwnerID:         owner,
+		Name:            strings.TrimSpace(name),
+		CreatedByChatID: thisChat,
+		Kind:            database.ChatAutomationKindMcpEvent,
+		Enabled:         true,
+		Prompt:          prompt,
+		TargetMode:      database.ChatAutomationTargetModeExistingChat,
+		TargetChatID:    thisChat,
+	}, subscribe)
+}
+
+func actorID(ctx context.Context) (uuid.UUID, error) {
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return uuid.Nil, dbauthz.ErrNoActor
+	}
+	id, err := uuid.Parse(actor.ID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("parse actor ID: %w", err)
+	}
+	return id, nil
+}
+
+// insertAutomation inserts params within the owner's limit and then runs
+// also, when set, in the same transaction.
+func insertAutomation(ctx context.Context, db database.Store, params database.InsertChatAutomationParams, also func(tx database.Store, created database.ChatAutomation) error) (database.ChatAutomation, error) {
+	owner := params.OwnerID
 	var created database.ChatAutomation
-	err = db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		// One lock per owner keeps two creates from both passing the limit.
 		if err := tx.AcquireLock(ctx, database.GenLockID("chat-automations-owner:"+owner.String())); err != nil {
 			return xerrors.Errorf("lock owner: %w", err)
@@ -98,6 +145,9 @@ func createAutomation(ctx context.Context, db database.Store, organizationID uui
 			return ErrReferenceUnavailable
 		case err != nil:
 			return xerrors.Errorf("insert chat automation: %w", err)
+		}
+		if also != nil {
+			return also(tx, created)
 		}
 		return nil
 	}, nil)

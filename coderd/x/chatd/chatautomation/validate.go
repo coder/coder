@@ -30,11 +30,10 @@ func (v *violations) add(field, detail string) {
 	*v = append(*v, codersdk.ValidationError{Field: field, Detail: detail})
 }
 
-// validateRequest checks every field of req that needs no database read. It
-// returns the schedule when the cron expression and the time zone are valid.
-func validateRequest(req codersdk.CreateChatAutomationRequest) (*cron.Schedule, violations) {
+// validateNameAndPrompt checks the fields that every kind of automation has.
+func validateNameAndPrompt(name, prompt string) violations {
 	var v violations
-	switch name := strings.TrimSpace(req.Name); {
+	switch name := strings.TrimSpace(name); {
 	case name == "":
 		v.add("name", "Required.")
 	case utf8.RuneCountInString(name) > maxNameChars:
@@ -43,13 +42,20 @@ func validateRequest(req codersdk.CreateChatAutomationRequest) (*cron.Schedule, 
 		v.add("name", "Must not contain NUL characters.")
 	}
 	switch {
-	case strings.TrimSpace(req.Prompt) == "":
+	case strings.TrimSpace(prompt) == "":
 		v.add("prompt", "Required.")
-	case len(req.Prompt) > maxPromptBytes:
+	case len(prompt) > maxPromptBytes:
 		v.add("prompt", fmt.Sprintf("Must be at most %d bytes.", maxPromptBytes))
-	case strings.ContainsRune(req.Prompt, 0):
+	case strings.ContainsRune(prompt, 0):
 		v.add("prompt", "Must not contain NUL characters.")
 	}
+	return v
+}
+
+// validateRequest checks every field of req that needs no database read. It
+// returns the schedule when the cron expression and the time zone are valid.
+func validateRequest(req codersdk.CreateChatAutomationRequest) (*cron.Schedule, violations) {
+	v := validateNameAndPrompt(req.Name, req.Prompt)
 
 	switch req.TargetMode {
 	case codersdk.ChatAutomationTargetModeExistingChat:

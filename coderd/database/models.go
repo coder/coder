@@ -1564,10 +1564,127 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatAutomationEventDelivery string
+
+const (
+	ChatAutomationEventDeliveryPoll ChatAutomationEventDelivery = "poll"
+)
+
+func (e *ChatAutomationEventDelivery) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationEventDelivery(s)
+	case string:
+		*e = ChatAutomationEventDelivery(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationEventDelivery: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationEventDelivery struct {
+	ChatAutomationEventDelivery ChatAutomationEventDelivery `json:"chat_automation_event_delivery"`
+	Valid                       bool                        `json:"valid"` // Valid is true if ChatAutomationEventDelivery is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationEventDelivery) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationEventDelivery, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationEventDelivery.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationEventDelivery) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationEventDelivery), nil
+}
+
+func (e ChatAutomationEventDelivery) Valid() bool {
+	switch e {
+	case ChatAutomationEventDeliveryPoll:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationEventDeliveryValues() []ChatAutomationEventDelivery {
+	return []ChatAutomationEventDelivery{
+		ChatAutomationEventDeliveryPoll,
+	}
+}
+
+type ChatAutomationInboxKind string
+
+const (
+	ChatAutomationInboxKindEvent      ChatAutomationInboxKind = "event"
+	ChatAutomationInboxKindGap        ChatAutomationInboxKind = "gap"
+	ChatAutomationInboxKindTerminated ChatAutomationInboxKind = "terminated"
+)
+
+func (e *ChatAutomationInboxKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationInboxKind(s)
+	case string:
+		*e = ChatAutomationInboxKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationInboxKind: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationInboxKind struct {
+	ChatAutomationInboxKind ChatAutomationInboxKind `json:"chat_automation_inbox_kind"`
+	Valid                   bool                    `json:"valid"` // Valid is true if ChatAutomationInboxKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationInboxKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationInboxKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationInboxKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationInboxKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationInboxKind), nil
+}
+
+func (e ChatAutomationInboxKind) Valid() bool {
+	switch e {
+	case ChatAutomationInboxKindEvent,
+		ChatAutomationInboxKindGap,
+		ChatAutomationInboxKindTerminated:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationInboxKindValues() []ChatAutomationInboxKind {
+	return []ChatAutomationInboxKind{
+		ChatAutomationInboxKindEvent,
+		ChatAutomationInboxKindGap,
+		ChatAutomationInboxKindTerminated,
+	}
+}
+
 type ChatAutomationKind string
 
 const (
 	ChatAutomationKindSchedule ChatAutomationKind = "schedule"
+	ChatAutomationKindMcpEvent ChatAutomationKind = "mcp_event"
 )
 
 func (e *ChatAutomationKind) Scan(src interface{}) error {
@@ -1607,7 +1724,8 @@ func (ns NullChatAutomationKind) Value() (driver.Value, error) {
 
 func (e ChatAutomationKind) Valid() bool {
 	switch e {
-	case ChatAutomationKindSchedule:
+	case ChatAutomationKindSchedule,
+		ChatAutomationKindMcpEvent:
 		return true
 	}
 	return false
@@ -1616,6 +1734,7 @@ func (e ChatAutomationKind) Valid() bool {
 func AllChatAutomationKindValues() []ChatAutomationKind {
 	return []ChatAutomationKind{
 		ChatAutomationKindSchedule,
+		ChatAutomationKindMcpEvent,
 	}
 }
 
@@ -1677,6 +1796,64 @@ func AllChatAutomationRunOutcomeValues() []ChatAutomationRunOutcome {
 		ChatAutomationRunOutcomeAccepted,
 		ChatAutomationRunOutcomeSkipped,
 		ChatAutomationRunOutcomeRefused,
+	}
+}
+
+type ChatAutomationSubscriptionState string
+
+const (
+	ChatAutomationSubscriptionStateActive     ChatAutomationSubscriptionState = "active"
+	ChatAutomationSubscriptionStateTerminated ChatAutomationSubscriptionState = "terminated"
+)
+
+func (e *ChatAutomationSubscriptionState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationSubscriptionState(s)
+	case string:
+		*e = ChatAutomationSubscriptionState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationSubscriptionState: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationSubscriptionState struct {
+	ChatAutomationSubscriptionState ChatAutomationSubscriptionState `json:"chat_automation_subscription_state"`
+	Valid                           bool                            `json:"valid"` // Valid is true if ChatAutomationSubscriptionState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationSubscriptionState) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationSubscriptionState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationSubscriptionState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationSubscriptionState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationSubscriptionState), nil
+}
+
+func (e ChatAutomationSubscriptionState) Valid() bool {
+	switch e {
+	case ChatAutomationSubscriptionStateActive,
+		ChatAutomationSubscriptionStateTerminated:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationSubscriptionStateValues() []ChatAutomationSubscriptionState {
+	return []ChatAutomationSubscriptionState{
+		ChatAutomationSubscriptionStateActive,
+		ChatAutomationSubscriptionStateTerminated,
 	}
 }
 
@@ -5656,6 +5833,41 @@ type ChatAutomation struct {
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
 	// Skipped and refused runs since the last accepted run.
 	LastRunUnacceptedCount int32 `db:"last_run_unaccepted_count" json:"last_run_unaccepted_count"`
+}
+
+// Events and notices that every delivery mode appends, in arrival order, until a run sends them to the chat.
+type ChatAutomationEventInbox struct {
+	ID           int64                   `db:"id" json:"id"`
+	AutomationID uuid.UUID               `db:"automation_id" json:"automation_id"`
+	Kind         ChatAutomationInboxKind `db:"kind" json:"kind"`
+	EventID      sql.NullString          `db:"event_id" json:"event_id"`
+	EventName    sql.NullString          `db:"event_name" json:"event_name"`
+	OccurredAt   sql.NullTime            `db:"occurred_at" json:"occurred_at"`
+	Data         pqtype.NullRawMessage   `db:"data" json:"data"`
+	// The note of a gap row or the reason of a terminated row.
+	Detail      sql.NullString `db:"detail" json:"detail"`
+	ReceivedAt  time.Time      `db:"received_at" json:"received_at"`
+	DeliveredAt sql.NullTime   `db:"delivered_at" json:"delivered_at"`
+}
+
+// The MCP event that an mcp_event chat automation subscribes to.
+type ChatAutomationMCPSubscription struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	// NULL after the MCP server config is deleted; the poll loop then terminates the subscription.
+	MCPServerConfigID uuid.NullUUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	EventName         string                          `db:"event_name" json:"event_name"`
+	Arguments         json.RawMessage                 `db:"arguments" json:"arguments"`
+	Delivery          ChatAutomationEventDelivery     `db:"delivery" json:"delivery"`
+	State             ChatAutomationSubscriptionState `db:"state" json:"state"`
+	// Opaque server cursor. NULL polls from now, or the event type does not replay.
+	Cursor sql.NullString `db:"cursor" json:"cursor"`
+	// When the next poll is due. A claim moves it ahead as a lease.
+	NextPollAt sql.NullTime `db:"next_poll_at" json:"next_poll_at"`
+	// When pending inbox rows may next be sent to the chat. A claim moves it ahead as a lease.
+	DrainAfter time.Time      `db:"drain_after" json:"drain_after"`
+	LastError  sql.NullString `db:"last_error" json:"last_error"`
+	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.

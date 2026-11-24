@@ -351,6 +351,36 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ClaimChatAutomationInboxDrains mocks base method.
+func (m *MockStore) ClaimChatAutomationInboxDrains(ctx context.Context, arg database.ClaimChatAutomationInboxDrainsParams) ([]database.ChatAutomationMCPSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimChatAutomationInboxDrains", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatAutomationMCPSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimChatAutomationInboxDrains indicates an expected call of ClaimChatAutomationInboxDrains.
+func (mr *MockStoreMockRecorder) ClaimChatAutomationInboxDrains(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatAutomationInboxDrains", reflect.TypeOf((*MockStore)(nil).ClaimChatAutomationInboxDrains), ctx, arg)
+}
+
+// ClaimDueChatAutomationMCPPolls mocks base method.
+func (m *MockStore) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg database.ClaimDueChatAutomationMCPPollsParams) ([]database.ClaimDueChatAutomationMCPPollsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimDueChatAutomationMCPPolls", ctx, arg)
+	ret0, _ := ret[0].([]database.ClaimDueChatAutomationMCPPollsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimDueChatAutomationMCPPolls indicates an expected call of ClaimDueChatAutomationMCPPolls.
+func (mr *MockStoreMockRecorder) ClaimDueChatAutomationMCPPolls(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimDueChatAutomationMCPPolls", reflect.TypeOf((*MockStore)(nil).ClaimDueChatAutomationMCPPolls), ctx, arg)
+}
+
 // ClaimDueChatAutomationSchedules mocks base method.
 func (m *MockStore) ClaimDueChatAutomationSchedules(ctx context.Context, arg database.ClaimDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
 	m.ctrl.T.Helper()
@@ -1440,6 +1470,21 @@ func (m *MockStore) DeleteOldBoundarySessions(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) DeleteOldBoundarySessions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundarySessions", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundarySessions), ctx, arg)
+}
+
+// DeleteOldChatAutomationInboxRows mocks base method.
+func (m *MockStore) DeleteOldChatAutomationInboxRows(ctx context.Context, arg database.DeleteOldChatAutomationInboxRowsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldChatAutomationInboxRows", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldChatAutomationInboxRows indicates an expected call of DeleteOldChatAutomationInboxRows.
+func (mr *MockStoreMockRecorder) DeleteOldChatAutomationInboxRows(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatAutomationInboxRows", reflect.TypeOf((*MockStore)(nil).DeleteOldChatAutomationInboxRows), ctx, arg)
 }
 
 // DeleteOldChatDebugRuns mocks base method.
@@ -3036,6 +3081,21 @@ func (m *MockStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (da
 func (mr *MockStoreMockRecorder) GetChatAutomationByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationByID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationByID), ctx, id)
+}
+
+// GetChatAutomationMCPSubscriptionsByAutomationIDs mocks base method.
+func (m *MockStore) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]database.ChatAutomationMCPSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationMCPSubscriptionsByAutomationIDs", ctx, automationIds)
+	ret0, _ := ret[0].([]database.ChatAutomationMCPSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationMCPSubscriptionsByAutomationIDs indicates an expected call of GetChatAutomationMCPSubscriptionsByAutomationIDs.
+func (mr *MockStoreMockRecorder) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, automationIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationMCPSubscriptionsByAutomationIDs", reflect.TypeOf((*MockStore)(nil).GetChatAutomationMCPSubscriptionsByAutomationIDs), ctx, automationIds)
 }
 
 // GetChatAutomationsByOrganizationID mocks base method.
@@ -5676,6 +5736,21 @@ func (m *MockStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.U
 func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
+}
+
+// GetPendingChatAutomationInboxRows mocks base method.
+func (m *MockStore) GetPendingChatAutomationInboxRows(ctx context.Context, arg database.GetPendingChatAutomationInboxRowsParams) ([]database.ChatAutomationEventInbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingChatAutomationInboxRows", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatAutomationEventInbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPendingChatAutomationInboxRows indicates an expected call of GetPendingChatAutomationInboxRows.
+func (mr *MockStoreMockRecorder) GetPendingChatAutomationInboxRows(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingChatAutomationInboxRows", reflect.TypeOf((*MockStore)(nil).GetPendingChatAutomationInboxRows), ctx, arg)
 }
 
 // GetPrebuildMetrics mocks base method.
@@ -8661,6 +8736,50 @@ func (mr *MockStoreMockRecorder) InsertChatAutomation(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomation", reflect.TypeOf((*MockStore)(nil).InsertChatAutomation), ctx, arg)
 }
 
+// InsertChatAutomationInboxEvents mocks base method.
+func (m *MockStore) InsertChatAutomationInboxEvents(ctx context.Context, arg database.InsertChatAutomationInboxEventsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatAutomationInboxEvents", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatAutomationInboxEvents indicates an expected call of InsertChatAutomationInboxEvents.
+func (mr *MockStoreMockRecorder) InsertChatAutomationInboxEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomationInboxEvents", reflect.TypeOf((*MockStore)(nil).InsertChatAutomationInboxEvents), ctx, arg)
+}
+
+// InsertChatAutomationInboxNotice mocks base method.
+func (m *MockStore) InsertChatAutomationInboxNotice(ctx context.Context, arg database.InsertChatAutomationInboxNoticeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatAutomationInboxNotice", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatAutomationInboxNotice indicates an expected call of InsertChatAutomationInboxNotice.
+func (mr *MockStoreMockRecorder) InsertChatAutomationInboxNotice(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomationInboxNotice", reflect.TypeOf((*MockStore)(nil).InsertChatAutomationInboxNotice), ctx, arg)
+}
+
+// InsertChatAutomationMCPSubscription mocks base method.
+func (m *MockStore) InsertChatAutomationMCPSubscription(ctx context.Context, arg database.InsertChatAutomationMCPSubscriptionParams) (database.ChatAutomationMCPSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatAutomationMCPSubscription", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAutomationMCPSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatAutomationMCPSubscription indicates an expected call of InsertChatAutomationMCPSubscription.
+func (mr *MockStoreMockRecorder) InsertChatAutomationMCPSubscription(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomationMCPSubscription", reflect.TypeOf((*MockStore)(nil).InsertChatAutomationMCPSubscription), ctx, arg)
+}
+
 // InsertChatDebugRun mocks base method.
 func (m *MockStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()
@@ -10369,6 +10488,21 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatAutomationInboxDelivered mocks base method.
+func (m *MockStore) MarkChatAutomationInboxDelivered(ctx context.Context, arg database.MarkChatAutomationInboxDeliveredParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatAutomationInboxDelivered", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatAutomationInboxDelivered indicates an expected call of MarkChatAutomationInboxDelivered.
+func (mr *MockStoreMockRecorder) MarkChatAutomationInboxDelivered(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatAutomationInboxDelivered", reflect.TypeOf((*MockStore)(nil).MarkChatAutomationInboxDelivered), ctx, arg)
+}
+
 // MarkChatsContextDirtyByAgent mocks base method.
 func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	m.ctrl.T.Helper()
@@ -10620,6 +10754,20 @@ func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectUsageEventsForPublishing", reflect.TypeOf((*MockStore)(nil).SelectUsageEventsForPublishing), ctx, now)
 }
 
+// SetChatAutomationMCPDrainAfter mocks base method.
+func (m *MockStore) SetChatAutomationMCPDrainAfter(ctx context.Context, arg database.SetChatAutomationMCPDrainAfterParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChatAutomationMCPDrainAfter", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetChatAutomationMCPDrainAfter indicates an expected call of SetChatAutomationMCPDrainAfter.
+func (mr *MockStoreMockRecorder) SetChatAutomationMCPDrainAfter(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatAutomationMCPDrainAfter", reflect.TypeOf((*MockStore)(nil).SetChatAutomationMCPDrainAfter), ctx, arg)
+}
+
 // SetChatContextSnapshot mocks base method.
 func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
 	m.ctrl.T.Helper()
@@ -10718,6 +10866,21 @@ func (m *MockStore) SyncAgentChatsContextLiveResources(ctx context.Context, agen
 func (mr *MockStoreMockRecorder) SyncAgentChatsContextLiveResources(ctx, agentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextLiveResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextLiveResources), ctx, agentID)
+}
+
+// TerminateChatAutomationMCPSubscription mocks base method.
+func (m *MockStore) TerminateChatAutomationMCPSubscription(ctx context.Context, arg database.TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TerminateChatAutomationMCPSubscription", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TerminateChatAutomationMCPSubscription indicates an expected call of TerminateChatAutomationMCPSubscription.
+func (mr *MockStoreMockRecorder) TerminateChatAutomationMCPSubscription(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateChatAutomationMCPSubscription", reflect.TypeOf((*MockStore)(nil).TerminateChatAutomationMCPSubscription), ctx, arg)
 }
 
 // TryAcquireLock mocks base method.
@@ -10922,6 +11085,21 @@ func (m *MockStore) UpdateChatAutomationLastRun(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateChatAutomationLastRun(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationLastRun", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationLastRun), ctx, arg)
+}
+
+// UpdateChatAutomationMCPCursor mocks base method.
+func (m *MockStore) UpdateChatAutomationMCPCursor(ctx context.Context, arg database.UpdateChatAutomationMCPCursorParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAutomationMCPCursor", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAutomationMCPCursor indicates an expected call of UpdateChatAutomationMCPCursor.
+func (mr *MockStoreMockRecorder) UpdateChatAutomationMCPCursor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationMCPCursor", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationMCPCursor), ctx, arg)
 }
 
 // UpdateChatBuildAgentBinding mocks base method.

@@ -51,6 +51,10 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
+	// Delivered chat automation events are kept past the retry window of an
+	// event source, so a late retry of an event still deduplicates.
+	chatAutomationInboxRetention = 24 * time.Hour
+	chatAutomationInboxBatchSize = 10000
 	// Chat search tsvector backfill is capped at 5 batches of 10k
 	// rows per tick. Benchmarks on a dogfood-class machine (EPYC 9454P)
 	// with containerized Postgres were measured to take ~800ms per batch.
@@ -316,6 +320,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		})
 		if err != nil {
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
+		}
+
+		if _, err := tx.DeleteOldChatAutomationInboxRows(ctx, database.DeleteOldChatAutomationInboxRowsParams{
+			BeforeTime: start.Add(-chatAutomationInboxRetention),
+			LimitCount: chatAutomationInboxBatchSize,
+		}); err != nil {
+			return xerrors.Errorf("failed to delete old chat automation inbox rows: %w", err)
 		}
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64

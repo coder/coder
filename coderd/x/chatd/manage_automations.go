@@ -6,7 +6,9 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
 // manageAutomationsAvailable reports whether a root chat's turn offers the
@@ -24,7 +26,29 @@ func (p *Server) manageAutomationsTool(chat database.Chat) fantasy.AgentTool {
 		DB:     p.db,
 		Chat:   chat,
 		Audit:  toolAuditor[database.ChatAutomation](p, chat),
+		Events: chatEventSource{server: p, chat: chat},
 		Logger: p.logger,
 		Clock:  p.clock,
 	})
+}
+
+// chatEventSource gives the tool the MCP servers that its chat's turns use,
+// with the owner's credentials.
+type chatEventSource struct {
+	server *Server
+	chat   database.Chat
+}
+
+func (s chatEventSource) Servers(ctx context.Context) ([]database.MCPServerConfig, error) {
+	//nolint:gocritic // A turn reads the chat's MCP servers as chatd too.
+	return s.server.effectiveMCPServerConfigs(dbauthz.AsChatd(ctx), s.chat)
+}
+
+func (s chatEventSource) Open(ctx context.Context, cfg database.MCPServerConfig) (*mcpclient.EventsSession, error) {
+	//nolint:gocritic // Opening a session reads and refreshes the owner's token as chatd.
+	conn, err := s.server.openEvents(dbauthz.AsChatd(ctx), cfg, s.chat.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	return conn.session, nil
 }

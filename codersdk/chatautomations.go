@@ -12,7 +12,12 @@ import (
 // ChatAutomationKind is what starts a chat automation.
 type ChatAutomationKind string
 
-const ChatAutomationKindSchedule ChatAutomationKind = "schedule"
+const (
+	ChatAutomationKindSchedule ChatAutomationKind = "schedule"
+	// ChatAutomationKindMCPEvent runs when an MCP server reports an event
+	// that the automation subscribes to.
+	ChatAutomationKindMCPEvent ChatAutomationKind = "mcp_event"
+)
 
 // ChatAutomationTargetMode is where a chat automation sends its prompt.
 type ChatAutomationTargetMode string
@@ -54,15 +59,28 @@ type ChatAutomationChat struct {
 	Archived bool      `json:"archived"`
 }
 
-// ChatAutomation is a schedule that sends a saved prompt to a chat as its
-// owner.
+// ChatAutomationEvent is the MCP event that an mcp_event automation
+// subscribes to.
+type ChatAutomationEvent struct {
+	// MCPServerConfigID is null after the MCP server config is deleted.
+	MCPServerConfigID *uuid.UUID     `json:"mcp_server_config_id" format:"uuid"`
+	EventName         string         `json:"event_name"`
+	Arguments         map[string]any `json:"arguments"`
+	Delivery          string         `json:"delivery" enums:"poll"`
+	// State is terminated after the server ends the subscription. A
+	// terminated subscription receives no more events.
+	State string `json:"state" enums:"active,terminated"`
+}
+
+// ChatAutomation sends a saved prompt to a chat as its owner, on a schedule
+// or when an MCP event arrives.
 type ChatAutomation struct {
 	ID              uuid.UUID                `json:"id" format:"uuid"`
 	OrganizationID  uuid.UUID                `json:"organization_id" format:"uuid"`
 	OwnerID         uuid.UUID                `json:"owner_id" format:"uuid"`
 	Owner           MinimalUser              `json:"owner"`
 	Name            string                   `json:"name"`
-	Kind            ChatAutomationKind       `json:"kind" enums:"schedule"`
+	Kind            ChatAutomationKind       `json:"kind" enums:"schedule,mcp_event"`
 	Enabled         bool                     `json:"enabled"`
 	TargetMode      ChatAutomationTargetMode `json:"target_mode" enums:"existing_chat,new_chat"`
 	TargetChatID    *uuid.UUID               `json:"target_chat_id" format:"uuid"`
@@ -75,6 +93,8 @@ type ChatAutomation struct {
 	Prompt               string     `json:"prompt"`
 	ScheduleCron         *string    `json:"schedule_cron"`
 	ScheduleTimeZone     *string    `json:"schedule_time_zone"`
+	// Event is set for mcp_event automations.
+	Event *ChatAutomationEvent `json:"event"`
 	// ScheduleNextRunAt is the occurrence that the scheduler runs next.
 	ScheduleNextRunAt *time.Time `json:"schedule_next_run_at" format:"date-time"`
 	// NextRunTimes lists up to five upcoming runs of an enabled schedule.
