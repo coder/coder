@@ -12,6 +12,7 @@ import {
 	chatProject,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
+	chatProjectMemberCountsKey,
 	chatProjectSummariesKey,
 	chatProjectsKey,
 	createChatProject,
@@ -292,6 +293,7 @@ describe("setChatProjectRole", () => {
 	const refreshedKeys = [
 		chatProjectsKey,
 		chatProjectACLKey(MockChatProject.id),
+		chatProjectMemberCountsKey,
 	];
 	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),
