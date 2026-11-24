@@ -19,6 +19,7 @@ const meta = {
 		detailsError: null,
 		period: MockOrganizationAISpendOverview,
 		organizationName: "Coder",
+		onOpenDetailedReport: fn(),
 	},
 } satisfies Meta<typeof CostDetailsDialog>;
 
@@ -26,6 +27,11 @@ export default meta;
 type Story = StoryObj<typeof CostDetailsDialog>;
 
 export const Default: Story = {};
+
+/** Opened from a Detailed report row, so Run detailed report is hidden. */
+export const WithoutRunDetailedReport: Story = {
+	args: { onOpenDetailedReport: undefined },
+};
 
 /** The users response can miss a listed user when the spend changed between the requests. */
 export const CostDetailsUnavailable: Story = {

@@ -21942,13 +21942,14 @@ func TestExportOrganizationAISpend(t *testing.T) {
 	periodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := periodStart.AddDate(0, 1, 0)
 
-	seedUsage := func(userID, groupID uuid.UUID, providerName, model string, startedAt, createdAt time.Time, costMicros int64) {
+	seedUsage := func(userID, groupID uuid.UUID, providerName, model, client string, startedAt, createdAt time.Time, costMicros int64) {
 		t.Helper()
 		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:  userID,
 			Provider:     "anthropic",
 			ProviderName: providerName,
 			Model:        model,
+			Client:       sql.NullString{String: client, Valid: client != ""},
 			StartedAt:    startedAt,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -21959,17 +21960,17 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		})
 	}
 
-	// Given: three exportable rows across users, groups, and models.
+	// Given: three exportable rows across users, groups, models, and clients.
 	inPeriod := periodStart.Add(time.Hour)
-	seedUsage(userA.ID, groupA.ID, "provider-one", "model-one", periodStart.Add(-time.Hour), inPeriod, 100)
-	seedUsage(userA.ID, groupB.ID, "provider-two", "model-two", inPeriod, inPeriod, 200)
-	seedUsage(userB.ID, groupA.ID, "provider-one", "model-two", inPeriod, inPeriod, 300)
+	seedUsage(userA.ID, groupA.ID, "provider-one", "model-one", "", periodStart.Add(-time.Hour), inPeriod, 100)
+	seedUsage(userA.ID, groupB.ID, "provider-two", "model-two", "cursor", inPeriod, inPeriod, 200)
+	seedUsage(userB.ID, groupA.ID, "provider-one", "model-two", "", inPeriod, inPeriod, 300)
 
 	// Given: rows excluded because they have no effective group, belong to
 	// another organization, or have usage outside the requested time window.
-	seedUsage(userA.ID, uuid.Nil, "provider-one", "model-one", inPeriod, inPeriod, 400)
-	seedUsage(userA.ID, otherGroup.ID, "provider-one", "model-one", inPeriod, inPeriod, 500)
-	seedUsage(userB.ID, groupB.ID, "provider-two", "model-one", inPeriod, periodEnd, 600)
+	seedUsage(userA.ID, uuid.Nil, "provider-one", "model-one", "", inPeriod, inPeriod, 400)
+	seedUsage(userA.ID, otherGroup.ID, "provider-one", "model-one", "", inPeriod, inPeriod, 500)
+	seedUsage(userB.ID, groupB.ID, "provider-two", "model-one", "", inPeriod, periodEnd, 600)
 
 	base := database.ExportOrganizationAISpendParams{
 		OrganizationID: org.ID,
@@ -21984,11 +21985,12 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			groupID      uuid.UUID
 			providerName string
 			model        string
+			client       string
 			costMicros   int64
 		}
-		userAGroupA := spendRow{userA.ID, groupA.ID, "provider-one", "model-one", 100}
-		userAGroupB := spendRow{userA.ID, groupB.ID, "provider-two", "model-two", 200}
-		userBGroupA := spendRow{userB.ID, groupA.ID, "provider-one", "model-two", 300}
+		userAGroupA := spendRow{userA.ID, groupA.ID, "provider-one", "model-one", "Unknown", 100}
+		userAGroupB := spendRow{userA.ID, groupB.ID, "provider-two", "model-two", "cursor", 200}
+		userBGroupA := spendRow{userB.ID, groupA.ID, "provider-one", "model-two", "Unknown", 300}
 
 		tests := []struct {
 			name     string
@@ -22000,6 +22002,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			{name: "EffectiveGroup", filters: database.ExportOrganizationAISpendParams{GroupID: groupA.ID}, wantRows: []spendRow{userAGroupA, userBGroupA}},
 			{name: "ProviderName", filters: database.ExportOrganizationAISpendParams{ProviderName: "provider-one"}, wantRows: []spendRow{userAGroupA, userBGroupA}},
 			{name: "Model", filters: database.ExportOrganizationAISpendParams{Model: "model-two"}, wantRows: []spendRow{userAGroupB, userBGroupA}},
+			{name: "Client", filters: database.ExportOrganizationAISpendParams{Client: "cursor"}, wantRows: []spendRow{userAGroupB}},
+			{name: "UnknownClient", filters: database.ExportOrganizationAISpendParams{Client: "Unknown"}, wantRows: []spendRow{userAGroupA, userBGroupA}},
 			{
 				name: "Combined",
 				filters: database.ExportOrganizationAISpendParams{
@@ -22019,6 +22023,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				params.GroupID = tt.filters.GroupID
 				params.ProviderName = tt.filters.ProviderName
 				params.Model = tt.filters.Model
+				params.Client = tt.filters.Client
 
 				// When: exporting with the selected filters.
 				got, err := db.ExportOrganizationAISpend(ctx, params)
@@ -22027,7 +22032,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				// Then: the filter fields, costs, and full count match.
 				rows := make([]spendRow, 0, len(got))
 				for _, row := range got {
-					rows = append(rows, spendRow{row.UserID, row.GroupID.UUID, row.ProviderName, row.Model, row.CostMicros})
+					rows = append(rows, spendRow{row.UserID, row.GroupID.UUID, row.ProviderName, row.Model, row.Client, row.CostMicros})
 					require.Equal(t, int64(len(tt.wantRows)), row.Count)
 				}
 				require.ElementsMatch(t, tt.wantRows, rows)

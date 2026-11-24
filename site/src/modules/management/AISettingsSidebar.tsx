@@ -3,11 +3,11 @@ import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
+import { canViewAISpend } from "#/pages/AISettingsPage/AISpendPage/spendAccess";
 import { readableInstructionsOrganizations } from "#/pages/AISettingsPage/InstructionsPage/readableInstructionsOrganizations";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { readableSkillsOrganizations } from "#/pages/AISettingsPage/SkillsPage/readableSkillsOrganizations";
-import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 
 /**
  * A sidebar for AI settings.
