@@ -313,6 +313,9 @@ describe("CreateWorkspacePage", () => {
 			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitForLoaderToBeRemoved();
+			const scrollTo = vi
+				.spyOn(window, "scrollTo")
+				.mockImplementation(() => {});
 
 			// Close the web socket.
 			await act(async () => {
@@ -328,6 +331,7 @@ describe("CreateWorkspacePage", () => {
 					}),
 				).toBeInTheDocument();
 			});
+			expect(scrollTo).toHaveBeenCalledWith(0, 0);
 		});
 
 		it("displays no parameters if none from init message", async () => {

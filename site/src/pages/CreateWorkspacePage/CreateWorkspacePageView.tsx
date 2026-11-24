@@ -198,13 +198,6 @@ export const CreateWorkspacePageView: React.FC<
 	const { setFieldValue } = form;
 
 	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Errors arrive from the websocket, the create request and the auto-create checks, so the page scrolls up when one appears.
-		if (error) {
-			window.scrollTo(0, 0);
-		}
-	}, [error]);
-
-	useEffect(() => {
 		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",

@@ -247,6 +247,7 @@ const CreateWorkspacePage: React.FC = () => {
 					if (ws.current === socket) {
 						setIsConnecting(false);
 						setWsError(error);
+						window.scrollTo(0, 0);
 					}
 				},
 				onClose: () => {
@@ -258,6 +259,7 @@ const CreateWorkspacePage: React.FC = () => {
 								"Refresh the page to reset the form.",
 							),
 						);
+						window.scrollTo(0, 0);
 					}
 				},
 			},
@@ -321,6 +323,7 @@ const CreateWorkspacePage: React.FC = () => {
 			onCreateWorkspace(newWorkspace);
 		} catch {
 			setMode("form");
+			window.scrollTo(0, 0);
 		}
 	});
 
@@ -495,11 +498,15 @@ const CreateWorkspacePage: React.FC = () => {
 								};
 							}
 
-							const workspace = await createWorkspaceMutation.mutateAsync({
-								...workspaceRequest,
-								userId: owner.id,
-							});
-							onCreateWorkspace(workspace);
+							try {
+								const workspace = await createWorkspaceMutation.mutateAsync({
+									...workspaceRequest,
+									userId: owner.id,
+								});
+								onCreateWorkspace(workspace);
+							} catch {
+								window.scrollTo(0, 0);
+							}
 						}}
 					/>
 				</RequirePermission>
