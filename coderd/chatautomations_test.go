@@ -139,6 +139,7 @@ func TestChatAutomations(t *testing.T) {
 		// Turning it on again schedules the next occurrence, not a missed one.
 		got, err = asMember.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
 		require.NoError(t, err)
+		require.NotNil(t, got.ScheduleNextRunAt)
 		require.WithinDuration(t, got.NextRunTimes[0], *got.ScheduleNextRunAt, 0)
 	})
 
