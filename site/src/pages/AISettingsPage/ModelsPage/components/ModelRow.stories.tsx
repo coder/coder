@@ -60,6 +60,13 @@ export const UnmappedProviderType: Story = {
 	},
 };
 
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerLabel: "DeepSeek",
+		providerIcon: "/icon/widgets.svg",
+	},
+};
+
 // A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
 // notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {

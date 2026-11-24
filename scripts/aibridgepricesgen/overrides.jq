@@ -15,6 +15,18 @@ else
   error("overrides.jq: claude-sonnet-4-5 gone from upstream; drop or update its context pin")
 end
 
+# gemini-4-argon: models.dev lists 32,768 output tokens, but Google documents
+# 65,536 as the default synchronous limit. The limit includes thinking tokens,
+# so the lower value cuts long coding turns short.
+# Ref: https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
+| if (.google.models | has("gemini-4-argon") | not) then
+    error("overrides.jq: google/gemini-4-argon gone from upstream; drop its output pin")
+  elif .google.models."gemini-4-argon".limit.output != 32768 then
+    error("overrides.jq: google/gemini-4-argon output limit changed upstream; review or drop its output pin")
+  else
+    .google.models."gemini-4-argon".limit.output = 65536
+  end
+
 # claude-mythos-5: not listed on models.dev. Anthropic documents it as sharing
 # claude-fable-5's specs and pricing, so inject it as a copy with its own
 # id and display name.

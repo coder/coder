@@ -54,6 +54,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -113,16 +114,17 @@ Status Code **200**
 | `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                               |
 | `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                               |
 | `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                               |
-| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.       |
+| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.      |
 | `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                               |
 | `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                               |
 | `» allow_workspace_renames`          | boolean                                                                                  | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name. |
 | `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                               |
 | `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                       |
-| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.    |
+| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.   |
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
+|`» browser_only`|boolean|false||Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one.|
 |`» build_time_stats`|[codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats)|false|||
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
@@ -138,7 +140,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» description`|string|false|||
 |`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
-|`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
+|`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
 |`» max_port_share_level`|[codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel)|false|||
@@ -201,6 +203,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
@@ -251,6 +254,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -407,6 +411,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -572,6 +577,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
+Returns the template version that precedes the named version.
+
 ### Parameters
 
 | Name                  | In   | Type         | Required | Description           |
@@ -656,10 +663,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema                                                         |
-|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
+| Status | Meaning                                                         | Description                                  | Schema                                                         |
+|--------|-----------------------------------------------------------------|----------------------------------------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK                                           | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | The template version has no previous version |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -833,6 +840,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -892,16 +900,17 @@ Status Code **200**
 | `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                               |
 | `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                               |
 | `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                               |
-| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.       |
+| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.      |
 | `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                               |
 | `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                               |
 | `» allow_workspace_renames`          | boolean                                                                                  | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name. |
 | `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                               |
 | `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                       |
-| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.    |
+| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.   |
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
+|`» browser_only`|boolean|false||Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one.|
 |`» build_time_stats`|[codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats)|false|||
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
@@ -917,7 +926,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» description`|string|false|||
 |`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
-|`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
+|`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
 |`» max_port_share_level`|[codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel)|false|||
@@ -1045,6 +1054,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -1173,6 +1183,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "deprecation_message": "string",
@@ -1226,6 +1237,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -1487,12 +1499,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                         |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown`   |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1770,12 +1782,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                         |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown`   |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2653,7 +2665,7 @@ Status Code **200**
 | `»» directory`                       | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» disconnected_at`                 | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» display_apps`                    | array                                                                                                              | false    |              |                                                                                                                                                                                                                                                                        |
-| `»» environment_variables`           | object                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» environment_variables`           | object                                                                                                             | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | `»»» [any property]`                 | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» expanded_directory`              | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» first_connected_at`              | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
@@ -2733,17 +2745,17 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                     |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                           |
-| `open_in`                 | `slim-window`, `tab`                                                                                                         |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `requirement`             | `completion`, `success`                                                                                                      |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
+| Property                  | Value(s)                                                                                                                          |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                |
+| `open_in`                 | `slim-window`, `tab`                                                                                                              |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                          |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`      |
+| `requirement`             | `completion`, `success`                                                                                                           |
+| `status`                  | `canceled`, `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                        |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3360,7 +3372,7 @@ Status Code **200**
 | `»» directory`                       | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» disconnected_at`                 | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» display_apps`                    | array                                                                                                              | false    |              |                                                                                                                                                                                                                                                                        |
-| `»» environment_variables`           | object                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» environment_variables`           | object                                                                                                             | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | `»»» [any property]`                 | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» expanded_directory`              | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» first_connected_at`              | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
@@ -3440,17 +3452,17 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                     |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                           |
-| `open_in`                 | `slim-window`, `tab`                                                                                                         |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `requirement`             | `completion`, `success`                                                                                                      |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
+| Property                  | Value(s)                                                                                                                          |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                |
+| `open_in`                 | `slim-window`, `tab`                                                                                                              |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                          |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`      |
+| `requirement`             | `completion`, `success`                                                                                                           |
+| `status`                  | `canceled`, `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                        |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

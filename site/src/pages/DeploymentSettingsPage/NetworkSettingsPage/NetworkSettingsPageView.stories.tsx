@@ -13,6 +13,8 @@ const meta: Meta<typeof NetworkSettingsPageView> = {
 	title: "pages/DeploymentSettingsPage/NetworkSettingsPageView",
 	component: NetworkSettingsPageView,
 	args: {
+		hasLicense: true,
+		canViewPremium: true,
 		options: [
 			{
 				name: "DERP Server Enable",
@@ -54,12 +56,22 @@ const meta: Meta<typeof NetworkSettingsPageView> = {
 				hidden: false,
 			},
 			{
+				name: "DERP Server Relay URL",
+				description:
+					"An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+				value: "",
+				group,
+				flag: "derp-server-relay-url",
+				hidden: false,
+				annotations: { enterprise: "true" },
+			},
+			{
 				name: "Wildcard Access URL",
 				description: "",
 				value: "https://coder.com",
 				group,
-				flag: "derp",
-				flag_shorthand: "d",
+				flag: "wildcard-access-url",
+				flag_shorthand: "",
 				hidden: false,
 			},
 		],
@@ -82,5 +94,11 @@ export const Page: Story = {
 			"href",
 			docs("/admin/networking/port-forwarding"),
 		);
+	},
+};
+
+export const Unlicensed: Story = {
+	args: {
+		hasLicense: false,
 	},
 };

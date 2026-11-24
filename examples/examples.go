@@ -39,6 +39,7 @@ var (
 	//go:embed templates/incus
 	//go:embed templates/kubernetes
 	//go:embed templates/kubernetes-devcontainer
+	//go:embed templates/kubernetes-podman-rootless
 	//go:embed templates/nomad-docker
 	//go:embed templates/quickstart
 	//go:embed templates/scratch

@@ -38,10 +38,22 @@ var (
 	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
 )
 
+// LockIDFirstUserSetup serializes creation of the first user. It is
+// derived from a string because the sequential list above has a
+// different length on each release branch, and this lock must have the
+// same value on all of them.
+var LockIDFirstUserSetup = GenLockID("first_user_setup")
+
 // LockIDChatOrganizationSystemPrompt returns the advisory lock ID that
 // serializes writes to one organization's chat system prompt.
 func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
 	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
+}
+
+// LockIDChatDebugRunSteps returns the advisory lock ID that serializes
+// step numbering within one chat debug run.
+func LockIDChatDebugRunSteps(runID uuid.UUID) int64 {
+	return GenLockID("chat_debug_run_steps:" + runID.String())
 }
 
 // GenLockID generates a unique and consistent lock ID from a given string.

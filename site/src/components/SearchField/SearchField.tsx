@@ -21,8 +21,10 @@ export type SearchFieldProps = {
 	autoFocus?: boolean;
 	onBlur?: () => void;
 	ref?: React.Ref<HTMLInputElement>;
+	id?: string;
 	"aria-label"?: string;
 	"aria-invalid"?: boolean;
+	"aria-describedby"?: string;
 };
 
 export const SearchField: React.FC<SearchFieldProps> = ({
@@ -34,7 +36,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 	autoFocus = false,
 	onBlur,
 	ref,
-	...ariaProps
+	...inputProps
 }) => {
 	const internalRef = useRef<HTMLInputElement | null>(null);
 	const focusOnMount = useEffectEvent((): void => {
@@ -75,7 +77,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 				onChange={(e) => onChange(e.target.value)}
 				onBlur={onBlur}
 				placeholder={placeholder}
-				{...ariaProps}
+				{...inputProps}
 			/>
 			{value !== "" && (
 				<InputGroupAddon align="inline-end">

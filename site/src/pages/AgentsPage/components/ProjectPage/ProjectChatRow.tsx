@@ -15,6 +15,7 @@ import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { toast } from "#/components/Toaster/toast";
 import { formatCostMicros } from "#/utils/currency";
@@ -25,9 +26,10 @@ import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
+import { ChatCostTooltip } from "../ChatCostTooltip";
 import { ChatPRStateIcon } from "../ChatDiffStats";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
@@ -58,9 +60,18 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:border-surface-tertiary group-hover:bg-surface-tertiary group-has-[[data-state=open]]:border-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary"
+			svgSize={null}
+			className="shrink-0 tabular-nums [&_svg]:p-0 group-hover:bg-surface-tertiary group-has-data-[state=open]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
 		>
-			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
+			<span>
+				{/* Trims to cap height so the figure centers on the glyphs. */}
+				<span className="[text-box:trim-both_cap_alphabetic]">
+					{formatCostMicros(costQuery.data.total_cost_micros)}
+				</span>
+				<ChatCostTooltip
+					unpricedRequestCount={costQuery.data.unpriced_request_count}
+				/>
+			</span>
 		</Badge>
 	);
 };
@@ -126,15 +137,37 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		},
 	});
 
-	return (
-		<li className="group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary">
+	const sharedMenuItemProps = {
+		chat,
+		canManage,
+		hasWorkspace: Boolean(workspaceId),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
+		onArchived: actions?.navigateAfterArchive,
+		onOpenRenameDialog: actions?.onOpenRenameDialog
+			? () => actions.onOpenRenameDialog?.(chat)
+			: undefined,
+	};
+
+	const row = (
+		<li
+			className={cn(
+				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-data-[state=open]:bg-surface-secondary",
+				// A long press opens the context menu on touch screens, so it must
+				// not also select text.
+				actions && "select-none data-[state=open]:bg-surface-secondary",
+			)}
+		>
 			<Link
 				// Keeps the sidebar filters, which live in the query string.
 				to={{
 					pathname: buildAgentChatPath({ chatId: chat.id }),
 					search: normalizeLocationSearch(location.search),
 				}}
-				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-primary no-underline"
+				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-secondary no-underline"
 			>
 				<StatusIcon
 					role="img"
@@ -142,11 +175,12 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					className={cn("size-3.5 shrink-0", statusClassName)}
 				/>
 				<span className="min-w-0 max-w-104 flex-1 truncate">{chat.title}</span>
-				<span className="ml-auto flex shrink-0 items-center gap-3">
-					{showCost && <ProjectChatCost chat={chat} />}
-					<ChatPRStateIcon chat={chat} />
-				</span>
 			</Link>
+			{/* Outside the link because the cost tooltip trigger is a button. */}
+			<span className="flex shrink-0 items-center gap-3">
+				<ChatPRStateIcon chat={chat} />
+				{showCost && <ProjectChatCost chat={chat} />}
+			</span>
 			<div className="grid size-7 shrink-0 place-items-center *:[grid-area:1/1]">
 				<Avatar
 					role="img"
@@ -156,33 +190,17 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					fallback={ownerName}
 					className={cn(
 						actions &&
-							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible [@media(hover:none)]:invisible",
+							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
 				{actions && (
-					<ChatActionsMenu
-						chat={chat}
-						canManage={canManage}
-						hasWorkspace={Boolean(workspaceId)}
-						isArchiveBlocked={
-							!chatFamilyAllowsArchive(chat.status, chat.children)
-						}
-						onPinAgent={() => pinMutation.mutate(chat.id)}
-						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
-						onArchiveAgent={() => archiveMutation.mutate(chat.id)}
-						onUnarchiveAgent={() => unarchiveMutation.mutate(chat.id)}
-						onArchived={actions.navigateAfterArchive}
-						onOpenRenameDialog={
-							actions.onOpenRenameDialog
-								? () => actions.onOpenRenameDialog?.(chat)
-								: undefined
-						}
-					>
+					<ChatActionsMenu {...sharedMenuItemProps}>
 						<Button
 							variant="subtle"
 							size="icon"
-							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
 							aria-label={`Open chat actions for ${chat.title}`}
+							{...preventRowContextMenuProps}
 						>
 							<EllipsisVerticalIcon />
 						</Button>
@@ -190,5 +208,14 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 				)}
 			</div>
 		</li>
+	);
+
+	if (!actions) {
+		return row;
+	}
+	return (
+		<ChatActionsMenu {...sharedMenuItemProps} variant="context">
+			{row}
+		</ChatActionsMenu>
 	);
 };

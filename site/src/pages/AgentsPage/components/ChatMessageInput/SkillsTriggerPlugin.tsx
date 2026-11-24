@@ -19,6 +19,8 @@ export type ActiveSkillsTrigger = {
 	nodeKey: NodeKey;
 	slashOffset: number;
 	query: string;
+	/** The trigger node's full text when the trigger was read. */
+	nodeText: string;
 };
 
 type DismissedSkillsTrigger = Pick<
@@ -62,7 +64,8 @@ const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 		return null;
 	}
 
-	const textBeforeCaret = node.getTextContent().slice(0, anchor.offset);
+	const nodeText = node.getTextContent();
+	const textBeforeCaret = nodeText.slice(0, anchor.offset);
 	const lineStart = textBeforeCaret.lastIndexOf("\n") + 1;
 	const trigger = parseSkillTrigger(textBeforeCaret.slice(lineStart));
 	if (!trigger) {
@@ -73,6 +76,7 @@ const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 		nodeKey: node.getKey(),
 		slashOffset: lineStart + trigger.slashOffset,
 		query: trigger.query,
+		nodeText,
 	};
 };
 

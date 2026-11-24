@@ -59,6 +59,11 @@ type CreateWorkspacePageViewProps = {
 	externalAuthPollingState: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
 	hasIgnoredUrlParams?: boolean;
+	/**
+	 * True while the latest dynamic parameters request has not been answered,
+	 * so the form values may not reflect the latest evaluation yet.
+	 */
+	isEvaluatingParameters: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
@@ -95,6 +100,7 @@ export const CreateWorkspacePageView: React.FC<
 	externalAuthPollingState,
 	hasAllRequiredExternalAuth,
 	hasIgnoredUrlParams,
+	isEvaluatingParameters,
 	mode,
 	parameters,
 	permissions,
@@ -124,22 +130,43 @@ export const CreateWorkspacePageView: React.FC<
 		autofillParameters.map((param) => [param.name, param]),
 	);
 
-	// Only touched fields are sent to the websocket
-	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = Object.fromEntries(
-		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
+	// Names of the parameters whose values were set by the user, autofill or a
+	// preset. Only these are sent to the websocket, and the sync from websocket
+	// responses leaves them alone. Formik's `touched` can't be used for this:
+	// it treats dots and brackets in names as paths, and it is replaced on every
+	// submit attempt.
+	const editedParameterNames = useRef(
+		new Set(
+			parameters.filter((p) => autofillByName[p.name]).map((p) => p.name),
+		),
 	);
+	const isParameterEdited = useCallback(
+		(name: string) => editedParameterNames.current.has(name),
+		[],
+	);
+	const markParameterEdited = useCallback((name: string) => {
+		editedParameterNames.current.add(name);
+	}, []);
+
+	const initialTouched: Record<string, boolean> = {};
 	if (defaultName) {
 		initialTouched.name = true;
 	}
 
+	// True from the moment a parameter changes until its debounced request is
+	// sent. Together with isEvaluatingParameters, this keeps the form from being
+	// submitted before the latest values have been evaluated.
+	const [hasPendingParameterInput, setHasPendingParameterInput] =
+		useState(false);
+	const isParameterUpdatePending =
+		hasPendingParameterInput || isEvaluatingParameters;
+
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
-	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
+	// 2. Only edited parameters are sent to the websocket, a parameter is edited if changed by the user or set by autofill or a preset
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
 	// 4. All existing form parameters are updated to match the websocket response
-	//    in the useSyncFormParameters hook, unless they have been touched by the
-	//    user or auto-filled.
+	//    in the useSyncFormParameters hook, unless they have been edited.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -152,7 +179,7 @@ export const CreateWorkspacePageView: React.FC<
 			},
 			initialTouched,
 			validationSchema: Yup.object({
-				name: nameValidator("Workspace Name"),
+				name: nameValidator("Workspace name"),
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
@@ -160,15 +187,15 @@ export const CreateWorkspacePageView: React.FC<
 			validateOnChange: true,
 			validateOnBlur: true,
 			onSubmit: (request) => {
-				if (!hasAllRequiredExternalAuth) {
+				if (!hasAllRequiredExternalAuth || isParameterUpdatePending) {
 					return;
 				}
 
 				onSubmit(request, owner);
 			},
 		});
-	// Formik keeps these stable across renders, unlike `form` itself.
-	const { setFieldValue, setFieldTouched } = form;
+	// Formik keeps this stable across renders, unlike `form` itself.
+	const { setFieldValue } = form;
 
 	useEffect(() => {
 		if (error) {
@@ -226,12 +253,13 @@ export const CreateWorkspacePageView: React.FC<
 		[],
 	);
 
-	// include any modified parameters and all touched parameters to the websocket request
-	const { debounced: sendDynamicParamsRequest } = useDebouncedFunction(
+	// include any modified parameters and all edited parameters to the websocket request
+	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(
 		(
 			parameters: Array<{ parameter: PreviewParameter; value: string }>,
 			ownerId?: string,
 		) => {
+			setHasPendingParameterInput(false);
 			const formInputs: Record<string, string> = {};
 			const formParameters = form.values.rich_parameter_values ?? [];
 
@@ -239,15 +267,15 @@ export const CreateWorkspacePageView: React.FC<
 				formInputs[parameter.name] = value;
 			}
 
-			for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-				if (
-					isTouched &&
-					!parameters.some((p) => p.parameter.name === fieldName)
-				) {
-					const param = formParameters.find((p) => p.name === fieldName);
-					if (param?.value) {
-						formInputs[fieldName] = param.value;
-					}
+			for (const name of editedParameterNames.current) {
+				if (parameters.some((p) => p.parameter.name === name)) {
+					continue;
+				}
+				const param = formParameters.find((p) => p.name === name);
+				// Empty values are sent too, so that a cleared field is evaluated
+				// as empty instead of falling back to its default.
+				if (param !== undefined) {
+					formInputs[name] = param.value;
 				}
 			}
 
@@ -266,6 +294,16 @@ export const CreateWorkspacePageView: React.FC<
 				? 500
 				: 0;
 		},
+	);
+	const sendDynamicParamsRequest = useCallback(
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			ownerId?: string,
+		) => {
+			setHasPendingParameterInput(true);
+			debouncedSendDynamicParamsRequest(parameters, ownerId);
+		},
+		[debouncedSendDynamicParamsRequest],
 	);
 
 	useEffect(() => {
@@ -322,7 +360,7 @@ export const CreateWorkspacePageView: React.FC<
 		if (updates.length > 0) {
 			for (const update of updates) {
 				setFieldValue(update.field, update.fieldValue);
-				setFieldTouched(update.parameter.name, true);
+				markParameterEdited(update.parameter.name);
 			}
 
 			sendDynamicParamsRequest(
@@ -337,7 +375,7 @@ export const CreateWorkspacePageView: React.FC<
 		selectedPresetIndex,
 		presets,
 		setFieldValue,
-		setFieldTouched,
+		markParameterEdited,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,
@@ -356,6 +394,13 @@ export const CreateWorkspacePageView: React.FC<
 		const currentFormValue = form.values.rich_parameter_values?.find(
 			(p) => p.name === parameter.name,
 		)?.value;
+		const isChanged = currentFormValue !== value;
+
+		// Mark the parameter as edited before updating its value. Otherwise a
+		// response arriving in between is synced over the user's new value.
+		if (isChanged) {
+			markParameterEdited(parameter.name);
+		}
 
 		await form.setFieldValue(parameterField, {
 			name: parameter.name,
@@ -363,8 +408,7 @@ export const CreateWorkspacePageView: React.FC<
 		});
 
 		// Only send the request if the value has changed from the form value
-		if (currentFormValue !== value) {
-			form.setFieldTouched(parameter.name, true);
+		if (isChanged) {
 			sendDynamicParamsRequest([{ parameter, value }]);
 		}
 	};
@@ -372,12 +416,13 @@ export const CreateWorkspacePageView: React.FC<
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
-		touched: form.touched,
+		isParameterEdited,
 		setFieldValue: form.setFieldValue,
 	});
 
 	const disabled =
 		creatingWorkspace ||
+		isParameterUpdatePending ||
 		!hasAllRequiredExternalAuth ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
@@ -431,7 +476,7 @@ export const CreateWorkspacePageView: React.FC<
 							</Button>
 						)}
 					</div>
-					<span className="flex flex-row items-center gap-2">
+					<span className="flex items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
 						<InfoTooltip>
@@ -442,9 +487,9 @@ export const CreateWorkspacePageView: React.FC<
 								<br />
 								<Link
 									size="sm"
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>
@@ -456,7 +501,7 @@ export const CreateWorkspacePageView: React.FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
@@ -484,13 +529,12 @@ export const CreateWorkspacePageView: React.FC<
 								to dynamic parameters.{" "}
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
+										"/templates/extending-templates/parameters/compatibility-mode",
 									)}
 									target="_blank"
 									rel="noreferrer"
 								>
 									View docs
-									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							</AlertDescription>
 						</Alert>
@@ -600,7 +644,7 @@ export const CreateWorkspacePageView: React.FC<
 						<section>
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">
-									External Authentication
+									External authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.
@@ -649,9 +693,9 @@ export const CreateWorkspacePageView: React.FC<
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
 									<Link
-										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
-										)}
+										href={docs("/templates/extending-templates/parameters")}
+										target="_blank"
+										rel="noreferrer"
 									>
 										View docs
 									</Link>
@@ -794,9 +838,11 @@ export const CreateWorkspacePageView: React.FC<
 						</section>
 					)}
 
-					<div className="flex flex-row justify-end">
+					<div className="flex justify-end">
 						<Button type="submit" disabled={disabled}>
-							<Spinner loading={creatingWorkspace} />
+							<Spinner
+								loading={creatingWorkspace || isParameterUpdatePending}
+							/>
 							Create workspace
 						</Button>
 					</div>

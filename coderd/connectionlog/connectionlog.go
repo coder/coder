@@ -126,6 +126,14 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected ConnectionStatus %s, got %s", idx+1, expected.ConnectionStatus, cl.ConnectionStatus)
 			continue
 		}
+		if expected.RxBytes.Valid && expected.RxBytes.Int64 != cl.RxBytes.Int64 {
+			t.Logf("connection log %d: expected RxBytes %d, got %d", idx+1, expected.RxBytes.Int64, cl.RxBytes.Int64)
+			continue
+		}
+		if expected.TxBytes.Valid && expected.TxBytes.Int64 != cl.TxBytes.Int64 {
+			t.Logf("connection log %d: expected TxBytes %d, got %d", idx+1, expected.TxBytes.Int64, cl.TxBytes.Int64)
+			continue
+		}
 		return true
 	}
 

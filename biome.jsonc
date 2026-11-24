@@ -20,7 +20,8 @@
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
 				"useSemanticElements": "off",
-				"noStaticElementInteractions": "off"
+				"noStaticElementInteractions": "off",
+				"noNoninteractiveTabindex": "off" // oxlint owns no-noninteractive-tabindex
 			},
 			"correctness": {
 				"noInvalidBuiltinInstantiation": "off", // oxlint owns new-for-builtins

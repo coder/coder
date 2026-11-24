@@ -27,8 +27,11 @@ const (
 	// ReadFileDescription describes the read file tool.
 	ReadFileDescription = "Read a file from the workspace. Returns line-numbered content. " +
 		"The offset parameter is a 1-based line number (default: 1). " +
-		"The limit parameter is the number of lines to return (default: 2000). " +
-		"For large files, use offset and limit to paginate."
+		"The limit parameter is the maximum number of lines to return (default and maximum: 2000). " +
+		"One response holds at most 32 KB of content, so it can stop before the limit. " +
+		"If a response stops before the end of the file, its note gives the offset to read next. " +
+		"To find specific content in a large file, search with grep first. " +
+		"Files larger than 1 MB cannot be read with this tool."
 	// EditFilesDescription describes the edit files tool.
 	EditFilesDescription = "Perform edits on one or more files by replacing old_text with" +
 		" new_text. Each entry in files must include the absolute path" +

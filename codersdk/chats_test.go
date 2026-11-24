@@ -3,19 +3,23 @@ package codersdk_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUploadChatWorkspaceFileContentType(t *testing.T) {
@@ -58,6 +62,103 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+type closeCountingBody struct {
+	io.Reader
+	closes *atomic.Int32
+}
+
+func (b closeCountingBody) Close() error {
+	b.closes.Add(1)
+	return nil
+}
+
+func TestChatClientRequests(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, transport testutil.RoundTripperFunc) *codersdk.Client {
+		t.Helper()
+		serverURL, err := url.Parse("https://coder.example.com")
+		require.NoError(t, err)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: transport}))
+	}
+
+	t.Run("TransportError", func(t *testing.T) {
+		t.Parallel()
+
+		errTransport := xerrors.New("transport failed")
+		client := newClient(t, func(*http.Request) (*http.Response, error) {
+			return nil, errTransport
+		})
+		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+		err = client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(t, func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Request:    req,
+			}, nil
+		})
+		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.Error(t, err)
+	})
+
+	// ReadBodyAsError closes the body itself, and io.Closer leaves a
+	// second Close undefined.
+	t.Run("ClosesResponseBodyOnce", func(t *testing.T) {
+		t.Parallel()
+
+		getModel := func(ctx context.Context, client *codersdk.Client) error {
+			_, err := client.ChatModel(ctx, uuid.New(), uuid.New())
+			return err
+		}
+		deleteModel := func(ctx context.Context, client *codersdk.Client) error {
+			return client.DeleteChatModel(ctx, uuid.New(), uuid.New())
+		}
+		for _, tc := range []struct {
+			name    string
+			call    func(context.Context, *codersdk.Client) error
+			status  int
+			body    string
+			wantErr bool
+		}{
+			{name: "JSON", call: getModel, status: http.StatusOK, body: `{}`},
+			{name: "JSONUnexpectedStatus", call: getModel, status: http.StatusInternalServerError, body: `{"message":"failed"}`, wantErr: true},
+			{name: "JSONInvalidBody", call: getModel, status: http.StatusOK, body: `{"id":`, wantErr: true},
+			{name: "NoContent", call: deleteModel, status: http.StatusNoContent},
+			{name: "NoContentUnexpectedStatus", call: deleteModel, status: http.StatusInternalServerError, body: `{"message":"failed"}`, wantErr: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var closes atomic.Int32
+				client := newClient(t, func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: tc.status,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       closeCountingBody{Reader: strings.NewReader(tc.body), closes: &closes},
+						Request:    req,
+					}, nil
+				})
+				err := tc.call(t.Context(), client)
+				if tc.wantErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				require.EqualValues(t, 1, closes.Load())
+			})
+		}
+	})
 }
 
 func TestChatMessageWorkspaceFileReference_JSONRoundTrip(t *testing.T) {
@@ -272,6 +373,20 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.True(t, part.ContextFileAgentID.Valid)
 	})
 
+	t.Run("StripsInvokedSkillFields", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "deploy")
+		part.SkillBody = "Run scripts/deploy.sh."
+		part.SkillDir = "/home/coder/.agents/skills/deploy"
+		part.SkillWorkspaceID = uuid.New()
+		part.StripInternal()
+		assert.Empty(t, part.SkillBody)
+		assert.Empty(t, part.SkillDir)
+		assert.Equal(t, uuid.Nil, part.SkillWorkspaceID)
+		assert.Equal(t, codersdk.ChatSkillSourceWorkspace, part.SkillSource)
+		assert.Equal(t, "deploy", part.SkillName)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -319,7 +434,9 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
+		"skill_workspace_id":           "internal only, gates skill_dir in the prompt (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+		"skill_body":                   "internal only, stripped before API responses (typescript:\"-\")",
 	}
 	// Part types intentionally excluded from all generated variants.
 	// If you add a new part type, either reference it in a variants

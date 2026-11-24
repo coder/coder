@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import type { useFilter } from "#/components/Filter/Filter";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
+import { MembersFilter } from "#/components/Filter/MembersFilter";
 import { MultiUserSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
@@ -59,16 +59,19 @@ export const OrganizationMembersPageView: React.FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				<UsersFilter {...filterProps} />
+				<MembersFilter {...filterProps} error={error} />
 				{!canViewMembers && (
-					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
+					<div className="flex text-content-warning gap-2 items-center text-sm">
 						<TriangleAlertIcon className="size-icon-sm" />
 						<p>
 							You do not have permission to view members other than yourself.
 						</p>
 					</div>
 				)}
-				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+				<PaginationContainer
+					query={membersQuery}
+					paginationUnitLabel={{ singular: "member", plural: "members" }}
+				>
 					<OrganizationMembersTable {...props} />
 				</PaginationContainer>
 			</div>
@@ -107,7 +110,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 			>
 				<DialogContent
 					data-testid="dialog"
-					className="max-w-md gap-4 border-border bg-surface-primary p-8 text-content-primary"
+					className="max-w-md gap-4 bg-surface-primary p-8 text-content-primary"
 				>
 					<DialogTitle className="font-semibold text-content-primary">
 						Add user(s)

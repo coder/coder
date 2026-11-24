@@ -18,9 +18,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -36,7 +38,7 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsByOwnerID(ctx, apiKey.UserID)
+	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -44,7 +46,15 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
+	converted, err := api.convertChatProjects(r, projects)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat projects.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, converted)
 }
 
 // @Summary Create chat project
@@ -83,7 +93,23 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	req.TemplateIDs = slice.Unique(req.TemplateIDs)
+	templates, err := api.attachableChatProjectTemplates(ctx, organization.ID, req.TemplateIDs)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to validate chat project templates.")
+		return
+	}
+	defaultTemplate, err := validateChatProjectDefaultTemplate(ctx, api.Database, templates, req.DefaultTemplate)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to validate the default template.")
+		return
+	}
 
+	// The project's own audit diff does not hold its templates, so the ones
+	// attached here are audited like later attachments. Deferred first, so
+	// it is recorded after the project's creation.
+	templatesAudit, commitTemplatesAudit := api.initChatProjectTemplatesAudit(rw, r, organization.ID)
+	defer commitTemplatesAudit()
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
 		Log:            api.Logger,
@@ -94,7 +120,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	var project database.ChatProject
-	err := api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		// The lock serializes a user's creates so concurrent requests cannot
 		// both observe room under the cap.
 		if err := tx.AcquireLock(ctx, database.GenLockID("chat-projects-owner:"+apiKey.UserID.String())); err != nil {
@@ -117,6 +143,22 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			Name:           req.Name,
 			Description:    req.Description,
 			Icon:           req.Icon,
+
+			LimitTemplates:                 req.LimitTemplates,
+			DefaultTemplateID:              defaultTemplate.templateID,
+			DefaultTemplateVersionPresetID: defaultTemplate.presetID,
+			DefaultParameters:              defaultTemplate.parameters,
+		})
+		if err != nil {
+			return err
+		}
+		if len(req.TemplateIDs) == 0 {
+			return nil
+		}
+		_, err = tx.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
+			ProjectID:   project.ID,
+			TemplateIDs: req.TemplateIDs,
+			CreatedBy:   apiKey.UserID,
 		})
 		return err
 	}, nil)
@@ -127,14 +169,20 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat project.",
-			Detail:  err.Error(),
-		})
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to create chat project.")
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project))
+	if len(req.TemplateIDs) > 0 {
+		templatesAudit.Old = database.AuditableChatProjectTemplates{
+			ProjectID:   project.ID,
+			ProjectName: project.Name,
+			TemplateIDs: []uuid.UUID{},
+		}
+		templatesAudit.New = templatesAudit.Old
+		templatesAudit.New.TemplateIDs = req.TemplateIDs
+	}
+	api.writeChatProject(rw, r, http.StatusCreated, project)
 }
 
 // @Summary Get chat project
@@ -150,13 +198,12 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(project))
+	api.writeChatProject(rw, r, http.StatusOK, project)
 }
 
 // @Summary Update chat project
@@ -174,8 +221,10 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	// Update covers the template limit and default template, so anyone
+	// allowed to edit the project, including through its ACL, can change
+	// them.
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
 
@@ -210,21 +259,51 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
-		ID:          project.ID,
-		Name:        name,
-		Description: description,
-		Icon:        icon,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat project.",
-			Detail:  err.Error(),
+	// Omitted template settings are left to the query, which keeps the
+	// current columns instead of writing back this request's snapshot.
+	var limitTemplates sql.NullBool
+	if req.LimitTemplates != nil {
+		limitTemplates = sql.NullBool{Bool: *req.LimitTemplates, Valid: true}
+	}
+	var updated database.ChatProject
+	err := api.Database.InTx(func(tx database.Store) error {
+		var defaultTemplate chatProjectDefaultTemplate
+		if req.DefaultTemplate != nil {
+			// Detaching a template takes the same lock, so the default
+			// cannot be pointed at a template that is being detached.
+			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+				return err
+			}
+			templates, err := chattool.LoadProjectTemplates(ctx, tx, project)
+			if err != nil {
+				return err
+			}
+			defaultTemplate, err = validateChatProjectDefaultTemplate(ctx, tx, templates.Templates, req.DefaultTemplate)
+			if err != nil {
+				return err
+			}
+		}
+		var err error
+		updated, err = tx.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+			ID:          project.ID,
+			Name:        name,
+			Description: description,
+			Icon:        icon,
+
+			LimitTemplates:                 limitTemplates,
+			UpdateDefaultTemplate:          req.DefaultTemplate != nil,
+			DefaultTemplateID:              defaultTemplate.templateID,
+			DefaultTemplateVersionPresetID: defaultTemplate.presetID,
+			DefaultParameters:              defaultTemplate.parameters,
 		})
+		return err
+	}, nil)
+	if err != nil {
+		api.writeChatProjectTemplateError(ctx, rw, err, "Failed to update chat project.")
 		return
 	}
 	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(updated))
+	api.writeChatProject(rw, r, http.StatusOK, updated)
 }
 
 // @Summary Delete chat project
@@ -239,8 +318,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionDelete, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
 		return
 	}
 
@@ -269,8 +347,58 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
+	if !api.Authorize(r, policy.ActionRead, object) {
+		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	if !api.Authorize(r, action, object) {
+		httpapi.Forbidden(rw)
+		return false
+	}
+	return true
+}
+
+// writeChatProject writes the project as the caller sees it.
+func (api *API) writeChatProject(rw http.ResponseWriter, r *http.Request, status int, project database.ChatProject) {
+	ctx := r.Context()
+	converted, err := api.convertChatProjects(r, []database.ChatProject{project})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat project templates.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, status, converted[0])
+}
+
+// convertChatProjects converts projects with the caller's permissions on
+// them and the attached templates the caller can access.
+func (api *API) convertChatProjects(r *http.Request, projects []database.ChatProject) ([]codersdk.ChatProject, error) {
+	ctx := r.Context()
+	templates, err := chattool.LoadProjectsTemplates(ctx, api.Database, projects)
+	if err != nil {
+		return nil, err
+	}
+	subject := httpmw.UserAuthorization(ctx)
+	return slice.List(projects, func(project database.ChatProject) codersdk.ChatProject {
+		obj := project.RBACObject()
+		// Denials are expected here, so this skips api.Authorize, which
+		// logs each one as a warning.
+		can := func(action policy.Action) bool {
+			return api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+		}
+		return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
+			Update: can(policy.ActionUpdate),
+			Delete: can(policy.ActionDelete),
+			Share:  can(policy.ActionShare),
+		}, templates[project.ID])
+	}), nil
+}
+
 // maxChatProjectsPerOwner caps how many projects one user owns across all
-// organizations, which bounds the project list every agents page loads.
+// organizations.
 const maxChatProjectsPerOwner = 100
 
 var errChatProjectLimit = xerrors.New("chat project limit reached")

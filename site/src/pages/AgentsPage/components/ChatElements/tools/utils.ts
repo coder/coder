@@ -1,6 +1,10 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import * as Diff from "diff";
 import * as Yup from "yup";
+import {
+	DIFFS_GIT_COLOR_CSS,
+	DIFFS_GIT_COLOR_STYLE,
+} from "#/components/SyntaxHighlighter/diffsGitColors";
 import { parseDiffString, stampCacheKey } from "../../DiffViewer/parseDiff";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -128,6 +132,10 @@ export const mapSubagentStatusToToolStatus = (
 	subagentStatus: string,
 	fallback: ToolStatus,
 ): ToolStatus => {
+	// A failed call stays failed even if its child keeps running or later succeeds.
+	if (fallback === "error") {
+		return "error";
+	}
 	const normalized = normalizeStatus(subagentStatus);
 	if (!normalized) {
 		return fallback;
@@ -145,6 +153,7 @@ export const mapSubagentStatusToToolStatus = (
 	switch (normalized) {
 		case "waiting":
 		case "terminated":
+		case "paused":
 			return "completed";
 		case "error":
 			return "error";
@@ -153,20 +162,45 @@ export const mapSubagentStatusToToolStatus = (
 	}
 };
 
+/** JSON.parse that returns undefined for invalid JSON. */
+const parseJSON = (text: string): unknown => {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+};
+
 export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	if (!args) {
 		return null;
 	}
-	if (typeof args === "string") {
-		try {
-			const parsed = JSON.parse(args);
-			return asRecord(parsed);
-		} catch {
-			return null;
-		}
-	}
-	return asRecord(args);
+	return asRecord(typeof args === "string" ? parseJSON(args) : args);
 };
+
+/**
+ * Parses value, or its JSON encoding, as an array whose items all pass
+ * parseItem. Returns null otherwise. The JSON form exists because the
+ * generated tool-call args type is a string map, so typed fixtures
+ * encode arrays.
+ */
+export const parseArray = <T>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	const array = typeof value === "string" ? parseJSON(value) : value;
+	if (!Array.isArray(array)) {
+		return null;
+	}
+	const items = array.map(parseItem);
+	return items.every((item): item is T => item !== null) ? items : null;
+};
+
+/** Trimmed, non-empty strings of a string array, or null for other values. */
+export const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
 
 const getToolInputPayload = (args: unknown): unknown => {
 	const rec = asRecord(args);
@@ -317,6 +351,7 @@ export const SEPARATOR_CSS = [
 export const diffViewerCSS = [
 	"pre, [data-line]:not([data-line-type='change-addition']):not([data-line-type='change-deletion']) { background-color: transparent !important; }",
 	SEPARATOR_CSS,
+	DIFFS_GIT_COLOR_CSS,
 ].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
@@ -392,12 +427,7 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
-	"--diffs-addition-color-override": "hsl(var(--git-added))",
-	"--diffs-deletion-color-override": "hsl(var(--git-deleted))",
-	"--diffs-bg-addition-override": "hsl(var(--surface-git-added))",
-	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
-	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
-	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
+	...DIFFS_GIT_COLOR_STYLE,
 	"--diffs-bg-selection-override": "hsl(var(--content-link) / 0.08)",
 	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
 	"--diffs-selection-number-fg": "hsl(var(--content-link))",

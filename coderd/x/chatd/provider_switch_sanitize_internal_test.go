@@ -401,45 +401,6 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 	})
 }
 
-func TestModelConfigProviderIdentity(t *testing.T) {
-	t.Parallel()
-
-	providerID := uuid.New()
-
-	t.Run("AIProviderID valid returns provider UUID", func(t *testing.T) {
-		t.Parallel()
-		cfg := database.ChatModelConfig{
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}
-		got := modelConfigProviderIdentity(cfg, "openai-compat")
-		require.Equal(t, providerID.String(), got)
-	})
-
-	t.Run("AIProviderID invalid falls back to normalized type", func(t *testing.T) {
-		t.Parallel()
-		cfg := database.ChatModelConfig{
-			AIProviderID: uuid.NullUUID{},
-		}
-		got := modelConfigProviderIdentity(cfg, "anthropic")
-		require.Equal(t, "anthropic", got)
-	})
-
-	t.Run("same type different provider IDs are distinguished", func(t *testing.T) {
-		t.Parallel()
-		otherProviderID := uuid.New()
-		cfgA := database.ChatModelConfig{
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}
-		cfgB := database.ChatModelConfig{
-			AIProviderID: uuid.NullUUID{UUID: otherProviderID, Valid: true},
-		}
-		require.NotEqual(t,
-			modelConfigProviderIdentity(cfgA, "openai-compat"),
-			modelConfigProviderIdentity(cfgB, "openai-compat"),
-		)
-	})
-}
-
 func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T) {
 	t.Parallel()
 

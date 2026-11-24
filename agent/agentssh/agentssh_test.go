@@ -14,21 +14,25 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -131,6 +135,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 			err = sess.Wait()
 			require.NoError(t, err)
+			require.Eventually(t, func() bool { return len(s.SessionCounts()) == 0 }, testutil.WaitShort, testutil.IntervalFast)
 
 			require.Equal(t, "hello", strings.TrimSpace(b.String()))
 
@@ -577,9 +582,270 @@ func TestSSHServer_ClosesStdin(t *testing.T) {
 	require.Equal(t, string(expected), string(content))
 }
 
+func TestSSHShutdownReason(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		forwardOnly bool
+		remoteClose bool
+		stdinEOF    bool
+	}{
+		{name: "ServerShutdownAfterStdinEOF", stdinEOF: true},
+		{name: "ForwardOnly", forwardOnly: true},
+		{name: "ClientDisconnectBeforeShutdown", remoteClose: true},
+		{name: "ClientDisconnectWhileProcessRuns", remoteClose: true, stdinEOF: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS == "windows" && !tc.forwardOnly {
+				t.Skip("test command requires a POSIX shell")
+			}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			sink := testutil.NewFakeSink(t)
+			reporter := &testConnectionReporter{}
+			config := &agentssh.Config{ConnectionReporter: reporter}
+			wantReason := codersdk.DisconnectReasonServerShutdown
+			wantInitiator := codersdk.DisconnectInitiatorAgent
+
+			s, err := agentssh.NewServer(ctx, sink.Logger(), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, config)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = s.Close() })
+			require.NoError(t, s.UpdateHostSigner(42))
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			clientSessionID := uuid.New().String()
+			serveDone := make(chan error, 1)
+			go func() { serveDone <- s.Serve(&wrappedListener{Listener: ln, clientSessionID: clientSessionID}) }()
+			client := sshClient(t, ln.Addr().String())
+			if tc.forwardOnly {
+				destination, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+				defer destination.Close()
+				forward, err := client.Dial("tcp", destination.Addr().String())
+				require.NoError(t, err)
+				defer forward.Close()
+			} else {
+				session, err := client.NewSession()
+				require.NoError(t, err)
+				stdin, err := session.StdinPipe()
+				require.NoError(t, err)
+				defer stdin.Close()
+				stdout := expecter.NewAttachedToSSHSession(t, session)
+				command := "echo ready; cat"
+				if tc.stdinEOF {
+					// Keep the command in one process so shutdown cannot race a fork.
+					command = "echo ready; exec sleep 120"
+				}
+				require.NoError(t, session.Start(command))
+				stdout.ExpectMatch(ctx, "ready")
+				if tc.stdinEOF {
+					require.NoError(t, stdin.Close())
+				}
+			}
+			connectionLogs := func() []slog.SinkEntry {
+				return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh connection complete" })
+			}
+			if tc.remoteClose {
+				require.NoError(t, client.Close())
+				// The shutdown must not override a connection and session that
+				// finished closing first.
+				require.Eventually(t, func() bool {
+					sessionLogs := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
+					return len(connectionLogs()) == 1 && len(sessionLogs) == 1
+				}, testutil.WaitLong, testutil.IntervalFast)
+				require.Empty(t, s.SessionCounts())
+			}
+			require.NoError(t, s.Close())
+			require.Error(t, testutil.RequireReceive(ctx, t, serveDone))
+			require.Eventually(t, func() bool { return len(connectionLogs()) == 1 }, testutil.WaitLong, testutil.IntervalFast)
+			require.Empty(t, s.SessionCounts())
+			entries := connectionLogs()
+			if !tc.forwardOnly {
+				sessionLogs := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
+				require.Len(t, sessionLogs, 1)
+				entries = append(entries, sessionLogs...)
+				require.Len(t, reporter.disconnects, 1)
+				if tc.remoteClose {
+					require.Equal(t, string(codersdk.DisconnectReasonClientClosed), reporter.disconnects[0].Reason)
+				} else {
+					require.Equal(t, string(wantReason), reporter.disconnects[0].Reason)
+				}
+			}
+			for _, entry := range entries {
+				fields := make(map[string]any)
+				for _, field := range entry.Fields {
+					fields[field.Name] = field.Value
+				}
+				require.Equal(t, clientSessionID, fields["client_session_id"])
+				if tc.remoteClose {
+					require.NotEqual(t, wantReason, fields["disconnect_reason"])
+					require.NotContains(t, fields, "build_id")
+					continue
+				}
+				require.Equal(t, wantReason, fields["disconnect_reason"])
+				require.Equal(t, wantInitiator, fields["disconnect_initiator"])
+				require.Equal(t, true, fields["disconnect_expected"])
+			}
+		})
+	}
+}
+
+func TestSSHServer_KeepAliveClosesSilentConnection(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("test command requires a POSIX shell")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	reporter := &testConnectionReporter{}
+	s, err := agentssh.NewServer(ctx, testutil.Logger(t), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer,
+		&agentssh.Config{ConnectionReporter: reporter, MaxTimeout: 3 * time.Second})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+	require.NoError(t, s.UpdateHostSigner(42))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	go func() { _ = s.Serve(ln) }()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	silent := &silentConn{Conn: conn}
+	session, err := sshClientConn(t, silent).NewSession()
+	require.NoError(t, err)
+	stdout := expecter.NewAttachedToSSHSession(t, session)
+	require.NoError(t, session.Start("echo ready; exec sleep 120"))
+	stdout.ExpectMatch(ctx, "ready")
+
+	silent.silent.Store(true)
+	require.Eventually(t, func() bool {
+		reporter.mu.Lock()
+		defer reporter.mu.Unlock()
+		return len(reporter.disconnects) == 1
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, string(codersdk.DisconnectReasonNetworkError), reporter.disconnects[0].Reason)
+}
+
+func TestSSHServer_ReadErrorReportsNetworkError(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("test command requires a POSIX shell")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	reporter := &testConnectionReporter{}
+	s, err := agentssh.NewServer(ctx, sink.Logger(), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &agentssh.Config{ConnectionReporter: reporter})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+	require.NoError(t, s.UpdateHostSigner(42))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	failing := &failingListener{Listener: ln}
+	go func() { _ = s.Serve(failing) }()
+
+	client := sshClient(t, ln.Addr().String())
+	session, err := client.NewSession()
+	require.NoError(t, err)
+	stdout := expecter.NewAttachedToSSHSession(t, session)
+	require.NoError(t, session.Start("echo ready; exec sleep 120"))
+	stdout.ExpectMatch(ctx, "ready")
+
+	failing.fail.Store(true)
+	// Any client data makes the agent read and hit the failure.
+	go func() { _, _, _ = client.SendRequest("keepalive@openssh.com", true, nil) }()
+	require.Eventually(t, func() bool {
+		reporter.mu.Lock()
+		defer reporter.mu.Unlock()
+		return len(reporter.disconnects) == 1
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, string(codersdk.DisconnectReasonNetworkError), reporter.disconnects[0].Reason)
+	entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
+	require.Len(t, entries, 1)
+	var detail any
+	for _, field := range entries[0].Fields {
+		if field.Name == "disconnect_detail" {
+			detail = field.Value
+		}
+	}
+	require.Contains(t, detail, "operation timed out")
+}
+
+func TestSSHServer_ConnectionFailedLogsClientSessionID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	s, err := agentssh.NewServer(ctx, sink.Logger(), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &agentssh.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+	require.NoError(t, s.UpdateHostSigner(42))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	clientSessionID := uuid.New().String()
+	go func() { _ = s.Serve(&wrappedListener{Listener: ln, clientSessionID: clientSessionID}) }()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	_, err = conn.Write([]byte("not ssh\r\n"))
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+
+	var entries []slog.SinkEntry
+	require.Eventually(t, func() bool {
+		entries = sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh connection failed" })
+		return len(entries) == 1
+	}, testutil.WaitLong, testutil.IntervalFast)
+	var got any
+	for _, field := range entries[0].Fields {
+		if field.Name == "client_session_id" {
+			got = field.Value
+		}
+	}
+	require.Equal(t, clientSessionID, got)
+}
+
+// failingListener makes accepted connections fail every read once fail is
+// set, like a tailnet connection that ran out of TCP retries.
+type failingListener struct {
+	net.Listener
+	fail atomic.Bool
+}
+
+func (ln *failingListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	return &failingConn{Conn: conn, fail: &ln.fail}, err
+}
+
+type failingConn struct {
+	net.Conn
+	fail *atomic.Bool
+}
+
+func (c *failingConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if c.fail.Load() {
+		return 0, &net.OpError{Op: "read", Net: "tcp", Err: xerrors.New("operation timed out")}
+	}
+	return n, err
+}
+
+// silentConn drops writes once silent is set, like a client that vanished.
+type silentConn struct {
+	net.Conn
+	silent atomic.Bool
+}
+
+func (c *silentConn) Write(b []byte) (int, error) {
+	if c.silent.Load() {
+		return len(b), nil
+	}
+	return c.Conn.Write(b)
+}
+
 func sshClient(t *testing.T, addr string) *ssh.Client {
 	conn, err := net.Dial("tcp", addr)
 	require.NoError(t, err)
+	return sshClientConn(t, conn)
+}
+
+func sshClientConn(t *testing.T, conn net.Conn) *ssh.Client {
 	t.Cleanup(func() {
 		_ = conn.Close()
 	})

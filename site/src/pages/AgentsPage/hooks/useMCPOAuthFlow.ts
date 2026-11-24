@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { mcpServerOAuth2ConnectPath } from "#/api/api";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 
 type UseMCPOAuthFlowOptions = {
 	organizationId?: string;
@@ -9,12 +10,12 @@ type UseMCPOAuthFlowOptions = {
 	onAuthComplete?: (serverId: string) => void;
 	// Called only for a completion posted by the initiating popup for
 	// the initiating server.
-	onFlowSuccess: (serverId: string) => void;
+	onFlowSuccess: (server: MCPServerConfig) => void;
 };
 
 type MCPOAuthFlow = {
 	connectingServerId: string | null;
-	connect: (serverId: string) => void;
+	connect: (server: MCPServerConfig) => void;
 };
 
 /**
@@ -35,7 +36,9 @@ export const useMCPOAuthFlow = ({
 	// Retained after popup close: the callback page posts before
 	// closing, and the close poll can run before the queued message is
 	// dispatched.
-	const flowRef = useRef<{ popup: Window; serverID: string } | null>(null);
+	const flowRef = useRef<{ popup: Window; server: MCPServerConfig } | null>(
+		null,
+	);
 
 	const handleAuthComplete = useEffectEvent(
 		(serverID: string, source: MessageEventSource | null) => {
@@ -43,12 +46,12 @@ export const useMCPOAuthFlow = ({
 			// Only a message from the initiating popup for the initiating
 			// server counts as flow success.
 			const flow = flowRef.current;
-			if (!flow || source !== flow.popup || serverID !== flow.serverID) {
+			if (!flow || source !== flow.popup || serverID !== flow.server.id) {
 				return;
 			}
 			flowRef.current = null;
 			setConnectingServerId(null);
-			onFlowSuccess(serverID);
+			onFlowSuccess(flow.server);
 		},
 	);
 
@@ -86,16 +89,16 @@ export const useMCPOAuthFlow = ({
 		};
 	}, [connectingServerId]);
 
-	const connect = (serverId: string) => {
+	const connect = (server: MCPServerConfig) => {
 		if (!organizationId) {
 			return;
 		}
-		const connectUrl = mcpServerOAuth2ConnectPath(organizationId, serverId);
+		const connectUrl = mcpServerOAuth2ConnectPath(organizationId, server.id);
 		const popup = window.open(connectUrl, "_blank", "width=900,height=600");
 		// A blocked popup (window.open returns null) must not enter the
 		// connecting state; nothing would ever clear it.
-		flowRef.current = popup ? { popup, serverID: serverId } : null;
-		setConnectingServerId(popup ? serverId : null);
+		flowRef.current = popup ? { popup, server } : null;
+		setConnectingServerId(popup ? server.id : null);
 	};
 
 	return { connectingServerId, connect };

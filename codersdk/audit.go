@@ -69,6 +69,7 @@ const (
 	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
 )
 
@@ -168,6 +169,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat organization system prompt"
 	case ResourceTypeChatProjectInstructions:
 		return "chat project instructions"
+	case ResourceTypeChatProjectSkill:
+		return "chat project skill"
 	case ResourceTypeExperimentRule:
 		return "experiment rule"
 	default:
@@ -280,12 +283,12 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action           AuditAction     `json:"action,omitempty" enums:"create,write,delete,start,stop"`
-	ResourceType     ResourceType    `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
+	Action           AuditAction     `json:"action,omitempty"`
+	ResourceType     ResourceType    `json:"resource_type,omitempty"`
 	ResourceID       uuid.UUID       `json:"resource_id,omitempty" format:"uuid"`
 	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
 	Time             time.Time       `json:"time,omitempty" format:"date-time"`
-	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
+	BuildReason      BuildReason     `json:"build_reason,omitempty"`
 	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`
 	RequestID        uuid.UUID       `json:"request_id,omitempty" format:"uuid"`
 }

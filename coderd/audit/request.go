@@ -159,6 +159,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AuditableChatProjectInstructions:
 		return typed.ProjectName
+	case database.AuditableChatProjectTemplates:
+		return typed.ProjectName
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
 	case database.MCPServerConfig:
@@ -170,6 +172,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.Skill:
 		return typed.Name
 	case database.AuditableOrganizationSkill:
+		return typed.Name
+	case database.AuditableChatProjectSkill:
 		return typed.Name
 	case database.ChatInstructionSettings:
 		return typed.Name
@@ -281,6 +285,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditableChatProjectInstructions:
 		// One row per project, keyed by the project.
 		return typed.ProjectID
+	case database.AuditableChatProjectTemplates:
+		return typed.ProjectID
 	case database.ChatModelConfig:
 		return typed.ID
 	case database.MCPServerConfig:
@@ -290,6 +296,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.Skill:
 		return typed.ID
 	case database.AuditableOrganizationSkill:
+		return typed.ID
+	case database.AuditableChatProjectSkill:
 		return typed.ID
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
@@ -376,6 +384,9 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatProjectMemory
 	case database.AuditableChatProjectInstructions:
 		return database.ResourceTypeChatProjectInstructions
+	case database.AuditableChatProjectTemplates:
+		// Attachments are part of the project, so they share its type.
+		return database.ResourceTypeChatProject
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
 	case database.MCPServerConfig:
@@ -386,6 +397,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSkill
 	case database.AuditableOrganizationSkill:
 		return database.ResourceTypeOrganizationSkill
+	case database.AuditableChatProjectSkill:
+		return database.ResourceTypeChatProjectSkill
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
@@ -482,6 +495,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.AuditableChatProjectInstructions:
 		return true
+	case database.AuditableChatProjectTemplates:
+		return true
 	case database.ChatModelConfig:
 		return true
 	case database.MCPServerConfig:
@@ -494,6 +509,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// User skills are global to the user across organizations.
 		return false
 	case database.AuditableOrganizationSkill:
+		return true
+	case database.AuditableChatProjectSkill:
 		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.

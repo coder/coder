@@ -118,18 +118,23 @@ func (p *Program) resolveSelector(
 				moduleAddress: moduleAddress,
 				resourceName:  parsedSelector.name,
 			}
-			for _, scriptIndex := range state.scriptsByResource[key] {
+			var scriptIndexes []int
+			if resource := state.scriptResourceIndexes[key]; resource != nil {
+				scriptIndexes = resource.scripts
+				if parsedSelector.instanceKey != cty.NilVal {
+					if resource.addressErr != nil {
+						return selectorResolution{}, resource.addressErr
+					}
+					scriptIndexes = resource.instances[instanceLookupKey(parsedSelector.instanceKey)]
+				}
+			}
+			for _, scriptIndex := range scriptIndexes {
 				script := &state.scripts[scriptIndex]
 				if script.addressErr != nil {
 					return selectorResolution{}, script.addressErr
 				}
-				if parsedSelector.instanceKey != cty.NilVal &&
-					!tfaddr.InstanceKeysEqual(script.instanceKey, parsedSelector.instanceKey) {
-					continue
-				}
-				if err := addExpandedAddress(
-					resolved, script.address, budget,
-				); err != nil {
+				err := addExpandedAddress(resolved, script.address, budget)
+				if err != nil {
 					return selectorResolution{}, err
 				}
 			}
@@ -149,9 +154,8 @@ func (p *Program) resolveSelector(
 					if script.addressErr != nil {
 						return selectorResolution{}, script.addressErr
 					}
-					if err := addExpandedAddress(
-						resolved, script.address, budget,
-					); err != nil {
+					err := addExpandedAddress(resolved, script.address, budget)
+					if err != nil {
 						return selectorResolution{}, err
 					}
 				}

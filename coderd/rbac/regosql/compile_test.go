@@ -284,6 +284,46 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.ChatConverter(),
 		},
 		{
+			Name: "WorkspaceAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(workspaces.id :: text != '') OR ` +
+				`(workspaces.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
+			Name: "TemplateAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(t.id :: text != '') OR ` +
+				`(t.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.TemplateConverter(),
+		},
+		{
+			Name: "AuditLogAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(audit_logs.id :: text != '') OR ` +
+				`(audit_logs.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.AuditLogConverter(),
+		},
+		{
+			Name: "ConnectionLogAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(connection_logs.id :: text != '') OR ` +
+				`(connection_logs.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.ConnectionLogConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";

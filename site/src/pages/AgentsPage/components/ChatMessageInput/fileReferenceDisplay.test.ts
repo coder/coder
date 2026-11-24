@@ -38,7 +38,7 @@ describe("getFileReferenceDisplay", () => {
 describe("inline spacing helpers", () => {
 	const parts = [
 		{ type: "text", text: "prefix" },
-		{ type: "file-reference" },
+		{ type: "chip" },
 		{ type: "text", text: "suffix" },
 	] as const;
 
@@ -51,7 +51,7 @@ describe("inline spacing helpers", () => {
 		const whitespaceParts = [
 			{ type: "text", text: "" },
 			{ type: "text", text: "  " },
-			{ type: "file-reference" },
+			{ type: "chip" },
 			{ type: "text", text: "\n" },
 		] as const;
 
@@ -59,11 +59,11 @@ describe("inline spacing helpers", () => {
 		expect(hasInlineContentAfter(whitespaceParts, 2)).toBe(false);
 	});
 
-	it("treats adjacent file references as inline neighbors", () => {
+	it("treats adjacent chips as inline neighbors", () => {
 		const adjacentReferences = [
-			{ type: "file-reference" },
-			{ type: "file-reference" },
-			{ type: "file-reference" },
+			{ type: "chip" },
+			{ type: "chip" },
+			{ type: "chip" },
 		] as const;
 
 		expect(hasInlineContentBefore(adjacentReferences, 1)).toBe(true);
@@ -74,7 +74,7 @@ describe("inline spacing helpers", () => {
 		const sparseParts = [
 			{ type: "text", text: "" },
 			{ type: "text", text: "leading" },
-			{ type: "file-reference" },
+			{ type: "chip" },
 			{ type: "text", text: "" },
 			{ type: "text", text: "trailing" },
 		] as const;

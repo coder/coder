@@ -16,7 +16,7 @@ You can install and run Coder using the official Docker images published on [Git
 > [!IMPORTANT]
 > This guide is for **Linux** hosts only.
 > The `getent` and `--group-add` Docker socket patterns used below are Linux-specific and do not translate cleanly to macOS Docker runtimes.
-> For macOS, install Coder using the [standalone binary](../cli.md) instead.
+> For macOS, install Coder using the [standalone binary](https://coder.com/downloads) instead.
 
 <div class="tabs">
 
@@ -29,6 +29,7 @@ Coder publishes a [docker compose example](../../../compose.yaml) which includes
 1. Download the [`docker-compose.yaml`](../../../compose.yaml) file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker` group.
+
    You can get the `docker` group `gid` by running the below command:
 
    ```sh
@@ -102,7 +103,7 @@ Docker is not installed or not running on the host.
 Install Docker and start the daemon before creating a workspace from a Docker-based template.
 Refer to the [Troubleshooting section of the get started guide](../../get-started/index.md#cannot-connect-to-the-docker-daemon) for platform-specific steps.
 
-If Docker is installed and running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+If Docker is installed and running but Coder still cannot connect, the daemon might expose its socket at a path other than `/var/run/docker.sock`.
 This can happen on any operating system when Docker runs through a tool that uses a per-user socket, such as rootless Docker on Linux, or Colima, Podman, or Rancher Desktop on macOS.
 Point Coder at the right socket with `DOCKER_HOST`.
 
@@ -123,8 +124,8 @@ Then restart the control plane.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
-See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more steps.
+Make sure you have an externally-reachable `CODER_ACCESS_URL` set.
+See [troubleshooting templates](../../templates/troubleshooting.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
@@ -132,16 +133,16 @@ See Docker's official documentation to [Manage Docker as a non-root user](https:
 
 ### I cannot add Docker templates
 
-Coder runs as a non-root user, we use `--group-add` to ensure Coder has permissions to manage Docker via `docker.sock`.
-If the host systems `/var/run/docker.sock` is not group writable or does not belong to the `docker` group, the above may not work as-is.
+Coder runs as a non-root user, we use `--group-add` to make sure Coder has permissions to manage Docker via `docker.sock`.
+If the host systems `/var/run/docker.sock` is not group writable or does not belong to the `docker` group, the above might not work as-is.
 
 ### I cannot add cloud-based templates
 
-In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
+In order to use cloud-based templates (for example, Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
 For proof-of-concept deployments, you can use [Coder's tunnel](../../admin/setup/index.md#tunnel).
 For production deployments, we recommend setting an [access URL](../../admin/setup/index.md#access-url)
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

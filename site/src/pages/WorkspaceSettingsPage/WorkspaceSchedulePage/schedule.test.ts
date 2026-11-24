@@ -17,7 +17,9 @@ describe("scheduleChanged", () => {
 			const autostart = { autostartEnabled: true, ...emptySchedule };
 			const formValues = {
 				autostartEnabled: true,
-				...{ ...emptySchedule, monday: true, startTime: "09:00" },
+				...emptySchedule,
+				monday: true,
+				startTime: "09:00",
 				autostopEnabled: false,
 				ttl: emptyTTL,
 			};

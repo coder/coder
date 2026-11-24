@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -983,9 +984,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to fetch containers from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1077,9 +1076,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to delete devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1168,9 +1165,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to recreate devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1181,6 +1176,35 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 
 	httpapi.Write(ctx, rw, http.StatusAccepted, m)
+}
+
+// writeAgentError writes err if it is a *codersdk.Error and reports
+// whether it did. Pass only errors from workspace agent requests.
+// Workspace code can impersonate the agent API, so coderd does not relay
+// an authentication challenge (401 or 407) or a status outside 4xx and
+// 5xx; for example, a relayed 401 would make the frontend sign the user
+// out. Those statuses become 502 Bad Gateway with message and the agent's
+// text in a truncated Detail. Every other status and its response pass
+// through unchanged.
+func writeAgentError(ctx context.Context, rw http.ResponseWriter, err error, message string) bool {
+	var agentErr *codersdk.Error
+	if !errors.As(err, &agentErr) {
+		return false
+	}
+	status := agentErr.StatusCode()
+	if status >= 400 && status < 600 && status != http.StatusUnauthorized && status != http.StatusProxyAuthRequired {
+		httpapi.Write(ctx, rw, status, agentErr.Response)
+		return true
+	}
+	detail := agentErr.Message
+	if agentErr.Detail != "" {
+		detail = strings.TrimSuffix(detail, ".") + ": " + agentErr.Detail
+	}
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+		Message: message,
+		Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", status, stringutil.Truncate(detail, 512, stringutil.TruncateWithEllipsis)),
+	})
+	return true
 }
 
 // @Summary Get connection info for workspace agent
@@ -1301,6 +1325,32 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// browserOnlyTemplateMessage is returned to a client whose non-browser
+// connection is refused by its workspace's template. The deployment-wide
+// equivalent lives in enterprise/coderd/workspaceagents.go.
+const browserOnlyTemplateMessage = "Non-browser connections are disabled for this template."
+
+// templateQuerier reads the template behind a workspace so its connection
+// policy can be enforced.
+type templateQuerier interface {
+	GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error)
+}
+
+// templateRefusesNonBrowserConnections reports whether workspaces built from
+// the template must refuse SSH, port forwarding and desktop IDE connections.
+// It is enforced regardless of entitlement so a lapsed license does not
+// silently reopen those connections; only turning the setting on is licensed.
+func templateRefusesNonBrowserConnections(ctx context.Context, db templateQuerier, templateID uuid.UUID) (bool, error) {
+	// The setting is deployment policy, not user-visible data: SSH access to a
+	// workspace does not imply read access to its template.
+	//nolint:gocritic // Enforcement must not depend on the actor's template permissions.
+	template, err := db.GetTemplateByID(dbauthz.AsSystemRestricted(ctx), templateID)
+	if err != nil {
+		return false, xerrors.Errorf("get template %q: %w", templateID, err)
+	}
+	return template.BrowserOnly, nil
+}
+
 // workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
@@ -1341,6 +1391,21 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		if overrideFunc != nil && overrideFunc(rw) {
 			return
 		}
+	}
+
+	browserOnly, err := templateRefusesNonBrowserConnections(ctx, api.Database, waws.WorkspaceTable.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if browserOnly {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: browserOnlyTemplateMessage,
+		})
+		return
 	}
 
 	version := "1.0"
@@ -1520,6 +1585,8 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		DisconnectReason: sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ClientSessionID:  sql.NullString{},
+		RxBytes:          sql.NullInt64{},
+		TxBytes:          sql.NullInt64{},
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",
@@ -1837,11 +1904,12 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Watch for workspace agent metadata updates via WebSockets
+// @Description Upgrades to a WebSocket and sends one event per message, where `data` events hold a list of `codersdk.WorkspaceAgentMetadata` and `error` events hold a `codersdk.Response`. The server closes the connection if you send a message.
 // @ID watch-for-workspace-agent-metadata-updates-via-websockets
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} codersdk.ServerSentEvent
+// @Success 101 {object} codersdk.ServerSentEvent
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}

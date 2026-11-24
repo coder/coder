@@ -4,19 +4,23 @@ import {
 	ChevronRightIcon,
 	ListFilterIcon,
 	SearchIcon,
+	XIcon,
 } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
+	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
+	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
+import { Switch, SwitchIndicator } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -24,6 +28,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
@@ -45,7 +50,6 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 	isListNavigationKey,
-	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
@@ -54,6 +58,7 @@ import {
 	optionsLoadErrorMessage,
 	optionsLoadingMessage,
 	optionsStatusMessage,
+	SCOPE_TOGGLE_ROW_VALUE,
 	SUGGESTIONS_ERROR_MESSAGE,
 	shownOptions,
 	useFilterCombobox,
@@ -72,7 +77,7 @@ export const CATEGORY_HOVER_DELAY_MS = 300;
 const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
-	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
+	"text-content-primary **:data-[slot=combobox-chip-remove]:text-content-secondary";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -83,6 +88,7 @@ const mobileOverlayClassName =
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
+	/** An empty list renders a plain search textbox without a popup. */
 	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
@@ -94,11 +100,10 @@ type FilterComboboxProps = Readonly<{
 }>;
 
 /**
- * Filter input that shows applied filters as chips and opens a cmdk menu. The
- * menu lists categories, which open as pointer flyouts or as keyboard and
- * mobile drill-ins; option rows for categories with `inlineOptions`; and
- * cross-category value suggestions for typed text. State lives in
- * `useFilterCombobox`.
+ * Filter input that renders a plain search textbox when no categories exist.
+ * Otherwise, applied filters are chips and a cmdk menu offers categories
+ * as pointer flyouts or keyboard and mobile drill-ins, inline options, and
+ * cross-category value suggestions. State lives in `useFilterCombobox`.
  */
 export function FilterCombobox({
 	value,
@@ -130,6 +135,7 @@ export function FilterCombobox({
 		valueSuggestions,
 		inlineSections,
 		chipValues,
+		isOptionSelected,
 		highlightRef,
 		scopeState,
 		scopePillCategoryKey,
@@ -289,6 +295,71 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
+	const errorContent = invalid && (
+		<span
+			id={errorId}
+			role="alert"
+			className="text-sm text-content-destructive"
+		>
+			{errorMessage}
+		</span>
+	);
+
+	if (categories.length === 0) {
+		return (
+			<>
+				<InputGroup className={className}>
+					<InputGroupAddon className="h-9.5 self-start px-2">
+						<SearchIcon aria-hidden className="size-icon-sm" />
+					</InputGroupAddon>
+					<InputGroupInput
+						{...passwordManagerIgnoreProps}
+						ref={setInputRef}
+						className="h-9.5 pr-2 text-sm font-medium text-content-primary focus:placeholder:text-transparent"
+						aria-label={placeholder}
+						aria-invalid={invalid || undefined}
+						aria-errormessage={invalid ? errorId : undefined}
+						placeholder={placeholder}
+						value={inputValue}
+						onBlur={actions.dismiss}
+						onKeyDown={actions.onInputKeyDown}
+						onChange={(event) =>
+							actions.onInputValueChange(event.currentTarget.value)
+						}
+					/>
+					{inputValue !== "" && (
+						<InputGroupAddon align="inline-end">
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<InputGroupButton
+										type="button"
+										size="icon"
+										onMouseDown={(event) => event.preventDefault()}
+										onClick={(event) => {
+											const hadFocus =
+												document.activeElement === event.currentTarget;
+											actions.clearAll();
+											if (hadFocus) {
+												actions.focusInput();
+											}
+										}}
+									>
+										<XIcon aria-hidden />
+										<span className="sr-only">Clear search</span>
+									</InputGroupButton>
+								</TooltipTrigger>
+								<TooltipContent align="end" sideOffset={8} alignOffset={-8}>
+									Clear search
+								</TooltipContent>
+							</Tooltip>
+						</InputGroupAddon>
+					)}
+				</InputGroup>
+				{errorContent}
+			</>
+		);
+	}
+
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		categoryPlaceholderCount === 0 &&
@@ -323,7 +394,7 @@ export function FilterCombobox({
 				unfilteredOptionCount={
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
 				}
-				selectedTokens={chipValues}
+				isOptionSelected={isOptionSelected}
 				optionTokenFor={(option) => optionTokenFor(activeCategoryKey, option)}
 				scope={scopeState(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
@@ -346,6 +417,10 @@ export function FilterCombobox({
 			<FilterComboboxRoot
 				open={open}
 				autoHighlight={autoHighlight}
+				// With no options listed, the scope row would be the first row cmdk
+				// highlights, and Enter would toggle it instead of committing typed
+				// text.
+				navigationOnlyValue={SCOPE_TOGGLE_ROW_VALUE}
 				onDismiss={actions.dismiss}
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
@@ -358,7 +433,7 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid border-border p-0">
+					<InputGroupAddon className="self-stretch items-start border-r p-0">
 						<InputGroupButton
 							type="button"
 							variant="subtle"
@@ -559,7 +634,7 @@ export function FilterCombobox({
 								data-slot="filter-mobile-panel"
 								className={cn(
 									menuMaxHeightClassName,
-									"flex w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md",
+									"flex w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border bg-surface-primary p-2 shadow-md",
 								)}
 							>
 								{categoryOptionsList ?? (
@@ -570,7 +645,9 @@ export function FilterCombobox({
 					) : (
 						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
 							<div
-								className="relative flex items-start gap-1 overflow-visible"
+								// The before/after strips fill the gap to the flyout on
+								// either side, so crossing it does not fire onMouseLeave.
+								className="relative flex items-start gap-1 overflow-visible before:absolute before:inset-y-0 before:right-full before:w-1 after:absolute after:inset-y-0 after:left-full after:w-1"
 								onMouseLeave={() => {
 									updateFlyoutCategory(null);
 									setHighlightedCategoryKey(undefined);
@@ -595,7 +672,7 @@ export function FilterCombobox({
 											key={flyoutOptions.category.key}
 											offset={panelOffset}
 											flyout={flyoutOptions}
-											selectedTokens={chipValues}
+											isOptionSelected={isOptionSelected}
 											optionTokenFor={(option) =>
 												optionTokenFor(flyoutOptions.category.key, option)
 											}
@@ -610,22 +687,14 @@ export function FilterCombobox({
 					)}
 				</FilterComboboxContent>
 			</FilterComboboxRoot>
-			{invalid && (
-				<span
-					id={errorId}
-					role="alert"
-					className="text-sm text-content-destructive"
-				>
-					{errorMessage}
-				</span>
-			)}
+			{errorContent}
 		</>
 	);
 }
 
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 const INLINE_GROUP_CLASS =
-	"mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0";
+	"mt-2 border-t pt-2 first:mt-0 first:border-t-0 first:pt-0";
 
 // Categories with more options than this get a search field in their panel.
 export const SEARCHABLE_OPTION_COUNT = 10;
@@ -796,7 +865,7 @@ function MainPanel({
 			data-slot="filter-main-panel"
 			className={cn(
 				menuMaxHeightClassName,
-				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
+				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border bg-surface-primary p-2 shadow-md sm:w-64",
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
@@ -815,9 +884,9 @@ function MainPanel({
 			))}
 			{listedCategories.map((category) => (
 				<FilterComboboxItem
+					key={category.key}
 					ref={(element) => registerCategoryRow(category.key, element)}
 					className={OPTION_ITEM_CLASS}
-					key={category.key}
 					value={category.key}
 					onMouseEnter={() => onOpenFlyout(category.key)}
 					onSelect={() => {
@@ -876,10 +945,11 @@ function MainPanel({
 							<FilterComboboxItem
 								className={cn(
 									OPTION_ITEM_CLASS,
-									(!showIcon || selected) && "text-content-primary",
+									selected && "text-content-primary",
 								)}
 								key={token}
 								value={token}
+								aria-selected={selected}
 								onSelect={() => onToggleInlineOption(token)}
 							>
 								<OptionRowContent
@@ -904,6 +974,7 @@ function MainPanel({
 								)}
 								key={suggestion.token}
 								value={suggestion.token}
+								aria-selected={suggestion.selected}
 								onSelect={() => onSelectSuggestion(suggestion.token)}
 							>
 								<OptionRowContent
@@ -937,14 +1008,15 @@ function FlyoutSearch({
 	navigatesList,
 }: FlyoutSearchProps) {
 	return (
-		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b border-border px-3">
+		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b px-3">
 			<SearchIcon
 				aria-hidden
 				className="mr-2 size-icon-sm shrink-0 opacity-50"
 			/>
 			<input
+				{...passwordManagerIgnoreProps}
 				aria-label={`Search ${label}`}
-				className="h-10 w-full border-0 bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
+				className="h-10 w-full bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
 				placeholder={`Search ${label.toLowerCase()}…`}
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}
@@ -972,7 +1044,6 @@ type FlyoutScopeToggleProps = Readonly<{
 	label: string;
 	checked: boolean;
 	disabled: boolean;
-	navigatesList: boolean;
 	onToggle: (categoryKey: string) => void;
 }>;
 
@@ -981,12 +1052,11 @@ function FlyoutScopeToggle({
 	label,
 	checked,
 	disabled,
-	navigatesList,
 	onToggle,
 }: FlyoutScopeToggleProps) {
 	const id = useId();
 	return (
-		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t border-border px-3 py-2.5">
+		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t px-3 py-2.5">
 			<Switch
 				id={id}
 				size="sm"
@@ -996,18 +1066,6 @@ function FlyoutScopeToggle({
 				onCheckedChange={() => onToggle(categoryKey)}
 				onMouseDown={(event) => event.preventDefault()}
 				onKeyDown={(event) => {
-					if (
-						navigatesList &&
-						(event.key === "ArrowUp" || event.key === "ArrowDown")
-					) {
-						// Refocus the input; cmdk still gets the key and moves the
-						// highlight into the options.
-						event.currentTarget
-							.closest("[cmdk-root]")
-							?.querySelector<HTMLInputElement>("[cmdk-input]")
-							?.focus();
-						return;
-					}
 					// cmdk would otherwise take Enter to pick the highlighted
 					// option instead of toggling the switch.
 					event.stopPropagation();
@@ -1020,6 +1078,40 @@ function FlyoutScopeToggle({
 			>
 				{label}
 			</label>
+		</div>
+	);
+}
+
+type ScopeToggleItemProps = Readonly<{
+	categoryKey: string;
+	scope: ScopeState;
+	onToggle: (categoryKey: string) => void;
+}>;
+
+/**
+ * The scope switch as the last row of a list navigated from the input, so Up,
+ * Down, and Enter reach it like any option.
+ */
+function ScopeToggleItem({
+	categoryKey,
+	scope,
+	onToggle,
+}: ScopeToggleItemProps) {
+	return (
+		// The divider spans the panel like the flyout's; the row's highlight
+		// lines up with the options' highlight.
+		<div className="-mx-2 -mb-2 mt-2 shrink-0 border-t py-1 pl-2 pr-3">
+			<FilterComboboxItem
+				value={SCOPE_TOGGLE_ROW_VALUE}
+				disabled={scope.disabled}
+				aria-checked={scope.widened}
+				onSelect={() => onToggle(categoryKey)}
+				className="items-start px-1 text-xs"
+			>
+				<SwitchIndicator size="sm" checked={scope.widened} />
+				{/* Zero basis so the label wraps to the panel width set by the list. */}
+				<span className="w-0 min-w-0 flex-1">{scope.label}</span>
+			</FilterComboboxItem>
 		</div>
 	);
 }
@@ -1067,13 +1159,13 @@ function OptionsPanel({
 			)}
 			{children}
 			{emptyMessage && <EmptyOptions message={emptyMessage} />}
-			{category && scope && (
+			{/* A list navigated from the input renders the scope as its own row. */}
+			{category && scope && !navigatesList && (
 				<FlyoutScopeToggle
 					categoryKey={category.key}
 					label={scope.label}
 					checked={scope.widened}
 					disabled={scope.disabled}
-					navigatesList={navigatesList}
 					onToggle={onToggleScope}
 				/>
 			)}
@@ -1123,7 +1215,7 @@ const useFlyoutOptions = (
 	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
-			categoryKey ?? "",
+			category?.optionsKey ?? "",
 			category?.getOptions,
 			debouncedQuery,
 			category !== undefined && debouncedQuery.length > 0,
@@ -1171,7 +1263,7 @@ const useFlyoutOptions = (
 type FlyoutCategoryPanelProps = Readonly<{
 	offset: number;
 	flyout: NonNullable<ReturnType<typeof useFlyoutOptions>>;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1182,7 +1274,7 @@ type FlyoutCategoryPanelProps = Readonly<{
 function FlyoutCategoryPanel({
 	offset,
 	flyout,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1221,7 +1313,7 @@ function FlyoutCategoryPanel({
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
 					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
+					const selected = isOptionSelected(option, token);
 					return (
 						<button
 							className={cn(
@@ -1230,6 +1322,7 @@ function FlyoutCategoryPanel({
 							)}
 							key={token}
 							type="button"
+							aria-pressed={selected}
 							// Keep focus in the combobox input so keyboard navigation continues.
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
@@ -1258,7 +1351,7 @@ type CategoryOptionsListProps = Readonly<{
 	emptyMessage: string | undefined;
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1277,7 +1370,7 @@ function CategoryOptionsList({
 	optionsError,
 	emptyMessage,
 	unfilteredOptionCount,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1320,33 +1413,56 @@ function CategoryOptionsList({
 					: undefined
 			}
 			navigatesList
-			emptyMessage={emptyMessage}
 			scope={scope}
 			onToggleScope={onToggleScope}
 		>
 			{optionsLoading && <LoadingOptions />}
-			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
-				{options?.map((option) => {
-					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
-					return (
-						<FilterComboboxItem
-							className={cn(
-								OPTION_ITEM_CLASS,
-								selected && "text-content-primary",
-							)}
-							key={token}
-							value={token}
-							onSelect={() => onSelectOption(token)}
-						>
-							<OptionRowContent
-								icon={option.startIcon}
-								label={option.label}
-								selected={selected}
-							/>
-						</FilterComboboxItem>
-					);
-				})}
+			{/* Above the list, which may only hold options and groups. */}
+			{emptyMessage && <EmptyOptions message={emptyMessage} />}
+			{/* The options scroll in their own area, so the scope row stays below
+			    them inside the list cmdk navigates. */}
+			<FilterComboboxList
+				className={cn(
+					"flex min-h-0 flex-1 flex-col overflow-visible p-0",
+					"*:flex *:min-h-0 *:flex-1 *:flex-col",
+				)}
+			>
+				<div
+					// The scroller leaves the Tab order; the input moves the highlight.
+					role="group"
+					tabIndex={-1}
+					className="min-h-0 flex-1 touch-pan-y scroll-py-1 overflow-y-auto overscroll-contain pr-1 outline-hidden"
+				>
+					{options?.map((option) => {
+						const token = optionTokenFor(option);
+						const selected = isOptionSelected(option, token);
+						return (
+							<FilterComboboxItem
+								className={cn(
+									OPTION_ITEM_CLASS,
+									selected && "text-content-primary",
+								)}
+								key={token}
+								value={token}
+								aria-selected={selected}
+								onSelect={() => onSelectOption(token)}
+							>
+								<OptionRowContent
+									icon={option.startIcon}
+									label={option.label}
+									selected={selected}
+								/>
+							</FilterComboboxItem>
+						);
+					})}
+				</div>
+				{category && scope && (
+					<ScopeToggleItem
+						categoryKey={category.key}
+						scope={scope}
+						onToggle={onToggleScope}
+					/>
+				)}
 			</FilterComboboxList>
 		</OptionsPanel>
 	);

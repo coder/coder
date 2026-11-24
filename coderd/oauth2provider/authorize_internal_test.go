@@ -64,6 +64,30 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
+			name:      "RetiredScopeDroppedFromRequest",
+			requested: []string{"task:*", inCatalog, "task:read"},
+			appScope:  noAllowlist,
+			want:      inCatalog,
+		},
+		{
+			name:      "RetiredScopeDroppedBeforeAllowlistCheck",
+			requested: []string{inCatalog, "task:*"},
+			appScope:  sql.NullString{String: inCatalog, Valid: true},
+			want:      inCatalog,
+		},
+		{
+			name:      "OnlyRetiredScopesRejected",
+			requested: []string{"task:*", "task:read"},
+			appScope:  noAllowlist,
+			wantErr:   errUnknownScope,
+		},
+		{
+			name:      "UnknownScopeBesideRetiredRejected",
+			requested: []string{"task:*", "not_a_real_scope", inCatalog},
+			appScope:  noAllowlist,
+			wantErr:   errUnknownScope,
+		},
+		{
 			name:      "NoAllowlistOmittedRequestIsUnrestricted",
 			requested: nil,
 			appScope:  noAllowlist,

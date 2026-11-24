@@ -58,8 +58,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 		return
 	}
 	var req codersdk.CreateChatProjectMemoryRequest
@@ -131,8 +130,11 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	memory := httpmw.ChatProjectMemoryParam(r)
-	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
+	if memory.ChatProjectMemory.ProjectID != project.ID {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
 		return
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionDelete, OrganizationID: project.OrganizationID})

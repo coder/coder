@@ -24,10 +24,7 @@ export const SensitiveValue: React.FC<SensitiveValueProps> = ({ value }) => {
 
 	return (
 		<div className="flex items-center gap-1">
-			<CopyableValue
-				value={value}
-				className="w-[calc(100%-22px)] overflow-hidden whitespace-nowrap text-ellipsis"
-			>
+			<CopyableValue value={value} className="w-[calc(100%-22px)] truncate">
 				{displayValue}
 			</CopyableValue>
 			<Tooltip>

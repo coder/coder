@@ -227,6 +227,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					s.config.ConnectionReporter,
 					newChan,
 					s.startSession,
+					s.isClosing,
+					s.trackChannel,
 					clientSessionIDFromContext(ctx),
 				)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
@@ -245,12 +247,15 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			"session": ssh.DefaultSessionHandler,
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
-			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
-			return conn
+			rc := newReadErrorConn(conn)
+			ctx.SetValue(clientSessionIDContextKey{}, rc.ClientSessionID())
+			ctx.SetValue(readErrorConnContextKey{}, rc)
+			return rc
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
-			// The conn here is our conn wrapped in a ssh.serverConn, so unwrap to get
-			// the client session ID from the inner conn.
+			// The conn here is our readErrorConn wrapped in a ssh.serverConn, so
+			// unwrap to get the client session ID from the inner conn.
+			// TestSSHServer_ConnectionFailedLogsClientSessionID covers this.
 			clientSessionID := ""
 			val := reflect.ValueOf(conn)
 			if val.Kind() == reflect.Ptr {
@@ -264,6 +269,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					}
 				}
 			}
+			s.logger.Flush(ctx)
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
@@ -361,7 +367,15 @@ func (s *Server) SessionCounts() map[string]int64 {
 	return maps.Clone(s.sessionCounts)
 }
 
-func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
+// isZedProxyCommand reports whether rawCommand starts Zed's remote server
+// proxy, the long-lived session Zed keeps open for a remote project. Zed sets
+// no app name, so its command line is the only signal.
+func isZedProxyCommand(rawCommand string) bool {
+	return strings.Contains(rawCommand, "zed-remote-server") &&
+		strings.Contains(rawCommand, " proxy --identifier ")
+}
+
+func extractAppName(env []string, rawCommand string) (appName, rawAppName string, filteredEnv []string) {
 	// Match the full assignment so a longer variable such as
 	// CODER_SSH_SESSION_TYPE_FOO=bar is not mistaken for this one.
 	prefix := AppNameEnvironmentVariable + "="
@@ -370,6 +384,10 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 			// The last instance of the variable wins.
 			rawAppName = value
 		}
+	}
+	// An explicit app name wins over detection.
+	if rawAppName == "" && isZedProxyCommand(rawCommand) {
+		rawAppName = "zed"
 	}
 
 	if rawAppName == "" {
@@ -384,33 +402,87 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 	})
 }
 
-// sessionCloseTracker is a wrapper around Session that tracks the exit code.
-type sessionCloseTracker struct {
+// sessionTracker is a wrapper around Session that tracks the exit code and
+// transferred bytes.
+type sessionTracker struct {
 	ssh.Session
 	exitOnce sync.Once
 	code     atomic.Int64
+	rxBytes  atomic.Int64
+	txBytes  atomic.Int64
 }
 
-var _ ssh.Session = &sessionCloseTracker{}
+var _ ssh.Session = &sessionTracker{}
 
-func (s *sessionCloseTracker) track(code int) {
+func (s *sessionTracker) track(code int) {
 	s.exitOnce.Do(func() {
 		s.code.Store(int64(code))
 	})
 }
 
-func (s *sessionCloseTracker) exitCode() int {
+func (s *sessionTracker) exitCode() int {
 	return int(s.code.Load())
 }
 
-func (s *sessionCloseTracker) Exit(code int) error {
+func (s *sessionTracker) RxBytes() int64 { return s.rxBytes.Load() }
+func (s *sessionTracker) TxBytes() int64 { return s.txBytes.Load() }
+
+func (s *sessionTracker) Read(p []byte) (int, error) {
+	n, err := s.Session.Read(p)
+	if n > 0 {
+		s.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Write(p []byte) (int, error) {
+	n, err := s.Session.Write(p)
+	if n > 0 {
+		s.txBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Exit(code int) error {
 	s.track(code)
 	return s.Session.Exit(code)
 }
 
-func (s *sessionCloseTracker) Close() error {
+func (s *sessionTracker) Close() error {
 	s.track(1)
 	return s.Session.Close()
+}
+
+func (s *sessionTracker) Stderr() io.ReadWriter {
+	return &readWriterTracker{
+		ReadWriter: s.Session.Stderr(),
+		rxBytes:    &s.rxBytes,
+		txBytes:    &s.txBytes,
+	}
+}
+
+// readWriterTracker is a wrapper around io.ReadWriter that adds bytes
+// transferred to the provided counters.
+type readWriterTracker struct {
+	io.ReadWriter
+	rxBytes *atomic.Int64
+	txBytes *atomic.Int64
+}
+
+func (rw *readWriterTracker) Read(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Read(p)
+	if n > 0 {
+		rw.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (rw *readWriterTracker) Write(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Write(p)
+	if n > 0 {
+		rw.txBytes.Add(int64(n))
+	}
+	return n, err
 }
 
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
@@ -446,7 +518,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	logger.Info(ctx, "handling ssh session")
 
 	env := session.Environ()
-	appName, rawAppName, env := extractAppName(env)
+	appName, rawAppName, env := extractAppName(env, session.RawCommand())
 	family := codersdk.AppNameFamily(appName)
 	if family == codersdk.AppFamilyUnknown {
 		logger.Debug(ctx, "unrecognized ssh session type",
@@ -455,18 +527,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		)
 	}
 
-	// Connection_Type is a fixed enum, stored as a database enum in the
-	// connection log, so it can only hold a family.
-	var connectionType proto.Connection_Type
-	switch family {
-	case codersdk.AppFamilySSH:
-		connectionType = proto.Connection_SSH
-	case codersdk.AppFamilyVSCode:
-		connectionType = proto.Connection_VSCODE
-	case codersdk.AppFamilyJetBrains:
-		connectionType = proto.Connection_JETBRAINS
-	default:
-		connectionType = proto.Connection_TYPE_UNSPECIFIED
+	// App-less sessions count as SSH but report no app.
+	connectionAppName := appName
+	if rawAppName == "" {
+		connectionAppName = ""
 	}
 
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
@@ -483,14 +547,16 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		// Report connection attempt even if we couldn't accept it.
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
 		defer connReporter.Disconnect(proto.DisconnectEvent{
-			Code:   1,
-			Reason: reason,
+			Code:    1,
+			Reason:  reason,
+			RxBytes: 0,
+			TxBytes: 0,
 		})
 
 		logger.Info(ctx, reason)
@@ -500,43 +566,71 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
-	reportSession := true
-
-	if family == codersdk.AppFamilyJetBrains {
-		// Do nothing here because JetBrains launches hundreds of ssh sessions.
-		// We instead track JetBrains in the single persistent tcp forwarding channel.
-		reportSession = false
-	} else {
-		endSession := s.startSession(appName)
-		defer endSession()
-	}
+	keepAlive := ctx.KeepAlive()
+	conn, _ := ctx.Value(readErrorConnContextKey{}).(*readErrorConn)
+	// JetBrains launches hundreds of ssh sessions, so it is tracked in its single
+	// persistent tcp forwarding channel instead.
+	reportSession := family != codersdk.AppFamilyJetBrains
 
 	closeCause := func(_ string) {}
 	if reportSession {
+		endSession := s.startSession(appName)
 		var reason codersdk.DisconnectReason
 		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
-		scr := &sessionCloseTracker{Session: session}
-		session = scr
+		st := &sessionTracker{Session: session}
+		session = st
 
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
-		defer func() {
-			logger.Info(ctx, "ssh session closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				slog.F("exit_code", scr.exitCode()),
-			)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:   scr.exitCode(),
-				Reason: string(reason),
+		var reportOnce sync.Once
+		report := func(reason codersdk.DisconnectReason) {
+			reportOnce.Do(func() {
+				// Count the session until its disconnect is reported, not until
+				// its process exits, so session counts match the connection log.
+				endSession()
+				netErr := conn.networkError()
+				if netErr != nil || keepAlive.TimedOut() {
+					reason = codersdk.DisconnectReasonNetworkError
+				}
+				fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+				if s.isClosing() {
+					if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+						fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+					}
+					reason = codersdk.DisconnectReasonServerShutdown
+					fields = append(fields, serverShutdownFields()...)
+				} else {
+					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+					if netErr != nil {
+						fields = append(fields, codersdk.SlogDisconnectDetail(netErr.Error()))
+					}
+				}
+				if !reason.Expected() {
+					logger.Flush(ctx)
+				}
+				logger.Info(ctx, "ssh session closed",
+					fields...,
+				)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:    st.exitCode(),
+					Reason:  string(reason),
+					RxBytes: st.RxBytes(),
+					TxBytes: st.TxBytes(),
+				})
 			})
+		}
+		// Non-PTY processes outlive the client like OpenSSH, so report the
+		// disconnect when the connection closes, not when the process exits.
+		stop := context.AfterFunc(ctx, func() { report(codersdk.DisconnectReasonClientClosed) })
+		defer func() {
+			stop()
+			report(reason)
 		}()
 	}
 
@@ -572,6 +666,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
+		} else {
+			closeCause(string(codersdk.DisconnectReasonGraceful))
 		}
 		return
 	default:
@@ -1138,17 +1234,28 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 		slog.F("listen_addr", l.Addr()),
 		slog.F("client_session_id", clientSessionID))
 
-	defer logger.Info(context.Background(), "ssh connection complete")
+	registered := s.trackConn(l, c, true)
+	if registered {
+		// Close must wait for the completion log, including forwarding-only
+		// connections that have no separate session completion report.
+		defer s.trackConn(l, c, false)
+	}
+	defer func() {
+		fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+		if s.isClosing() {
+			fields = append(fields, serverShutdownFields()...)
+		}
+		logger.Info(context.Background(), "ssh connection complete", fields...)
+	}()
 
 	defer c.Close()
 
-	if !s.trackConn(l, c, true) {
+	if !registered {
 		// Server is closed or we no longer want
 		// connections from this listener.
 		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
-	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
 	s.srv.HandleConn(c)
 }
@@ -1224,6 +1331,25 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 	}
 	s.wg.Done()
 	delete(s.sessions, ss)
+	return true
+}
+
+// trackChannel registers a channel whose handler outlives its connection's
+// tracking, such as a forwarded JetBrains channel. If the server is closing,
+// the channel is not registered.
+//
+//nolint:revive // add is a control flag, matching trackConn and trackSession.
+func (s *Server) trackChannel(add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			return false
+		}
+		s.wg.Add(1)
+		return true
+	}
+	s.wg.Done()
 	return true
 }
 
@@ -1460,4 +1586,45 @@ func ClientSessionIDFromConn(conn net.Conn) string {
 		return uc.ClientSessionID()
 	}
 	return ""
+}
+
+type readErrorConnContextKey struct{}
+
+// readErrorConn records the first read error so a session can be reported as
+// a network error rather than a client close. It is what ConnCallback hands to
+// the SSH server, so it implements UpgradedConn to keep the client session ID
+// reachable from the server's connection wrapper.
+type readErrorConn struct {
+	net.Conn
+	clientSessionID string
+	readErr         atomic.Pointer[error]
+}
+
+var _ UpgradedConn = (*readErrorConn)(nil)
+
+func newReadErrorConn(conn net.Conn) *readErrorConn {
+	return &readErrorConn{Conn: conn, clientSessionID: ClientSessionIDFromConn(conn)}
+}
+
+func (c *readErrorConn) ClientSessionID() string { return c.clientSessionID }
+
+func (c *readErrorConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if err != nil {
+		c.readErr.CompareAndSwap(nil, &err)
+	}
+	return n, err
+}
+
+// networkError returns the error the connection ended with, such as the
+// tailnet TCP retry limit, or nil if it is open or either side closed it.
+func (c *readErrorConn) networkError() error {
+	if c == nil {
+		return nil
+	}
+	err := c.readErr.Load()
+	if err == nil || errors.Is(*err, io.EOF) || errors.Is(*err, net.ErrClosed) {
+		return nil
+	}
+	return *err
 }

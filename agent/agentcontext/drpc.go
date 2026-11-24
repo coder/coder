@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
 	"storj.io/drpc/drpcerr"
 
@@ -40,8 +41,11 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 	}
 	resp, err := p.client.PushContextState(ctx, pushRequestToProto(req))
 	if err != nil {
-		if drpcerr.Code(err) == drpcerr.Unimplemented {
+		switch drpcerr.Code(err) {
+		case drpcerr.Unimplemented:
 			return nil, ErrPushUnimplemented
+		case uint64(codes.InvalidArgument):
+			return nil, xerrors.Errorf("%s: %w", err.Error(), ErrPushInvalid)
 		}
 		return nil, err
 	}
@@ -101,6 +105,20 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 				Description: r.Description,
 			},
 		}
+
+	case KindACPHarness:
+		body := &agentproto.ACPHarnessBody{Slug: r.Source}
+		if h := r.ACPHarness; h != nil {
+			body.Slug, body.DisplayName = h.Slug, h.DisplayName
+			for _, opt := range h.ConfigOptions {
+				option := &agentproto.ACPConfigOption{Id: opt.ID, Name: opt.Name, Description: opt.Description, CurrentValue: opt.CurrentValue, Category: opt.Category}
+				for _, v := range opt.Values {
+					option.Values = append(option.Values, &agentproto.ACPConfigValue{Id: v.ID, Name: v.Name, Description: v.Description, Group: v.Group, GroupName: v.GroupName})
+				}
+				body.ConfigOptions = append(body.ConfigOptions, option)
+			}
+		}
+		entry.Body = &agentproto.ContextResource_AcpHarness{AcpHarness: body}
 	case KindMCPConfig:
 		// MCPConfigBody is intentionally empty: secrets in env
 		// blocks must not leave the agent.

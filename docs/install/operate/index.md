@@ -8,6 +8,7 @@ Day-two operations cover the work that keeps a deployment healthy after it's ins
 
 - [External provisioners](./provisioners/index.md) to isolate workspace builds from the control plane and to add build capacity.
 - [Upgrading](./upgrade.md), including [upgrade best practices](./upgrade/best-practices.md) and the Extended Support Release upgrade paths.
+- [Disaster recovery](./disaster-recovery.md), for database backups, restore tests, and outage planning.
 - [Uninstall](./uninstall.md), for decommissioning a deployment and removing the resources it created.
 
 ## What lives elsewhere

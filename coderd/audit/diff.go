@@ -41,6 +41,7 @@ type Auditable interface {
 		database.ChatProject |
 		database.ChatProjectMemory |
 		database.AuditableChatProjectInstructions |
+		database.AuditableChatProjectTemplates |
 		database.ChatModelConfig |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
@@ -48,6 +49,7 @@ type Auditable interface {
 		database.UserSecret |
 		database.Skill |
 		database.AuditableOrganizationSkill |
+		database.AuditableChatProjectSkill |
 		database.ChatInstructionSettings |
 		database.ChatOperationalSettings |
 		database.ChatOrganizationSystemPrompt |

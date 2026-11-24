@@ -81,8 +81,8 @@ DNS.2 = www.myserver.local
 IP.1 = 127.0.0.1
 EOL
 
-# Generate the server certificate signed by the CA with a validity of 825 days
-openssl x509 -req -in $SERVER_CSR -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -out $SERVER_CERT -days 825 -extfile $V3_EXT_CONF
+# Generate the server certificate signed by the CA, expiring a day before the CA
+openssl x509 -req -in $SERVER_CSR -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -out $SERVER_CERT -days 3649 -extfile $V3_EXT_CONF
 
 # Verify the server certificate
 openssl x509 -in $SERVER_CERT -text -noout | grep -A 1 "Subject Alternative Name"

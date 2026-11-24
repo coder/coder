@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -41,6 +41,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 	onLoadMoreNotifications,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
+	const titleId = useId();
 
 	return (
 		<Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -48,28 +49,33 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-(--radix-popper-available-width) max-w-[466px]"
+				className="w-(--radix-popper-available-width) max-w-116.5"
 				align="end"
+				aria-labelledby={titleId}
 			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
 				<ScrollArea
+					// Keep focused items clear of the sticky header.
+					viewportClassName="scroll-pt-15"
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
-						"[&>[data-radix-scroll-area-viewport]]:max-h-(--max-height)",
+						"*:data-radix-scroll-area-viewport:max-h-(--max-height)",
 					])}
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"flex items-center justify-between p-3 border-b",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<h2 id={titleId} className="m-0 text-xl font-semibold">
+								Inbox
+							</h2>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 
@@ -96,19 +102,23 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 
 					{notifications ? (
 						notifications.length > 0 ? (
-							<div
-								className={cn([
-									"[&>[role=menuitem]]:border-0 [&>[role=menuitem]:not(:last-child)]:border-b",
-									"[&>[role=menuitem]]:border-solid [&>[role=menuitem]]:border-border",
-								])}
-							>
-								{notifications.map((notification) => (
-									<InboxItem
-										key={notification.id}
-										notification={notification}
-										onMarkNotificationAsRead={onMarkNotificationAsRead}
-									/>
-								))}
+							<>
+								<div
+									role="list"
+									aria-label="Notifications"
+									className={cn([
+										"[&>[role=listitem]:not(:last-child)]:border-b",
+										hasMoreNotifications && "border-b",
+									])}
+								>
+									{notifications.map((notification) => (
+										<InboxItem
+											key={notification.id}
+											notification={notification}
+											onMarkNotificationAsRead={onMarkNotificationAsRead}
+										/>
+									))}
+								</div>
 								{hasMoreNotifications && (
 									<Button
 										variant="subtle"
@@ -121,7 +131,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 										Load more
 									</Button>
 								)}
-							</div>
+							</>
 						) : (
 							<div className="p-6 flex items-center justify-center min-h-48">
 								<div className="text-sm text-center flex flex-col">

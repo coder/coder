@@ -137,39 +137,41 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID               `json:"id" format:"uuid"`
-	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
-	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt            *time.Time              `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt              *time.Time              `json:"ready_at,omitempty" format:"date-time"`
-	Status               WorkspaceAgentStatus    `json:"status"`
-	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                 string                  `json:"name"`
-	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID           string                  `json:"instance_id,omitempty"`
-	Architecture         string                  `json:"architecture"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	OperatingSystem      string                  `json:"operating_system"`
-	LogsLength           int32                   `json:"logs_length"`
-	LogsOverflowed       bool                    `json:"logs_overflowed"`
-	Directory            string                  `json:"directory,omitempty"`
-	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
-	Version              string                  `json:"version"`
-	APIVersion           string                  `json:"api_version"`
-	Apps                 []WorkspaceApp          `json:"apps"`
+	ID               uuid.UUID               `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	ParentID         uuid.NullUUID           `json:"parent_id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	CreatedAt        time.Time               `json:"created_at" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	UpdatedAt        time.Time               `json:"updated_at" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	FirstConnectedAt *time.Time              `json:"first_connected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	LastConnectedAt  *time.Time              `json:"last_connected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	DisconnectedAt   *time.Time              `json:"disconnected_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	StartedAt        *time.Time              `json:"started_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	ReadyAt          *time.Time              `json:"ready_at,omitempty" format:"date-time" wsrelated:"latest_build.resources.agents"`
+	Status           WorkspaceAgentStatus    `json:"status" wsrelated:"latest_build.resources.agents"`
+	LifecycleState   WorkspaceAgentLifecycle `json:"lifecycle_state" wsrelated:"latest_build.resources.agents"`
+	Name             string                  `json:"name" wsrelated:"latest_build.resources.agents"`
+	ResourceID       uuid.UUID               `json:"resource_id" format:"uuid" wsrelated:"latest_build.resources.agents"`
+	InstanceID       string                  `json:"instance_id,omitempty" wsrelated:"latest_build.resources.agents"`
+	Architecture     string                  `json:"architecture" wsrelated:"latest_build.resources.agents"`
+	// EnvironmentVariables lists the variables set on the agent. Non-empty
+	// values are redacted as "***REDACTED***" because they often hold credentials.
+	EnvironmentVariables map[string]string `json:"environment_variables" wsrelated:"latest_build.resources.agents"`
+	OperatingSystem      string            `json:"operating_system" wsrelated:"latest_build.resources.agents"`
+	LogsLength           int32             `json:"logs_length" wsrelated:"latest_build.resources.agents"`
+	LogsOverflowed       bool              `json:"logs_overflowed" wsrelated:"latest_build.resources.agents"`
+	Directory            string            `json:"directory,omitempty" wsrelated:"latest_build.resources.agents"`
+	ExpandedDirectory    string            `json:"expanded_directory,omitempty" wsrelated:"latest_build.resources.agents"`
+	Version              string            `json:"version" wsrelated:"latest_build.resources.agents"`
+	APIVersion           string            `json:"api_version" wsrelated:"latest_build.resources.agents"`
+	Apps                 []WorkspaceApp    `json:"apps" wsrelated:"latest_build.resources.agents.apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
-	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                    `json:"troubleshooting_url"`
-	Subsystems               []AgentSubsystem          `json:"subsystems"`
-	Health                   WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
-	DisplayApps              []DisplayApp              `json:"display_apps"`
-	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
-	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
+	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty" wsrelated:"latest_build.resources.agents"`
+	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds" wsrelated:"latest_build.resources.agents"`
+	TroubleshootingURL       string                    `json:"troubleshooting_url" wsrelated:"latest_build.resources.agents"`
+	Subsystems               []AgentSubsystem          `json:"subsystems" wsrelated:"latest_build.resources.agents"`
+	Health                   WorkspaceAgentHealth      `json:"health" wsrelated:"latest_build.resources.agents"` // Health reports the health of the agent.
+	DisplayApps              []DisplayApp              `json:"display_apps" wsrelated:"latest_build.resources.agents"`
+	LogSources               []WorkspaceAgentLogSource `json:"log_sources" wsrelated:"latest_build.resources.agents.log_sources"`
+	Scripts                  []WorkspaceAgentScript    `json:"scripts" wsrelated:"latest_build.resources.agents.scripts"`
 	// Metadata is only populated on the workspaces list endpoint when the
 	// request opts in with the include_agent_metadata search key, and it
 	// only carries the requested keys. The description's script is always
@@ -179,7 +181,7 @@ type WorkspaceAgent struct {
 	// StartupScriptBehavior is a legacy field that is deprecated in favor
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
-	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior" wsrelated:"latest_build.resources.agents.scripts"`
 }
 
 type WorkspaceAgentLogSource struct {
@@ -198,6 +200,8 @@ const (
 	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
 	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
 	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+	WorkspaceAgentScriptStatusSkipped       WorkspaceAgentScriptStatus = "skipped"
+	WorkspaceAgentScriptStatusCanceled      WorkspaceAgentScriptStatus = "canceled"
 )
 
 type WorkspaceAgentScript struct {

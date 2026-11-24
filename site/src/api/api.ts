@@ -70,12 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	afterMessageId?: number,
+	snapshotVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	if (afterMessageId !== undefined && afterMessageId > 0) {
-		params.set("after_id", afterMessageId.toString());
-	}
+	params.set("snapshot_version", snapshotVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
@@ -368,6 +366,21 @@ const organizationSkillPath = (organizationId: string, name: string) =>
 	`${organizationSkillsPath(organizationId)}/${encodeURIComponent(name)}`;
 const organizationSkillACLPath = (organizationId: string, name: string) =>
 	`${organizationSkillPath(organizationId, name)}/acl`;
+const organizationSkillSettingsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/skill-settings`;
+const organizationSkillPreferencesPath = (
+	organizationId: string,
+	user: string,
+) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/skill-preferences`;
+const chatProjectSkillsPath = (organizationId: string, projectId: string) =>
+	`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/skills`;
+const chatProjectSkillPath = (
+	organizationId: string,
+	projectId: string,
+	name: string,
+) =>
+	`${chatProjectSkillsPath(organizationId, projectId)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -518,9 +531,19 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUser = async (usernameOrId: string) => {
+	getUserOrganizationsAISpend =
+		async (): Promise<TypesGen.UserOrganizationsAISpendStatus> => {
+			const response =
+				await this.axios.get<TypesGen.UserOrganizationsAISpendStatus>(
+					"/api/v2/users/me/ai/spend/organizations",
+				);
+			return response.data;
+		};
+
+	getUser = async (usernameOrId: string, signal?: AbortSignal) => {
 		const response = await this.axios.get<TypesGen.User>(
 			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -2260,6 +2283,26 @@ class ApiMethods {
 		};
 	};
 
+	/** The organization's AI spend as a CSV file. */
+	getOrganizationAISpendExport = async (
+		organizationId: string,
+		params: TypesGen.AISpendPeriodWindow & {
+			user_id?: string;
+			group_id?: string;
+			provider_name?: string;
+			model?: string;
+		},
+	): Promise<Blob> => {
+		const response = await this.axios.get<Blob>(
+			getURLWithSearchParams(
+				`/api/v2/organizations/${organizationId}/ai/spend/export`,
+				params,
+			),
+			{ responseType: "blob" },
+		);
+		return response.data;
+	};
+
 	/**
 	 * Per-member AI spend attributed to a group in the active budget period.
 	 * Users not in the group, or whose spend the caller can't read, are
@@ -3334,6 +3377,114 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectSkills = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
+			chatProjectSkillsPath(organizationId, projectId),
+		);
+		return response.data;
+	};
+
+	getChatProjectSkill = async (
+		organizationId: string,
+		projectId: string,
+		name: string,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.get<TypesGen.Skill>(
+			chatProjectSkillPath(organizationId, projectId, name),
+		);
+		return response.data;
+	};
+
+	createChatProjectSkill = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.CreateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.post<TypesGen.Skill>(
+			chatProjectSkillsPath(organizationId, projectId),
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProjectSkill = async (
+		organizationId: string,
+		projectId: string,
+		name: string,
+		req: TypesGen.UpdateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.patch<TypesGen.Skill>(
+			chatProjectSkillPath(organizationId, projectId, name),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectSkill = async (
+		organizationId: string,
+		projectId: string,
+		name: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			chatProjectSkillPath(organizationId, projectId, name),
+		);
+	};
+
+	getChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectInstructions> => {
+		const response = await this.axios.get<TypesGen.ChatProjectInstructions>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectInstructionsRequest,
+	): Promise<TypesGen.ChatProjectInstructions> => {
+		const response = await this.axios.put<TypesGen.ChatProjectInstructions>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+		);
+	};
+
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACL,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+			req,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
@@ -3387,6 +3538,26 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.ChatPromptsResponse> => {
 		const url = getURLWithSearchParams(`/api/v2/chats/${chatId}/prompts`, opts);
 		const response = await this.axios.get<TypesGen.ChatPromptsResponse>(url);
+		return response.data;
+	};
+
+	/**
+	 * Lists the file parts in a chat's messages, newest first, optionally
+	 * only those in messages before `before_id`.
+	 */
+	getChatAttachments = async (
+		chatId: string,
+		opts?: { before_id?: number },
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatAttachmentsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/chats/${chatId}/attachments`,
+			opts,
+		);
+		const response = await this.axios.get<TypesGen.ChatAttachmentsResponse>(
+			url,
+			{ signal },
+		);
 		return response.data;
 	};
 
@@ -3486,6 +3657,17 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	editChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
+			req,
+		);
+	};
+
 	getChatDiffContents = async (
 		chatId: string,
 		ref?: TypesGen.DiffStatusRef,
@@ -3506,6 +3688,7 @@ class ExperimentalApiMethods {
 	getOrganizationAISpendUsers = async (
 		organizationId: string,
 		{ limit, offset, ...filter }: OrganizationAISpendParams,
+		signal?: AbortSignal,
 	): Promise<TypesGen.OrganizationAISpendReport> => {
 		// Like the Go SDK, a zero page value means the server default; the
 		// endpoint rejects an explicit limit=0.
@@ -3517,8 +3700,41 @@ class ExperimentalApiMethods {
 				offset: offset !== undefined && offset > 0 ? offset : undefined,
 			},
 		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		const response = await this.axios.get<TypesGen.OrganizationAISpendReport>(
+			url,
+			{ signal },
+		);
+		return response.data;
+	};
+
+	getOrganizationAISpendOverview = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.OrganizationAISpendOverview> => {
+		const response = await this.axios.get<TypesGen.OrganizationAISpendOverview>(
+			`/api/experimental/organizations/${organizationId}/ai/spend`,
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getOrganizationUnpricedAIModels = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.UnpricedAIModels> => {
+		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
+			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getAIGatewayRetention = async (): Promise<TypesGen.AIGatewayRetention> => {
+		const response = await this.axios.get<TypesGen.AIGatewayRetention>(
+			"/api/experimental/ai-gateway/retention",
+		);
 		return response.data;
 	};
 
@@ -3752,7 +3968,7 @@ class ExperimentalApiMethods {
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
-			"/api/experimental/chats/config/advisor",
+			"/api/v2/chats/config/advisor",
 		);
 		return response.data;
 	};
@@ -3760,25 +3976,7 @@ class ExperimentalApiMethods {
 	updateChatAdvisorConfig = async (
 		req: UpdateAdvisorConfigRequest,
 	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/advisor", req);
-	};
-
-	getChatComputerUseProvider =
-		async (): Promise<TypesGen.ChatComputerUseProviderResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatComputerUseProviderResponse>(
-					"/api/experimental/chats/config/computer-use-provider",
-				);
-			return response.data;
-		};
-
-	updateChatComputerUseProvider = async (
-		req: TypesGen.UpdateChatComputerUseProviderRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			"/api/experimental/chats/config/computer-use-provider",
-			req,
-		);
+		await this.axios.put("/api/v2/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =
@@ -3979,6 +4177,50 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateOrganizationSkillACLRequest,
 	): Promise<void> => {
 		await this.axios.patch(organizationSkillACLPath(organizationId, name), req);
+	};
+
+	getOrganizationSkillSettings = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.get<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkillSettings = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillSettingsRequest,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.put<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+			req,
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillPreferences = async (
+		organizationId: string,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+			);
+		return response.data;
+	};
+
+	updateOrganizationSkillPreferences = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillPreferencesRequest,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.patch<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+				req,
+			);
+		return response.data;
 	};
 
 	getUserChatCompactionThresholds =

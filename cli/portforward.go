@@ -496,8 +496,11 @@ func parsePortRange(s, e string) ([]uint16, error) {
 		return nil, xerrors.Errorf("range end port %v is less than start port %v", end, start)
 	}
 	var ports []uint16
-	for i := start; i <= end; i++ {
+	for i := start; ; i++ {
 		ports = append(ports, i)
+		if i == end {
+			break
+		}
 	}
 	return ports, nil
 }

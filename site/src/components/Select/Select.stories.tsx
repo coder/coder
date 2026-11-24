@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	Select,
 	SelectContent,
@@ -15,7 +16,7 @@ const meta: Meta<typeof Select> = {
 	args: {
 		children: (
 			<>
-				<SelectTrigger className="w-[180px]">
+				<SelectTrigger className="w-45">
 					<SelectValue placeholder="Select a fruit" />
 				</SelectTrigger>
 				<SelectContent>
@@ -54,5 +55,43 @@ export const SelectedOpen: Story = {
 	args: {
 		value: "apple",
 		open: true,
+	},
+};
+
+export const NarrowViewport: Story = {
+	args: {
+		open: true,
+		children: (
+			<>
+				<SelectTrigger className="w-45">
+					<SelectValue placeholder="Select a login type" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="service-account">
+						Service account: cannot log in interactively. Intended for automated
+						pipelines, bots, and other non-human access.
+					</SelectItem>
+					{Array.from({ length: 24 }, (_, i) => (
+						<SelectItem key={i} value={`option-${i + 1}`}>
+							Option {i + 1}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const KeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("combobox").focus();
+		await userEvent.keyboard("{Enter}");
+		await screen.findByRole("listbox");
+		await userEvent.keyboard("{ArrowDown}");
 	},
 };

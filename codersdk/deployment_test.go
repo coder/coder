@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -41,19 +42,20 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
 		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
 		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
-		codersdk.ExperimentMCPToolSearch:             "MCP Tool Search",
 		codersdk.ExperimentNoNATSPubsub:              "No NATS Pubsub",
 		codersdk.ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
 		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
 		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
 		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
-		codersdk.ExperimentChatProjects:              "Chat Projects",
-		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
+		codersdk.ExperimentChatProjectSharing:        "Chat Project Sharing",
 		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
 		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentChatACPSubagents:          "Chat ACP Subagents",
+		codersdk.ExperimentChatAutomations:           "Chat Automations",
+		codersdk.ExperimentAgentPlugins:              "Agent Plugins",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))
@@ -123,6 +125,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			yaml: true,
 		},
 		"Notifications: Email Auth: Password": {
+			yaml: true,
+		},
+		"Setup Token": {
 			yaml: true,
 		},
 	}
@@ -331,6 +336,9 @@ func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
 		{name: "Tab", prefix: "coder.\t*", wantErr: true},
 		{name: "NUL", prefix: "coder.\x00", wantErr: true},
 		{name: "NonBreakingSpace", prefix: "coder.\u00A0x", wantErr: true},
+		{name: "Glob", prefix: "*", wantErr: true},
+		{name: "GlobSuffix", prefix: "coder.*", wantErr: true},
+		{name: "QuestionMark", prefix: "code?.", wantErr: true},
 	}
 
 	for _, tt := range testCases {
@@ -425,6 +433,11 @@ func TestSSHConfigResponse_Validate(t *testing.T) {
 			name:     "PrefixUnsafe",
 			response: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
 			wantErr:  "workspace hostname prefix",
+		},
+		{
+			name:     "PrefixGlob",
+			response: codersdk.SSHConfigResponse{HostnamePrefix: "*"},
+			wantErr:  `workspace hostname prefix "*" must not contain glob characters`,
 		},
 		{
 			name:     "SuffixUnsafe",
@@ -2194,4 +2207,38 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 	for _, ex := range codersdk.ExperimentsSafe {
 		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
+}
+
+// TestPackagedCoderEnvKeepsDefaults checks that the coder.env shipped in the
+// Linux packages changes no server option from its default. An empty
+// CODER_HTTP_ADDRESS= makes a server with TLS off exit at startup.
+func TestPackagedCoderEnvKeepsDefaults(t *testing.T) {
+	t.Parallel()
+
+	env, err := godotenv.Read(filepath.Join("..", "coder.env"))
+	require.NoError(t, err)
+	require.NotEmpty(t, env)
+
+	envVars := make([]serpent.EnvVar, 0, len(env))
+	for name, value := range env {
+		envVars = append(envVars, serpent.EnvVar{Name: name, Value: value})
+	}
+
+	var packaged, defaults codersdk.DeploymentValues
+	packagedOpts := packaged.Options()
+	// SetDefaults skips the options that ParseEnv set, as in a real invocation.
+	require.NoError(t, packagedOpts.ParseEnv(envVars))
+	require.NoError(t, packagedOpts.SetDefaults())
+	defaultOpts := defaults.Options()
+	require.NoError(t, defaultOpts.SetDefaults())
+
+	for i, opt := range packagedOpts {
+		if _, ok := env[opt.Env]; !ok {
+			continue
+		}
+		delete(env, opt.Env)
+		assert.Equal(t, defaultOpts[i].Value.String(), opt.Value.String(),
+			"%s in coder.env replaces the default", opt.Env)
+	}
+	assert.Empty(t, env, "coder.env sets variables that are not server options")
 }

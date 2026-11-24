@@ -9,6 +9,10 @@ import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
 import { ClientFilter, type ClientFilterMenu } from "../filters/ClientFilter";
 import { ModelFilter, type ModelFilterMenu } from "../filters/ModelFilter";
 import {
+	OrganizationFilter,
+	type OrganizationFilterMenu,
+} from "../filters/OrganizationFilter";
+import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
@@ -25,9 +29,11 @@ type ListSessionsFilterProps = {
 		provider: ProviderFilterMenu;
 		client: ClientFilterMenu;
 		model: ModelFilterMenu;
+		organization?: OrganizationFilterMenu;
 	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
+	minDate?: Date;
 };
 
 export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
@@ -36,6 +42,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	menus,
 	timeRange,
 	onTimeRangeChange,
+	minDate,
 }) => {
 	return (
 		<Filter
@@ -50,6 +57,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					<DateTimeRangePicker
 						value={timeRange}
 						onChange={onTimeRangeChange}
+						minDate={minDate}
 						size="lg"
 					/>
 					<UserMenu
@@ -60,6 +68,12 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
 					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
+					{menus.organization && (
+						<OrganizationFilter
+							menu={menus.organization}
+							width={FILTER_WIDTH}
+						/>
+					)}
 				</>
 			}
 		/>

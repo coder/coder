@@ -184,6 +184,78 @@ func TestChatACLDisabled(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestChatProjectRBACObjects(t *testing.T) {
+	readUser, updateUser, wildcardUser, noReadUser, updateOnlyUser := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	readGroup, updateGroup := uuid.NewString(), uuid.NewString()
+	project := ChatProject{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: ChatACL{
+			readUser:       {Permissions: []policy.Action{policy.ActionRead}},
+			updateUser:     {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}},
+			wildcardUser:   {Permissions: []policy.Action{policy.WildcardSymbol}},
+			noReadUser:     {Permissions: []policy.Action{policy.ActionShare}},
+			updateOnlyUser: {Permissions: []policy.Action{policy.ActionUpdate}},
+		},
+		GroupACL: ChatACL{
+			readGroup:   {Permissions: []policy.Action{policy.ActionRead}},
+			updateGroup: {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}},
+		},
+	}
+	readWrite := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
+
+	t.Run("Enabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+
+		obj := project.RBACObject()
+		require.Equal(t, project.UserACL.RBACACL(), obj.ACLUserList)
+		require.Equal(t, project.GroupACL.RBACACL(), obj.ACLGroupList)
+
+		memory := ChatProjectMemoryRBACObject(project)
+		require.Equal(t, map[string][]policy.Action{
+			readUser:     readWrite,
+			updateUser:   readWrite,
+			wildcardUser: readWrite,
+		}, memory.ACLUserList)
+		require.Equal(t, map[string][]policy.Action{
+			readGroup:   readWrite,
+			updateGroup: readWrite,
+		}, memory.ACLGroupList)
+
+		memoryID := uuid.New()
+		withID := ChatProjectMemory{ID: memoryID}.RBACObject(project)
+		require.Equal(t, memoryID.String(), withID.ID)
+		require.Equal(t, memory.ACLUserList, withID.ACLUserList)
+
+		auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+		orgRole := rbac.Role{
+			Identifier: rbac.ScopedRoleOrgMember(project.OrganizationID),
+			ByOrgID:    map[string]rbac.OrgPermissions{project.OrganizationID.String(): {}},
+		}
+		subject := rbac.Subject{ID: readUser, Roles: rbac.Roles{orgRole}, Scope: rbac.ScopeAll}
+		ctx := context.Background()
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, obj))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, memory))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionCreate, memory))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionDelete, withID))
+		require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(true)
+		t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+		obj := project.RBACObject()
+		require.Empty(t, obj.ACLUserList)
+		require.Empty(t, obj.ACLGroupList)
+		memory := ChatProjectMemoryRBACObject(project)
+		require.Empty(t, memory.ACLUserList)
+		require.Empty(t, memory.ACLGroupList)
+	})
+}
+
 //nolint:tparallel,paralleltest
 func TestWorkspaceACLDisabled(t *testing.T) {
 	uid := uuid.NewString()

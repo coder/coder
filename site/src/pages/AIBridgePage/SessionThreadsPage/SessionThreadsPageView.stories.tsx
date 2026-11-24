@@ -3,6 +3,8 @@ import { expect, userEvent, waitFor } from "storybook/test";
 import type { AIBridgeSessionThreadsResponse } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeSessionOrganization,
+	MockAIBridgeSessionOrganization2,
 	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
@@ -12,6 +14,7 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 	id: MockSession.id,
 	initiator: MockSession.initiator,
 	providers: MockSession.providers,
+	organizations: [],
 	models: MockSession.models,
 	metadata: MockSession.metadata,
 	started_at: MockSession.started_at,
@@ -22,6 +25,8 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
 		metadata: {},
+		cost_micros: 1_250_000,
+		has_unpriced_usage: false,
 	},
 	network_calls: { total: 4, blocked: 2 },
 	network_call_logs: MockAIBridgeSessionNetworkCalls,
@@ -42,6 +47,7 @@ const meta: Meta<typeof SessionThreadsPageView> = {
 		onFetchNextPage: noop,
 		isAISessionsEnabled: true,
 		isAISessionsEntitled: true,
+		showOrganizations: false,
 		onBackClicked: noop,
 	},
 };
@@ -50,6 +56,35 @@ export default meta;
 type Story = StoryObj<typeof SessionThreadsPageView>;
 
 export const Default: Story = {};
+
+export const WithOrganizations: Story = {
+	args: {
+		showOrganizations: true,
+		session: {
+			...mockSession,
+			organizations: [MockAIBridgeSessionOrganization],
+		},
+	},
+};
+
+export const WithMultipleOrganizations: Story = {
+	args: {
+		showOrganizations: true,
+		session: {
+			...mockSession,
+			organizations: [
+				MockAIBridgeSessionOrganization,
+				{ ...MockAIBridgeSessionOrganization2, icon: "" },
+				{
+					...MockAIBridgeSessionOrganization2,
+					id: "long-name-org-id",
+					name: "platform-engineering",
+					display_name: "Platform Engineering and Developer Experience",
+				},
+			],
+		},
+	},
+};
 
 export const SearchFiltersEvents: Story = {
 	args: {
@@ -69,7 +104,7 @@ export const SearchFiltersEvents: Story = {
 		});
 		const promptByText = (text: string) =>
 			canvas
-				.getAllByRole("paragraph")
+				.getAllByRole("blockquote")
 				.find((element) => element.textContent === text);
 
 		await expect(promptByText("Summarize the project structure")).toBeVisible();

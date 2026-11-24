@@ -1,9 +1,13 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder ai-gateway keys create <name>
+  coder ai-gateway keys create [flags] <name>
 
   Create an AI Gateway key
+
+OPTIONS:
+  -o, --output text|json (default: text)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

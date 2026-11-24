@@ -148,6 +148,8 @@ func TestSkillsCRUD(t *testing.T) {
 			assert.Equal(t, "Initial description", created.Description)
 			assert.Equal(t, content, created.Content)
 			assert.True(t, created.Enabled)
+			assert.True(t, created.ModelInvocable)
+			assert.False(t, created.Action)
 			assert.NotZero(t, created.CreatedAt)
 			assert.NotZero(t, created.UpdatedAt)
 
@@ -188,9 +190,88 @@ func TestSkillsCRUD(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, got.Enabled)
 
+			manual, err := owner.update(ctx, "crud-skill", codersdk.UpdateSkillRequest{ModelInvocable: ptr.Ref(false)})
+			require.NoError(t, err)
+			assert.False(t, manual.ModelInvocable)
+			assert.False(t, manual.Enabled)
+			list, err = owner.list(ctx)
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assert.False(t, list[0].ModelInvocable)
+
 			require.NoError(t, owner.delete(ctx, "crud-skill"))
 			_, err = owner.get(ctx, "crud-skill")
 			requireSDKErrorStatus(t, err, http.StatusNotFound)
+		})
+	}
+}
+
+func TestSkillFrontmatterDisablesModelInvocation(t *testing.T) {
+	t.Parallel()
+
+	withKey := func(name, body string, disable bool) string {
+		return fmt.Sprintf("---\nname: %s\ndisable-model-invocation: %t\ndescription: Manual skill\n---\n\n%s\n", name, disable, body)
+	}
+	withoutKey := func(name, body string) string {
+		return userSkillMarkdown(name, "Manual skill", body)
+	}
+
+	for _, tc := range skillOwnerCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			owner, _ := tc.setup(t, nil)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			created, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withKey("manual", "Body.", true)})
+			require.NoError(t, err)
+			assert.False(t, created.ModelInvocable)
+			assert.Equal(t, withKey("manual", "Body.", true), created.Content)
+
+			// An explicit field wins, and the returned file follows it.
+			explicit, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content:        withKey("explicit", "Body.", true),
+				ModelInvocable: ptr.Ref(true),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
+			assert.Equal(t, withKey("explicit", "Body.", false), explicit.Content)
+
+			// Flow-style frontmatter reads the same as in a workspace skill.
+			flow, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content: "---\n{name: flow, disable-model-invocation: true, description: Manual skill}\n---\n\nBody.\n",
+			})
+			require.NoError(t, err)
+			assert.False(t, flow.ModelInvocable)
+
+			// Content without the key leaves the setting unchanged, so the
+			// returned file gains the key.
+			edited, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{Content: ptr.Ref(withoutKey("manual", "Edited."))})
+			require.NoError(t, err)
+			assert.False(t, edited.ModelInvocable)
+			assert.Equal(t, strings.Replace(withoutKey("manual", "Edited."), "---\n", "---\ndisable-model-invocation: true\n", 1), edited.Content)
+
+			// disable-model-invocation: false turns automatic use back on.
+			reenabled, err := owner.update(ctx, "manual", codersdk.UpdateSkillRequest{
+				Content: ptr.Ref(withKey("manual", "Edited.", false)),
+			})
+			require.NoError(t, err)
+			assert.True(t, reenabled.ModelInvocable)
+			assert.Equal(t, withKey("manual", "Edited.", false), reenabled.Content)
+
+			// Changing only the setting changes the file that the API returns.
+			_, err = owner.update(ctx, "manual", codersdk.UpdateSkillRequest{ModelInvocable: ptr.Ref(false)})
+			require.NoError(t, err)
+			got, err := owner.get(ctx, "manual")
+			require.NoError(t, err)
+			assert.Equal(t, withKey("manual", "Edited.", true), got.Content)
+
+			automatic, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: withoutKey("automatic", "Body.")})
+			require.NoError(t, err)
+			require.True(t, automatic.ModelInvocable)
+			marked, err := owner.update(ctx, "automatic", codersdk.UpdateSkillRequest{Content: ptr.Ref(withKey("automatic", "Edited.", true))})
+			require.NoError(t, err)
+			assert.False(t, marked.ModelInvocable)
 		})
 	}
 }
@@ -251,6 +332,13 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 					content:         strings.Repeat("a", skills.MaxPersonalSkillSizeBytes+1),
 					expectedMessage: "Skill content is too large.",
 				},
+				{
+					// Coder could not turn this value into true or false
+					// when model_invocable changes.
+					name:            "InvocationKeyNotBoolean",
+					content:         "---\nname: invocation-key\ndisable-model-invocation: [true]\n---\n\nBody.",
+					expectedMessage: "Invalid disable-model-invocation key.",
+				},
 			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
@@ -285,6 +373,37 @@ func TestSkillValidationAndConflicts(t *testing.T) {
 				_, err = owner.update(ctx, "patch-no-fields", codersdk.UpdateSkillRequest{})
 				sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 				assert.Equal(t, "No skill fields to update.", sdkErr.Message)
+			})
+
+			// Only project skills can be actions or have display names, so
+			// personal and organization routes reject those fields even
+			// when they are false or empty.
+			t.Run("ProjectFieldsRejected", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				content := userSkillMarkdown("action-rejected", "Valid", "Body.")
+				_, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: content, Action: ptr.Ref(true)})
+				sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+				assert.Equal(t, "Only project skills can be actions.", sdkErr.Message)
+				_, err = owner.create(ctx, codersdk.CreateSkillRequest{Content: content, ModelInvocable: ptr.Ref(false)})
+				require.NoError(t, err)
+				for _, action := range []bool{true, false} {
+					_, err = owner.update(ctx, "action-rejected", codersdk.UpdateSkillRequest{Action: ptr.Ref(action)})
+					sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+					assert.Equal(t, "Only project skills can be actions.", sdkErr.Message)
+				}
+				_, err = owner.create(ctx, codersdk.CreateSkillRequest{
+					Content:     userSkillMarkdown("display-name-rejected", "Valid", "Body."),
+					DisplayName: ptr.Ref("Display name"),
+				})
+				sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+				assert.Equal(t, "Only project skills can have display names.", sdkErr.Message)
+				for _, displayName := range []string{"Display name", ""} {
+					_, err = owner.update(ctx, "action-rejected", codersdk.UpdateSkillRequest{DisplayName: ptr.Ref(displayName)})
+					sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
+					assert.Equal(t, "Only project skills can have display names.", sdkErr.Message)
+				}
 			})
 
 			t.Run("PatchNameMismatch", func(t *testing.T) {
@@ -621,9 +740,10 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	assert.Contains(t, triggerDef, fmt.Sprintf("skill_limit constant int := %d;", skills.MaxPersonalSkillsPerUser))
 
 	constraints := map[database.CheckConstraint]string{
-		database.CheckSkillsNameSize:    fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
-		database.CheckSkillsNameFormat:  "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
-		database.CheckSkillsContentSize: fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
+		database.CheckSkillsNameSize:          fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
+		database.CheckSkillsNameFormat:        "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
+		database.CheckSkillsContentSize:       fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
+		database.CheckSkillsDisplayNameLength: fmt.Sprintf("char_length(display_name) <= %d", codersdk.MaxSkillDisplayNameLength),
 	}
 	for constraint, expected := range constraints {
 		t.Run(string(constraint), func(t *testing.T) {

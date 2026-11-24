@@ -71,8 +71,9 @@ Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are reject
 
 ### Disable chat sharing
 
-Disable chat sharing.
-Chat ACL checking is disabled and only owners can access their chats.
+Disable chat and chat project sharing.
+Existing shares stop granting access and new shares are rejected.
+Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.
 
 - Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_SHARING`
@@ -146,7 +147,7 @@ Expose the swagger endpoint via /swagger.
 
 Enable one or more experiments.
 These are not ready for production.
-Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 - Type: `string-array`
 - Environment variable: `CODER_EXPERIMENTS`
@@ -403,9 +404,23 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 - YAML key: `ai_gateway.disable_content_recording`
 - Default value: `false`
 
+### Embedded enabled
+
+Whether to start an in-memory AI Gateway instance inside coderd.
+Has no effect unless --ai-gateway-enabled is true.
+Set to false when all AI Gateway traffic is served by standalone AI Gateway instances.
+Coder Agents requires this option to be set to true.
+
+- Type: `bool`
+- Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
+- CLI flag: [`--ai-gateway-embedded-enabled`](../../reference/cli/server/index.md#--ai-gateway-embedded-enabled)
+- YAML key: `ai_gateway.embedded_enabled`
+- Default value: `true`
+
 ### Enabled
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway.
+Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
@@ -657,7 +672,7 @@ Must be at least 1.
 ### Max queued messages per chat
 
 Maximum number of messages that can be queued in a chat.
-Sending a message to a chat whose queue is full fails with HTTP 429.
+Sending a message that would make a full queue longer fails with HTTP 429.
 Must be at least 1.
 
 - Type: `int`
@@ -1024,6 +1039,16 @@ If set to false, a reduced set of database metrics are still collected.
 - YAML key: `introspection.prometheus.collect_db_metrics`
 - Default value: `false`
 
+#### Collect workspace stats
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
+- Type: `bool`
+- Environment variable: `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`
+- CLI flag: [`--prometheus-collect-workspace-stats`](../../reference/cli/server/index.md#--prometheus-collect-workspace-stats)
+- YAML key: `introspection.prometheus.collect_workspace_stats`
+- Default value: `false`
+
 #### Enable
 
 Serve prometheus metrics on the address defined by prometheus address.
@@ -1191,6 +1216,18 @@ Controls if the 'Secure' property is set on browser session cookies.
 - CLI flag: [`--secure-auth-cookie`](../../reference/cli/server/index.md#--secure-auth-cookie)
 - YAML key: `networking.secureAuthCookie`
 - Default value: `(computed at runtime)`
+
+### Setup token
+
+The token that must be supplied to create the first user when the deployment is published through a try.coder.app tunnel.
+When empty, the server generates one and prints it at startup.
+It must be at least 24 characters.
+
+- Type: `string`
+- Environment variable: `CODER_SETUP_TOKEN`
+- CLI flag: [`--setup-token`](../../reference/cli/server/index.md#--setup-token)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### Wildcard access URL
 
@@ -2143,7 +2180,7 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates.
+Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates.
 Modules are re-downloaded on every workspace build.
 Individual templates cannot opt back in.
 
@@ -2275,7 +2312,7 @@ Set to 0 to disable automatic deletion.
 
 Telemetry is critical to our ability to improve Coder.
 We strip all personal information before sending data to our servers.
-Please only disable telemetry when required by your organization's security policy.
+Only disable telemetry when required by your organization's security policy.
 
 ### Enable
 
@@ -2329,7 +2366,7 @@ If false, users can't change their quiet hours schedule and the site default is 
 ### Default quiet hours schedule
 
 The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves.
-The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default).
+The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default).
 The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *.
 Only one hour and minute can be specified (ranges or comma separated values are not supported).
 

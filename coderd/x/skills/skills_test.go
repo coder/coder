@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func TestParsePersonalSkillMarkdown(t *testing.T) {
@@ -178,18 +179,20 @@ func TestMergeSkills(t *testing.T) {
 	shared := []skills.Skill{{Name: "shared", Description: "Shared"}}
 
 	for _, tc := range []struct {
-		name                              string
-		personal, organization, workspace []skills.Skill
-		want                              []skills.ResolvedSkill
+		name                                       string
+		personal, organization, project, workspace []skills.Skill
+		want                                       []skills.ResolvedSkill
 	}{
 		{
 			name:         "NonCollidingSkillsUseBareAliasesSortedByName",
 			personal:     []skills.Skill{{Name: "personal-skill"}},
 			organization: []skills.Skill{{Name: "org-skill"}},
+			project:      []skills.Skill{{Name: "project-skill"}},
 			workspace:    []skills.Skill{{Name: "workspace-skill"}},
 			want: []skills.ResolvedSkill{
 				resolved("org-skill", skills.SourceOrganization, "org-skill", ""),
 				resolved("personal-skill", skills.SourcePersonal, "personal-skill", ""),
+				resolved("project-skill", skills.SourceProject, "project-skill", ""),
 				resolved("workspace-skill", skills.SourceWorkspace, "workspace-skill", ""),
 			},
 		},
@@ -224,10 +227,12 @@ func TestMergeSkills(t *testing.T) {
 			name:         "AllSourcesCollide",
 			personal:     shared,
 			organization: shared,
+			project:      shared,
 			workspace:    shared,
 			want: []skills.ResolvedSkill{
 				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
 				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
+				resolved("project/shared", skills.SourceProject, "shared", "Shared"),
 				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
 			},
 		},
@@ -244,7 +249,12 @@ func TestMergeSkills(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, skills.MergeSkills(tc.personal, tc.organization, tc.workspace))
+			require.Equal(t, tc.want, skills.MergeSkills(
+				skills.SourceSkills{Source: skills.SourcePersonal, Skills: tc.personal},
+				skills.SourceSkills{Source: skills.SourceOrganization, Skills: tc.organization},
+				skills.SourceSkills{Source: skills.SourceProject, Skills: tc.project},
+				skills.SourceSkills{Source: skills.SourceWorkspace, Skills: tc.workspace},
+			))
 		})
 	}
 }
@@ -254,9 +264,9 @@ func TestLookup(t *testing.T) {
 
 	shared := []skills.Skill{{Name: "shared"}}
 	merged := skills.MergeSkills(
-		append([]skills.Skill{{Name: "personal-skill"}}, shared...),
-		append([]skills.Skill{{Name: "org-skill"}}, shared...),
-		[]skills.Skill{{Name: "workspace-skill"}},
+		skills.SourceSkills{Source: skills.SourcePersonal, Skills: append([]skills.Skill{{Name: "personal-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceOrganization, Skills: append([]skills.Skill{{Name: "org-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceWorkspace, Skills: []skills.Skill{{Name: "workspace-skill"}}},
 	)
 
 	for _, tc := range []struct {
@@ -307,6 +317,126 @@ func TestLookup(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.wantSource, got.Source)
 			require.Equal(t, tc.wantName, got.Name)
+		})
+	}
+}
+
+func TestWithModelInvocable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		raw            string
+		modelInvocable bool
+		// want is the returned content. Empty means the frontmatter cannot
+		// be edited, so raw comes back with ok false.
+		want string
+	}{
+		{
+			name:           "AgreeingContentIsUnchanged",
+			raw:            "---\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "AddsKey",
+			raw:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			want: "---\ndisable-model-invocation: true\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyWithCRLFAndBOM",
+			raw:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			want: "\xef\xbb\xbf---\r\ndisable-model-invocation: true\r\nname: my-skill\r\n---\r\nBody.\r\n",
+		},
+		{
+			name: "AddsKeyWithFirstKeyIndentation",
+			raw:  "---\n# Skill.\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+			want: "---\n# Skill.\n  disable-model-invocation: true\n  name: my-skill\n  description: Does a thing\n---\nBody.\n",
+		},
+		{
+			name:           "ReplacesTrue",
+			raw:            "---\nname: my-skill\ndisable-model-invocation: true # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndisable-model-invocation: false # Ask first.\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name: "ReplacesFalse",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// A second key would make the frontmatter unparsable.
+			name:           "ReplacesValueOfQuotedKey",
+			raw:            "---\nname: my-skill\n\"disable-model-invocation\" : true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\n\"disable-model-invocation\" : false\n---\nBody.\n",
+		},
+		{
+			// Only YAML booleans count, so the quoted string reads as unset.
+			name: "ReplacesQuotedString",
+			raw:  "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
+			want: "---\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+		},
+		{
+			// YAML counts columns in characters, not bytes, so the accented
+			// letter before the key matters.
+			name:           "ReplacesInFlowStyle",
+			raw:            "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: true, license: MIT}\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\n{name: my-skill, description: \"Caf\u00e9\", disable-model-invocation: false, license: MIT}\n---\nBody.\n",
+		},
+		{
+			name: "AddsKeyInFlowStyle",
+			raw:  "---\n{name: my-skill, description: Does a thing}\n---\nBody.\n",
+			want: "---\n{disable-model-invocation: true, name: my-skill, description: Does a thing}\n---\nBody.\n",
+		},
+		{
+			// A quoted value can wrap onto a line that looks like the key.
+			name:           "WrappedValueIsKept",
+			raw:            "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\nname: my-skill\ndescription: \"a\ndisable-model-invocation: b\nc\"\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// YAML ends a line at U+2028, so the key is on its fourth line.
+			name:           "UnicodeLineBreakBeforeKey",
+			raw:            "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: true\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndescription: \"a\u2028b\"\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+		},
+		{
+			// The value comes from a merge, so there is no key to replace.
+			// A key in the mapping itself overrides the merged one.
+			name:           "MergedKeyIsOverridden",
+			raw:            "---\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+			modelInvocable: true,
+			want:           "---\ndisable-model-invocation: false\nbase: &base {disable-model-invocation: true}\n<<: *base\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name: "ListValueCannotBeEdited",
+			raw:  "---\nname: my-skill\ndisable-model-invocation:\n  - nested\n---\nBody.\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, ok := skills.WithModelInvocable(tt.raw, tt.modelInvocable)
+			if tt.want == "" {
+				require.False(t, ok)
+				require.Equal(t, tt.raw, content)
+				return
+			}
+			require.True(t, ok)
+			require.Equal(t, tt.want, content)
+
+			// The edit changes nothing but the setting.
+			require.Equal(t, !tt.modelInvocable, workspacesdk.SkillDisablesModelInvocation(content))
+			before, err := skills.ParsePersonalSkillMarkdown([]byte(tt.raw))
+			require.NoError(t, err)
+			after, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			require.NoError(t, err)
+			require.Equal(t, before, after)
 		})
 	}
 }

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 
 const meta: Meta<typeof LicenseSeatConsumptionChart> = {
@@ -22,7 +23,16 @@ const meta: Meta<typeof LicenseSeatConsumptionChart> = {
 export default meta;
 type Story = StoryObj<typeof LicenseSeatConsumptionChart>;
 
-export const Loaded: Story = {};
+export const Loaded: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", {
+			name: "License seat consumption",
+		});
+		expect(chart).toHaveAttribute("aria-roledescription", "chart");
+		expect(canvas.queryByRole("application")).not.toBeInTheDocument();
+	},
+};
 
 export const Empty: Story = {
 	args: {

@@ -7,6 +7,7 @@ import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockEntitlementsWithConnectionLog,
+	MockWorkspace,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
@@ -120,11 +121,12 @@ describe("ConnectionLogPage", () => {
 			await renderPage();
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
-			);
-			await user.click(
-				await screen.findByRole("option", { name: "Web Terminal" }),
+			await user.click(screen.getByRole("button", { name: "Filters" }));
+			await user.hover(await screen.findByRole("option", { name: "Method" }));
+			// user-event omits relatedTarget when entering the flyout, closing it.
+			await userEvent.click(
+				await screen.findByRole("button", { name: "Web Terminal" }),
+				{ skipHover: true },
 			);
 
 			await waitFor(() =>
@@ -144,14 +146,48 @@ describe("ConnectionLogPage", () => {
 					count: 1,
 					count_cap: 0,
 				});
-			await renderPage({ filter: "status:ongoing type:ssh" });
-			expect(screen.getByRole("alert")).toHaveTextContent(
-				"The type filter is deprecated",
-			);
+			await renderPage({
+				filter: "status:ongoing type:ssh app:code-server workspace_owner:alice",
+			});
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
+			await user.click(screen.getByRole("button", { name: "Filters" }));
+			await user.hover(await screen.findByRole("option", { name: "Method" }));
+			await userEvent.click(
+				await screen.findByRole("button", { name: "SSH" }),
+				{ skipHover: true },
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "status:ongoing workspace_owner:alice method:ssh app:code-server",
+				}),
+			);
+		});
+
+		it("resets page to 1 when filter is changed", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 100,
+					count_cap: 0,
+				});
+			await renderPage({ page: 2 });
+			expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+				limit: DEFAULT_RECORDS_PER_PAGE,
+				offset: DEFAULT_RECORDS_PER_PAGE,
+				q: "",
+			});
+
+			const user = userEvent.setup();
+			await user.type(
+				screen.getByRole("combobox", {
+					name: "Search and filter connection logs…",
+				}),
+				"method:",
 			);
 			await user.click(await screen.findByRole("option", { name: "SSH" }));
 
@@ -159,28 +195,62 @@ describe("ConnectionLogPage", () => {
 				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
 					limit: DEFAULT_RECORDS_PER_PAGE,
 					offset: 0,
-					q: "status:ongoing method:ssh",
+					q: "method:ssh",
 				}),
 			);
-			expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+		});
+	});
+
+	describe("Client session metadata", () => {
+		const clientSessionId =
+			MockDisconnectedSSHConnectionLog.ssh_info.client_session_id;
+
+		beforeEach(() => {
+			vi.spyOn(API, "getConnectionLogs").mockResolvedValue({
+				connection_logs: [MockDisconnectedSSHConnectionLog],
+				count: 100,
+				count_cap: 0,
+			});
 		});
 
-		it("resets page to 1 when filter is changed", async () => {
-			await renderPage({ page: 2 });
+		it("filters by client session ID and workspace from the first page", async () => {
+			await renderPage({ filter: "method:ssh status:completed", page: 3 });
+			const getConnectionLogsSpy = vi.mocked(API.getConnectionLogs);
 
-			const getConnectionLogsSpy = vi.spyOn(API, "getConnectionLogs");
-			getConnectionLogsSpy.mockClear();
-
-			const filterField = screen.getByLabelText("Filter");
-			const query = "method:ssh status:ongoing";
-			await userEvent.type(filterField, query);
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("link", { name: "View related connections" }),
+			);
 
 			await waitFor(() =>
-				expect(getConnectionLogsSpy).toHaveBeenCalledWith({
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
 					limit: DEFAULT_RECORDS_PER_PAGE,
 					offset: 0,
-					q: query,
+					q: `client_session_id:${clientSessionId} workspace_id:${MockWorkspace.id}`,
 				}),
+			);
+		});
+
+		it("copies the client session ID", async () => {
+			await renderPage();
+
+			// userEvent.setup() replaces navigator.clipboard, so spy after it.
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Copy client session ID" }),
+			);
+
+			await waitFor(() =>
+				expect(writeText).toHaveBeenCalledWith(clientSessionId),
 			);
 		});
 	});

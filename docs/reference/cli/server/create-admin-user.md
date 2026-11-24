@@ -18,7 +18,7 @@ coder server create-admin-user [flags]
 
 ### --postgres-url
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
@@ -27,7 +27,7 @@ URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will 
 
 ### --postgres-connection-auth
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
@@ -37,7 +37,7 @@ Type of auth to use when connecting to postgres.
 
 ### --ssh-keygen-algorithm
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
@@ -47,7 +47,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 ### --username
 
-|             |                              |
+| Property    | Value                        |
 |-------------|------------------------------|
 | Type        | <code>string</code>          |
 | Environment | <code>$CODER_USERNAME</code> |
@@ -56,7 +56,7 @@ The username of the new user. If not specified, you will be prompted via stdin.
 
 ### --email
 
-|             |                           |
+| Property    | Value                     |
 |-------------|---------------------------|
 | Type        | <code>string</code>       |
 | Environment | <code>$CODER_EMAIL</code> |
@@ -65,7 +65,7 @@ The email of the new user. If not specified, you will be prompted via stdin.
 
 ### --password
 
-|             |                              |
+| Property    | Value                        |
 |-------------|------------------------------|
 | Type        | <code>string</code>          |
 | Environment | <code>$CODER_PASSWORD</code> |
@@ -74,17 +74,17 @@ The password of the new user. If not specified, you will be prompted via stdin.
 
 ### -o, --output
 
-|         |                         |
-|---------|-------------------------|
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+| Property | Value                   |
+|----------|-------------------------|
+| Type     | <code>text\|json</code> |
+| Default  | <code>text</code>       |
 
 Output format.
 
 ### --raw-url
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Output the raw connection URL instead of a psql command.

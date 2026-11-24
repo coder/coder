@@ -346,64 +346,115 @@ func stripTime(t time.Time) time.Time {
 func TestConvertTemplateInsightsApps(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FoldsAppsIntoFamily", func(t *testing.T) {
+	t.Run("ListsEachApp", func(t *testing.T) {
 		t.Parallel()
 
 		sharedTemplateID, cursorTemplateID := uuid.New(), uuid.New()
 		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "jetbrains": 60}`),
+			SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "some_new_ide": 60, "overflow": 120, "unknown": 60, "reconnecting_pty": 90, "port_forwarding": 30}`),
 			SessionAppTemplateIds: json.RawMessage(`{
 				"vscode": ["` + sharedTemplateID.String() + `"],
-				"cursor": ["` + sharedTemplateID.String() + `", "` + cursorTemplateID.String() + `"]
+				"cursor": ["` + sharedTemplateID.String() + `", "` + cursorTemplateID.String() + `"],
+				"some_new_ide": ["` + cursorTemplateID.String() + `"]
 			}`),
-		}, nil)
+		}, []database.GetTemplateAppInsightsRow{{
+			TemplateIDs:  []uuid.UUID{sharedTemplateID},
+			Slug:         "filebrowser",
+			DisplayName:  "File Browser",
+			UsageSeconds: 30,
+		}})
 		require.NoError(t, err)
-
-		vscode := appBySlug(t, apps, "vscode")
-		// Minutes the two share count in both, so the family adds them up.
-		require.EqualValues(t, 420, vscode.Seconds)
-		require.ElementsMatch(t, []uuid.UUID{sharedTemplateID, cursorTemplateID}, vscode.TemplateIDs)
-		require.EqualValues(t, 60, appBySlug(t, apps, "jetbrains").Seconds)
-		require.Equal(t, []uuid.UUID{}, appBySlug(t, apps, "ssh").TemplateIDs)
+		require.Equal(t, []codersdk.TemplateAppUsage{
+			{
+				TemplateIDs: []uuid.UUID{sharedTemplateID, cursorTemplateID},
+				Method:      codersdk.ConnectionLogMethodSSH,
+				DisplayName: "Cursor",
+				Slug:        "cursor",
+				Icon:        "/icon/cursor.svg",
+				Seconds:     120,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodSSH,
+				DisplayName: "Other apps",
+				Slug:        codersdk.AppNameOverflow,
+				Seconds:     120,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodPortForwarding,
+				DisplayName: "Port Forwarding",
+				Slug:        "port_forwarding",
+				Seconds:     30,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodReconnectingPTY,
+				DisplayName: "Web Terminal",
+				Slug:        "reconnecting_pty",
+				Icon:        "/icon/terminal.svg",
+				Seconds:     90,
+			},
+			{
+				TemplateIDs: []uuid.UUID{cursorTemplateID},
+				Method:      codersdk.ConnectionLogMethodSSH,
+				DisplayName: "some_new_ide",
+				Slug:        "some_new_ide",
+				Seconds:     60,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodSSH,
+				DisplayName: "Unknown",
+				Slug:        "unknown",
+				Seconds:     60,
+			},
+			{
+				TemplateIDs: []uuid.UUID{sharedTemplateID},
+				Method:      codersdk.ConnectionLogMethodSSH,
+				DisplayName: "VS Code",
+				Slug:        "vscode",
+				Icon:        "/icon/code.svg",
+				Seconds:     300,
+			},
+			{
+				TemplateIDs: []uuid.UUID{sharedTemplateID},
+				Method:      codersdk.ConnectionLogMethodWorkspaceApp,
+				DisplayName: "File Browser",
+				Slug:        "filebrowser",
+				Seconds:     30,
+			},
+		}, apps)
 	})
 
-	t.Run("UnknownAppIsNotABuiltin", func(t *testing.T) {
+	t.Run("FoldedOverflowIsUpperBound", func(t *testing.T) {
 		t.Parallel()
 
+		// Only the session overflow row carries the folded apps, so only it
+		// is an upper bound. A template app may still use overflow as its
+		// slug, and it is not an accounting row.
+		templateID := uuid.New()
 		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"some_new_ide": 300}`),
+			SessionAppUsageSeconds: json.RawMessage(`{"overflow": 120, "unknown": 60, "future_ide": 30}`),
 			SessionAppTemplateIds:  json.RawMessage(`{}`),
-		}, nil)
+			SessionFoldedAppCount:  2,
+		}, []database.GetTemplateAppInsightsRow{{
+			TemplateIDs:  []uuid.UUID{templateID},
+			Slug:         codersdk.AppNameOverflow,
+			DisplayName:  "Overflow",
+			UsageSeconds: 60,
+		}})
 		require.NoError(t, err)
+		upperBound := map[string]bool{}
 		for _, app := range apps {
-			require.Zero(t, app.Seconds, "app %q", app.Slug)
+			upperBound[string(app.Method)+"/"+app.Slug] = app.SecondsIsUpperBound
 		}
-	})
-
-	t.Run("SFTPLegacy", func(t *testing.T) {
-		t.Parallel()
-
-		sftpTemplateID := uuid.New()
-		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"sftp": 300}`),
-			SessionAppTemplateIds:  json.RawMessage(`{"sftp": ["` + sftpTemplateID.String() + `"]}`),
-		}, nil)
-		require.NoError(t, err)
-		for _, app := range apps {
-			if app.Slug != "sftp" {
-				require.Equal(t, []uuid.UUID{}, app.TemplateIDs)
-			}
-		}
-		require.Contains(t, apps, codersdk.TemplateAppUsage{
-			// The rollup no longer produces SFTP usage, but rows migrated
-			// from the old sftp_mins column still report it.
-			TemplateIDs: []uuid.UUID{sftpTemplateID},
-			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.AppFamilySFTP.DisplayName(),
-			Slug:        "sftp",
-			Icon:        "/icon/terminal.svg",
-			Seconds:     300,
-		})
+		require.Equal(t, map[string]bool{
+			"ssh/future_ide":         false,
+			"ssh/overflow":           true,
+			"ssh/unknown":            false,
+			"workspace_app/overflow": false,
+		}, upperBound)
 	})
 
 	t.Run("Malformed", func(t *testing.T) {
@@ -428,16 +479,4 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			})
 		}
 	})
-}
-
-func appBySlug(t *testing.T, apps []codersdk.TemplateAppUsage, slug string) codersdk.TemplateAppUsage {
-	t.Helper()
-
-	for _, app := range apps {
-		if app.Slug == slug {
-			return app
-		}
-	}
-	t.Fatalf("no app with slug %q", slug)
-	return codersdk.TemplateAppUsage{}
 }

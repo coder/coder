@@ -6,6 +6,7 @@ import {
 	readOnlySkillAccess,
 	userSkillsScope,
 } from "../utils/skills";
+import type { SkillSubmitHandler } from "./SkillEditor";
 import {
 	type SkillEditorState,
 	SkillsTableView,
@@ -52,6 +53,16 @@ const MockDebugHTTPSkill = {
 	id: "skill-debug-http",
 	name: "debug-http",
 	description: "",
+};
+
+const MockManualReviewSQLSkill = {
+	...MockReviewSQLSkill,
+	model_invocable: false,
+};
+
+const MockManualFrontendReviewSkill = {
+	...MockFrontendReviewSkill,
+	model_invocable: false,
 };
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
@@ -110,6 +121,16 @@ export const LongDescriptionNarrow: Story = {
 	globals: { viewport: { value: "ipad" } },
 };
 
+export const ManualOnlySkills: Story = {
+	args: {
+		skills: [
+			MockManualReviewSQLSkill,
+			MockReleaseNotesSkill,
+			MockManualFrontendReviewSkill,
+		],
+	},
+};
+
 export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",
@@ -119,7 +140,7 @@ export const DownloadingSkill: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
 		await userEvent.click(
-			within(row).getByRole("button", { name: "Open menu" }),
+			within(row).getByRole("button", { name: "Open menu for review-sql" }),
 		);
 		const menu = await body.findByRole("menu");
 		await expect(
@@ -142,7 +163,9 @@ export const RowMenuActions: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
-		const trigger = within(row).getByRole("button", { name: "Open menu" });
+		const trigger = within(row).getByRole("button", {
+			name: "Open menu for review-sql",
+		});
 
 		await userEvent.click(trigger);
 		await userEvent.click(
@@ -269,13 +292,15 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
+const mockReviewSQLFormValues = {
+	name: "review-sql",
+	description: "Review SQL changes for query and index risks.",
+	body: "Check query plans, missing indexes, and transaction boundaries.",
+};
+
 const mockReviewSQLEditorState: SkillEditorState = {
 	mode: "edit",
-	initialValues: {
-		name: "review-sql",
-		description: "Review SQL changes for query and index risks.",
-		body: "Check query plans, missing indexes, and transaction boundaries.",
-	},
+	initialValues: mockReviewSQLFormValues,
 	existingNames: MockPersonalSkills.map((skill) => skill.name),
 	isLoading: false,
 	isRetrying: false,
@@ -288,6 +313,15 @@ const mockReviewSQLEditorState: SkillEditorState = {
 export const EditDialogOpen: Story = {
 	args: {
 		editorState: mockReviewSQLEditorState,
+	},
+};
+
+export const EditManualOnlyDialogOpen: Story = {
+	args: {
+		editorState: {
+			...mockReviewSQLEditorState,
+			initialValues: { ...mockReviewSQLFormValues, modelInvocable: false },
+		},
 	},
 };
 
@@ -566,7 +600,9 @@ export const SubmitsCreateDialog: Story = {
 			initialValues: { name: "", description: "", body: "" },
 			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
-			onSubmit: fn(),
+			onSubmit: fn<SkillSubmitHandler>((_values, _content, onSettled) =>
+				onSettled(),
+			),
 			onClose: fn(),
 		},
 	},
@@ -596,6 +632,7 @@ export const SubmitsCreateDialog: Story = {
 					body: "Inspect request flow and response codes.",
 				},
 				'---\nname: debug-http\ndescription: "Debug HTTP handlers."\n---\nInspect request flow and response codes.\n',
+				expect.any(Function),
 			);
 		});
 	},

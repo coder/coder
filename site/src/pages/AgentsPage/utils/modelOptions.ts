@@ -184,19 +184,6 @@ export const providerInfoByIDFromUserConfigs = (
 		]),
 	);
 
-export const providerTypeByIDFromUserConfigs = (
-	providerConfigs:
-		| readonly TypesGen.UserChatProviderConfig[]
-		| null
-		| undefined,
-): ReadonlyMap<string, string> =>
-	new Map(
-		Array.from(
-			providerInfoByIDFromUserConfigs(providerConfigs),
-			([id, info]) => [id, info.provider],
-		),
-	);
-
 export const getModelLabel = (model: TypesGen.ChatModel): string =>
 	model.display_name.trim() || model.model || model.id;
 
@@ -364,8 +351,8 @@ export const getModelSelectorPlaceholder = (
 	}
 	if (hasConfiguredModels) {
 		return hasUserFixableProviders(catalog)
-			? "Configure API Keys"
-			: "No Models Available";
+			? "Configure API keys"
+			: "No models available";
 	}
-	return "No Models Configured";
+	return "No models configured";
 };

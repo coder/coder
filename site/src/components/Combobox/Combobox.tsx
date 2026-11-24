@@ -1,7 +1,14 @@
+import { useCommandState } from "cmdk";
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import {
+	createContext,
+	useContext,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -17,6 +24,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -65,14 +77,13 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-type ComboboxButtonProps = React.ComponentProps<"button"> & {
+type ComboboxButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
 };
 
 export const ComboboxButton = ({
-	children,
 	className,
 	width,
 	selectedOption,
@@ -80,25 +91,59 @@ export const ComboboxButton = ({
 	ref,
 	...props
 }: ComboboxButtonProps) => {
+	const { open: isPopoverOpen } = useCombobox();
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+	const label = selectedOption?.label ?? placeholder;
+
 	return (
-		<Button
-			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
-			style={{ flexBasis: width }}
-			variant="outline"
-			ref={ref}
-			{...props}
+		<Tooltip
+			open={isTooltipOpen}
+			// Measured on open rather than on render, so a text spacing override
+			// applied after mount still reveals the full label. Stays closed while
+			// the popover is open so it never covers the list.
+			onOpenChange={(open) => {
+				const span = labelRef.current;
+				setIsTooltipOpen(
+					open &&
+						!isPopoverOpen &&
+						span !== null &&
+						span.scrollWidth > span.clientWidth,
+				);
+			}}
 		>
-			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis grow">
-				{selectedOption?.label ?? placeholder}
-			</span>
-			<ChevronDownIcon className="size-icon-sm" />
-		</Button>
+			<TooltipTrigger asChild>
+				<Button
+					className={cn(
+						"flex items-center justify-between shrink-0 grow gap-2 pr-1.5",
+						className,
+					)}
+					style={{ flexBasis: width }}
+					variant="outline"
+					ref={ref}
+					{...props}
+				>
+					{selectedOption?.startIcon}
+					<span
+						ref={labelRef}
+						className="text-left block overflow-hidden text-ellipsis grow"
+					>
+						{label}
+					</span>
+					<ChevronDownIcon className="size-icon-sm" />
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" align="start" className="max-w-65">
+				{label}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
 type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
+	/** Accessible name for the search input. */
+	label?: string;
 };
 
 export const ComboboxContent = ({
@@ -106,18 +151,37 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	label,
+	onOpenAutoFocus,
 	...props
 }: ComboboxContentProps) => {
+	const commandRef = useRef<HTMLDivElement>(null);
+
 	return (
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"flex w-auto flex-col overflow-y-hidden border-border text-sm",
+				"flex w-auto flex-col overflow-y-hidden text-sm",
 				className,
 			)}
+			onOpenAutoFocus={(event) => {
+				onOpenAutoFocus?.(event);
+				// Without a search input, focus would land on the popover itself,
+				// where the arrow keys never reach the command list.
+				const root = commandRef.current;
+				if (!event.defaultPrevented && !root?.querySelector("[cmdk-input]")) {
+					event.preventDefault();
+					root?.querySelector<HTMLElement>("[cmdk-list]")?.focus();
+				}
+			}}
 			{...props}
 		>
-			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+			<Command
+				ref={commandRef}
+				shouldFilter={shouldFilter}
+				label={label}
+				className="min-h-0 flex-1"
+			>
 				{children}
 			</Command>
 		</PopoverContent>
@@ -131,7 +195,7 @@ export const ComboboxList: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<CommandList
-			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
+			className={cn("max-h-none min-h-0 flex-1 p-2 outline-hidden", className)}
 			{...props}
 		/>
 	);
@@ -146,10 +210,12 @@ export const ComboboxItem = ({
 }: React.ComponentProps<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
+	const isHighlighted = useCommandState((state) => state.value === value);
 
 	return (
 		<CommandItem
 			value={value}
+			aria-selected={isSelected}
 			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);
@@ -160,7 +226,9 @@ export const ComboboxItem = ({
 			}}
 			{...props}
 		>
-			{children}
+			<ComboboxItemHighlightContext.Provider value={isHighlighted}>
+				{children}
+			</ComboboxItemHighlightContext.Provider>
 			<CheckIcon
 				className={cn(
 					"ml-2 size-4 min-w-0 shrink-0",
@@ -168,6 +236,56 @@ export const ComboboxItem = ({
 				)}
 			/>
 		</CommandItem>
+	);
+};
+
+const ComboboxItemHighlightContext = createContext(false);
+
+type ComboboxItemLabelProps = {
+	children: string;
+};
+
+/**
+ * Single-line option label that shows its full text in a tooltip while the
+ * option is highlighted, by pointer or arrow keys, and the text is truncated.
+ */
+export const ComboboxItemLabel: React.FC<ComboboxItemLabelProps> = ({
+	children,
+}) => {
+	const isHighlighted = useContext(ComboboxItemHighlightContext);
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+	// Options never receive DOM focus, so the tooltip follows the cmdk
+	// highlight instead. Measured on each highlight so a text spacing override
+	// applied after mount is still caught.
+	useLayoutEffect(() => {
+		const span = labelRef.current;
+		setIsTooltipOpen(
+			isHighlighted && span !== null && span.scrollWidth > span.clientWidth,
+		);
+	}, [isHighlighted]);
+
+	return (
+		<Tooltip
+			open={isTooltipOpen}
+			// Escape reaches the tooltip before the popover, so honor its close
+			// request. The next Escape then closes the popover.
+			onOpenChange={(open) => {
+				if (!open) {
+					setIsTooltipOpen(false);
+				}
+			}}
+		>
+			<TooltipTrigger asChild>
+				<span ref={labelRef} className="min-w-0 flex-1 truncate">
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="right" className="max-w-65">
+				{children}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

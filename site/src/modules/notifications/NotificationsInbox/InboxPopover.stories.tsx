@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-(--breakpoint-xl) p-6 h-[720px]">
+			<div className="w-full max-w-(--breakpoint-xl) p-6 h-180">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
@@ -27,6 +27,14 @@ export const Default: Story = {
 	args: {
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
+	},
+};
+
+export const WithLoadMore: Story = {
+	args: {
+		unreadCount: 2,
+		notifications: MockNotifications.slice(0, 3),
+		hasMoreNotifications: true,
 	},
 };
 
@@ -70,24 +78,6 @@ export const OnRetry: Story = {
 	},
 };
 
-export const OnMarkAllAsRead: Story = {
-	args: {
-		defaultOpen: true,
-		unreadCount: 2,
-		notifications: MockNotifications.slice(0, 3),
-		onMarkAllAsRead: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const markButton = body.getByRole("button", { name: /mark all as read/i });
-		await userEvent.click(markButton);
-		await expect(args.onMarkAllAsRead).toHaveBeenCalledTimes(1);
-	},
-	parameters: {
-		pixel: { exclude: true },
-	},
-};
-
 export const OnMarkNotificationAsRead: Story = {
 	args: {
 		unreadCount: 2,
@@ -96,10 +86,14 @@ export const OnMarkNotificationAsRead: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const notifications = body.getAllByRole("menuitem");
+		const notifications = within(
+			body.getByRole("list", { name: "Notifications" }),
+		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
-		const markButton = body.getByRole("button", { name: /mark as read/i });
+		const markButton = within(secondNotification).getByRole("button", {
+			name: /mark as read/i,
+		});
 		await userEvent.click(markButton);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledTimes(1);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledWith(

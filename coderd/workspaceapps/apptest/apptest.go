@@ -364,6 +364,16 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
+		t.Run("StripsSessionTokens", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				handler: echoAppAuthHandler,
+			})
+			assertSessionTokenStripped(t, appDetails.AppClient(t),
+				appDetails.PathAppURL(appDetails.Apps.Owner), appDetails.SDKClient.SessionToken())
+		})
+
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
 
@@ -1314,6 +1324,19 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).RawQuery, loc.RawQuery)
 			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
+		})
+
+		// Another user's token must not reach the backend of a shared app,
+		// which runs in a workspace that user does not own.
+		t.Run("StripsSessionTokensFromOtherUser", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				handler: echoAppAuthHandler,
+			})
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			assertSessionTokenStripped(t, appDetails.AppClient(t),
+				appDetails.SubdomainAppURL(appDetails.Apps.Authenticated), userClient.SessionToken())
 		})
 
 		t.Run("Proxies", func(t *testing.T) {
@@ -2462,6 +2485,74 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 // has already been partially consumed by a preceding HTTP request (e.g.
 // proxying to a fake unreachable app), which can leave too little time
 // for the Eventually loop below and cause flakes.
+// echoAppAuthHandler echoes the auth-related parts of the request it received
+// in response headers so tests can inspect what the proxy forwarded.
+var echoAppAuthHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Got-Session-Token-Header", r.Header.Get(codersdk.SessionTokenHeader))
+	w.Header().Set("X-Got-Raw-Query", r.URL.RawQuery)
+	w.Header().Set("X-Got-Authorization", r.Header.Get("Authorization"))
+	w.WriteHeader(http.StatusOK)
+})
+
+// assertSessionTokenStripped requests appURL authenticated with sessionToken,
+// once in the Coder-Session-Token header and once in the coder_session_token
+// query parameter, and asserts that the app served by echoAppAuthHandler
+// received neither while the rest of the request arrived unchanged.
+func assertSessionTokenStripped(t *testing.T, client *codersdk.Client, appURL *url.URL, sessionToken string) {
+	t.Helper()
+
+	// Only the token each case sets may authenticate the request.
+	client.SetSessionToken("")
+
+	// The app's own Authorization header must reach the backend.
+	const appAuthorization = "Bearer app-owned-token"
+	// Unsorted and with a literal comma, which url.Values.Encode would
+	// sort and escape, so any re-encoding is detected.
+	const appQuery = "query=true&foo=bar,baz&a=1"
+
+	cases := []struct {
+		name    string
+		setAuth func(r *http.Request)
+	}{
+		{
+			name: "Header",
+			setAuth: func(r *http.Request) {
+				r.Header.Set(codersdk.SessionTokenHeader, sessionToken)
+			},
+		},
+		{
+			name: "QueryParameter",
+			setAuth: func(r *http.Request) {
+				r.URL.RawQuery += "&" + codersdk.SessionTokenCookie + "=" + url.QueryEscape(sessionToken)
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			u := *appURL
+			u.RawQuery = appQuery
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			req.Header.Set("Authorization", appAuthorization)
+			c.setAuth(req)
+
+			resp, err := doWithRetries(t, client, req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			assert.Empty(t, resp.Header.Get("X-Got-Session-Token-Header"))
+			assert.Equal(t, appQuery, resp.Header.Get("X-Got-Raw-Query"))
+			assert.Equal(t, appAuthorization, resp.Header.Get("X-Got-Authorization"))
+		})
+	}
+}
+
 func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details, timeout time.Duration) {
 	t.Helper()
 

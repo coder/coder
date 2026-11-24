@@ -1,11 +1,11 @@
 import { Outlet } from "react-router";
-import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { docs } from "#/utils/docs";
 
 const AIBridgeSessionsLayout: React.FC<React.PropsWithChildren> = () => {
@@ -14,13 +14,15 @@ const AIBridgeSessionsLayout: React.FC<React.PropsWithChildren> = () => {
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Sessions</span>
+						<span>AI sessions</span>
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Review and audit AI activity, token usage, and prompt history across
 					sessions.{" "}
-					<Link href={docs("/ai-coder/ai-gateway/audit")}>View docs</Link>
+					<SettingsHeaderDocsLink
+						href={docs("/ai-governance/ai-gateway/audit")}
+					/>
 				</PageHeaderSubtitle>
 			</PageHeader>
 			<Outlet />

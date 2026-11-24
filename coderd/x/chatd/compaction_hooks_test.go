@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -164,7 +163,7 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
 
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				body := `{}`
@@ -173,8 +172,7 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 				}
 				_, err := w.Write([]byte(body))
 				require.NoError(t, err)
-			}))
-			t.Cleanup(consumer.Close)
+			})
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
@@ -235,10 +233,10 @@ func startCompactionHookChat(
 		if strings.Contains(body, "You are performing a context compaction") {
 			compactionCalls.Add(1)
 			inspectCompaction(t, body)
-			// The 32000 default cap with 50% headroom. The remaining
-			// window (100 limit - 80 input - trigger output - summary
-			// prompt reserve) is non-positive, so the cap is unchanged.
-			require.Equal(t, 48000, req.MaxTokens)
+			// The 32000 default cap. The remaining window (100 limit -
+			// 80 input - trigger output - summary prompt reserve) is
+			// non-positive, so the cap is unchanged.
+			require.Equal(t, 32000, req.MaxTokens)
 			return anthropicCompactionResponse(t, req, "hook compaction summary")
 		}
 		if !req.Stream {
@@ -255,7 +253,7 @@ func startCompactionHookChat(
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
@@ -270,8 +268,7 @@ func startCompactionHookChat(
 			_, err := w.Write([]byte(body))
 			require.NoError(t, err)
 		}
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
