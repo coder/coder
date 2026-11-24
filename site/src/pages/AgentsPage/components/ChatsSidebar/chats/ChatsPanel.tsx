@@ -114,34 +114,17 @@ const dragSensors = [
 	}),
 ];
 
-// Returns expandedById with every ancestor of the chat expanded, or the same
-// object when they already are.
-const expandAncestors = (
-	expandedById: Record<string, boolean>,
+const getAncestorIds = (
 	parentById: ChatTree["parentById"],
 	chatId: string | undefined,
-): Record<string, boolean> => {
-	if (!chatId) {
-		return expandedById;
-	}
-
-	const toExpand: string[] = [];
-	let cursor = parentById.get(chatId);
-	const seen = new Set<string>();
-	while (cursor && !seen.has(cursor)) {
-		seen.add(cursor);
-		toExpand.push(cursor);
+): Set<string> => {
+	const ancestorIds = new Set<string>();
+	let cursor = chatId ? parentById.get(chatId) : undefined;
+	while (cursor && !ancestorIds.has(cursor)) {
+		ancestorIds.add(cursor);
 		cursor = parentById.get(cursor);
 	}
-	if (toExpand.every((id) => expandedById[id])) {
-		return expandedById;
-	}
-
-	const next = { ...expandedById };
-	for (const id of toExpand) {
-		next[id] = true;
-	}
-	return next;
+	return ancestorIds;
 };
 
 type ChatsPanelProps = {
@@ -231,27 +214,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
 
-	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when the active chat or its parent changes, so a collapse by
-	// the user is kept. The parent is unknown until the chat list loads.
-	const [expandedById, setExpandedById] = useState<Record<string, boolean>>(
-		() => expandAncestors({}, chatTree.parentById, activeChatId),
-	);
-	const activeParentId = activeChatId
-		? chatTree.parentById.get(activeChatId)
-		: undefined;
-	const [expandedFor, setExpandedFor] = useState({
-		chatId: activeChatId,
-		parentId: activeParentId,
-	});
-	if (
-		activeChatId !== expandedFor.chatId ||
-		activeParentId !== expandedFor.parentId
-	) {
-		setExpandedFor({ chatId: activeChatId, parentId: activeParentId });
-		setExpandedById((prev) =>
-			expandAncestors(prev, chatTree.parentById, activeChatId),
-		);
+	// Explicit sub-chat list toggles. Chats without an entry are expanded
+	// only when they contain the active chat, so it is always visible.
+	const [expandOverrides, setExpandOverrides] = useState<
+		Record<string, boolean>
+	>({});
+	const activeAncestorIds = getAncestorIds(chatTree.parentById, activeChatId);
+	const expandedById: Record<string, boolean> = { ...expandOverrides };
+	for (const id of activeAncestorIds) {
+		expandedById[id] = expandOverrides[id] ?? true;
 	}
 
 	const visibleChatIDs = collectVisibleChatIDs({
@@ -401,7 +372,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	};
 
 	const toggleExpanded = (chatID: string) => {
-		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+		setExpandOverrides((prev) => ({
+			...prev,
+			[chatID]: !(prev[chatID] ?? activeAncestorIds.has(chatID)),
+		}));
 	};
 	const toggleSection = (sectionKey: string) => {
 		setCollapsedSections((prev) => ({

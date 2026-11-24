@@ -853,9 +853,7 @@ describe("ChatsSidebar sections", () => {
 
 		await user.click(screen.getByRole("button", { name: "Load chats" }));
 
-		expect(
-			await screen.findByRole("link", { name: /Simple task/ }),
-		).toBeInTheDocument();
+		await screen.findByRole("link", { name: /Simple task/ });
 	});
 
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
