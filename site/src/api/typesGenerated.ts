@@ -2378,8 +2378,8 @@ export interface ChatAutoArchiveDaysResponse {
 
 // From codersdk/chatautomations.go
 /**
- * ChatAutomation is a schedule that sends a saved prompt to a chat as its
- * owner.
+ * ChatAutomation sends a saved prompt to a chat as its owner, on a schedule
+ * or when an MCP event arrives.
  */
 export interface ChatAutomation {
 	readonly id: string;
@@ -2402,6 +2402,10 @@ export interface ChatAutomation {
 	readonly prompt: string;
 	readonly schedule_cron: string | null;
 	readonly schedule_time_zone: string | null;
+	/**
+	 * Event is set for mcp_event automations.
+	 */
+	readonly event: ChatAutomationEvent | null;
 	/**
 	 * ScheduleNextRunAt is the occurrence that the scheduler runs next.
 	 */
@@ -2430,9 +2434,33 @@ export interface ChatAutomationChat {
 }
 
 // From codersdk/chatautomations.go
-export type ChatAutomationKind = "schedule";
+/**
+ * ChatAutomationEvent is the MCP event that an mcp_event automation
+ * subscribes to.
+ */
+export interface ChatAutomationEvent {
+	/**
+	 * MCPServerConfigID is null after the MCP server config is deleted.
+	 */
+	readonly mcp_server_config_id: string | null;
+	readonly event_name: string;
+	// empty interface{} type, falling back to unknown
+	readonly arguments: Record<string, unknown>;
+	readonly delivery: string;
+	/**
+	 * State is terminated after the server ends the subscription. A
+	 * terminated subscription receives no more events.
+	 */
+	readonly state: string;
+}
 
-export const ChatAutomationKinds: ChatAutomationKind[] = ["schedule"];
+// From codersdk/chatautomations.go
+export type ChatAutomationKind = "mcp_event" | "schedule";
+
+export const ChatAutomationKinds: ChatAutomationKind[] = [
+	"mcp_event",
+	"schedule",
+];
 
 // From codersdk/chatautomations.go
 /**

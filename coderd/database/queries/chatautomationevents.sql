@@ -112,8 +112,14 @@ WHERE automation_id = @automation_id::uuid AND state = 'active';
 -- {event_id, event_name, occurred_at, data}. An event_id that the
 -- subscription already received inserts nothing.
 INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
-SELECT @automation_id::uuid, 'event', e.event_id, e.event_name, e.occurred_at, e.data
-FROM jsonb_to_recordset(@events::jsonb) WITH ORDINALITY AS e(event_id text, event_name text, occurred_at timestamptz, data jsonb, ord bigint)
+SELECT
+    @automation_id::uuid,
+    'event',
+    e.value->>'event_id',
+    e.value->>'event_name',
+    (e.value->>'occurred_at')::timestamptz,
+    e.value->'data'
+FROM jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
 ORDER BY e.ord
 ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
