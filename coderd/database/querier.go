@@ -563,26 +563,31 @@ type sqlcQuerier interface {
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
 	GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error)
-	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
-	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
-	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
-	// user's pin and aggregates over the user's own top-level,
-	// non-archived chats. Entries match regardless of the actions they grant,
-	// so callers must authorize each row; pins on projects the user can no
-	// longer see are never returned.
-	// Users who can use each project: the owner and the users its read grants
-	// reach (chat_project_read_grant_members). Counted only while project
-	// sharing is available;
-	// otherwise every project counts its owner alone. Suspended users cannot
-	// sign in, so they are not counted.
-	//
+	// Returns how many users can use each project from
+	// GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
+	// grants reach (chat_project_read_grant_members). Grants are counted only
+	// while project sharing is available; otherwise every project counts its
+	// owner alone. Suspended users cannot sign in, so they are not counted. The
+	// project columns only serve authorization: callers must authorize each
+	// row.
 	// A read grant to the Everyone group of the project's organization reaches
 	// every member, and the other grants reach only members, so such a project
 	// counts its organization's members once per organization instead of
 	// expanding the group into a row per member for every project.
-	// Read through idx_chats_owner.
-	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
+	GetChatProjectMemberCountsByUserID(ctx context.Context, arg GetChatProjectMemberCountsByUserIDParams) ([]GetChatProjectMemberCountsByUserIDRow, error)
+	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
+	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
+	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Returns the user's pin and aggregates over the user's own top-level,
+	// non-archived chats for each project from
+	// GetChatProjectsOwnedOrSharedWithUserID. The project columns only serve
+	// authorization: entries match regardless of the actions they grant, so
+	// callers must authorize each row. Pins on projects the user can no longer
+	// see are never returned.
+	// Grant keys select candidates even while chat sharing is disabled, as in
+	// GetChatProjectsOwnedOrSharedWithUserID: a role can still let the caller
+	// read the project.
+	GetChatProjectSummariesByUserID(ctx context.Context, userID uuid.UUID) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Lists the templates attached to the given projects, oldest attachment
 	// first. Deleted, deprecated, and agent-disabled templates are left out
 	// because no chat can use them, whoever asks. The rows are not filtered by

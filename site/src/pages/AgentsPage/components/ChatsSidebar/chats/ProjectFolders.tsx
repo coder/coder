@@ -6,17 +6,16 @@ import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import { pinChatProject, unpinChatProject } from "#/api/queries/chatProjects";
+import {
+	type ChatProjectWithSummary,
+	pinChatProject,
+	unpinChatProject,
+} from "#/api/queries/chatProjects";
 import {
 	type ChatListInput,
 	infiniteProjectFolderChats,
 } from "#/api/queries/chats";
-import type {
-	Chat,
-	ChatProject,
-	ChatProjectSummary,
-	Organization,
-} from "#/api/typesGenerated";
+import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -56,7 +55,7 @@ export type ProjectAction = (project: ChatProject) => void;
 
 export type ProjectFoldersProps = {
 	/** The user's pinned projects, in pin order. */
-	readonly pinnedProjects: readonly ChatProjectSummary[];
+	readonly pinnedProjects: readonly ChatProjectWithSummary[];
 	/** Describes how to reorder a pinned project with the keyboard. */
 	readonly dragInstructionsId: string;
 	readonly organizations: readonly Organization[];
@@ -81,7 +80,7 @@ const POINTER_PREFETCH_DELAY_MS = 150;
 // Focuses the folder after the unpinned one, else the one before it, else
 // the fallback.
 const focusNextFolder = (
-	pinnedProjects: readonly ChatProjectSummary[],
+	pinnedProjects: readonly ChatProjectWithSummary[],
 	projectId: string,
 	toggles: ReadonlyMap<string, HTMLButtonElement>,
 	fallback: (() => void) | undefined,
