@@ -2,10 +2,6 @@
 title: Security - best practices
 ---
 
-December 16, 2024
-
----
-
 This best practices guide is separated into parts to help you secure aspects of your Coder deployment.
 
 Each section briefly introduces each threat model, then suggests steps or concepts to help implement security improvements such as authentication and encryption.
