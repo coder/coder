@@ -57,7 +57,7 @@ type ToolOptions struct {
 	DB database.Store
 	// Chat holds the tool. The tool acts as its owner and reaches only the
 	// automations that target it.
-	Chat   database.Chat
+	Chat  database.Chat
 	Audit AuditFunc
 	// Events reaches the chat's MCP servers. The event actions are
 	// unavailable without it.

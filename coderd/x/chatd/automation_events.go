@@ -7,11 +7,11 @@ import (
 	"errors"
 	"math/rand/v2"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -97,6 +97,7 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 			AutomationID: in.AutomationID,
 			Cursor:       sql.NullString{String: ptr.NilToEmpty(in.Cursor), Valid: in.Cursor != nil},
 			NextPollAt:   in.NextPollAt,
+			LastError:    sql.NullString{},
 			Now:          p.clock.Now("chatd", "automation-events"),
 		})
 		if err != nil {
@@ -198,15 +199,16 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 		key := group{owner: sub.OwnerID, config: sub.MCPServerConfigID.UUID}
 		groups[key] = append(groups[key], sub)
 	}
-	var eg errgroup.Group
-	eg.SetLimit(eventPollConcurrency)
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, eventPollConcurrency)
 	for key, subs := range groups {
-		eg.Go(func() error {
+		slots <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-slots }()
 			p.pollEventGroup(ctx, key.owner, key.config, subs, now)
-			return nil
 		})
 	}
-	_ = eg.Wait()
+	wg.Wait()
 }
 
 // pollEventGroup polls the subscriptions of one owner on one MCP server.
@@ -240,7 +242,10 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 // polls again at once while the server has more, up to the pending limit.
 func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
 	var args map[string]any
-	_ = json.Unmarshal(sub.Arguments, &args)
+	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
+		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPInvalidArguments)
+		return
+	}
 	var cursor *string
 	if sub.Cursor.Valid {
 		cursor = &sub.Cursor.String
@@ -312,6 +317,7 @@ func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, er
 	}
 	if _, uerr := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
 		AutomationID: automationID,
+		Cursor:       sql.NullString{},
 		NextPollAt:   sql.NullTime{Time: now.Add(action.backoff), Valid: true},
 		LastError:    sql.NullString{String: message, Valid: true},
 		Now:          now,

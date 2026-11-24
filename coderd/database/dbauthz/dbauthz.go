@@ -3469,12 +3469,12 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
 }
 
-func (q *querier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]database.ChatAutomationMCPSubscription, error) {
+func (q *querier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIDs []uuid.UUID) ([]database.ChatAutomationMCPSubscription, error) {
 	// Callers pass the IDs of automations that they already read.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatAutomation); err != nil {
 		return nil, err
 	}
-	return q.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, automationIds)
+	return q.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, automationIDs)
 }
 
 func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.ChatAutomation, error) {

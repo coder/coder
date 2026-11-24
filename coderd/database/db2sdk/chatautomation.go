@@ -61,8 +61,9 @@ func ChatAutomation(a database.ChatAutomation, refs ChatAutomationRefs, now time
 			Delivery:          string(sub.Delivery),
 			State:             string(sub.State),
 		}
-		// The column is a JSON object; a decode error leaves it out.
-		_ = json.Unmarshal(sub.Arguments, &out.Event.Arguments)
+		if err := json.Unmarshal(sub.Arguments, &out.Event.Arguments); err != nil {
+			out.Event.Arguments = map[string]any{}
+		}
 	}
 	if a.LastRunAt.Valid && a.LastRunOutcome.Valid {
 		out.LastRun = &codersdk.ChatAutomationLastRun{

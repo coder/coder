@@ -92,15 +92,21 @@ func createEventAutomation(ctx context.Context, db database.Store, chat database
 	}
 	thisChat := uuid.NullUUID{UUID: chat.ID, Valid: true}
 	return insertAutomation(ctx, db, database.InsertChatAutomationParams{
-		OrganizationID:  chat.OrganizationID,
-		OwnerID:         owner,
-		Name:            strings.TrimSpace(name),
-		CreatedByChatID: thisChat,
-		Kind:            database.ChatAutomationKindMcpEvent,
-		Enabled:         true,
-		Prompt:          prompt,
-		TargetMode:      database.ChatAutomationTargetModeExistingChat,
-		TargetChatID:    thisChat,
+		ID:                   uuid.NullUUID{},
+		OrganizationID:       chat.OrganizationID,
+		OwnerID:              owner,
+		Name:                 strings.TrimSpace(name),
+		CreatedByChatID:      thisChat,
+		Kind:                 database.ChatAutomationKindMcpEvent,
+		Enabled:              true,
+		Prompt:               prompt,
+		TargetMode:           database.ChatAutomationTargetModeExistingChat,
+		TargetChatID:         thisChat,
+		NewChatModelConfigID: uuid.NullUUID{},
+		ProjectID:            uuid.NullUUID{},
+		ScheduleCron:         sql.NullString{},
+		ScheduleTimeZone:     sql.NullString{},
+		ScheduleNextRunAt:    sql.NullTime{},
 	}, subscribe)
 }
 
