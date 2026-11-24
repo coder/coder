@@ -106,3 +106,31 @@ it.each([false, true])(
 		);
 	},
 );
+
+it("points the inline search input at the highlighted option", async () => {
+	const user = userEvent.setup();
+	render(
+		<Autocomplete
+			value={null}
+			onChange={vi.fn()}
+			options={["Mango", "Papaya"]}
+			getOptionValue={(option) => option}
+			getOptionLabel={(option) => option}
+			placeholder="Select a fruit"
+			inlineSearch
+		/>,
+	);
+
+	const input = screen.getByRole("combobox");
+	await user.click(input);
+	await user.keyboard("{ArrowUp}");
+
+	expect(input).toHaveAttribute(
+		"aria-controls",
+		screen.getByRole("listbox").id,
+	);
+	expect(input).toHaveAttribute(
+		"aria-activedescendant",
+		screen.getByRole("option", { name: "Papaya" }).id,
+	);
+});
