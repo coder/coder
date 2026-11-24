@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isEqual from "lodash/isEqual";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
@@ -613,19 +614,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			).filter((upload) => !removedPreservedIds.includes(upload.id))
 		: [];
 
-	// Uploads added while editing one message are dropped when another
-	// message is edited. A failed edit restores the same blocks, so its
-	// uploads survive for retry.
-	const editUploadsBlocksRef = useRef(editingFileBlocks);
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The edited message also changes from queue updates and rollbacks, and the reset aborts in-flight uploads.
-		if (!isEditing || editUploadsBlocksRef.current === editingFileBlocks) {
-			return;
+	// The edit that the edit uploads were added for. Uploads from editing
+	// another message are hidden, and the next attach drops them. A failed
+	// edit restores the same target, so its uploads survive for retry.
+	const [editUploadsTarget, setEditUploadsTarget] = useState(editingTarget);
+	const editUploads = isEqual(editUploadsTarget, editingTarget)
+		? editWorkspaceUploads.uploads
+		: [];
+	const attachEditWorkspaceUploads = (files: File[]) => {
+		if (!isEqual(editUploadsTarget, editingTarget)) {
+			resetEditWorkspaceUploads();
+			setEditUploadsTarget(editingTarget);
 		}
-
-		editUploadsBlocksRef.current = editingFileBlocks;
-		resetEditWorkspaceUploads();
-	}, [isEditing, editingFileBlocks, resetEditWorkspaceUploads]);
+		editWorkspaceUploads.attach(files);
+	};
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
@@ -676,6 +678,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	const attachWorkspaceUploads = isEditing
+		? attachEditWorkspaceUploads
+		: composeWorkspaceUploads.attach;
 	// The attachments of a send in flight. Until the send settles, the composer
 	// hides them and all workspace uploads, and shows attachments added since.
 	// An edit sets none, because the composer shows the compose draft during it.
@@ -683,7 +688,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		readonly File[] | null
 	>(null);
 	const visibleWorkspaceUploads = isEditing
-		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
+		? [...preservedWorkspaceUploads, ...editUploads]
 		: composeWorkspaceUploads.uploads;
 	const handleRemoveWorkspaceUpload = (id: string) => {
 		if (
@@ -827,9 +832,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
-					? modeWorkspaceUploads.attach
-					: undefined,
+				onAttach: canUploadWorkspaceFiles ? attachWorkspaceUploads : undefined,
 				onRemove: handleRemoveWorkspaceUpload,
 			}}
 			inputRef={inputRef}

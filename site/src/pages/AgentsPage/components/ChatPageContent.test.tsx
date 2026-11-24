@@ -125,84 +125,76 @@ describe("workspaceSkillsFromChat", () => {
 	});
 });
 
+type ChatPageInputOverrides = Partial<
+	React.ComponentProps<typeof ChatPageInput>
+>;
+
+// update changes the props while the input stays mounted.
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
-) => renderWithAuth(chatPageInput(store, overrides));
-
-// Renders the input with props a test can change while it stays mounted.
-const renderUpdatableChatPageInput = (
-	store: ReturnType<typeof createChatStore>,
-	initialOverrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
+	initialOverrides: ChatPageInputOverrides = {},
 ) => {
 	let setOverrides: React.Dispatch<
-		React.SetStateAction<Partial<React.ComponentProps<typeof ChatPageInput>>>
+		React.SetStateAction<ChatPageInputOverrides>
 	> = () => {};
-	const inputRef = { current: null };
 
 	const Harness: React.FC = () => {
 		const [overrides, setState] = useState(initialOverrides);
 		setOverrides = setState;
 
-		return chatPageInput(store, { inputRef, ...overrides });
+		return (
+			<ChatPageInput
+				chat={{ ...MockChat, id: "", organization_id: "" }}
+				store={store}
+				modelCatalog={undefined}
+				onSend={vi.fn()}
+				onDeleteQueuedMessage={vi.fn()}
+				onPromoteQueuedMessage={vi.fn()}
+				onInterrupt={vi.fn()}
+				isInputDisabled={false}
+				isSendPending={false}
+				isInterruptPending={false}
+				hasModelOptions
+				selectedModel="model-config-1"
+				onModelChange={vi.fn()}
+				modelOptions={[
+					{
+						id: "model-config-1",
+						provider: "openai",
+						model: "gpt-4o",
+						displayName: "GPT-4o",
+					},
+				]}
+				modelSelectorPlaceholder="Select model"
+				canConfigureAgentSetup={false}
+				editingTarget={null}
+				onCancelEdit={vi.fn()}
+				isReadOnly={false}
+				onReasoningEffortChange={vi.fn()}
+				unsupportedProviderNames={[]}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				inputRef={{ current: null }}
+				initialValue=""
+				remountKey={0}
+				onContentChange={vi.fn()}
+				editingFileBlocks={[]}
+				mcpServers={[]}
+				selectedMCPServerIds={[]}
+				onMCPSelectionChange={vi.fn()}
+				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
+				{...overrides}
+			/>
+		);
 	};
 
-	renderWithAuth(<Harness />);
-
 	return {
-		update: (next: Partial<React.ComponentProps<typeof ChatPageInput>>) =>
+		...renderWithAuth(<Harness />),
+		update: (next: ChatPageInputOverrides) =>
 			act(() => setOverrides((current) => ({ ...current, ...next }))),
 	};
 };
-
-const chatPageInput = (
-	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
-) => (
-	<ChatPageInput
-		chat={{ ...MockChat, id: "", organization_id: "" }}
-		store={store}
-		modelCatalog={undefined}
-		onSend={vi.fn()}
-		onDeleteQueuedMessage={vi.fn()}
-		onPromoteQueuedMessage={vi.fn()}
-		onInterrupt={vi.fn()}
-		isInputDisabled={false}
-		isSendPending={false}
-		isInterruptPending={false}
-		hasModelOptions
-		selectedModel="model-config-1"
-		onModelChange={vi.fn()}
-		modelOptions={[
-			{
-				id: "model-config-1",
-				provider: "openai",
-				model: "gpt-4o",
-				displayName: "GPT-4o",
-			},
-		]}
-		modelSelectorPlaceholder="Select model"
-		canConfigureAgentSetup={false}
-		editingTarget={null}
-		onCancelEdit={vi.fn()}
-		isReadOnly={false}
-		onReasoningEffortChange={vi.fn()}
-		unsupportedProviderNames={[]}
-		onPlanModeToggle={vi.fn()}
-		isModelCatalogLoading={false}
-		inputRef={{ current: null }}
-		initialValue=""
-		remountKey={0}
-		onContentChange={vi.fn()}
-		editingFileBlocks={[]}
-		mcpServers={[]}
-		selectedMCPServerIds={[]}
-		onMCPSelectionChange={vi.fn()}
-		isWorkspaceLoading={false}
-		queuedMessageUnderEditID={null}
-		{...overrides}
-	/>
-);
 
 const workspaceFileReference = (
 	name: string,
@@ -628,36 +620,47 @@ describe("ChatPageInput", () => {
 			},
 		);
 
-		it("drops edit uploads when editing a different message", async () => {
-			const user = userEvent.setup();
-			const onSend = vi.fn().mockResolvedValue(undefined);
-			const { update } = renderUpdatableChatPageInput(createChatStore(), {
-				...draftProps,
-				onSend,
-				editingTarget: { kind: "history", id: 1 },
-				editingFileBlocks: [],
-			});
+		it.each([
+			{ action: "saving", sent: undefined },
+			{ action: "attaching a file", sent: 1 },
+		])(
+			"drops the uploads of a previously edited message when $action",
+			async ({ action, sent }) => {
+				const user = userEvent.setup();
+				const onSend = vi.fn().mockResolvedValue(undefined);
+				const { update } = renderChatPageInput(createChatStore(), {
+					...draftProps,
+					onSend,
+					editingTarget: { kind: "history", id: 1 },
+					editingFileBlocks: [],
+				});
+				const uploadArchive = async () => {
+					await user.upload(
+						await screen.findByTestId("chat-attachment-file-input"),
+						new File([new Uint8Array(16)], "archive.tar", {
+							type: "application/x-tar",
+						}),
+					);
+					await screen.findByRole("button", { name: "Remove archive.tar" });
+				};
 
-			await user.upload(
-				await screen.findByTestId("chat-attachment-file-input"),
-				new File([new Uint8Array(16)], "archive.tar", {
-					type: "application/x-tar",
-				}),
-			);
-			await screen.findByRole("button", { name: "Remove archive.tar" });
+				await uploadArchive();
+				update({
+					editingTarget: { kind: "history", id: 2 },
+					editingFileBlocks: [],
+				});
+				if (action === "attaching a file") {
+					await uploadArchive();
+				}
 
-			update({
-				editingTarget: { kind: "history", id: 2 },
-				editingFileBlocks: [],
-			});
+				await user.click(
+					await screen.findByRole("button", { name: "Save edit" }),
+				);
 
-			await user.click(
-				await screen.findByRole("button", { name: "Save edit" }),
-			);
-
-			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-			expect(onSend.mock.calls[0][0].workspaceUploads).toBeUndefined();
-		});
+				await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+				expect(onSend.mock.calls[0][0].workspaceUploads?.length).toBe(sent);
+			},
+		);
 
 		it("keeps compose uploads out of message edits without clearing the draft", async () => {
 			const user = userEvent.setup();
@@ -870,7 +873,7 @@ describe("ChatPageInput", () => {
 			workspaceFileReference("first.csv", "ws-1"),
 			workspaceFileReference("second.csv", "ws-1"),
 		];
-		const { update } = renderUpdatableChatPageInput(createChatStore(), {
+		const { update } = renderChatPageInput(createChatStore(), {
 			chat: { ...MockChat, id: "", organization_id: "", workspace_id: "ws-1" },
 			onSend,
 			editingTarget: editing,
