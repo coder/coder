@@ -37,7 +37,7 @@ import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
 /** The chat actions a project chat row offers from its menu. */
 export type ProjectChatRowActions = Pick<
 	AgentsPageOutletContext,
-	"clearChatErrorReason" | "navigateAfterArchive" | "onOpenRenameDialog"
+	"clearChatErrorReason" | "navigateOnArchive" | "onOpenRenameDialog"
 >;
 
 type ProjectChatRowProps = {
@@ -146,7 +146,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		onArchiveAgent: () => archiveMutation.mutate(chat.id),
 		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
-		onArchived: actions?.navigateAfterArchive,
+		onArchive: actions?.navigateOnArchive,
 		onOpenRenameDialog: actions?.onOpenRenameDialog
 			? () => actions.onOpenRenameDialog?.(chat)
 			: undefined,

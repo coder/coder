@@ -22,10 +22,10 @@ import {
 import { ChatTopBar } from "./ChatTopBar";
 
 const chat = { ...MockChat, workspace_id: "workspace-1" };
-const navigateAfterArchive = vi.fn();
+const navigateOnArchive = vi.fn();
 
 const renderTopBar = (currentChat = chat, liveChatStatus?: Chat["status"]) =>
-	renderWithAuth(<Outlet context={{ navigateAfterArchive }} />, {
+	renderWithAuth(<Outlet context={{ navigateOnArchive }} />, {
 		route: `/agents/${chat.id}`,
 		path: "/agents",
 		children: [
@@ -70,7 +70,7 @@ const clickArchiveAndDelete = async (
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
-	navigateAfterArchive.mockClear();
+	navigateOnArchive.mockClear();
 });
 
 describe("ChatTopBar pin state", () => {
@@ -270,7 +270,7 @@ describe("ChatTopBar archive state", () => {
 			);
 		};
 		const { router, queryClient } = renderWithAuth(
-			<Outlet context={{ navigateAfterArchive }} />,
+			<Outlet context={{ navigateOnArchive }} />,
 			{
 				route: "/agents/chat-alpha",
 				path: "/agents",
@@ -325,7 +325,7 @@ describe("ChatTopBar archive and delete", () => {
 			archived: true,
 		});
 		await waitFor(() => {
-			expect(navigateAfterArchive).toHaveBeenCalledWith(chat.id);
+			expect(navigateOnArchive).toHaveBeenCalledWith(chat.id);
 		});
 	});
 
@@ -375,7 +375,7 @@ describe("ChatTopBar archive and delete", () => {
 			);
 		};
 		const { queryClient } = renderWithAuth(
-			<Outlet context={{ navigateAfterArchive }} />,
+			<Outlet context={{ navigateOnArchive }} />,
 			{
 				route: `/agents/${chat.id}`,
 				path: "/agents",
