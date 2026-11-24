@@ -91,4 +91,32 @@ describe(Filter.name, () => {
 
 		await waitFor(() => expect(search).toHaveValue("status:running"));
 	});
+
+	it("applies the typed search when the box loses focus", async () => {
+		const Harness = () => {
+			const [searchParams, setSearchParams] = useSearchParams();
+			const filter = useFilter({
+				searchParams,
+				onSearchParamsChange: setSearchParams,
+			});
+
+			return (
+				<Filter
+					filter={filter}
+					isLoading={false}
+					optionsSkeleton={null}
+					presets={[]}
+				/>
+			);
+		};
+
+		const user = userEvent.setup();
+		renderWithAuth(<Harness />);
+		const search = await screen.findByRole("textbox", { name: "Search" });
+
+		await user.type(search, "owner:me");
+		await user.tab();
+
+		expect(search).toHaveValue("owner:me");
+	});
 });
