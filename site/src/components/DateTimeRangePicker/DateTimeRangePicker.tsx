@@ -301,9 +301,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
-						{valuePrefix && (
-							<span className="text-content-secondary">{valuePrefix} </span>
-						)}
+						{valuePrefix && `${valuePrefix} `}
 						{triggerLabel}
 					</span>
 					<ChevronDownIcon
