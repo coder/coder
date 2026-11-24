@@ -8,6 +8,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
+import { annotatorDevServer } from "./vite.annotator.config.mjs";
 
 // We enable profiling and source maps for internal deployments (e.g. dogfood).
 // The profiling build uses react-dom/profiling, which keeps optimizations but
@@ -29,6 +30,7 @@ compilerPreset.rolldown.filter = {
 };
 
 const plugins: PluginOption[] = [
+	annotatorDevServer(),
 	tailwindcss(),
 	react(),
 	babel({ presets: [compilerPreset] }),
@@ -198,6 +200,7 @@ export default defineConfig({
 						"src/**/*.test.?(m)ts?(x)",
 						"scripts/**/*.test.?(m)[jt]s?(x)",
 					],
+					css: { include: [/\/annotator\/.*\.css(\?.*)?$/] },
 					globals: true,
 					environment: "jsdom",
 					setupFiles: [
