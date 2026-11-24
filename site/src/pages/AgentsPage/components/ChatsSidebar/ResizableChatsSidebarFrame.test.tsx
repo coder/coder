@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_MIN_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
 
@@ -94,5 +96,39 @@ describe("ResizableChatsSidebarFrame", () => {
 		fireEvent.pointerMove(handle, { ...PRIMARY, clientX: 40 });
 
 		expect(persistedWidth()).toBe(LEFT_SIDEBAR_DEFAULT_WIDTH + 40);
+	});
+
+	it.each([
+		{ item: "Narrower", expected: 336 },
+		{ item: "Wider", expected: 464 },
+		{ item: "Reset width", expected: LEFT_SIDEBAR_DEFAULT_WIDTH },
+	])(
+		"resizes with a click on $item, without dragging",
+		async ({ item, expected }) => {
+			const user = userEvent.setup();
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+			const handle = renderHandle();
+
+			await user.pointer({ keys: "[MouseRight]", target: handle });
+			await user.click(await screen.findByRole("menuitem", { name: item }));
+
+			expect(handle).toHaveAttribute("aria-valuenow", String(expected));
+			expect(persistedWidth()).toBe(expected);
+		},
+	);
+
+	it("disables Narrower at the minimum width", async () => {
+		const user = userEvent.setup();
+		localStorage.setItem(
+			LEFT_SIDEBAR_STORAGE_KEY,
+			String(LEFT_SIDEBAR_MIN_WIDTH),
+		);
+		const handle = renderHandle();
+
+		await user.pointer({ keys: "[MouseRight]", target: handle });
+
+		expect(
+			await screen.findByRole("menuitem", { name: "Narrower" }),
+		).toHaveAttribute("aria-disabled", "true");
 	});
 });

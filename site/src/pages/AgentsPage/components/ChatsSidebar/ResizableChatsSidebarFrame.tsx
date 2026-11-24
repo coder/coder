@@ -1,13 +1,23 @@
 import { cn } from "cn";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
+import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
+	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	loadPersistedLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
+
+// Coarse enough that the menu crosses the width range in a few clicks.
+const MENU_RESIZE_STEP = 64;
 
 type ResizableChatsSidebarFrameProps = {
 	children: React.ReactNode;
@@ -120,23 +130,47 @@ export const ResizableChatsSidebarFrame = ({
 			)}
 		>
 			{children}
-			<div
-				role="separator"
-				aria-orientation="vertical"
-				aria-label="Resize agents sidebar"
-				aria-valuemin={LEFT_SIDEBAR_MIN_WIDTH}
-				aria-valuemax={maxWidth}
-				aria-valuenow={width}
-				tabIndex={0}
-				data-testid="agents-sidebar-resize-handle"
-				onPointerDown={handlePointerDown}
-				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerEnd}
-				onPointerCancel={handlePointerEnd}
-				onLostPointerCapture={handlePointerEnd}
-				onKeyDown={handleKeyDown}
-				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
-			/>
+			{/* The menu is the single-pointer alternative to dragging (WCAG 2.5.7). */}
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div
+						role="separator"
+						aria-orientation="vertical"
+						aria-label="Resize agents sidebar"
+						aria-valuemin={LEFT_SIDEBAR_MIN_WIDTH}
+						aria-valuemax={maxWidth}
+						aria-valuenow={width}
+						tabIndex={0}
+						data-testid="agents-sidebar-resize-handle"
+						onPointerDown={handlePointerDown}
+						onPointerMove={handlePointerMove}
+						onPointerUp={handlePointerEnd}
+						onPointerCancel={handlePointerEnd}
+						onLostPointerCapture={handlePointerEnd}
+						onKeyDown={handleKeyDown}
+						className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
+					/>
+				</ContextMenuTrigger>
+				<ContextMenuContent>
+					<ContextMenuItem
+						disabled={width <= LEFT_SIDEBAR_MIN_WIDTH}
+						onSelect={() => setUserWidth(width - MENU_RESIZE_STEP)}
+					>
+						Narrower
+					</ContextMenuItem>
+					<ContextMenuItem
+						disabled={width >= maxWidth}
+						onSelect={() => setUserWidth(width + MENU_RESIZE_STEP)}
+					>
+						Wider
+					</ContextMenuItem>
+					<ContextMenuItem
+						onSelect={() => setUserWidth(LEFT_SIDEBAR_DEFAULT_WIDTH)}
+					>
+						Reset width
+					</ContextMenuItem>
+				</ContextMenuContent>
+			</ContextMenu>
 		</div>
 	);
 };

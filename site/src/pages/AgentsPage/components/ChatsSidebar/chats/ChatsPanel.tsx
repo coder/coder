@@ -273,6 +273,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
+	const movePinnedChat = (chatId: string, to: number) => {
+		const from = pinnedChatIds.indexOf(chatId);
+		if (from === -1 || from === to) {
+			return;
+		}
+		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
+		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
+	};
+
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { source, target } = event.operation;
 		if (event.canceled) {
@@ -298,14 +307,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		if (disablePinnedReordering || !isSortable(source)) {
 			return;
 		}
-		const chatId = String(source.id);
-		const from = pinnedChatIds.indexOf(chatId);
-		const to = source.index;
-		if (from === -1 || from === to) {
-			return;
-		}
-		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
-		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
+		movePinnedChat(String(source.id), source.index);
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -712,6 +714,24 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																				key={chat.id}
 																				chat={chat}
 																				index={index}
+																				onMovePinUp={
+																					index > 0
+																						? () =>
+																								movePinnedChat(
+																									chat.id,
+																									index - 1,
+																								)
+																						: undefined
+																				}
+																				onMovePinDown={
+																					index < sortedPinnedChats.length - 1
+																						? () =>
+																								movePinnedChat(
+																									chat.id,
+																									index + 1,
+																								)
+																						: undefined
+																				}
 																			/>
 																		))}
 																	</div>

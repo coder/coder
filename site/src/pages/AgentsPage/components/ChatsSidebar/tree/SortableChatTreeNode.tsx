@@ -11,11 +11,15 @@ const PIN_DRAG_TYPE = "pin";
 type SortableChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly index: number;
+	readonly onMovePinUp?: () => void;
+	readonly onMovePinDown?: () => void;
 };
 
 export const SortableChatTreeNode: React.FC<SortableChatTreeNodeProps> = ({
 	chat,
 	index,
+	onMovePinUp,
+	onMovePinDown,
 }) => {
 	const { dragInstructionsId } = useChatTree();
 	const { ref, handleRef, isDragging } = useSortable({
@@ -34,6 +38,8 @@ export const SortableChatTreeNode: React.FC<SortableChatTreeNodeProps> = ({
 					ref: handleRef,
 					"aria-describedby": dragInstructionsId,
 				}}
+				onMovePinUp={onMovePinUp}
+				onMovePinDown={onMovePinDown}
 			/>
 		</div>
 	);
