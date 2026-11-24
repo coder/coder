@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -211,6 +211,16 @@ export const SelectAllMixedEligibility: Story = {
 				name: "Select all workspaces",
 			}),
 		);
+	},
+};
+
+export const SelectAllLabel: Story = {
+	args: SelectAllMixedEligibility.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("checkbox", { name: "Select all workspaces" })
+			.focus();
+		await screen.findByRole("tooltip", { name: "Select all workspaces" });
 	},
 };
 

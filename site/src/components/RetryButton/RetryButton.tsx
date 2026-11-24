@@ -6,6 +6,7 @@ type RetryButtonProps = Pick<ButtonProps, "aria-label" | "size" | "variant"> & {
 	onRetry: () => void;
 };
 
+/** Retry action for a failed request, with a spinner while it reruns. */
 export const RetryButton: React.FC<RetryButtonProps> = ({
 	isRetrying,
 	onRetry,
