@@ -403,7 +403,6 @@ $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION
 # "fat" binaries always depend on the site and the compressed slim binaries.
 $(CODER_FAT_BINARIES): \
 	site/out/index.html \
-	site/out/annotator.js \
 	site/out/bin/coder.sha1 \
 	site/out/bin/coder.tar.zst
 
@@ -622,12 +621,9 @@ SITE_GEN_FILES := \
 	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
-site/out/index.html site/out/annotator.js &: \
+site/out/index.html: \
 	site/node_modules/.installed \
 	site/static/install.sh \
-	site/vite.config.mts \
-	site/vite.annotator.config.mts \
-	$(wildcard site/src/annotator/*.css) \
 	$(SITE_GEN_FILES) \
 	$(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site/
@@ -1080,8 +1076,7 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
-		site/out/index.html \
-		site/out/annotator.js
+		site/out/index.html
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
@@ -1920,7 +1915,7 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html site/out/annotator.js
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html
 	go build -o $@ \
 		-tags embed,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder

@@ -624,7 +624,6 @@ func TestCaching(t *testing.T) {
 		{"/", "no-store"},
 		{"/index.html", "no-store"},
 		{"/double/nested/terminal.html", "no-store"},
-		{"/annotator.js?v=version", ""},
 	}
 
 	for _, testCase := range testCases {
@@ -635,13 +634,6 @@ func TestCaching(t *testing.T) {
 		require.NoError(t, err, "get index")
 
 		require.Equalf(t, testCase.wantCache, res.Header.Get("Cache-Control"), "Cache-Control of %s", testCase.path)
-		if testCase.path == "/annotator.js?v=version" {
-			body, err := io.ReadAll(res.Body)
-			require.NoError(t, err)
-			require.Equal(t, http.StatusNotFound, res.StatusCode)
-			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
-			require.Equal(t, "404 page not found\n", string(body))
-		}
 
 		require.NoError(t, res.Body.Close(), "closing response")
 	}
@@ -660,9 +652,6 @@ func TestServingFiles(t *testing.T) {
 		},
 		"dashboard.js": &fstest.MapFile{
 			Data: []byte("dashboard-js-bytes"),
-		},
-		"annotator.js": &fstest.MapFile{
-			Data: []byte("(function () { window.annotator = true; })();"),
 		},
 		"dashboard.css": &fstest.MapFile{
 			Data: []byte("dashboard-css-bytes"),
@@ -714,7 +703,6 @@ func TestServingFiles(t *testing.T) {
 
 		// JS, CSS cases
 		{"/dashboard.js", "dashboard-js-bytes"},
-		{"/annotator.js?v=version", "(function () { window.annotator = true; })();"},
 		{"/dashboard.css", "dashboard-css-bytes"},
 
 		// Install script
@@ -728,14 +716,8 @@ func TestServingFiles(t *testing.T) {
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err, "get file")
-		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, testCase.expected, string(data), "Verify file: "+testCase.path)
-		if testCase.path == "/annotator.js?v=version" {
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, "text/javascript; charset=utf-8", resp.Header.Get("Content-Type"))
-			require.Equal(t, "", resp.Header.Get("Cache-Control"))
-		}
+		data, _ := io.ReadAll(resp.Body)
+		require.Equal(t, string(data), testCase.expected, "Verify file: "+testCase.path)
 		err = resp.Body.Close()
 		require.NoError(t, err)
 	}
