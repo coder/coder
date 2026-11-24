@@ -199,6 +199,7 @@ See the following pages for experiment-gated features:
 
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
+- [Workspace previews](./open-preview.md) (`--experiments=open-preview`)
 
 For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 
