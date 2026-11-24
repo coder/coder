@@ -44,6 +44,8 @@ type DateTimeRangePickerProps = {
 	size?: ButtonProps["size"];
 	/** Accessible name of the picker. Defaults to "Time range". */
 	label?: string;
+	/** Visible text before the value, e.g. `Active:`. */
+	valuePrefix?: string;
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
 	 * time cannot be applied, and presets that would start before it are
@@ -121,6 +123,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	presets,
 	size = "sm",
 	label = "Time range",
+	valuePrefix,
 	minDate,
 	maxDays,
 }) => {
@@ -298,6 +301,9 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
+						{valuePrefix && (
+							<span className="text-content-secondary">{valuePrefix} </span>
+						)}
 						{triggerLabel}
 					</span>
 					<ChevronDownIcon

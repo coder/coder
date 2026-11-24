@@ -105,7 +105,7 @@ export const Default: Story = {
 	args: { initialQuery: rangeQuery },
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("combobox", { name: "Time range" }),
+			within(canvasElement).getByRole("combobox", { name: "Active" }),
 		);
 	},
 };

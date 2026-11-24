@@ -113,6 +113,8 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 			<DateTimeRangePicker
 				value={timeRange}
 				onChange={onTimeRangeChange}
+				label="Active"
+				valuePrefix="Active:"
 				size="lg"
 			/>
 		</div>
