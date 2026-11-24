@@ -80,6 +80,8 @@ type fakeEventsServer struct {
 	deliveryError string
 	unsubscribes  int
 	receive       func(callbackURL string, header http.Header, body []byte) (int, string)
+	// noEvents serves a server that no longer offers the events extension.
+	noEvents bool
 }
 
 // signWebhook signs body as a Standard Webhooks sender of the fake
@@ -150,11 +152,15 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 	getServer := func(*http.Request) *mcp.Server { return srv }
 	sse := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true})
 	jsonBodies := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+	plain := mcp.NewServer(&mcp.Implementation{Name: "plain", Version: "1"}, nil)
+	withoutEvents := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return plain }, &mcp.StreamableHTTPOptions{Stateless: true})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
-		unauthorized, dropConn, jsonResponse, ssePad := fake.unauthorized, fake.dropConn, fake.jsonResponse, fake.ssePad
+		unauthorized, dropConn, jsonResponse, ssePad, noEvents := fake.unauthorized, fake.dropConn, fake.jsonResponse, fake.ssePad, fake.noEvents
 		fake.mu.Unlock()
 		switch {
+		case noEvents:
+			withoutEvents.ServeHTTP(w, r)
 		case unauthorized:
 			w.WriteHeader(http.StatusUnauthorized)
 		case dropConn:
@@ -555,6 +561,14 @@ func TestAutomationEvents(t *testing.T) {
 					Availability: c.Availability, UpdatedBy: c.CreatedBy.UUID,
 				})
 				return err
+			}},
+			// The renewal ends a subscription whose server dropped events.
+			{"EventsDropped", http.StatusGone, func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				f.events.mu.Lock()
+				f.events.noEvents = true
+				f.events.mu.Unlock()
+				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
+				return nil
 			}},
 			// The experiment check fails closed, so the server retries.
 			{"AutomationsOff", http.StatusServiceUnavailable, func(_ context.Context, f fixture, _ uuid.UUID) error {

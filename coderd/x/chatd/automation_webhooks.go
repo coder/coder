@@ -225,7 +225,11 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 		}
 		return nil
 	})
-	if err == nil || errors.Is(err, errSubscriptionInactive) {
+	switch {
+	case err == nil || errors.Is(err, errSubscriptionInactive):
+		return
+	case errors.Is(err, mcpclient.ErrEventsUnsupported):
+		p.terminateSubscription(ctx, sub.AutomationID, sql.NullTime{}, runReasonMCPEventUnsupported)
 		return
 	}
 	p.handleEventError(ctx, sub.AutomationID, sql.NullTime{}, err, conn, func(now time.Time, backoff time.Duration, message string) error {
