@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type {
@@ -356,7 +355,8 @@ type ProviderFormProps = {
 	initialValues?: Partial<ProviderFormValues>;
 	/** Fires whenever the icon field changes, so page headers can preview it. */
 	onIconChange?: (icon: string) => void;
-	onSubmit?: (values: ProviderFormValues) => void;
+	/** Rejects when the save fails, so the form keeps the entered values. */
+	onSubmit?: (values: ProviderFormValues) => Promise<void> | void;
 	isLoading?: boolean;
 	submitError?: unknown;
 };
@@ -393,21 +393,17 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 	const typeDefaults =
 		providerDefaults[resolvedType as keyof typeof providerDefaults];
 
-	// Seed AWS credentials with the mask when on file; focus clears it,
-	// and a re-submitted "" tells the API mapping to keep the value.
-	const maskedAccessKey = awsSavedAccessCredentials
+	// Credential values stay "" until the user types one, which tells the API
+	// mapping to keep the saved value. The fields show these masks meanwhile.
+	const maskedAwsCredential = awsSavedAccessCredentials
 		? SAVED_CREDENTIAL_MASK
-		: "";
-	const maskedAccessKeySecret = awsSavedAccessCredentials
-		? SAVED_CREDENTIAL_MASK
-		: "";
-	// Same pattern for the provider API key. Prefer the API-supplied masked
-	// rendering so the user sees the key's identifying suffix.
+		: undefined;
+	// Prefer the API-supplied masked rendering so the user sees the key's
+	// identifying suffix.
 	const maskedApiKey = hasSavedApiKey
 		? (savedApiKeyMask ?? SAVED_CREDENTIAL_MASK)
-		: "";
+		: undefined;
 
-	const didSubmit = useRef(false);
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
@@ -415,15 +411,26 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 			// Edit overrides prefills with server values; create gets them as-is.
 			...typeDefaults,
 			...initialValues,
-			accessKey: maskedAccessKey,
-			accessKeySecret: maskedAccessKeySecret,
-			apiKey: maskedApiKey,
+			accessKey: "",
+			accessKeySecret: "",
+			apiKey: "",
 		},
 		validationSchema: getProviderFormSchema(editing),
 		validateOnMount: true,
-		onSubmit: (values) => {
-			didSubmit.current = true;
-			return onSubmit?.(values);
+		onSubmit: async (values) => {
+			try {
+				await onSubmit?.(values);
+			} catch {
+				// The caller reports the error. Keep the entered values.
+				return;
+			}
+
+			// A saved submission is the new baseline, so the unsaved-changes
+			// prompt does not fire on later navigations. Clearing the credentials
+			// shows the saved masks instead of the raw keys.
+			form.resetForm({
+				values: { ...values, apiKey: "", accessKey: "", accessKeySecret: "" },
+			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
@@ -450,28 +457,6 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 	);
 
 	const typeSelectValue = form.values.type;
-
-	// Clears the field once if it's still showing the seeded mask;
-	// subsequent focuses are no-ops.
-	const handleCredentialFocus = (
-		field: "apiKey" | "accessKey" | "accessKeySecret",
-	) => {
-		const initial = form.initialValues[field];
-		if (form.values[field] === initial && initial !== "") {
-			void form.setFieldValue(field, "");
-		}
-	};
-
-	// Restores the mask when the user leaves the field without entering
-	// a new value, keeping the saved-credential appearance.
-	const handleCredentialBlur = (
-		field: "apiKey" | "accessKey" | "accessKeySecret",
-	) => {
-		const initial = form.initialValues[field];
-		if (form.values[field] === "" && initial !== "") {
-			void form.setFieldValue(field, initial);
-		}
-	};
 
 	// Switching protocols rewrites the base URL to the matching host, keeping
 	// the region the user already entered so they do not retype it.
@@ -539,38 +524,6 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 		});
 	};
 
-	// When the parent's mutation finishes without an error, treat the just-
-	// submitted values as the new baseline so the unsaved-changes prompt does
-	// not fire on subsequent navigations. React Query reports a missing error
-	// as `null`, so a truthy check covers both null and undefined.
-	const previousIsLoading = useRef(isLoading);
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The saved credentials' masks arrive with the refreshed provider after the save settles, so the form can only be reset on the render that carries them.
-		if (previousIsLoading.current && !isLoading) {
-			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the reset needs the masks from the refreshed provider.
-			if (didSubmit.current && !submitError) {
-				// Restore credential fields to their initial masked sentinels so
-				// the raw key is never left visible after a successful save.
-				const remaskedValues = {
-					...form.values,
-					apiKey: maskedApiKey,
-					accessKey: maskedAccessKey,
-					accessKeySecret: maskedAccessKeySecret,
-				};
-				form.resetForm({ values: remaskedValues });
-			}
-			didSubmit.current = false;
-		}
-		previousIsLoading.current = isLoading;
-	}, [
-		isLoading,
-		submitError,
-		form,
-		maskedApiKey,
-		maskedAccessKey,
-		maskedAccessKeySecret,
-	]);
-
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -612,8 +565,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							<ClaudePlatformFields
 								getFieldHelpers={getFieldHelpers}
 								onRegionChange={handleClaudePlatformRegionChange}
-								onCredentialBlur={handleCredentialBlur}
-								onCredentialFocus={handleCredentialFocus}
+								savedApiKeyMask={maskedApiKey}
 							/>
 						) : (
 							<ProviderConnectionFields
@@ -621,8 +573,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								getFieldHelpers={getFieldHelpers}
 								baseUrlPlaceholder={baseUrlPlaceholder(form.values.type)}
 								apiKeyPlaceholder={apiKeyPlaceholder(form.values.type)}
-								onCredentialBlur={handleCredentialBlur}
-								onCredentialFocus={handleCredentialFocus}
+								savedApiKeyMask={maskedApiKey}
 							/>
 						)}
 					</>
@@ -735,14 +686,12 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								<CredentialField
 									label="Access key"
 									helpers={getFieldHelpers("accessKey")}
-									onBlur={() => handleCredentialBlur("accessKey")}
-									onFocus={() => handleCredentialFocus("accessKey")}
+									savedMask={maskedAwsCredential}
 								/>
 								<CredentialField
 									label="Access key secret"
 									helpers={getFieldHelpers("accessKeySecret")}
-									onBlur={() => handleCredentialBlur("accessKeySecret")}
-									onFocus={() => handleCredentialFocus("accessKeySecret")}
+									savedMask={maskedAwsCredential}
 								/>
 							</div>
 							<p className="text-xs text-content-secondary m-0">

@@ -52,16 +52,14 @@ describe("Claude Platform provider form", () => {
 			name: "an API-supplied mask",
 			savedApiKeyMask:
 				MockAIProviderClaudePlatformAWSAPIKey.api_keys[0]?.masked,
-			expectedApiKey: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0]?.masked,
 		},
 		{
 			name: "the generic mask when no API mask is supplied",
 			savedApiKeyMask: undefined,
-			expectedApiKey: SAVED_CREDENTIAL_MASK,
 		},
 	])(
 		"preserves a saved key after focus and blur with $name during an unrelated edit",
-		async ({ savedApiKeyMask, expectedApiKey }) => {
+		async ({ savedApiKeyMask }) => {
 			const user = userEvent.setup();
 			const provider = MockAIProviderClaudePlatformAWSAPIKey;
 			const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
@@ -82,9 +80,12 @@ describe("Claude Platform provider form", () => {
 				screen.getByRole("textbox", { name: "Display name" }),
 				" updated",
 			);
+			expect(screen.getByLabelText(/^workspace api key/i)).toHaveValue(
+				savedApiKeyMask ?? SAVED_CREDENTIAL_MASK,
+			);
 			await user.click(screen.getByRole("button", { name: "Update provider" }));
 			await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
-			expect(onSubmit.mock.calls[0][0].apiKey).toBe(expectedApiKey);
+			expect(onSubmit.mock.calls[0][0].apiKey).toBe("");
 			const request = providerFormValuesToUpdate(
 				onSubmit.mock.calls[0][0],
 				provider,

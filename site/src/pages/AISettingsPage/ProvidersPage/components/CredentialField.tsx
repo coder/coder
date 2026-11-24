@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -12,8 +12,8 @@ type CredentialFieldProps = {
 	placeholder?: string;
 	description?: React.ReactNode;
 	required?: boolean;
-	onBlur?: () => void;
-	onFocus?: () => void;
+	/** Shown in place of an empty value while the field is not focused. */
+	savedMask?: string;
 };
 
 export const CredentialField: React.FC<CredentialFieldProps> = ({
@@ -22,10 +22,10 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 	placeholder,
 	description,
 	required = false,
-	onBlur,
-	onFocus,
+	savedMask,
 }) => {
 	const inputId = useId();
+	const [isFocused, setIsFocused] = useState(false);
 	const errorId = `${inputId}-error`;
 	const helperId = `${inputId}-helper`;
 	const descriptionId = `${inputId}-description`;
@@ -67,13 +67,17 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 			id={inputId}
 			name={helpers.name}
 			className="font-mono text-sm font-normal"
-			value={helpers.value}
+			value={
+				!isFocused && helpers.value === "" && savedMask
+					? savedMask
+					: helpers.value
+			}
 			onChange={helpers.onChange}
 			onBlur={(event) => {
 				helpers.onBlur(event);
-				onBlur?.();
+				setIsFocused(false);
 			}}
-			onFocus={onFocus}
+			onFocus={() => setIsFocused(true)}
 			placeholder={placeholder}
 			aria-invalid={helpers.error}
 			aria-describedby={describedBy || undefined}
