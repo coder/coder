@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,18 +78,19 @@ func TestSupportBundle(t *testing.T) {
 
 	// Set up test fixtures
 	setupCtx := testutil.Context(t, testutil.WaitLong)
-	workspaceWithAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+	workspaceWithAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, database.WorkspaceTransitionStart, func(agents []*proto.Agent) []*proto.Agent {
 		// This should not show up in the bundle output
 		agents[0].Env["SECRET_VALUE"] = secretValue
 		return agents
 	})
-	workspaceWithRotatedAgentLogs := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+	workspaceWithRotatedAgentLogs := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, database.WorkspaceTransitionStart, func(agents []*proto.Agent) []*proto.Agent {
 		// This should not show up in the bundle output
 		agents[0].Env["SECRET_VALUE"] = secretValue
 		return agents
 	})
-	workspaceWithoutAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, nil)
-	memberWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, member.ID, nil)
+	workspaceWithoutAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, database.WorkspaceTransitionStart, nil)
+	stoppedWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, database.WorkspaceTransitionStop, nil)
+	memberWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, member.ID, database.WorkspaceTransitionStart, nil)
 
 	t.Run("WorkspaceWithAgent", func(t *testing.T) {
 		t.Parallel()
@@ -215,13 +217,50 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
-		d := t.TempDir()
-		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", workspaceWithoutAgent.Workspace.Name, "--output-file", path, "--yes")
-		//nolint: gocritic // requires owner privilege
+		for _, tc := range []struct {
+			name      string
+			workspace string
+			agent     string
+			status    codersdk.WorkspaceStatus
+		}{
+			{name: "Running", workspace: workspaceWithoutAgent.Workspace.Name, status: codersdk.WorkspaceStatusRunning},
+			{name: "Stopped", workspace: stoppedWorkspace.Workspace.Name, status: codersdk.WorkspaceStatusStopped},
+			{name: "StoppedWithAgentName", workspace: stoppedWorkspace.Workspace.Name, agent: "dev", status: codersdk.WorkspaceStatusStopped},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				path := filepath.Join(t.TempDir(), "bundle.zip")
+				args := []string{"support", "bundle", tc.workspace}
+				if tc.agent != "" {
+					args = append(args, tc.agent)
+				}
+				args = append(args, "--output-file", path, "--yes")
+				inv, root := clitest.New(t, args...)
+				//nolint:gocritic // Tests agent lookup in the owner's workspace.
+				clitest.SetupConfig(t, client, root)
+				var stderr bytes.Buffer
+				inv.Stderr = &stderr
+				require.NoError(t, inv.WithContext(ctx).Run())
+				require.Contains(t, stderr.String(), fmt.Sprintf("Workspace %q has no agents in its latest build (status: %s). Agent diagnostics will be skipped.", tc.workspace, tc.status))
+				require.NotContains(t, stderr.String(), "Could not find workspace agent")
+				assertBundleContents(t, path, true, false, []string{secretValue})
+			})
+		}
+	})
+
+	t.Run("UnknownAgent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		path := filepath.Join(t.TempDir(), "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithAgent.Workspace.Name, "unknown-agent", "--output-file", path, "--yes")
+		//nolint:gocritic // Tests an agent lookup in the owner's workspace.
 		clitest.SetupConfig(t, client, root)
-		err := inv.Run()
-		require.NoError(t, err)
+		var stderr bytes.Buffer
+		inv.Stderr = &stderr
+		require.NoError(t, inv.WithContext(ctx).Run())
+		require.Contains(t, stderr.String(), `Could not find workspace agent "unknown-agent". Available agents: dev. Agent diagnostics will be skipped.`)
 		assertBundleContents(t, path, true, false, []string{secretValue})
 	})
 
@@ -330,7 +369,7 @@ func TestSupportBundleCollectsWorkspaceFiles(t *testing.T) {
 	})
 	t.Cleanup(func() { closer.Close() })
 	owner := coderdtest.CreateFirstUser(t, client)
-	workspaceWithAgent := setupSupportBundleTestFixture(testutil.Context(t, testutil.WaitLong), t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+	workspaceWithAgent := setupSupportBundleTestFixture(testutil.Context(t, testutil.WaitLong), t, api.Database, owner.OrganizationID, owner.UserID, database.WorkspaceTransitionStart, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Env["SECRET_VALUE"] = secretValue
 		return agents
 	})
@@ -644,6 +683,7 @@ func setupSupportBundleTestFixture(
 	t testing.TB,
 	db database.Store,
 	orgID, ownerID uuid.UUID,
+	transition database.WorkspaceTransition,
 	withAgent func([]*proto.Agent) []*proto.Agent,
 ) dbfake.WorkspaceResponse {
 	t.Helper()
@@ -652,7 +692,7 @@ func setupSupportBundleTestFixture(
 	b := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: orgID,
 		OwnerID:        ownerID,
-	})
+	}).Seed(database.WorkspaceBuild{Transition: transition})
 	if withAgent != nil {
 		b = b.WithAgent(withAgent)
 	}
