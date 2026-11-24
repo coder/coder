@@ -157,11 +157,22 @@ curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 On Windows, use the `Coder.Coder.Stable` [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package to install the latest stable release:
 
 ```ps1
-winget install Coder.Coder.Stable
+winget install --id Coder.Coder.Stable --exact --source winget
 ```
 
-`Coder.Coder.Stable` gets only stable releases.
+`Coder.Coder.Stable` gets only stable releases, and it installs the `coder` executable for the current user without the Windows installer.
 The `Coder.Coder` package gets every release except release candidates, so it installs the latest mainline release.
+If Coder promotes an existing release to stable without publishing a new release, `Coder.Coder.Stable` keeps the previous stable version until the next stable release.
+
+Switching from `Coder.Coder` to `Coder.Coder.Stable` installs the latest stable release, which can be older than your installed mainline version.
+If the `coder` executable runs your Coder server, wait to switch until the latest stable release is the same as or newer than your installed version, because Coder does not support rollbacks.
+
+To switch, uninstall `Coder.Coder` first:
+
+```ps1
+winget uninstall --id Coder.Coder --exact
+winget install --id Coder.Coder.Stable --exact --source winget
+```
 
 You can find best practices for installing Coder in the [Install](../install/index.md) section.
 

@@ -70,14 +70,18 @@ See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-hel
 
 Download the latest Windows installer or binary from the [Coder downloads page](https://coder.com/downloads), or upgrade from Winget.
 
-```ps1
-winget install Coder.Coder
-```
-
-If you installed the stable release with the `Coder.Coder.Stable` package, upgrade with that package instead, so you stay on stable:
+If you installed Coder with the `Coder.Coder` package, upgrade to the latest mainline release:
 
 ```ps1
-winget install Coder.Coder.Stable
+winget install --id Coder.Coder --exact --source winget
 ```
+
+If you installed Coder with the `Coder.Coder.Stable` package, upgrade to the latest stable release:
+
+```ps1
+winget install --id Coder.Coder.Stable --exact --source winget
+```
+
+To switch from `Coder.Coder` to `Coder.Coder.Stable`, refer to [Install stable](../../reference/releases.md#install-stable).
 
 </div>
