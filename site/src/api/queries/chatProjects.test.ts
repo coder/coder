@@ -16,6 +16,7 @@ import {
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	joinChatProjectSummaries,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -93,6 +94,26 @@ describe("chat project mutations", () => {
 	});
 });
 
+describe("joinChatProjectSummaries", () => {
+	it("pairs summaries with their projects in summary order and leaves out a summary whose project is not listed", () => {
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+
+		const joined = joinChatProjectSummaries(
+			[MockChatProject, mockOtherProject],
+			[
+				{ ...MockChatProjectSummary, project_id: mockOtherProject.id },
+				{ ...MockChatProjectSummary, project_id: "unlisted-project" },
+				MockChatProjectSummary,
+			],
+		);
+
+		expect(joined.map((summary) => summary.project)).toEqual([
+			mockOtherProject,
+			MockChatProject,
+		]);
+	});
+});
+
 describe("unpinChatProject", () => {
 	it("unpins the project in the cached summaries at once and restores it when the unpin fails", async () => {
 		const queryClient = createTestQueryClient();
@@ -133,8 +154,6 @@ describe("setChatProjectRole", () => {
 	const refreshedKeys = [
 		chatProjectsKey,
 		chatProjectACLKey(MockChatProject.id),
-		// Summaries carry the viewer's permissions on the project.
-		chatProjectSummariesKey,
 	];
 	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),

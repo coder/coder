@@ -57,6 +57,7 @@ const projectFoldersElement = (
 			currentUserId={currentUserId}
 			pinnedProjects={projects.map((project) => ({
 				...MockChatProjectSummary,
+				project_id: project.id,
 				project,
 			}))}
 			organizations={[MockDefaultOrganization]}
@@ -106,7 +107,9 @@ describe("ProjectFolders", () => {
 			<MemoryRouter>
 				<ProjectFolders
 					currentUserId={MockUserOwner.id}
-					pinnedProjects={[MockChatProjectSummary]}
+					pinnedProjects={[
+						{ ...MockChatProjectSummary, project: MockChatProject },
+					]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
 					pinnedChatsByProjectId={new Map()}
@@ -267,8 +270,12 @@ describe("ProjectFolders", () => {
 				<ProjectFolders
 					currentUserId={MockUserOwner.id}
 					pinnedProjects={[
-						MockChatProjectSummary,
-						{ ...MockChatProjectSummary, project: otherProject },
+						{ ...MockChatProjectSummary, project: MockChatProject },
+						{
+							...MockChatProjectSummary,
+							project_id: otherProject.id,
+							project: otherProject,
+						},
 					]}
 					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}

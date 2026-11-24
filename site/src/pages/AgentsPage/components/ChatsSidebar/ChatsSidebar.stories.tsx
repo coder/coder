@@ -2987,10 +2987,8 @@ export const ProjectFolderCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
 		queries: [
-			{
-				key: chatProjectSummariesKey,
-				data: [MockChatProjectSummary],
-			},
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 		],
 	},
 };
@@ -2999,6 +2997,7 @@ export const ProjectFolderWithUnreadChats: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
 				key: chatProjectSummariesKey,
 				data: [{ ...MockChatProjectSummary, own_unread_count: 3 }],
@@ -3019,7 +3018,10 @@ const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
 export const ChatDraggedOverProjectFolder: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await startKeyboardDrag(canvasElement, /Loose chat/);
@@ -3031,6 +3033,7 @@ export const ChatDraggedOverProjectFolder: Story = {
 export const ChatDroppedOnProjectFolder: Story = {
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 			{
@@ -3080,13 +3083,13 @@ const mockOtherOrganizationProject: TypesGen.ChatProject = {
 
 const mockBillingProjectSummary: TypesGen.ChatProjectSummary = {
 	...MockChatProjectSummary,
-	project: mockBillingProject,
+	project_id: mockBillingProject.id,
 	pin_order: 2,
 };
 
 const mockOtherOrganizationProjectSummary: TypesGen.ChatProjectSummary = {
 	...MockChatProjectSummary,
-	project: mockOtherOrganizationProject,
+	project_id: mockOtherOrganizationProject.id,
 	pin_order: 3,
 };
 
@@ -3095,6 +3098,14 @@ export const LooseChatDragMutesUnavailableTargets: Story = {
 	parameters: {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					MockChatProject,
+					mockBillingProject,
+					mockOtherOrganizationProject,
+				],
+			},
 			{
 				key: chatProjectSummariesKey,
 				data: [
@@ -3123,6 +3134,7 @@ export const ProjectChatDragMutesItsFolder: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
 			{
 				key: chatProjectSummariesKey,
 				data: [MockChatProjectSummary, mockBillingProjectSummary],
@@ -3146,10 +3158,8 @@ export const ProjectFolderExpanded: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
 		queries: [
-			{
-				key: chatProjectSummariesKey,
-				data: [MockChatProjectSummary],
-			},
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
@@ -3183,6 +3193,7 @@ export const ProjectFolderWithPinnedChat: Story = {
 	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
@@ -3240,13 +3251,14 @@ export const SharedChatsInProjects: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockUnpinnedProject] },
 			{
 				key: chatProjectSummariesKey,
 				data: [
 					MockChatProjectSummary,
 					{
 						...MockChatProjectSummary,
-						project: mockUnpinnedProject,
+						project_id: mockUnpinnedProject.id,
 						pinned: false,
 						pin_order: 0,
 					},
@@ -3277,6 +3289,7 @@ export const ProjectFolderWithOnlyPinnedChats: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
@@ -3301,6 +3314,7 @@ export const ProjectFolderWithUnloadedChat: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{
 				key: launchFolderChatsKey,
@@ -3330,6 +3344,7 @@ export const ProjectFolderWithUnloadedPinnedChat: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{
 				key: launchFolderChatsKey,
@@ -3372,6 +3387,7 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	],
 	parameters: {
 		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{
 				key: launchFolderChatsKey,
@@ -3414,7 +3430,10 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 export const ProjectFolderChatsLoading: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${MockChatProject.id}`,
@@ -3431,7 +3450,10 @@ export const ProjectFolderChatsLoading: Story = {
 export const ProjectFolderChatsLoadError: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${MockChatProject.id}`,
@@ -3463,7 +3485,7 @@ const mockOtherOrganizationLaunchProject: TypesGen.ChatProject = {
 
 const mockOtherOrganizationLaunchProjectSummary: TypesGen.ChatProjectSummary = {
 	...MockChatProjectSummary,
-	project: mockOtherOrganizationLaunchProject,
+	project_id: mockOtherOrganizationLaunchProject.id,
 	pin_order: 2,
 };
 
@@ -3472,6 +3494,10 @@ export const SameNamedProjects: Story = {
 	parameters: {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockOtherOrganizationLaunchProject],
+			},
 			{
 				key: chatProjectSummariesKey,
 				data: [
@@ -3486,7 +3512,10 @@ export const SameNamedProjects: Story = {
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 	},
 	beforeEach: () => {
 		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
@@ -3498,7 +3527,10 @@ export const ProjectsSectionCollapsed: Story = {
 export const ChatDraggedOverCollapsedProjects: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 	},
 	beforeEach: () => {
 		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
@@ -3524,17 +3556,15 @@ export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatProjectSummariesKey,
+				key: chatProjectsKey,
 				data: [
 					{
-						...MockChatProjectSummary,
-						project: {
-							...MockChatProject,
-							permissions: { update: false, delete: false, share: false },
-						},
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
 					},
 				],
 			},
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -3551,17 +3581,15 @@ export const ProjectActionsWithoutDeletePermission: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatProjectSummariesKey,
+				key: chatProjectsKey,
 				data: [
 					{
-						...MockChatProjectSummary,
-						project: {
-							...MockChatProject,
-							permissions: { update: true, delete: false, share: true },
-						},
+						...MockChatProject,
+						permissions: { update: true, delete: false, share: true },
 					},
 				],
 			},
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -3585,10 +3613,8 @@ export const ProjectChatWithoutLoadedProject: Story = {
 	},
 	parameters: {
 		queries: [
-			{
-				key: chatProjectSummariesKey,
-				data: [MockChatProjectSummary],
-			},
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 		],
 	},
 };
@@ -3596,7 +3622,10 @@ export const ProjectChatWithoutLoadedProject: Story = {
 export const UnloadedProjectChatDragMutesChats: Story = {
 	args: ProjectChatWithoutLoadedProject.args,
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await startKeyboardDrag(canvasElement, /Chat in an unloaded project/);
@@ -3681,10 +3710,8 @@ export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
 		queries: [
-			{
-				key: chatProjectSummariesKey,
-				data: [{ ...MockChatProjectSummary, project: mockEmojiProject }],
-			},
+			{ key: chatProjectsKey, data: [mockEmojiProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
