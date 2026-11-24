@@ -1,4 +1,9 @@
-import { animate, MotionConfig, motion, useMotionValue } from "motion/react";
+import {
+	animate,
+	motion,
+	useMotionValue,
+	useReducedMotion,
+} from "motion/react";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 
@@ -54,8 +59,11 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	);
 	// Where each rendered slice sat in the track at the last placement.
 	const sliceTops = useRef(new Map<HTMLElement, number>());
+	const reduceMotion = useReducedMotion();
 
 	const place = useEffectEvent(() => {
+		// With reduced motion the window and rows move without sliding.
+		const transition = reduceMotion ? { duration: 0 } : slide;
 		const track = trackRef.current;
 		if (!track) {
 			return;
@@ -89,7 +97,7 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 			y.jump(offset);
 			topFade.jump(fade);
 			if (growIn) {
-				animate(height, windowHeight, slide);
+				animate(height, windowHeight, transition);
 			} else {
 				height.jump(windowHeight);
 			}
@@ -98,16 +106,16 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		// Only a new target starts a motion, so a stream of renders does not
 		// keep restarting one.
 		if (previous.height !== windowHeight) {
-			animate(height, windowHeight, slide);
+			animate(height, windowHeight, transition);
 		}
 		if (shift !== 0) {
 			y.jump(y.get() - shift);
 		}
 		if (shift !== 0 ? y.get() !== offset : previous.y !== offset) {
-			animate(y, offset, slide);
+			animate(y, offset, transition);
 		}
 		if (previous.fade !== fade) {
-			animate(topFade, fade, slide);
+			animate(topFade, fade, transition);
 		}
 	});
 
@@ -128,22 +136,20 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	}, []);
 
 	return (
-		<MotionConfig reducedMotion="user">
-			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- A mouse shortcut; the summary row expands the block from the keyboard. */}
-			<motion.div
-				onClick={onExpand}
-				className="relative cursor-pointer overflow-hidden hover:[&_.text-content-secondary]:text-content-primary"
-				style={{
-					height,
-					"--peek-top": topFade,
-					maskImage: edgeMask,
-					WebkitMaskImage: edgeMask,
-				}}
-			>
-				<motion.div ref={trackRef} className="flex flex-col" style={{ y }}>
-					<ToolCall.SummaryProvider>{children}</ToolCall.SummaryProvider>
-				</motion.div>
+		// A mouse shortcut: the summary row expands the block from the keyboard.
+		<motion.div
+			onClick={onExpand}
+			className="relative cursor-pointer overflow-hidden hover:[&_.text-content-secondary]:text-content-primary"
+			style={{
+				height,
+				"--peek-top": topFade,
+				maskImage: edgeMask,
+				WebkitMaskImage: edgeMask,
+			}}
+		>
+			<motion.div ref={trackRef} className="flex flex-col" style={{ y }}>
+				<ToolCall.SummaryProvider>{children}</ToolCall.SummaryProvider>
 			</motion.div>
-		</MotionConfig>
+		</motion.div>
 	);
 };
