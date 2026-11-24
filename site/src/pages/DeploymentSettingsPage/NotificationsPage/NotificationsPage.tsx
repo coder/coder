@@ -65,9 +65,9 @@ const NotificationsPage: React.FC = () => {
 		: NOTIFICATION_TABS[0];
 
 	const ready =
-		systemTemplatesByGroup.data != null &&
-		customTemplatesByGroup.data != null &&
-		dispatchMethods.data != null;
+		systemTemplatesByGroup.data !== undefined &&
+		customTemplatesByGroup.data !== undefined &&
+		dispatchMethods.data !== undefined;
 	// Combine system and custom notification templates
 	const allTemplatesByGroup = {
 		...systemTemplatesByGroup.data,

@@ -90,7 +90,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	trailingIcon,
 	...rest
 }) => {
-	if (rest.to != null) {
+	if (rest.to !== undefined) {
 		return (
 			<Link
 				to={rest.to}

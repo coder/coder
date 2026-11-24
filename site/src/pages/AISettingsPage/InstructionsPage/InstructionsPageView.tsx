@@ -80,7 +80,7 @@ export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 		)}
 
 		{isOrganizationAccessLoading && <Loader label="Loading organizations" />}
-		{organizationAccessError != null && (
+		{Boolean(organizationAccessError) && (
 			<ErrorAlert error={organizationAccessError} />
 		)}
 		{organization && (
@@ -117,7 +117,7 @@ const DeploymentInstructions: React.FC<DeploymentInstructionsProps> = ({
 		systemPromptData === undefined ||
 		planModeInstructionsData === undefined
 	) {
-		return error != null ? (
+		return error ? (
 			<ErrorAlert error={error} />
 		) : (
 			<Loader label="Loading deployment instructions" />
@@ -126,7 +126,7 @@ const DeploymentInstructions: React.FC<DeploymentInstructionsProps> = ({
 
 	return (
 		<>
-			{error != null && <ErrorAlert error={error} />}
+			{Boolean(error) && <ErrorAlert error={error} />}
 			<InstructionsForm
 				systemPromptData={systemPromptData}
 				planModeInstructionsData={planModeInstructionsData}

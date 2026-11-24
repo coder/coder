@@ -95,7 +95,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	}
 
 	if (organizations.length === 0) {
-		return organizationsError != null ? (
+		return organizationsError ? (
 			<ErrorAlert error={organizationsError} />
 		) : (
 			<EmptyState
@@ -105,7 +105,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 		);
 	}
 
-	const refetchErrorAlert = organizationsError != null && (
+	const refetchErrorAlert = Boolean(organizationsError) && (
 		<ErrorAlert error={organizationsError} />
 	);
 

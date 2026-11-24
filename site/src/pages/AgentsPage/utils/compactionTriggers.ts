@@ -155,7 +155,7 @@ export const resolveCompactionTriggersByOrganization = (
 			(model) => model.organization_id === organizationID,
 		);
 		if (
-			error != null &&
+			error !== null &&
 			data === undefined &&
 			organizationModels.some((model) => model.enabled)
 		) {
@@ -236,7 +236,7 @@ export const resolveChatCompactionThreshold = (
 		percent: thresholdPercent,
 		source: userOverride ? "user" : "model",
 		organizationOverrideNotLoaded:
-			overrides.error != null && overrides.data === undefined,
+			overrides.error !== null && overrides.data === undefined,
 	};
 };
 

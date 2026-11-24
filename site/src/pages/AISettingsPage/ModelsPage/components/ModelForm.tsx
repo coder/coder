@@ -155,7 +155,7 @@ export const ModelForm: React.FC<ModelFormProps> = ({
 
 			const replacingDefault =
 				values.isDefault &&
-				currentDefaultModel != null &&
+				currentDefaultModel !== undefined &&
 				currentDefaultModel.id !== editingModel?.id;
 			if (replacingDefault && !replaceDefaultConfirmedRef.current) {
 				setConfirmingReplaceDefault(true);
