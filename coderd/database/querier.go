@@ -1324,6 +1324,7 @@ type sqlcQuerier interface {
 	// Appends @events, a JSON array of MCP event occurrences, in their order. An
 	// eventId that the subscription already received inserts nothing.
 	InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error)
+	// A non-NULL @event_id deduplicates a retried delivery of the notice.
 	InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error
 	InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error)
 	InsertChatAutomationWebhookSecret(ctx context.Context, arg InsertChatAutomationWebhookSecretParams) error

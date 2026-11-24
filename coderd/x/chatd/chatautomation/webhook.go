@@ -30,8 +30,6 @@ const (
 	// webhookPendingLease is how long the automation loop leaves a pending
 	// subscription to the subscribe that created it.
 	webhookPendingLease = 2 * time.Minute
-	// minWebhookRenewal keeps a short grant from renewing every tick.
-	minWebhookRenewal = 30 * time.Second
 	// codeCallbackEndpointError means that the server could not verify or
 	// reach the callback URL.
 	codeCallbackEndpointError = -32027
@@ -100,10 +98,7 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 	if res.RefreshBefore != nil {
 		refreshBefore = *res.RefreshBefore
 	}
-	renewAt := refreshBefore.Add(-refreshBefore.Sub(now) / 4)
-	if floor := now.Add(minWebhookRenewal); renewAt.Before(floor) {
-		renewAt = floor
-	}
+	renewAt := refreshBefore.Add(-max(refreshBefore.Sub(now), 0) / 4)
 	grant := database.UpdateChatAutomationWebhookGrantParams{
 		AutomationID:          automationID,
 		WebhookSubscriptionID: res.ID,

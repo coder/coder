@@ -46,6 +46,8 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	switch {
 	case errors.Is(err, errSubscriptionInactive):
 		return http.StatusGone, ""
+	case errors.Is(err, errOwnerAutomationsOff):
+		return http.StatusServiceUnavailable, ""
 	case err != nil:
 		p.logger.Warn(ctx, "load chat automation webhook target", slog.F("automation_id", automationID), slog.Error(err))
 		return http.StatusServiceUnavailable, ""
@@ -69,32 +71,28 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	}
 	switch envelope.Type {
 	case "gap":
-		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true})
+		// A retry keeps its webhook-id, which Verify checked.
+		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true, GapKey: "gap:" + header.Get("webhook-id")})
 	case "terminated":
 		reason := runReasonMCPTerminated
 		if envelope.Error != nil && eventErrorActions[envelope.Error.Code].terminate != "" {
 			reason = eventErrorActions[envelope.Error.Code].terminate
 		}
-		p.terminateSubscription(ctx, automationID, reason)
+		err = p.endSubscription(ctx, automationID, reason)
 	case "":
 		var event mcpclient.EventOccurrence
 		if err := json.Unmarshal(body, &event); err != nil || event.EventID == "" || event.Name != sub.EventName {
 			return http.StatusBadRequest, ""
 		}
-		pending, cerr := p.db.CountPendingChatAutomationInboxRows(ctx, database.CountPendingChatAutomationInboxRowsParams{
-			AutomationID: automationID,
-			MaxPending:   maxPendingInboxRows,
-		})
-		if cerr != nil || pending >= maxPendingInboxRows {
-			return http.StatusServiceUnavailable, ""
-		}
-		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Events: []mcpclient.EventOccurrence{event}, Cursor: event.Cursor})
+		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Events: []mcpclient.EventOccurrence{event}, Cursor: event.Cursor, MaxPending: maxPendingInboxRows})
 	default:
 		return http.StatusBadRequest, ""
 	}
 	switch {
 	case errors.Is(err, errSubscriptionInactive):
 		return http.StatusGone, ""
+	case errors.Is(err, errInboxFull):
+		return http.StatusServiceUnavailable, ""
 	case err != nil:
 		p.logger.Warn(ctx, "append chat automation webhook delivery", slog.F("automation_id", automationID), slog.Error(err))
 		return http.StatusServiceUnavailable, ""
@@ -102,31 +100,44 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	return http.StatusOK, ""
 }
 
+// errOwnerAutomationsOff asks the server to retry: the experiment check
+// fails closed, so a refusal can be brief.
+var errOwnerAutomationsOff = xerrors.New("chat automations are off for the owner")
+
 // webhookTarget returns the webhook subscription of automationID and its
-// secret. errSubscriptionInactive means that no enabled automation of an
-// owner with automations on has a live webhook subscription there.
+// secret. errSubscriptionInactive means that no enabled automation has a live
+// webhook subscription there whose MCP server config is still enabled.
 func (p *Server) webhookTarget(ctx context.Context, automationID uuid.UUID) (database.ChatAutomationMCPSubscription, string, error) {
+	var none database.ChatAutomationMCPSubscription
 	automation, err := p.db.GetChatAutomationByID(ctx, automationID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return database.ChatAutomationMCPSubscription{}, "", errSubscriptionInactive
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !automation.Enabled) {
+		return none, "", errSubscriptionInactive
 	}
 	if err != nil {
-		return database.ChatAutomationMCPSubscription{}, "", err
+		return none, "", err
 	}
-	if !automation.Enabled || p.automationsEnabled == nil || !p.automationsEnabled(ctx, automation.OwnerID) {
-		return database.ChatAutomationMCPSubscription{}, "", errSubscriptionInactive
+	if p.automationsEnabled == nil || !p.automationsEnabled(ctx, automation.OwnerID) {
+		return none, "", errOwnerAutomationsOff
 	}
 	subs, err := p.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{automationID})
 	if err != nil {
-		return database.ChatAutomationMCPSubscription{}, "", err
+		return none, "", err
 	}
 	if len(subs) != 1 || subs[0].Delivery != database.ChatAutomationEventDeliveryWebhook ||
-		subs[0].State == database.ChatAutomationSubscriptionStateTerminated {
-		return database.ChatAutomationMCPSubscription{}, "", errSubscriptionInactive
+		subs[0].State == database.ChatAutomationSubscriptionStateTerminated || !subs[0].MCPServerConfigID.Valid {
+		return none, "", errSubscriptionInactive
+	}
+	// A server whose config an admin disabled or deleted delivers nothing.
+	cfg, err := p.db.GetMCPServerConfigByID(ctx, subs[0].MCPServerConfigID.UUID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !cfg.Enabled) {
+		return none, "", errSubscriptionInactive
+	}
+	if err != nil {
+		return none, "", err
 	}
 	secret, err := p.db.GetChatAutomationWebhookSecret(ctx, automationID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return database.ChatAutomationMCPSubscription{}, "", errSubscriptionInactive
+		return none, "", errSubscriptionInactive
 	}
 	return subs[0], secret.Secret, err
 }
@@ -225,6 +236,14 @@ func (p *Server) UnsubscribeWebhook(ctx context.Context, owner uuid.UUID, sub da
 	})
 	if err != nil {
 		p.logger.Warn(ctx, "unsubscribe chat automation webhook", slog.F("automation_id", sub.AutomationID), slog.Error(err))
+	}
+	// A re-enable during the call may have subscribed again, which this
+	// unsubscribe then ended, so the loop subscribes once more.
+	if automation, err := p.db.GetChatAutomationByID(ctx, sub.AutomationID); err == nil && automation.Enabled {
+		now := p.clock.Now("chatd", "automation-webhooks")
+		if err := p.db.SetChatAutomationWebhookRenewAt(ctx, database.SetChatAutomationWebhookRenewAtParams{AutomationID: sub.AutomationID, RenewAt: now, LastError: sql.NullString{}, Now: now}); err != nil {
+			p.logger.Warn(ctx, "schedule chat automation webhook subscribe", slog.F("automation_id", sub.AutomationID), slog.Error(err))
+		}
 	}
 }
 

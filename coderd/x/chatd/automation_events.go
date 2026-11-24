@@ -80,18 +80,25 @@ var eventErrorActions = map[int64]eventErrorAction{
 
 // inboxAppend is what one delivery adds to a subscription's inbox. A nil
 // Cursor and an invalid NextPollAt keep the stored ones. Truncated adds a
-// gap row: the server dropped events before these.
+// gap row: the server dropped events before these. GapKey deduplicates a
+// retried gap delivery. A positive MaxPending refuses the delivery while that
+// many rows are pending.
 type inboxAppend struct {
 	AutomationID uuid.UUID
 	Events       []mcpclient.EventOccurrence
 	Cursor       *string
 	Truncated    bool
+	GapKey       string
 	NextPollAt   sql.NullTime
+	MaxPending   int32
 }
 
-// errSubscriptionInactive means that the subscription was deleted or
-// terminated, so the delivery is dropped.
-var errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
+var (
+	// errSubscriptionInactive means that the subscription was deleted or
+	// terminated, so the delivery is dropped.
+	errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
+	errInboxFull            = xerrors.New("the MCP event inbox is full")
+)
 
 // appendInbox is the only writer of the event inbox. Every delivery mode
 // calls it. It holds the automation lock and no chat row, so it cannot form a
@@ -114,6 +121,18 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(in.AutomationID)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
 		}
+		if in.MaxPending > 0 {
+			pending, err := tx.CountPendingChatAutomationInboxRows(ctx, database.CountPendingChatAutomationInboxRowsParams{
+				AutomationID: in.AutomationID,
+				MaxPending:   in.MaxPending,
+			})
+			if err != nil {
+				return xerrors.Errorf("count pending inbox rows: %w", err)
+			}
+			if pending >= in.MaxPending {
+				return errInboxFull
+			}
+		}
 		updated, err := tx.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
 			AutomationID: in.AutomationID,
 			Cursor:       sql.NullString{String: ptr.NilToEmpty(in.Cursor), Valid: in.Cursor != nil},
@@ -131,6 +150,7 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 			if err := tx.InsertChatAutomationInboxNotice(ctx, database.InsertChatAutomationInboxNoticeParams{
 				AutomationID: in.AutomationID,
 				Kind:         database.ChatAutomationInboxKindGap,
+				EventID:      sql.NullString{String: in.GapKey, Valid: in.GapKey != ""},
 				Detail:       "The MCP server dropped events before the ones that follow, so some events are missing.",
 			}); err != nil {
 				return xerrors.Errorf("insert gap: %w", err)
@@ -153,6 +173,13 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 // inbox and records the reason as a refused run. Terminating an inactive
 // subscription changes nothing.
 func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UUID, reason runReason) {
+	if err := p.endSubscription(ctx, automationID, reason); err != nil && ctx.Err() == nil {
+		p.logger.Warn(ctx, "terminate chat automation subscription", slog.F("automation_id", automationID), slog.Error(err))
+	}
+}
+
+// endSubscription is terminateSubscription with the error returned.
+func (p *Server) endSubscription(ctx context.Context, automationID uuid.UUID, reason runReason) error {
 	err := p.db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(automationID)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -172,15 +199,17 @@ func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UU
 			AutomationID: automationID,
 			Kind:         database.ChatAutomationInboxKindTerminated,
 			Detail:       "The subscription ended and receives no more events: " + string(reason),
+			EventID:      sql.NullString{},
 		})
 	}, nil)
+	if errors.Is(err, errSubscriptionInactive) {
+		return nil
+	}
 	if err != nil {
-		if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
-			p.logger.Warn(ctx, "terminate chat automation subscription", slog.F("automation_id", automationID), slog.Error(err))
-		}
-		return
+		return err
 	}
 	p.recordEventRefusal(ctx, automationID, reason)
+	return nil
 }
 
 // recordEventRefusal records reason as the last run unless it already is.

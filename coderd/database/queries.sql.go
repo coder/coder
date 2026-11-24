@@ -6465,18 +6465,26 @@ func (q *sqlQuerier) InsertChatAutomationInboxEvents(ctx context.Context, arg In
 }
 
 const insertChatAutomationInboxNotice = `-- name: InsertChatAutomationInboxNotice :exec
-INSERT INTO chat_automation_event_inbox (automation_id, kind, detail)
-VALUES ($1::uuid, $2::chat_automation_inbox_kind, $3::text)
+INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, detail)
+VALUES ($1::uuid, $2::chat_automation_inbox_kind, $3::text, $4::text)
+ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
 `
 
 type InsertChatAutomationInboxNoticeParams struct {
 	AutomationID uuid.UUID               `db:"automation_id" json:"automation_id"`
 	Kind         ChatAutomationInboxKind `db:"kind" json:"kind"`
+	EventID      sql.NullString          `db:"event_id" json:"event_id"`
 	Detail       string                  `db:"detail" json:"detail"`
 }
 
+// A non-NULL @event_id deduplicates a retried delivery of the notice.
 func (q *sqlQuerier) InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error {
-	_, err := q.db.ExecContext(ctx, insertChatAutomationInboxNotice, arg.AutomationID, arg.Kind, arg.Detail)
+	_, err := q.db.ExecContext(ctx, insertChatAutomationInboxNotice,
+		arg.AutomationID,
+		arg.Kind,
+		arg.EventID,
+		arg.Detail,
+	)
 	return err
 }
 

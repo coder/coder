@@ -357,7 +357,6 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, "https://coder.example.com/api/experimental/chats/automations/"+automation.ID.String()+"/mcp-events", f.events.subscribes[0].Delivery.URL)
 		f.events.mu.Unlock()
 
-		// A retry of an event appends nothing.
 		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, webhookEvent, nil))
 		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, webhookEvent, nil))
 		require.Equal(t, http.StatusUnauthorized, deliver(ctx, f, automation.ID, webhookEvent, func(h http.Header) {
@@ -366,6 +365,8 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, deliver(ctx, f, automation.ID, webhookEvent, func(h http.Header) {
 			h.Set("X-MCP-Subscription-Id", "sub_other")
 		}))
+		// A retried gap, like a retried event, appends nothing.
+		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"gap","cursor":"seq:7"}`, nil))
 		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"gap","cursor":"seq:7"}`, nil))
 		rows, err := f.worker.db.GetPendingChatAutomationInboxRows(ctx, database.GetPendingChatAutomationInboxRowsParams{AutomationID: automation.ID, LimitCount: 10})
 		require.NoError(t, err)
@@ -393,6 +394,15 @@ func TestAutomationEvents(t *testing.T) {
 		require.Len(t, f.events.subscribes, 3)
 		require.Equal(t, 2, f.events.unsubscribes)
 		f.events.mu.Unlock()
+		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
+	})
+
+	t.Run("WebhookConfigDeleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setupWith(t, "https://coder.example.com", mcpclient.DeliveryWebhook)
+		automation := subscribe(ctx, t, f)
+		require.NoError(t, f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID))
 		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
 	})
 

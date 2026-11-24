@@ -462,7 +462,11 @@ func automationMessageContent(automation database.ChatAutomation, ownerUsername 
 	}
 	rows := make([]eventRow, len(run.inbox))
 	for i, r := range run.inbox {
-		rows[i] = eventRow{Kind: r.Kind, EventID: r.EventID.String, EventName: r.EventName.String, Data: r.Data.RawMessage, Detail: r.Detail.String}
+		rows[i] = eventRow{Kind: r.Kind, EventName: r.EventName.String, Data: r.Data.RawMessage, Detail: r.Detail.String}
+		// A notice's event_id is only its delivery's deduplication key.
+		if r.Kind == database.ChatAutomationInboxKindEvent {
+			rows[i].EventID = r.EventID.String
+		}
 		if r.OccurredAt.Valid {
 			rows[i].OccurredAt = &r.OccurredAt.Time
 		}

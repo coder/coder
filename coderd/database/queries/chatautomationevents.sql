@@ -107,8 +107,10 @@ ORDER BY e.ord
 ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: InsertChatAutomationInboxNotice :exec
-INSERT INTO chat_automation_event_inbox (automation_id, kind, detail)
-VALUES (@automation_id::uuid, @kind::chat_automation_inbox_kind, @detail::text);
+-- A non-NULL @event_id deduplicates a retried delivery of the notice.
+INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, detail)
+VALUES (@automation_id::uuid, @kind::chat_automation_inbox_kind, sqlc.narg('event_id')::text, @detail::text)
+ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: GetPendingChatAutomationInboxRows :many
 SELECT *
