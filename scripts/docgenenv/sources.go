@@ -83,23 +83,23 @@ func BuildManifest(docsDir string) (*Manifest, error) {
 	return m, nil
 }
 
-// WriteRouteFragment writes routes to the generated fragment at path, as YAML
+// WriteRouteFragment writes routes to the generated fragment at file, as YAML
 // when the extension is .yml or .yaml and as JSON otherwise.
-func WriteRouteFragment(path string, routes []Route) error {
+func WriteRouteFragment(file string, routes []Route) error {
 	var (
 		b   []byte
 		err error
 	)
-	if isYAMLFile(path) {
+	if isYAMLFile(file) {
 		b, err = MarshalYAML(routes)
 	} else {
 		b, err = MarshalJSON(routes)
 	}
 	if err != nil {
-		return xerrors.Errorf("marshal fragment %q: %w", path, err)
+		return xerrors.Errorf("marshal fragment %q: %w", file, err)
 	}
-	if err := atomicwrite.File(path, b); err != nil {
-		return xerrors.Errorf("write fragment %q: %w", path, err)
+	if err := atomicwrite.File(file, b); err != nil {
+		return xerrors.Errorf("write fragment %q: %w", file, err)
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func LoadSources(docsDir string) (*Sources, error) {
 	}
 	m := &Manifest{Versions: idx.Versions}
 	for _, e := range idx.Routes {
-		if r, ok := l.entry(".", SidebarFile, e, nil, true); ok {
+		if r, ok := l.entry(".", SidebarFile, e, nil); ok {
 			m.Routes = append(m.Routes, r)
 		}
 	}
@@ -163,15 +163,27 @@ func (r Route) onlyFolder() bool {
 
 // entry loads the route for one entry in the sidebar file named file, which
 // sits in dir. A folder entry is replaced with the route in that folder's
-// sidebar file. top is true for the route a file describes and false for its
-// children, which can't have children of their own.
-func (l *loader) entry(dir, file string, e Route, crumb []string, top bool) (Route, bool) {
+// sidebar file.
+func (l *loader) entry(dir, file string, e Route, crumb []string) (Route, bool) {
 	if e.onlyFolder() {
 		return l.folderFile(dir, file, e.Folder, crumb)
 	}
 	crumb = append(slices.Clip(crumb), e.Title)
 	where := file + ": " + breadcrumb(crumb)
-	return l.route(dir, file, where, e, crumb, top)
+	return l.route(dir, file, where, e, crumb)
+}
+
+// child loads one child entry of a route in the sidebar file named file. A
+// sidebar file holds one level of children, so a child can have children only
+// when it sets folder: a folder entry has none, and a generated folder's are
+// metadata overlays.
+func (l *loader) child(dir, file string, c Route, crumb []string) (Route, bool) {
+	if c.Folder == "" && len(c.Children) > 0 {
+		where := file + ": " + breadcrumb(append(slices.Clip(crumb), c.Title))
+		l.errs = append(l.errs, xerrors.Errorf("%s: a sidebar file holds one level of children; move this route into its own folder", where))
+		c.Children = nil
+	}
+	return l.entry(dir, file, c, crumb)
 }
 
 // folderFile loads the sidebar file of the folder subfolder of dir. The file
@@ -192,7 +204,7 @@ func (l *loader) folderFile(dir, file, subfolder string, crumb []string) (Route,
 		return Route{}, false
 	}
 	crumb = append(slices.Clip(crumb), r.Title)
-	return l.route(rel, name, name+": "+breadcrumb(crumb), r, crumb, true)
+	return l.route(rel, name, name+": "+breadcrumb(crumb), r, crumb)
 }
 
 // claimFolder validates subfolder as a folder inside dir and marks its sidebar
@@ -218,7 +230,7 @@ func (l *loader) claimFolder(dir, subfolder, where string) (rel, name string, ok
 // docs directory. A route that sets folder and other keys takes its children
 // from the sidebar file a doc generator writes in that folder; its children
 // here are metadata overlays.
-func (l *loader) route(dir, file, where string, r Route, crumb []string, top bool) (Route, bool) {
+func (l *loader) route(dir, file, where string, r Route, crumb []string) (Route, bool) {
 	checkSourceRoute(where, r, &l.errs)
 	if r.Path != "" {
 		p, err := resolveSourcePath(dir, r.Path)
@@ -241,13 +253,9 @@ func (l *loader) route(dir, file, where string, r Route, crumb []string, top boo
 		r.Folder = rel
 		return r, true
 	}
-	if !top && len(r.Children) > 0 {
-		l.errs = append(l.errs, xerrors.Errorf("%s: a sidebar file holds one level of children; move this route into its own folder", where))
-		return r, true
-	}
 	children := make([]Route, 0, len(r.Children))
 	for _, c := range r.Children {
-		if child, ok := l.entry(dir, file, c, crumb, false); ok {
+		if child, ok := l.child(dir, file, c, crumb); ok {
 			children = append(children, child)
 		}
 	}
@@ -509,13 +517,13 @@ func SidebarFiles(docsDir string) ([]string, error) {
 // documents, and trailing data are errors. In YAML, a comment on the same line
 // as a title or description is rejected, because an unquoted " #" there
 // silently truncates the value.
-func DecodeSourceFile(path string, v any) error {
-	b, err := os.ReadFile(path)
+func DecodeSourceFile(file string, v any) error {
+	b, err := os.ReadFile(file)
 	if err != nil {
-		return xerrors.Errorf("read %q: %w", path, err)
+		return xerrors.Errorf("read %q: %w", file, err)
 	}
-	name := filepath.Base(path)
-	if !isYAMLFile(path) {
+	name := filepath.Base(file)
+	if !isYAMLFile(file) {
 		dec := json.NewDecoder(bytes.NewReader(b))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(v); err != nil {
@@ -561,8 +569,8 @@ func checkProseComments(file string, n *yaml.Node, errs *[]error) {
 	}
 }
 
-func isYAMLFile(path string) bool {
-	ext := filepath.Ext(path)
+func isYAMLFile(file string) bool {
+	ext := filepath.Ext(file)
 	return ext == ".yml" || ext == ".yaml"
 }
 
