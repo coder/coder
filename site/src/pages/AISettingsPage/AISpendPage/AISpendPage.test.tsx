@@ -259,7 +259,7 @@ it("runs the report for the picked days and filter, resolving the user and group
 			expect.any(AbortSignal),
 		),
 	);
-	expect(getUserSpy).toHaveBeenCalledWith("admin");
+	expect(getUserSpy).toHaveBeenCalledWith("admin", expect.any(AbortSignal));
 	expect(getGroupSpy).toHaveBeenCalledWith(
 		MockOrganization.id,
 		"Front-End",

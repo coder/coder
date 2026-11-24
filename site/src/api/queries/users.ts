@@ -192,10 +192,10 @@ export const meOrganizationsAISpend =
 export const userKey = (usernameOrId: string) =>
 	["user", usernameOrId] as const;
 
-export const user = (usernameOrId: string) => {
+export const user = (usernameOrId: string): UseQueryOptions<User> => {
 	return {
 		queryKey: userKey(usernameOrId),
-		queryFn: () => API.getUser(usernameOrId),
+		queryFn: ({ signal }) => API.getUser(usernameOrId, signal),
 	};
 };
 
