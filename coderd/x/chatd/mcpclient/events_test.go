@@ -100,7 +100,10 @@ func newEventsTestServer(t *testing.T, extensions map[string]any) *eventsTestSer
 			}
 			return &mcpclient.PollResult{Cursor: ptr.Ref("c1"), NextPollMs: 30000}, nil
 		}),
-		mcp.AddReceivingCustomMethod(srv, "events/subscribe", func(context.Context, *mcp.ServerSession, *eventsTestParams) (*mcpclient.SubscribeResult, error) {
+		mcp.AddReceivingCustomMethod(srv, "events/subscribe", func(_ context.Context, _ *mcp.ServerSession, p *eventsTestParams) (*mcpclient.SubscribeResult, error) {
+			if p.Name == "anonymous" {
+				return &mcpclient.SubscribeResult{Cursor: ptr.Ref("c1")}, nil
+			}
 			return &mcpclient.SubscribeResult{ID: "sub_1", Cursor: ptr.Ref("c1")}, nil
 		}),
 		mcp.AddReceivingCustomMethod(srv, "events/unsubscribe", func(context.Context, *mcp.ServerSession, *eventsTestParams) (*eventsTestEmpty, error) {
@@ -260,6 +263,16 @@ func TestEventsUnsupported(t *testing.T) {
 	_, err := s.Poll(testutil.Context(t, testutil.WaitShort), mcpclient.PollParams{Name: "a.created"})
 	require.ErrorIs(t, err, mcpclient.ErrEventsUnsupported)
 	assert.Empty(t, es.recorded())
+}
+
+// A subscribe result without an id cannot route deliveries.
+func TestEventsSubscribeWithoutID(t *testing.T) {
+	t.Parallel()
+	s := connectEventsTest(t, newEventsTestServer(t, eventsExtension))
+	_, err := s.Subscribe(testutil.Context(t, testutil.WaitShort), mcpclient.SubscribeParams{
+		Name: "anonymous", Delivery: mcpclient.WebhookDelivery{URL: "https://coder.example.com/hook", Secret: "whsec_c2VjcmV0"},
+	})
+	require.Error(t, err)
 }
 
 func TestEventsErrors(t *testing.T) {

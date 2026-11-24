@@ -1321,10 +1321,12 @@ type sqlcQuerier interface {
 	// wait for this transaction, so its cleanup trigger then deletes the new row.
 	// The insert trigger refuses an owner that is already deleted.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
-	// Appends @events, a JSON array of MCP event occurrences, in their order. An
-	// eventId that the subscription already received inserts nothing.
+	// Appends @events, a JSON array of MCP event occurrences, in their order, to
+	// the subscription's generation. An eventId that the generation already
+	// received inserts nothing.
 	InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error)
-	// A non-NULL @event_id deduplicates a retried delivery of the notice.
+	// A non-NULL @event_id deduplicates a retried delivery of the notice within
+	// the subscription's generation.
 	InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error
 	InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error)
 	InsertChatAutomationWebhookSecret(ctx context.Context, arg InsertChatAutomationWebhookSecretParams) error
@@ -1611,7 +1613,10 @@ type sqlcQuerier interface {
 	// be renewed afterwards.
 	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
 	// Restarts the subscriptions to an MCP server config whose server, principal
-	// or enabled state changed. Each resumes from now, and each webhook grant
+	// or enabled state changed. Each resumes from now in a new generation, so
+	// that another server's event IDs cannot match the old server's, and a poll
+	// in flight changes nothing. An enabled poll subscription that had a cursor
+	// gets a gap row for the events since its last poll. Each webhook grant
 	// ends, so the receiver refuses the old server and the next tick subscribes
 	// again. Rows lock in automation_id order.
 	ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error

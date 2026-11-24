@@ -105,25 +105,32 @@ WHERE
     AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: InsertChatAutomationInboxEvents :execrows
--- Appends @events, a JSON array of MCP event occurrences, in their order. An
--- eventId that the subscription already received inserts nothing.
-INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
+-- Appends @events, a JSON array of MCP event occurrences, in their order, to
+-- the subscription's generation. An eventId that the generation already
+-- received inserts nothing.
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, event_name, occurred_at, data)
 SELECT
-    @automation_id::uuid,
+    s.automation_id,
+    s.generation,
     'event',
     e.value->>'eventId',
     e.value->>'name',
     (e.value->>'timestamp')::timestamptz,
     COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
-FROM jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
+FROM chat_automation_mcp_subscriptions s
+CROSS JOIN jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
+WHERE s.automation_id = @automation_id::uuid
 ORDER BY e.ord
-ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: InsertChatAutomationInboxNotice :exec
--- A non-NULL @event_id deduplicates a retried delivery of the notice.
-INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, detail)
-VALUES (@automation_id::uuid, @kind::chat_automation_inbox_kind, sqlc.narg('event_id')::text, @detail::text)
-ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
+-- A non-NULL @event_id deduplicates a retried delivery of the notice within
+-- the subscription's generation.
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, detail)
+SELECT s.automation_id, s.generation, @kind::chat_automation_inbox_kind, sqlc.narg('event_id')::text, @detail::text
+FROM chat_automation_mcp_subscriptions s
+WHERE s.automation_id = @automation_id::uuid
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: GetPendingChatAutomationInboxRows :many
 SELECT *

@@ -6163,7 +6163,7 @@ UPDATE chat_automation_mcp_subscriptions s
 SET drain_after = $1::timestamptz
 FROM due
 WHERE s.automation_id = due.automation_id
-RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at, s.generation
 `
 
 type ClaimChatAutomationInboxDrainsParams struct {
@@ -6199,6 +6199,7 @@ func (q *sqlQuerier) ClaimChatAutomationInboxDrains(ctx context.Context, arg Cla
 			&i.WebhookSubscriptionID,
 			&i.RefreshBefore,
 			&i.RenewAt,
+			&i.Generation,
 		); err != nil {
 			return nil, err
 		}
@@ -6240,7 +6241,7 @@ UPDATE chat_automation_mcp_subscriptions s
 SET next_poll_at = $1::timestamptz
 FROM due, chat_automations a
 WHERE s.automation_id = due.automation_id AND a.id = s.automation_id
-RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at, a.owner_id
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at, s.generation, a.owner_id
 `
 
 type ClaimDueChatAutomationMCPPollsParams struct {
@@ -6266,6 +6267,7 @@ type ClaimDueChatAutomationMCPPollsRow struct {
 	WebhookSubscriptionID sql.NullString                  `db:"webhook_subscription_id" json:"webhook_subscription_id"`
 	RefreshBefore         sql.NullTime                    `db:"refresh_before" json:"refresh_before"`
 	RenewAt               sql.NullTime                    `db:"renew_at" json:"renew_at"`
+	Generation            int32                           `db:"generation" json:"generation"`
 	OwnerID               uuid.UUID                       `db:"owner_id" json:"owner_id"`
 }
 
@@ -6302,6 +6304,7 @@ func (q *sqlQuerier) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg Cla
 			&i.WebhookSubscriptionID,
 			&i.RefreshBefore,
 			&i.RenewAt,
+			&i.Generation,
 			&i.OwnerID,
 		); err != nil {
 			return nil, err
@@ -6344,7 +6347,7 @@ func (q *sqlQuerier) DeleteOldChatAutomationInboxRows(ctx context.Context, arg D
 }
 
 const getChatAutomationMCPSubscriptionsByAutomationIDs = `-- name: GetChatAutomationMCPSubscriptionsByAutomationIDs :many
-SELECT automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at
+SELECT automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at, generation
 FROM chat_automation_mcp_subscriptions
 WHERE automation_id = ANY($1::uuid[])
 `
@@ -6374,6 +6377,7 @@ func (q *sqlQuerier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx contex
 			&i.WebhookSubscriptionID,
 			&i.RefreshBefore,
 			&i.RenewAt,
+			&i.Generation,
 		); err != nil {
 			return nil, err
 		}
@@ -6389,7 +6393,7 @@ func (q *sqlQuerier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx contex
 }
 
 const getPendingChatAutomationInboxRows = `-- name: GetPendingChatAutomationInboxRows :many
-SELECT id, automation_id, kind, event_id, event_name, occurred_at, data, detail, received_at, delivered_at
+SELECT id, automation_id, kind, event_id, event_name, occurred_at, data, detail, received_at, delivered_at, generation
 FROM chat_automation_event_inbox
 WHERE automation_id = $1::uuid AND delivered_at IS NULL
 ORDER BY id
@@ -6421,6 +6425,7 @@ func (q *sqlQuerier) GetPendingChatAutomationInboxRows(ctx context.Context, arg 
 			&i.Detail,
 			&i.ReceivedAt,
 			&i.DeliveredAt,
+			&i.Generation,
 		); err != nil {
 			return nil, err
 		}
@@ -6436,28 +6441,32 @@ func (q *sqlQuerier) GetPendingChatAutomationInboxRows(ctx context.Context, arg 
 }
 
 const insertChatAutomationInboxEvents = `-- name: InsertChatAutomationInboxEvents :execrows
-INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, event_name, occurred_at, data)
 SELECT
-    $1::uuid,
+    s.automation_id,
+    s.generation,
     'event',
     e.value->>'eventId',
     e.value->>'name',
     (e.value->>'timestamp')::timestamptz,
     COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
-FROM jsonb_array_elements($2::jsonb) WITH ORDINALITY AS e(value, ord)
+FROM chat_automation_mcp_subscriptions s
+CROSS JOIN jsonb_array_elements($1::jsonb) WITH ORDINALITY AS e(value, ord)
+WHERE s.automation_id = $2::uuid
 ORDER BY e.ord
-ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING
 `
 
 type InsertChatAutomationInboxEventsParams struct {
-	AutomationID uuid.UUID       `db:"automation_id" json:"automation_id"`
 	Events       json.RawMessage `db:"events" json:"events"`
+	AutomationID uuid.UUID       `db:"automation_id" json:"automation_id"`
 }
 
-// Appends @events, a JSON array of MCP event occurrences, in their order. An
-// eventId that the subscription already received inserts nothing.
+// Appends @events, a JSON array of MCP event occurrences, in their order, to
+// the subscription's generation. An eventId that the generation already
+// received inserts nothing.
 func (q *sqlQuerier) InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertChatAutomationInboxEvents, arg.AutomationID, arg.Events)
+	result, err := q.db.ExecContext(ctx, insertChatAutomationInboxEvents, arg.Events, arg.AutomationID)
 	if err != nil {
 		return 0, err
 	}
@@ -6465,25 +6474,28 @@ func (q *sqlQuerier) InsertChatAutomationInboxEvents(ctx context.Context, arg In
 }
 
 const insertChatAutomationInboxNotice = `-- name: InsertChatAutomationInboxNotice :exec
-INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, detail)
-VALUES ($1::uuid, $2::chat_automation_inbox_kind, $3::text, $4::text)
-ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, detail)
+SELECT s.automation_id, s.generation, $1::chat_automation_inbox_kind, $2::text, $3::text
+FROM chat_automation_mcp_subscriptions s
+WHERE s.automation_id = $4::uuid
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING
 `
 
 type InsertChatAutomationInboxNoticeParams struct {
-	AutomationID uuid.UUID               `db:"automation_id" json:"automation_id"`
 	Kind         ChatAutomationInboxKind `db:"kind" json:"kind"`
 	EventID      sql.NullString          `db:"event_id" json:"event_id"`
 	Detail       string                  `db:"detail" json:"detail"`
+	AutomationID uuid.UUID               `db:"automation_id" json:"automation_id"`
 }
 
-// A non-NULL @event_id deduplicates a retried delivery of the notice.
+// A non-NULL @event_id deduplicates a retried delivery of the notice within
+// the subscription's generation.
 func (q *sqlQuerier) InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error {
 	_, err := q.db.ExecContext(ctx, insertChatAutomationInboxNotice,
-		arg.AutomationID,
 		arg.Kind,
 		arg.EventID,
 		arg.Detail,
+		arg.AutomationID,
 	)
 	return err
 }
@@ -6495,7 +6507,7 @@ VALUES (
     $5::chat_automation_event_delivery, $6::chat_automation_subscription_state,
     $7::text, $8::timestamptz, $9::timestamptz
 )
-RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at
+RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at, generation
 `
 
 type InsertChatAutomationMCPSubscriptionParams struct {
@@ -6539,6 +6551,7 @@ func (q *sqlQuerier) InsertChatAutomationMCPSubscription(ctx context.Context, ar
 		&i.WebhookSubscriptionID,
 		&i.RefreshBefore,
 		&i.RenewAt,
+		&i.Generation,
 	)
 	return i, err
 }
@@ -7110,7 +7123,7 @@ UPDATE chat_automation_mcp_subscriptions s
 SET renew_at = $1::timestamptz
 FROM due
 WHERE s.automation_id = due.automation_id
-RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at, s.generation
 `
 
 type ClaimDueChatAutomationWebhookRenewalsParams struct {
@@ -7146,6 +7159,7 @@ func (q *sqlQuerier) ClaimDueChatAutomationWebhookRenewals(ctx context.Context, 
 			&i.WebhookSubscriptionID,
 			&i.RefreshBefore,
 			&i.RenewAt,
+			&i.Generation,
 		); err != nil {
 			return nil, err
 		}
@@ -7242,24 +7256,37 @@ func (q *sqlQuerier) InsertChatAutomationWebhookSecret(ctx context.Context, arg 
 }
 
 const resetChatAutomationMCPSubscriptions = `-- name: ResetChatAutomationMCPSubscriptions :exec
-UPDATE chat_automation_mcp_subscriptions s
-SET
-    cursor = NULL,
-    refresh_before = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.refresh_before END,
-    renew_at = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.renew_at END,
-    updated_at = now()
-FROM (
-    SELECT automation_id
-    FROM chat_automation_mcp_subscriptions
-    WHERE mcp_server_config_id = $1::uuid AND state <> 'terminated'
-    ORDER BY automation_id
-    FOR UPDATE
-) due
-WHERE s.automation_id = due.automation_id
+WITH due AS (
+    SELECT s.automation_id, s.delivery = 'poll' AND s.cursor IS NOT NULL AND a.enabled AS missed
+    FROM chat_automation_mcp_subscriptions s
+    JOIN chat_automations a ON a.id = s.automation_id
+    WHERE s.mcp_server_config_id = $1::uuid AND s.state <> 'terminated'
+    ORDER BY s.automation_id
+    FOR UPDATE OF s
+), reset AS (
+    UPDATE chat_automation_mcp_subscriptions s
+    SET
+        cursor = NULL,
+        generation = s.generation + 1,
+        next_poll_at = CASE WHEN s.delivery = 'poll' THEN now() END,
+        refresh_before = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.refresh_before END,
+        renew_at = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.renew_at END,
+        updated_at = now()
+    FROM due
+    WHERE s.automation_id = due.automation_id
+    RETURNING s.automation_id, s.generation, due.missed
+)
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, detail)
+SELECT automation_id, generation, 'gap', 'Some events are missing. The MCP server config changed, so the events since the last poll were not fetched.'
+FROM reset
+WHERE missed
 `
 
 // Restarts the subscriptions to an MCP server config whose server, principal
-// or enabled state changed. Each resumes from now, and each webhook grant
+// or enabled state changed. Each resumes from now in a new generation, so
+// that another server's event IDs cannot match the old server's, and a poll
+// in flight changes nothing. An enabled poll subscription that had a cursor
+// gets a gap row for the events since its last poll. Each webhook grant
 // ends, so the receiver refuses the old server and the next tick subscribes
 // again. Rows lock in automation_id order.
 func (q *sqlQuerier) ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error {

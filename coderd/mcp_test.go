@@ -1812,6 +1812,52 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	})
 }
 
+// A config change that can reach another server or principal, or a
+// re-enable, restarts the event subscriptions on the config from now.
+func TestMCPServerConfigsUpdateResetsEventSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	// The raw store seeds the subscription that no API creates yet.
+	db, ps := dbtestutil.NewDB(t)
+	adminClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t), Database: db, Pubsub: ps})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	off, on := false, true
+	for _, tc := range []struct {
+		name    string
+		updates []codersdk.UpdateMCPServerConfigRequest
+		reset   bool
+	}{
+		{"URLChange", []codersdk.UpdateMCPServerConfigRequest{{URL: ptr.Ref("https://mcp.example.com/moved")}}, true},
+		{"APIKeyChange", []codersdk.UpdateMCPServerConfigRequest{{APIKeyValue: ptr.Ref("key-2")}}, true},
+		{"ReEnable", []codersdk.UpdateMCPServerConfigRequest{{Enabled: &off}, {Enabled: &on}}, true},
+		{"Rename", []codersdk.UpdateMCPServerConfigRequest{{DisplayName: ptr.Ref("Renamed")}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			config, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName: "Events", Slug: "events-" + strings.ToLower(tc.name), Transport: "streamable_http", URL: "https://mcp.example.com/events",
+				AuthType: "api_key", APIKeyHeader: "X-API-Key", APIKeyValue: "key-1", Availability: "default_on", Enabled: true,
+			})
+			require.NoError(t, err)
+			automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: firstUser.OrganizationID, OwnerID: firstUser.UserID})
+			_, err = db.InsertChatAutomationMCPSubscription(ctx, database.InsertChatAutomationMCPSubscriptionParams{
+				AutomationID: automation.ID, MCPServerConfigID: config.ID, EventName: "repo.push", Arguments: json.RawMessage(`{}`),
+				Delivery: database.ChatAutomationEventDeliveryPoll, State: database.ChatAutomationSubscriptionStateActive,
+				Cursor: sql.NullString{String: "seq:5", Valid: true}, NextPollAt: sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+			for _, update := range tc.updates {
+				_, err = adminClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID, update)
+				require.NoError(t, err)
+			}
+			subs, err := db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{automation.ID})
+			require.NoError(t, err)
+			require.Equal(t, tc.reset, !subs[0].Cursor.Valid, "the subscription kept its cursor: %v", subs[0].Cursor)
+		})
+	}
+}
+
 func TestMCPServerConfigsOAuth2ScopedKeyAuthorization(t *testing.T) {
 	t.Parallel()
 

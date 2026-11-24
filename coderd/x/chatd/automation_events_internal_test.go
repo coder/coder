@@ -76,6 +76,7 @@ type fakeEventsServer struct {
 	subscribes    []mcpclient.SubscribeParams
 	subscribeID   string
 	grant         time.Duration
+	deliveryError string
 	unsubscribes  int
 	receive       func(callbackURL string, header http.Header, body []byte) (int, string)
 }
@@ -114,6 +115,11 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 		fake.mu.Lock()
 		fake.subscribes = append(fake.subscribes, *p)
 		code, receive, id, refreshBefore, cursor := fake.subscribeCode, fake.receive, cmp.Or(fake.subscribeID, fakeSubscriptionID), time.Now().Add(cmp.Or(fake.grant, time.Hour)), fmt.Sprintf("seq:%d", len(fake.events))
+		res := &mcpclient.SubscribeResult{ID: id, RefreshBefore: &refreshBefore, Cursor: &cursor, Truncated: fake.truncate}
+		if lastError := fake.deliveryError; lastError != "" {
+			res.DeliveryStatus = &mcpclient.WebhookDeliveryStatus{LastError: &lastError}
+		}
+		fake.truncate = false
 		fake.mu.Unlock()
 		if code != 0 {
 			return nil, &jsonrpc.Error{Code: code, Message: "refused"}
@@ -124,7 +130,7 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 		if status, challenge := receive(p.Delivery.URL, header, []byte(body)); status != http.StatusOK || challenge != "nonce-1" {
 			return nil, &jsonrpc.Error{Code: -32027, Message: "challenge_failed"}
 		}
-		return &mcpclient.SubscribeResult{ID: id, RefreshBefore: &refreshBefore, Cursor: &cursor}, nil
+		return res, nil
 	}))
 	type empty struct{ mcp.ResultBase }
 	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/unsubscribe", func(context.Context, *mcp.ServerSession, *mcpclient.SubscribeParams) (*empty, error) {
@@ -481,20 +487,27 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, "evt_1", rows[0].EventID.String)
 		require.Equal(t, database.ChatAutomationInboxKindGap, rows[1].Kind)
 
-		// The renewal subscribes again from the stored cursor. A server that
-		// derives a new id, as for a new access URL, verifies with it first,
-		// and a grant longer than the TTL that Coder asked for is cut to it.
+		// The renewal subscribes again from the stored cursor when a quarter
+		// of the grant is left. A server that derives a new id, as for a new
+		// access URL, verifies with it first, and a grant longer than the TTL
+		// that Coder asked for is cut to it. A truncated result adds a gap,
+		// and the delivery error that the server reports is kept.
 		sub = subscription(ctx, t, f, automation.ID)
 		f.events.mu.Lock()
-		f.events.subscribeID, f.events.grant = "sub_2", 30*24*time.Hour
+		f.events.subscribeID, f.events.grant, f.events.truncate, f.events.deliveryError = "sub_2", 30*24*time.Hour, true, "timeout"
 		f.events.mu.Unlock()
-		f.server.tickWebhookRenewals(ctx, sub.RenewAt.Time)
+		f.server.tickWebhookRenewals(ctx, sub.RefreshBefore.Time.Add(-time.Hour/4+time.Second))
 		f.events.mu.Lock()
 		require.Len(t, f.events.subscribes, 2)
 		require.Equal(t, "seq:7", ptr.NilToEmpty(f.events.subscribes[1].Cursor))
 		f.events.mu.Unlock()
 		renewed := subscription(ctx, t, f, automation.ID)
 		require.Equal(t, "sub_2", renewed.WebhookSubscriptionID.String)
+		require.Contains(t, renewed.LastError.String, "timeout")
+		rows, err = f.worker.db.GetPendingChatAutomationInboxRows(ctx, database.GetPendingChatAutomationInboxRowsParams{AutomationID: automation.ID, LimitCount: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 3)
+		require.Equal(t, database.ChatAutomationInboxKindGap, rows[2].Kind)
 		require.WithinDuration(t, time.Now().Add(time.Hour), renewed.RefreshBefore.Time, time.Minute)
 		require.True(t, renewed.RenewAt.Time.After(sub.RenewAt.Time))
 
@@ -519,8 +532,31 @@ func TestAutomationEvents(t *testing.T) {
 			status int
 			revoke func(ctx context.Context, f fixture, id uuid.UUID) error
 		}{
-			{"ConfigDeleted", http.StatusGone, func(ctx context.Context, f fixture, _ uuid.UUID) error {
-				return f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID)
+			// The renewal ends the subscription of a deleted config.
+			{"ConfigDeleted", http.StatusGone, func(ctx context.Context, f fixture, id uuid.UUID) error {
+				if err := f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID); err != nil {
+					return err
+				}
+				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
+				subs, err := f.worker.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{id})
+				if err == nil && subs[0].State != database.ChatAutomationSubscriptionStateTerminated {
+					err = errors.New("the renewal kept the subscription")
+				}
+				return err
+			}},
+			{"ConfigDisabled", http.StatusGone, func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				c := f.config
+				_, err := f.worker.db.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+					ID: c.ID, DisplayName: c.DisplayName, Slug: c.Slug, Transport: c.Transport, Url: c.Url, AuthType: c.AuthType,
+					OAuth2ClientRegistration: c.OAuth2ClientRegistration, ToolAllowList: c.ToolAllowList, ToolDenyList: c.ToolDenyList,
+					Availability: c.Availability, UpdatedBy: c.CreatedBy.UUID,
+				})
+				return err
+			}},
+			// The experiment check fails closed, so the server retries.
+			{"AutomationsOff", http.StatusServiceUnavailable, func(_ context.Context, f fixture, _ uuid.UUID) error {
+				f.server.automationsEnabled = func(context.Context, uuid.UUID) bool { return false }
+				return nil
 			}},
 			// The grant ends, and a renewal may be in flight, so the server
 			// retries.
@@ -656,6 +692,14 @@ func TestAutomationEvents(t *testing.T) {
 			}
 			due = time.Now()
 		}
+		// A poll that a disable overtakes stores nothing.
+		disabled := make(chan error, 1)
+		f.events.emit("evt_disabled")
+		f.events.mu.Lock()
+		f.events.onPoll = func(context.Context) { disabled <- setEnabled(false) }
+		f.events.mu.Unlock()
+		f.server.tickEventPolls(ctx, due)
+		require.NoError(t, errors.Join(testutil.RequireReceive(ctx, t, disabled), setEnabled(true)))
 		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
 		require.Equal(t, database.ChatAutomationSubscriptionStateActive, subscription(ctx, t, f, automation.ID).State)
 
@@ -665,9 +709,42 @@ func TestAutomationEvents(t *testing.T) {
 		for _, id := range []string{"evt_kept", "evt_new"} {
 			require.Contains(t, texts[0], fmt.Sprintf(`"event_id":%q`, id))
 		}
-		for _, id := range []string{"evt_missed", "evt_raced"} {
+		for _, id := range []string{"evt_missed", "evt_raced", "evt_disabled"} {
 			require.NotContains(t, texts[0], `"event_id":"`+id)
 		}
+	})
+
+	// A rebind during a poll voids the poll. The subscription resumes from
+	// now with a gap row, in a new generation, as the new server may reuse
+	// the old server's event IDs.
+	t.Run("Rebind", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t)
+		automation := subscribe(ctx, t, f)
+		f.events.emit("evt_1")
+		now := time.Now().Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		rebound := make(chan error, 1)
+		f.events.emit("evt_old")
+		f.events.mu.Lock()
+		f.events.onPoll = func(context.Context) { rebound <- f.worker.db.ResetChatAutomationMCPSubscriptions(ctx, f.config.ID) }
+		f.events.mu.Unlock()
+		now = now.Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		require.NoError(t, testutil.RequireReceive(ctx, t, rebound))
+		require.False(t, subscription(ctx, t, f, automation.ID).Cursor.Valid, "the voided poll stored its cursor")
+
+		f.server.tickEventPolls(ctx, now)
+		f.events.emit("evt_1")
+		f.server.tickEventPolls(ctx, now.Add(time.Minute))
+		rows, err := f.worker.db.GetPendingChatAutomationInboxRows(ctx, database.GetPendingChatAutomationInboxRowsParams{AutomationID: automation.ID, LimitCount: 10})
+		require.NoError(t, err)
+		var got []string
+		for _, row := range rows {
+			got = append(got, cmp.Or(row.EventID.String, string(row.Kind)))
+		}
+		require.Equal(t, []string{"evt_1", "gap", "evt_1"}, got)
 	})
 
 	// A failed poll waits for its backoff from when it failed, even when the

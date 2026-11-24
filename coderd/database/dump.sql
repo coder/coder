@@ -2173,12 +2173,15 @@ CREATE TABLE chat_automation_event_inbox (
     detail text,
     received_at timestamp with time zone DEFAULT now() NOT NULL,
     delivered_at timestamp with time zone,
+    generation integer DEFAULT 0 NOT NULL,
     CONSTRAINT chat_automation_event_inbox_shape CHECK (((kind = 'event'::chat_automation_inbox_kind) = ((event_id IS NOT NULL) AND (occurred_at IS NOT NULL) AND (data IS NOT NULL))))
 );
 
 COMMENT ON TABLE chat_automation_event_inbox IS 'Events and notices that every delivery mode appends, in arrival order, until a run sends them to the chat.';
 
 COMMENT ON COLUMN chat_automation_event_inbox.detail IS 'The note of a gap row or the reason of a terminated row.';
+
+COMMENT ON COLUMN chat_automation_event_inbox.generation IS 'The subscription generation that received the row.';
 
 CREATE SEQUENCE chat_automation_event_inbox_id_seq
     START WITH 1
@@ -2205,6 +2208,7 @@ CREATE TABLE chat_automation_mcp_subscriptions (
     webhook_subscription_id text,
     refresh_before timestamp with time zone,
     renew_at timestamp with time zone,
+    generation integer DEFAULT 0 NOT NULL,
     CONSTRAINT chat_automation_mcp_subscriptions_poll_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) = (next_poll_at IS NOT NULL))),
     CONSTRAINT chat_automation_mcp_subscriptions_webhook_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) OR (state <> 'active'::chat_automation_subscription_state) OR (renew_at IS NOT NULL)))
 );
@@ -2224,6 +2228,8 @@ COMMENT ON COLUMN chat_automation_mcp_subscriptions.webhook_subscription_id IS '
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.refresh_before IS 'When the MCP server''s grant of a webhook subscription expires.';
 
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.renew_at IS 'When a webhook subscription is next subscribed again. A claim moves it ahead as a lease.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.generation IS 'Counts the resets of the subscription, as when its MCP server config points at another server. Event IDs deduplicate within one generation.';
 
 CREATE TABLE chat_automation_webhook_secrets (
     automation_id uuid NOT NULL,
@@ -5327,7 +5333,7 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_automation_event_inbox_delivered_at_idx ON chat_automation_event_inbox USING btree (delivered_at) WHERE (delivered_at IS NOT NULL);
 
-CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox USING btree (automation_id, event_id) WHERE (event_id IS NOT NULL);
+CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox USING btree (automation_id, generation, event_id) WHERE (event_id IS NOT NULL);
 
 CREATE INDEX chat_automation_event_inbox_pending_idx ON chat_automation_event_inbox USING btree (automation_id, id) WHERE (delivered_at IS NULL);
 

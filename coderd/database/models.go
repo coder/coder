@@ -5854,6 +5854,8 @@ type ChatAutomationEventInbox struct {
 	Detail      sql.NullString `db:"detail" json:"detail"`
 	ReceivedAt  time.Time      `db:"received_at" json:"received_at"`
 	DeliveredAt sql.NullTime   `db:"delivered_at" json:"delivered_at"`
+	// The subscription generation that received the row.
+	Generation int32 `db:"generation" json:"generation"`
 }
 
 // The MCP event that an mcp_event chat automation subscribes to.
@@ -5880,6 +5882,8 @@ type ChatAutomationMCPSubscription struct {
 	RefreshBefore sql.NullTime `db:"refresh_before" json:"refresh_before"`
 	// When a webhook subscription is next subscribed again. A claim moves it ahead as a lease.
 	RenewAt sql.NullTime `db:"renew_at" json:"renew_at"`
+	// Counts the resets of the subscription, as when its MCP server config points at another server. Event IDs deduplicate within one generation.
+	Generation int32 `db:"generation" json:"generation"`
 }
 
 // The Standard Webhooks secret that signs the deliveries of a webhook subscription.

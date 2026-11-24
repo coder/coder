@@ -112,7 +112,7 @@ var (
 	errInboxFull            = xerrors.New("the MCP event inbox is full")
 )
 
-// appendInbox is the only writer of the event inbox. Every delivery mode
+// appendInbox writes each delivery to the event inbox. Every delivery mode
 // calls it. It holds the automation lock and no chat row, so it cannot form a
 // cycle with a drain, which locks the chat first. Events that it cannot store
 // become a gap, so that one bad event cannot stall the subscription.

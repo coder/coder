@@ -7,11 +7,21 @@ ALTER TABLE chat_automation_mcp_subscriptions
     ADD COLUMN webhook_subscription_id text,
     ADD COLUMN refresh_before timestamptz,
     ADD COLUMN renew_at timestamptz,
+    ADD COLUMN generation integer NOT NULL DEFAULT 0,
     ADD CONSTRAINT chat_automation_mcp_subscriptions_webhook_shape CHECK (delivery = 'poll' OR state <> 'active' OR renew_at IS NOT NULL);
 
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.webhook_subscription_id IS 'The id that the MCP server derived for a webhook subscription and sends in X-MCP-Subscription-Id.';
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.refresh_before IS 'When the MCP server''s grant of a webhook subscription expires.';
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.renew_at IS 'When a webhook subscription is next subscribed again. A claim moves it ahead as a lease.';
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.generation IS 'Counts the resets of the subscription, as when its MCP server config points at another server. Event IDs deduplicate within one generation.';
+
+ALTER TABLE chat_automation_event_inbox ADD COLUMN generation integer NOT NULL DEFAULT 0;
+
+COMMENT ON COLUMN chat_automation_event_inbox.generation IS 'The subscription generation that received the row.';
+
+-- Deduplicates an event within one generation of its subscription.
+DROP INDEX chat_automation_event_inbox_event_id_idx;
+CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox (automation_id, generation, event_id) WHERE event_id IS NOT NULL;
 
 CREATE INDEX chat_automation_mcp_subscriptions_renew_at_idx ON chat_automation_mcp_subscriptions (renew_at) WHERE renew_at IS NOT NULL;
 
