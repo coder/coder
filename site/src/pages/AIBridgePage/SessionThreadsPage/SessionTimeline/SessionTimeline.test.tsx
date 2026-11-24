@@ -27,7 +27,7 @@ describe(SessionTimeline.name, () => {
 		expect(within(threads).getAllByRole("listitem")).toHaveLength(3);
 	});
 
-	it("gives repeated tool calls distinct names and exposes their expanded state", async () => {
+	it("gives repeated tool calls distinct names and exposes their level and expanded state", async () => {
 		const user = userEvent.setup();
 		const [action] = MockAIBridgeThread.agentic_actions;
 		const [toolCall] = action.tool_calls;
@@ -56,6 +56,9 @@ describe(SessionTimeline.name, () => {
 		);
 
 		const loopToggle = screen.getByRole("button", { name: /Agentic loop/ });
+		expect(
+			screen.getByRole("heading", { level: 3, name: /Agentic loop/ }),
+		).toContainElement(loopToggle);
 		expect(loopToggle).toHaveAttribute("aria-expanded", "false");
 		await user.click(loopToggle);
 		expect(loopToggle).toHaveAttribute("aria-expanded", "true");
@@ -64,6 +67,9 @@ describe(SessionTimeline.name, () => {
 		const secondToggle = screen.getByRole("button", {
 			name: "Tool call read_file 2",
 		});
+		expect(
+			screen.getByRole("heading", { level: 4, name: "Tool call read_file 2" }),
+		).toContainElement(secondToggle);
 		expect(secondToggle).toHaveAttribute("aria-expanded", "false");
 		await user.click(secondToggle);
 		expect(secondToggle).toHaveAttribute("aria-expanded", "true");
