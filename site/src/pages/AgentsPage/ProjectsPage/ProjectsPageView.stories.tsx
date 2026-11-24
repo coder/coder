@@ -151,6 +151,14 @@ export const LoadError: Story = {
 	},
 };
 
+/** A failed member counts request leaves the cards in place. */
+export const MemberCountsLoadError: Story = {
+	args: {
+		memberCounts: new Map(),
+		error: mockApiError({ message: "Failed to load member counts." }),
+	},
+};
+
 export const NoProjects: Story = {
 	args: { projects: { yours: [], shared: mockSharedProjects } },
 };
