@@ -2283,6 +2283,26 @@ class ApiMethods {
 		};
 	};
 
+	/** The organization's AI spend as a CSV file. */
+	getOrganizationAISpendExport = async (
+		organizationId: string,
+		params: TypesGen.AISpendPeriodWindow & {
+			user_id?: string;
+			group_id?: string;
+			provider_name?: string;
+			model?: string;
+		},
+	): Promise<Blob> => {
+		const response = await this.axios.get<Blob>(
+			getURLWithSearchParams(
+				`/api/v2/organizations/${organizationId}/ai/spend/export`,
+				params,
+			),
+			{ responseType: "blob" },
+		);
+		return response.data;
+	};
+
 	/**
 	 * Per-member AI spend attributed to a group in the active budget period.
 	 * Users not in the group, or whose spend the caller can't read, are

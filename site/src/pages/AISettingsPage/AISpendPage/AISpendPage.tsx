@@ -1,8 +1,11 @@
+import { saveAs } from "file-saver";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
+import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
+	exportOrganizationAISpend,
 	organizationAISpendOverview,
 	organizationAISpendReportsScopeKey,
 	organizationAISpendUsers,
@@ -10,6 +13,7 @@ import {
 	paginatedOrganizationAISpendReport,
 } from "#/api/queries/aiBridge";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
@@ -162,6 +166,44 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		}
 	};
 
+	const exportReportMutation = useMutation({
+		...exportOrganizationAISpend(queryClient),
+		onError: (error) => {
+			toast.error("Failed to export the report.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
+	const exportReport = () => {
+		if (lastReportRun === undefined || organization === undefined) {
+			return;
+		}
+		const { startDate, endDate } = lastReportRun.days;
+		exportReportMutation.mutate(
+			{
+				organizationId: lastReportRun.organizationId,
+				period: toSpendPeriod(lastReportRun.days),
+				filter: toReportFilter(lastReportRun.filter),
+			},
+			{
+				onSuccess: (file) =>
+					saveAs(
+						file,
+						`ai-spend-export-${organization.name}-${startDate}-to-${endDate}.csv`,
+					),
+			},
+		);
+	};
+
+	const openDetailedReport = (username?: string) => {
+		updateSearchParams((params) => {
+			params.set(tabSearchParam, "detailed-report");
+			if (username !== undefined) {
+				params.set(useFilterParamsKey, `user:${username}`);
+			}
+		});
+	};
+
 	const tab: AISpendTab =
 		searchParams.get(tabSearchParam) === "detailed-report"
 			? "detailed-report"
@@ -195,12 +237,6 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		...organizationAISpendUsers(organization?.id ?? "", period, topSpenderIds),
 		enabled: organization !== undefined && topSpenderIds.length > 0,
 	});
-
-	const openDetailedReport = () => {
-		updateSearchParams((params) => {
-			params.set(tabSearchParam, "detailed-report");
-		});
-	};
 
 	return (
 		<>
@@ -239,6 +275,9 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				isReportOutdated={isReportOutdated}
 				onRunReport={runReport}
 				onCancelReport={cancelReport}
+				canExportReport={(reportQuery.data?.count ?? 0) > 0}
+				isExportingReport={exportReportMutation.isPending}
+				onExportReport={exportReport}
 				onOpenDetailedReport={openDetailedReport}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}

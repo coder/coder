@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { saveAs } from "file-saver";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
@@ -21,6 +22,8 @@ import AISpendPage from "./AISpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
+vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
+
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: {
@@ -34,6 +37,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.mocked(saveAs).mockClear();
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
@@ -231,6 +235,30 @@ it("opens the Detailed report from the Top spenders card", async () => {
 	expect(searchParam("tab")).toBe("detailed-report");
 });
 
+it("opens the Detailed report for a top spender without running it", async () => {
+	const user = userEvent.setup();
+	const { usersSpy, searchParam } = renderAISpendPage();
+	const [spender] = MockOrganizationAISpendOverview.users;
+	await user.click(
+		await screen.findByRole("button", {
+			name: `Open menu for ${spender.name || spender.username}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("menuitem", { name: "Cost details" }),
+	);
+	await user.click(
+		await screen.findByRole("button", { name: "Run detailed report" }),
+	);
+	expect(searchParam("tab")).toBe("detailed-report");
+	expect(searchParam("filter")).toBe(`user:${spender.username}`);
+	expect(usersSpy).not.toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({ offset: 0 }),
+		expect.anything(),
+	);
+});
+
 it("runs the report for the picked days and filter, resolving the user and group to IDs", async () => {
 	const user = userEvent.setup();
 	const getUserSpy = vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
@@ -327,4 +355,35 @@ it("cancels a report while it loads another page", async () => {
 	await waitFor(() => expect(searchParam("page")).toBe("2"));
 	await user.click(await screen.findByRole("button", { name: "Cancel" }));
 	await waitFor(() => expect(searchParam("page")).toBe("1"));
+});
+
+it("exports the last run report", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
+	const file = new Blob(["user_id"], { type: "text/csv" });
+	const exportSpy = vi
+		.spyOn(API, "getOrganizationAISpendExport")
+		.mockResolvedValue(file);
+	renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin model:gpt-5.4")}`,
+		{ canViewSessions: true },
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	const exportButton = screen.getByRole("button", { name: "Export CSV" });
+	await waitFor(() => expect(exportButton).toBeEnabled());
+	await user.click(exportButton);
+	await waitFor(() =>
+		expect(saveAs).toHaveBeenCalledWith(
+			file,
+			`ai-spend-export-${MockOrganization.name}-2026-03-01-to-2026-03-03.csv`,
+		),
+	);
+	expect(exportSpy).toHaveBeenCalledWith(MockOrganization.id, {
+		period_start: "2026-03-01T00:00:00.000Z",
+		period_end: "2026-03-04T00:00:00.000Z",
+		user_id: MockUserOwner.id,
+		group_id: undefined,
+		provider_name: undefined,
+		model: "gpt-5.4",
+	});
 });

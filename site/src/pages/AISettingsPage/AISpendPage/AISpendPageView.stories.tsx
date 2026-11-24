@@ -76,6 +76,9 @@ const meta = {
 		isReportOutdated: false,
 		onRunReport: fn(),
 		onCancelReport: fn(),
+		canExportReport: false,
+		isExportingReport: false,
+		onExportReport: fn(),
 		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
@@ -161,7 +164,12 @@ export const DetailedReportResults: Story = {
 		tab: "detailed-report",
 		hasRunReport: true,
 		reportQuery: mockReportQuery,
+		canExportReport: true,
 	},
+};
+
+export const DetailedReportExporting: Story = {
+	args: { ...DetailedReportResults.args, isExportingReport: true },
 };
 
 export const DetailedReportUnpricedModels: Story = {
@@ -230,12 +238,12 @@ export const DetailedReportError: Story = {
 };
 
 export const DetailedReportMobile: Story = {
-	args: { tab: "detailed-report" },
+	args: DetailedReportResults.args,
 	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 export const DetailedReportNoSessionAccess: Story = {
-	args: { tab: "detailed-report", canViewSessions: false },
+	args: { ...DetailedReportResults.args, canViewSessions: false },
 };
 
 export const Paywall: Story = {

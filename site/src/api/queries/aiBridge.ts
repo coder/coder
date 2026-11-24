@@ -114,6 +114,51 @@ export type AISpendReportFilter = Pick<
 	group_name?: string;
 };
 
+/** Resolves the username and group name to the IDs the spend endpoints filter by. */
+const resolveAISpendReportFilter = async (
+	queryClient: QueryClient,
+	organizationId: string,
+	{ username, group_name, ...dimensions }: AISpendReportFilter,
+): Promise<OrganizationAISpendFilter> => {
+	const [resolvedUser, resolvedGroup] = await Promise.all([
+		username ? queryClient.fetchQuery(user(username)) : undefined,
+		group_name
+			? queryClient.fetchQuery(
+					group(organizationId, group_name, { exclude_members: true }),
+				)
+			: undefined,
+	]);
+	return {
+		...dimensions,
+		user_ids: resolvedUser && [resolvedUser.id],
+		group_id: resolvedGroup?.id,
+	};
+};
+
+/** Exports the organization's AI spend for the period as CSV. */
+export const exportOrganizationAISpend = (queryClient: QueryClient) => ({
+	mutationFn: async ({
+		organizationId,
+		period,
+		filter,
+	}: {
+		organizationId: string;
+		period: AISpendPeriodWindow;
+		filter: AISpendReportFilter;
+	}): Promise<Blob> => {
+		// TODO(AIGOV-733): export the client filter once the endpoint supports it.
+		const { user_ids, group_id, provider_name, model } =
+			await resolveAISpendReportFilter(queryClient, organizationId, filter);
+		return API.getOrganizationAISpendExport(organizationId, {
+			...period,
+			user_id: user_ids?.[0],
+			group_id,
+			provider_name,
+			model,
+		});
+	},
+});
+
 export const organizationAISpendReportsScopeKey = (organizationId: string) =>
 	["organizations", organizationId, "aiSpendReport"] as const;
 
@@ -144,33 +189,21 @@ export const paginatedOrganizationAISpendReport = (
 			...organizationAISpendReportKey(organizationId, period, payload),
 			pageNumber,
 		],
-		queryFn: async ({
-			payload: { username, group_name, ...dimensions },
-			limit,
-			offset,
-			signal,
-		}) => {
-			const [resolvedUser, resolvedGroup] = await Promise.all([
-				username ? queryClient.fetchQuery(user(username)) : undefined,
-				group_name
-					? queryClient.fetchQuery(
-							group(organizationId, group_name, { exclude_members: true }),
-						)
-					: undefined,
-			]);
-			return API.experimental.getOrganizationAISpendUsers(
+		queryFn: async ({ payload, limit, offset, signal }) =>
+			API.experimental.getOrganizationAISpendUsers(
 				organizationId,
 				{
 					...period,
-					...dimensions,
-					user_ids: resolvedUser && [resolvedUser.id],
-					group_id: resolvedGroup?.id,
+					...(await resolveAISpendReportFilter(
+						queryClient,
+						organizationId,
+						payload,
+					)),
 					limit,
 					offset,
 				},
 				signal,
-			);
-		},
+			),
 		// Each page totals the whole period on the server, so skip loading the
 		// neighbouring pages in the background.
 		prefetch: false,
