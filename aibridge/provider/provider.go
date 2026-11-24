@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -82,6 +83,12 @@ type Provider interface {
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+
+	// CreateExtractor returns a request-scoped [extractors.Extractor] for a
+	// proxied request. path is the full request path, including RoutePrefix().
+	// nil means extraction is not implemented for the path, not that forwarding
+	// is rejected.
+	CreateExtractor(path string) extractors.Extractor
 
 	// ResolveCredential determines the upstream credential for a request.
 	// Coder authentication credentials must already have been removed from it.
