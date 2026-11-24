@@ -606,6 +606,28 @@ func (c *Client) AIBridgeListProviders(ctx context.Context) ([]AIBridgeProvider,
 	return providers, ReadBodyAsJSON(res, &providers)
 }
 
+// AIGatewayRetention is how long AI Gateway data, such as interceptions and
+// token usage, is kept before it is purged.
+type AIGatewayRetention struct {
+	// RetentionMillis is the retention duration in milliseconds. Zero means
+	// data is never purged.
+	RetentionMillis int64 `json:"retention_ms"`
+}
+
+// AIGatewayRetention returns the AI Gateway data retention.
+func (c *ExperimentalClient) AIGatewayRetention(ctx context.Context) (AIGatewayRetention, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/ai-gateway/retention", nil)
+	if err != nil {
+		return AIGatewayRetention{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewayRetention{}, ReadBodyAsError(res)
+	}
+	var retention AIGatewayRetention
+	return retention, ReadBodyAsJSON(res, &retention)
+}
+
 // OrganizationAISpendFilter narrows the organization per-user AI spend
 // report. Zero values apply no filter: the period falls back to the current
 // budget period on the server, and an empty dimension matches all usage.

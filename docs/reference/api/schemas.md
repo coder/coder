@@ -1334,6 +1334,20 @@ title: Schemas
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIGatewayRetention
+
+```json
+{
+  "retention_ms": 0
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                              |
+|----------------|---------|----------|--------------|------------------------------------------------------------------------------------------|
+| `retention_ms` | integer | false    |              | Retention ms is the retention duration in milliseconds. Zero means data is never purged. |
+
 ## codersdk.AIModelPrice
 
 ```json

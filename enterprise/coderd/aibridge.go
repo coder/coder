@@ -686,6 +686,28 @@ func (api *API) aiBridgeListProviders(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, providers)
 }
 
+// aiGatewayRetention returns the AI Gateway data retention. It holds no usage
+// data, so any authenticated user can read it when the AI Gateway feature is
+// enabled, without access to the deployment config.
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get AI Gateway data retention
+// @ID get-ai-gateway-data-retention
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Gateway
+// @Success 200 {object} codersdk.AIGatewayRetention
+// @Router /api/experimental/ai-gateway/retention [get]
+// @x-apidocgen {"skip": true}
+func (api *API) aiGatewayRetention(rw http.ResponseWriter, r *http.Request) {
+	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AIGatewayRetention{
+		// A retention of zero or less disables purging.
+		RetentionMillis: max(retention.Milliseconds(), 0),
+	})
+}
+
 // validateInterceptionCursor checks that a pagination cursor refers to an
 // existing interception. When sessionID is non-empty the interception must
 // also belong to that session. Returns errInvalidCursor on failure so

@@ -1839,6 +1839,43 @@ func TestAIBridgeListProviders(t *testing.T) {
 	})
 }
 
+func TestAIGatewayRetention(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := codersdk.NewExperimentalClient(client).AIGatewayRetention(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("MemberReadsRetention", func(t *testing.T) {
+		t.Parallel()
+
+		opts := aibridgeOpts(t)
+		opts.DeploymentValues.AI.BridgeConfig.Retention = serpent.Duration(14 * 24 * time.Hour)
+		adminClient, firstUser := coderdenttest.New(t, opts)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		retention, err := codersdk.NewExperimentalClient(memberClient).AIGatewayRetention(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIGatewayRetention{
+			RetentionMillis: (14 * 24 * time.Hour).Milliseconds(),
+		}, retention)
+	})
+}
+
 func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 
