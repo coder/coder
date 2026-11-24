@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, render as testingLibraryRender } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mockApiError } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -38,9 +38,19 @@ describe(Filter.name, () => {
 		).toHaveAccessibleName(/^User status\s*\(opens in new tab\)$/);
 	});
 
-	it("describes the search box with the validation error", () => {
+	it("announces a validation error that arrives after a refetch and describes the search box with it", () => {
 		const detail = 'Query param "resource_type" has invalid value';
-		render(
+		const { rerender } = testingLibraryRender(
+			<Filter
+				filter={mockFilter}
+				isLoading={false}
+				optionsSkeleton={null}
+				presets={[]}
+			/>,
+		);
+		const status = screen.getByRole("status");
+
+		rerender(
 			<Filter
 				filter={mockFilter}
 				isLoading={false}
@@ -53,8 +63,11 @@ describe(Filter.name, () => {
 			/>,
 		);
 
-		expect(
-			screen.getByRole("textbox", { name: "Search" }),
-		).toHaveAccessibleDescription(detail);
+		// The live region must be the node that existed before the error.
+		expect(screen.getByRole("status")).toBe(status);
+		expect(status).toHaveTextContent(detail);
+		const searchBox = screen.getByRole("textbox", { name: "Search" });
+		expect(searchBox).toBeInvalid();
+		expect(searchBox).toHaveAccessibleDescription(detail);
 	});
 });
