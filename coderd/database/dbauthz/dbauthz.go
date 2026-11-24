@@ -3883,19 +3883,19 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
-// chatProjectSummaryFilterThreshold is the row count at or above which
-// project summaries are authorized with one partial evaluation instead of a
-// full evaluation per row. Clients refetch summaries on chat watch events,
-// and for an organization member a partial evaluation measured about 6 ms
-// against about 0.03 ms per row, so rbac.DefaultFilterThreshold would make
-// nearly every refetch pay for a partial evaluation that only a list of
-// about 200 projects recovers.
-const chatProjectSummaryFilterThreshold = 200
-
 // GetChatProjectSummariesByUserID returns a user's pins and chat counts,
 // which are that user's personal data, so the read is authorized on the
 // user as well as on each project.
 func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	// The row count at or above which rows are authorized with one partial
+	// evaluation instead of a full evaluation each. Clients refetch
+	// summaries on chat watch events, and for an organization member a
+	// partial evaluation measured about 6 ms against about 0.03 ms per row,
+	// so rbac.DefaultFilterThreshold would make nearly every refetch pay
+	// for a partial evaluation that only a list of about 200 projects
+	// recovers.
+	const filterThreshold = 200
+
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(userID)); err != nil {
 		return nil, err
 	}
@@ -3907,7 +3907,7 @@ func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, userID uu
 	if err != nil {
 		return nil, xerrors.Errorf("fetch object: %w", err)
 	}
-	return rbac.Filter(ctx, q.auth, act, policy.ActionRead, rows, chatProjectSummaryFilterThreshold)
+	return rbac.Filter(ctx, q.auth, act, policy.ActionRead, rows, filterThreshold)
 }
 
 // GetChatProjectTemplatesByProjectIDs authorizes each attachment through its
