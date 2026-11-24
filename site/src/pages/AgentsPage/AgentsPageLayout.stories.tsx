@@ -739,6 +739,36 @@ export const ResizableSidebarKeyboard: Story = {
 	},
 };
 
+// At the minimum width, so the menu also shows "Decrease width" disabled.
+export const ResizableSidebarContextMenu: Story = {
+	beforeEach: () => {
+		mockChats([
+			buildChat({
+				id: "chat-resize-menu",
+				title: "Resize menu agent",
+				updated_at: todayTimestamp,
+			}),
+		]);
+		localStorage.setItem(
+			LEFT_SIDEBAR_STORAGE_KEY,
+			String(LEFT_SIDEBAR_MIN_WIDTH),
+		);
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const handle = within(canvasElement).getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		fireEvent.contextMenu(handle, {
+			clientX: handle.getBoundingClientRect().left,
+			clientY: 120,
+		});
+		await screen.findByRole("menuitem", { name: "Reset width" });
+	},
+};
+
 // The layout never resolves the chats query, so the sidebar stays
 // in its loading state.
 export const LoadingChats: Story = {
