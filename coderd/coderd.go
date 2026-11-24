@@ -942,18 +942,21 @@ func New(options *Options) *API {
 				)
 			}
 			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
-				Logger:                         options.Logger.Named("chatd"),
-				Database:                       options.Database,
-				ReplicaID:                      api.ID,
-				StreamPartsDialer:              options.ChatStreamPartsDialer,
-				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-				AllowBYOKSet:                   true,
-				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-				StreamSilenceTimeout:           streamSilenceTimeout,
-				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
-				Experiments:                    experiments,
+				Logger:                     options.Logger.Named("chatd"),
+				Database:                   options.Database,
+				ReplicaID:                  api.ID,
+				StreamPartsDialer:          options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:         int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				AllowBYOK:                  options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:               true,
+				AIBridgeTransportFactory:   &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:      options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				StreamSilenceTimeout:       streamSilenceTimeout,
+				DisableCallerSuppliedTools: options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
+				Experiments:                experiments,
+				AutomationsEnabled: func(ctx context.Context, ownerID uuid.UUID) bool {
+					return api.ExperimentEvaluator.Enabled(ctx, ownerID, codersdk.ExperimentChatAutomations)
+				},
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,

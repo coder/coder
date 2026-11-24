@@ -760,6 +760,108 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat automation",
+                "operationId": "update-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat automation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/automations/{automation}/runs": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Run chat automation now",
+                "operationId": "run-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunResult"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/organizations/{organization}/chats/projects": {
@@ -21087,6 +21189,7 @@ const docTemplate = `{
                 "chat_automation:create",
                 "chat_automation:delete",
                 "chat_automation:read",
+                "chat_automation:run",
                 "chat_automation:update",
                 "chat_model_config:*",
                 "chat_model_config:create",
@@ -21360,6 +21463,7 @@ const docTemplate = `{
                 "APIKeyScopeChatAutomationCreate",
                 "APIKeyScopeChatAutomationDelete",
                 "APIKeyScopeChatAutomationRead",
+                "APIKeyScopeChatAutomationRun",
                 "APIKeyScopeChatAutomationUpdate",
                 "APIKeyScopeChatModelConfigAll",
                 "APIKeyScopeChatModelConfigCreate",
@@ -22276,6 +22380,11 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "automation_id": {
+                    "description": "AutomationID is the chat automation whose run created this chat.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_id": {
                     "type": "string",
                     "format": "uuid"
@@ -22699,6 +22808,10 @@ const docTemplate = `{
                 "reason": {
                     "description": "Reason says why a run was skipped or refused. It is empty otherwise.",
                     "type": "string"
+                },
+                "unaccepted_count": {
+                    "description": "UnacceptedCount is how many runs were skipped or refused since the\nlast accepted run.",
+                    "type": "integer"
                 }
             }
         },
@@ -22714,6 +22827,32 @@ const docTemplate = `{
                 "ChatAutomationRunOutcomeSkipped",
                 "ChatAutomationRunOutcomeRefused"
             ]
+        },
+        "codersdk.ChatAutomationRunResult": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "description": "ChatID is the chat that received the message.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "outcome": {
+                    "enum": [
+                        "accepted",
+                        "skipped",
+                        "refused"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunOutcome"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "Reason says why the run was skipped or refused. It is empty otherwise.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatAutomationTargetMode": {
             "type": "string",
@@ -23318,6 +23457,11 @@ const docTemplate = `{
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation whose run sent this message.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -31627,6 +31771,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "read_secret",
+                "run",
                 "ssh",
                 "share",
                 "unassign",
@@ -31648,6 +31793,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionReadSecret",
+                "ActionRun",
                 "ActionSSH",
                 "ActionShare",
                 "ActionUnassign",
@@ -33935,6 +34081,17 @@ const docTemplate = `{
             "properties": {
                 "auto_archive_days": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatAutomationRequest": {
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },

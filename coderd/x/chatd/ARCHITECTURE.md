@@ -150,6 +150,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
+- TODO(human): chat automation runs use `SendMessage(m, queue)` only from `W` and `E0`, under the chat row lock and then the automation advisory lock, and `Create(initialMessages, running)` for `new_chat` targets. The message, and a created chat, carry `automation_id`.
 
 ### Transitions used by the chat worker
 
@@ -857,6 +858,8 @@ The chat worker is responsible for:
 - cleaning up runners when a chat is no longer owned by the runner, which it detects by inspecting `chat:update:{chat_id}` notifications and database sync results.
 
 A chat worker is identified by a **worker ID**, which is regenerated on worker startup.
+
+TODO(human): describe the automation loop. Every 30 seconds each worker claims the due chat automation schedules with `FOR UPDATE SKIP LOCKED`, moves each to its next occurrence in the claim transaction, and runs it: an idle target chat gets the message, a busy one is skipped, and an occurrence more than two ticks late is skipped as missed.
 
 ## Organization-local model selection and fallback
 

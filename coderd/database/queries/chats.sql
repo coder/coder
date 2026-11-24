@@ -56,7 +56,8 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at
+        updated_chats.title_updated_at,
+        updated_chats.automation_id
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -125,7 +126,8 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at
+        updated_chats.title_updated_at,
+        updated_chats.automation_id
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -356,6 +358,16 @@ FROM batch WHERE cm.id = batch.id;
 SELECT *
 FROM chats_expanded
 WHERE id = @id::uuid;
+
+-- name: CountActiveChatsByAutomationID :one
+-- Counts the chats that an automation created and that are still working:
+-- not archived, and not idle in waiting or error.
+SELECT COUNT(*)::bigint
+FROM chats
+WHERE
+    automation_id = @automation_id::uuid
+    AND NOT archived
+    AND status NOT IN ('waiting', 'error');
 
 -- name: GetChatFamilyIDsByRootID :many
 -- Returns the chat IDs of every chat in a family (root + all children)
@@ -898,7 +910,8 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type
+    client_type,
+    automation_id
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
@@ -918,7 +931,8 @@ INSERT INTO chats (
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
-    @client_type::chat_client_type
+    @client_type::chat_client_type,
+    sqlc.narg('automation_id')::uuid
 )
 RETURNING *
 ),
@@ -973,7 +987,8 @@ chats_expanded AS (
         inserted_chat.context_error,
         inserted_chat.compaction_requested_at,
         inserted_chat.title_source,
-        inserted_chat.title_updated_at
+        inserted_chat.title_updated_at,
+        inserted_chat.automation_id
     FROM
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
@@ -1052,7 +1067,8 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id
+        queued_message_id,
+        automation_id
     )
     SELECT
         allocated.id,
@@ -1075,7 +1091,8 @@ inserted AS (
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
         NULLIF((@provider_response_id::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0),
+        NULLIF((@automation_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
     RETURNING *
 )
@@ -1153,7 +1170,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1224,7 +1242,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1306,7 +1325,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1377,7 +1397,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1468,7 +1489,8 @@ chats_expanded AS (
         result_chat.context_error,
         result_chat.compaction_requested_at,
         result_chat.title_source,
-        result_chat.title_updated_at
+        result_chat.title_updated_at,
+        result_chat.automation_id
     FROM
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
@@ -1538,7 +1560,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1637,7 +1660,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1945,7 +1969,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -2213,7 +2238,8 @@ chats_expanded AS (
         locked_chat.context_error,
         locked_chat.compaction_requested_at,
         locked_chat.title_source,
-        locked_chat.title_updated_at
+        locked_chat.title_updated_at,
+        locked_chat.automation_id
     FROM
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
@@ -2280,7 +2306,8 @@ chats_expanded AS (
         shared_chat.context_error,
         shared_chat.compaction_requested_at,
         shared_chat.title_source,
-        shared_chat.title_updated_at
+        shared_chat.title_updated_at,
+        shared_chat.automation_id
     FROM
         shared_chat
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
@@ -2760,7 +2787,8 @@ chats_expanded AS (
         bumped_chat.context_error,
         bumped_chat.compaction_requested_at,
         bumped_chat.title_source,
-        bumped_chat.title_updated_at
+        bumped_chat.title_updated_at,
+        bumped_chat.automation_id
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
@@ -2854,7 +2882,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -2924,7 +2953,8 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at
+        updated_chat.title_updated_at,
+        updated_chat.automation_id
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id

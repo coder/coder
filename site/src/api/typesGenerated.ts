@@ -852,6 +852,7 @@ export type APIKeyScope =
 	| "chat_automation:create"
 	| "chat_automation:delete"
 	| "chat_automation:read"
+	| "chat_automation:run"
 	| "chat_automation:update"
 	| "chat:create"
 	| "chat:delete"
@@ -1125,6 +1126,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_automation:create",
 	"chat_automation:delete",
 	"chat_automation:read",
+	"chat_automation:run",
 	"chat_automation:update",
 	"chat:create",
 	"chat:delete",
@@ -2185,6 +2187,10 @@ export interface Chat {
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
+	/**
+	 * AutomationID is the chat automation whose run created this chat.
+	 */
+	readonly automation_id?: string;
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
@@ -2441,6 +2447,11 @@ export interface ChatAutomationLastRun {
 	 */
 	readonly reason: string;
 	readonly chat_id: string | null;
+	/**
+	 * UnacceptedCount is how many runs were skipped or refused since the
+	 * last accepted run.
+	 */
+	readonly unaccepted_count: number;
 }
 
 // From codersdk/chatautomations.go
@@ -2451,6 +2462,22 @@ export const ChatAutomationRunOutcomes: ChatAutomationRunOutcome[] = [
 	"refused",
 	"skipped",
 ];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationRunResult is the outcome of a Run now request.
+ */
+export interface ChatAutomationRunResult {
+	readonly outcome: ChatAutomationRunOutcome;
+	/**
+	 * Reason says why the run was skipped or refused. It is empty otherwise.
+	 */
+	readonly reason: string;
+	/**
+	 * ChatID is the chat that received the message.
+	 */
+	readonly chat_id: string | null;
+}
 
 // From codersdk/chatautomations.go
 export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
@@ -3146,6 +3173,10 @@ export interface ChatMessage {
 	 * version that did not record the link created it.
 	 */
 	readonly queued_message_id?: number;
+	/**
+	 * AutomationID is the chat automation whose run sent this message.
+	 */
+	readonly automation_id?: string;
 }
 
 // From codersdk/chats.go
@@ -9634,6 +9665,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "read_secret"
+	| "run"
 	| "ssh"
 	| "share"
 	| "unassign"
@@ -9655,6 +9687,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"read_secret",
+	"run",
 	"ssh",
 	"share",
 	"unassign",
@@ -11564,6 +11597,15 @@ export interface UpdateChatACL {
  */
 export interface UpdateChatAutoArchiveDaysRequest {
 	readonly auto_archive_days: number;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * UpdateChatAutomationRequest turns an automation on or off. Turning it on
+ * resumes with the next occurrence; missed occurrences do not run.
+ */
+export interface UpdateChatAutomationRequest {
+	readonly enabled: boolean | null;
 }
 
 // From codersdk/chats.go

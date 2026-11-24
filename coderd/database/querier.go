@@ -52,6 +52,7 @@ type sqlcQuerier interface {
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
+	AdvanceChatAutomationNextRunAt(ctx context.Context, arg AdvanceChatAutomationNextRunAtParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
@@ -87,6 +88,9 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
+	// a different set; the caller advances each row in the same transaction.
+	ClaimDueChatAutomationSchedules(ctx context.Context, arg ClaimDueChatAutomationSchedulesParams) ([]ChatAutomation, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -104,6 +108,9 @@ type sqlcQuerier interface {
 	// history. Used when the workspace is deleted.
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
+	// Counts the chats that an automation created and that are still working:
+	// not archived, and not idle in waiting or error.
+	CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Counts the automations of one owner across all organizations.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
@@ -1631,6 +1638,9 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error)
+	// updated_at tracks changes by people, so a run leaves it alone.
+	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a

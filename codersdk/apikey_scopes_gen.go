@@ -63,6 +63,7 @@ const (
 	APIKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
 	APIKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
 	APIKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	APIKeyScopeChatAutomationRun                   APIKeyScope = "chat_automation:run"
 	APIKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
 	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"

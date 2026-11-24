@@ -41,6 +41,9 @@ type ChatAutomationLastRun struct {
 	// Reason says why a run was skipped or refused. It is empty otherwise.
 	Reason string     `json:"reason"`
 	ChatID *uuid.UUID `json:"chat_id" format:"uuid"`
+	// UnacceptedCount is how many runs were skipped or refused since the
+	// last accepted run.
+	UnacceptedCount int32 `json:"unaccepted_count"`
 }
 
 // ChatAutomationChat identifies a chat that an automation refers to. The API
@@ -103,6 +106,21 @@ type CreateChatAutomationRequest struct {
 	Prompt           string `json:"prompt" validate:"required"`
 }
 
+// UpdateChatAutomationRequest turns an automation on or off. Turning it on
+// resumes with the next occurrence; missed occurrences do not run.
+type UpdateChatAutomationRequest struct {
+	Enabled *bool `json:"enabled" validate:"required"`
+}
+
+// ChatAutomationRunResult is the outcome of a Run now request.
+type ChatAutomationRunResult struct {
+	Outcome ChatAutomationRunOutcome `json:"outcome" enums:"accepted,skipped,refused"`
+	// Reason says why the run was skipped or refused. It is empty otherwise.
+	Reason string `json:"reason"`
+	// ChatID is the chat that received the message.
+	ChatID *uuid.UUID `json:"chat_id" format:"uuid"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", organizationID)
 }
@@ -127,4 +145,15 @@ func (c *ExperimentalClient) ChatAutomation(ctx context.Context, organizationID,
 // DeleteChatAutomation deletes a chat automation.
 func (c *ExperimentalClient) DeleteChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID) error {
 	return requestNoContent(ctx, c.Client, http.MethodDelete, fmt.Sprintf("%s/%s", chatAutomationsPath(organizationID), automationID), nil)
+}
+
+// UpdateChatAutomation turns a chat automation on or off.
+func (c *ExperimentalClient) UpdateChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID, req UpdateChatAutomationRequest) (ChatAutomation, error) {
+	return requestJSON[ChatAutomation](ctx, c.Client, http.MethodPatch, fmt.Sprintf("%s/%s", chatAutomationsPath(organizationID), automationID), http.StatusOK, req)
+}
+
+// RunChatAutomation sends the saved prompt of an enabled schedule now and
+// returns the outcome.
+func (c *ExperimentalClient) RunChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID) (ChatAutomationRunResult, error) {
+	return requestJSON[ChatAutomationRunResult](ctx, c.Client, http.MethodPost, fmt.Sprintf("%s/%s/runs", chatAutomationsPath(organizationID), automationID), http.StatusOK, nil)
 }

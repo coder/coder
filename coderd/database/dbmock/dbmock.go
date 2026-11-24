@@ -132,6 +132,20 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
 }
 
+// AdvanceChatAutomationNextRunAt mocks base method.
+func (m *MockStore) AdvanceChatAutomationNextRunAt(ctx context.Context, arg database.AdvanceChatAutomationNextRunAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdvanceChatAutomationNextRunAt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AdvanceChatAutomationNextRunAt indicates an expected call of AdvanceChatAutomationNextRunAt.
+func (mr *MockStoreMockRecorder) AdvanceChatAutomationNextRunAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatAutomationNextRunAt", reflect.TypeOf((*MockStore)(nil).AdvanceChatAutomationNextRunAt), ctx, arg)
+}
+
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -337,6 +351,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ClaimDueChatAutomationSchedules mocks base method.
+func (m *MockStore) ClaimDueChatAutomationSchedules(ctx context.Context, arg database.ClaimDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimDueChatAutomationSchedules", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimDueChatAutomationSchedules indicates an expected call of ClaimDueChatAutomationSchedules.
+func (mr *MockStoreMockRecorder) ClaimDueChatAutomationSchedules(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimDueChatAutomationSchedules", reflect.TypeOf((*MockStore)(nil).ClaimDueChatAutomationSchedules), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -463,6 +492,21 @@ func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.Coun
 func (mr *MockStoreMockRecorder) CountAIBridgeSessions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAIBridgeSessions", reflect.TypeOf((*MockStore)(nil).CountAIBridgeSessions), ctx, arg)
+}
+
+// CountActiveChatsByAutomationID mocks base method.
+func (m *MockStore) CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountActiveChatsByAutomationID", ctx, automationID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountActiveChatsByAutomationID indicates an expected call of CountActiveChatsByAutomationID.
+func (mr *MockStoreMockRecorder) CountActiveChatsByAutomationID(ctx, automationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveChatsByAutomationID", reflect.TypeOf((*MockStore)(nil).CountActiveChatsByAutomationID), ctx, automationID)
 }
 
 // CountAuditLogs mocks base method.
@@ -10833,6 +10877,35 @@ func (m *MockStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateCh
 func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
+}
+
+// UpdateChatAutomationEnabled mocks base method.
+func (m *MockStore) UpdateChatAutomationEnabled(ctx context.Context, arg database.UpdateChatAutomationEnabledParams) (database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAutomationEnabled", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAutomationEnabled indicates an expected call of UpdateChatAutomationEnabled.
+func (mr *MockStoreMockRecorder) UpdateChatAutomationEnabled(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationEnabled", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationEnabled), ctx, arg)
+}
+
+// UpdateChatAutomationLastRun mocks base method.
+func (m *MockStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAutomationLastRun", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatAutomationLastRun indicates an expected call of UpdateChatAutomationLastRun.
+func (mr *MockStoreMockRecorder) UpdateChatAutomationLastRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationLastRun", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationLastRun), ctx, arg)
 }
 
 // UpdateChatBuildAgentBinding mocks base method.

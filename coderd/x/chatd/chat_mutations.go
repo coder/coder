@@ -233,6 +233,7 @@ func (p *Server) sendMessageLocked(
 	// Queue capacity is enforced inside tx.SendMessage; this
 	// wrapper only propagates the typed error.
 	message := userMessage(prepared.content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+	message.AutomationID = opts.AutomationID
 	sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 		// The writes above may have made the snapshot stale, so the
 		// transition reads the chat itself.

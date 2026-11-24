@@ -1912,6 +1912,14 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
+func (q *querier) AdvanceChatAutomationNextRunAt(ctx context.Context, arg database.AdvanceChatAutomationNextRunAtParams) error {
+	// Only the scheduler moves the schedule cursor.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return err
+	}
+	return q.db.AdvanceChatAutomationNextRunAt(ctx, arg)
+}
+
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions
 	// should be allowed to call this.
@@ -2027,6 +2035,14 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ClaimDueChatAutomationSchedules(ctx context.Context, arg database.ClaimDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	// The claim spans every owner and advances the rows that it returns.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return nil, err
+	}
+	return q.db.ClaimDueChatAutomationSchedules(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -2115,6 +2131,15 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prep)
+}
+
+func (q *querier) CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error) {
+	// The chats of one automation share its owner, but the count is a
+	// scheduler check, so it needs read on every chat.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.CountActiveChatsByAutomationID(ctx, automationID)
 }
 
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
@@ -8031,6 +8056,14 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatAutomationEnabled(ctx context.Context, arg database.UpdateChatAutomationEnabledParams) (database.ChatAutomation, error) {
+	panic("not implemented")
+}
+
+func (q *querier) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

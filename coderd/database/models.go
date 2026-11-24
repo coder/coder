@@ -617,6 +617,7 @@ const (
 	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
 	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatAutomationRun                   APIKeyScope = "chat_automation:run"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -924,7 +925,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatAutomationCreate,
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
-		ApiKeyScopeChatAutomationDelete:
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomationRun:
 		return true
 	}
 	return false
@@ -1201,6 +1203,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
 		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomationRun,
 	}
 }
 
@@ -5620,6 +5623,7 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+	AutomationID             uuid.NullUUID           `db:"automation_id" json:"automation_id"`
 }
 
 // Saved prompts that Coder sends to a chat as their owner when the automation runs.
@@ -5650,6 +5654,8 @@ type ChatAutomation struct {
 	LastRunChatID uuid.NullUUID `db:"last_run_chat_id" json:"last_run_chat_id"`
 	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	// Skipped and refused runs since the last accepted run.
+	LastRunUnacceptedCount int32 `db:"last_run_unaccepted_count" json:"last_run_unaccepted_count"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5812,6 +5818,8 @@ type ChatMessage struct {
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
 	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
+	// Chat automation whose run sent this message. Not a foreign key: it stays after the automation is deleted.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
 }
 
 type ChatModelConfig struct {
@@ -5983,6 +5991,8 @@ type ChatTable struct {
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
 	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
+	// Chat automation whose run created this chat. Not a foreign key: it stays after the automation is deleted.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
 }
 
 type ChatUsageLimitConfig struct {

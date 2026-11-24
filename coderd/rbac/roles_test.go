@@ -1565,9 +1565,10 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// An automation runs as its owner, so only the owner creates one.
-			Name:     "ChatAutomationCreate",
-			Actions:  []policy.Action{policy.ActionCreate},
+			// An automation runs as its owner, so only the owner creates or
+			// runs one.
+			Name:     "ChatAutomationCreateRun",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRun},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAgentsAccessUser},

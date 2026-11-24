@@ -133,6 +133,7 @@ var (
 	//  - "ActionCreate" :: create a new chat automation
 	//  - "ActionDelete" :: delete a chat automation
 	//  - "ActionRead" :: read chat automations
+	//  - "ActionRun" :: run a chat automation now
 	//  - "ActionUpdate" :: update, enable or disable a chat automation
 	ResourceChatAutomation = Object{
 		Type: "chat_automation",
@@ -633,6 +634,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionReadSecret,
+		policy.ActionRun,
 		policy.ActionSSH,
 		policy.ActionShare,
 		policy.ActionUnassign,

@@ -75,3 +75,44 @@ WHERE owner_id = @owner_id::uuid;
 -- name: DeleteChatAutomationByID :exec
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
+
+-- name: ClaimDueChatAutomationSchedules :many
+-- Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
+-- a different set; the caller advances each row in the same transaction.
+SELECT *
+FROM chat_automations
+WHERE
+    kind = 'schedule'
+    AND enabled
+    AND schedule_next_run_at <= @now::timestamptz
+ORDER BY schedule_next_run_at
+LIMIT @limit_count::int
+FOR UPDATE SKIP LOCKED;
+
+-- name: AdvanceChatAutomationNextRunAt :exec
+UPDATE chat_automations
+SET schedule_next_run_at = sqlc.narg('schedule_next_run_at')::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateChatAutomationLastRun :exec
+-- updated_at tracks changes by people, so a run leaves it alone.
+UPDATE chat_automations
+SET
+    last_run_at = @last_run_at::timestamptz,
+    last_run_outcome = @last_run_outcome::chat_automation_run_outcome,
+    last_run_reason = sqlc.narg('last_run_reason')::text,
+    last_run_chat_id = sqlc.narg('last_run_chat_id')::uuid,
+    last_run_unaccepted_count = CASE
+        WHEN @last_run_outcome::chat_automation_run_outcome = 'accepted' THEN 0
+        ELSE last_run_unaccepted_count + 1
+    END
+WHERE id = @id::uuid;
+
+-- name: UpdateChatAutomationEnabled :one
+UPDATE chat_automations
+SET
+    enabled = @enabled::boolean,
+    schedule_next_run_at = sqlc.narg('schedule_next_run_at')::timestamptz,
+    updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid
+RETURNING *;

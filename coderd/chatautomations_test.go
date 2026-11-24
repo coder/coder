@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -39,7 +40,10 @@ func TestChatAutomations(t *testing.T) {
 	asMember := codersdk.NewExperimentalClient(memberClient)
 	asAdmin := codersdk.NewExperimentalClient(adminClient)
 
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org})
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: org, AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, IsDefault: true,
+	})
 	target := dbgen.Chat(t, db, database.Chat{OrganizationID: org, OwnerID: member.ID, LastModelConfigID: model.ID, Title: "Target"})
 	// A daily schedule in a zone with daylight saving time.
 	mine := dbgen.ChatAutomation(t, db, database.ChatAutomation{
@@ -115,6 +119,27 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, status(t, err))
 		_, err = asMember.ChatAutomation(ctx, org, elsewhere.ID)
 		require.Equal(t, http.StatusNotFound, status(t, err))
+	})
+
+	t.Run("RunNow", func(t *testing.T) {
+		// An administrator manages the automation but cannot send its prompt
+		// as the owner.
+		_, err := asAdmin.RunChatAutomation(ctx, org, mine.ID)
+		require.Equal(t, http.StatusForbidden, status(t, err))
+		result, err := asMember.RunChatAutomation(ctx, org, mine.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatAutomationRunResult{Outcome: codersdk.ChatAutomationRunOutcomeAccepted, ChatID: &target.ID}, result)
+	})
+
+	t.Run("Disable", func(t *testing.T) {
+		got, err := asAdmin.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		require.False(t, got.Enabled)
+		require.Nil(t, got.ScheduleNextRunAt)
+		// Turning it on again schedules the next occurrence, not a missed one.
+		got, err = asMember.UpdateChatAutomation(ctx, org, mine.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
+		require.NoError(t, err)
+		require.Equal(t, got.NextRunTimes[0], *got.ScheduleNextRunAt)
 	})
 
 	t.Run("Delete", func(t *testing.T) {

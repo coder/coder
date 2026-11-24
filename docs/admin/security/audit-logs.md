@@ -279,6 +279,7 @@ Actions: `create`, `write`
 <tbody>
 <tr><td><code>agent_id</code></td><td>No</td></tr>
 <tr><td><code>archived</code></td><td>Yes</td></tr>
+<tr><td><code>automation_id</code></td><td>No</td></tr>
 <tr><td><code>build_id</code></td><td>No</td></tr>
 <tr><td><code>client_type</code></td><td>No</td></tr>
 <tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
@@ -332,7 +333,7 @@ Actions: `create`, `write`
 
 ### ChatAutomation
 
-Actions: `delete`
+Actions: `create`, `write`, `delete`, `start`
 
 <table width="100%">
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
@@ -346,6 +347,7 @@ Actions: `delete`
 <tr><td><code>last_run_chat_id</code></td><td>No</td></tr>
 <tr><td><code>last_run_outcome</code></td><td>No</td></tr>
 <tr><td><code>last_run_reason</code></td><td>No</td></tr>
+<tr><td><code>last_run_unaccepted_count</code></td><td>No</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
