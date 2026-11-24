@@ -20,7 +20,7 @@ import {
 	type SpawnModelDisplay,
 } from "./spawnModelDisplay";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
-import { ToolCall } from "./ToolCall";
+import { ToolCall, useInToolCallSummary } from "./ToolCall";
 import { isSubagentSuccessStatus, type ToolStatus } from "./utils";
 
 const SUBAGENT_VERBS: Record<
@@ -165,6 +165,9 @@ export const SubagentTool: React.FC<{
 	thumbnailFileId,
 }) => {
 	const location = useLocation();
+	// A one-line summary row shows no preview.
+	const inSummary = useInToolCallSummary();
+	const desktopPreview = showDesktopPreview && !inSummary;
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const wantsModelDisplay =
@@ -234,7 +237,7 @@ export const SubagentTool: React.FC<{
 				)}
 			</ToolCall.HeaderLayout>
 
-			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
+			{desktopPreview && desktopChatId && toolStatus !== "completed" && (
 				<div className="mt-1.5 overflow-hidden rounded-lg border">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
@@ -243,7 +246,7 @@ export const SubagentTool: React.FC<{
 				</div>
 			)}
 
-			{recordingFileId && toolStatus === "completed" && (
+			{recordingFileId && !inSummary && toolStatus === "completed" && (
 				<div className="mt-1.5 w-fit">
 					<RecordingPreview
 						recordingFileId={recordingFileId}

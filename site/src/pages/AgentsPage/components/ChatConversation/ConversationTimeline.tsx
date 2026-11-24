@@ -39,8 +39,7 @@ import {
 	MessageActionBar,
 	UserMessageActions,
 } from "./MessageActions";
-import { isSummaryRowBlock } from "./MessageBlocks";
-import { ResponseTextShownChangeContext } from "./MessageText";
+import { type BlockListProps, isSummaryRowBlock } from "./MessageBlocks";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
@@ -165,6 +164,7 @@ const ChatMessageItem = memo<{
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
+	onResponseTextShownChange?: BlockListProps["onResponseTextShownChange"];
 }>(
 	({
 		organizationId,
@@ -196,6 +196,7 @@ const ChatMessageItem = memo<{
 		prevUserMessageKey,
 		nextUserMessageKey,
 		onJumpToUserMessage,
+		onResponseTextShownChange,
 
 		urlTransform,
 		mcpServers,
@@ -360,20 +361,20 @@ const ChatMessageItem = memo<{
 									onTextFileClick={openTextPreview}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
+									onResponseTextShownChange={onResponseTextShownChange}
 								/>
 							</MessageContent>
 						</Message>
 					)}
 				</ConversationItem>
-				{!inSummary &&
-					parsed?.hookNotices.map((notice, index) => (
-						<LifecycleHookNotice
-							key={`${renderKey}-hook-notice-${index}`}
-							urlTransform={urlTransform}
-						>
-							{notice}
-						</LifecycleHookNotice>
-					))}
+				{parsed?.hookNotices.map((notice, index) => (
+					<LifecycleHookNotice
+						key={`${renderKey}-hook-notice-${index}`}
+						urlTransform={urlTransform}
+					>
+						{notice}
+					</LifecycleHookNotice>
+				))}
 				{isUser ? (
 					<UserMessageActions
 						message={message}
@@ -677,25 +678,22 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			};
 			if (row.type === "live") {
 				return (
-					<ResponseTextShownChangeContext
+					<ChatMessageItem
 						key={slice.key}
-						value={(shown) => countReplyText(slice.key, shown)}
-					>
-						<ChatMessageItem
-							{...sliceProps}
-							organizationId={organizationId}
-							liveStatus={liveStatus}
-							liveBlocks={liveBlocks}
-							liveTools={liveTools}
-							subagentStatusOverrides={
-								showsStreamOutput ? subagentStatusOverrides : undefined
-							}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					</ResponseTextShownChangeContext>
+						{...sliceProps}
+						organizationId={organizationId}
+						liveStatus={liveStatus}
+						liveBlocks={liveBlocks}
+						liveTools={liveTools}
+						subagentStatusOverrides={
+							showsStreamOutput ? subagentStatusOverrides : undefined
+						}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						onResponseTextShownChange={countReplyText}
+					/>
 				);
 			}
 

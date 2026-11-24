@@ -1,13 +1,5 @@
 import { cn } from "cn";
-import {
-	createContext,
-	memo,
-	useContext,
-	useEffectEvent,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 import { Response } from "../ChatElements/Response";
@@ -133,42 +125,54 @@ export const ReasoningDisclosure = memo<{
 	},
 );
 
-/**
- * Told with true when a response block starts showing text and with false
- * when it stops. Smoothing can hold streamed text back for a few frames
- * after its block renders.
- */
-export const ResponseTextShownChangeContext = createContext<
-	((shown: boolean) => void) | undefined
->(undefined);
-
 /** Smooths live response text and renders the full text once committed. */
 export const ResponseBlock = memo<{
 	text: string;
 	isStreaming: boolean;
 	streamKey: string;
 	urlTransform?: UrlTransform;
-}>(({ text, isStreaming, streamKey, urlTransform }) => {
+	/**
+	 * Told with the stream key when the block starts and stops showing text.
+	 * Smoothing holds streamed text back for a few frames, and Markdown
+	 * syntax alone, such as a heading marker, renders none.
+	 */
+	onTextShownChange?: (streamKey: string, shown: boolean) => void;
+}>(({ text, isStreaming, streamKey, urlTransform, onTextShownChange }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
 		bypassSmoothing: !isStreaming,
 		streamKey,
 	});
-	const onTextShownChange = useContext(ResponseTextShownChangeContext);
 	const reportTextShown = useEffectEvent((shown: boolean) =>
-		onTextShownChange?.(shown),
+		onTextShownChange?.(streamKey, shown),
 	);
-	const shown = visibleText !== "";
+	const responseRef = useRef<HTMLDivElement>(null);
+	const reportedShown = useRef(false);
 	useLayoutEffect(() => {
-		if (!shown) {
-			return;
+		const shown = Boolean(
+			onTextShownChange && responseRef.current?.textContent?.trim(),
+		);
+		if (shown !== reportedShown.current) {
+			reportedShown.current = shown;
+			reportTextShown(shown);
 		}
-		reportTextShown(true);
-		return () => reportTextShown(false);
-	}, [shown]);
+	});
+	useLayoutEffect(
+		() => () => {
+			if (reportedShown.current) {
+				reportedShown.current = false;
+				reportTextShown(false);
+			}
+		},
+		[],
+	);
 	return (
-		<Response streaming={isStreaming} urlTransform={urlTransform}>
+		<Response
+			ref={responseRef}
+			streaming={isStreaming}
+			urlTransform={urlTransform}
+		>
 			{isStreaming ? visibleText : text}
 		</Response>
 	);

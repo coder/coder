@@ -10,6 +10,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useLayoutEffect } from "react";
 import { QueryClientProvider } from "react-query";
+import { MemoryRouter } from "react-router";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -89,36 +90,39 @@ function renderTimeline(
 		...props
 	}: TimelineStage) => (
 		<QueryClientProvider client={queryClient}>
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<MessageScroller.Root>
-					<MessageScroller.Viewport>
-						<MessageScroller.Content>
-							<ConversationTimeline
-								organizationId="organization-id"
-								urlTransform={defaultUrlTransform}
-								mcpServers={[]}
-								streamTools={[]}
-								liveStatus={buildLiveStatus()}
-								subagentStatusOverrides={new Map()}
-								subagentTitles={new Map()}
-								subagentVariants={new Map()}
-								parsedMessages={parseMessagesWithMergedTools(messages, {
-									pendingToolCallIDs,
-								})}
-								chatStatus={null}
-								hasMoreMessages={false}
-								isChatCompleted
-								showDesktopPreviews={false}
-								hasActiveStream={false}
-								isAwaitingFirstStreamChunk={false}
-								onSendAskUserQuestionResponse={vi.fn()}
-								{...props}
-							/>
-							{afterTimeline?.()}
-						</MessageScroller.Content>
-					</MessageScroller.Viewport>
-				</MessageScroller.Root>
-			</MessageScroller.Provider>
+			{/* Sub-agent rows link to their chats. */}
+			<MemoryRouter>
+				<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+					<MessageScroller.Root>
+						<MessageScroller.Viewport>
+							<MessageScroller.Content>
+								<ConversationTimeline
+									organizationId="organization-id"
+									urlTransform={defaultUrlTransform}
+									mcpServers={[]}
+									streamTools={[]}
+									liveStatus={buildLiveStatus()}
+									subagentStatusOverrides={new Map()}
+									subagentTitles={new Map()}
+									subagentVariants={new Map()}
+									parsedMessages={parseMessagesWithMergedTools(messages, {
+										pendingToolCallIDs,
+									})}
+									chatStatus={null}
+									hasMoreMessages={false}
+									isChatCompleted
+									showDesktopPreviews={false}
+									hasActiveStream={false}
+									isAwaitingFirstStreamChunk={false}
+									onSendAskUserQuestionResponse={vi.fn()}
+									{...props}
+								/>
+								{afterTimeline?.()}
+							</MessageScroller.Content>
+						</MessageScroller.Viewport>
+					</MessageScroller.Root>
+				</MessageScroller.Provider>
+			</MemoryRouter>
 		</QueryClientProvider>
 	);
 
@@ -572,6 +576,45 @@ const streamingStage = (
 	]),
 });
 
+/** A prompt, then a computer use sub-agent's wait that saved a recording. */
+const mockRecordedWaitMessages: ChatMessage[] = [
+	MockWorkingMessages[0],
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(1),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "wait",
+				tool_name: "wait_agent",
+				args: { chat_id: "computer-use-chat" },
+				created_at: workingFixtureTime(1),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 3,
+		role: "tool",
+		created_at: workingFixtureTime(4),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "wait",
+				tool_name: "wait_agent",
+				result: {
+					type: "computer_use",
+					status: "completed",
+					recording_file_id: "recording",
+				},
+				created_at: workingFixtureTime(4),
+			},
+		],
+	},
+];
+
 describe("ConversationTimeline live working blocks", () => {
 	it("keeps streamed text mounted between the block it closes and the next step's block", () => {
 		const messages = MockWorkingMessages.slice(0, 3);
@@ -658,6 +701,64 @@ describe("ConversationTimeline live working blocks", () => {
 			]),
 		});
 		expect(thinking).toHaveFocus();
+	});
+
+	it.each([
+		// Smoothing shows a reply's first character a few frames after its
+		// slice renders.
+		["before it shows any text", "The workspace looks healthy.", 0],
+		["while its Markdown renders no text", "##", 10],
+	])(
+		"keeps a collapsed block's peek for a reply %s",
+		async (_name, text, frames) => {
+			const messages = MockWorkingMessages.slice(0, 5);
+			const reasoning = {
+				type: "reasoning",
+				text: "Summarizing the inspection",
+				created_at: workingFixtureTime(13),
+			} as const;
+			const { rerenderStage } = renderTimeline({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([reasoning]),
+			});
+
+			rerenderStage({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([reasoning, { type: "text", text }]),
+			});
+			for (let frame = 0; frame < frames; frame++) {
+				await act(() => new Promise(requestAnimationFrame));
+			}
+			fireEvent.click(screen.getByText("Ran echo second"));
+
+			expect(
+				screen.getByRole("button", { name: /^Working for 12s/ }),
+			).toHaveAttribute("aria-expanded", "true");
+		},
+	);
+
+	it("leaves a collapsed block's peek out of the tab order", async () => {
+		const user = userEvent.setup();
+		renderTimeline({
+			messages: mockRecordedWaitMessages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				{
+					type: "tool-call",
+					tool_call_id: "next",
+					tool_name: "execute",
+					args: { command: "echo next" },
+					created_at: workingFixtureTime(5),
+				},
+			]),
+		});
+
+		screen.getByRole("button", { name: /^Working for/ }).focus();
+		await user.tab();
+
+		expect(document.body).toHaveFocus();
 	});
 
 	it.each([

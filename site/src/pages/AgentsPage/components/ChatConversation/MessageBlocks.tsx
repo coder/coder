@@ -82,6 +82,8 @@ export type BlockListProps = {
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion: boolean;
 	urlTransform: UrlTransform;
+	/** Passed to response blocks, whose stream key is `keyPrefix`. */
+	onResponseTextShownChange?: (streamKey: string, shown: boolean) => void;
 };
 
 // Shared block renderer for durable messages and the live assistant turn.
@@ -108,6 +110,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	askUserQuestionResponseTextByToolId,
 	hasUserResponseAfterAskQuestion,
 	urlTransform,
+	onResponseTextShownChange,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
@@ -120,7 +123,6 @@ export const BlockList: React.FC<BlockListProps> = ({
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
 	const inSummary = useInToolCallSummary();
-	const desktopPreviews = showDesktopPreviews && !inSummary;
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -160,6 +162,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								isStreaming={isStreaming}
 								streamKey={keyPrefix}
 								urlTransform={urlTransform}
+								onTextShownChange={onResponseTextShownChange}
 							/>
 						);
 					case "thinking":
@@ -247,7 +250,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
-								showDesktopPreviews={desktopPreviews}
+								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
@@ -312,7 +315,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					showDesktopPreviews={desktopPreviews}
+					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}
