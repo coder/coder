@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import isEqual from "lodash/isEqual";
 import {
 	CopyIcon,
 	EllipsisIcon,
@@ -184,21 +183,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			hasConnectivityIssues ||
 			hasScriptIssues) &&
 		hasStartupFeatures;
-	const [showLogs, setShowLogs] = useState(defaultShowLogs);
-
-	// Re-apply the default when any of its inputs change, even if the
-	// default itself stays the same.
-	const showLogsInputs = {
-		lifecycleState: agent.lifecycle_state,
-		hasConnectivityIssues,
-		hasScriptIssues,
-		hasStartupFeatures,
-	};
-	const [prevShowLogsInputs, setPrevShowLogsInputs] = useState(showLogsInputs);
-	if (!isEqual(showLogsInputs, prevShowLogsInputs)) {
-		setPrevShowLogsInputs(showLogsInputs);
-		setShowLogs(defaultShowLogs);
-	}
+	// The logs follow the agent's state until the user opens or closes them.
+	const [userShowLogs, setUserShowLogs] = useState<boolean>();
+	const showLogs = userShowLogs ?? defaultShowLogs;
 
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
@@ -530,7 +517,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			</div>
 
 			<section className="border-t">
-				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
+				<Collapsible open={shouldExpandLogs} onOpenChange={setUserShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
 							<Button

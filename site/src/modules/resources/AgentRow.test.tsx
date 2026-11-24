@@ -2,7 +2,6 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import type * as ApiModule from "#/api/api";
-import { watchWorkspaceAgentLogs } from "#/api/api";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	MockTemplate,
@@ -52,14 +51,15 @@ describe("organizeAgentApps", () => {
 });
 
 describe("AgentRow", () => {
-	it("reopens the logs when the agent's lifecycle state changes", async () => {
-		const mockStartingAgent: WorkspaceAgent = {
+	it("follows the agent's state until the user toggles the logs", async () => {
+		const mockReadyAgent: WorkspaceAgent = {
 			...MockWorkspaceAgentStarting,
+			lifecycle_state: "ready",
 			logs_length: 1,
 		};
 
 		const Harness: React.FC = () => {
-			const [agent, setAgent] = useState(mockStartingAgent);
+			const [agent, setAgent] = useState(mockReadyAgent);
 
 			return (
 				<>
@@ -70,6 +70,14 @@ describe("AgentRow", () => {
 						}
 					>
 						Fail startup
+					</button>
+					<button
+						type="button"
+						onClick={() =>
+							setAgent({ ...agent, lifecycle_state: "start_timeout" })
+						}
+					>
+						Time out startup
 					</button>
 					<AgentRow
 						agent={agent}
@@ -84,12 +92,14 @@ describe("AgentRow", () => {
 
 		renderWithAuth(<Harness />);
 		const user = userEvent.setup();
-
-		// The logs open on mount for a starting agent; collapse them.
-		await user.click(await screen.findByRole("button", { name: /^Logs/ }));
-		expect(watchWorkspaceAgentLogs).toHaveBeenCalledTimes(1);
+		const logsToggle = await screen.findByRole("button", { name: /^Logs/ });
+		expect(logsToggle).toHaveAttribute("aria-expanded", "false");
 
 		await user.click(screen.getByRole("button", { name: "Fail startup" }));
-		expect(watchWorkspaceAgentLogs).toHaveBeenCalledTimes(2);
+		expect(logsToggle).toHaveAttribute("aria-expanded", "true");
+
+		await user.click(logsToggle);
+		await user.click(screen.getByRole("button", { name: "Time out startup" }));
+		expect(logsToggle).toHaveAttribute("aria-expanded", "false");
 	});
 });
