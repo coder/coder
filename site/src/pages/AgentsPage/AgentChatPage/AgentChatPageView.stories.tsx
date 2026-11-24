@@ -23,7 +23,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatDiffStatus,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -47,6 +52,10 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
+import type { EditingTarget } from "../components/ChatConversation/types";
+import { LEFT_SIDEBAR_DEFAULT_WIDTH } from "../components/ChatsSidebar/sidebarWidth";
+import { chatFullWidthStorageKey } from "../hooks/useChatFullWidth";
+import { overviewCardOpenStorageKey } from "../utils/overviewCardStorage";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -93,10 +102,10 @@ const buildEditing = (
 	editorInitialValue: "",
 	initialEditorState: undefined,
 	remountKey: 0,
-	editingMessageId: null as number | null,
+	editingTarget: null as EditingTarget | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
-	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
+	handleBeginHistoryEdit: fn(),
+	handleCancelEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -185,13 +194,14 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
+		handleEditQueuedMessage: fn(),
+		handleEndQueuedMessageEdit: fn(),
+		queuedMessageUnderEditID: null,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [] as React.ComponentProps<
@@ -201,7 +211,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 			typeof AgentChatPageView
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
@@ -213,7 +222,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onImplementPlan: fn(),
 		onSendAskUserQuestionResponse: fn(),
 		urlTransform: (url: string) => url,
-		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),
@@ -664,7 +672,6 @@ export const WithWorkspace: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -862,13 +869,31 @@ const buildMessage = (
 ): TypesGen.ChatMessage =>
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
+// A play function reruns on a module-level store, so it replaces the history
+// a previous run left. A reset applies only above the last reset's version.
+let replaceVersion = 0;
+const replaceStoreMessages = (
+	store: ReturnType<typeof createChatStore>,
+	msgs: TypesGen.ChatMessage[],
+) => {
+	replaceVersion += 1;
+	store.batch(() => {
+		store.resetHistoryFrom(0, replaceVersion);
+		store.upsertDurableMessages(msgs);
+	});
+};
+
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
+	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
-	store.replaceMessages(msgs);
-	store.setChatStatus(status);
+	store.upsertDurableMessages(msgs);
+	store.applyServerChatStatus(status);
+	if (queuedMessages) {
+		store.setQueuedMessages(queuedMessages);
+	}
 	return store;
 };
 
@@ -886,6 +911,152 @@ export const EmbeddedViewport: Story = {
 		),
 	],
 	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
+};
+
+const overviewCardStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 12),
+);
+
+const mockOverviewCardChat: Partial<TypesGen.Chat> = {
+	diff_statuses: [
+		{ ...MockChatDiffStatus, chat_id: AGENT_ID, additions: 42, deletions: 7 },
+	],
+	children: [
+		buildChat({
+			id: "overview-sub-1",
+			title: "Find the flaky queue test",
+			status: "running",
+			parent_chat_id: AGENT_ID,
+		}),
+	],
+};
+
+const mockOverviewCardGitWatcher: React.ComponentProps<
+	typeof AgentChatPageView
+>["gitWatcher"] = {
+	...buildGitWatcher(),
+	repositories: new Map([
+		[
+			"/home/coder/coder",
+			{
+				repo_root: "/home/coder/coder",
+				branch: "ci/queue-only-jobs",
+				unified_diff: [
+					"diff --git a/ci.yaml b/ci.yaml",
+					"--- a/ci.yaml",
+					"+++ b/ci.yaml",
+					"@@ -1,3 +1,4 @@",
+					"-jobs: all",
+					"+jobs: changed",
+					"+queue: true",
+				].join("\n"),
+			},
+		],
+		[
+			"/home/coder/docs",
+			{ repo_root: "/home/coder/docs", branch: "main", unified_diff: "" },
+		],
+	]),
+};
+
+const overviewCardFrame =
+	(chatWidth: number): Decorator =>
+	(Story) => (
+		<div style={{ display: "flex", height: 640, width: chatWidth }}>
+			<Story />
+		</div>
+	);
+
+/** Clears the overview and full-width keys before and after each story. */
+const resetOverviewCardStorage = () => {
+	const reset = () => {
+		localStorage.removeItem(overviewCardOpenStorageKey);
+		localStorage.removeItem(chatFullWidthStorageKey);
+	};
+	reset();
+	return reset;
+};
+
+const renderOverviewCardStory = () => (
+	<StoryAgentChatPageView
+		store={overviewCardStore}
+		chat={mockOverviewCardChat}
+		gitWatcher={mockOverviewCardGitWatcher}
+	/>
+);
+
+export const OverviewCardBesideTranscript: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+export const OverviewToggleTooltip: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			await within(canvasElement).findByRole("button", {
+				name: "Toggle overview",
+			}),
+		);
+	},
+};
+
+/**
+ * Below 72rem the card would cover the transcript, so the chat shows
+ * neither the card nor its toggle, though the user left the card open.
+ */
+export const OverviewCardHiddenWhenNarrow: Story = {
+	decorators: [overviewCardFrame(1280 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * From 72rem to 84rem the card is open and the transcript leaves 18rem
+ * clear on the right, instead of staying centered underneath it.
+ */
+export const OverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * The loading view shows the card's skeleton and reserves the same 18rem as
+ * the loaded chat, so the transcript does not move when the chat loads.
+ */
+export const LoadingOverviewCardReservesTranscript: Story = {
+	decorators: [overviewCardFrame(72 * 16)],
+	beforeEach: resetOverviewCardStorage,
+	render: Loading.render,
+};
+
+/**
+ * A full-width transcript leaves no margin, so the chat shows neither the
+ * card nor its toggle, though the user left the card open.
+ */
+export const OverviewCardHiddenInFullWidth: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: () => {
+		const reset = resetOverviewCardStorage();
+		localStorage.setItem(chatFullWidthStorageKey, "true");
+		return reset;
+	},
+	render: renderOverviewCardStory,
+};
+
+/** The user hid the card, so a wide chat shows only its toggle. */
+export const OverviewCardHiddenByUser: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: () => {
+		const reset = resetOverviewCardStorage();
+		localStorage.setItem(overviewCardOpenStorageKey, "false");
+		return reset;
+	},
+	render: renderOverviewCardStory,
 };
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
@@ -949,8 +1120,48 @@ export const EditingMessage: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
-				editingMessageId: 3,
+				editingTarget: { kind: "history", id: 3 },
 				editorInitialValue: "Now tell me a joke",
+			}}
+		/>
+	),
+};
+
+const mockPausedQueue: TypesGen.ChatQueuedMessage[] = [
+	{
+		...MockChatQueuedMessageUnderEdit,
+		id: 1,
+		content: [{ type: "text", text: "Run the migrations" }],
+	},
+	{
+		...MockChatQueuedMessage,
+		id: 2,
+		content: [{ type: "text", text: "Start the dev server" }],
+	},
+];
+
+/** The turn completed while the queue head was under edit. Cancel edit on
+ *  the head sends it, and a send from the composer is queued. */
+export const PausedAtQueuedEdit: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
+			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+		/>
+	),
+};
+
+/** The composer is editing the paused chat's queue head. */
+export const EditingQueuedMessageWhilePaused: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
+			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+			editing={{
+				editingTarget: { kind: "queued", id: 1 },
+				editorInitialValue: "Run the migrations",
 			}}
 		/>
 	),
@@ -1043,7 +1254,7 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.replaceMessages([...olderMessages, ...existing]);
+	store.upsertDurableMessages(olderMessages);
 };
 
 const singleRenderStore = buildStoreWithMessages([
@@ -1095,10 +1306,11 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		startEdgeStore.replaceMessages(
+		replaceStoreMessages(
+			startEdgeStore,
 			buildLongConversation(AGENT_ID, 40).slice(1),
 		);
-		startEdgeStore.setChatStatus("waiting");
+		startEdgeStore.applyServerChatStatus("waiting");
 		startEdgeFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1142,8 +1354,11 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
-		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		streamCompletionStore.setChatStatus("waiting");
+		replaceStoreMessages(
+			streamCompletionStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
+		streamCompletionStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 
@@ -1165,7 +1380,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			streamCompletionStore.upsertDurableMessages([
 				buildMessage(41, "user", "Final question."),
 			]);
-			streamCompletionStore.setChatStatus("running");
+			streamCompletionStore.applyServerChatStatus("running");
 			streamCompletionStore.applyMessageParts([
 				{ type: "text", text: "Streaming the final answer." },
 			]);
@@ -1184,7 +1399,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 				buildMessage(42, "assistant", "Streaming the final answer."),
 			]);
 			streamCompletionStore.clearStreamState();
-			streamCompletionStore.setChatStatus("waiting");
+			streamCompletionStore.applyServerChatStatus("waiting");
 		});
 		await waitFor(() => {
 			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
@@ -1209,8 +1424,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
-		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		thinkingShiftStore.setChatStatus("waiting");
+		replaceStoreMessages(
+			thinkingShiftStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
+		thinkingShiftStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 		await waitForScrollOverflow(viewport);
@@ -1224,7 +1442,7 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 			thinkingShiftStore.upsertDurableMessages([
 				buildMessage(41, "user", "Follow-up question."),
 			]);
-			thinkingShiftStore.setChatStatus("running");
+			thinkingShiftStore.applyServerChatStatus("running");
 		});
 		await canvas.findByTestId("chat-message-live-assistant");
 		await canvas.findByTestId("live-activity-slot");
@@ -1272,20 +1490,19 @@ const UnderflowPaginationStory: React.FC = () => {
 
 	const completePage = () => {
 		const nextPage = loadedPages + 1;
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			buildMessage(
 				9 - nextPage,
 				nextPage % 2 === 1 ? "user" : "assistant",
 				`Loaded underflow page ${nextPage}. `.repeat(20),
 			),
-			...getStoreMessages(store),
 		]);
 		setLoadedPages(nextPage);
 		setIsFetching(false);
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages={loadedPages < 2}
@@ -1359,7 +1576,7 @@ const RetryPaginationStory: React.FC = () => {
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages
@@ -1499,7 +1716,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1520,7 +1736,6 @@ export const PersistsSidebarTabClick: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1617,7 +1832,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1638,7 +1852,6 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1660,7 +1873,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1692,7 +1904,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 				},
 			}}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1709,7 +1920,6 @@ export const PreservesUnavailableBrowserTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1733,7 +1943,6 @@ const renderWithSingletonSupport = () => (
 		workspace={MockWorkspace}
 		workspaceAgent={mockAgentWithBrowserApp}
 		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
 	/>
 );
 
@@ -1884,7 +2093,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
 			desktopChatId={AGENT_ID}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1919,7 +2127,6 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1931,7 +2138,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
-		await body.findByText("New Terminal");
+		await body.findByText("New terminal");
 		for (const label of ["Browser", "Desktop", "Debug"]) {
 			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
 		}
@@ -1965,7 +2172,6 @@ export const DoesNotPersistForArchivedChat: Story = {
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {

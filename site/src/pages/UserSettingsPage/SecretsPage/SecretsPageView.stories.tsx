@@ -114,7 +114,7 @@ export const Loaded: Story = {
 		const docsLink = canvas.getByRole("link", { name: /View docs/ });
 		await expect(docsLink).toHaveAttribute(
 			"href",
-			expect.stringContaining("/user-guides/user-secrets"),
+			expect.stringContaining("/workspaces/user-secrets"),
 		);
 	},
 };
@@ -771,7 +771,7 @@ export const ImportSecretsParseError: Story = {
 		);
 		expect(dialog.getByText("Line 2 must contain KEY=VALUE.")).toBeVisible();
 		expect(dialog.queryByText("Response data")).not.toBeInTheDocument();
-		expect(dialog.queryByText("Stack Trace")).not.toBeInTheDocument();
+		expect(dialog.queryByText("Stack trace")).not.toBeInTheDocument();
 	},
 };
 

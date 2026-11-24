@@ -28,6 +28,13 @@ import {
 import SpendPage from "./SpendPage";
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
+const {
+	provider_spend: mockProviderSpend,
+	model_spend: mockModelSpend,
+	client_spend: mockClientSpend,
+} = MockOrganizationAISpendUser;
+const [mockAnthropicSpend, mockOpenAISpend] = mockProviderSpend;
+
 // Mix single and collapsed badges across both pages.
 const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 	{ length: 12 },
@@ -37,9 +44,9 @@ const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 		username: `user${String(i + 1).padStart(2, "0")}`,
 		name: `User ${i + 1}`,
 		cost_micros: (12 - i) * 1_000_000,
-		providers: i % 3 === 0 ? ["anthropic", "openai"] : ["anthropic"],
-		clients: i % 2 === 1 ? ["Claude Code", "Cursor"] : ["Claude Code"],
-		models: i % 3 === 0 ? ["claude-opus-4-6", "gpt-5.4"] : ["claude-opus-4-6"],
+		provider_spend: i % 3 === 0 ? mockProviderSpend : [mockAnthropicSpend],
+		client_spend: i % 2 === 1 ? mockClientSpend : mockClientSpend.slice(0, 1),
+		model_spend: i % 3 === 0 ? mockModelSpend : mockModelSpend.slice(0, 1),
 	}),
 );
 
@@ -94,7 +101,7 @@ const meta = {
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
 				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
 				count: mockSpendUsers.length,
-				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
+				totals: { cost_micros: 78_000_000, has_unpriced_usage: false },
 				users: mockSpendUsers.slice(
 					params.offset ?? 0,
 					(params.offset ?? 0) + (params.limit ?? 10),
@@ -151,11 +158,11 @@ export const FilteredByProvider: Story = {
 		spyOn(API.experimental, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
 			count: 3,
-			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
+			totals: { cost_micros: 27_000_000, has_unpriced_usage: false },
 			users: [
-				{ ...mockSpendUsers[0], providers: ["openai"] },
-				{ ...mockSpendUsers[3], providers: ["openai"] },
-				{ ...mockSpendUsers[6], providers: ["openai"] },
+				{ ...mockSpendUsers[0], provider_spend: [mockOpenAISpend] },
+				{ ...mockSpendUsers[3], provider_spend: [mockOpenAISpend] },
+				{ ...mockSpendUsers[6], provider_spend: [mockOpenAISpend] },
 			],
 		});
 	},
@@ -189,7 +196,7 @@ export const RetentionLimitedPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
-		await userEvent.click(canvas.getByRole("button", { name: "Last 7 days" }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
 		);
@@ -213,10 +220,29 @@ export const ConfiguredProviderNames: Story = {
 		spyOn(API.experimental, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
 			count: 2,
-			totals: { cost_micros: 23_000_000, unpriced_usage_count: 0 },
+			totals: { cost_micros: 23_000_000, has_unpriced_usage: false },
 			users: [
-				{ ...mockSpendUsers[1], providers: [mockDeepSeekProvider.name] },
-				{ ...mockSpendUsers[2], providers: ["internal-gateway"] },
+				{
+					...mockSpendUsers[1],
+					provider_spend: [
+						{
+							...mockOpenAISpend,
+							name: mockDeepSeekProvider.name,
+							display_name: mockDeepSeekProvider.display_name,
+						},
+					],
+				},
+				{
+					...mockSpendUsers[2],
+					provider_spend: [
+						{
+							...mockOpenAISpend,
+							name: "internal-gateway",
+							display_name: "internal-gateway",
+							type: undefined,
+						},
+					],
+				},
 			],
 		});
 	},

@@ -18,8 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/xnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -565,6 +567,41 @@ func TestPubsubCluster(t *testing.T) {
 	})
 }
 
+func TestHealthReport(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ps := newTestPubsub(t, defaultTestOptions())
+		report := ps.HealthReport(testutil.Context(t, testutil.WaitShort))
+		assert.Equal(t, pubsub.BackendNATS, report.Backend)
+		assert.Equal(t, health.SeverityOK, report.Severity)
+		assert.Empty(t, report.Warnings)
+	})
+
+	t.Run("Unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps := newPubsub(ctx, testutil.Logger(t), defaultTestOptions())
+		// An embedded server that was never started reports not running.
+		ns, err := natsserver.NewServer(&natsserver.Options{})
+		require.NoError(t, err)
+		ps.Server = ns
+		ps.publishPool = []conn{&fakeConn{status: natsgo.CONNECTED}}
+		ps.subscribePool = []conn{&fakeConn{status: natsgo.RECONNECTING}}
+
+		report := ps.HealthReport(ctx)
+		assert.Equal(t, pubsub.BackendNATS, report.Backend)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		assert.Equal(t, []health.Message{
+			{Code: health.CodePubsubServerNotRunning, Message: "embedded NATS server is not running"},
+			{Code: health.CodePubsubNotConnected, Message: "NATS subscribe connection 0 is RECONNECTING"},
+		}, report.Warnings)
+	})
+}
+
 func TestSubscribeError(t *testing.T) {
 	t.Parallel()
 
@@ -680,7 +717,11 @@ func clusterTestOptions(t *testing.T) Options {
 
 func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
+			return slices.Contains(ent.LoggerNames, "server")
+		},
+	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)
@@ -781,6 +822,7 @@ func routeStrings(routes []*url.URL) []string {
 type fakeConn struct {
 	subError   error
 	flushError error
+	status     natsgo.Status
 }
 
 func (*fakeConn) Publish(string, []byte) error {
@@ -801,6 +843,10 @@ func (f *fakeConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, e
 	return &natsgo.Subscription{}, f.subError
 }
 
+func (f *fakeConn) Status() natsgo.Status {
+	return f.status
+}
+
 // blockingConn holds Subscribe in flight until unblock is closed, then
 // fails the subscribe.
 type blockingConn struct {
@@ -815,6 +861,8 @@ func (*blockingConn) Publish(string, []byte) error { return nil }
 func (*blockingConn) Close() {}
 
 func (*blockingConn) Flush() error { return nil }
+
+func (*blockingConn) Status() natsgo.Status { return natsgo.CONNECTED }
 
 func (b *blockingConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
 	close(b.started)

@@ -243,9 +243,11 @@ export const deleteUserAIBudgetOverride = (
 	};
 };
 
+export const apiKeyQueryKey = [...meKey, "apiKey"];
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
-		queryKey: [...meKey, "apiKey"],
+		queryKey: apiKeyQueryKey,
 		queryFn: () => API.getApiKey(),
 	};
 }
@@ -384,6 +386,10 @@ export const updateAppearanceSettings = (
 				theme_light: patch.theme_light,
 				theme_dark: patch.theme_dark,
 				terminal_font: patch.terminal_font,
+				terminal_font_size:
+					patch.terminal_font_size ??
+					previousAppearanceSettings?.terminal_font_size ??
+					0,
 			});
 			return { previousAppearanceSettings };
 		},

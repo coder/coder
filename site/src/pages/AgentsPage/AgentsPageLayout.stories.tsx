@@ -15,15 +15,19 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatEntityKey,
-	chatMessagesKey,
 	chatPromptsKey,
+	chatStoreKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
-import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockAdvisorConfig,
+	MockChat,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockChatProject,
@@ -50,6 +54,7 @@ import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPa
 import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { buildLoadedChatStore } from "./components/ChatConversation/storyFixtures";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -118,8 +123,7 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		showAdvisorSettings={false}
-		advisorConfigData={undefined}
+		advisorConfigData={MockAdvisorConfig}
 		isAdvisorConfigLoading={false}
 		isAdvisorConfigFetching={false}
 		isAdvisorConfigLoadError={false}
@@ -127,12 +131,6 @@ const AgentsRouteElement = () => (
 		isSavingAdvisorConfig={false}
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
-		showVirtualDesktopSettings={false}
-		computerUseProviderData={undefined}
-		isLoadingComputerUseProvider={false}
-		onSaveComputerUseProvider={fn()}
-		isSavingComputerUseProvider={false}
-		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -222,7 +220,7 @@ const ChatPaneMinimumRouteElement = () => (
 				</span>
 				<button
 					type="button"
-					className="size-7 shrink-0 rounded-full border-0 bg-content-link text-content-invert"
+					className="size-7 shrink-0 rounded-full bg-content-link text-content-invert"
 				>
 					Send
 				</button>
@@ -441,6 +439,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Default organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -460,6 +461,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Second organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -514,6 +518,23 @@ export const WithChatList: Story = {
 				updated_at: todayTimestamp,
 			}),
 		]);
+	},
+};
+
+// 320x256 matches a 1280px window at 400% zoom, where the chat list must keep
+// a usable height next to the composer.
+export const ShortMobileViewport: Story = {
+	beforeEach: WithChatList.beforeEach,
+	decorators: [
+		(Story) => (
+			<div style={{ height: 256, width: 320 }}>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 
@@ -844,11 +865,13 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 const watchedChatQueries = (chat: Chat) => [
 	{ key: chatEntityKey(chat.id), data: chat },
 	{
-		key: chatMessagesKey(chat.id),
-		data: {
-			pages: [{ messages: [], queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		},
+		key: chatStoreKey(chat.id),
+		data: () =>
+			buildLoadedChatStore(chat.id, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
 	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },

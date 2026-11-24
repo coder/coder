@@ -65,13 +65,13 @@ export const OrganizationMembersTable: React.FC<
 				<TableRow>
 					<TableHead className="w-max">User</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Roles</span>
 							<RolesHelpPopover />
 						</div>
 					</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Groups</span>
 							<GroupsHelpPopover />
 						</div>

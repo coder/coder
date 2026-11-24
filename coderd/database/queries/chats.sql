@@ -312,14 +312,6 @@ WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
 
--- name: SoftDeleteChatMessageByID :exec
-UPDATE
-    chat_messages
-SET
-    deleted = true
-WHERE
-    id = @id::bigint;
-
 -- name: BackfillChatMessagesSearchTsv :execrows
 -- Backfills chat_messages.search_tsv for pending rows, newest first.
 -- The WHERE clause must match the predicate of
@@ -1691,11 +1683,11 @@ WITH hydrated AS (
 ),
 copied AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-        r.size_bytes, r.status, r.error, r.source_path
+        r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = @agent_id::uuid
@@ -1707,6 +1699,7 @@ copied AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM hydrated;
@@ -1721,7 +1714,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -1732,7 +1725,7 @@ RETURNING id, owner_id;
 -- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 -- cannot interleave with the replacement.
 WITH agent_live AS (
-    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = @agent_id::uuid
         AND body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
@@ -1754,6 +1747,7 @@ changed AS (
                         AND ccr.content_hash = m.content_hash
                         AND ccr.status = m.status
                         AND ccr.error = m.error
+                        AND ccr.plugin_name = m.plugin_name
                 )
             )
             OR EXISTS (
@@ -1767,6 +1761,7 @@ changed AS (
                             AND m.content_hash = ccr.content_hash
                             AND m.status = ccr.status
                             AND m.error = ccr.error
+                            AND m.plugin_name = ccr.plugin_name
                     )
             )
         )
@@ -1786,11 +1781,11 @@ deleted AS (
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
     )
     SELECT
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
-        m.size_bytes, m.status, m.error, m.source_path
+        m.size_bytes, m.status, m.error, m.source_path, m.plugin_name
     FROM locked
     CROSS JOIN agent_live m
     ON CONFLICT (chat_id, source) DO UPDATE SET
@@ -1801,6 +1796,7 @@ upserted AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        plugin_name = EXCLUDED.plugin_name,
         updated_at = now()
 )
 SELECT id FROM locked;
@@ -1811,11 +1807,11 @@ SELECT id FROM locked;
 -- transaction) to re-pin a chat to its agent's latest snapshot from the
 -- refresh endpoint and on agent rebinding.
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, plugin_name
 )
 SELECT
     @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.source_path, r.plugin_name
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = @agent_id::uuid;
 
@@ -2126,57 +2122,16 @@ SET
 RETURNING
     *;
 
--- name: InsertChatQueuedMessage :one
--- Legacy queue insertion path. When no caller-supplied creator exists,
--- preserve the created_by invariant by attributing the queued row to the
--- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-SELECT
-    @chat_id::uuid,
-    @content::jsonb,
-    sqlc.narg('model_config_id')::uuid,
-    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    chats.owner_id
-FROM chats
-WHERE chats.id = @chat_id::uuid
-RETURNING *;
-
 -- name: GetChatQueuedMessages :many
--- Returns the queue in promotion order (position ASC, id ASC), the same
--- order chatstate uses to pick the head. Clients read the queue through
+-- Returns the queue in promotion order (steer lane first, then the queue
+-- lane, each by position ASC, id ASC), the same order chatstate uses to
+-- pick the head. Clients read the queue through
 -- this query, so it must not order by created_at: promoting a message
 -- changes only its position, and concurrent senders can commit with
 -- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY position ASC, id ASC;
-
--- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
-
--- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = @chat_id;
-
--- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.created_at ASC, cqm.id ASC
-    LIMIT 1
-)
-RETURNING *;
-
--- name: ReorderChatQueuedMessageToFront :execrows
--- Mutates only created_at on the target row; ids are unchanged so
--- consumers can keep tracking queued messages by id.
-UPDATE chat_queued_messages AS target
-SET created_at = (
-    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
-    FROM chat_queued_messages AS inner_cqm
-    WHERE inner_cqm.chat_id = @chat_id
-)
-WHERE target.id = @target_id AND target.chat_id = @chat_id;
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC;
 
 -- name: GetLastChatMessageByRole :one
 -- The returned id becomes both an AfterID cursor and last_read_message_id, so
@@ -2540,16 +2495,9 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
-
--- name: SoftDeleteContextFileMessages :exec
-UPDATE chat_messages SET deleted = true
-WHERE chat_id = @chat_id::uuid
-    AND deleted = false
-    AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
@@ -2613,6 +2561,11 @@ ORDER BY
     chats.id ASC
 LIMIT @limit_count::int;
 
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
 FROM chats_expanded
@@ -2664,10 +2617,26 @@ WHERE
     AND chats_expanded.pin_order = 0
     AND chats_expanded.parent_chat_id IS NULL
     AND chats_expanded.created_at < @archive_cutoff::timestamptz
+    -- Statuses SetArchived refuses. Archiving a root archives its whole
+    -- family and fails if any unarchived member refuses, so members are
+    -- checked too.
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -2700,7 +2669,20 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
 
@@ -2960,34 +2942,29 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid
+    @created_by::uuid,
+    @busy_behavior::chat_busy_behavior
 )
 RETURNING *;
 
--- name: GetChatQueuedMessagesByPosition :many
--- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC;
-
 -- name: CountChatQueuedMessages :one
--- Cheap queue-length check used by ChatMachine.Update when deciding
--- whether the chat is in a "1" sub-state.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
+-- Returns the queue head: the first row in GetChatQueuedMessages order.
+-- A steer row under edit comes first instead, because it holds the
+-- whole steer lane.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one
@@ -3005,20 +2982,29 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: ReorderChatQueuedMessageToHead :execrows
--- Sets the target queued message's position to one less than the
--- current minimum position for that chat, moving it to the head.
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    0
-) - 1
-WHERE target.id = @id::bigint
-  AND target.chat_id = @chat_id::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    target.position
-  );
+-- name: UpdateChatQueuedMessageEditing :one
+-- Begins (@editing = true) or ends the row's edit. Beginning keeps an
+-- existing editing_since, so the timestamp marks the first begin.
+UPDATE chat_queued_messages
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: UpdateChatQueuedMessageContent :one
+-- Replaces the content and per-message overrides of a queued message.
+UPDATE chat_queued_messages
+SET content = @content::jsonb,
+    model_config_id = sqlc.narg('model_config_id')::uuid,
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = @id::bigint
+  AND chat_id = @chat_id::uuid;
 
 -- name: UpsertChatHeartbeat :exec
 -- Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
@@ -3097,8 +3083,9 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      -- Matches the root status list in
+      -- GetAutoArchiveInactiveChatCandidates.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery

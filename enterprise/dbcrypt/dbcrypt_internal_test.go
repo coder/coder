@@ -5,12 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -260,12 +262,15 @@ func TestExternalAuthLinks(t *testing.T) {
 	t.Run("InsertExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
+		extra := `{"key": "value"}`
 		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
+			OAuthExtra:        pqtype.NullRawMessage{RawMessage: json.RawMessage(extra), Valid: true},
 		})
 		require.Equal(t, "access", link.OAuthAccessToken)
 		require.Equal(t, "refresh", link.OAuthRefreshToken)
+		require.JSONEq(t, extra, string(link.OAuthExtra.RawMessage))
 
 		link, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
@@ -274,21 +279,41 @@ func TestExternalAuthLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], link.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
+		requireEncryptedExtraEquals(t, ciphers[0], link.OAuthExtra, link.OAuthExtraKeyID, extra)
+	})
+
+	t.Run("InsertExternalAuthLinkEmptyExtra", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		// JSON nulls and empty objects are stored as-is.
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+			OAuthExtra: pqtype.NullRawMessage{RawMessage: json.RawMessage("{}"), Valid: true},
+		})
+		link, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.False(t, link.OAuthExtraKeyID.Valid, "empty extra must not be encrypted")
+		require.JSONEq(t, "{}", string(link.OAuthExtra.RawMessage))
 	})
 
 	t.Run("UpdateExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
+		extra := `{"key": "value"}`
 		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{})
 		updated, err := crypt.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
+			OAuthExtra:        pqtype.NullRawMessage{RawMessage: json.RawMessage(extra), Valid: true},
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)
 		require.Equal(t, "refresh", updated.OAuthRefreshToken)
+		require.JSONEq(t, extra, string(updated.OAuthExtra.RawMessage))
 
 		link, err = db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
@@ -297,6 +322,7 @@ func TestExternalAuthLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], link.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
+		requireEncryptedExtraEquals(t, ciphers[0], link.OAuthExtra, link.OAuthExtraKeyID, extra)
 	})
 
 	t.Run("GetExternalAuthLink", func(t *testing.T) {
@@ -864,6 +890,17 @@ func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	)
 }
 
+// requireEncryptedExtraEquals asserts that a jsonb extra payload is stored as
+// a JSON-encoded ciphertext string that decrypts to the expected JSON.
+func requireEncryptedExtraEquals(t *testing.T, c Cipher, extra pqtype.NullRawMessage, keyID sql.NullString, expected string) {
+	t.Helper()
+	require.True(t, keyID.Valid, "extra must have an encryption key ID")
+	require.True(t, extra.Valid, "extra must be set")
+	var payload string
+	require.NoError(t, json.Unmarshal(extra.RawMessage, &payload), "encrypted extra must be a JSON string")
+	requireEncryptedEquals(t, c, payload, expected)
+}
+
 func requireEncryptedEquals(t *testing.T, c Cipher, value, expected string) {
 	t.Helper()
 	data, err := base64.StdEncoding.DecodeString(value)
@@ -1119,23 +1156,24 @@ func TestMCPServerConfigs(t *testing.T) {
 			newSigningSecret = "updated-signing-secret"
 		)
 		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-			ID:                 cfg.ID,
-			DisplayName:        cfg.DisplayName,
-			Slug:               cfg.Slug,
-			Description:        cfg.Description,
-			Url:                cfg.Url,
-			Transport:          cfg.Transport,
-			AuthType:           cfg.AuthType,
-			OAuth2ClientID:     cfg.OAuth2ClientID,
-			OAuth2ClientSecret: newSecret,
-			APIKeyValue:        newAPIKey,
-			CustomHeaders:      newHeaders,
-			SigningSecret:      newSigningSecret,
-			ToolAllowList:      cfg.ToolAllowList,
-			ToolDenyList:       cfg.ToolDenyList,
-			Availability:       cfg.Availability,
-			Enabled:            cfg.Enabled,
-			UpdatedBy:          cfg.CreatedBy.UUID,
+			ID:                       cfg.ID,
+			DisplayName:              cfg.DisplayName,
+			Slug:                     cfg.Slug,
+			Description:              cfg.Description,
+			Url:                      cfg.Url,
+			Transport:                cfg.Transport,
+			AuthType:                 cfg.AuthType,
+			OAuth2ClientID:           cfg.OAuth2ClientID,
+			OAuth2ClientSecret:       newSecret,
+			OAuth2ClientRegistration: cfg.OAuth2ClientRegistration,
+			APIKeyValue:              newAPIKey,
+			CustomHeaders:            newHeaders,
+			SigningSecret:            newSigningSecret,
+			ToolAllowList:            cfg.ToolAllowList,
+			ToolDenyList:             cfg.ToolDenyList,
+			Availability:             cfg.Availability,
+			Enabled:                  cfg.Enabled,
+			UpdatedBy:                cfg.CreatedBy.UUID,
 		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)

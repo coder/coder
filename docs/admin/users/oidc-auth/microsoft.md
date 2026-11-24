@@ -27,7 +27,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 12. Check **Security groups**.
 13. Select **Save**.
 14. Select the tab labeled "Authentication" and select "Add a platform".
-15. Select "Web" and for the redirect URI enter your Coder callback URL.
+15. Select "Web" and for the redirect Uniform Resource Identifier (URI) enter your Coder callback URL.
 16. Then select "Configure" at the bottom:
     - `https://coder.example.com/api/v2/users/oidc/callback`
 
@@ -64,7 +64,7 @@ Learn more in [Configure OIDC refresh tokens](./refresh-tokens.md).
 
 ## Troubleshooting
 
-- "invalid redirect_uri": ensure the redirect URI in Azure Entra ID matches `https://<your-coder-host>/api/v2/users/oidc/callback`
+- "invalid redirect_uri": make sure the redirect URI in Azure Entra ID matches `https://<your-coder-host>/api/v2/users/oidc/callback`
 - Domain restriction: if users from unexpected domains can log in, verify `CODER_OIDC_EMAIL_DOMAIN`
 - Claims: to inspect claims returned by Microsoft, see guidance in the [OIDC overview](./index.md#oidc-claims)
 

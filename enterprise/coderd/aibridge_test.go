@@ -476,28 +476,39 @@ func TestAIBridgeListSessions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
 
 		now := dbtime.Now()
 
 		// Session from user1 with provider "anthropic" and client "claude-code".
 		s1EndedAt := now.Add(time.Minute)
 		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  firstUser.UserID,
-			Provider:     "anthropic",
-			ProviderName: "anthropic-prod",
-			Model:        "claude-4",
-			StartedAt:    now,
-			Client:       sql.NullString{String: "claude-code", Valid: true},
+			InitiatorID:    firstUser.UserID,
+			Provider:       "anthropic",
+			ProviderName:   "anthropic-prod",
+			Model:          "claude-4",
+			StartedAt:      now,
+			Client:         sql.NullString{String: "claude-code", Valid: true},
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s1EndedAt)
 
 		// Session from user2 with provider "openai".
 		s2EndedAt := now.Add(-time.Hour + time.Minute)
 		s2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  user2.ID,
-			Provider:     "openai",
-			ProviderName: "openai-prod",
-			Model:        "gpt-4",
-			StartedAt:    now.Add(-time.Hour),
+			InitiatorID:    user2.ID,
+			Provider:       "openai",
+			ProviderName:   "openai-prod",
+			Model:          "gpt-4",
+			StartedAt:      now.Add(-time.Hour),
+			OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s2EndedAt)
 
 		// Filter by initiator.
@@ -566,6 +577,24 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Len(t, res.Sessions, 1)
 		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
 
+		// Filter by organization name.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: otherOrg.Name,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by organization ID.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: firstUser.OrganizationID.String(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
 		// Filter by session_id with no match.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			SessionID: "nonexistent-session-id",
@@ -597,6 +626,79 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res.Count)
 		require.Empty(t, res.Sessions)
+	})
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		orgA := dbgen.Organization(t, db, database.Organization{Name: "aaa-org"})
+		orgB := dbgen.Organization(t, db, database.Organization{Name: "bbb-org"})
+
+		orgSource := func(s database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+			return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: s, Valid: true}
+		}
+		intercept := func(sessionID string, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) {
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:        firstUser.UserID,
+				Provider:           "anthropic",
+				Model:              "claude-4",
+				StartedAt:          now,
+				ClientSessionID:    sql.NullString{String: sessionID, Valid: true},
+				OrganizationID:     orgID,
+				OrganizationSource: source,
+			}, &endedAt)
+		}
+
+		// One session across two orgs. aaa-org is reached through two sources.
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceWorkspace))
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceChatd))
+		intercept("multi-org", uuid.NullUUID{UUID: orgB.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceEffectiveGroup))
+		// One session with no stored org.
+		intercept("no-org", uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{})
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+
+		sessions := make(map[string]codersdk.AIBridgeSession, len(res.Sessions))
+		for _, s := range res.Sessions {
+			sessions[s.ID] = s
+		}
+
+		// Ordered by name, with distinct sources in enum order.
+		multi := sessions["multi-org"].Organizations
+		require.Len(t, multi, 2)
+		require.Equal(t, orgA.ID, multi[0].ID)
+		require.Equal(t, orgA.Name, multi[0].Name)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+			codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		}, multi[0].Sources)
+		require.Equal(t, orgB.ID, multi[1].ID)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceEffectiveGroup,
+		}, multi[1].Sources)
+
+		// No stored org returns an empty list, not null.
+		noOrg := sessions["no-org"].Organizations
+		require.NotNil(t, noOrg)
+		require.Empty(t, noOrg)
+
+		// Filtering by either org returns the multi-org session, because it has
+		// at least one interception in each. The no-org session never matches.
+		for _, org := range []database.Organization{orgA, orgB} {
+			res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+				Organization: org.Name,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, res.Count)
+			require.Len(t, res.Sessions, 1)
+			require.Equal(t, "multi-org", res.Sessions[0].ID)
+		}
 	})
 
 	t.Run("Authorized", func(t *testing.T) {
@@ -777,6 +879,16 @@ func TestAIBridgeListSessions(t *testing.T) {
 					{
 						Field:  "started_before",
 						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+					},
+				},
+			},
+			{
+				name: "UnknownOrganization",
+				q:    "organization:unknown",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "organization",
+						Detail: `Query param "organization" has invalid value: organization "unknown" either does not exist, or you are unauthorized to view it`,
 					},
 				},
 			},
@@ -1388,19 +1500,25 @@ func TestAIBridgeListModels(t *testing.T) {
 		}
 	})
 
-	t.Run("ModelIsAPrefix", func(t *testing.T) {
+	t.Run("ModelIsACaseInsensitiveSubstring", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: "gpt"})
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{"gpt-4", "gpt_4", "gpt%4", `gpt\4`}, got)
+		for model, want := range map[string][]string{
+			"gpt":    {"gpt-4", "gpt_4", "gpt%4", `gpt\4`},
+			"sonnet": {"us.anthropic.claude-3-5-sonnet-20241022-v2:0"},
+			"SONNET": {"us.anthropic.claude-3-5-sonnet-20241022-v2:0"},
+		} {
+			got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: model})
+			require.NoError(t, err, model)
+			require.ElementsMatch(t, want, got, model)
+		}
 	})
 
 	t.Run("SearchQueryKeepsPatternMatching", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
-			r.URL.RawQuery = "q=gpt_4"
+			r.URL.RawQuery = "q=pt_4"
 		})
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -1419,6 +1537,20 @@ func TestAIBridgeListModels(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("NoMatchIsEmptyArray", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
+			r.URL.RawQuery = "model=no-such-model"
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, "[]", string(body))
 	})
 }
 
@@ -1504,14 +1636,47 @@ func TestAIBridgeListClients(t *testing.T) {
 		Client:      sql.NullString{String: string(aibclient.CopilotCLI), Valid: true},
 	}, nil)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clients, err := client.AIBridgeListClients(ctx)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{
-		string(aibclient.Cursor),
-		string(aibclient.ClaudeCode),
-		"Unknown",
-	}, clients)
+	cases := []struct {
+		name     string
+		rawQuery string
+		want     []string
+	}{
+		{
+			// Completed interceptions are listed once per client, and the
+			// in-flight one is not.
+			name:     "AllClients",
+			rawQuery: "",
+			want: []string{
+				string(aibclient.Cursor),
+				string(aibclient.ClaudeCode),
+				"Unknown",
+			},
+		},
+		{
+			// A search with no match returns an empty list, not null.
+			name:     "NoMatchIsEmptyArray",
+			rawQuery: "q=no-such-client",
+			want:     []string{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/clients", nil, func(r *http.Request) {
+				r.URL.RawQuery = tc.rawQuery
+			})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			var got []string
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+			require.NotNil(t, got)
+			require.ElementsMatch(t, tc.want, got)
+		})
+	}
 }
 
 func TestAIBridgeListProviders(t *testing.T) {
@@ -2101,6 +2266,88 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, "byok", res.Threads[0].CredentialKind)
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
+	})
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		orgA := dbgen.Organization(t, db, database.Organization{
+			Name:        "acme",
+			DisplayName: "Acme Corp",
+			Icon:        "/emojis/1f3e2.png",
+		})
+
+		now := dbtime.Now()
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-sonnet-4-20250514",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "org-session", Valid: true},
+			OrganizationID:  uuid.NullUUID{UUID: orgA.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
+		}, &rootEndedAt)
+
+		// child1 is in the same org as the root, reached through chatd.
+		child1EndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-sonnet-4-20250514",
+			StartedAt:                  now.Add(time.Minute),
+			ClientSessionID:            sql.NullString{String: "org-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+			OrganizationID:             uuid.NullUUID{UUID: orgA.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+				Valid:                                  true,
+			},
+		}, &child1EndedAt)
+
+		// child2 has no stored org.
+		child2EndedAt := now.Add(3 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-sonnet-4-20250514",
+			StartedAt:                  now.Add(2 * time.Minute),
+			ClientSessionID:            sql.NullString{String: "org-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		}, &child2EndedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "org-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "org-session", res.ID)
+		require.Len(t, res.Threads, 1)
+		require.NotNil(t, res.Threads[0].Organization)
+		require.Equal(t, codersdk.AIBridgeInterceptionOrganizationSourceWorkspace, res.Threads[0].Organization.Source)
+		require.Equal(t, orgA.ID, res.Threads[0].Organization.ID)
+		require.Equal(t, orgA.Name, res.Threads[0].Organization.Name)
+		require.Equal(t, orgA.DisplayName, res.Threads[0].Organization.DisplayName)
+		require.Equal(t, orgA.Icon, res.Threads[0].Organization.Icon)
+		// Each child is an agentic action with its own interception's org.
+		actions := res.Threads[0].AgenticActions
+		require.Len(t, actions, 2)
+		require.NotNil(t, actions[0].Organization)
+		require.Equal(t, orgA.ID, actions[0].Organization.ID)
+		require.Equal(t, codersdk.AIBridgeInterceptionOrganizationSourceChatd, actions[0].Organization.Source)
+		require.Nil(t, actions[1].Organization)
+
+		// The session lists the org once, with both sources.
+		require.Len(t, res.Organizations, 1)
+		require.Equal(t, orgA.ID, res.Organizations[0].ID)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+			codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		}, res.Organizations[0].Sources)
 	})
 
 	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
@@ -5691,6 +5938,30 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		}
 	})
 
+	t.Run("UserIDsAboveMax", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-users-user-ids-group",
+			Clock:     clock,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var userIDs []uuid.UUID
+		for range 101 {
+			userIDs = append(userIDs, uuid.New())
+		}
+		_, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{UserIDs: userIDs}, codersdk.OrganizationAISpendPage{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "user_ids",
+			Detail: "user_ids has 101 entries, maximum is 100.",
+		}}, sdkErr.Validations)
+	})
+
 	t.Run("Report", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
@@ -5702,43 +5973,99 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			Database:  db,
 			Pubsub:    ps,
 		})
-		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+		inGroup := uuid.NullUUID{UUID: group.ID, Valid: true}
 		_, otherUser := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
 
 		// targetUser: 1500 priced through two providers plus one unpriced
 		// usage without a client. otherUser: 3000, so they sort first. A
 		// usage without an effective group is excluded like the CSV.
 		for _, seed := range []struct {
-			user         codersdk.User
-			group        uuid.NullUUID
-			provider     string
-			providerName string
-			model        string
-			client       sql.NullString
-			cost         sql.NullInt64
+			user             codersdk.User
+			effectiveGroupID uuid.NullUUID
+			provider         string
+			providerName     string
+			model            string
+			client           sql.NullString
+			costMicros       sql.NullInt64
 		}{
-			{user: targetUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "vscode", Valid: true}, cost: sql.NullInt64{Int64: 1000, Valid: true}},
-			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4", cost: sql.NullInt64{Int64: 500, Valid: true}},
-			{user: targetUser, group: groupID, provider: "openai", providerName: "openai-prod", model: "gpt-4o"},
-			{user: otherUser, group: groupID, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "cursor", Valid: true}, cost: sql.NullInt64{Int64: 3000, Valid: true}},
-			{user: otherUser, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", cost: sql.NullInt64{Int64: 99_999, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "vscode", Valid: true}, costMicros: sql.NullInt64{Int64: 1000, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "openai", providerName: "openai-prod", model: "gpt-4", costMicros: sql.NullInt64{Int64: 500, Valid: true}},
+			{user: targetUser, effectiveGroupID: inGroup, provider: "openai", providerName: "openai-prod", model: "gpt-4o"},
+			{user: otherUser, effectiveGroupID: inGroup, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", client: sql.NullString{String: "cursor", Valid: true}, costMicros: sql.NullInt64{Int64: 3000, Valid: true}},
+			{user: otherUser, provider: "anthropic", providerName: "anthropic-prod", model: "claude-4", costMicros: sql.NullInt64{Int64: 99_999, Valid: true}},
 		} {
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				InitiatorID: seed.user.ID, Provider: seed.provider, ProviderName: seed.providerName, Model: seed.model, Client: seed.client, StartedAt: inMonth,
 			}, nil)
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: seed.group, CostMicros: seed.cost,
+				InterceptionID: interception.ID, CreatedAt: inMonth, EffectiveGroupID: seed.effectiveGroupID, CostMicros: seed.costMicros,
 			})
 		}
 
-		user := func(u codersdk.User, providers, clients, models []string, cost, unpriced int64) codersdk.OrganizationAISpendUser {
-			return codersdk.OrganizationAISpendUser{
-				UserID: u.ID, Username: u.Username, Name: u.Name, AvatarURL: u.AvatarURL,
-				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
-			}
+		// withUser fills in the user's details, so each expected report below
+		// only lists the spend.
+		withUser := func(user codersdk.User, spend codersdk.OrganizationAISpendUser) codersdk.OrganizationAISpendUser {
+			spend.UserID = user.ID
+			spend.Username = user.Username
+			spend.Name = user.Name
+			spend.AvatarURL = user.AvatarURL
+			return spend
 		}
-		other := user(otherUser, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
-		target := user(targetUser, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
+		// No provider is configured, so each display name falls back to the
+		// provider name.
+		otherUserSpend := withUser(otherUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 3000,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 3000},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 3000},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "cursor", CostMicros: 3000},
+			},
+		})
+		targetUserSpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 1500,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 1000},
+				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 1000},
+				{Name: "gpt-4", CostMicros: 500},
+				{Name: "gpt-4o", HasUnpricedUsage: true},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "vscode", CostMicros: 1000},
+				{Name: "Unknown", CostMicros: 500, HasUnpricedUsage: true},
+			},
+		})
+		targetUserOpenAISpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 500,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "openai-prod", DisplayName: "openai-prod", CostMicros: 500, HasUnpricedUsage: true},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "gpt-4", CostMicros: 500},
+				{Name: "gpt-4o", HasUnpricedUsage: true},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "Unknown", CostMicros: 500, HasUnpricedUsage: true},
+			},
+		})
+		targetUserClaudeSpend := withUser(targetUser, codersdk.OrganizationAISpendUser{
+			CostMicros: 1000,
+			ProviderSpend: []codersdk.OrganizationAISpendProvider{
+				{Name: "anthropic-prod", DisplayName: "anthropic-prod", CostMicros: 1000},
+			},
+			ModelSpend: []codersdk.OrganizationAISpendModel{
+				{Name: "claude-4", CostMicros: 1000},
+			},
+			ClientSpend: []codersdk.OrganizationAISpendClient{
+				{Name: "vscode", CostMicros: 1000},
+			},
+		})
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}
 
 		t.Run("Default", func(t *testing.T) {
@@ -5750,8 +6077,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				AISpendPeriodWindow: window,
 				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
-				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
-				Users:               []codersdk.OrganizationAISpendUser{other, target},
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
+				Users:               []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserSpend},
 			}, report)
 		})
 
@@ -5761,13 +6088,13 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			// Count and totals describe the whole window on every page.
 			first, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1})
 			require.NoError(t, err)
-			require.Equal(t, []codersdk.OrganizationAISpendUser{other}, first.Users)
+			require.Equal(t, []codersdk.OrganizationAISpendUser{otherUserSpend}, first.Users)
 			require.EqualValues(t, 2, first.Count)
 			require.EqualValues(t, 4500, first.Totals.CostMicros)
 
 			second, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1})
 			require.NoError(t, err)
-			require.Equal(t, []codersdk.OrganizationAISpendUser{target}, second.Users)
+			require.Equal(t, []codersdk.OrganizationAISpendUser{targetUserSpend}, second.Users)
 			require.EqualValues(t, 2, second.Count)
 			require.EqualValues(t, 4500, second.Totals.CostMicros)
 
@@ -5779,7 +6106,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				AISpendPeriodWindow: window,
 				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
-				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, UnpricedUsageCount: 1},
+				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
 				Users:               []codersdk.OrganizationAISpendUser{},
 			}, empty)
 		})
@@ -5792,11 +6119,29 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				want   codersdk.OrganizationAISpendReport
 			}{
 				{
+					name:   "UserIDs",
+					filter: codersdk.OrganizationAISpendFilter{UserIDs: []uuid.UUID{targetUser.ID}},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserSpend},
+					},
+				},
+				{
+					// All usage is attributed to the test group, so another
+					// group matches none of it.
+					name:   "GroupID",
+					filter: codersdk.OrganizationAISpendFilter{GroupID: uuid.New()},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart,
+						Users: []codersdk.OrganizationAISpendUser{},
+					},
+				},
+				{
 					name:   "ProviderName",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
 				{
@@ -5804,7 +6149,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
-						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserClaudeSpend},
 					},
 				},
 				{
@@ -5812,15 +6157,15 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Client: "cursor"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 3000},
-						Users: []codersdk.OrganizationAISpendUser{other},
+						Users: []codersdk.OrganizationAISpendUser{otherUserSpend},
 					},
 				},
 				{
 					name:   "UnknownClient",
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
 				{
@@ -5830,7 +6175,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{targetUserClaudeSpend},
 					},
 				},
 				{
@@ -5875,8 +6220,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				csvTotal += cost
 			}
 			jsonCost := map[string]int64{}
-			for _, u := range report.Users {
-				jsonCost[u.UserID.String()] = u.CostMicros
+			for _, user := range report.Users {
+				jsonCost[user.UserID.String()] = user.CostMicros
 			}
 			require.Equal(t, csvCost, jsonCost)
 			require.Equal(t, csvTotal, report.Totals.CostMicros)
@@ -5928,6 +6273,282 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
 		require.Nil(t, report.RetentionStart)
+	})
+}
+
+func TestOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep every subtest deterministic.
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	monthStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+	// days returns one interval per UTC day in [start, end), with the given
+	// spend by day.
+	days := func(start, end time.Time, spend map[time.Time]int64) []codersdk.OrganizationAISpendOverviewInterval {
+		intervals := []codersdk.OrganizationAISpendOverviewInterval{}
+		for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
+			intervals = append(intervals, codersdk.OrganizationAISpendOverviewInterval{StartTime: day, EndTime: day.AddDate(0, 0, 1), SpendMicros: spend[day]})
+		}
+		return intervals
+	}
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-validation-group",
+			Clock:     clock,
+		})
+
+		invalidStart := monthStart.Add(time.Hour).Format(time.RFC3339)
+		invalidEnd := "2026-03-10T00:00:00+02:00"
+		cases := []struct {
+			name            string
+			params          map[string]string
+			wantStatus      int
+			wantMessage     string
+			wantValidations []codersdk.ValidationError
+		}{
+			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
+			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "UnknownParameter", params: map[string]string{"provider_name": "openai"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
+			{name: "OnlyStart", params: map[string]string{"period_start": monthStart.Format(time.RFC3339)}, wantStatus: http.StatusBadRequest, wantMessage: "provided together"},
+			{
+				name:        "StartNotAtMidnight",
+				params:      map[string]string{"period_start": invalidStart, "period_end": monthEnd.Format(time.RFC3339)},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_start", Detail: "Query param \"period_start\" must have the clock set to 00:00:00 UTC, got " + invalidStart},
+				},
+			},
+			{
+				name:        "EndNotAtUTCMidnight",
+				params:      map[string]string{"period_start": monthStart.Format(time.RFC3339), "period_end": invalidEnd},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_end", Detail: "Query param \"period_end\" must have the clock set to 00:00:00 UTC, got " + invalidEnd},
+				},
+			},
+			{
+				// Both bounds are reported, not only the first.
+				name:        "BothNotAtMidnight",
+				params:      map[string]string{"period_start": invalidStart, "period_end": invalidEnd},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "have invalid values",
+				wantValidations: []codersdk.ValidationError{
+					{Field: "period_start", Detail: "Query param \"period_start\" must have the clock set to 00:00:00 UTC, got " + invalidStart},
+					{Field: "period_end", Detail: "Query param \"period_end\" must have the clock set to 00:00:00 UTC, got " + invalidEnd},
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				res := requestAISpend(ctx, t, adminClient, fmt.Sprintf("/api/experimental/organizations/%s/ai/spend", group.OrganizationID), tc.params)
+				defer res.Body.Close()
+				require.Equal(t, tc.wantStatus, res.StatusCode)
+				if tc.wantStatus != http.StatusOK {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
+					require.Contains(t, sdkErr.Message, tc.wantMessage)
+					if tc.wantValidations != nil {
+						require.Equal(t, tc.wantValidations, sdkErr.Validations)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Overview", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, alice, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		memberClient, bob := coderdtest.CreateAnotherUser(t, adminClient, group.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// otherGroup sorts before group by name, so a user's groups only come
+		// back in spend order if they are sorted by spend.
+		otherGroup, err := adminClient.CreateGroup(ctx, group.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "a-spend-overview-group",
+		})
+		require.NoError(t, err)
+
+		inMonth := monthStart.AddDate(0, 0, 1)
+		laterInMonth := monthStart.AddDate(0, 0, 9)
+		afterToday := monthStart.AddDate(0, 0, 19)
+		for _, seed := range []struct {
+			user  codersdk.User
+			group codersdk.Group
+			day   time.Time
+			spend int64
+		}{
+			// alice: 1500 over two days, split across two groups.
+			{user: alice, group: group, day: inMonth, spend: 1000},
+			{user: alice, group: otherGroup, day: laterInMonth, spend: 500},
+			// bob spends the most, on the same day as alice's second spend.
+			{user: bob, group: group, day: laterInMonth, spend: 3000},
+			// Excluded: after today.
+			{user: bob, group: group, day: afterToday, spend: 99_999},
+		} {
+			_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+				UserID: seed.user.ID, EffectiveGroupID: seed.group.ID, Day: seed.day, CostMicros: seed.spend,
+			})
+			require.NoError(t, err)
+		}
+
+		groupSpend := func(g codersdk.Group, spend int64) codersdk.OrganizationAISpendOverviewGroup {
+			return codersdk.OrganizationAISpendOverviewGroup{
+				GroupID: g.ID, GroupName: g.Name, GroupDisplayName: g.DisplayName, SpendMicros: spend,
+			}
+		}
+		user := func(u codersdk.User, groups ...codersdk.OrganizationAISpendOverviewGroup) codersdk.OrganizationAISpendOverviewUser {
+			var spend int64
+			for _, g := range groups {
+				spend += g.SpendMicros
+			}
+			return codersdk.OrganizationAISpendOverviewUser{
+				UserID: u.ID, Username: u.Username, Name: u.Name, AvatarURL: u.AvatarURL, SpendMicros: spend, Groups: groups,
+			}
+		}
+		// alice has one entry, with her groups sorted by spend, most first.
+		aliceSpend := user(alice, groupSpend(group, 1000), groupSpend(otherGroup, 500))
+		// bob 3000 and alice 1500: 2 users, 4500 in total, and a median of 2250.
+		// Users are sorted by spend, most first.
+		defaultOverview := codersdk.OrganizationAISpendOverview{
+			AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd},
+			Count:               2,
+			Totals:              codersdk.OrganizationAISpendOverviewTotals{SpendMicros: 4500, MedianSpendMicros: 2250},
+			// Daily spend stops at today, March 15. laterInMonth sums both users.
+			Intervals: days(monthStart, monthStart.AddDate(0, 0, 15), map[time.Time]int64{inMonth: 1000, laterInMonth: 3500}),
+			Users:     []codersdk.OrganizationAISpendOverviewUser{user(bob, groupSpend(group, 3000)), aliceSpend},
+		}
+		// defaultOverviewPage is the default overview with one page of users.
+		// Count, totals, and daily spend describe the whole period on every page.
+		defaultOverviewPage := func(users []codersdk.OrganizationAISpendOverviewUser) codersdk.OrganizationAISpendOverview {
+			overview := defaultOverview
+			overview.Users = users
+			return overview
+		}
+		explicitWindow := codersdk.AISpendPeriodWindow{PeriodStart: inMonth, PeriodEnd: inMonth.AddDate(0, 0, 2)}
+		futureWindow := codersdk.AISpendPeriodWindow{PeriodStart: afterToday, PeriodEnd: afterToday.AddDate(0, 0, 2)}
+
+		for _, tc := range []struct {
+			name   string
+			window codersdk.AISpendPeriodWindow
+			page   codersdk.OrganizationAISpendPage
+			want   codersdk.OrganizationAISpendOverview
+		}{
+			{
+				name: "Default",
+				want: defaultOverview,
+			},
+			{
+				// With a limit of 1, the second page holds alice, second by spend.
+				name: "Pagination",
+				page: codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1},
+				want: defaultOverviewPage([]codersdk.OrganizationAISpendOverviewUser{aliceSpend}),
+			},
+			{
+				// Offset 2 skips bob and alice, the only users with spend, so the
+				// page is empty.
+				name: "PaginationPastLastUser",
+				page: codersdk.OrganizationAISpendPage{Offset: 2},
+				want: defaultOverviewPage([]codersdk.OrganizationAISpendOverviewUser{}),
+			},
+			{
+				// The window holds inMonth but not laterInMonth, so only alice's
+				// 1000 counts.
+				name:   "ExplicitPeriod",
+				window: explicitWindow,
+				want: codersdk.OrganizationAISpendOverview{
+					AISpendPeriodWindow: explicitWindow,
+					Count:               1,
+					Totals:              codersdk.OrganizationAISpendOverviewTotals{SpendMicros: 1000, MedianSpendMicros: 1000},
+					Intervals:           days(explicitWindow.PeriodStart, explicitWindow.PeriodEnd, map[time.Time]int64{inMonth: 1000}),
+					Users:               []codersdk.OrganizationAISpendOverviewUser{user(alice, groupSpend(group, 1000))},
+				},
+			},
+			{
+				// A period after today echoes the applied period without any
+				// spend.
+				name:   "FuturePeriod",
+				window: futureWindow,
+				want: codersdk.OrganizationAISpendOverview{
+					AISpendPeriodWindow: futureWindow,
+					Intervals:           []codersdk.OrganizationAISpendOverviewInterval{},
+					Users:               []codersdk.OrganizationAISpendOverviewUser{},
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, tc.window, tc.page)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, overview)
+			})
+		}
+
+		// The overview covers the whole organization, so a regular member is
+		// rejected.
+		t.Run("Member", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := codersdk.NewExperimentalClient(memberClient).OrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	})
+
+	// The daily spend aggregate is not purged, so retention limits neither
+	// the default period nor an explicit one.
+	t.Run("IgnoresRetention", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		db, ps := dbtestutil.NewDB(t)
+		retention := 7 * 24 * time.Hour
+		adminClient, alice, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-overview-retention-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+			Retention: &retention,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// March 2 is before the retention window, which starts at noon on
+		// March 8.
+		beforeRetention := monthStart.AddDate(0, 0, 1)
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: alice.ID, EffectiveGroupID: group.ID, Day: beforeRetention, CostMicros: 1000,
+		})
+		require.NoError(t, err)
+
+		overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
+		require.NoError(t, err)
+		require.Equal(t, monthStart, overview.PeriodStart)
+		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
+
+		window := codersdk.AISpendPeriodWindow{PeriodStart: beforeRetention, PeriodEnd: beforeRetention.AddDate(0, 0, 1)}
+		overview, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, window, codersdk.OrganizationAISpendPage{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
 	})
 }
 
@@ -6449,10 +7070,14 @@ func TestGroupMembersAISpend(t *testing.T) {
 		// When: querying spend.
 		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
 
-		// Then: request fails with 400.
+		// Then: request fails with 400 and a user_ids validation error.
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "user_ids",
+			Detail: "user_ids has 101 entries, maximum is 100.",
+		}}, sdkErr.Validations)
 	})
 
 	t.Run("MalformedUserID", func(t *testing.T) {

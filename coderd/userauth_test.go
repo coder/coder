@@ -260,6 +260,63 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+	t.Run("SetupTokenBlocksFirstUser", func(t *testing.T) {
+		t.Parallel()
+		const token = "0123456789abcdefghijklmnopqrstuv"
+		client := coderdtest.New(t, &coderdtest.Options{
+			SetupToken: token,
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:  &testutil.OAuth2Config{},
+				AllowSignups:  true,
+				AllowEveryone: true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(_ context.Context, _ *http.Client, _, _, _ string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						ID:    github.Int64(100),
+						Login: github.String("stranger"),
+						Name:  github.String("Stranger"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("stranger@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		has, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.False(t, has)
+
+		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email:      coderdtest.FirstUserParams.Email,
+			Username:   coderdtest.FirstUserParams.Username,
+			Password:   coderdtest.FirstUserParams.Password,
+			SetupToken: token,
+		})
+		require.NoError(t, err)
+
+		// Once setup is complete the same sign-in works again, and the
+		// account it creates is not an owner.
+		resp = oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "stranger@coder.com", user.Email)
+		require.Empty(t, user.Roles)
+	})
 	t.Run("NotInAllowedTeam", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -1731,6 +1788,27 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
+	t.Run("SetupTokenBlocksFirstUser", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			SetupToken: "0123456789abcdefghijklmnopqrstuv",
+			OIDCConfig: cfg,
+		})
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+			"email": "stranger@coder.com",
+			"sub":   uuid.NewString(),
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		has, err := client.HasFirstUser(testutil.Context(t, testutil.WaitShort))
+		require.NoError(t, err)
+		require.False(t, has)
+	})
+
 	t.Run("EmailVerifiedMissingIgnored", func(t *testing.T) {
 		t.Parallel()
 		fake := oidctest.NewFakeIDP(t,
@@ -1759,7 +1837,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
@@ -1796,6 +1873,7 @@ func TestUserOIDC(t *testing.T) {
 			ResourceType:     database.ResourceTypeUser,
 			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
 		}))
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1874,7 +1952,6 @@ func TestUserOIDC(t *testing.T) {
 	// user_link exists (e.g. a dormant OIDC user created via SCIM or API).
 	t.Run("OIDCFirstTimeLinkByEmailAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1907,6 +1984,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -1929,7 +2007,6 @@ func TestUserOIDC(t *testing.T) {
 	// and that their linked_id is backfilled with the correct value.
 	t.Run("OIDCLegacyLinkBackfill", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -1964,6 +2041,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -1989,7 +2067,6 @@ func TestUserOIDC(t *testing.T) {
 	// linked_id (old issuer) differs from the newly computed one (new issuer).
 	t.Run("OIDCEmailFallbackBlockedByIssuerChange", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2030,6 +2107,7 @@ func TestUserOIDC(t *testing.T) {
 			"issuer change must block the email fallback for an existing link")
 
 		// The stored link must remain unchanged.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    user.ID,
 			LoginType: database.LoginTypeOIDC,
@@ -2046,7 +2124,6 @@ func TestUserOIDC(t *testing.T) {
 	// so the user can keep logging in with either subject.
 	t.Run("OIDCInsecureEmailFallbackAllowed", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2087,6 +2164,7 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode,
 			"insecure email fallback must allow login with a mismatched subject")
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
@@ -2111,7 +2189,6 @@ func TestUserOIDC(t *testing.T) {
 	// matching directly.
 	t.Run("OIDCInsecureEmailFallbackPreservesOriginalLogin", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2156,6 +2233,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID)
@@ -2211,7 +2289,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCSuspended", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
@@ -2250,6 +2327,7 @@ func TestUserOIDC(t *testing.T) {
 
 		// The user's status must remain suspended; nothing in the OAuth
 		// transaction should have been committed.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		//nolint:gocritic // System read for verification.
 		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		require.NoError(t, err)
@@ -2518,7 +2596,6 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("StripRedirectHost", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		expectedRedirect := "/foo/bar?hello=world&bar=baz"
 		redirectURL := "https://malicious" + expectedRedirect
@@ -2565,6 +2642,7 @@ func TestUserOIDC(t *testing.T) {
 		require.NotContains(t, location.String(), "malicious")
 
 		// Verify the user was created
+		ctx := testutil.Context(t, testutil.WaitShort)
 		user, err := loginClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "user@example.com", user.Email)

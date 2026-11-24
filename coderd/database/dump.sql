@@ -42,6 +42,12 @@ CREATE TYPE aibridge_interception_error_type AS ENUM (
     'unknown'
 );
 
+CREATE TYPE aibridge_interception_organization_source AS ENUM (
+    'workspace',
+    'chatd',
+    'effective_group'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -353,6 +359,11 @@ CREATE TYPE build_reason AS ENUM (
     'jetbrains_connection'
 );
 
+CREATE TYPE chat_busy_behavior AS ENUM (
+    'queue',
+    'steer'
+);
+
 CREATE TYPE chat_client_type AS ENUM (
     'ui',
     'api'
@@ -400,7 +411,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'error',
     'requires_action',
-    'interrupting'
+    'interrupting',
+    'paused'
 );
 
 CREATE TYPE chat_title_source AS ENUM (
@@ -788,7 +800,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
-    refresh_lease_expires_at timestamp with time zone
+    refresh_lease_expires_at timestamp with time zone,
+    oauth_extra_key_id text
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -798,6 +811,8 @@ COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of t
 COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
 
 COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+COMMENT ON COLUMN external_auth_links.oauth_extra_key_id IS 'The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.';
 
 CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
     LANGUAGE plpgsql
@@ -1843,7 +1858,10 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
     error_message character varying(1024),
-    workspace_id uuid
+    workspace_id uuid,
+    organization_id uuid,
+    organization_source aibridge_interception_organization_source,
+    CONSTRAINT aibridge_interceptions_organization_source_check CHECK (((organization_id IS NULL) = (organization_source IS NULL)))
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1873,6 +1891,10 @@ COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal ups
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.workspace_id IS 'The workspace in which the agent ran. NULL when no workspace context is available.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_id IS 'The organization the interception was attributed to. NULL when no organization was resolved.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_source IS 'How organization_id was chosen. NULL exactly when organization_id is NULL.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -2087,7 +2109,8 @@ CREATE TABLE chat_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -2107,6 +2130,8 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN chat_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2294,7 +2319,7 @@ CREATE TABLE chat_organization_model_overrides (
     context text NOT NULL,
     model_config_id uuid NOT NULL,
     reasoning_effort text,
-    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text, 'computer_use'::text])))
 );
 
 CREATE TABLE chat_organization_system_prompts (
@@ -2334,6 +2359,15 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
+CREATE TABLE chat_project_templates (
+    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_templates IS 'Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.';
+
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2345,6 +2379,11 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    limit_templates boolean DEFAULT false NOT NULL,
+    default_template_id uuid,
+    default_template_version_preset_id uuid,
+    default_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_default_preset_or_parameters CHECK (((default_template_version_preset_id IS NULL) OR (default_parameters = '{}'::jsonb))),
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
@@ -2361,6 +2400,14 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
+COMMENT ON COLUMN chat_projects.limit_templates IS 'When true, the project''s chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.';
+
+COMMENT ON COLUMN chat_projects.default_template_id IS 'Attached template recommended to the project''s chats. Ignored while the template is not attached.';
+
+COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
+
+COMMENT ON COLUMN chat_projects.default_parameters IS 'Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.';
+
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
     INCREMENT BY 1
@@ -2376,10 +2423,16 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    editing_since timestamp with time zone,
+    busy_behavior chat_busy_behavior DEFAULT 'queue'::chat_busy_behavior NOT NULL
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
+
+COMMENT ON COLUMN chat_queued_messages.busy_behavior IS 'queue: delivered at turn end. steer: delivered before the next model call.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2885,9 +2938,11 @@ CREATE TABLE mcp_server_configs (
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
     oauth2_resource text DEFAULT ''::text NOT NULL,
+    oauth2_client_registration text DEFAULT 'manual'::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
@@ -3101,6 +3156,24 @@ COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: H
 
 COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
+CREATE TABLE organization_member_disabled_skills (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    skill_id uuid NOT NULL
+);
+
+COMMENT ON TABLE organization_member_disabled_skills IS 'Organization skills that a member turned off for their own chats. Applied only while organizations.members_can_disable_skills is true.';
+
+CREATE TABLE organization_member_skill_settings (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    all_skills_disabled boolean DEFAULT false NOT NULL
+);
+
+COMMENT ON TABLE organization_member_skill_settings IS 'Per-member organization skill settings. Applied only while organizations.members_can_disable_skills is true.';
+
+COMMENT ON COLUMN organization_member_skill_settings.all_skills_disabled IS 'Whether the member turned off every organization skill, including skills added later. Per-skill choices in organization_member_disabled_skills are kept and apply again when this is false.';
+
 CREATE TABLE organizations (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -3112,12 +3185,15 @@ CREATE TABLE organizations (
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
-    default_org_member_roles text[] NOT NULL
+    default_org_member_roles text[] NOT NULL,
+    members_can_disable_skills boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
 
 COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
+
+COMMENT ON COLUMN organizations.members_can_disable_skills IS 'Whether organization members can turn off organization skills for their own chats. While false, member choices are kept but ignored.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -3312,10 +3388,13 @@ CREATE TABLE skills (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     action boolean DEFAULT false NOT NULL,
     model_invocable boolean DEFAULT true NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
     CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
     CONSTRAINT skills_action_project_only CHECK (((NOT action) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
     CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT skills_display_name_length CHECK ((char_length(display_name) <= 64)),
+    CONSTRAINT skills_display_name_project_only CHECK (((display_name = ''::text) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
     CONSTRAINT skills_name_size CHECK ((octet_length(name) <= 256)),
@@ -3622,7 +3701,8 @@ CREATE TABLE templates (
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
     agents_allowed boolean DEFAULT true NOT NULL,
-    allow_workspace_renames boolean DEFAULT false NOT NULL
+    allow_workspace_renames boolean DEFAULT false NOT NULL,
+    browser_only boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3650,6 +3730,8 @@ COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the wor
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
+
+COMMENT ON COLUMN templates.browser_only IS 'Whether coderd refuses non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser_only setting applies on top of this.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3686,6 +3768,7 @@ CREATE VIEW template_with_names AS
     templates.time_til_autostop_notify,
     templates.agents_allowed,
     templates.allow_workspace_renames,
+    templates.browser_only,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -3840,7 +3923,8 @@ CREATE TABLE workspace_agent_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    plugin_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
@@ -3860,6 +3944,8 @@ COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource stat
 COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.plugin_name IS 'Agent Plugin name: the plugin''s own name on an OK plugin row, the owning plugin''s name on a skill or mcp_server row the plugin ships, and empty otherwise.';
 
 CREATE TABLE workspace_agent_context_snapshots (
     workspace_agent_id uuid NOT NULL,
@@ -4663,6 +4749,9 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_pkey PRIMARY KEY (project_id, template_id);
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
@@ -4785,6 +4874,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_pkey PRIMARY KEY (organization_id, user_id, skill_id);
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_pkey PRIMARY KEY (organization_id, user_id);
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
@@ -5030,6 +5125,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
+CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (editing_since IS NOT NULL);
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -5051,6 +5148,8 @@ CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_intercepti
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
+
+CREATE INDEX idx_aibridge_interceptions_organization_id ON aibridge_interceptions USING btree (organization_id) WHERE (organization_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
@@ -5224,6 +5323,8 @@ CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING 
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
+CREATE INDEX idx_organization_member_disabled_skills_skill_id ON organization_member_disabled_skills USING btree (skill_id);
+
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
@@ -5338,6 +5439,10 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
+CREATE INDEX workspace_app_stats_session_ended_at_idx ON workspace_app_stats USING btree (session_ended_at);
+
+COMMENT ON INDEX workspace_app_stats_session_ended_at_idx IS 'Supports the session_ended_at range filter in GetTemplateAppInsightsByTemplate (insights metrics collector).';
+
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
 CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
@@ -5432,7 +5537,7 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by, editing_since ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
 
@@ -5508,6 +5613,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -5599,6 +5707,21 @@ ALTER TABLE ONLY chat_project_memories
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_templates
+    ADD CONSTRAINT chat_project_templates_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_id_fkey FOREIGN KEY (default_template_id) REFERENCES templates(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_version_preset_id_fkey FOREIGN KEY (default_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
@@ -5655,6 +5778,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT external_auth_links_oauth_extra_key_id_fkey FOREIGN KEY (oauth_extra_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
@@ -5760,6 +5886,15 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skill_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

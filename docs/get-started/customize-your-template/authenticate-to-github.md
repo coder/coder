@@ -31,7 +31,7 @@ The `id` points at a provider configured on the Coder deployment, and the local 
 > [!NOTE]
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
 > A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
-> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
+> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OpenID Connect (OIDC)) or replace the built-in GitHub app.
 > To learn more, refer to [External authentication](../../admin/external-auth.md).
 
 ## Step 1: Require GitHub authentication
@@ -79,9 +79,9 @@ You only authorize the workspace.
 
 On your workspace, select **Update**.
 The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
-The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
+The following screenshot shows the **External authentication** section of the workspace creation screen before connecting GitHub:
 
-![External Authentication panel with GitHub marked Required and a Login with GitHub button](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
+![External authentication panel with GitHub marked Required and a Login with GitHub button](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
 
 ### CLI
 
@@ -99,7 +99,7 @@ Open it, authorize Coder, then run the command again.
 Once you authorize Coder, the workspace starts, and Coder stores and refreshes your GitHub token for later builds.
 After authorizing Coder, Coder replaces the **Login with GitHub** button with an **Authenticated** message:
 
-![External Authentication panel with GitHub marked Authenticated](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
+![External authentication panel with GitHub marked Authenticated](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
 
 ## Step 3: Clone a private repository
 
@@ -598,8 +598,8 @@ You finished the Customize your template series, and your workspaces can now clo
 This is the last guide in the series.
 To keep going, explore more of what Coder offers:
 
-- [Manage workspaces for your team](../../user-guides/workspace-management.md).
-- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
+- [Manage workspaces for your team](../../workspaces/workspace-management.md).
+- [Try Coder Agents](../../coder-agents/getting-started.md), the chat interface and API for delegating work to coding agents.
 
 Or revisit the [Customize your template overview](./index.md) for the full list of guides.
 

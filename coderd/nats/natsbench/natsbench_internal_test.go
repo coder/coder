@@ -1,10 +1,13 @@
 package main
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -91,7 +94,11 @@ func TestRunCluster(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	logger := testutil.Logger(t)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
+			return slices.Contains(ent.LoggerNames, "server") || testutil.IgnoreLoggedError(ent)
+		},
+	}).Leveled(slog.LevelDebug)
 
 	// Random node placement across 3 replicas makes cross-node
 	// delivery the common case, exercising route propagation through

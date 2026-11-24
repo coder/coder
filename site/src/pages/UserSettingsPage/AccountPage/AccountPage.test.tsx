@@ -1,6 +1,11 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { API } from "#/api/api";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import { API, withDefaultFeatures } from "#/api/api";
+import {
+	MockEntitlements,
+	MockGroup,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AccountPage from "./AccountPage";
 
@@ -23,6 +28,29 @@ const fillAndSubmitForm = async () => {
 };
 
 describe("AccountPage", () => {
+	it("sets a page title that identifies the page", async () => {
+		renderWithAuth(<AccountPage />);
+		await waitFor(() => {
+			expect(document.title).toBe("Account - Settings - Coder");
+		});
+	});
+
+	it("nests the groups heading under the page heading", async () => {
+		vi.spyOn(API, "getEntitlements").mockResolvedValue({
+			...MockEntitlements,
+			features: withDefaultFeatures({
+				user_role_management: { enabled: true, entitlement: "entitled" },
+			}),
+		});
+		vi.spyOn(API, "getGroups").mockResolvedValue([MockGroup]);
+		renderWithAuth(<AccountPage />);
+
+		await screen.findByText(MockGroup.display_name);
+		expect(
+			screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+		).toEqual(["Your groups"]);
+	});
+
 	describe("when it is a success", () => {
 		it("shows the success message", async () => {
 			vi.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>

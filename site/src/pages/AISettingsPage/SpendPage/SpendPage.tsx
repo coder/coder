@@ -10,6 +10,7 @@ import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
 import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
@@ -68,24 +69,20 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	// Gateway endpoints, so only viewers of every session get those filters.
 	const canFilterDimensions = permissions.viewAnyAIBridgeInterception;
 
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchParams] = useSearchParams();
+	const updateSearchParams = useUpdateSearchParams();
 
 	const setFilterParams = (updates: Record<string, string | undefined>) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				for (const [key, value] of Object.entries(updates)) {
-					if (value) {
-						next.set(key, value);
-					} else {
-						next.delete(key);
-					}
+		updateSearchParams((params) => {
+			for (const [key, value] of Object.entries(updates)) {
+				if (value) {
+					params.set(key, value);
+				} else {
+					params.delete(key);
 				}
-				next.delete("page");
-				return next;
-			},
-			{ replace: true },
-		);
+			}
+			params.delete("page");
+		});
 	};
 
 	const organizationsQuery = useQuery({
@@ -189,7 +186,7 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("Spend", "AI Settings")}</title>
+			<title>{pageTitle("Spend", "AI settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}

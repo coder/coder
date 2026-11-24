@@ -16,8 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
-	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -217,18 +215,20 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, res.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				assistantToolCallMessage(t, f.model.ID, toolName),
 			},
 		})
 		return err
-	}))
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, res.Chat.ID)
 	require.NoError(t, err)
 	f.pubsub.clear()
@@ -312,15 +312,12 @@ func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store, opt
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	evaluator, err := experiments.New(testutil.Logger(t), experimentstest.Store{}, nil)
-	require.NoError(t, err)
 	server, err := New(ps, Config{
-		Logger:              testutil.Logger(t),
-		Database:            db,
-		ReplicaID:           uuid.New(),
-		Clock:               cfg.clock,
-		Limits:              cfg.limits,
-		ExperimentEvaluator: evaluator,
+		Logger:    testutil.Logger(t),
+		Database:  db,
+		ReplicaID: uuid.New(),
+		Clock:     cfg.clock,
+		Limits:    cfg.limits,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = server.Close() })
@@ -457,10 +454,11 @@ func finishTurn(t *testing.T, f *workerTestFixture, chatID uuid.UUID) database.C
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -470,12 +468,13 @@ func commitAssistantStep(t *testing.T, f *workerTestFixture, chatID uuid.UUID, t
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistantTextMessage(t, text, f.model.ID)},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -486,14 +485,18 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 	ctx := testutil.Context(t, testutil.WaitShort)
 	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
+		if _, err := tx.Interrupt(chatstate.InterruptInput{}); err != nil {
+			return err
+		}
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: chatstate.BusyBehaviorSteer,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -503,10 +506,11 @@ func acquireChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID, workerID 
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	f.pubsub.clear()

@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
+import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserMember,
+	MockUserOwner,
 } from "#/testHelpers/entities";
-import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
+import {
+	countProjectFolderPins,
+	getOrganizationLabels,
+	groupChatsByProject,
+	mergeProjectFolderChats,
+} from "./projectGrouping";
 
 describe("groupChatsByProject", () => {
 	it("files chats under a loaded project and leaves the rest unfiled", () => {
@@ -48,6 +56,119 @@ describe("groupChatsByProject", () => {
 
 		expect(grouped.chatsByProjectId.size).toBe(0);
 		expect(grouped.unfiledChats).toEqual([mockFiledChat]);
+	});
+});
+
+describe("mergeProjectFolderChats", () => {
+	const mockFolderChat: Chat = {
+		...MockChat,
+		id: "folder-chat",
+		title: "Folder chat",
+		owner_id: MockUserOwner.id,
+		project_id: MockChatProject.id,
+		pin_order: 0,
+		archived: false,
+		updated_at: "2026-10-02T00:00:00Z",
+	};
+	const mockOlderChat: Chat = {
+		...mockFolderChat,
+		id: "older-chat",
+		title: "Older chat",
+		updated_at: "2026-10-01T00:00:00Z",
+	};
+	const mockNewerChat: Chat = {
+		...mockFolderChat,
+		id: "newer-chat",
+		title: "Newer chat",
+		updated_at: "2026-10-03T00:00:00Z",
+	};
+	const merge = (
+		filedChats: Chat[],
+		fetchedChats: Chat[],
+		sidebarChats: Chat[] = filedChats,
+	) =>
+		mergeProjectFolderChats({
+			projectId: MockChatProject.id,
+			filedChats,
+			fetchedChats,
+			sidebarChatById: new Map(sidebarChats.map((chat) => [chat.id, chat])),
+			currentUserId: MockUserOwner.id,
+			archived: false,
+		}).map((chat) => chat.title);
+
+	it("adds fetched chats the sidebar has not loaded, newest first", () => {
+		expect(merge([mockFolderChat], [mockOlderChat, mockNewerChat])).toEqual([
+			"Newer chat",
+			"Folder chat",
+			"Older chat",
+		]);
+	});
+
+	it("keeps the filed copy of a chat that both lists hold", () => {
+		const mockStaleFetchedChat = { ...mockFolderChat, title: "Stale title" };
+
+		expect(merge([mockFolderChat], [mockStaleFetchedChat])).toEqual([
+			"Folder chat",
+		]);
+	});
+
+	it("drops a stale fetched copy of a chat the sidebar lists elsewhere", () => {
+		const mockPinnedInSidebar = { ...mockFolderChat, pin_order: 1 };
+
+		expect(merge([], [mockFolderChat], [mockPinnedInSidebar])).toEqual([]);
+	});
+
+	it("drops fetched chats that no longer belong in the folder", () => {
+		const mockPinnedChat = { ...mockFolderChat, pin_order: 1 };
+		const mockMovedChat = { ...mockFolderChat, project_id: "other-project" };
+		const mockArchivedChat = { ...mockFolderChat, archived: true };
+		const mockSharedChat = { ...mockFolderChat, owner_id: MockUserMember.id };
+
+		expect(
+			merge(
+				[],
+				[mockPinnedChat, mockMovedChat, mockArchivedChat, mockSharedChat],
+			),
+		).toEqual([]);
+	});
+});
+
+describe("countProjectFolderPins", () => {
+	const mockPinnedChat: Chat = {
+		...MockChat,
+		id: "pinned-chat",
+		owner_id: MockUserOwner.id,
+		project_id: MockChatProject.id,
+		pin_order: 1,
+	};
+	const mockUnloadedPinnedChat: Chat = {
+		...mockPinnedChat,
+		id: "unloaded-pinned-chat",
+		pin_order: 51,
+	};
+
+	it("counts pins only the folder fetched, once each", () => {
+		expect(
+			countProjectFolderPins({
+				projectId: MockChatProject.id,
+				filedPinnedChats: [mockPinnedChat],
+				sidebarChatById: new Map([
+					[mockPinnedChat.id, mockPinnedChat],
+					[
+						"unpinned-in-sidebar",
+						{ ...mockPinnedChat, id: "unpinned-in-sidebar", pin_order: 0 },
+					],
+				]),
+				fetchedChats: [
+					mockPinnedChat,
+					mockUnloadedPinnedChat,
+					{ ...mockPinnedChat, id: "unpinned-in-sidebar" },
+					{ ...mockPinnedChat, id: "unpinned-chat", pin_order: 0 },
+					{ ...mockPinnedChat, id: "shared-chat", owner_id: MockUserMember.id },
+				],
+				currentUserId: MockUserOwner.id,
+			}),
+		).toBe(2);
 	});
 });
 

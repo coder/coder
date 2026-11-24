@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,10 @@ type executor struct {
 	files         tfpath.Layout
 	// used to capture execution times at various stages
 	timings *timingAggregator
+	// sensitiveVars holds the names of template variables flagged sensitive.
+	// It is replaced (never mutated) by plan, which holds mut, and read by the
+	// command logging helpers; the values of these variables are redacted.
+	sensitiveVars map[string]bool
 }
 
 func (e *executor) basicEnv() []string {
@@ -59,12 +64,42 @@ func (e *executor) basicEnv() []string {
 	return env
 }
 
+// forceExitTimeout is how long a Terraform command can run after its
+// second interrupt before it is killed. plan and apply stop their provider
+// plugins and exit within seconds of a second interrupt. Other commands,
+// such as init, show and graph, ignore it and are killed.
+const forceExitTimeout = 10 * time.Second
+
+// command creates a Terraform command that stops when killCtx ends. Where
+// interrupts are supported, it interrupts Terraform a second time and kills
+// it only if it is still running after forceExitTimeout, because a kill
+// leaves the provider plugins of Terraform running.
+func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd.Dir = e.files.WorkDirectory()
+	if runtime.GOOS != "windows" {
+		cmd.Cancel = func() error {
+			// A short exit timeout also shortens the wait after the second
+			// interrupt. Do not use cmd.WaitDelay: its timer also starts when
+			// the command exits on its own, and it would then cut off output
+			// that is not read yet.
+			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
+				err := cmd.Process.Kill()
+				e.logger.Debug(killCtx, "killed command", slog.F("args", redactArgs(cmd.Args, e.sensitiveVars)), slog.Error(err))
+			})
+			return cmd.Process.Signal(os.Interrupt)
+		}
+	}
+	return cmd
+}
+
 // execWriteOutput must only be called while the lock is held.
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
-	e.logger.Debug(ctx, "starting command", slog.F("args", args))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
+	e.logger.Debug(ctx, "starting command", slog.F("args", logArgs))
 
 	defer func() {
 		e.logger.Debug(ctx, "closing writers", slog.Error(err))
@@ -78,7 +113,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		}
 	}()
 	if ctx.Err() != nil {
-		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", args))
+		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", logArgs))
 		return ctx.Err()
 	}
 
@@ -86,9 +121,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	if env == nil {
 		// We don't want to passthrough host env when unset.
 		env = []string{}
@@ -103,17 +136,17 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 	e.server.logger.Debug(ctx, "executing terraform command",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", logArgs),
 	)
 	err = cmd.Start()
 	if err != nil {
-		e.logger.Debug(ctx, "failed to start command", slog.F("args", args))
+		e.logger.Debug(ctx, "failed to start command", slog.F("args", logArgs))
 		return err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
-	err = cmd.Wait()
-	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
+	err = waitCommand(killCtx, cmd)
+	e.logger.Debug(ctx, "command done", slog.F("args", logArgs), slog.Error(err))
 	return err
 }
 
@@ -121,15 +154,14 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
 
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
@@ -138,15 +170,15 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 
 	e.server.logger.Debug(ctx, "executing terraform command with JSON result",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", logArgs),
 	)
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
@@ -175,9 +207,9 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-// version doesn't need the lock because it doesn't read or write to any state.
+// version doesn't need e.mut because it doesn't touch the working directory.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
-	return versionFromBinaryPath(ctx, e.binaryPath)
+	return e.server.terraformVersion(ctx)
 }
 
 func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
@@ -208,6 +240,7 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 
 type textFileBusyError struct {
 	exitErr *exec.ExitError
+	stdout  string
 	stderr  string
 }
 
@@ -235,8 +268,10 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		<-doneErr
 	}()
 
-	// As a special case, we want to look for the error "text file busy" in the stderr output of
-	// the init command, so we also take a copy of the stderr into an in memory buffer.
+	// As a special case, we want to look for the error "text file busy" in the output of the
+	// init command, so we also take a copy of stdout and stderr into in memory buffers. With
+	// -json, Terraform reports the error as a diagnostic on stdout instead of stderr.
+	outBuf := newBufferedWriteCloser(outWriter)
 	errBuf := newBufferedWriteCloser(errWriter)
 
 	args := []string{
@@ -254,11 +289,12 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		args = append(args, "-json")
 	}
 
-	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outBuf, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
-		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
-			return &textFileBusyError{exitErr: exitErr, stderr: errBuf.b.String()}
+		textFileBusy := []byte("text file busy")
+		if bytes.Contains(outBuf.b.Bytes(), textFileBusy) || bytes.Contains(errBuf.b.Bytes(), textFileBusy) {
+			return &textFileBusyError{exitErr: exitErr, stdout: outBuf.b.String(), stderr: errBuf.b.String()}
 		}
 	}
 	if err != nil {
@@ -288,12 +324,13 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, sensitiveVars map[string]bool, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	e.mut.Lock()
 	defer e.mut.Unlock()
+	e.sensitiveVars = sensitiveVars
 
 	metadata := req.Metadata
 
@@ -494,9 +531,8 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	}
 
 	var out strings.Builder
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd := e.command(killCtx, args...)
 	cmd.Stdout = &out
-	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -507,9 +543,9 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}
@@ -576,7 +612,7 @@ func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	return state, nil
 }
 
-func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, cmd *exec.Cmd) {
+func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, sensitiveVars map[string]bool, cmd *exec.Cmd) {
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -588,12 +624,20 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 			default:
 				err = cmd.Process.Signal(os.Interrupt)
 			}
-			logger.Debug(ctx, "interrupted command", slog.F("args", cmd.Args), slog.Error(err))
+			logger.Debug(ctx, "interrupted command", slog.F("args", redactArgs(cmd.Args, sensitiveVars)), slog.Error(err))
 
 		case <-killCtx.Done():
-			logger.Debug(ctx, "kill context ended", slog.F("args", cmd.Args))
+			logger.Debug(ctx, "kill context ended", slog.F("args", redactArgs(cmd.Args, sensitiveVars)))
 		}
 	}()
+}
+
+func waitCommand(killCtx context.Context, cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	if err != nil && killCtx.Err() != nil {
+		return xerrors.Errorf("did not exit within the exit timeout after an interrupt: %w", err)
+	}
+	return err
 }
 
 type logSink interface {
@@ -825,4 +869,23 @@ func (b *bufferedWriteCloser) Write(p []byte) (int, error) {
 
 func (b *bufferedWriteCloser) Close() error {
 	return b.wc.Close()
+}
+
+// redactArgs returns a copy of args that is safe to log or attach to spans: the
+// value of every `-var name=value` whose name is in sensitive is replaced,
+// keeping the name. Only variables flagged sensitive are redacted; the value of
+// an unflagged variable is logged as is, so authors must mark secrets
+// `sensitive = true`. The args passed to terraform are not modified.
+func redactArgs(args []string, sensitive map[string]bool) []string {
+	out := slices.Clone(args)
+	for i := 1; i < len(args); i++ {
+		// plan passes each variable as a separate `-var` `name=value` pair.
+		if args[i-1] != "-var" {
+			continue
+		}
+		if name, _, _ := strings.Cut(args[i], "="); sensitive[name] {
+			out[i] = name + "=[REDACTED]"
+		}
+	}
+	return out
 }

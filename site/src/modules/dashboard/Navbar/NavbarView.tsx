@@ -32,7 +32,7 @@ type NavbarViewProps = {
 
 const linkStyles = {
 	default:
-		"text-sm font-medium text-content-secondary no-underline block h-full px-2 flex items-center hover:text-content-primary transition-colors",
+		"text-sm font-medium text-content-secondary no-underline flex h-full px-2 items-center hover:text-content-primary transition-colors",
 	active: "text-content-primary",
 };
 
@@ -52,7 +52,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
+				"sticky top-0 bg-surface-primary z-40 border-b h-18 min-h-18 flex items-center leading-none px-6",
 				prerelease &&
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
@@ -80,12 +80,12 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 					href={buildInfo.external_url}
 					target="_blank"
 					rel="noreferrer"
-					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
+					className="absolute top-0 left-1/2 -translate-x-1/2 -translate-0.5 no-underline z-10"
 				>
 					<Badge
 						variant={prerelease === "rc" ? "info" : "warning"}
 						size="sm"
-						className="font-mono rounded-t-none border-t-0"
+						className="font-mono rounded-t-none border border-t-0"
 					>
 						{buildInfo.version}
 					</Badge>

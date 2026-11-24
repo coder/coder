@@ -15,13 +15,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -30,8 +35,11 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
+	"github.com/coder/websocket"
 )
 
 // App names for each app sharing level.
@@ -82,6 +90,143 @@ func TestBlockNonBrowser(t *testing.T) {
 		conn, err := workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
+	})
+}
+
+func TestBlockNonBrowserTemplate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AgentCoordinate", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly: 1,
+				},
+			},
+		})
+		r := setupWorkspaceAgent(t, client, user, 0)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The deployment-wide setting is off, so the agent starts reachable.
+		//nolint:gocritic // The owner is used so the refusal below cannot be an RBAC denial.
+		conn, err := workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
+		require.NoError(t, err)
+		_ = conn.Close()
+
+		//nolint:gocritic // Template settings are admin-only.
+		updated, err := client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(true),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.BrowserOnly)
+
+		//nolint:gocritic // Testing that even the owner gets blocked.
+		_, err = workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	// The user-scoped tailnet endpoint spans every template the user can
+	// reach, so the template setting has to be enforced per tunnel rather than
+	// on the endpoint as a whole. Refusing one tunnel must not drop the others.
+	t.Run("UserTailnet", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		connLogger := connectionlog.NewFake()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Coordinator:              tailnet.NewCoordinator(logger),
+				ConnectionLogger:         connLogger,
+				Logger:                   &logger,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly:   1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+		browserOnly := setupWorkspaceAgent(t, client, user, 0)
+		normal := setupWorkspaceAgent(t, client, user, 0)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Template settings are admin-only.
+		_, err := client.UpdateTemplateMeta(ctx, browserOnly.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(true),
+		})
+		require.NoError(t, err)
+
+		u, err := client.URL.Parse("/api/v2/tailnet?version=" + tailnetproto.CurrentVersion.String())
+		require.NoError(t, err)
+		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{client.SessionToken()},
+			},
+		})
+		if err != nil && resp != nil {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		rpcClient, err := tailnet.NewDRPCClient(
+			websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+			logger,
+		)
+		require.NoError(t, err)
+
+		updates, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{
+			WorkspaceOwnerId: tailnet.UUIDToByteSlice(user.UserID),
+		})
+		require.NoError(t, err)
+		update, err := updates.Recv()
+		require.NoError(t, err)
+		var listed []uuid.UUID
+		for _, ws := range update.UpsertedWorkspaces {
+			listed = append(listed, uuid.UUID(ws.Id))
+		}
+		require.Equal(t, []uuid.UUID{normal.workspace.ID}, listed)
+
+		stream, err := rpcClient.Coordinate(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
+			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(browserOnly.sdkAgent.ID)},
+		}))
+		refusal, err := stream.Recv()
+		require.NoError(t, err)
+		require.Equal(t, tailnet.TunnelRefusedError+": Non-browser connections are disabled for this template.", refusal.Error)
+
+		require.NoError(t, stream.Send(&tailnetproto.CoordinateRequest{
+			AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(normal.sdkAgent.ID)},
+		}))
+		for reachable := false; !reachable; {
+			msg, err := stream.Recv()
+			require.NoError(t, err)
+			require.Empty(t, msg.Error)
+			for _, peer := range msg.PeerUpdates {
+				reachable = reachable || uuid.UUID(peer.Id) == normal.sdkAgent.ID
+			}
+		}
+
+		require.Eventually(t, func() bool {
+			return connLogger.Contains(t, database.UpsertConnectionLogParams{
+				WorkspaceID:      browserOnly.workspace.ID,
+				AgentName:        browserOnly.sdkAgent.Name,
+				ConnectionMethod: database.ConnectionLogMethodTunnel,
+				Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
+				UserID:           uuid.NullUUID{UUID: user.UserID, Valid: true},
+				ConnectionStatus: database.ConnectionStatusConnected,
+			})
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -461,5 +606,98 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, "Workspace does not have an external agent.", apiErr.Message)
+	})
+
+	t.Run("RequiresSSHPermission", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := user.OrganizationID
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, orgID)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleTemplateAdmin())
+		orgTemplateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.ScopedRoleOrgTemplateAdmin(orgID))
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+		useShareeClient, useSharee := coderdtest.CreateAnotherUser(t, client, orgID)
+		adminShareeClient, adminSharee := coderdtest.CreateAnotherUser(t, client, orgID)
+
+		scopedMemberClient := func(scopes ...codersdk.APIKeyScope) *codersdk.Client {
+			token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scopes: scopes,
+			})
+			require.NoError(t, err)
+			scopedClient := codersdk.New(client.URL)
+			scopedClient.SetSessionToken(token.Key)
+			return scopedClient
+		}
+		// Reading a workspace also reads its template, so the read-only
+		// token needs template:read alongside workspace:read.
+		readOnlyClient := scopedMemberClient(codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead)
+		accessTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesAccess)
+		operateTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesOperate)
+		createTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesCreate)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        member.ID,
+			UserACL: database.WorkspaceACL{
+				useSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse),
+				},
+				adminSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin),
+				},
+			},
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Resource(&proto.Resource{
+			Name: "test-agent",
+			Type: "coder_external_agent",
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "linux"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		for _, tc := range []struct {
+			name    string
+			client  *codersdk.Client
+			allowed bool
+		}{
+			{name: "WorkspaceOwner", client: memberClient, allowed: true},
+			{name: "Owner", client: client, allowed: true},
+			{name: "ACLUse", client: useShareeClient, allowed: true},
+			{name: "ACLAdmin", client: adminShareeClient, allowed: true},
+			{name: "TemplateAdmin", client: templateAdminClient, allowed: false},
+			{name: "OrgTemplateAdmin", client: orgTemplateAdminClient, allowed: false},
+			{name: "OrgAdmin", client: orgAdminClient, allowed: false},
+			{name: "ReadOnlyToken", client: readOnlyClient, allowed: false},
+			{name: "WorkspacesAccessToken", client: accessTokenClient, allowed: true},
+			{name: "WorkspacesOperateToken", client: operateTokenClient, allowed: false},
+			{name: "WorkspacesCreateToken", client: createTokenClient, allowed: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Every caller can read the workspace, so a denial is caused
+				// by the missing SSH permission.
+				_, err := tc.client.Workspace(ctx, r.Workspace.ID)
+				require.NoError(t, err)
+
+				credentials, err := tc.client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+				if tc.allowed {
+					require.NoError(t, err)
+					require.Equal(t, r.AgentToken, credentials.AgentToken)
+					return
+				}
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+			})
+		}
 	})
 }

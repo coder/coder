@@ -344,6 +344,14 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
 
+	if vals.Prometheus.CollectWorkspaceStats {
+		closeWorkspaceStatsFunc, err := prometheusmetrics.WorkspaceStats(ctx, options.Logger.Named("workspace_stats_metrics"), quartz.NewReal(), options.PrometheusRegistry, options.Database, 0)
+		if err != nil {
+			return nil, xerrors.Errorf("register workspace stats prometheus metric: %w", err)
+		}
+		afterCtx(ctx, closeWorkspaceStatsFunc)
+	}
+
 	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to initialize insights metrics collector: %w", err)
@@ -1041,6 +1049,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
+			options.SetupToken, err = resolveSetupToken(ctx, inv, options.Database, vals.SetupToken.String(), tunnel != nil)
+			if err != nil {
+				return err
+			}
+
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
@@ -1185,16 +1198,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
-			// in AGPL builds it does not exist at all. The daemon starts here
-			// unconditionally when the bridge feature is enabled by config so
-			// chatd can use it regardless of license entitlement.
+			// in AGPL builds it does not exist at all. The outer block sets up
+			// metrics that coderd records for both embedded and standalone gateways.
+			// The inner block starts the embedded daemon, which standalone-only
+			// deployments disable with CODER_AI_GATEWAY_EMBEDDED_ENABLED=false.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
-				// See AIGOV-447:
-				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
-				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
-				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
+				costControlReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
 				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
 				if vals.Prometheus.Enable {
 					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)
@@ -1204,22 +1213,26 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					)
 					defer closeBlockedUsersFunc()
 				}
-				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
-					API:           coderAPI,
-					Config:        vals.AI.BridgeConfig,
-					Registerer:    aibridgeReg,
-					BridgeMetrics: aibridgeMetrics,
-				})
-				if err != nil {
-					return xerrors.Errorf("create aibridged: %w", err)
+				if vals.AI.BridgeConfig.EmbeddedEnabled.Value() {
+					aibridgeReg := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, coderAPI.PrometheusRegistry)
+					aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+					var unsubscribeProviderReload func()
+					aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
+						API:           coderAPI,
+						Config:        vals.AI.BridgeConfig,
+						Registerer:    aibridgeReg,
+						BridgeMetrics: aibridgeMetrics,
+					})
+					if err != nil {
+						return xerrors.Errorf("create aibridged: %w", err)
+					}
+					coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+					// The handler is bound to coderAPI's lifecycle; Close() on the
+					// daemon does not affect in-flight requests but is needed to
+					// release pool/recorder resources at shutdown.
+					defer aibridgeDaemon.Close()
+					defer unsubscribeProviderReload()
 				}
-				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
-				// The handler is bound to coderAPI's lifecycle; Close() on the
-				// daemon does not affect in-flight requests but is needed to
-				// release pool/recorder resources at shutdown.
-				defer aibridgeDaemon.Close()
-				defer unsubscribeProviderReload()
 			}
 
 			if vals.Prometheus.Enable {
@@ -2463,6 +2476,9 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if usr.Uid == "0" {
 		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
 	}
+	if err := config.ValidateBuiltinPostgresVersion(cfg.PostgresPath()); err != nil {
+		return "", nil, err
+	}
 
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
 	if customCacheDir != "" {
@@ -2693,12 +2709,13 @@ func WithMaxIdleConns(n int) PostgresConnectOption {
 
 // ConnectToPostgres takes in the migration command to run on the database once
 // it connects. To avoid running migrations, pass in `nil` or a no-op function.
+// The migration command reports its progress to logger, named "migrations".
 // Regardless of the passed in migration function, if the database is not fully
 // migrated, an error will be returned. This can happen if the database is on a
 // future or past migration version.
 //
 // If no error is returned, the database is fully migrated and up to date.
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error, opts ...PostgresConnectOption) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(*sql.DB, ...migrations.Option) error, opts ...PostgresConnectOption) (*sql.DB, error) {
 	// Apply defaults.
 	options := PostgresConnectOptions{
 		MaxOpenConns: 10,
@@ -2775,7 +2792,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
 	if migrate != nil {
-		err = migrate(sqlDB)
+		err = migrate(sqlDB, migrations.WithLogger(logger.Named("migrations")))
 		if err != nil {
 			return nil, xerrors.Errorf("migrate up: %w", err)
 		}

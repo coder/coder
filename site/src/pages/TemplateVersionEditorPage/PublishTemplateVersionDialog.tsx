@@ -109,7 +109,7 @@ export const PublishTemplateVersionDialog: React.FC<
 								)}
 							</div>
 
-							<div className="flex flex-row items-center gap-4">
+							<div className="flex items-center gap-4">
 								<div className="flex items-center gap-2">
 									<Checkbox
 										id="isActiveVersion"
@@ -136,8 +136,10 @@ export const PublishTemplateVersionDialog: React.FC<
 										<Link
 											size="sm"
 											href={docs(
-												"/admin/templates/managing-templates#template-update-policies",
+												"/templates/managing-templates#template-update-policies",
 											)}
+											target="_blank"
+											rel="noreferrer"
 										>
 											Review the documentation
 										</Link>

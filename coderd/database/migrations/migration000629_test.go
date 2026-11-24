@@ -24,21 +24,21 @@ func TestMigration000629DropsOutOfOrgChatProjectGrants(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
-	org := dbgen.Organization(t, db, database.Organization{})
-	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	orgID := insertMigrationTestOrganization(ctx, t, sqlDB, []string{})
+	otherOrgID := insertMigrationTestOrganization(ctx, t, sqlDB, []string{})
 	owner := dbgen.User(t, db, database.User{})
 	member := dbgen.User(t, db, database.User{})
 	departed := dbgen.User(t, db, database.User{})
 	for _, user := range []database.User{owner, member} {
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: orgID})
 	}
 	// Membership elsewhere must not keep a grant here.
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: departed.ID, OrganizationID: otherOrg.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: departed.ID, OrganizationID: otherOrgID})
 	projectID := uuid.New()
 	grant := `{"permissions":["read"]}`
 	userACL := `{"` + member.ID.String() + `":` + grant + `,"` + departed.ID.String() + `":` + grant + `}`
 	_, err := sqlDB.ExecContext(ctx, `INSERT INTO chat_projects (id, organization_id, owner_id, name, user_acl) VALUES ($1, $2, $3, 'project', $4::jsonb)`,
-		projectID, org.ID, owner.ID, userACL)
+		projectID, orgID, owner.ID, userACL)
 	require.NoError(t, err)
 
 	migration, err := os.ReadFile("000629_chat_project_acl_org_member_delete.up.sql")

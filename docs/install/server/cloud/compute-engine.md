@@ -12,7 +12,7 @@ This guide assumes you have `roles/compute.instanceAdmin.v1` access to your Goog
 
 We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed.
 
-Two SKU's are available via the Google Cloud Marketplace:
+Two stock keeping units (SKUs) are available via the Google Cloud Marketplace:
 
 1. [License purchase via Google Cloud Marketplace](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-gcmp?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)
 2. [A solution to deploy VM's on GCP (Bring Your Own License)](https://console.cloud.google.com/marketplace/product/workspan-public-422119/coder?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)
@@ -38,6 +38,15 @@ After launching the instance, wait 30&nbsp;seconds and navigate to the public IP
 You should be redirected to a public tunnel URL.
 
 ![Coder on GCP Marketplace start](../../../images/platforms/gcp/start.png)
+
+The setup page asks for a setup token before it creates the first user.
+To find it, connect to the instance over SSH and read the Coder service logs:
+
+```sh
+journalctl -u coder.service -b
+```
+
+Copy the token from the line that starts with `Setup token:`.
 
 That's all!
 Use the UI to create your first user, template, and workspace.
@@ -68,7 +77,7 @@ Follow the instructions in the [gcp-linux template README](../../../../examples/
 
 ### Next Steps
 
-- [Use your IDE with Coder](../../../user-guides/workspace-access/index.md)
-- [Writing custom templates for Coder](../../../admin/templates/index.md)
+- [Use your IDE with Coder](../../../workspaces/workspace-access/index.md)
+- [Writing custom templates for Coder](../../../templates/index.md)
 - [Configure the control plane](../../../admin/setup/index.md)
 - [Use your own domain + TLS](../../../admin/setup/index.md#tls--reverse-proxy)

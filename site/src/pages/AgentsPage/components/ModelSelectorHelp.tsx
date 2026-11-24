@@ -29,7 +29,7 @@ export const getModelSelectorHelp = ({
 				to="/agents/settings/api-keys"
 				className="underline transition-colors hover:text-content-primary"
 			>
-				Settings
+				settings
 			</Link>{" "}
 			to enable models.
 		</>

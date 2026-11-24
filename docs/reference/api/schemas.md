@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -376,6 +383,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `organization`    | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of this interception. Nil when none was stored.                                    |
 | `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
@@ -413,6 +421,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -441,6 +450,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -449,6 +459,42 @@ title: Schemas
 | `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
+
+## codersdk.AIBridgeInterceptionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "source": "workspace"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                             | false    |              |             |
+| `icon`         | string                                                                                             | false    |              |             |
+| `id`           | string                                                                                             | true     |              |             |
+| `name`         | string                                                                                             | false    |              |             |
+| `source`       | [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
+
+## codersdk.AIBridgeInterceptionOrganizationSource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                |
+|-----------------------------------------|
+| `chatd`, `effective_group`, `workspace` |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -479,6 +525,17 @@ title: Schemas
         "blocked": 0,
         "total": 0
       },
+      "organizations": [
+        {
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "sources": [
+            "workspace"
+          ]
+        }
+      ],
       "providers": [
         "string"
       ],
@@ -624,6 +681,17 @@ title: Schemas
     "blocked": 0,
     "total": 0
   },
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "providers": [
     "string"
   ],
@@ -652,6 +720,7 @@ title: Schemas
 | » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
 | `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `organizations`       | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                     |
 | `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
 | `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
@@ -688,6 +757,30 @@ title: Schemas
 |----------|---------|----------|--------------|-------------|
 | `count`  | integer | false    |              |             |
 | `domain` | string  | false    |              |             |
+
+## codersdk.AIBridgeSessionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "sources": [
+    "workspace"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                        | Required | Restrictions | Description |
+|----------------|-------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                                      | false    |              |             |
+| `icon`         | string                                                                                                      | false    |              |             |
+| `id`           | string                                                                                                      | true     |              |             |
+| `name`         | string                                                                                                      | false    |              |             |
+| `sources`      | array of [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -734,6 +827,17 @@ title: Schemas
       "domain": "string"
     }
   ],
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
@@ -752,6 +856,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "organization": {
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "source": "workspace"
+          },
           "priced_model": {
             "cache_read_price": 0,
             "cache_write_price": 0,
@@ -805,6 +916,13 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -859,6 +977,7 @@ title: Schemas
 | `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
 | `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `organizations`        | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                                                                                                                                  |
 | `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
@@ -930,6 +1049,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -983,6 +1109,13 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -1023,6 +1156,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `organization`                   | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of the root interception. Nil when none was stored.                                                                                                                                                      |
 | `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1129,6 +1263,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -1474,10 +1609,9 @@ None
 
 #### Enumerated Values
 
-| Property     | Value(s)                              |
-|--------------|---------------------------------------|
-| `login_type` | `github`, `oidc`, `password`, `token` |
-| `scope`      | `all`, `application_connect`          |
+| Property | Value(s)                     |
+|----------|------------------------------|
+| `scope`  | `all`, `application_connect` |
 
 ## codersdk.APIKeyScope
 
@@ -1506,6 +1640,24 @@ None
 | Name      | Type   | Required | Restrictions | Description |
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
+
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                       |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                     |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.        |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat turn. 0 means unlimited. |
 
 ## codersdk.AgentChatSendShortcut
 
@@ -2074,24 +2226,26 @@ None
   "password": {
     "enabled": true
   },
+  "setup_token_required": true,
   "terms_of_service_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                   | Required | Restrictions | Description |
-|------------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |             |
-| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |             |
-| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |             |
-| `terms_of_service_url` | string                                                 | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                              |
+|------------------------|--------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------|
+| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |                                                                                          |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |                                                                                          |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |                                                                                          |
+| `setup_token_required` | boolean                                                | false    |              | Setup token required is true when the first user can only be created with a setup token. |
+| `terms_of_service_url` | string                                                 | false    |              |                                                                                          |
 
 ## codersdk.AuthorizationCheck
 
 ```json
 {
-  "action": "create",
+  "action": "read",
   "object": {
     "any_org": true,
     "organization_id": "string",
@@ -2110,12 +2264,6 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 |----------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action` | [codersdk.RBACAction](#codersdkrbacaction)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    |              | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product. When defining an object, use the most specific language when possible to produce the smallest set. Meaning to set as many fields on 'Object' as you can. Example, if you want to check if you can update all workspaces owned by 'me', try to also add an 'OrganizationID' to the settings. Omitting the 'OrganizationID' could produce the incorrect value, as workspaces have both `user` and `organization` owners. |
-
-#### Enumerated Values
-
-| Property | Value(s)                             |
-|----------|--------------------------------------|
-| `action` | `create`, `delete`, `read`, `update` |
 
 ## codersdk.AuthorizationObject
 
@@ -2147,7 +2295,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "checks": {
     "property1": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2157,7 +2305,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2268,9 +2416,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `autodelete`, `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -2867,16 +3015,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.ChatBusyBehavior
 
 ```json
-"queue"
+"steer"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)             |
-|----------------------|
-| `interrupt`, `queue` |
+| Value(s)         |
+|------------------|
+| `queue`, `steer` |
 
 ## codersdk.ChatClientType
 
@@ -2891,6 +3039,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)    |
 |-------------|
 | `api`, `ui` |
+
+## codersdk.ChatComputerUseProvider
+
+```json
+"anthropic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                               |
+|----------------------------------------|
+| `anthropic`, `openai`, `openai-compat` |
 
 ## codersdk.ChatConfig
 
@@ -3394,9 +3556,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -3408,9 +3568,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -3427,13 +3585,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -3491,9 +3644,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "args": [
-    0
-  ],
+  "args": {},
   "args_delta": "string",
   "completed_at": "2019-08-24T14:15:22Z",
   "content": "string",
@@ -3505,9 +3656,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "context_file_skill_meta_file": "string",
   "context_file_truncated": true,
   "created_at": "2019-08-24T14:15:22Z",
-  "data": [
-    0
-  ],
+  "data": "string",
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
@@ -3524,13 +3673,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   ],
   "provider_executed": true,
-  "provider_metadata": [
-    0
-  ],
   "reasoning_delta": "string",
-  "result": [
-    0
-  ],
+  "result": {},
   "result_delta": "string",
   "result_reset": true,
   "skill_description": "string",
@@ -3557,7 +3701,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
 |--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args`                         | object                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -3569,7 +3713,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `data`                         | string                                                       | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3582,9 +3726,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `narration`                    | boolean                                                      | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result`                       | object                                                       | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
@@ -3669,9 +3812,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3683,9 +3824,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3702,13 +3841,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3749,12 +3883,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3766,9 +3899,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3785,13 +3916,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3814,22 +3940,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                        |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
+| Name               | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`         | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                                                                                           |
+| `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot version, a number that the server increases each time it changes the chat's messages, queue or status. The server sets it only when the request has neither before_id nor after_id. Pass it as the stream's snapshot_version parameter. The server reads this version before the page's messages and queued messages, so the page can include changes made at a higher version. The stream can send changes that are already in the page. |
+| `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatModel
 
@@ -3837,6 +3967,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
@@ -4009,21 +4140,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                         | Required | Restrictions | Description                                                                                        |
-|-------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
-| `ai_provider_id`        | string                                                       | false    |              |                                                                                                    |
-| `compression_threshold` | integer                                                      | false    |              |                                                                                                    |
-| `context_limit`         | integer                                                      | false    |              |                                                                                                    |
-| `created_at`            | string                                                       | false    |              |                                                                                                    |
-| `display_name`          | string                                                       | false    |              |                                                                                                    |
-| `enabled`               | boolean                                                      | false    |              |                                                                                                    |
-| `id`                    | string                                                       | false    |              |                                                                                                    |
-| `is_default`            | boolean                                                      | false    |              |                                                                                                    |
-| `model`                 | string                                                       | false    |              |                                                                                                    |
-| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |                                                                                                    |
-| `organization_id`       | string                                                       | false    |              |                                                                                                    |
-| `reasoning_efforts`     | array of string                                              | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum. |
-| `updated_at`            | string                                                       | false    |              |                                                                                                    |
+| Name                    | Type                                                                 | Required | Restrictions | Description                                                                                                                                |
+|-------------------------|----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_provider_id`        | string                                                               | false    |              |                                                                                                                                            |
+| `compression_threshold` | integer                                                              | false    |              |                                                                                                                                            |
+| `computer_use_provider` | [codersdk.ChatComputerUseProvider](#codersdkchatcomputeruseprovider) | false    |              | Computer use provider names the computer use tool that Coder sends for this model. It is omitted when computer use can't run on the model. |
+| `context_limit`         | integer                                                              | false    |              |                                                                                                                                            |
+| `created_at`            | string                                                               | false    |              |                                                                                                                                            |
+| `display_name`          | string                                                               | false    |              |                                                                                                                                            |
+| `enabled`               | boolean                                                              | false    |              |                                                                                                                                            |
+| `id`                    | string                                                               | false    |              |                                                                                                                                            |
+| `is_default`            | boolean                                                              | false    |              |                                                                                                                                            |
+| `model`                 | string                                                               | false    |              |                                                                                                                                            |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig)         | false    |              |                                                                                                                                            |
+| `organization_id`       | string                                                               | false    |              |                                                                                                                                            |
+| `reasoning_efforts`     | array of string                                                      | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum.                                         |
+| `updated_at`            | string                                                               | false    |              |                                                                                                                                            |
 
 ## codersdk.ChatModelACL
 
@@ -4573,9 +4705,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `advisor`, `compaction`, `computer_use`, `explore`, `general`, `title_generation` |
 
 ## codersdk.ChatModelOverrideResponse
 
@@ -5040,9 +5172,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
+  "hidden_template_count": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "limit_templates": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5051,23 +5193,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "share": true,
     "update": true
   },
+  "templates": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
-|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                               |
-| `description`     | string                                                             | false    |              |                                                                                               |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string                                                             | false    |              |                                                                                               |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string                                                             | false    |              |                                                                                               |
-| `owner_id`        | string                                                             | false    |              |                                                                                               |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
-| `updated_at`      | string                                                             | false    |              |                                                                                               |
+| Name                    | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                      |
+|-------------------------|----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `default_template`      | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template is omitted when the project has none or the caller cannot access it.                                                                                            |
+| `description`           | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `hidden_template_count` | integer                                                                    | false    |              | Hidden template count is the number of attached templates the caller cannot access. Nothing else about them is returned.                                                         |
+| `icon`                  | string                                                                     | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                                                                    |
+| `id`                    | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `limit_templates`       | boolean                                                                    | false    |              | Limit templates restricts the project's chats to its attached templates, and to none when nothing is attached. When false, the chats can use every template their owner can use. |
+| `name`                  | string                                                                     | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                                                            |
+| `organization_id`       | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `owner_id`              | string                                                                     | false    |              |                                                                                                                                                                                  |
+| `permissions`           | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)         | false    |              |                                                                                                                                                                                  |
+| `templates`             | array of [codersdk.ChatProjectTemplate](#codersdkchatprojecttemplate)      | false    |              | Templates are the attached templates the caller can access. Deprecated templates and templates that do not allow agents are left out.                                            |
+| `updated_at`            | string                                                                     | false    |              |                                                                                                                                                                                  |
 
 ## codersdk.ChatProjectACL
 
@@ -5104,6 +5258,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_member_count": 0
     }
   ],
+  "owner": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "users": [
     {
       "avatar_url": "http://example.com",
@@ -5118,10 +5278,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name     | Type                                                            | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
-| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+| Name     | Type                                                            | Required | Restrictions | Description                                               |
+|----------|-----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
+| `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
+
+## codersdk.ChatProjectDefaultTemplate
+
+```json
+{
+  "parameters": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameters`       | object | false    |              | Parameters are parameter values, keyed by name, applied when a chat creates a workspace from the template. Values the chat passes take precedence.                                     |
+| » `[any property]` | string | false    |              |                                                                                                                                                                                        |
+| `preset_id`        | string | false    |              | Preset ID is a preset of the template's active version, applied when a chat creates a workspace from the template without choosing a preset. It is mutually exclusive with Parameters. |
+| `template_id`      | string | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.ChatProjectGroup
 
@@ -5267,6 +5450,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.ChatProjectTemplate
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
 ## codersdk.ChatProjectUser
 
 ```json
@@ -5334,12 +5537,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "busy_behavior": "steer",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -5351,9 +5553,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -5370,13 +5570,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -5399,20 +5594,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
+  "editing_since": "2019-08-24T14:15:22Z",
   "id": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                        |
+|--------------------|---------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)        | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                           |
+| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                    |
+| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat. |
+| `id`               | integer                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property        | Value(s)         |
+|-----------------|------------------|
+| `busy_behavior` | `queue`, `steer` |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5466,9 +5672,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                         |
-|------------------------------------------------------------------|
-| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                                   |
+|----------------------------------------------------------------------------|
+| `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -5512,13 +5718,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -5530,9 +5737,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -5549,13 +5754,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -5597,9 +5797,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "generation_attempt": 0,
     "history_version": 0,
     "part": {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -5611,9 +5809,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -5630,13 +5826,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -5662,12 +5853,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -5679,9 +5869,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -5698,13 +5886,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -5727,8 +5910,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
   "retry": {
@@ -5740,6 +5925,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -5749,17 +5935,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
-| `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+|--------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `history_reset`    | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                        |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                        |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the chat's snapshot version when the change that the event reports was made. To reconnect, open the stream with the highest one received from the messages page or from events. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                |
 
 ## codersdk.ChatStreamEventType
 
@@ -5775,6 +5963,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                   |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept. |
+
 ## codersdk.ChatStreamMessagePart
 
 ```json
@@ -5782,9 +5984,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "generation_attempt": 0,
   "history_version": 0,
   "part": {
-    "args": [
-      0
-    ],
+    "args": {},
     "args_delta": "string",
     "completed_at": "2019-08-24T14:15:22Z",
     "content": "string",
@@ -5796,9 +5996,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "context_file_skill_meta_file": "string",
     "context_file_truncated": true,
     "created_at": "2019-08-24T14:15:22Z",
-    "data": [
-      0
-    ],
+    "data": "string",
     "end_line": 0,
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "file_name": "string",
@@ -5815,13 +6013,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     ],
     "provider_executed": true,
-    "provider_metadata": [
-      0
-    ],
     "reasoning_delta": "string",
-    "result": [
-      0
-    ],
+    "result": {},
     "result_delta": "string",
     "result_reset": true,
     "skill_description": "string",
@@ -6577,7 +6770,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
@@ -6625,21 +6818,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
-|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
-| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
-| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
-| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
-| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
-
-#### Enumerated Values
-
-| Property        | Value(s)             |
-|-----------------|----------------------|
-| `busy_behavior` | `interrupt`, `queue` |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              | Busy behavior controls when the message reaches the agent if the chat is busy. "steer", the default, delivers it before the next model call. "queue" delivers it after the active turn ends. |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                                                                                                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                 |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                                                                                                              |
 
 ## codersdk.CreateChatMessageResponse
 
@@ -6649,9 +6836,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -6663,9 +6848,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -6682,13 +6865,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6731,9 +6909,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -6745,9 +6921,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -6764,13 +6938,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -6811,12 +6980,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -6828,9 +6996,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -6847,13 +7013,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6876,8 +7037,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -6887,13 +7050,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
-|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
-| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
-| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
-| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A send to an errored or paused chat can also insert queued messages: a steer send inserts the queued steer messages before the new message, and a queue send to an errored chat inserts the steer lane, or the first queue message when that lane is empty. Clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.CreateChatModelRequest
 
@@ -7099,19 +7262,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
-  "name": "string"
+  "limit_templates": true,
+  "name": "string",
+  "template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | true     |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                   |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template must name one of TemplateIDs.                |
+| `description`      | string                                                                     | false    |              |                                                               |
+| `icon`             | string                                                                     | false    |              |                                                               |
+| `limit_templates`  | boolean                                                                    | false    |              | Limit templates restricts the project's chats to TemplateIDs. |
+| `name`             | string                                                                     | true     |              |                                                               |
+| `template_ids`     | array of string                                                            | false    |              | Template ids are attached to the new project.                 |
 
 ## codersdk.CreateChatRequest
 
@@ -7172,9 +7350,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -7230,6 +7406,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "newsletter_releases": true
   },
   "password": "string",
+  "setup_token": "string",
   "trial": true,
   "trial_info": {
     "company_name": "string",
@@ -7246,15 +7423,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                             | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`           | string                                                                           | true     |              |             |
-| `name`            | string                                                                           | false    |              |             |
-| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
-| `password`        | string                                                                           | true     |              |             |
-| `trial`           | boolean                                                                          | false    |              |             |
-| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
-| `username`        | string                                                                           | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description                                                                                           |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `email`           | string                                                                           | true     |              |                                                                                                       |
+| `name`            | string                                                                           | false    |              |                                                                                                       |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |                                                                                                       |
+| `password`        | string                                                                           | true     |              |                                                                                                       |
+| `setup_token`     | string                                                                           | false    |              | Setup token is required when AuthMethods.SetupTokenRequired is true. The server prints it at startup. |
+| `trial`           | boolean                                                                          | false    |              |                                                                                                       |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |                                                                                                       |
+| `username`        | string                                                                           | true     |              |                                                                                                       |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -7339,6 +7517,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_client_secret": "string",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
@@ -7359,42 +7538,44 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
-| `icon_url`              | string          | false    |              |                                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
-| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                 |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
-| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
-| `slug`                  | string          | true     |              |                                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                                        |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                   |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `api_key_header`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `api_key_value`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `auth_type`                  | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `availability`               | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `custom_headers`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| » `[any property]`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `display_name`               | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                                                                                                                                                                                                                                                                                          |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_client_id`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              | Oauth2 client registration selects how Coder gets the OAuth2 client. With "dynamic", Coder discovers the authorization server of URL and registers a client (RFC 7591), so the client ID, client secret, auth URL, and token URL must be empty. With "manual", the client ID, auth URL, and token URL are required. When empty, Coder uses "dynamic" if those three fields are empty, and "manual" otherwise. |
+| `oauth2_client_secret`       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_resource`            | string                                                                                   | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                                                                                                                                                                                                                                                                                        |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                                                                                                                                                                                                                                                                                        |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `signing_secret`             | string                                                                                   | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned.                                                                                                                                                                                                                                                                        |
+| `slug`                       | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tool_allow_list`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `transport`                  | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `url`                        | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property                     | Value(s)                                                   |
+|------------------------------|------------------------------------------------------------|
+| `auth_type`                  | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability`               | `default_off`, `default_on`, `force_on`                    |
+| `oauth2_client_registration` | `dynamic`, `manual`                                        |
+| `transport`                  | `sse`, `streamable_http`                                   |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -7436,17 +7617,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                                                                                                                          |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. It must be a single line of at most MaxSkillDisplayNameLength characters, and surrounding whitespace is trimmed.                                                                                                                         |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                                                                                                                                               |
 
 ## codersdk.CreateTemplateRequest
 
@@ -7469,6 +7652,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
@@ -7499,6 +7683,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name, so this defaults to false.                                                                                                            |
 | `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is a Premium feature.                                                                                                                                                                 |
 | `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is a Premium feature.                                                                                                                                                                    |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Defaults to false. Enabling it requires the browser-only entitlement.                                                                                       |
 | `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
@@ -7595,10 +7780,8 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "action": "create",
-  "additional_fields": [
-    0
-  ],
-  "build_reason": "autostart",
+  "additional_fields": {},
+  "build_reason": "initiator",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -7612,21 +7795,13 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                | Type                                           | Required | Restrictions | Description |
 |---------------------|------------------------------------------------|----------|--------------|-------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `additional_fields` | array of integer                               | false    |              |             |
+| `additional_fields` | object                                         | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
 | `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property        | Value(s)                                                                                                 |
-|-----------------|----------------------------------------------------------------------------------------------------------|
-| `action`        | `create`, `delete`, `start`, `stop`, `write`                                                             |
-| `build_reason`  | `autostart`, `autostop`, `initiator`                                                                     |
-| `resource_type` | `auditable_group`, `git_ssh_key`, `template`, `template_version`, `user`, `workspace`, `workspace_build` |
 
 ## codersdk.CreateTokenRequest
 
@@ -7840,9 +8015,7 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
-  "state": [
-    0
-  ],
+  "state": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"
@@ -7860,7 +8033,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets for this build. Previous secrets that are not listed carry forward unless they were ephemeral or a listed secret uses their env_name or file_path.                  |
-| `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
+| `state`                      | string                                                                                         | false    |              | State overrides the provisioner state for this build. JSON carries it as a base64 string.                                                                                                                     |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
 | `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                                   | true     |              |                                                                                                                                                                                                               |
@@ -8342,6 +8515,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8677,6 +8851,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
+      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8719,6 +8894,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_token_lifetime": 0,
       "refresh_default_duration": 0
     },
+    "setup_token": "string",
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
       "usage_stats": {
@@ -8980,6 +9156,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9315,6 +9492,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
+    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9357,6 +9535,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "max_token_lifetime": 0,
     "refresh_default_duration": 0
   },
+  "setup_token": "string",
   "ssh_keygen_algorithm": "string",
   "stats_collection": {
     "usage_stats": {
@@ -9516,6 +9695,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                                 | string                                                                                               | false    |              |                                                                           |
 | `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                           |
 | `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                           |
+| `setup_token`                                  | string                                                                                               | false    |              |                                                                           |
 | `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                           |
 | `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                           |
 | `strict_transport_security`                    | integer                                                                                              | false    |              |                                                                           |
@@ -9706,20 +9886,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "description": "string",
-  "input_schema": [
-    0
-  ],
+  "input_schema": {},
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type             | Required | Restrictions | Description                                                                                                                                  |
-|----------------|------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `description`  | string           | false    |              |                                                                                                                                              |
-| `input_schema` | array of integer | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
-| `name`         | string           | false    |              |                                                                                                                                              |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                  |
+|----------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `description`  | string | false    |              |                                                                                                                                              |
+| `input_schema` | object | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
+| `name`         | string | false    |              |                                                                                                                                              |
 
 ## codersdk.EditChatMessageRequest
 
@@ -9771,9 +9949,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -9785,9 +9961,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -9804,13 +9978,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -9853,9 +10022,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -9867,9 +10034,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -9886,13 +10051,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -9945,6 +10105,43 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
 | `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
+
+## codersdk.EditChatQueuedMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
+      "start_line": 0,
+      "text": "string",
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "editing": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                              |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              | Content replaces the queued content. An empty array is rejected.                                                                                                                                                                                                         |
+| `editing`          | boolean                                                   | false    |              | Editing begins (true) or ends (false) an edit of the message. A chat has at most one message under edit; beginning another ends the first. While the chat is paused, beginning an edit on another message returns 409. Ending the edit of a paused chat's head sends it. |
+| `model_config_id`  | string                                                    | false    |              | Model config ID and ReasoningEffort require Content; sending either without it returns 400. Omitted values keep the stored ones.                                                                                                                                         |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                                                                                                                          |
 
 ## codersdk.Entitlement
 
@@ -10030,9 +10227,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -10625,8 +10822,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `current_spend_micros`     | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                                                                                                                                                          |
 | `group_id`                 | string  | false    |              |                                                                                                                                                                                                                                                    |
-| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                                                                              |
-| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                                                                            |
+| `period_end`               | string  | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                                     |
+| `period_start`             | string  | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                                   |
 | `spend_limit_micros`       | integer | false    |              | Spend limit micros is the group's configured AI spend budget per member. Null when the group has no configured budget.                                                                                                                             |
 | `total_spend_limit_micros` | integer | false    |              | Total spend limit micros is the currently configured combined budget of the members attributed to this group, with each member's override replacing their share. Null when the group has no budget, and zero when no members are attributed to it. |
 
@@ -10684,11 +10881,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.GroupMembersResponse
 
@@ -11054,9 +11251,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                            |
-|-----------------------------------------------------|
-| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -11201,9 +11398,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                          |
-|---------------------------------------------------|
-| ``, `github`, `none`, `oidc`, `password`, `token` |
+| Value(s)                                                                 |
+|--------------------------------------------------------------------------|
+| ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
 
 ## codersdk.LoginWithPasswordRequest
 
@@ -11258,6 +11455,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
@@ -11278,38 +11476,39 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
-| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
-| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
-| `availability`          | string          | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
-| `created_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `description`           | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `display_name`          | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `enabled`               | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
-| `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
-| `oauth2_resource`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `organization_id`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `slug`                  | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `tool_allow_list`       | array of string | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `transport`             | string          | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
-| `updated_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `url`                   | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `api_key_header`             | string                                                                                   | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
+| `auth_connected`             | boolean                                                                                  | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
+| `auth_type`                  | string                                                                                   | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
+| `availability`               | string                                                                                   | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
+| `created_at`                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `display_name`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
+| `has_api_key`                | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_custom_headers`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_oauth2_secret`          | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `id`                         | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_client_id`           | string                                                                                   | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_resource`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `organization_id`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `slug`                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `tool_allow_list`            | array of string                                                                          | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `transport`                  | string                                                                                   | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
+| `updated_at`                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `url`                        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
 
 ## codersdk.MCPServerConfigACL
 
@@ -11463,6 +11662,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Property | Value(s) |
 |----------|----------|
 | `role`   | `read`   |
+
+## codersdk.MCPServerOAuth2ClientRegistration
+
+```json
+"manual"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `dynamic`, `manual` |
 
 ## codersdk.MCPServerOAuth2DisconnectResponse
 
@@ -12604,6 +12817,200 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendClient
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                     |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend from the client over the period.                                                |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage from the client was recorded without a price.                |
+| `name`               | string  | false    |              | Name is the client recorded on the intercepted request. Usage without a recorded client is reported as Unknown. |
+
+## codersdk.OrganizationAISpendModel
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                   |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend on the model over the period.                                 |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage of the model was recorded without a price. |
+| `name`               | string  | false    |              | Name is the model the client requested.                                                       |
+
+## codersdk.OrganizationAISpendOverview
+
+```json
+{
+  "count": 0,
+  "intervals": [
+    {
+      "end_time": "2019-08-24T14:15:22Z",
+      "spend_micros": 0,
+      "start_time": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "median_spend_micros": 0,
+    "spend_micros": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "groups": [
+        {
+          "group_display_name": "string",
+          "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+          "group_name": "string",
+          "spend_micros": 0
+        }
+      ],
+      "name": "string",
+      "spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                            |
+|----------------|-------------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`        | integer                                                                                               | false    |              | Count is the number of users with spend in the period.                                                                                                                                                                                 |
+| `intervals`    | array of [codersdk.OrganizationAISpendOverviewInterval](#codersdkorganizationaispendoverviewinterval) | false    |              | Intervals holds the daily spend, one interval per UTC day in the period (omitting days after the current day). Days without spend are zero. When the period includes the current day, its interval only has the spend recorded so far. |
+| `period_end`   | string                                                                                                | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                                                         |
+| `period_start` | string                                                                                                | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                                                                       |
+| `totals`       | [codersdk.OrganizationAISpendOverviewTotals](#codersdkorganizationaispendoverviewtotals)              | false    |              |                                                                                                                                                                                                                                        |
+| `users`        | array of [codersdk.OrganizationAISpendOverviewUser](#codersdkorganizationaispendoverviewuser)         | false    |              | Users is the requested page, most spend first.                                                                                                                                                                                         |
+
+## codersdk.OrganizationAISpendOverviewGroup
+
+```json
+{
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                              |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------|
+| `group_display_name` | string  | false    |              |                                                                          |
+| `group_id`           | string  | false    |              |                                                                          |
+| `group_name`         | string  | false    |              |                                                                          |
+| `spend_micros`       | integer | false    |              | Spend micros is the user's spend attributed to this group in the period. |
+
+## codersdk.OrganizationAISpendOverviewInterval
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "spend_micros": 0,
+  "start_time": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `end_time`     | string  | false    |              |             |
+| `spend_micros` | integer | false    |              |             |
+| `start_time`   | string  | false    |              |             |
+
+## codersdk.OrganizationAISpendOverviewTotals
+
+```json
+{
+  "median_spend_micros": 0,
+  "spend_micros": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                                       |
+|-----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `median_spend_micros` | integer | false    |              | Median spend micros is the median spend across users with spend in the period. It is zero when no user has spend. |
+| `spend_micros`        | integer | false    |              | Spend micros is the total spend of all users in the period.                                                       |
+
+## codersdk.OrganizationAISpendOverviewUser
+
+```json
+{
+  "avatar_url": "string",
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "spend_micros": 0
+    }
+  ],
+  "name": "string",
+  "spend_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                            | Required | Restrictions | Description                                                                       |
+|----------------|-------------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `avatar_url`   | string                                                                                          | false    |              |                                                                                   |
+| `groups`       | array of [codersdk.OrganizationAISpendOverviewGroup](#codersdkorganizationaispendoverviewgroup) | false    |              | Groups are the groups the user's spend was attributed to, most spend first.       |
+| `name`         | string                                                                                          | false    |              |                                                                                   |
+| `spend_micros` | integer                                                                                         | false    |              | Spend micros is the user's total spend in the period, across all of their groups. |
+| `user_id`      | string                                                                                          | false    |              |                                                                                   |
+| `username`     | string                                                                                          | false    |              |                                                                                   |
+
+## codersdk.OrganizationAISpendProvider
+
+```json
+{
+  "cost_micros": 0,
+  "display_name": "string",
+  "has_unpriced_usage": true,
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name                 | Type                                               | Required | Restrictions | Description                                                                                           |
+|----------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer                                            | false    |              | Cost micros is the priced spend through the provider over the period.                                 |
+| `display_name`       | string                                             | false    |              | Display name falls back to the provider name when unset.                                              |
+| `has_unpriced_usage` | boolean                                            | false    |              | Has unpriced usage reports whether any token usage through the provider was recorded without a price. |
+| `icon`               | string                                             | false    |              | Icon is empty when the provider has no configured icon.                                               |
+| `name`               | string                                             | false    |              | Name is the name of the configured provider.                                                          |
+| `type`               | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Type is omitted when the provider name was never configured.                                          |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -12614,23 +13021,37 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "retention_start": "2019-08-24T14:15:22Z",
   "totals": {
     "cost_micros": 0,
-    "unpriced_usage_count": 0
+    "has_unpriced_usage": true
   },
   "users": [
     {
       "avatar_url": "string",
-      "clients": [
-        "string"
+      "client_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "cost_micros": 0,
-      "models": [
-        "string"
+      "model_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "name": "string",
-      "providers": [
-        "string"
+      "provider_spend": [
+        {
+          "cost_micros": 0,
+          "display_name": "string",
+          "has_unpriced_usage": true,
+          "icon": "string",
+          "name": "string",
+          "type": "openai"
+        }
       ],
-      "unpriced_usage_count": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
       "username": "string"
     }
@@ -12643,8 +13064,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
 |-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
-| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                          |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                        |
 | `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
 | `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
 | `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
@@ -12654,34 +13075,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "cost_micros": 0,
-  "unpriced_usage_count": 0
+  "has_unpriced_usage": true
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                          |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
-| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
-| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+| Name                 | Type    | Required | Restrictions | Description                                                                               |
+|----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend of every matching user.                                   |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any matching token usage was recorded without a price. |
 
 ## codersdk.OrganizationAISpendUser
 
 ```json
 {
   "avatar_url": "string",
-  "clients": [
-    "string"
+  "client_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "cost_micros": 0,
-  "models": [
-    "string"
+  "model_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "name": "string",
-  "providers": [
-    "string"
+  "provider_spend": [
+    {
+      "cost_micros": 0,
+      "display_name": "string",
+      "has_unpriced_usage": true,
+      "icon": "string",
+      "name": "string",
+      "type": "openai"
+    }
   ],
-  "unpriced_usage_count": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "username": "string"
 }
@@ -12689,17 +13124,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
-|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
-| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
-| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
-| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
-| `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
-| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
-| `user_id`              | string          | false    |              |                                                                                                                                                   |
-| `username`             | string          | false    |              |                                                                                                                                                   |
+| Name             | Type                                                                                  | Required | Restrictions | Description                                                                                                                  |
+|------------------|---------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`     | string                                                                                | false    |              |                                                                                                                              |
+| `client_spend`   | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.   |
+| `cost_micros`    | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period. It is a lower bound when any entry in ModelSpend has unpriced usage. |
+| `model_spend`    | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                             |
+| `name`           | string                                                                                | false    |              |                                                                                                                              |
+| `provider_spend` | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                            |
+| `user_id`        | string                                                                                | false    |              |                                                                                                                              |
+| `username`       | string                                                                                | false    |              |                                                                                                                              |
 
 ## codersdk.OrganizationChatModelsResponse
 
@@ -12709,6 +13143,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -12963,11 +13398,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                                            | Required | Restrictions | Description                                                             |
-|----------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                         |
-| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the current budget period.   |
-| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| Name           | Type                                                                            | Required | Restrictions | Description                                                      |
+|----------------|---------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
+| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                  |
+| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the applied period.   |
+| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the applied period. |
 
 ## codersdk.OrganizationMember
 
@@ -13054,12 +13489,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_id`            | string                                          | false    |              |                                                                                                  |
 | `user_updated_at`    | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | false    |              |                                                                                                  |
-
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
 
 ## codersdk.OrganizationSkillACL
 
@@ -13172,6 +13601,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.OrganizationSkillPreferences
+
+```json
+{
+  "all_skills_disabled": true,
+  "disabled_skill_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                        |
+|------------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `all_skills_disabled`        | boolean         | false    |              | All skills disabled turns off every organization skill, including skills added later. DisabledSkillIDs is kept and applies again when it is false. |
+| `disabled_skill_ids`         | array of string | false    |              | Disabled skill ids lists the organization skills the member turned off.                                                                            |
+| `members_can_disable_skills` | boolean         | false    |              | Members can disable skills is the organization's setting.                                                                                          |
+
 ## codersdk.OrganizationSkillRole
 
 ```json
@@ -13185,6 +13634,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.OrganizationSkillSettings
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `members_can_disable_skills` | boolean | false    |              | Members can disable skills lets each organization member turn off organization skills for their own chats. |
 
 ## codersdk.OrganizationSkillUser
 
@@ -13931,6 +14394,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
+  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13943,6 +14407,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
+| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -14045,12 +14510,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]` | string                                                               | false    |              |                  |
 | `version`          | string                                                               | false    |              |                  |
 
-#### Enumerated Values
-
-| Property | Value(s)                  |
-|----------|---------------------------|
-| `status` | `busy`, `idle`, `offline` |
-
 ## codersdk.ProvisionerDaemonJob
 
 ```json
@@ -14072,12 +14531,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `template_display_name` | string                                                         | false    |              |             |
 | `template_icon`         | string                                                         | false    |              |             |
 | `template_name`         | string                                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value(s)                                                             |
-|----------|----------------------------------------------------------------------|
-| `status` | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerDaemonStatus
 
@@ -14166,13 +14619,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `worker_id`         | string                                                             | false    |              |             |
 | `worker_name`       | string                                                             | false    |              |             |
 
-#### Enumerated Values
-
-| Property     | Value(s)                                                             |
-|--------------|----------------------------------------------------------------------|
-| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
-| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
-
 ## codersdk.ProvisionerJobInput
 
 ```json
@@ -14214,12 +14660,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `log_source` | [codersdk.LogSource](#codersdklogsource) | false    |              |             |
 | `output`     | string                                   | false    |              |             |
 | `stage`      | string                                   | false    |              |             |
-
-#### Enumerated Values
-
-| Property    | Value(s)                                  |
-|-------------|-------------------------------------------|
-| `log_level` | `debug`, `error`, `info`, `trace`, `warn` |
 
 ## codersdk.ProvisionerJobMetadata
 
@@ -14482,12 +14922,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
 | `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
 
-#### Enumerated Values
-
-| Property | Value(s)                            |
-|----------|-------------------------------------|
-| `mode`   | `condition`, `inherit`, `off`, `on` |
-
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -14605,12 +15039,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `theme_preference`   | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
 | `updated_at`         | string                                     | false    |              |                                                                                            |
 | `username`           | string                                     | true     |              |                                                                                            |
-
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
 
 ## codersdk.Region
 
@@ -15093,12 +15521,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`       | string                                                                 | false    |              |             |
 | `roles`      | array of [codersdk.WorkspaceRole](#codersdkworkspacerole)              | false    |              |             |
 
-#### Enumerated Values
-
-| Property     | Value(s)        |
-|--------------|-----------------|
-| `actor_type` | `group`, `user` |
-
 ## codersdk.SharedWorkspaceActorType
 
 ```json
@@ -15121,6 +15543,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15131,17 +15554,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
-| `content`         | string  | false    |              |                                                                                                                                                           |
-| `created_at`      | string  | false    |              |                                                                                                                                                           |
-| `description`     | string  | false    |              |                                                                                                                                                           |
-| `enabled`         | boolean | false    |              |                                                                                                                                                           |
-| `id`              | string  | false    |              |                                                                                                                                                           |
-| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
-| `name`            | string  | false    |              |                                                                                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                                                                                           |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills.                                                    |
+| `content`         | string  | false    |              | Content is the SKILL.md file, with its `disable-model-invocation` frontmatter key set to agree with `model_invocable`. A stored file whose key the server cannot set, such as a list, is returned unchanged. |
+| `created_at`      | string  | false    |              |                                                                                                                                                                                                              |
+| `description`     | string  | false    |              |                                                                                                                                                                                                              |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.                                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                              |
+| `id`              | string  | false    |              |                                                                                                                                                                                                              |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.                                                             |
+| `name`            | string  | false    |              |                                                                                                                                                                                                              |
+| `updated_at`      | string  | false    |              |                                                                                                                                                                                                              |
 
 ## codersdk.SkillMetadata
 
@@ -15150,6 +15574,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "display_name": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_invocable": true,
@@ -15165,6 +15590,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
 | `created_at`      | string  | false    |              |                                                                                                                                                           |
 | `description`     | string  | false    |              |                                                                                                                                                           |
+| `display_name`    | string  | false    |              | Display name labels a project skill's action. When it is empty, clients show Name instead. It is always empty for personal and organization skills.       |
 | `enabled`         | boolean | false    |              |                                                                                                                                                           |
 | `id`              | string  | false    |              |                                                                                                                                                           |
 | `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
@@ -15212,9 +15638,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
@@ -15362,6 +15786,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -15405,47 +15830,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                |
-|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                               |
-| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                   |
-| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                              |
-| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                            |
-| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                |
-| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                            |
-| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                            |
-| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                    |
-| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                           |
-| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                            |
-| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache. |
-| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                |
-| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                |
-| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                            |
-| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                            |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                  |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_user_count`                   | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                                 |
+| `active_version_id`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `activity_bump_ms`                    | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `agents_allowed`                      | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                     |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `allow_workspace_renames`             | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                              |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are Premium features. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                  |
+| `browser_only`                        | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser-only setting applies on top of this one. |
+| `build_time_stats`                    | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                              |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                              |
+| `created_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_id`                       | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `created_by_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `default_ttl_ms`                      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deleted`                             | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecated`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `deprecation_message`                 | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                      |
+| `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their values are used if your license is entitled to use the advanced template scheduling feature.                             |
+| `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                              |
+| `module_cache_disabled_by_deployment` | boolean                                                                        | false    |              | Module cache disabled by deployment reports that the deployment disables the Terraform module cache for every template. Templates cannot opt back in, so the effective state is disabled regardless of DisableModuleCache.   |
+| `name`                                | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_display_name`           | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_icon`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_id`                     | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `organization_name`                   | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `provisioner`                         | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                  |
+| `time_til_autostop_notify_ms`         | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                                                  |
+| `time_til_dormant_autodelete_ms`      | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `time_til_dormant_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                                              |
+| `updated_at`                          | string                                                                         | false    |              |                                                                                                                                                                                                                              |
+| `use_classic_parameter_flow`          | boolean                                                                        | false    |              |                                                                                                                                                                                                                              |
 
 #### Enumerated Values
 
@@ -15631,9 +16057,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "prerequisites": "string",
   "variables": [
     {
-      "default": [
-        0
-      ],
+      "default": {},
       "description": "string",
       "name": "string",
       "required": true,
@@ -15696,9 +16120,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "prerequisites": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -15859,6 +16281,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       ],
       "weeks": 0
     },
+    "browser_only": true,
     "build_time_stats": {
       "property1": {
         "p50": 123,
@@ -15924,9 +16347,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "id": "string",
   "variables": [
     {
-      "default": [
-        0
-      ],
+      "default": {},
       "description": "string",
       "name": "string",
       "required": true,
@@ -15956,9 +16377,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "default": [
-    0
-  ],
+  "default": {},
   "description": "string",
   "name": "string",
   "required": true,
@@ -15969,14 +16388,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                         | Required | Restrictions | Description |
-|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
-| `default`     | array of integer                                                             | false    |              |             |
-| `description` | string                                                                       | false    |              |             |
-| `name`        | string                                                                       | false    |              |             |
-| `required`    | boolean                                                                      | false    |              |             |
-| `sensitive`   | boolean                                                                      | false    |              |             |
-| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+| Name          | Type                                                                         | Required | Restrictions | Description                                                                                           |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `default`     | object                                                                       | false    |              | Default is the variable's default as a JSON string, number, or boolean, matching the variable's type. |
+| `description` | string                                                                       | false    |              |                                                                                                       |
+| `name`        | string                                                                       | false    |              |                                                                                                       |
+| `required`    | boolean                                                                      | false    |              |                                                                                                       |
+| `sensitive`   | boolean                                                                      | false    |              |                                                                                                       |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |                                                                                                       |
 
 ## codersdk.TemplateBuilderModulesResponse
 
@@ -15997,9 +16416,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "id": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -16450,10 +16867,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property | Value(s)              |
-|----------|-----------------------|
-| `role`   | `admin`, `use`        |
-| `status` | `active`, `suspended` |
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.TemplateVersion
 
@@ -16627,11 +17043,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property               | Value(s)                                                                                                            |
-|------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `form_type`            | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
-| `type`                 | `bool`, `list(string)`, `number`, `string`                                                                          |
-| `validation_monotonic` | `decreasing`, `increasing`                                                                                          |
+| Property    | Value(s)                                                                                                            |
+|-------------|---------------------------------------------------------------------------------------------------------------------|
+| `form_type` | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
+| `type`      | `bool`, `list(string)`, `number`, `string`                                                                          |
 
 ## codersdk.TemplateVersionParameterOption
 
@@ -16774,20 +17189,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "is_error": true,
-  "output": [
-    0
-  ],
+  "output": {},
   "tool_call_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type             | Required | Restrictions | Description |
-|----------------|------------------|----------|--------------|-------------|
-| `is_error`     | boolean          | false    |              |             |
-| `output`       | array of integer | false    |              |             |
-| `tool_call_id` | string           | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description                                             |
+|----------------|---------|----------|--------------|---------------------------------------------------------|
+| `is_error`     | boolean | false    |              |                                                         |
+| `output`       | object  | false    |              | Output is the tool output, which can be any JSON value. |
+| `tool_call_id` | string  | false    |              |                                                         |
 
 ## codersdk.TraceConfig
 
@@ -16824,6 +17237,59 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------|---------|----------|--------------|-------------|
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UnpricedAIModel
+
+```json
+{
+  "model": "string",
+  "provider_display_name": "string",
+  "provider_icon": "string",
+  "provider_name": "string",
+  "provider_type": "openai",
+  "token_count": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                               | Required | Restrictions | Description                                                             |
+|-------------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `model`                 | string                                             | false    |              | Model is the model the client requested.                                |
+| `provider_display_name` | string                                             | false    |              | Provider display name falls back to the provider name when unset.       |
+| `provider_icon`         | string                                             | false    |              | Provider icon is empty when the provider has no configured icon.        |
+| `provider_name`         | string                                             | false    |              | Provider name is the name of the configured provider.                   |
+| `provider_type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Provider type is the type of the configured provider.                   |
+| `token_count`           | integer                                            | false    |              | Token count is the number of tokens used without a price in the period. |
+
+## codersdk.UnpricedAIModels
+
+```json
+{
+  "count": 0,
+  "models": [
+    {
+      "model": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "provider_name": "string",
+      "provider_type": "openai",
+      "token_count": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                          | Required | Restrictions | Description                                                                        |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models over every page.                                     |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are one page of the models, ordered by unpriced token count, highest first. |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                     |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                   |
 
 ## codersdk.UpdateAIProviderRequest
 
@@ -16867,6 +17333,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name | Type   | Required | Restrictions | Description |
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
+
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `max_output_tokens` | integer | false    |              |             |
+| `max_uses_per_run`  | integer | false    |              |             |
 
 ## codersdk.UpdateAppearanceConfig
 
@@ -17258,19 +17740,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_template": {
+    "parameters": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "preset_id": "8384f842-5f4b-4499-a68f-d027dfe5de2e",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+  },
   "description": "string",
   "icon": "string",
+  "limit_templates": true,
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | false    |              |             |
+| Name               | Type                                                                       | Required | Restrictions | Description                                                                                                                          |
+|--------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `default_template` | [codersdk.ChatProjectDefaultTemplate](#codersdkchatprojectdefaulttemplate) | false    |              | Default template replaces the project's default template, preset, and parameters as a whole when set. A zero TemplateID clears them. |
+| `description`      | string                                                                     | false    |              |                                                                                                                                      |
+| `icon`             | string                                                                     | false    |              |                                                                                                                                      |
+| `limit_templates`  | boolean                                                                    | false    |              |                                                                                                                                      |
+| `name`             | string                                                                     | false    |              |                                                                                                                                      |
 
 ## codersdk.UpdateChatRequest
 
@@ -17412,6 +17905,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_client_secret": "string",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
@@ -17432,42 +17926,44 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                             |
-|-------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                         |
-| `api_key_header`        | string          | false    |              |                                                                                                                         |
-| `api_key_value`         | string          | false    |              |                                                                                                                         |
-| `auth_type`             | string          | false    |              |                                                                                                                         |
-| `availability`          | string          | false    |              |                                                                                                                         |
-| `custom_headers`        | object          | false    |              |                                                                                                                         |
-| » `[any property]`      | string          | false    |              |                                                                                                                         |
-| `description`           | string          | false    |              |                                                                                                                         |
-| `display_name`          | string          | false    |              |                                                                                                                         |
-| `enabled`               | boolean         | false    |              |                                                                                                                         |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.     |
-| `icon_url`              | string          | false    |              |                                                                                                                         |
-| `model_intent`          | boolean         | false    |              |                                                                                                                         |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
-| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator. Omit it to keep the stored value; send "" to clear it.              |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
-| `signing_secret`        | string          | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.   |
-| `slug`                  | string          | false    |              |                                                                                                                         |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
-| `transport`             | string          | false    |              |                                                                                                                         |
-| `url`                   | string          | false    |              |                                                                                                                         |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `api_key_header`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `api_key_value`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `auth_type`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `availability`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `custom_headers`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| » `[any property]`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `display_name`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_client_id`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              | Oauth2 client registration changes how Coder gets the OAuth2 client. When a request that sets the URL or an auth field omits it, Coder uses "dynamic" if the resulting config has no client ID, auth URL, and token URL, and keeps the stored value otherwise. Coder registers a new client when the config becomes "dynamic" or when the URL of a "dynamic" config changes. A new client deletes the stored user tokens. A "dynamic" config ignores empty and unchanged values for the client ID, client secret, auth URL, and token URL. Other values fail unless the request also sets "manual". |
+| `oauth2_client_secret`       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_resource`            | string                                                                                   | false    |              | Oauth2 resource is the RFC 8707 resource indicator. Omit it to keep the stored value; send "" to clear it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `signing_secret`             | string                                                                                   | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `slug`                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tool_allow_list`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `transport`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `url`                        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property                     | Value(s)                                                   |
+|------------------------------|------------------------------------------------------------|
+| `auth_type`                  | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability`               | `default_off`, `default_on`, `force_on`                    |
+| `oauth2_client_registration` | `dynamic`, `manual`                                        |
+| `transport`                  | `sse`, `streamable_http`                                   |
 
 ## codersdk.UpdateOrganizationChatSystemPromptRequest
 
@@ -17531,6 +18027,40 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `user_roles`       | object                                                           | false    |              |             |
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 
+## codersdk.UpdateOrganizationSkillPreferencesRequest
+
+```json
+{
+  "all_skills_disabled": true,
+  "skills": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                  |
+|-----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `all_skills_disabled` | boolean | false    |              |                                                                                              |
+| `skills`              | object  | false    |              | Skills maps an organization skill ID to whether the skill is enabled for the member's chats. |
+| » `[any property]`    | boolean | false    |              |                                                                                              |
+
+## codersdk.UpdateOrganizationSkillSettingsRequest
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `members_can_disable_skills` | boolean | false    |              |             |
+
 ## codersdk.UpdateRoles
 
 ```json
@@ -17553,6 +18083,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 {
   "action": true,
   "content": "string",
+  "display_name": "string",
   "enabled": true,
   "model_invocable": true
 }
@@ -17560,12 +18091,13 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                                                                                                |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. A `disable-model-invocation` key must hold a value the server can replace with true or false, so a list is rejected. |
+| `display_name`    | string  | false    |              | Display name is only accepted for project skills. An empty value clears it.                                                                                                                                                                                                                |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                                                                                            |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter sets `disable-model-invocation` to a boolean: true turns it off and false turns it on.                                                                                                                    |
 
 ## codersdk.UpdateTemplateACL
 
@@ -17612,6 +18144,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
     ],
     "weeks": 0
   },
+  "browser_only": true,
   "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "deprecation_message": "string",
@@ -17645,6 +18178,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `allow_workspace_renames`          | boolean                                                                        | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name.                                                                                                                                                                                                      |
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement can only be set if your license includes the advanced template scheduling feature. If you attempt to set this value while unlicensed, it will be ignored.                                                                                                                                                                            |
+| `browser_only`                     | boolean                                                                        | false    |              | Browser only makes coderd refuse non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. Enabling it requires the browser-only entitlement; disabling it does not.                                                                                                                                                  |
 | `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
@@ -17669,6 +18203,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 8,
   "theme_dark": "light",
   "theme_light": "light",
   "theme_mode": "sync",
@@ -17678,13 +18213,14 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
-|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
-| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
-| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
-| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|----------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is optional for backward compatibility. When zero, the server leaves the persisted terminal font size unchanged.                                                                                                                                                                                |
+| `theme_dark`         | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`        | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference`   | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -17924,17 +18460,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "state": [
-    0
-  ]
+  "state": "string"
 }
 ```
 
 ### Properties
 
-| Name    | Type             | Required | Restrictions | Description |
-|---------|------------------|----------|--------------|-------------|
-| `state` | array of integer | false    |              |             |
+| Name    | Type   | Required | Restrictions | Description                                                            |
+|---------|--------|----------|--------------|------------------------------------------------------------------------|
+| `state` | string | false    |              | State is the provisioner state, which JSON carries as a base64 string. |
 
 ## codersdk.UpdateWorkspaceDormancy
 
@@ -17979,12 +18513,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
-
-#### Enumerated Values
-
-| Property                     | Value(s)                               |
-|------------------------------|----------------------------------------|
-| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.UpdateWorkspaceTTLRequest
 
@@ -18123,13 +18651,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | [codersdk.WorkspaceAgentPortShareProtocol](#codersdkworkspaceagentportshareprotocol) | false    |              |             |
 | `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 
-#### Enumerated Values
-
-| Property      | Value(s)                                           |
-|---------------|----------------------------------------------------|
-| `protocol`    | `http`, `https`                                    |
-| `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
 ## codersdk.UsagePeriod
 
 ```json
@@ -18212,12 +18733,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`         | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | true     |              |                                                                                                  |
 
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
-
 ## codersdk.UserAIBudgetOverride
 
 ```json
@@ -18291,8 +18806,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                                      |
 | `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user, whether it came from a group budget or a user override. Null when no budget applies, leaving the user's spend unlimited. |
 | `effective_group_id`   | string                                           | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership.         |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                  |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                         |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                       |
 | `user_id`              | string                                           | false    |              |                                                                                                                                                                                        |
 
 ## codersdk.UserActivity
@@ -18387,6 +18902,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "terminal_font_size": 0,
   "theme_dark": "string",
   "theme_light": "string",
   "theme_mode": "",
@@ -18396,13 +18912,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
-| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+| Name                 | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|----------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`      | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `terminal_font_size` | integer                                                | false    |              | Terminal font size is the web terminal font size in pixels. Zero means the user has not chosen a size, and the web terminal will use the default.                                                                                                                                                                                         |
+| `theme_dark`         | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`        | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`         | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference`   | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserChatCompactionThreshold
 
@@ -19190,12 +19707,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ttl_ms`                                    | integer                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `updated_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 
-#### Enumerated Values
-
-| Property            | Value(s)          |
-|---------------------|-------------------|
-| `automatic_updates` | `always`, `never` |
-
 ## codersdk.WorkspaceACL
 
 ```json
@@ -19405,7 +19916,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                                                                                        |
-| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `environment_variables`      | object                                                                                       | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -19920,13 +20431,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 | `workspace_id` | string                                                                               | false    |              |             |
 
-#### Enumerated Values
-
-| Property      | Value(s)                                           |
-|---------------|----------------------------------------------------|
-| `protocol`    | `http`, `https`                                    |
-| `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
 ## codersdk.WorkspaceAgentPortShareLevel
 
 ```json
@@ -20178,12 +20682,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
-
-#### Enumerated Values
-
-| Property        | Value(s)                                           |
-|-----------------|----------------------------------------------------|
-| `sharing_level` | `authenticated`, `organization`, `owner`, `public` |
 
 ## codersdk.WorkspaceAppHealth
 
@@ -20535,14 +21033,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
 | `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
 | `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
-
-#### Enumerated Values
-
-| Property     | Value(s)                                                                                                          |
-|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
-| `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
-| `transition` | `delete`, `start`, `stop`                                                                                         |
 
 ## codersdk.WorkspaceBuildDebugEventRequest
 
@@ -21014,12 +21504,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `type`                 | string                                                                            | false    |              |             |
 | `workspace_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                      | false    |              |             |
 
-#### Enumerated Values
-
-| Property               | Value(s)                  |
-|------------------------|---------------------------|
-| `workspace_transition` | `delete`, `start`, `stop` |
-
 ## codersdk.WorkspaceResourceMetadata
 
 ```json
@@ -21129,12 +21613,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
 | `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
-
-#### Enumerated Values
-
-| Property                     | Value(s)                               |
-|------------------------------|----------------------------------------|
-| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.WorkspaceStatus
 
@@ -21510,9 +21988,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EPS01`, `EPS02`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -21578,12 +22056,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `status_code`      | integer                                   | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.DERPHealthReport
 
@@ -21824,12 +22296,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`         | [health.Severity](#healthseverity)                       | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage)                | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.DERPNodeReport
 
 ```json
@@ -21901,12 +22367,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `stun`                  | [healthsdk.STUNReport](#healthsdkstunreport)     | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
 | `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.DERPRegionReport
 
@@ -22010,12 +22470,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`     | [health.Severity](#healthseverity)                            | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage)                     | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.DatabaseReport
 
 ```json
@@ -22051,12 +22505,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `threshold_ms` | integer                                   | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.HealthSection
 
 ```json
@@ -22067,9 +22515,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Pubsub`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -22398,6 +22846,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {
@@ -22470,16 +22930,11 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `pubsub`              | [healthsdk.PubsubReport](#healthsdkpubsubreport)                         | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
 | `workspace_proxy`     | [healthsdk.WorkspaceProxyReport](#healthsdkworkspaceproxyreport)         | false    |              |                                                                                     |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.ProvisionerDaemonsReport
 
@@ -22550,12 +23005,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`  | [health.Severity](#healthseverity)                                                        | false    |              |             |
 | `warnings`  | array of [health.Message](#healthmessage)                                                 | false    |              |             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.ProvisionerDaemonsReportItem
 
 ```json
@@ -22608,6 +23057,33 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |----------------------|----------------------------------------------------------|----------|--------------|-------------|
 | `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
+## healthsdk.PubsubReport
+
+```json
+{
+  "backend": "string",
+  "dismissed": true,
+  "error": "string",
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                      | Required | Restrictions | Description                                  |
+|-------------|-------------------------------------------|----------|--------------|----------------------------------------------|
+| `backend`   | string                                    | false    |              | Backend is the pubsub implementation in use. |
+| `dismissed` | boolean                                   | false    |              |                                              |
+| `error`     | string                                    | false    |              |                                              |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                              |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                              |
 
 ## healthsdk.STUNReport
 
@@ -22674,12 +23150,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`  | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.WorkspaceProxyReport
 
 ```json
@@ -22738,12 +23208,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |                                                                                             |
 | `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |                                                                                             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## key.NodePublic
 
@@ -23556,7 +24020,7 @@ None
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true
@@ -23576,7 +24040,7 @@ None
 
 ```json
 {
-  "code": 0,
+  "code": 1,
   "details": "string",
   "message": "string",
   "retryable": true
@@ -23595,16 +24059,16 @@ None
 ## workspacesdk.WatchErrorCode
 
 ```json
-0
+1
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                          |
-|-----------------------------------|
-| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
+| Value(s)                     |
+|------------------------------|
+| `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 

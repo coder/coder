@@ -187,17 +187,9 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		result: RenderResult,
 		textToCopy: string,
 	): Promise<void> => {
-		await act(() => result.current.copyToClipboard(textToCopy));
+		const copied = await act(() => result.current.copyToClipboard(textToCopy));
+		expect(copied).toBe(true);
 		expect(result.current.showCopiedSuccess).toBe(true);
-
-		// Because of timing trickery, any timeouts for flipping the copy status
-		// back to false will usually trigger before any test cases calling this
-		// assert function can complete. This will never be an issue in the real
-		// world, but it will kick up 'act' warnings in the console, which makes
-		// tests more annoying. Getting around that by waiting for all timeouts to
-		// wrap up, but note that the value of showCopiedSuccess will become false
-		// after runAllTimersAsync finishes
-		await act(() => vi.runAllTimersAsync());
 
 		const clipboardText = getClipboardText();
 		expect(clipboardText).toEqual(textToCopy);
@@ -207,28 +199,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		const textToCopy = "dogs";
 		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
-	});
-
-	it("Should indicate to components not to show successful copy after a set period of time", async () => {
-		const textToCopy = "cats";
-		const { result } = renderUseClipboard();
-		await assertClipboardUpdateLifecycle(result, textToCopy);
-		expect(result.current.showCopiedSuccess).toBe(false);
-	});
-
-	it("Does not schedule a success timer when a pending copy finishes after unmount", async () => {
-		const write = createDeferred<undefined>();
-		vi.spyOn(mockClipboard, "writeText").mockReturnValueOnce(write.promise);
-		const { result, unmount } = renderUseClipboard();
-		const copy = result.current.copyToClipboard("cats");
-
-		unmount();
-		await act(async () => {
-			write.resolve(undefined);
-			await copy;
-		});
-
-		expect(vi.getTimerCount()).toBe(0);
 	});
 
 	it.each([false, true])(
@@ -255,31 +225,14 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		},
 	);
 
-	it.each(["cats", "dogs"])(
-		"Restarts feedback when copying %s after cats and clears its timer on unmount",
-		async (text) => {
-			const { result, unmount } = renderUseClipboard();
-			await act(() => result.current.copyToClipboard("cats"));
-			act(() => vi.advanceTimersByTime(500));
-			await act(() => result.current.copyToClipboard(text));
-
-			act(() => vi.advanceTimersByTime(500));
-			expect(result.current.showCopiedSuccess).toBe(true);
-			expect(getClipboardText()).toBe(text);
-			expect(vi.getTimerCount()).toBe(1);
-
-			unmount();
-			expect(vi.getTimerCount()).toBe(0);
-		},
-	);
-
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";
 		const onError = vi.fn();
 		const { result } = renderUseClipboard({ onError });
 
 		setSimulateFailure(true);
-		await act(() => result.current.copyToClipboard(textToCopy));
+		const copied = await act(() => result.current.copyToClipboard(textToCopy));
+		expect(copied).toBe(false);
 		expect(onError).toBeCalled();
 	});
 

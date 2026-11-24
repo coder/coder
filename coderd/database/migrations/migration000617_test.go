@@ -80,10 +80,16 @@ func TestMigration000617ConnectionLogsMethod(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
-	org := dbgen.Organization(t, db, database.Organization{})
+	orgID := insertMigrationTestOrganization(ctx, t, sqlDB, []string{})
 	owner := dbgen.User(t, db, database.User{})
-	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: tpl.ID})
+	// dbgen.Template inserts columns that later migrations add to templates.
+	templateID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, created_by)
+		VALUES ($1, now(), now(), $2, 'migration-template', 'echo', $3, $4);
+	`, templateID, orgID, uuid.New(), owner.ID)
+	require.NoError(t, err)
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: orgID, OwnerID: owner.ID, TemplateID: templateID})
 
 	// row is (type, slug_or_port) before 000617 and
 	// (connection_method, app_name_or_port) after it.
@@ -95,7 +101,7 @@ func TestMigration000617ConnectionLogsMethod(t *testing.T) {
 	ids := map[row]uuid.UUID{}
 	insert := func(query string, r row) {
 		ids[r] = uuid.New()
-		_, err := sqlDB.ExecContext(ctx, query, ids[r], org.ID, owner.ID, ws.ID, ws.Name, r.kind, r.appNameOrPort)
+		_, err := sqlDB.ExecContext(ctx, query, ids[r], orgID, owner.ID, ws.ID, ws.Name, r.kind, r.appNameOrPort)
 		require.NoError(t, err)
 	}
 	read := func(query string, r row) (got row) {

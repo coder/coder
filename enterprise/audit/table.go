@@ -37,6 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableChatProjectTemplates":    {codersdk.AuditActionWrite},
 	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -143,6 +144,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_autostop_notify":          ActionTrack,
 		"agents_allowed":                    ActionTrack,
 		"allow_workspace_renames":           ActionTrack,
+		"browser_only":                      ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                             ActionTrack,
@@ -385,6 +387,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                       ActionTrack,
 		"shareable_workspace_owners": ActionTrack,
 		"default_org_member_roles":   ActionTrack,
+		"members_can_disable_skills": ActionTrack,
 	},
 	&database.NotificationTemplate{}: {
 		"id":                 ActionIgnore,
@@ -508,16 +511,20 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.ChatProject{}: {
-		"id":              ActionTrack,
-		"organization_id": ActionTrack,
-		"owner_id":        ActionTrack,
-		"name":            ActionTrack,
-		"description":     ActionTrack,
-		"icon":            ActionTrack,
-		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
-		"user_acl":        ActionTrack,
-		"group_acl":       ActionTrack,
+		"id":                                 ActionTrack,
+		"organization_id":                    ActionTrack,
+		"owner_id":                           ActionTrack,
+		"name":                               ActionTrack,
+		"description":                        ActionTrack,
+		"icon":                               ActionTrack,
+		"created_at":                         ActionIgnore,
+		"updated_at":                         ActionIgnore,
+		"limit_templates":                    ActionTrack,
+		"default_template_id":                ActionTrack,
+		"default_template_version_preset_id": ActionTrack,
+		"default_parameters":                 ActionSecret, // Parameter values may contain credentials.
+		"user_acl":                           ActionTrack,
+		"group_acl":                          ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,
@@ -537,6 +544,11 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_by":      ActionIgnore, // The audit log records the acting user.
 		"created_at":      ActionIgnore,
 		"updated_at":      ActionIgnore,
+	},
+	&database.AuditableChatProjectTemplates{}: {
+		"project_id":   ActionIgnore, // Conveyed by resource_id.
+		"project_name": ActionIgnore, // Conveyed by resource_target.
+		"template_ids": ActionTrack,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
@@ -595,6 +607,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"user_acl":                    ActionTrack,
 		"oauth2_revocation_url":       ActionTrack,
 		"oauth2_resource":             ActionTrack,
+		"oauth2_client_registration":  ActionTrack,
 		"organization_id":             ActionIgnore,
 	},
 	&database.Skill{}: {
@@ -608,6 +621,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"enabled":         ActionTrack,
 		"action":          ActionTrack,
 		"model_invocable": ActionTrack,
+		"display_name":    ActionTrack,
 		"group_acl":       ActionTrack,
 		"user_acl":        ActionTrack,
 		"created_at":      ActionIgnore,
@@ -624,6 +638,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"enabled":         ActionTrack,
 		"action":          ActionTrack,
 		"model_invocable": ActionTrack,
+		"display_name":    ActionTrack,
 		"group_acl":       ActionTrack,
 		"user_acl":        ActionTrack,
 		"created_at":      ActionIgnore,
@@ -640,6 +655,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"enabled":         ActionTrack,
 		"action":          ActionTrack,
 		"model_invocable": ActionTrack,
+		"display_name":    ActionTrack,
 		"group_acl":       ActionTrack,
 		"user_acl":        ActionTrack,
 		"created_at":      ActionIgnore,
@@ -651,7 +667,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"chat_debug_retention_days":        ActionTrack,
 		"chat_auto_archive_days":           ActionTrack,
 		"workspace_ttl":                    ActionTrack,
-		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
 	},

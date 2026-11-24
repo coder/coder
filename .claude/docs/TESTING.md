@@ -32,6 +32,26 @@ Do not wait on real time either: when a ticker, heartbeat, or deadline is
 under test, inject `quartz.NewMock(t)` and advance it instead of
 constructing the code under test with `quartz.NewReal()`.
 
+### Wait for Full Completion before Asserting
+
+An assertion is meaningful only once everything it depends on has
+finished. Do not rely on an order of work the code under test does not
+guarantee.
+
+A wait, such as `require.Eventually` or a channel receive, establishes only
+the condition it polls, so it must cover every value the assertions read.
+Prometheus metrics make this easy to get wrong. Each series is updated
+independently, and each read (a `promhelp` call, `reg.Gather()`, or
+`testutil.ToFloat64`) sees each series at its own instant, so two counters
+updated together can be read with one updated and the other not. The race
+detector does not report this, because each update is atomic on its own.
+
+When a test asserts that a value is unchanged, a poll on that value
+succeeds immediately, before the work has run, so it proves nothing. Wait
+instead on a signal that the work has finished, preferably one the code
+under test guarantees. If the only signal merely happens to come last,
+name the code it relies on in a comment at the wait.
+
 ### Fixture Cost
 
 `coderdtest.New` clones a Postgres database and starts an in-process NATS
@@ -63,6 +83,10 @@ dominate package wall time.
   rename the file to `*_internal_test.go` instead. A directive plus a
   justification comment is strictly worse than the established naming
   convention, and the repo standardizes on the latter.
+- **Do not add `export_test.go`.** First rework the test so that it needs
+  only the exported API. As a last resort, move a test that needs an
+  unexported symbol to a `*_internal_test.go` file. The existing
+  `export_test.go` files are legacy: do not extend them.
 
 ## RFC Protocol Testing
 

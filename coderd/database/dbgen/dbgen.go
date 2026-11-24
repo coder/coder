@@ -91,9 +91,28 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Icon:           seed.Icon,
+
+		LimitTemplates:                 seed.LimitTemplates,
+		DefaultTemplateID:              seed.DefaultTemplateID,
+		DefaultTemplateVersionPresetID: seed.DefaultTemplateVersionPresetID,
+		DefaultParameters:              pqtype.NullRawMessage{RawMessage: seed.DefaultParameters, Valid: len(seed.DefaultParameters) > 0},
 	})
 	require.NoError(t, err, "insert chat project")
 	return project
+}
+
+// ChatProjectTemplate attaches a template to a chat project.
+func ChatProjectTemplate(t testing.TB, db database.Store, seed database.ChatProjectTemplate) database.ChatProjectTemplate {
+	t.Helper()
+
+	attached, err := db.InsertChatProjectTemplates(genCtx, database.InsertChatProjectTemplatesParams{
+		ProjectID:   seed.ProjectID,
+		TemplateIDs: []uuid.UUID{seed.TemplateID},
+		CreatedBy:   takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "attach chat project template")
+	require.Len(t, attached, 1, "template was already attached or is outside the project's organization")
+	return attached[0]
 }
 
 func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
@@ -409,41 +428,42 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	}
 
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
-		ID:                      takeFirst(seed.ID, uuid.New()),
-		OrganizationID:          organizationID,
-		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
-		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
-		Description:             seed.Description,
-		IconURL:                 seed.IconURL,
-		Transport:               takeFirst(seed.Transport, "streamable_http"),
-		Url:                     takeFirst(seed.Url, "https://mcp.example.com"),
-		AuthType:                takeFirst(seed.AuthType, "none"),
-		OAuth2ClientID:          seed.OAuth2ClientID,
-		OAuth2ClientSecret:      seed.OAuth2ClientSecret,
-		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
-		OAuth2AuthURL:           seed.OAuth2AuthURL,
-		OAuth2TokenURL:          seed.OAuth2TokenURL,
-		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
-		OAuth2Resource:          seed.OAuth2Resource,
-		OAuth2Scopes:            seed.OAuth2Scopes,
-		APIKeyHeader:            seed.APIKeyHeader,
-		APIKeyValue:             seed.APIKeyValue,
-		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
-		CustomHeaders:           seed.CustomHeaders,
-		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
-		SigningSecret:           seed.SigningSecret,
-		SigningSecretKeyID:      seed.SigningSecretKeyID,
-		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
-		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
-		Availability:            takeFirst(seed.Availability, "default_off"),
-		Enabled:                 takeFirst(seed.Enabled, true),
-		ModelIntent:             seed.ModelIntent,
-		AllowInPlanMode:         seed.AllowInPlanMode,
-		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
-		GroupACL:                groupACL,
-		UserACL:                 userACL,
-		CreatedBy:               createdBy,
-		UpdatedBy:               updatedBy,
+		ID:                       takeFirst(seed.ID, uuid.New()),
+		OrganizationID:           organizationID,
+		DisplayName:              takeFirst(seed.DisplayName, "Test MCP Server"),
+		Slug:                     takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Description:              seed.Description,
+		IconURL:                  seed.IconURL,
+		Transport:                takeFirst(seed.Transport, "streamable_http"),
+		Url:                      takeFirst(seed.Url, "https://mcp.example.com"),
+		AuthType:                 takeFirst(seed.AuthType, "none"),
+		OAuth2ClientID:           seed.OAuth2ClientID,
+		OAuth2ClientSecret:       seed.OAuth2ClientSecret,
+		OAuth2ClientSecretKeyID:  seed.OAuth2ClientSecretKeyID,
+		OAuth2AuthURL:            seed.OAuth2AuthURL,
+		OAuth2TokenURL:           seed.OAuth2TokenURL,
+		OAuth2RevocationURL:      seed.OAuth2RevocationURL,
+		OAuth2Resource:           seed.OAuth2Resource,
+		OAuth2Scopes:             seed.OAuth2Scopes,
+		OAuth2ClientRegistration: takeFirst(seed.OAuth2ClientRegistration, "manual"),
+		APIKeyHeader:             seed.APIKeyHeader,
+		APIKeyValue:              seed.APIKeyValue,
+		APIKeyValueKeyID:         seed.APIKeyValueKeyID,
+		CustomHeaders:            seed.CustomHeaders,
+		CustomHeadersKeyID:       seed.CustomHeadersKeyID,
+		SigningSecret:            seed.SigningSecret,
+		SigningSecretKeyID:       seed.SigningSecretKeyID,
+		ToolAllowList:            takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:             takeFirstSlice(seed.ToolDenyList, []string{}),
+		Availability:             takeFirst(seed.Availability, "default_off"),
+		Enabled:                  takeFirst(seed.Enabled, true),
+		ModelIntent:              seed.ModelIntent,
+		AllowInPlanMode:          seed.AllowInPlanMode,
+		ForwardCoderHeaders:      seed.ForwardCoderHeaders,
+		GroupACL:                 groupACL,
+		UserACL:                  userACL,
+		CreatedBy:                createdBy,
+		UpdatedBy:                updatedBy,
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg
@@ -683,6 +703,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
 		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
+		BrowserOnly:                  seed.BrowserOnly,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -1657,6 +1678,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 		OAuthExtra:             *msg,
+		OAuthExtraKeyID:        takeFirst(orig.OAuthExtraKeyID, sql.NullString{}),
 	})
 
 	require.NoError(t, err, "insert external auth link")
@@ -2146,6 +2168,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
 		WorkspaceID:                 seed.WorkspaceID,
+		OrganizationID:              seed.OrganizationID,
+		OrganizationSource:          seed.OrganizationSource,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

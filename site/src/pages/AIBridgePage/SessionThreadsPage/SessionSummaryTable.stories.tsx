@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockAIBridgeSessionOrganization,
+	MockAIBridgeSessionOrganization2,
+	MockSession,
+} from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
 const meta: Meta<typeof SessionSummaryTable> = {
@@ -116,12 +120,20 @@ export const NetworkDisabledKeyboard: Story = {
 	},
 	play: async ({ canvas }) => {
 		// Earlier rows, such as the token usage badges, are also focusable.
-		const info = canvas.getByRole("button", { name: "More info" });
+		const info = canvas.getByRole("button", {
+			name: "About network monitoring",
+		});
 		while (document.activeElement !== info) {
+			// Storybook's user-event tabs from the keydown target, so it cannot
+			// follow focus out of an open interactive tooltip such as the cost
+			// info. Escape closes it and returns focus to its trigger.
+			if (document.activeElement?.closest("[role=dialog]")) {
+				await userEvent.keyboard("{Escape}");
+			}
 			await userEvent.tab();
 		}
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
+			expect(screen.getByRole("dialog")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",
 			),
 		);
@@ -174,5 +186,38 @@ export const NetworkSingleDomain: Story = {
 	play: async ({ canvas }) => {
 		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
 		await expect(canvas.queryByText(/more$/)).toBeNull();
+	},
+};
+
+export const OneOrganization: Story = {
+	args: {
+		...Default.args,
+		organizations: [MockAIBridgeSessionOrganization],
+	},
+};
+
+export const MultipleOrganizations: Story = {
+	args: {
+		...Default.args,
+		organizations: [
+			MockAIBridgeSessionOrganization,
+			{ ...MockAIBridgeSessionOrganization2, icon: "" },
+		],
+	},
+};
+
+export const OrganizationNotRecorded: Story = {
+	args: {
+		...Default.args,
+		organizations: [],
+	},
+};
+
+export const OrganizationInfoTooltip: Story = {
+	args: OneOrganization.args,
+	play: async ({ canvas }) => {
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "How the organization is chosen" }),
+		);
 	},
 };

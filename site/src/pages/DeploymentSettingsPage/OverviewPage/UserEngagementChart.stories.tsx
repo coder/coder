@@ -24,7 +24,7 @@ type Story = StoryObj<typeof UserEngagementChart>;
 export const Loaded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const chart = await canvas.findByRole("group", { name: "User Engagement" });
+		const chart = await canvas.findByRole("group", { name: "User engagement" });
 		expect(chart).toHaveAttribute("aria-roledescription", "chart");
 		// dom-accessibility-api doesn't compute descriptions from SVG <desc>
 		// (browsers do, per SVG-AAM), so check the element itself.
@@ -42,6 +42,14 @@ export const Loaded: Story = {
 		await waitFor(() => expect(liveRegion).toHaveTextContent(/^140 users /));
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => expect(liveRegion).toHaveTextContent(/^175 users /));
+	},
+};
+
+export const DataTableOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Data table" }),
+		);
 	},
 };
 

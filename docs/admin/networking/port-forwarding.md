@@ -7,12 +7,12 @@ A common use case is testing web applications in a browser.
 
 There are four ways to forward ports in Coder:
 
-| Method                                 | Details                                                                                                                                                        |
-|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
-| [CLI](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
-| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                               |
-| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                         |
+| Method                                 | Details                                                                                                                                                                                  |
+|:---------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via virtual private network (VPN) tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
+| [CLI](#the-coder-port-forward-command) | Forwards specific Transmission Control Protocol (TCP) or User Datagram Protocol (UDP) ports from the workspace to local ports. Supports peer-to-peer connections.                        |
+| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                                                         |
+| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                                                   |
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
@@ -21,11 +21,11 @@ Coder Desktop and `coder port-forward` are generally more performant than:
 
 ## Coder Desktop
 
-[Coder Desktop](../../user-guides/desktop/index.md) provides automatic port forwarding to every service running in your workspace.
+[Coder Desktop](../../workspaces/desktop/index.md) provides automatic port forwarding to every service running in your workspace.
 Once Coder Connect is enabled, any port your application listens on is instantly accessible at `<workspace-name>.coder:PORT` from your local machine, with no additional commands or configuration.
 
 This is the simplest option for most users.
-See the [Coder Desktop documentation](../../user-guides/desktop/index.md) for installation and setup.
+See the [Coder Desktop documentation](../../workspaces/desktop/index.md) for installation and setup.
 
 ## The `coder port-forward` command
 
@@ -113,9 +113,10 @@ Coder will also detect if apps inside the workspace are listening on ports, and 
 ### Share ports
 
 We allow developers to share ports as URLs, either with other authenticated coder users or publicly.
-Using the open ports interface, developers can assign a sharing levels that match our `coder_app`’s share option in [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share-1).
+Using the open ports interface, developers can assign a sharing level to a port.
 
 - `owner` (Default): The implicit sharing level for all listening ports, only visible to the workspace owner
+- `organization`: Accessible by authenticated users in the same organization as the workspace.
 - `authenticated`: Accessible by other authenticated Coder users on the same deployment.
 - `public`: Accessible by any user with the associated URL.
 
@@ -123,7 +124,7 @@ Once a port is shared at either `authenticated` or `public` levels, it will stay
 
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
-The sharing level is limited by the maximum level enforced in the template settings in premium deployments, and not restricted in OSS deployments.
+The sharing level is limited by the maximum level enforced in the template settings in premium deployments, and not restricted in open source software (OSS) deployments.
 
 This can also be used to change the sharing level of `coder_app`s by entering their port number in the sharable ports UI.
 The `share` attribute on `coder_app` resource uses a different method of authentication and **is not impacted by the template's maximum sharing level**, nor the level of a shared port that points to the app.
@@ -136,7 +137,7 @@ The `share` attribute on `coder_app` resource uses a different method of authent
 
 Premium-licensed template admins can control the maximum port sharing level for workspaces under a given template in the template settings.
 By default, the maximum sharing level is set to `Owner`, meaning port sharing is disabled for end-users.
-OSS deployments allow all workspaces to share ports at both the `authenticated` and `public` levels.
+OSS deployments allow all workspaces to share ports at all levels, including `organization`.
 
 ![Max port sharing level in the UI](../../images/networking/portsharingmax.png)
 
@@ -161,7 +162,7 @@ https://33295s--agent--workspace--user--apps.example.com/
 
 When forwarding via the dashboard, Coder automatically sets headers that allow requests between separately forwarded applications belonging to the same user.
 
-When forwarding through other methods the application itself will need to set its own CORS headers if they are being forwarded through different origins since Coder does not intercept these cases.
+When forwarding through other methods the application itself will need to set its own cross-origin resource sharing (CORS) headers if they are being forwarded through different origins since Coder does not intercept these cases.
 See below for the required headers.
 
 #### Authentication
@@ -196,11 +197,16 @@ Credentials are allowed and the allowed methods and headers will echo whatever t
 
 #### Configuration
 
-These cross-origin headers are not configurable by administrative settings.
+Template admins set the **CORS behavior** in the template's **Settings** page.
+The setting applies to every app and port in the template's workspaces.
+It has two values:
 
-If applications set any of the above headers they will be stripped from the response except for `Vary` headers that are set to a value other than the ones listed above.
+- `Simple` (recommended): Coder applies its built-in CORS handling, as described in this section.
+  If an application sets any of the headers above, Coder strips them from the response, except for `Vary` headers that are set to a value other than the ones listed above.
+- `Passthru`: Coder bypasses its built-in CORS protection and passes the application's own CORS headers through to the browser.
 
-In other words, CORS behavior through the dashboard is not currently configurable by either admins or users.
+Passthru reduces protection against cross-origin requests, so only use it for applications that handle CORS correctly.
+For more about managing template settings, refer to [Managing templates](../../templates/managing-templates/index.md).
 
 #### Allowed by default
 
@@ -273,7 +279,7 @@ Rows are the destination: the user, workspace, and app that receives it.
 
 ## SSH
 
-First, [configure SSH](../../user-guides/workspace-access/index.md#configure-ssh) on your local machine.
+First, [configure SSH](../../workspaces/workspace-access/index.md#configure-ssh) on your local machine.
 Then, use `ssh` to forward like so:
 
 ```console

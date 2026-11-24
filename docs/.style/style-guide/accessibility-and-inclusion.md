@@ -20,6 +20,9 @@ The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
 A page doesn't jump from H2 to H4.
+Raw HTML headings, such as the `<h3>` headings in the generated API reference, sit in the same outline and follow the same rule.
+Every heading has text.
+An empty heading still appears in the outline a screen reader offers, as an entry with no name.
 
 Each heading is followed by at least one paragraph (or other content block) before the next heading.
 A bare H2 followed immediately by an H3 with no prose in between reads as a broken document outline, and SEO crawlers flag the pattern as a potential site error.
@@ -71,7 +74,7 @@ The second H1 creates two competing page titles.
 The H1 to H4 jump skips H2 and H3.
 Even if the levels were correct, the first H1 has no paragraph before the next heading, which also fails the rule.
 
-*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1).
+*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1), and by `Coder.HeadingOrder` and `Coder.EmptyHeading`.
 The "content between headings" rule is documentation-only.*
 
 ## Inclusive pronouns
@@ -103,6 +106,10 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
 | legacy, pre-existing, exempt                          | grandfathered, grandfather clause             |
+| on-path attacker, machine-in-the-middle (MITM)        | man-in-the-middle                             |
+
+Use "on-path attacker" for the attack.
+When a feature intercepts traffic on purpose, such as the AI Gateway Proxy's MITM mode, expand MITM as "machine-in-the-middle."
 
 For information on why "grandfathered" is on the list, visit [the Wikipedia page on the history of the grandfather clause](https://en.wikipedia.org/wiki/Grandfather_clause).
 
@@ -141,6 +148,9 @@ Link text describes what the reader gets at the destination.
 Generic phrases like "click here" and "this link" tell the reader nothing if they scan the link out of context.
 Screen readers announce link text out of context too, which is the [WCAG 2.1 Level A](https://www.w3.org/TR/WCAG21/#link-purpose-in-context) requirement the rule supports.
 
+Every link has text.
+A link with none, such as `[](url)`, an empty `<a href>`, or a link whose only content is an image with empty alt text, is announced as its URL or not at all.
+
 **Do**:
 
 > Refer to the [Coder CLI reference](../../reference/cli/index.md) for the full command list.
@@ -151,7 +161,7 @@ Screen readers announce link text out of context too, which is the [WCAG 2.1 Lev
 >
 > [Click here](../../reference/cli/index.md) for the full command list.
 
-*Enforced by `Coder.LinkText` (planned).*
+*Enforced by `Coder.LinkName` for links with no text, and by `Coder.LinkText` (planned) for generic phrases.*
 
 ## Alt text for images
 
@@ -179,8 +189,12 @@ Mark images that carry no information beyond visual decoration with empty alt te
 Empty alt text tells the screen reader to skip the image rather than announce a meaningless filename.
 
 ```md
-![](../../images/decorative/divider.png)
+<img src="../../images/decorative/divider.png" alt="">
 ```
+
+Use a raw `<img>` with `alt=""` for a decorative image, not the Markdown `![](…)` form.
+The docs HTML check rejects `role`, `tabindex`, `lang`, and `aria-*` attributes, so `alt=""` is the only way to mark an image as decorative.
+markdownlint rejects a Markdown image with empty alt text, because it can't tell a decorative image from one whose alt text is missing.
 
 Decorative images are rare in the Coder docs.
 Most images shown to a reader are screenshots or diagrams that convey information, and those images need descriptive alt text.
@@ -395,6 +409,48 @@ Banning them burdens writers without a matching gain for readers familiar with t
 *Enforced by `Coder.LatinAbbreviations` at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
 The rule suggests the English form and never blocks either form.
 It checks paragraphs, list items, headings, and blockquotes, and skips table cells and code.*
+
+## Expand abbreviations on first use
+
+Spell out an abbreviation the first time it appears on a page, followed by the abbreviation in parentheses: "Model Context Protocol (MCP)."
+After that, use the abbreviation on its own.
+Each page needs its own expansion, because readers arrive on a page from search or a link and don't read the docs in order.
+
+The rule supports [WCAG 2.2 Level AAA](https://www.w3.org/TR/WCAG22/#abbreviations) Success Criterion 3.1.4 (Abbreviations), which asks for a way to find the expanded form of an abbreviation.
+It also helps readers whose first language isn't English, and readers who know the concept but not its abbreviation.
+
+**Do**:
+
+> Register a Model Context Protocol (MCP) server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+**Don't**:
+
+> Register an MCP server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "large language model (LLM)" but "OpenID Connect (OIDC)."
+For a plural, add `s` to both forms: "large language models (LLMs)."
+
+When the first use is a UI label in bold, keep the label exactly as the UI shows it and put the expansion elsewhere in the same paragraph or list item.
+
+**Do**:
+
+> Paste the path to the certificate authority (CA) certificate in **CA Path**.
+
+**Don't**:
+
+> Paste the path to the certificate in **certificate authority (CA) Path**.
+
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, JSON, and UUID.
+The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
+Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+A Coder networking or identity term that the [glossary](../../reference/glossary.md) defines, such as DERP or OIDC, can also join the list, because the glossary gives readers one place to look it up.
+
+The rule skips headings, code, link URLs, and pages generated from source code.
+An abbreviation in a page title still needs its expansion in the body of the page.
+
+*Enforced by `Coder.AbbreviationFirstUse` (`warning`).*
 
 ## Page title and sidebar title
 

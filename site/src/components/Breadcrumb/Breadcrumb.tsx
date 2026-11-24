@@ -5,7 +5,7 @@
 
 import { cn } from "cn";
 import { MoreHorizontalIcon } from "lucide-react";
-import { NavLink } from "react-router";
+import { Link, type LinkProps } from "react-router";
 
 type BreadcrumbProps = React.ComponentProps<"nav"> & {
 	separator?: React.ReactNode;
@@ -45,14 +45,16 @@ export const BreadcrumbItem: React.FC<React.ComponentProps<"li">> = ({
 	);
 };
 
-type BreadcrumbLinkProps = React.ComponentProps<typeof NavLink>;
-
-export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
+/**
+ * Link to an ancestor crumb. Never sets `aria-current`; use `BreadcrumbPage`
+ * for the current page.
+ */
+export const BreadcrumbLink: React.FC<LinkProps> = ({
 	className,
 	...props
 }) => {
 	return (
-		<NavLink
+		<Link
 			className={cn(
 				"text-content-secondary transition-colors hover:text-content-primary no-underline hover:underline",
 				className,
@@ -62,13 +64,16 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	);
 };
 
+/**
+ * Non-link crumb label. Pass `aria-current="page"` only when it names the
+ * current page.
+ */
 export const BreadcrumbPage: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	...props
 }) => {
 	return (
 		<span
-			aria-current="page"
 			className={cn(
 				"flex items-center gap-2 text-content-secondary",
 				className,
@@ -85,10 +90,7 @@ export const BreadcrumbSeparator: React.FC<
 		<li
 			role="presentation"
 			aria-hidden="true"
-			className={cn(
-				"text-content-secondary [&>svg]:w-3.5 [&>svg]:h-3.5",
-				className,
-			)}
+			className={cn("text-content-secondary [&>svg]:size-3.5", className)}
 			{...props}
 		>
 			/

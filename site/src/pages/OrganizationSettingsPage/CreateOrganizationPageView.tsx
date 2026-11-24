@@ -96,7 +96,7 @@ export const CreateOrganizationPageView: React.FC<
 			<div className="flex flex-col gap-4 w-full mx-auto max-w-2xl">
 				<div className="flex flex-col">
 					<SettingsHeader>
-						<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
+						<SettingsHeaderTitle>New organization</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
 							Isolate members, templates, and provisioners for a team or
 							project.{" "}
@@ -119,7 +119,7 @@ export const CreateOrganizationPageView: React.FC<
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					) : (
-						<div className="border border-solid p-6 rounded-lg">
+						<div className="border p-6 rounded-lg">
 							<form
 								onSubmit={form.handleSubmit}
 								aria-label="Organization settings form"

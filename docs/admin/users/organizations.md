@@ -14,7 +14,7 @@ Here is an example of how one could use organizations to run a Coder deployment 
 
 ![Organizations Example](../../images/admin/users/organizations/diagram.png)
 
-For more information about how to use organizations, visit the [organizations best practices](../../tutorials/best-practices/organizations.md) guide.
+For more information about how to use organizations, visit the [organizations best practices](organizations-best-practices.md) guide.
 
 ## The default organization
 
@@ -49,13 +49,13 @@ To create a new organization:
 
 1. Select **Admin settings** from the top bar, then **Organizations**.
 
-1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
+1. Select the current organization to expand the organizations dropdown, then select **Create organization**:
 
-   <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
+   <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create organization" align="center" />
 
 1. Enter the details and select **Save** to continue:
 
-   <img height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
+   <img height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New organization" align="center" />
 
 In this example, we'll create the `data-platform` org.
 
@@ -89,7 +89,7 @@ Before creating templates, we must deploy at least one provisioner as the built-
 ### 3. Create a template
 
 Once you've started a provisioner, you can create a template.
-You'll notice the **Create Template** screen now has an organization dropdown:
+You'll notice the **Create template** screen now has an organization dropdown:
 
 ![Template Org Picker](../../images/admin/users/organizations/template-org-picker.png)
 
@@ -119,12 +119,12 @@ The default value is `["organization-workspace-access", "agents-access"]`.
 With that default, every organization member can read, build, ssh into, and execute commands in workspaces they own, and can use Coder Agents.
 Removing `organization-workspace-access` from the list creates organization members that cannot create or use workspaces unless the role is assigned to them directly, which is useful for restricted accounts that should only hold the minimal member permissions.
 Removing `agents-access` limits Coder Agents to members who hold the role directly.
-Refer to [Control who can use Coder Agents](../../ai-coder/agents/getting-started.md#control-who-can-use-coder-agents).
+Refer to [Control who can use Coder Agents](../../coder-agents/getting-started.md#control-who-can-use-coder-agents).
 
 Service accounts don't inherit `agents-access` from this list.
 Assign the role to a service account directly to let it use Coder Agents.
 
-To edit the default roles in the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+To edit the default roles in the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default roles**.
 
 From the CLI, use `coder organizations edit`:
 
@@ -149,4 +149,4 @@ You can also set `default_org_member_roles` via `PATCH /organizations/{organizat
 
 ## Next steps
 
-- [Organizations - best practices](../../tutorials/best-practices/organizations.md)
+- [Organizations - best practices](organizations-best-practices.md)
