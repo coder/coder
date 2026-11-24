@@ -150,9 +150,8 @@ describe("ProjectsPage", () => {
 	it("archives a project from its card and moves focus to New project", async () => {
 		const user = userEvent.setup();
 		// Summaries leave out archived projects.
-		vi.spyOn(API.experimental, "getChatProjectSummaries")
-			.mockResolvedValueOnce([summary("Kilo")])
-			.mockResolvedValue([]);
+		const kilo = summary("Kilo");
+		mockProjects([kilo]).mockResolvedValueOnce([kilo]).mockResolvedValue([]);
 		vi.spyOn(
 			API.experimental,
 			"getChatProjectArchivePreview",
