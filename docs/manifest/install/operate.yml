@@ -5,6 +5,9 @@ icon_path: ./images/icons/wrench.svg
 children:
   - include: install/operate/provisioners.yml
   - include: install/operate/upgrade.yml
+  - title: Disaster recovery
+    description: Plan database backups and restores, and learn what users experience during a control plane outage.
+    path: ./install/operate/disaster-recovery.md
   - title: Google Cloud to AWS federation
     description: Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.
     path: ./install/operate/gcp-to-aws.md

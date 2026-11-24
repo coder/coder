@@ -134,14 +134,13 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 						</Link>
 					)}
 				<Link
+					asChild
 					className="inline-flex items-center gap-2 pl-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
-					href="#"
 					showExternalIcon={false}
-					onClick={() => {
-						onReauthenticate();
-					}}
 				>
-					<RotateCwIcon className="size-icon-xs" /> Reauthenticate
+					<button type="button" onClick={onReauthenticate}>
+						<RotateCwIcon className="size-icon-xs" /> Reauthenticate
+					</button>
 				</Link>
 			</div>
 		</SignInLayout>

@@ -6,9 +6,9 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
+import { canViewAISpend } from "./AISpendPage/spendAccess";
 import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
-import { canViewAISpend } from "./SpendPage/spendAccess";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();

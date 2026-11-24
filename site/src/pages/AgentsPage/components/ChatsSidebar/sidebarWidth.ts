@@ -4,6 +4,8 @@ export const LEFT_SIDEBAR_DEFAULT_WIDTH = 320;
 export const AGENTS_MAIN_PANEL_MIN_WIDTH = 360;
 // One rem gives keyboard users a predictable, fine-grained step.
 export const LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP = 16;
+// Coarse enough that the width menu crosses the range in a few clicks.
+export const LEFT_SIDEBAR_MENU_RESIZE_STEP = 64;
 const LEFT_SIDEBAR_MAX_WIDTH = 660;
 const LEFT_SIDEBAR_MAX_WIDTH_RATIO = 0.7;
 
