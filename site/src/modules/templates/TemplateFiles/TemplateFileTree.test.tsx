@@ -28,7 +28,6 @@ describe("TemplateFileTree", () => {
 		await user.keyboard("{Home}{ArrowRight}{ArrowDown}{ArrowDown}{Enter}");
 		expect(onSelect).toHaveBeenLastCalledWith("modules/vars.tf");
 
-		// Left goes to the parent folder, then collapses it.
 		await user.keyboard("{ArrowLeft}{ArrowLeft}{ArrowDown}{Enter}");
 		expect(onSelect).toHaveBeenLastCalledWith("main.tf");
 

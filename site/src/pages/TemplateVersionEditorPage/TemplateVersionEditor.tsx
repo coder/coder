@@ -142,8 +142,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const fileTreeRef = useRef<TemplateFileTreeHandle>(null);
-	// The dialog's trigger can be the tree item it renames or deletes, so
-	// return focus to the tree instead of to that removed element.
+	// The dialog's trigger may be the item it just removed.
 	const focusFileTree = (event: Event) => {
 		event.preventDefault();
 		fileTreeRef.current?.focus();

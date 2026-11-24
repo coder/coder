@@ -98,8 +98,6 @@ export const GreyOutHiddenFiles: Story = {
 };
 
 export const KeyboardFocusCollapsedFolder: Story = {
-	// Moves keyboard focus to the "files" folder and collapses it, so the
-	// screenshot shows the focus ring and a collapsed folder.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("treeitem", { name: "main.tf" }).focus();

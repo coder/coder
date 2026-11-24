@@ -40,7 +40,6 @@ type TreeNode = {
 	label: string;
 	filename: string;
 	depth: number;
-	/** Path of the visible parent item, used for ArrowLeft navigation. */
 	parentPath?: string;
 	children?: TreeNode[];
 };
@@ -67,7 +66,7 @@ type BuildNodeOptions = {
 	label: string;
 	filename: string;
 	content: FileTree | string;
-	/** Directory containing `filename`. Inside grouped folders it differs from `parentPath`. */
+	/** Differs from `parentPath` inside grouped folders. */
 	pathPrefix?: string;
 	depth: number;
 	parentPath?: string;
@@ -87,7 +86,7 @@ const buildNode = ({
 		return { path, label, filename, depth, parentPath };
 	}
 
-	// Folders whose only child is a folder are shown as one item, like VS Code.
+	// Show a folder whose only child is a folder as one item, like VS Code.
 	const childNames = Object.keys(content);
 	if (childNames.length === 1 && isFolder(content[childNames[0]])) {
 		const childName = childNames[0];
@@ -138,9 +137,8 @@ const getNodeIcon = (node: TreeNode, isExpanded: boolean) => {
 	return isExpanded ? FolderOpenIcon : FolderIcon;
 };
 
-/** Imperative handle for moving focus back into the tree, such as after a dialog closes. */
+/** Lets callers return focus to the tree. */
 export type TemplateFileTreeHandle = {
-	/** Focuses the tree's tab stop: the last focused, selected, or first item. */
 	focus: () => void;
 };
 
@@ -160,7 +158,7 @@ type TemplateFilesTreeProps = {
 	}>;
 };
 
-/** WAI-ARIA treeview. F2, Delete, and Shift+F10 run the row actions on the focused item. */
+/** WAI-ARIA treeview. F2, Delete, and Shift+F10 act on the focused item. */
 export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	ref,
 	fileTree,
@@ -348,7 +346,6 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	);
 };
 
-/** State and callbacks that every item in one tree shares. */
 type TreeState = Pick<
 	TemplateFilesTreeProps,
 	"activePath" | "onRename" | "onDelete" | "Label"
@@ -495,9 +492,7 @@ const MoreMenu: React.FC<MoreMenuProps> = ({
 
 	return (
 		<DropdownMenu open={open} onOpenChange={onOpenChange}>
-			{/* Pointer-only trigger. Keyboard users open the menu from the focused
-			    tree item with Shift+F10, so the button stays out of the tab order
-			    and the accessibility tree. */}
+			{/* Pointer-only. Keyboard users press Shift+F10 on the item. */}
 			<DropdownMenuTrigger asChild>
 				<Button
 					size="icon"
