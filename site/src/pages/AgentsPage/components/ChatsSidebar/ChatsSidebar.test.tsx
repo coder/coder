@@ -8,7 +8,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { type QueryClient, QueryClientProvider } from "react-query";
+import {
+	focusManager,
+	type QueryClient,
+	QueryClientProvider,
+} from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import {
 	afterEach,
@@ -537,6 +541,29 @@ describe("ChatsSidebar projects", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("refetches the project list when the window regains focus", async () => {
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValue([]);
+		onTestFinished(() => {
+			focusManager.setFocused(undefined);
+			vi.restoreAllMocks();
+		});
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
 	});
 
 	it("moves focus to the folder toggle when a folder retry succeeds", async () => {
