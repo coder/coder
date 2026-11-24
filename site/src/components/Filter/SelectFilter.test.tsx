@@ -54,6 +54,23 @@ it("marks the chosen option as selected", async () => {
 	);
 });
 
+it("names the dropdown after the filter", async () => {
+	const user = userEvent.setup();
+	renderComponent(
+		<SelectFilter
+			label="Select a status"
+			placeholder="All statuses"
+			options={[{ label: "Active", value: "active" }]}
+			onSelect={vi.fn()}
+		/>,
+	);
+
+	await user.click(screen.getByRole("button", { name: "Select a status" }));
+	expect(await screen.findByRole("dialog")).toHaveAccessibleName(
+		"Select a status",
+	);
+});
+
 it("names the search input with the search label", async () => {
 	const user = userEvent.setup();
 	const onValueChange = vi.fn();
