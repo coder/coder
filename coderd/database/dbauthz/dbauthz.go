@@ -2046,6 +2046,17 @@ func (q *querier) ClaimDueChatAutomationSchedules(ctx context.Context, arg datab
 	return q.db.ClaimDueChatAutomationSchedules(ctx, arg)
 }
 
+func (q *querier) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	tok, err := q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, tok); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.ClaimMCPServerUserTokenRefresh(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 

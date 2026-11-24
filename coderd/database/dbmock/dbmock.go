@@ -366,6 +366,21 @@ func (mr *MockStoreMockRecorder) ClaimDueChatAutomationSchedules(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimDueChatAutomationSchedules", reflect.TypeOf((*MockStore)(nil).ClaimDueChatAutomationSchedules), ctx, arg)
 }
 
+// ClaimMCPServerUserTokenRefresh mocks base method.
+func (m *MockStore) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimMCPServerUserTokenRefresh", ctx, arg)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimMCPServerUserTokenRefresh indicates an expected call of ClaimMCPServerUserTokenRefresh.
+func (mr *MockStoreMockRecorder) ClaimMCPServerUserTokenRefresh(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimMCPServerUserTokenRefresh", reflect.TypeOf((*MockStore)(nil).ClaimMCPServerUserTokenRefresh), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()

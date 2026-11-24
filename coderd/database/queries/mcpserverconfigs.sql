@@ -266,6 +266,24 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
 RETURNING
     *;
 
+-- name: ClaimMCPServerUserTokenRefresh :one
+-- Claims the right to refresh a token for @lease_seconds by moving
+-- updated_at that far into the future. It matches only the version the
+-- caller read, and never a live claim (updated_at still ahead of NOW()),
+-- so concurrent refreshers of one token make one provider call without
+-- holding a transaction across it. The claimant persists its result
+-- against the returned updated_at; other writers set NOW(), which ends
+-- the claim.
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW() + make_interval(secs => @lease_seconds::double precision)
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz
+    AND updated_at <= NOW()
+RETURNING
+    updated_at;
+
 -- name: UpdateMCPServerUserTokenFromRefresh :one
 -- Refresh persistence must not recreate a token deleted by disconnect.
 -- The optimistic lock also prevents stale refreshes from replacing newer tokens.

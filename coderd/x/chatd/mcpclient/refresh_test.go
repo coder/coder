@@ -4,15 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -20,7 +23,12 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestIsPermanentRefreshError(t *testing.T) {
@@ -283,4 +291,136 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	t.Cleanup(func() {
 		require.Zero(t, hits.Load(), "no token request may be made")
 	})
+}
+
+// TestRefreshUserTokenOneRefresher refreshes one expired token while another
+// refresher's provider call is in flight. The provider rotates refresh tokens
+// and reports any reuse of a spent one.
+func TestRefreshUserTokenOneRefresher(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		refresh     string
+		wantAccess  string
+		wantFailure bool
+		wantGrants  int64
+		// lateCaller refreshes the stale row after the first call returns;
+		// it must get the first call's result. A provider outage keeps the
+		// claim until it lapses, so that row has no late caller.
+		lateCaller bool
+		// saveFails fails the first call's save with a database error.
+		saveFails bool
+	}{
+		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1, lateCaller: true},
+		{name: "RevokedGrant", refresh: "revoked", wantFailure: true, lateCaller: true},
+		{name: "ProviderDown", refresh: "down", wantAccess: "expired-access"},
+		{name: "Disconnected", refresh: "disconnect", wantGrants: 1, lateCaller: true},
+		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1, lateCaller: true},
+		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1, lateCaller: true},
+		{name: "SaveFails", refresh: "refresh-0", wantAccess: "expired-access", wantGrants: 1, saveFails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			store, _ := dbtestutil.NewDB(t)
+			db := store
+			if tc.saveFails {
+				db = failingSaveStore{store}
+			}
+			authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+			user := dbgen.User(t, store, database.User{})
+
+			var requests, grants, reuses atomic.Int64
+			var spent sync.Map
+			release := make(chan struct{})
+			var cfg database.MCPServerConfig
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if requests.Add(1) == 1 {
+					select {
+					case <-release:
+					case <-ctx.Done():
+					}
+				}
+				w.Header().Set("Content-Type", "application/json")
+				refresh := r.FormValue("refresh_token")
+				_, reused := spent.LoadOrStore(refresh, true)
+				if reused && refresh != "down" && refresh != "revoked" {
+					reuses.Add(1)
+				}
+				switch {
+				case refresh == "down":
+					w.WriteHeader(http.StatusInternalServerError)
+				case refresh == "revoked" || reused:
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+				default:
+					if refresh == "disconnect" || refresh == "reconnect" {
+						assert.NoError(t, store.DeleteMCPServerUserToken(ctx, database.DeleteMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: user.ID}))
+					}
+					if refresh == "reconnect" {
+						_, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{MCPServerConfigID: cfg.ID, UserID: user.ID, AccessToken: "reconnected-access", TokenType: "Bearer"})
+						assert.NoError(t, err)
+					}
+					n := grants.Add(1)
+					access := fmt.Sprintf("access-%d", n)
+					if refresh == "same-access" {
+						access = "expired-access"
+					}
+					_, _ = fmt.Fprintf(w, `{"access_token":%q,"refresh_token":"refresh-%d","token_type":"Bearer","expires_in":3600}`, access, n)
+				}
+			}))
+			t.Cleanup(provider.Close)
+			cfg = dbgen.MCPServerConfig(t, store, database.MCPServerConfig{AuthType: "oauth2", OAuth2ClientID: "cid", OAuth2TokenURL: provider.URL})
+			tok, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            user.ID,
+				AccessToken:       "expired-access",
+				RefreshToken:      tc.refresh,
+				TokenType:         "Bearer",
+				Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+			refresh := func(ctx context.Context) (database.MCPServerUserToken, error) {
+				return mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), authzDB, testMCPHTTPClient(nil), cfg, tok)
+			}
+
+			first := make(chan database.MCPServerUserToken, 1)
+			go func() {
+				got, err := refresh(ctx)
+				assert.Equal(t, tc.saveFails, err != nil, "error: %v", err)
+				first <- got
+			}()
+			testutil.Eventually(ctx, t, func(context.Context) bool { return requests.Load() == 1 }, testutil.IntervalFast)
+
+			// A second refresher of the same row waits for the first instead
+			// of spending the refresh token again.
+			waitCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+			defer cancel()
+			_, err = refresh(waitCtx)
+			require.Error(t, err)
+			require.EqualValues(t, 1, requests.Load(), "a second refresher reached the provider")
+			close(release)
+
+			results := []database.MCPServerUserToken{testutil.RequireReceive(ctx, t, first)}
+			if tc.lateCaller {
+				late, err := refresh(ctx)
+				require.NoError(t, err)
+				results = append(results, late)
+			}
+			for _, got := range results {
+				require.Equal(t, tc.wantAccess, got.AccessToken)
+				require.Equal(t, tc.wantFailure, got.OauthRefreshFailureReason != "")
+			}
+			require.Equal(t, tc.wantGrants, grants.Load())
+			require.Zero(t, reuses.Load(), "a spent refresh token was sent again")
+		})
+	}
+}
+
+// failingSaveStore fails saving a refreshed token with a database error.
+type failingSaveStore struct{ database.Store }
+
+func (failingSaveStore) UpdateMCPServerUserTokenFromRefresh(context.Context, database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	return database.MCPServerUserToken{}, xerrors.New("connection reset")
 }

@@ -2416,6 +2416,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateMCPServerUserTokenFromRefresh(gomock.Any(), arg).Return(token, nil).AnyTimes()
 		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
 	}))
+	s.Run("ClaimMCPServerUserTokenRefresh", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		arg := database.ClaimMCPServerUserTokenRefreshParams{ID: token.ID, UpdatedAt: token.UpdatedAt, LeaseSeconds: 15}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		dbm.EXPECT().ClaimMCPServerUserTokenRefresh(gomock.Any(), arg).Return(token.UpdatedAt, nil).AnyTimes()
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token.UpdatedAt)
+	}))
 	s.Run("UpsertMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.UpsertMCPServerUserTokenParams{
 			MCPServerConfigID: uuid.New(),
