@@ -39,7 +39,10 @@ type OrganizationAutocompleteProps = Pick<
 	labelOrganizations?: readonly Organization[];
 	id?: string;
 	ariaLabel?: string;
-	/** Visible label shown before the selected organization. */
+	/**
+	 * Visible label shown before the value. Unless ariaLabel is set, it also
+	 * names the trigger as "Label: value".
+	 */
 	label?: string;
 	required?: boolean;
 	disabled?: boolean;

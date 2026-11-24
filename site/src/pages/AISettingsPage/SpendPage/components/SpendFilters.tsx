@@ -16,8 +16,8 @@ import {
 } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { spendQuickPresets } from "../spendPeriod";
 
-// Flex basis for each dimension dropdown. The organization picker repeats
-// this value as `basis-[150px]`, so change both together.
+// Flex basis for each dimension dropdown. The organization picker starts
+// wider, so its name still fits after its visible "Organization:" label.
 const FILTER_WIDTH = 150;
 
 export type SpendFilterMenus = {
@@ -54,7 +54,7 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 					value={organization}
 					label="Organization"
 					options={organizations}
-					triggerClassName="basis-[150px] grow"
+					triggerClassName="basis-[240px] grow"
 					optionsTabbable
 					onChange={(next) => {
 						if (next) {
