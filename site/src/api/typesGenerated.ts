@@ -3767,6 +3767,20 @@ export interface ChatProjectInstructions {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectMemberCount is how many users can use a project.
+ */
+export interface ChatProjectMemberCount {
+	readonly project_id: string;
+	/**
+	 * MemberCount counts users who can use the project, including the owner.
+	 * Suspended users are not counted. It is 1 when chat sharing is
+	 * unavailable.
+	 */
+	readonly member_count: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3802,11 +3816,12 @@ export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
 
 // From codersdk/chats.go
 /**
- * ChatProjectSummary is a project with the caller's pin and aggregates over
- * the caller's own top-level, non-archived chats in it.
+ * ChatProjectSummary is the caller's pin on a project and aggregates over
+ * the caller's own top-level, non-archived chats in it. The project itself
+ * comes from ListChatProjects.
  */
 export interface ChatProjectSummary {
-	readonly project: ChatProject;
+	readonly project_id: string;
 	readonly pinned: boolean;
 	/**
 	 * PinOrder is the 1-based position among pinned projects, or 0.
@@ -3823,12 +3838,6 @@ export interface ChatProjectSummary {
 	 * LastActivityAt is the latest update to one of the caller's chats.
 	 */
 	readonly last_activity_at?: string;
-	/**
-	 * MemberCount counts users who can use the project, including the owner.
-	 * Suspended users are not counted. It is 1 when chat sharing is
-	 * unavailable.
-	 */
-	readonly member_count: number;
 }
 
 // From codersdk/chats.go

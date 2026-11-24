@@ -45,8 +45,8 @@ export const useMoveChatToProject = () => {
 		// A chat that is not pinned leaves the sidebar when it moves into a
 		// project the user has not pinned. A chat that was already in another
 		// unpinned project was not in the sidebar to begin with.
-		// Summaries that are not cached yet are fetched first, so the dialog can
-		// still open; only a failed fetch skips it.
+		// Summaries and projects that are not cached yet are fetched first, so
+		// the dialog can still open; only a failed fetch skips it.
 		onSuccess: (_data, { chatId, projectId }, context) => {
 			// A later move of the same chat owns the dialog decision, even one
 			// made while the summaries load.
@@ -54,23 +54,28 @@ export const useMoveChatToProject = () => {
 			if (superseded()) {
 				return;
 			}
-			void queryClient.ensureQueryData(chatProjectSummaries()).then(
-				(summaries) => {
+			void Promise.all([
+				queryClient.ensureQueryData(chatProjectSummaries()),
+				queryClient.ensureQueryData(chatProjects()),
+			]).then(
+				([summaries, projects]) => {
 					if (superseded()) {
 						return;
 					}
-					const summary = summaries.find((s) => s.project.id === projectId);
+					const summary = summaries.find((s) => s.project_id === projectId);
+					const project = projects.find((p) => p.id === projectId);
 					const previous = context?.previousProjectId
-						? summaries.find((s) => s.project.id === context.previousProjectId)
+						? summaries.find((s) => s.project_id === context.previousProjectId)
 						: undefined;
 					const wasHidden = previous !== undefined && !previous.pinned;
 					if (
+						project &&
 						summary &&
 						!summary.pinned &&
 						!context?.wasChatPinned &&
 						!wasHidden
 					) {
-						moveToUnpinnedProjectDialog?.show(summary.project, chatId);
+						moveToUnpinnedProjectDialog?.show(project, chatId);
 					}
 				},
 				() => {},

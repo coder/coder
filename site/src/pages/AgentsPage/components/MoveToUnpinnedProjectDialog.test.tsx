@@ -5,7 +5,10 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
-import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
+import {
+	chatProjectSummariesKey,
+	chatProjectsKey,
+} from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -125,11 +128,15 @@ const moveChat = async ({
 		},
 		{
 			...MockChatProjectSummary,
-			project: { ...MockChatProject, id: "previous-project" },
+			project_id: "previous-project",
 			pinned: false,
 			pin_order: 0,
 		},
 	];
+	queryClient.setQueryData(chatProjectsKey, [
+		MockChatProject,
+		{ ...MockChatProject, id: "previous-project" },
+	]);
 	if (summariesCached) {
 		queryClient.setQueryData(chatProjectSummariesKey, summaries);
 	} else {
@@ -311,11 +318,15 @@ describe("MoveToUnpinnedProjectDialog", () => {
 				{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
 				{
 					...MockChatProjectSummary,
-					project: { ...MockChatProject, id: "later-project", name: "Later" },
+					project_id: "later-project",
 					pinned: false,
 					pin_order: 0,
 				},
 			];
+			queryClient.setQueryData(chatProjectsKey, [
+				MockChatProject,
+				{ ...MockChatProject, id: "later-project", name: "Later" },
+			]);
 			const summariesLoad = createDeferred<typeof summaries>();
 			if (summariesCached) {
 				queryClient.setQueryData(chatProjectSummariesKey, summaries);
