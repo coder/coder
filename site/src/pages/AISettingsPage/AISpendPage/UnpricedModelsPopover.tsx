@@ -47,11 +47,6 @@ export const UnpricedModelsPopover: React.FC<UnpricedModelsPopoverProps> = ({
 					</span>
 				</li>
 			))}
-			{unlistedCount > 0 && (
-				<li className="p-2 text-sm text-content-secondary">
-					and {unlistedCount} more
-				</li>
-			)}
 		</ul>
 	);
 	return (
@@ -98,6 +93,11 @@ export const UnpricedModelsPopover: React.FC<UnpricedModelsPopoverProps> = ({
 						viewportAriaLabel="Models without pricing"
 					>
 						{modelList}
+						{unlistedCount > 0 && (
+							<p className="m-0 px-4 pt-1 pb-4 text-sm text-content-secondary">
+								and {unlistedCount} more
+							</p>
+						)}
 					</ScrollArea>
 				)}
 				<Link

@@ -18,12 +18,10 @@ import { pageTitle } from "#/utils/page";
 import { AISpendPageView } from "./AISpendPageView";
 import { defaultSpendDays, parseSpendDays, toSpendPeriod } from "./spendDays";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
+import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
-// The number of unpriced models the total spend card lists. 100 is the most the
-// endpoint returns.
-const UNPRICED_MODELS_COUNT = 100;
 
 type AISpendPageProps = {
 	now?: Date;
