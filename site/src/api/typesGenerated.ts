@@ -5990,6 +5990,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "open-preview"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -6071,6 +6072,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
+	"open-preview",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -9166,6 +9168,14 @@ export interface PreviewParameterValidation {
 	readonly validation_max: number | null;
 	readonly validation_monotonic: string | null;
 }
+
+// From codersdk/client.go
+/**
+ * PreviewSessionTokenCookie is the name of the host-only cookie that
+ * stores an application-scoped API token on one preview host.
+ *nolint:gosec // G101: cookie name, not a hardcoded credential.
+ */
+export const PreviewSessionTokenCookie = "coder_preview_session_token";
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {

@@ -1,0 +1,420 @@
+package workspaceapps_test
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httptrace"
+	"net/textproto"
+	"net/url"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
+)
+
+const (
+	previewDashboard = "https://dashboard.test.coder.com"
+	previewPattern   = "*--apps.test.coder.com"
+	previewHost      = "preview--8080--agent--workspace--user--apps.test.coder.com"
+	previewCSP       = "sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-downloads; " +
+		"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-src 'self'; " +
+		"object-src 'none'; form-action 'self'; frame-ancestors 'self' " + previewDashboard
+)
+
+// addPolicyHeaders adds a host-only cookie, which the policy keeps, and
+// headers the policy removes.
+func addPolicyHeaders(h http.Header) {
+	h.Add("Set-Cookie", "host=1; Path=/")
+	h.Add("Set-Cookie", "wide=1; Path=/; Domain=test.coder.com")
+	h.Set("Clear-Site-Data", `"cookies"`)
+	h.Set("Link", "<https://other.example.com/x.js>; rel=preload; as=script")
+}
+
+// requirePolicyApplied asserts that h carries the preview CSP once and only
+// the host-only cookie of addPolicyHeaders.
+func requirePolicyApplied(t *testing.T, h http.Header) {
+	t.Helper()
+	require.Equal(t, []string{previewCSP}, h.Values("Content-Security-Policy"))
+	require.Equal(t, []string{"host=1; Path=/"}, h.Values("Set-Cookie"))
+	require.Empty(t, h.Values("Clear-Site-Data"))
+	require.Empty(t, h.Values("Link"))
+}
+
+func previewUpstream(t *testing.T) *url.URL {
+	t.Helper()
+
+	r := chi.NewRouter()
+	r.Get("/", func(rw http.ResponseWriter, _ *http.Request) {
+		addPolicyHeaders(rw.Header())
+		rw.Header().Set("Access-Control-Allow-Origin", "*")
+		_, _ = rw.Write([]byte("preview"))
+	})
+	r.Get("/early-hints", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Link", "<https://other.example.com/x.js>; rel=preload; as=script")
+		rw.WriteHeader(http.StatusEarlyHints)
+		rw.Header().Del("Link")
+		_, _ = rw.Write([]byte("preview"))
+	})
+	r.Get("/ws", func(rw http.ResponseWriter, r *http.Request) {
+		addPolicyHeaders(rw.Header())
+		conn, err := websocket.Accept(rw, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+		typ, msg, err := conn.Read(r.Context())
+		if err != nil {
+			return
+		}
+		_ = conn.Write(r.Context(), typ, msg)
+	})
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	return u
+}
+
+func newPreviewServer(t *testing.T, provider workspaceapps.SignedTokenProvider, upstream *url.URL) *httptest.Server {
+	t.Helper()
+
+	dashboardURL, err := url.Parse(previewDashboard)
+	require.NoError(t, err)
+	hostnameRegex, err := appurl.CompileHostnamePattern(previewPattern)
+	require.NoError(t, err)
+	hosting, err := previewhost.Strict(previewPattern, dashboardURL, dashboardURL)
+	require.NoError(t, err)
+	srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
+		Logger:              testutil.Logger(t),
+		DashboardURL:        dashboardURL,
+		AccessURL:           dashboardURL,
+		Hostname:            previewPattern,
+		HostnameRegex:       hostnameRegex,
+		Previews:            hosting,
+		RealIPConfig:        &httpmw.RealIPConfig{},
+		SignedTokenProvider: provider,
+		AgentProvider:       &fakeAgentProvider{upstream: upstream},
+	})
+	ts := httptest.NewServer(httpmw.ExtractRealIP(srv.RealIPConfig)(srv.HandleSubdomain()(http.NotFoundHandler())))
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// previewToken returns a signed token for the port preview on host, or nil
+// when host does not parse.
+func previewToken(host string) *workspaceapps.SignedToken {
+	app, err := appurl.ParseSubdomainAppURL(strings.TrimSuffix(host, "--apps.test.coder.com"))
+	if err != nil {
+		return nil
+	}
+	port := strings.TrimPrefix(app.AppSlugOrPort, "preview--")
+	return &workspaceapps.SignedToken{
+		Request: workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodSubdomain,
+			BasePath:          "/",
+			UsernameOrID:      app.Username,
+			WorkspaceNameOrID: app.WorkspaceName,
+			AgentNameOrID:     app.AgentName,
+			AppSlugOrPort:     app.AppSlugOrPort,
+		},
+		AppURL: "http://127.0.0.1:" + port,
+	}
+}
+
+// Every response on a preview host carries the preview CSP, whether coderd
+// wrote it or the preview server did.
+func TestServePreviewPolicy(t *testing.T) {
+	t.Parallel()
+
+	upstream := previewUpstream(t)
+	for _, tc := range []struct {
+		name         string
+		host         string
+		path         string
+		header       http.Header
+		signedOut    bool
+		deadUpstream bool
+		corsBehavior codersdk.CORSBehavior
+		wantStatus   int
+	}{
+		{name: "Proxied", wantStatus: http.StatusOK},
+		{name: "ProxiedPassthruTemplate", corsBehavior: codersdk.CORSBehaviorPassthru, wantStatus: http.StatusOK},
+		{name: "ProxiedAfterEarlyHints", path: "/early-hints", wantStatus: http.StatusOK},
+		{name: "ServiceWorker", header: http.Header{"Service-Worker": {"script"}}, wantStatus: http.StatusForbidden},
+		{
+			name:       "FromOtherPreview",
+			header:     http.Header{"Origin": {"https://preview--3000--agent--workspace--user--apps.test.coder.com"}},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			// Under this suffix pattern, an app whose slug is "preview" on an
+			// agent named "3000" has five "--" parts before the domain.
+			name:       "FromAppNamedPreview",
+			header:     http.Header{"Origin": {"https://preview--3000--workspace--user--apps.test.coder.com"}},
+			wantStatus: http.StatusOK,
+		},
+		{name: "PrefixedHost", host: "x---" + previewHost, wantStatus: http.StatusBadRequest},
+		{name: "DirectOpen", header: http.Header{"Sec-Fetch-Dest": {"document"}}, wantStatus: http.StatusForbidden},
+		{name: "NoFetchMetadata", header: http.Header{"Sec-Fetch-Dest": nil}, wantStatus: http.StatusForbidden},
+		{name: "SmuggledAPIKey", path: "/?" + workspaceapps.SubdomainProxyAPIKeyParam + "=x", wantStatus: http.StatusBadRequest},
+		{name: "SignedOut", signedOut: true, wantStatus: http.StatusUnauthorized},
+		{name: "AgentUnreachable", deadUpstream: true, wantStatus: http.StatusBadGateway},
+		{name: "ReservedPort", host: "preview--4--agent--workspace--user--apps.test.coder.com", wantStatus: http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			host := previewHost
+			if tc.host != "" {
+				host = tc.host
+			}
+			token := previewToken(host)
+			if token != nil {
+				token.CORSBehavior = tc.corsBehavior
+			}
+			provider := &fakeSignedTokenProvider{token: token}
+			if tc.signedOut {
+				// Workspace proxies copy coderd's error page into the map.
+				provider = &fakeSignedTokenProvider{issue: func(rw http.ResponseWriter) {
+					rw.Header()["Content-Type"] = []string{"text/html; charset=utf-8"}
+					rw.WriteHeader(http.StatusUnauthorized)
+				}}
+			}
+			target := upstream
+			if tc.deadUpstream {
+				target = &url.URL{Scheme: "http", Host: "127.0.0.1:1"}
+			}
+			ts := newPreviewServer(t, provider, target)
+
+			var interim []int
+			trace := &httptrace.ClientTrace{Got1xxResponse: func(code int, _ textproto.MIMEHeader) error {
+				interim = append(interim, code)
+				return nil
+			}}
+			req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, ts.URL+tc.path, nil)
+			require.NoError(t, err)
+			req.Host = host
+			req.Header.Set("Sec-Fetch-Dest", "iframe")
+			for key, values := range tc.header {
+				req.Header[key] = values
+			}
+			client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			}}
+			res, err := client.Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+			require.Equal(t, tc.wantStatus, res.StatusCode, string(body))
+			require.Equal(t, []string{previewCSP}, res.Header.Values("Content-Security-Policy"))
+			require.Empty(t, interim, "interim responses must not reach the browser")
+			require.Empty(t, res.Header.Values("Link"))
+			if tc.wantStatus != http.StatusOK {
+				require.Empty(t, res.Header.Values("Set-Cookie"), "a refused request must not reach the preview server")
+			}
+			if tc.wantStatus == http.StatusOK && tc.path == "" {
+				requirePolicyApplied(t, res.Header)
+				require.Empty(t, res.Header.Get("Access-Control-Allow-Origin"))
+			}
+		})
+	}
+
+	t.Run("WebSocket", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		ts := newPreviewServer(t, &fakeSignedTokenProvider{token: previewToken(previewHost)}, upstream)
+		//nolint:bodyclose // The response to a successful dial has no body.
+		conn, res, err := websocket.Dial(ctx, strings.Replace(ts.URL, "http", "ws", 1)+"/ws", &websocket.DialOptions{
+			// Chromium sends no fetch metadata with a WebSocket handshake.
+			Host: previewHost,
+		})
+		require.NoError(t, err)
+		defer conn.CloseNow()
+		require.Equal(t, http.StatusSwitchingProtocols, res.StatusCode)
+		requirePolicyApplied(t, res.Header)
+
+		require.NoError(t, conn.Write(ctx, websocket.MessageText, []byte("hello")))
+		_, msg, err := conn.Read(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "hello", string(msg))
+	})
+}
+
+// Browsers send no fetch metadata to a plain-HTTP host other than localhost,
+// so a framed preview there is refused with the fix rather than as a direct
+// open.
+func TestServePreviewWithoutFetchMetadata(t *testing.T) {
+	t.Parallel()
+
+	const directOpen = "Previews open only inside a Coder chat. Open this preview from its chat."
+	for _, tc := range []struct {
+		name      string
+		accessURL string
+		pattern   string
+		host      string
+		want      string
+	}{
+		{"PlainHTTP", "http://coder.example.com", "*.apps.example.com", "preview--8080--agent--workspace--user.apps.example.com", "Previews need an HTTPS access URL."},
+		{"HTTPS", "https://coder.example.com", "*.apps.example.com", "preview--8080--agent--workspace--user.apps.example.com", directOpen},
+		{"Localhost", "http://localhost:3000", "*.localhost:3000", "preview--8080--agent--workspace--user.localhost:3000", directOpen},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			accessURL, err := url.Parse(tc.accessURL)
+			require.NoError(t, err)
+			hostnameRegex, err := appurl.CompileHostnamePattern(tc.pattern)
+			require.NoError(t, err)
+			hosting, err := previewhost.Strict(tc.pattern, accessURL, accessURL)
+			require.NoError(t, err)
+			srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
+				Logger:              testutil.Logger(t),
+				DashboardURL:        accessURL,
+				AccessURL:           accessURL,
+				Hostname:            tc.pattern,
+				HostnameRegex:       hostnameRegex,
+				Previews:            hosting,
+				RealIPConfig:        &httpmw.RealIPConfig{},
+				SignedTokenProvider: &fakeSignedTokenProvider{},
+			})
+
+			req := httptest.NewRequestWithContext(testutil.Context(t, testutil.WaitShort), http.MethodGet, "/", nil)
+			req.Host = tc.host
+			rec := httptest.NewRecorder()
+			srv.HandleSubdomain()(http.NotFoundHandler()).ServeHTTP(rec, req)
+			require.Equal(t, http.StatusForbidden, rec.Code)
+			require.Contains(t, rec.Body.String(), tc.want)
+		})
+	}
+}
+
+// A file preview reaches only its own files on the agent API, without the
+// chat headers coderd adds to its own agent API requests.
+func TestServeFilePreview(t *testing.T) {
+	t.Parallel()
+
+	agentAPI := chi.NewRouter()
+	agentAPI.Get("/api/v0/previews/{id}/*", func(rw http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(workspacesdk.CoderChatIDHeader) != "" ||
+			r.Header.Get(workspacesdk.CoderToolCallIDHeader) != "" ||
+			r.Header.Get(workspacesdk.CoderAncestorChatIDsHeader) != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_, _ = rw.Write([]byte(chi.URLParam(r, "id")))
+	})
+	upstream := httptest.NewServer(agentAPI)
+	t.Cleanup(upstream.Close)
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+
+	serve := func(t *testing.T, subdomain, path string, header http.Header) (int, string) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		app, err := appurl.ParseSubdomainAppURL(subdomain)
+		require.NoError(t, err)
+		ts := newPreviewServer(t, &fakeSignedTokenProvider{token: &workspaceapps.SignedToken{
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      app.Username,
+				WorkspaceNameOrID: app.WorkspaceName,
+				AgentNameOrID:     app.AgentName,
+				AppSlugOrPort:     app.AppSlugOrPort,
+			},
+			AppURL: fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort),
+		}}, upstreamURL)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+path, nil)
+		require.NoError(t, err)
+		req.Host = subdomain + "--apps.test.coder.com"
+		req.Header.Set("Sec-Fetch-Dest", "iframe")
+		for key, values := range header {
+			req.Header[key] = values
+		}
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		return res.StatusCode, string(body)
+	}
+
+	const filePreview = "preview--0123abcd--agent--workspace--user"
+	for _, path := range []string{"/../../read-file", "/%2e%2e/%2e%2e/read-file", "/a%2f..%2f..%2f..%2fread-file", "/..%5C..%5Cread-file"} {
+		status, body := serve(t, filePreview, path, nil)
+		require.Equal(t, http.StatusOK, status, path)
+		require.Equal(t, "0123abcd", body, path)
+	}
+
+	status, body := serve(t, filePreview, "/", http.Header{
+		workspacesdk.CoderChatIDHeader:          {uuid.NewString()},
+		workspacesdk.CoderToolCallIDHeader:      {uuid.NewString()},
+		workspacesdk.CoderAncestorChatIDsHeader: {uuid.NewString()},
+	})
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "0123abcd", body)
+
+	// Only a file preview may reach the agent API port.
+	status, _ = serve(t, fmt.Sprintf("%d--agent--workspace--user", workspacesdk.AgentHTTPAPIServerPort), "/", nil)
+	require.Equal(t, http.StatusBadRequest, status)
+}
+
+// Requests from a preview page to the user's other apps are refused before
+// they act as the user, and a server without previews never serves one.
+func TestHandleSubdomainPreviewIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	dashboardURL, err := url.Parse(previewDashboard)
+	require.NoError(t, err)
+	hostnameRegex, err := appurl.CompileHostnamePattern(previewPattern)
+	require.NoError(t, err)
+	provider := &fakeSignedTokenProvider{}
+	srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
+		Logger:              testutil.Logger(t),
+		DashboardURL:        dashboardURL,
+		AccessURL:           dashboardURL,
+		Hostname:            previewPattern,
+		HostnameRegex:       hostnameRegex,
+		RealIPConfig:        &httpmw.RealIPConfig{},
+		SignedTokenProvider: provider,
+	})
+
+	serve := func(host string, header http.Header) int {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "https://"+host+"/", nil)
+		req.Host = host
+		for key, values := range header {
+			req.Header[key] = values
+		}
+		rec := httptest.NewRecorder()
+		srv.HandleSubdomain()(http.NotFoundHandler()).ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	fromPreview := http.Header{"Origin": {"https://" + previewHost}}
+	require.Equal(t, http.StatusForbidden, serve("app--workspace--user--apps.test.coder.com", fromPreview))
+	require.Equal(t, http.StatusNotFound, serve(previewHost, http.Header{"Sec-Fetch-Dest": {"iframe"}}))
+	require.Zero(t, provider.issueCalls)
+	require.Zero(t, provider.fromRequestCalls)
+
+	// A request from a non-preview origin still reaches the app's own auth.
+	serve("app--workspace--user--apps.test.coder.com", http.Header{"Origin": {"https://other--workspace--user--apps.test.coder.com"}})
+	require.Equal(t, 1, provider.issueCalls)
+}

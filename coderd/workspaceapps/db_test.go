@@ -24,13 +24,17 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -81,6 +85,8 @@ func Test_ResolveRequest(t *testing.T) {
 	deploymentValues.DisablePathApps = false
 	deploymentValues.Dangerous.AllowPathAppSharing = true
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = true
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentOpenPreview)}
+	deploymentValues.HTTPCookies.EnableHostPrefix = true
 
 	connLogger := connectionlog.NewFake()
 	t.Cleanup(func() {
@@ -135,6 +141,7 @@ func Test_ResolveRequest(t *testing.T) {
 								Auth: &proto.Agent_Token{
 									Token: agentAuthToken,
 								},
+								DisplayApps: &proto.DisplayApps{PortForwardingHelper: true},
 								Apps: []*proto.App{
 									{
 										Slug:         appNameOwner,
@@ -771,6 +778,152 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, connLogger.ConnectionLogs(), 0)
 	})
 
+	t.Run("PreviewSubdomain", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// A public port share must not open the port's preview to others.
+		_, err := api.Database.UpsertWorkspaceAgentPortShare(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAgentPortShareParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   agentName,
+			Port:        8080,
+			ShareLevel:  database.AppSharingLevelPublic,
+			Protocol:    database.PortShareProtocolHttp,
+		})
+		require.NoError(t, err)
+		siteAdmin, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
+
+		connLogger := connectionlog.NewFake()
+		resolve := func(provider workspaceapps.SignedTokenProvider, agent, slug string, setSession func(*http.Request)) (*httptest.ResponseRecorder, *workspaceapps.SignedToken, bool) {
+			rw := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/", nil)
+			setSession(r)
+			r.RemoteAddr = testutil.RandomIPv6(t)
+			token, ok := workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: provider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest: (workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					BasePath:          "/",
+					UsernameOrID:      me.Username,
+					WorkspaceNameOrID: workspace.Name,
+					AgentNameOrID:     agent,
+					AppSlugOrPort:     slug,
+				}).Normalize(),
+			})
+			return rw, token, ok
+		}
+		previewCookie := func(sessionToken string) func(*http.Request) {
+			return func(r *http.Request) {
+				r.AddCookie(&http.Cookie{Name: codersdk.PreviewSessionTokenCookie, Value: sessionToken})
+			}
+		}
+
+		// Neither preview has an app row. A file preview logs as an app and a
+		// port preview as port forwarding, each under its preview slug.
+		for slug, want := range map[string]struct {
+			url    string
+			method database.ConnectionLogMethod
+		}{
+			"preview--0123abcd": {fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/0123abcd", workspacesdk.AgentHTTPAPIServerPort), database.ConnectionLogMethodWorkspaceApp},
+			"preview--8080":     {"http://127.0.0.1:8080", database.ConnectionLogMethodPortForwarding},
+		} {
+			_, token, ok := resolve(api.WorkspaceAppsProvider, agentName, slug, previewCookie(client.SessionToken()))
+			require.True(t, ok, slug)
+			require.Equal(t, agentID, token.AgentID)
+			require.Equal(t, want.url, token.AppURL)
+			require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
+				WorkspaceID:      workspace.ID,
+				AgentName:        agentName,
+				ConnectionMethod: want.method,
+				AppNameOrPort:    sql.NullString{Valid: true, String: slug},
+			}), slug)
+		}
+
+		// Only the preview cookie signs in, and a signed-out preview never
+		// redirects to the auth flow that sets the app wildcard cookie.
+		for name, setSession := range map[string]func(*http.Request){
+			"None": func(*http.Request) {},
+			"Header": func(r *http.Request) {
+				r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			},
+			"AppCookie": func(r *http.Request) {
+				r.AddCookie(&http.Cookie{Name: codersdk.SubdomainAppSessionTokenCookie + "_test", Value: client.SessionToken()})
+			},
+		} {
+			rw, token, ok := resolve(api.WorkspaceAppsProvider, agentName, "preview--8080", setSession)
+			require.False(t, ok, name)
+			require.Nil(t, token, name)
+			require.Equal(t, http.StatusUnauthorized, rw.Code, name)
+			require.Empty(t, rw.Header().Get("Location"), name)
+		}
+
+		// A site owner may connect to the workspace's apps, but a preview
+		// opens only for the workspace owner.
+		rw, token, ok := resolve(api.WorkspaceAppsProvider, agentName, "preview--8080", previewCookie(siteAdmin.SessionToken()))
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
+
+		// The other agent's template hides the port forwarding display app,
+		// which hides only the dashboard's ports UI, so its port and file
+		// previews both get as far as its offline page.
+		for _, slug := range []string{"preview--8080", "preview--0123abcd"} {
+			rw, _, ok := resolve(api.WorkspaceAppsProvider, agentNameUnhealthy, slug, previewCookie(client.SessionToken()))
+			require.False(t, ok, slug)
+			require.Contains(t, rw.Body.String(), "Application Unavailable", slug)
+		}
+
+		withoutExperiment := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
+		withoutExperiment.Experiments = nil
+		rw, token, ok = resolve(&withoutExperiment, agentName, "preview--8080", previewCookie(client.SessionToken()))
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
+
+		// coderd issues workspace proxies' preview tokens here too, so
+		// without --host-prefix-cookie no region serves a preview.
+		withoutHostPrefix := *api.WorkspaceAppsProvider.(*workspaceapps.DBTokenProvider)
+		withoutHostPrefix.DeploymentValues = &codersdk.DeploymentValues{}
+		rw, token, ok = resolve(&withoutHostPrefix, agentName, "preview--8080", previewCookie(client.SessionToken()))
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
+	})
+
+	t.Run("FilePreviewPath", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     "preview--0123abcd",
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		r.RemoteAddr = testutil.RandomIPv6(t)
+
+		token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusNotFound, rw.Code)
+	})
+
 	t.Run("SubdomainEndsInS", func(t *testing.T) {
 		t.Parallel()
 
@@ -1336,4 +1489,54 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		},
 		AppNameOrPort: sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
 	}))
+}
+
+// Through the real server, the preview policy writer sits above the status
+// writer that connection logging reads.
+func TestPreviewHostThroughServer(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentOpenPreview)}
+	dv.HTTPCookies.EnableHostPrefix = true
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		AppHostname:      "*.test.coder.com",
+		DeploymentValues: dv,
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "site",
+		OwnerID:        me.ID,
+		OrganizationID: first.OrganizationID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].DisplayApps = &proto.DisplayApps{PortForwardingHelper: true}
+		return agents
+	}).Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte("preview ok"))
+	}))
+	t.Cleanup(upstream.Close)
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/", nil)
+	require.NoError(t, err)
+	req.Host = fmt.Sprintf("preview--%s--dev--site--%s.test.coder.com", upstreamURL.Port(), me.Username)
+	req.Header.Set("Sec-Fetch-Dest", "iframe")
+	req.AddCookie(&http.Cookie{Name: "__Host-" + codersdk.PreviewSessionTokenCookie, Value: client.SessionToken()})
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, res.StatusCode, string(body))
+	require.Equal(t, "preview ok", string(body))
+	require.Contains(t, res.Header.Get("Content-Security-Policy"), "frame-ancestors 'self' "+strings.TrimSuffix(api.AccessURL.String(), "/"))
 }

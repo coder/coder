@@ -97,6 +97,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -735,6 +736,21 @@ func New(options *Options) *API {
 		AISeatTracker:               aiseats.Noop{},
 	}
 
+	api.previewsUnavailable = previewhost.CheckCookieConfig(options.DeploymentValues.HTTPCookies)
+	switch {
+	case api.previewsUnavailable != nil:
+		if experiments.Enabled(codersdk.ExperimentOpenPreview) {
+			options.Logger.Warn(ctx, "workspace previews are unavailable", slog.Error(api.previewsUnavailable))
+		}
+	case options.AppHostname == "":
+		api.previewsUnavailable = xerrors.New("the deployment has no wildcard app hostname")
+	default:
+		api.previewHosting, err = previewhost.Strict(options.AppHostname, options.AccessURL, options.AccessURL)
+		if err != nil {
+			panic(xerrors.Errorf("create preview hosting: %w", err))
+		}
+	}
+
 	api.ExperimentEvaluator, err = experimentrules.New(
 		options.Logger.Named("experiments"),
 		experimentrules.NewDBStore(options.Database),
@@ -757,6 +773,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
 		options.PrometheusRegistry,
+		experiments,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -1078,6 +1095,7 @@ func New(options *Options) *API {
 		AccessURL:     api.AccessURL,
 		Hostname:      api.AppHostname,
 		HostnameRegex: api.AppHostnameRegex,
+		Previews:      api.previewHosting,
 		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
@@ -2254,6 +2272,10 @@ type API struct {
 
 	*Options
 	mcpHTTPClient *http.Client
+	// previewHosting is how this server hosts agent-authored previews. It is
+	// nil when previewsUnavailable says why not.
+	previewHosting      *previewhost.Hosting
+	previewsUnavailable error
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

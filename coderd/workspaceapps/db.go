@@ -29,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/previewhost"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -48,6 +50,7 @@ type DBTokenProvider struct {
 	WorkspaceAgentInactiveTimeout   time.Duration
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
+	Experiments                     codersdk.Experiments
 
 	// agentOfflineTotal counts requests that got the agent offline page. Unlike
 	// coderd_agents_connections, which samples agent status once a minute, it
@@ -71,6 +74,7 @@ func NewDBTokenProvider(ctx context.Context,
 	workspaceAppAuditSessionTimeout time.Duration,
 	signer cryptokeys.SigningKeycache,
 	reg prometheus.Registerer,
+	experiments codersdk.Experiments,
 ) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
@@ -99,6 +103,7 @@ func NewDBTokenProvider(ctx context.Context,
 		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
 		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
 		Keycache:                        signer,
+		Experiments:                     experiments,
 		agentOfflineTotal:               agentOfflineTotal,
 	}
 }
@@ -150,6 +155,25 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.apiKey = apiKey // Update audit request.
 
+	_, isPreview := appurl.ParsePreviewSlug(appReq.AppSlugOrPort)
+	if isPreview && (!p.Experiments.Enabled(codersdk.ExperimentOpenPreview) || appReq.AccessMethod != AccessMethodSubdomain) {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews require the open-preview experiment and a subdomain app URL")
+		return nil, "", false
+	}
+	// This also refuses workspace proxies' previews, whose tokens coderd
+	// issues here.
+	if err := previewhost.CheckCookieConfig(p.DeploymentValues.HTTPCookies); isPreview && err != nil {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
+		return nil, "", false
+	}
+	// A preview signs in only from the dashboard. The auth redirect below
+	// would set the cookie for the whole app wildcard, and the wrapper's
+	// frame-src blocks its cross-origin hop anyway.
+	if isPreview && apiKey == nil {
+		writePreviewSignedOut(rw, r, p.DashboardURL)
+		return nil, "", false
+	}
+
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	switch {
@@ -165,6 +189,14 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	aReq.dbReq = dbReq // Update audit request.
+
+	// The owner sharing level still lets site owners and users the
+	// workspace is shared with connect, but a preview runs agent-written
+	// code as whoever opens it, so only the workspace owner may.
+	if isPreview && apiKey.UserID != dbReq.Workspace.OwnerID {
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "previews open only for the workspace owner")
+		return nil, "", false
+	}
 
 	token.UserID = dbReq.UserID
 	token.WorkspaceID = dbReq.Workspace.ID
@@ -419,6 +451,21 @@ type connLogRequest struct {
 	dbReq  *databaseRequest
 }
 
+// statusWriterOf returns the status writer under w. A preview host wraps it
+// in the preview policy writer.
+func statusWriterOf(w http.ResponseWriter) (*tracing.StatusWriter, bool) {
+	for {
+		if sw, ok := w.(*tracing.StatusWriter); ok {
+			return sw, true
+		}
+		u, ok := w.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return nil, false
+		}
+		w = u.Unwrap()
+	}
+}
+
 // connLogInitRequest creates a new connection log session and connect log for the
 // given request, if one does not already exist. If a connection log session
 // already exists, it will be updated with the current timestamp. A session is used to
@@ -429,7 +476,7 @@ type connLogRequest struct {
 func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
-	sw, ok := w.(*tracing.StatusWriter)
+	sw, ok := statusWriterOf(w)
 	if !ok {
 		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}
@@ -474,11 +521,15 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			method     database.ConnectionLogMethod
 			slugOrPort = aReq.dbReq.AppSlugOrPort
 		)
+		preview, _ := appurl.ParsePreviewSlug(slugOrPort)
 
 		switch {
 		case aReq.dbReq.AccessMethod == AccessMethodTerminal:
 			method = database.ConnectionLogMethodWorkspaceApp
 			slugOrPort = "terminal"
+		case preview.ID != "":
+			// A file preview has no app row, but it serves files, not a port.
+			method = database.ConnectionLogMethodWorkspaceApp
 		case aReq.dbReq.App.ID == uuid.Nil:
 			method = database.ConnectionLogMethodPortForwarding
 		default:
