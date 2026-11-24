@@ -59,13 +59,8 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 		</QueryClientProvider>
 	);
 	const { rerender } = renderComponent(dialog());
-	// Saving disables the control that changed the row, which drops its focus.
-	const saveRowChange = (control: HTMLElement) => {
-		act(() => control.blur());
-		rerender(dialog(MockUserMember.id));
-		rerender(dialog());
-	};
-	return { user: userEvent.setup(), ...callbacks, saveRowChange };
+	const setPendingPrincipalId = (id?: string) => rerender(dialog(id));
+	return { user: userEvent.setup(), ...callbacks, setPendingPrincipalId };
 };
 
 const getAutocomplete = () =>
@@ -188,7 +183,7 @@ describe("ProjectAccessDialog", () => {
 	});
 
 	it("changes a listed user's role", async () => {
-		const { user, onChangeRole, saveRowChange } = renderDialog();
+		const { user, onChangeRole, setPendingPrincipalId } = renderDialog();
 		const name = `Role for ${MockUserMember.name}`;
 		const roleSelect = screen.getByRole("combobox", { name });
 
@@ -202,12 +197,23 @@ describe("ProjectAccessDialog", () => {
 				expect.anything(),
 			),
 		);
-		saveRowChange(roleSelect);
+		setPendingPrincipalId(MockUserMember.id);
 		expect(roleSelect).toHaveFocus();
+		expect(roleSelect).toHaveAttribute("aria-disabled", "true");
+		expect(screen.getByText("Saving access changes…")).toHaveAttribute(
+			"role",
+			"status",
+		);
+
+		act(() => onChangeRole.mock.calls[0][2].onSuccess?.());
+		setPendingPrincipalId(undefined);
+		expect(
+			screen.getByText(`${MockUserMember.name} is now Member.`),
+		).toHaveAttribute("role", "status");
 	});
 
 	it("removes a listed user", async () => {
-		const { user, onRemove, saveRowChange } = renderDialog();
+		const { user, onRemove, setPendingPrincipalId } = renderDialog();
 		const name = `Open menu for ${MockUserMember.name}`;
 		const menuButton = screen.getByRole("button", { name });
 
@@ -218,10 +224,14 @@ describe("ProjectAccessDialog", () => {
 			expect.objectContaining({ kind: "user", id: MockUserMember.id }),
 			expect.anything(),
 		);
-		saveRowChange(menuButton);
+		setPendingPrincipalId(MockUserMember.id);
 		expect(menuButton).toHaveFocus();
 		act(() => onRemove.mock.calls[0][1].onSuccess?.());
+		setPendingPrincipalId(undefined);
 		expect(getAutocomplete()).toHaveFocus();
+		expect(
+			screen.getByText(`${MockUserMember.name} was removed.`),
+		).toHaveAttribute("role", "status");
 	});
 
 	it("ignores adds and row changes while another change saves", async () => {
