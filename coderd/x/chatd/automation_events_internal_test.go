@@ -693,12 +693,13 @@ func TestAutomationEvents(t *testing.T) {
 			due = time.Now()
 		}
 		// A poll that a disable overtakes stores nothing.
+		f.server.tickEventPolls(ctx, due)
 		disabled := make(chan error, 1)
 		f.events.emit("evt_disabled")
 		f.events.mu.Lock()
 		f.events.onPoll = func(context.Context) { disabled <- setEnabled(false) }
 		f.events.mu.Unlock()
-		f.server.tickEventPolls(ctx, due)
+		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
 		require.NoError(t, errors.Join(testutil.RequireReceive(ctx, t, disabled), setEnabled(true)))
 		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
 		require.Equal(t, database.ChatAutomationSubscriptionStateActive, subscription(ctx, t, f, automation.ID).State)
