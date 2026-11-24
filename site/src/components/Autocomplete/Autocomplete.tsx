@@ -78,6 +78,7 @@ export function Autocomplete<TOption>({
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
 	const inlineInputRef = useRef<HTMLInputElement>(null);
+	const popoverTriggerRef = useRef<HTMLButtonElement>(null);
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
 	const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
@@ -138,6 +139,9 @@ export function Autocomplete<TOption>({
 	const handleClear = useCallback(() => {
 		onChange(null);
 		handleInputChange("");
+		// The clear button unmounts once the value is null, which would drop
+		// focus to the document body.
+		popoverTriggerRef.current?.focus();
 	}, [onChange, handleInputChange]);
 
 	const handleKeyDown = useCallback(
@@ -370,7 +374,8 @@ export function Autocomplete<TOption>({
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<div className={cn("relative w-full", className)}>
 				{loadingStatus}
-				<PopoverTrigger asChild disabled={disabled}>
+				{/* The asChild slot merges this ref with triggerRef on the button. */}
+				<PopoverTrigger asChild disabled={disabled} ref={popoverTriggerRef}>
 					<button
 						type="button"
 						ref={triggerRef}
