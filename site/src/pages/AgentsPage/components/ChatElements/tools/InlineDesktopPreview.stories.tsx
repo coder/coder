@@ -22,6 +22,8 @@ export const Idle: Story = {
 		connectionOverride: {
 			status: "idle",
 			hasConnected: false,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
 		},
@@ -41,6 +43,8 @@ export const Connected: Story = {
 		connectionOverride: {
 			status: "connected",
 			hasConnected: true,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
 		},
@@ -56,6 +60,8 @@ export const Disconnected: Story = {
 		connectionOverride: {
 			status: "disconnected",
 			hasConnected: true,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
 		},
@@ -71,6 +77,8 @@ export const ErrorState: Story = {
 		connectionOverride: {
 			status: "error",
 			hasConnected: false,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
 		},

@@ -9,7 +9,7 @@ import { UnpricedModelsPopover } from "./UnpricedModelsPopover";
 
 // The first name is long enough to truncate.
 const mockManyModels: UnpricedAIModel[] = Array.from(
-	{ length: 12 },
+	{ length: 10 },
 	(_, i) => ({
 		...MockUnpricedAIModel,
 		model:
@@ -22,7 +22,10 @@ const mockManyModels: UnpricedAIModel[] = Array.from(
 const meta = {
 	title: "pages/AISettingsPage/AISpendPage/UnpricedModelsPopover",
 	component: UnpricedModelsPopover,
-	args: { models: MockUnpricedAIModels.models },
+	args: {
+		models: MockUnpricedAIModels.models,
+		count: MockUnpricedAIModels.count,
+	},
 	play: async () => {
 		await userEvent.click(
 			screen.getByRole("button", { name: /Models? not set up/ }),
@@ -40,12 +43,17 @@ export const Closed: Story = {
 export const Open: Story = {};
 
 export const SingleModel: Story = {
-	args: { models: [MockUnpricedAIModel] },
+	args: { models: [MockUnpricedAIModel], count: 1 },
 };
 
 /** The list keeps its height and scrolls. */
 export const ManyModels: Story = {
-	args: { models: mockManyModels },
+	args: { models: mockManyModels, count: mockManyModels.length },
+};
+
+/** More models have no price than the first page lists. */
+export const MoreModelsThanListed: Story = {
+	args: { models: mockManyModels, count: 15 },
 };
 
 export const ProviderWithoutIcon: Story = {
@@ -59,6 +67,7 @@ export const ProviderWithoutIcon: Story = {
 				model: "arcee-ai/trinity-large-thinking",
 			},
 		],
+		count: 1,
 	},
 };
 
@@ -74,6 +83,7 @@ export const ProviderWithCustomIcon: Story = {
 				model: "moonshotai/kimi-k2",
 			},
 		],
+		count: 1,
 	},
 };
 
@@ -84,5 +94,6 @@ export const SameModelOnTwoProviders: Story = {
 			MockUnpricedAIModel,
 			{ ...MockUnpricedAIModel, provider_name: "anthropic-eu" },
 		],
+		count: 2,
 	},
 };

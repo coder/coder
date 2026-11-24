@@ -70,3 +70,27 @@ export const Switch: React.FC<SwitchProps> = ({
 		<SwitchPrimitives.Thumb className={cn(thumbVariants({ size }))} />
 	</SwitchPrimitives.Root>
 );
+
+type SwitchIndicatorProps = Readonly<
+	{ checked: boolean } & VariantProps<typeof switchVariants>
+>;
+
+/**
+ * A decorative, `aria-hidden` switch graphic for a control that owns the
+ * toggle, such as an option with `aria-checked`, where a Switch would nest.
+ */
+export const SwitchIndicator: React.FC<SwitchIndicatorProps> = ({
+	checked,
+	size,
+}) => {
+	const state = checked ? "checked" : "unchecked";
+	return (
+		<span
+			aria-hidden
+			data-state={state}
+			className={cn(switchVariants({ size }), "cursor-[inherit]")}
+		>
+			<span data-state={state} className={cn(thumbVariants({ size }))} />
+		</span>
+	);
+};

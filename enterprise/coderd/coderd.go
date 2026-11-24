@@ -349,6 +349,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/retention", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiGatewayRetention)
+		})
 		r.Route("/ai/model-prices", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -537,6 +544,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractUserParam(api.Database),
 			)
 			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
+		})
+
+		r.Group(func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance).
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				httpmw.ExtractOrganizationParam(api.Database),
+				httpmw.ExtractOrganizationMemberParam(api.Database),
+			)
+			r.Get("/organizations/{organization}/members/{user}/ai/spend", api.organizationMemberAISpendStatus)
 		})
 
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
@@ -745,6 +763,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 			r.Route("/spend", func(r chi.Router) {
 				r.Get("/", api.userAISpendStatus)
+				r.Get("/organizations", api.userOrganizationsAISpendStatus)
 			})
 		})
 		r.Route("/prebuilds", func(r chi.Router) {

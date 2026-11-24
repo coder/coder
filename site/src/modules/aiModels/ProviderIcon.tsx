@@ -1,4 +1,5 @@
 import { Building2Icon } from "lucide-react";
+import { useState } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 
@@ -6,10 +7,7 @@ type ProviderIconProps = {
 	provider: string;
 	icon?: string;
 	className?: string;
-	/**
-	 * Defaults to decorative; set when no adjacent text names the provider.
-	 * Ignored by the generic fallback icon.
-	 */
+	/** Defaults to decorative. Set it when no adjacent text names the provider. */
 	alt?: string;
 };
 
@@ -46,9 +44,29 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	className = "size-icon-sm",
 	alt = "",
 }) => {
-	const iconSrc = icon || getProviderIcon(provider);
+	// Keyed by URL, so a new icon gets a fresh attempt.
+	const [failedSrcs, setFailedSrcs] = useState<readonly string[]>([]);
+	const iconSrc = [icon, getProviderIcon(provider)].find(
+		(src) => src && !failedSrcs.includes(src),
+	);
 	if (iconSrc === undefined) {
-		return <Building2Icon className={`${className} shrink-0`} />;
+		const fallbackClassName = `${className} shrink-0`;
+		return alt ? (
+			<Building2Icon
+				role="img"
+				aria-label={alt}
+				className={fallbackClassName}
+			/>
+		) : (
+			<Building2Icon aria-hidden="true" className={fallbackClassName} />
+		);
 	}
-	return <ExternalImage src={iconSrc} alt={alt} className={className} />;
+	return (
+		<ExternalImage
+			src={iconSrc}
+			alt={alt}
+			className={className}
+			onError={() => setFailedSrcs((prev) => [...prev, iconSrc])}
+		/>
+	);
 };
