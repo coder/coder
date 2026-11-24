@@ -46,6 +46,8 @@ type DateTimeRangePickerProps = {
 	label?: string;
 	/** Visible text before the value, e.g. `Active:`. */
 	valuePrefix?: string;
+	/** Which trigger edge the menu lines up with. Defaults to `end`. */
+	align?: "start" | "end";
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
 	 * time cannot be applied, and presets that would start before it are
@@ -124,6 +126,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	size = "sm",
 	label = "Time range",
 	valuePrefix,
+	align = "end",
 	minDate,
 	maxDays,
 }) => {
@@ -314,7 +317,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
-				align="end"
+				align={align}
 				id={contentId}
 				aria-label={label}
 			>

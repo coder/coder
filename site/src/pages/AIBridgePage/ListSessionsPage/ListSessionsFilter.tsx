@@ -115,6 +115,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 				onChange={onTimeRangeChange}
 				label="Active"
 				valuePrefix="Active:"
+				align="start"
 				size="lg"
 			/>
 		</div>
