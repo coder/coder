@@ -39,7 +39,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		// The web UI maps over the list, so it must encode as [], not null.
 		//nolint:gocritic // Owners get the full view, which is built separately.
 		got, err := client.AIProviders(ctx)
 		require.NoError(t, err)
@@ -555,7 +554,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, want, got)
 
-		// The redacted list still honors the API key's scope.
 		token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
 		})

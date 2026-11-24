@@ -62,8 +62,8 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 	return out, nil
 }
 
-// AIProviderRedacted converts a provider row for callers who may not read
-// provider configuration: the base URL, keys and settings stay empty.
+// AIProviderRedacted converts a provider row without its base URL, keys, or
+// settings.
 func AIProviderRedacted(row database.AIProvider) codersdk.AIProvider {
 	display := row.Name
 	if row.DisplayName.Valid && row.DisplayName.String != "" {

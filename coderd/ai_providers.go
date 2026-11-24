@@ -46,7 +46,7 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 }
 
 // @Summary List AI providers
-// @Description Any authenticated user can list providers, including disabled ones. Callers without the `ai_provider:read` permission get an empty `base_url`, an empty `api_keys` array, `null` `settings`, and no `status`. A token whose scopes do not allow `ai_provider:read` gets a 403 response.
+// @Description Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
 // @ID list-ai-providers
 // @Security CoderSessionToken
 // @Produce json
@@ -119,10 +119,9 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
-// aiProviderReadInKeyScope reports whether the caller's API key scope
-// allows reading AI providers, whatever roles the caller holds.
 func (api *API) aiProviderReadInKeyScope(ctx context.Context) bool {
 	caller := httpmw.UserAuthorization(ctx)
+	// The owner role can read AI providers, so only the key's scope decides.
 	scopeOnly := rbac.Subject{
 		Type:         caller.Type,
 		FriendlyName: caller.FriendlyName,

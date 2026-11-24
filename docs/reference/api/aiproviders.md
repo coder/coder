@@ -18,7 +18,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 `GET /api/v2/ai/providers`
 
-Any authenticated user can list providers, including disabled ones. Callers without the `ai_provider:read` permission get an empty `base_url`, an empty `api_keys` array, `null` `settings`, and no `status`. A token whose scopes do not allow `ai_provider:read` gets a 403 response.
+Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
 
 ### Example responses
 
