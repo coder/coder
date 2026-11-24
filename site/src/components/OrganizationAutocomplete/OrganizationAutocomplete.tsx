@@ -1,6 +1,7 @@
+import { useCommandState } from "cmdk";
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -19,6 +20,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type OrganizationAutocompleteProps = Pick<
 	React.ComponentProps<"button">,
@@ -137,34 +143,96 @@ export const OrganizationAutocomplete: React.FC<
 						<CommandEmpty>No organizations found.</CommandEmpty>
 						<CommandGroup>
 							{sortedOptions.map((org) => (
-								<CommandItem
+								<OrganizationOption
 									key={org.id}
-									value={`${org.display_name} ${org.name}`}
-									aria-selected={value?.id === org.id}
+									organization={org}
+									label={getOrganizationLabel(org, labelContext)}
+									isSelected={value?.id === org.id}
 									onSelect={() => {
 										onChange(org);
 										setOpen(false);
 									}}
-									tabIndex={optionsTabbable ? 0 : undefined}
-								>
-									<Avatar
-										size="sm"
-										src={org.icon}
-										fallback={org.display_name}
-									/>
-									<span className="truncate">
-										{getOrganizationLabel(org, labelContext)}
-									</span>
-									{value?.id === org.id && (
-										<CheckIcon className="ml-auto size-icon-sm shrink-0 text-content-primary" />
-									)}
-								</CommandItem>
+									tabbable={optionsTabbable}
+								/>
 							))}
 						</CommandGroup>
 					</CommandList>
 				</Command>
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+type OrganizationOptionProps = {
+	organization: Organization;
+	label: string;
+	isSelected: boolean;
+	onSelect: () => void;
+	tabbable: boolean;
+};
+
+const OrganizationOption: React.FC<OrganizationOptionProps> = ({
+	organization,
+	label,
+	isSelected,
+	onSelect,
+	tabbable,
+}) => {
+	const value = `${organization.display_name} ${organization.name}`;
+	const isHighlighted = useCommandState((state) => state.value === value);
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+	const isLabelTruncated = () => {
+		const span = labelRef.current;
+		return span !== null && span.scrollWidth > span.clientWidth;
+	};
+
+	// The search input keeps focus unless options are tabbable, so the
+	// tooltip also follows the cmdk highlight from the arrow keys. The
+	// observer catches the popover settling to its final width.
+	useLayoutEffect(() => {
+		const span = labelRef.current;
+		if (!isHighlighted || span === null) {
+			setIsTooltipOpen(false);
+			return;
+		}
+		const updateTooltip = () =>
+			setIsTooltipOpen(span.scrollWidth > span.clientWidth);
+		updateTooltip();
+		const observer = new ResizeObserver(updateTooltip);
+		observer.observe(span);
+		return () => observer.disconnect();
+	}, [isHighlighted]);
+
+	return (
+		<Tooltip
+			open={isTooltipOpen}
+			// Hover and focus requests only open a truncated label. Escape reaches
+			// the tooltip before the popover, so the next Escape closes the popover.
+			onOpenChange={(open) => setIsTooltipOpen(open && isLabelTruncated())}
+		>
+			<TooltipTrigger asChild>
+				<CommandItem
+					value={value}
+					aria-selected={isSelected}
+					onSelect={onSelect}
+					tabIndex={tabbable ? 0 : undefined}
+				>
+					<Avatar
+						size="sm"
+						src={organization.icon}
+						fallback={organization.display_name}
+					/>
+					<span ref={labelRef} className="truncate">
+						{label}
+					</span>
+					{isSelected && (
+						<CheckIcon className="ml-auto size-icon-sm shrink-0 text-content-primary" />
+					)}
+				</CommandItem>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-65">{label}</TooltipContent>
+		</Tooltip>
 	);
 };
 

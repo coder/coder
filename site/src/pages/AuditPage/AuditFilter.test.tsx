@@ -130,6 +130,24 @@ describe("AuditFilter", () => {
 		},
 	);
 
+	it("announces no matches for a resource type search without a match", async () => {
+		const user = userEvent.setup({ skipHover: true });
+		renderWithAuth(<Harness onChange={vi.fn()} />);
+		await user.click(await screen.findByRole("button", { name: "Filters" }));
+		await user.click(
+			await screen.findByRole("option", { name: /Resource type/ }),
+		);
+		await user.type(
+			await screen.findByRole("textbox", { name: "Search Resource type" }),
+			"nothing matches this",
+		);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"No Resource type matches",
+			),
+		);
+	});
+
 	it("preserves advanced query fields when removing a chip from a filter URL", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();

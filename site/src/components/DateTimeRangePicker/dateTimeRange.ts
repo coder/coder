@@ -116,10 +116,13 @@ export const formatCustomLabel = (start: Date, end: Date): string => {
 	const from = dayjs(start);
 	const to = dayjs(end);
 	if (from.isSame(to, "day")) {
-		return `${from.format("MMMM D, h:mm A")} - ${to.format("h:mm A")}`;
+		// Shows AM/PM once when both times share it.
+		const startFormat =
+			from.format("A") === to.format("A") ? "MMM D, h:mm" : "MMM D, h:mm A";
+		return `${from.format(startFormat)} - ${to.format("h:mm A")}`;
 	}
 	if (from.isSame(to, "month")) {
-		return `${from.format("MMMM D")}-${to.format("D")}`;
+		return `${from.format("MMM D")}-${to.format("D")}`;
 	}
 	if (from.isSame(to, "year")) {
 		return `${from.format("MMM D")} - ${to.format("MMM D")}`;

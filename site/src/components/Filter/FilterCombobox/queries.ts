@@ -18,14 +18,14 @@ const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
  */
 export const filterComboboxOptions = (
 	categoryKey: string,
-	getOptions: ((query: string) => Promise<FilterOption[]>) | undefined,
+	getOptions: ((query: string) => Promise<readonly FilterOption[]>) | undefined,
 	query: string,
 	enabled: boolean,
 ) => {
 	return {
 		queryKey: filterComboboxOptionsKey(categoryKey, query),
-		queryFn: async (): Promise<FilterOption[]> =>
+		queryFn: async (): Promise<readonly FilterOption[]> =>
 			getOptions ? getOptions(query) : [],
 		enabled,
-	} satisfies UseQueryOptions<FilterOption[]>;
+	} satisfies UseQueryOptions<readonly FilterOption[]>;
 };
