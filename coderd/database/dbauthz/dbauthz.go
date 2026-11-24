@@ -836,8 +836,11 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type:        {policy.ActionRead},
-					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead},
+					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					// Runs read automations and record their schedule and
+					// outcome.
+					rbac.ResourceChatAutomation.Type:    {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
@@ -8059,11 +8062,18 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 }
 
 func (q *querier) UpdateChatAutomationEnabled(ctx context.Context, arg database.UpdateChatAutomationEnabledParams) (database.ChatAutomation, error) {
-	panic("not implemented")
+	fetch := func(ctx context.Context, arg database.UpdateChatAutomationEnabledParams) (database.ChatAutomation, error) {
+		return q.db.GetChatAutomationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateChatAutomationEnabled)(ctx, arg)
 }
 
 func (q *querier) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
-	panic("not implemented")
+	// Only a run records its outcome.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return err
+	}
+	return q.db.UpdateChatAutomationLastRun(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
