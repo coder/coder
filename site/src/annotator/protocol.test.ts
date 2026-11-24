@@ -103,7 +103,7 @@ describe("parseAnnotatorToHostMessage", () => {
 			"",
 			"a",
 			"0".repeat(32),
-			"3b241101-e2bb-4255-8caf-4136c566a96z",
+			"00000000-0000-4000-8000-00000000000z",
 			"f".repeat(65),
 		]) {
 			expect(withId(id), id).toBeUndefined();
