@@ -107,6 +107,21 @@ const meta: Meta<typeof AppearanceForm> = {
 		activeScheme: "dark",
 		onSubmit: (update) => Promise.resolve(onUpdateTheme(update)),
 	},
+	// Like the page's cache, apply each submit to the settings the form shows.
+	render: function Render(args) {
+		const [settings, setSettings] = useState(args.initialValues);
+
+		return (
+			<AppearanceForm
+				{...args}
+				initialValues={settings}
+				onSubmit={(update) => {
+					setSettings((current) => ({ ...current, ...update }));
+					args.onSubmit(update);
+				}}
+			/>
+		);
+	},
 	parameters: {
 		user: MockUserMember,
 	},
