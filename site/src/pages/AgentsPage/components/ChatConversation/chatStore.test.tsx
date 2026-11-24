@@ -3143,7 +3143,6 @@ describe("useChatStore", () => {
 			socket.emitOpen();
 			socket.emitData(statusEvent(chatID));
 		});
-		// Keepalives one interval apart, for longer than the silence timeout.
 		const keepaliveMs = ChatStreamKeepaliveIntervalSeconds * 1000;
 		for (let t = 0; t <= CHAT_SOCKET_SILENCE_TIMEOUT_MS; t += keepaliveMs) {
 			await act(async () => {
