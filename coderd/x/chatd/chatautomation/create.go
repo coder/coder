@@ -27,12 +27,12 @@ const ownerDeletedConstraint database.CheckConstraint = "chat_automation_owner_d
 // RBAC denies the insert, and ErrReferenceUnavailable when a referenced row
 // was deleted after the checks.
 func Create(ctx context.Context, db database.Store, organizationID uuid.UUID, req codersdk.CreateChatAutomationRequest, now time.Time) (database.ChatAutomation, error) {
-	return create(ctx, db, organizationID, uuid.NullUUID{}, req, now)
+	return createAutomation(ctx, db, organizationID, uuid.NullUUID{}, req, now)
 }
 
-// create is Create with the chat whose agent made the automation, or NULL
-// for a person.
-func create(ctx context.Context, db database.Store, organizationID uuid.UUID, createdByChatID uuid.NullUUID, req codersdk.CreateChatAutomationRequest, now time.Time) (database.ChatAutomation, error) {
+// createAutomation is Create with the chat whose agent made the automation,
+// or NULL for a person.
+func createAutomation(ctx context.Context, db database.Store, organizationID uuid.UUID, createdByChatID uuid.NullUUID, req codersdk.CreateChatAutomationRequest, now time.Time) (database.ChatAutomation, error) {
 	actor, ok := dbauthz.ActorFromContext(ctx)
 	if !ok {
 		return database.ChatAutomation{}, dbauthz.ErrNoActor

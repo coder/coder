@@ -11,11 +11,11 @@ import (
 
 // manageAutomationsAvailable reports whether a root chat's turn offers the
 // manage_automations tool: in a non-archived chat that no automation created,
-// outside plan mode, while the chat-automations experiment is on for the
-// owner. Explore mode exists only for sub-agent chats, which never get root
-// chat tools.
-func (p *Server) manageAutomationsAvailable(ctx context.Context, chat database.Chat, isPlanModeTurn bool) bool {
-	return !chat.Archived && !chat.AutomationID.Valid && !isPlanModeTurn &&
+// while the chat-automations experiment is on for the owner. Plan mode turns
+// drop it because builtinPlanToolAllowed does not list it, and explore mode
+// exists only for sub-agent chats, which get no root chat tools.
+func (p *Server) manageAutomationsAvailable(ctx context.Context, chat database.Chat) bool {
+	return !chat.Archived && !chat.AutomationID.Valid &&
 		p.automationsEnabled != nil && p.automationsEnabled(ctx, chat.OwnerID)
 }
 

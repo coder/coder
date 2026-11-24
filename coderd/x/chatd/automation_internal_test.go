@@ -308,15 +308,13 @@ func TestManageAutomationsAvailable(t *testing.T) {
 		name   string
 		server *Server
 		chat   database.Chat
-		plan   bool
 		want   bool
 	}{
-		{"RootChat", enabled, root, false, true},
-		{"CreatedByAutomation", enabled, fromAutomation, false, false},
-		{"Archived", enabled, archived, false, false},
-		{"PlanMode", enabled, root, true, false},
-		{"ExperimentOff", &Server{}, root, false, false},
+		{"RootChat", enabled, root, true},
+		{"CreatedByAutomation", enabled, fromAutomation, false},
+		{"Archived", enabled, archived, false},
+		{"ExperimentOff", &Server{}, root, false},
 	} {
-		require.Equal(t, tc.want, tc.server.manageAutomationsAvailable(context.Background(), tc.chat, tc.plan), tc.name)
+		require.Equal(t, tc.want, tc.server.manageAutomationsAvailable(context.Background(), tc.chat), tc.name)
 	}
 }

@@ -150,7 +150,7 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 // and names it as its creator.
 func createHeartbeat(ctx context.Context, options ToolOptions, args toolArgs, now time.Time) (toolAutomation, error) {
 	chatID := options.Chat.ID
-	created, err := create(ctx, options.DB, options.Chat.OrganizationID, uuid.NullUUID{UUID: chatID, Valid: true}, codersdk.CreateChatAutomationRequest{
+	created, err := createAutomation(ctx, options.DB, options.Chat.OrganizationID, uuid.NullUUID{UUID: chatID, Valid: true}, codersdk.CreateChatAutomationRequest{
 		Name:             args.Name,
 		TargetMode:       codersdk.ChatAutomationTargetModeExistingChat,
 		TargetChatID:     &chatID,
