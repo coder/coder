@@ -3345,6 +3345,21 @@ describe("FilterCombobox", () => {
 			);
 		});
 
+		it("scrolls the field to the top of the viewport when the menu opens", async () => {
+			const { user, filtersButton } = setup([ownerCategory, statusCategory]);
+			const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
+			const field = screen.getByRole("group");
+
+			await user.click(filtersButton);
+			await screen.findByRole("option", { name: "Owner" });
+
+			const fieldScrollIndex = scrollIntoView.mock.contexts.indexOf(field);
+			expect(fieldScrollIndex).not.toBe(-1);
+			expect(scrollIntoView.mock.calls[fieldScrollIndex]).toEqual([
+				{ block: "start" },
+			]);
+		});
+
 		it("drills into a category and selects an option", async () => {
 			const { user, onChange, input, filtersButton } = setup([
 				ownerCategory,
