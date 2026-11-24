@@ -31,6 +31,7 @@ COMMENT ON COLUMN chat_automation_mcp_subscriptions.next_poll_at IS 'When the ne
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.drain_after IS 'When pending inbox rows may next be sent to the chat. A claim moves it ahead as a lease.';
 
 CREATE INDEX chat_automation_mcp_subscriptions_next_poll_at_idx ON chat_automation_mcp_subscriptions (next_poll_at) WHERE state = 'active';
+CREATE INDEX chat_automation_mcp_subscriptions_drain_after_idx ON chat_automation_mcp_subscriptions (drain_after);
 -- MCP server config deletion enforces ON DELETE SET NULL through this column.
 CREATE INDEX chat_automation_mcp_subscriptions_config_idx ON chat_automation_mcp_subscriptions (mcp_server_config_id) WHERE mcp_server_config_id IS NOT NULL;
 

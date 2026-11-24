@@ -5308,6 +5308,8 @@ CREATE INDEX chat_automation_event_inbox_pending_idx ON chat_automation_event_in
 
 CREATE INDEX chat_automation_mcp_subscriptions_config_idx ON chat_automation_mcp_subscriptions USING btree (mcp_server_config_id) WHERE (mcp_server_config_id IS NOT NULL);
 
+CREATE INDEX chat_automation_mcp_subscriptions_drain_after_idx ON chat_automation_mcp_subscriptions USING btree (drain_after);
+
 CREATE INDEX chat_automation_mcp_subscriptions_next_poll_at_idx ON chat_automation_mcp_subscriptions USING btree (next_poll_at) WHERE (state = 'active'::chat_automation_subscription_state);
 
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);

@@ -8,6 +8,8 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,10 +47,14 @@ const (
 	eventAuthBackoff     = 10 * time.Minute
 	eventRefusedBackoff  = 10 * time.Minute
 	eventPollConcurrency = 8
-	maxLastErrorBytes    = 1024
+	// eventPollBudget bounds the polls of one tick, so that a slow server
+	// cannot stall the automation loop or outlive its lease.
+	eventPollBudget   = time.Minute
+	maxLastErrorBytes = 1024
 	// maxEventDataBytes and maxEventsResponseBytes bound what an untrusted
 	// server adds to the database and to the chat.
 	maxEventDataBytes      = 16 << 10
+	maxEventKeyBytes       = 1 << 10
 	maxEventsResponseBytes = 1 << 20
 )
 
@@ -90,6 +96,9 @@ var errSubscriptionInactive = xerrors.New("the MCP event subscription is not act
 // calls it. It holds the automation lock and no chat row, so it cannot form a
 // cycle with a drain, which locks the chat first.
 func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
+	in.Events = slices.DeleteFunc(in.Events, func(e mcpclient.EventOccurrence) bool {
+		return len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes
+	})
 	for i, e := range in.Events {
 		if len(e.Data) > maxEventDataBytes {
 			in.Events[i].Data = json.RawMessage(`{"omitted":"The event data is larger than 16 KiB."}`)
@@ -210,10 +219,20 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 		key := group{owner: sub.OwnerID, config: sub.MCPServerConfigID.UUID}
 		groups[key] = append(groups[key], sub)
 	}
+	// Groups that do not start within the budget keep their lease and are
+	// polled again when it ends.
+	ctx, cancel := context.WithTimeout(ctx, eventPollBudget)
+	defer cancel()
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, eventPollConcurrency)
 	for key, subs := range groups {
-		slots <- struct{}{}
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Go(func() {
 			defer func() { <-slots }()
 			p.pollEventGroup(ctx, key.owner, key.config, subs, now)
@@ -285,7 +304,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated}
 		more := res.HasMore && page < maxPendingInboxRows/maxEventsPerMessage
 		if !more {
-			in.NextPollAt = sql.NullTime{Time: nextPollAt(now, res.NextPollMs), Valid: true}
+			in.NextPollAt = sql.NullTime{Time: nextPollAt(p.clock.Now("chatd", "automation-events"), res.NextPollMs), Valid: true}
 		}
 		if err := p.appendInbox(ctx, in); err != nil {
 			if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
@@ -366,13 +385,13 @@ func (p *Server) tickEventDrains(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, sub := range claimed {
-		p.drainInbox(ctx, sub.AutomationID, sub.State == database.ChatAutomationSubscriptionStateTerminated, now)
+		p.drainInbox(ctx, sub.AutomationID, now)
 	}
 }
 
 // drainInbox sends up to maxEventsPerMessage pending rows in one message. A
 // busy chat keeps them for the next tick.
-func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, ended bool, now time.Time) {
+func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, now time.Time) {
 	retry := now.Add(automationTickInterval)
 	automation, err := p.db.GetChatAutomationByID(ctx, automationID)
 	var rows []database.ChatAutomationEventInbox
@@ -384,7 +403,7 @@ func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, ended b
 	}
 	if err == nil && len(rows) > 0 {
 		var result AutomationRunResult
-		result, err = p.runAutomation(ctx, automation, automationRun{trigger: automationTriggerMCPEvent, inbox: rows, ended: ended})
+		result, err = p.runAutomation(ctx, automation, automationRun{trigger: automationTriggerMCPEvent, inbox: rows})
 		if result.Outcome == database.ChatAutomationRunOutcomeRefused {
 			retry = now.Add(eventRefusedBackoff)
 		}
@@ -420,11 +439,14 @@ func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.unauthorized.Store(true)
 	}
-	// A longer body fails to decode, which retries after a backoff.
-	resp.Body = struct {
-		io.Reader
-		io.Closer
-	}{io.LimitReader(resp.Body, maxEventsResponseBytes), resp.Body}
+	// A longer JSON body fails to decode, which retries after a backoff.
+	// ConnectEvents bounds each event of an SSE stream instead.
+	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.LimitReader(resp.Body, maxEventsResponseBytes), resp.Body}
+	}
 	return resp, nil
 }
 

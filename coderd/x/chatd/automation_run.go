@@ -39,9 +39,6 @@ type automationRun struct {
 	// inbox holds the event inbox rows that an mcp_event run sends. The
 	// send marks them delivered.
 	inbox []database.ChatAutomationEventInbox
-	// ended is set for the inbox of a terminated subscription, whose
-	// refusal stays the last run after the rest of its rows are sent.
-	ended bool
 }
 
 // runReason says why a run was not accepted. It is stored as the reason of
@@ -143,8 +140,8 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 			return result, nil
 		}
 	}
-	if result.Outcome == database.ChatAutomationRunOutcomeAccepted && run.ended {
-		return result, nil
+	if result.Outcome == database.ChatAutomationRunOutcomeAccepted && run.trigger == automationTriggerMCPEvent {
+		return result, p.recordEventDelivery(ctx, automation, result)
 	}
 	if !p.recordAutomationRun(ctx, automation, result) {
 		return AutomationRunResult{}, ErrAutomationChanged
@@ -158,14 +155,7 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 // transaction, so a run never writes an automation row while it holds a
 // chat row. A failed write does not change the outcome.
 func (p *Server) recordAutomationRun(ctx context.Context, read database.ChatAutomation, result AutomationRunResult) bool {
-	recorded, err := p.db.UpdateChatAutomationLastRun(ctx, database.UpdateChatAutomationLastRunParams{
-		ID:             read.ID,
-		LastRunAt:      dbtime.Time(p.clock.Now("chatd", "automation-run")),
-		LastRunOutcome: result.Outcome,
-		LastRunReason:  sql.NullString{String: result.Reason, Valid: result.Reason != ""},
-		LastRunChatID:  result.ChatID,
-		ReadUpdatedAt:  read.UpdatedAt,
-	})
+	recorded, err := p.db.UpdateChatAutomationLastRun(ctx, p.lastRunParams(read, result))
 	if err != nil {
 		if ctx.Err() == nil {
 			p.logger.Warn(ctx, "record chat automation run", slog.F("automation_id", read.ID), slog.Error(err))
@@ -173,6 +163,36 @@ func (p *Server) recordAutomationRun(ctx context.Context, read database.ChatAuto
 		return true
 	}
 	return recorded > 0 || result.Outcome == database.ChatAutomationRunOutcomeAccepted
+}
+
+func (p *Server) lastRunParams(read database.ChatAutomation, result AutomationRunResult) database.UpdateChatAutomationLastRunParams {
+	return database.UpdateChatAutomationLastRunParams{
+		ID:             read.ID,
+		LastRunAt:      dbtime.Time(p.clock.Now("chatd", "automation-run")),
+		LastRunOutcome: result.Outcome,
+		LastRunReason:  sql.NullString{String: result.Reason, Valid: result.Reason != ""},
+		LastRunChatID:  result.ChatID,
+		ReadUpdatedAt:  read.UpdatedAt,
+	}
+}
+
+// recordEventDelivery records a sent batch of events unless the subscription
+// has ended, so the refusal that ended it stays the last run. The automation
+// lock orders it with terminateSubscription.
+func (p *Server) recordEventDelivery(ctx context.Context, read database.ChatAutomation, result AutomationRunResult) error {
+	return p.db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, chatautomation.LockID(read.ID)); err != nil {
+			return xerrors.Errorf("lock chat automation: %w", err)
+		}
+		subs, err := tx.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{read.ID})
+		if err != nil || len(subs) == 0 || subs[0].State == database.ChatAutomationSubscriptionStateTerminated {
+			return err
+		}
+		if _, err := tx.UpdateChatAutomationLastRun(ctx, p.lastRunParams(read, result)); err != nil {
+			return xerrors.Errorf("record chat automation run: %w", err)
+		}
+		return nil
+	}, nil)
 }
 
 // deliverAutomation checks the owner and sends the prompt to the target. It

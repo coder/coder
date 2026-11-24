@@ -38,6 +38,9 @@ const (
 	maxSafeHeaderInteger = 1<<53 - 1
 	// codeHeaderMismatch is the transport's HeaderMismatch error.
 	codeHeaderMismatch = -32020
+	// maxEventsMessageBytes bounds each message that an SSE stream of an
+	// events session carries.
+	maxEventsMessageBytes = 1 << 20
 )
 
 // DeliveryMode is a way a server delivers an event type.
@@ -207,7 +210,7 @@ func ConnectEvents(
 	eventsHTTPClient := *hc
 	eventsHTTPClient.Transport = &eventsHeaderRoundTripper{base: hc.Transport}
 	headers := buildAuthHeaders(ctx, logger, srv, tokens, uuid.Nil, nil, coderHeaders)
-	tr, err := createTransport(srv, headers, &eventsHTTPClient, 0)
+	tr, err := createTransport(srv, headers, &eventsHTTPClient, maxEventsMessageBytes)
 	if err != nil {
 		return nil, xerrors.Errorf("create transport: %w", err)
 	}
