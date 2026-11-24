@@ -56,16 +56,17 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	if chatwebhook.Verify(header, body, secret, now) != nil {
 		return http.StatusUnauthorized, ""
 	}
-	if sub.WebhookSubscriptionID.Valid && header.Get("X-MCP-Subscription-Id") != sub.WebhookSubscriptionID.String {
-		return http.StatusUnauthorized, ""
-	}
 	var envelope webhookEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return http.StatusBadRequest, ""
 	}
-	// A first subscribe verifies before its result stores the id.
+	// A subscribe sends its challenge before its result stores the id, and a
+	// new callback URL gets a new id, so the secret alone verifies it.
 	if envelope.Type == "verification" {
 		return http.StatusOK, envelope.Challenge
+	}
+	if sub.WebhookSubscriptionID.Valid && header.Get("X-MCP-Subscription-Id") != sub.WebhookSubscriptionID.String {
+		return http.StatusUnauthorized, ""
 	}
 	if sub.State == database.ChatAutomationSubscriptionStatePending {
 		return http.StatusServiceUnavailable, ""

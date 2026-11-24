@@ -45,7 +45,7 @@ const fakeSubscriptionID = "sub_1"
 // fakeEventsServer is an MCP server that offers one event type in the
 // delivery modes of delivery. Its cursor is "seq:<index>" into the emitted
 // events, unless cursor replaces it. Each webhook subscribe sends a
-// verification to receive.
+// verification to receive with the id that it returns, subscribeID if set.
 type fakeEventsServer struct {
 	mu            sync.Mutex
 	events        []mcpclient.EventOccurrence
@@ -58,6 +58,7 @@ type fakeEventsServer struct {
 	delivery      []mcpclient.DeliveryMode
 	subscribeCode int64
 	subscribes    []mcpclient.SubscribeParams
+	subscribeID   string
 	unsubscribes  int
 	receive       func(callbackURL string, header http.Header, body []byte) (int, string)
 }
@@ -95,16 +96,18 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/subscribe", func(_ context.Context, _ *mcp.ServerSession, p *mcpclient.SubscribeParams) (*mcpclient.SubscribeResult, error) {
 		fake.mu.Lock()
 		fake.subscribes = append(fake.subscribes, *p)
-		code, receive, cursor := fake.subscribeCode, fake.receive, fmt.Sprintf("seq:%d", len(fake.events))
+		code, receive, id, cursor := fake.subscribeCode, fake.receive, cmp.Or(fake.subscribeID, fakeSubscriptionID), fmt.Sprintf("seq:%d", len(fake.events))
 		fake.mu.Unlock()
 		if code != 0 {
 			return nil, &jsonrpc.Error{Code: code, Message: "refused"}
 		}
 		body := `{"type":"verification","challenge":"nonce-1"}`
-		if status, challenge := receive(p.Delivery.URL, signWebhook(p.Delivery.Secret, body), []byte(body)); status != http.StatusOK || challenge != "nonce-1" {
+		header := signWebhook(p.Delivery.Secret, body)
+		header.Set("X-MCP-Subscription-Id", id)
+		if status, challenge := receive(p.Delivery.URL, header, []byte(body)); status != http.StatusOK || challenge != "nonce-1" {
 			return nil, &jsonrpc.Error{Code: -32027, Message: "challenge_failed"}
 		}
-		return &mcpclient.SubscribeResult{ID: fakeSubscriptionID, RefreshBefore: new(time.Now().Add(time.Hour)), Cursor: &cursor}, nil
+		return &mcpclient.SubscribeResult{ID: id, RefreshBefore: new(time.Now().Add(time.Hour)), Cursor: &cursor}, nil
 	}))
 	type empty struct{ mcp.ResultBase }
 	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/unsubscribe", func(context.Context, *mcp.ServerSession, *mcpclient.SubscribeParams) (*empty, error) {
@@ -398,14 +401,20 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, "evt_1", rows[0].EventID.String)
 		require.Equal(t, database.ChatAutomationInboxKindGap, rows[1].Kind)
 
-		// The renewal subscribes again from the stored cursor.
+		// The renewal subscribes again from the stored cursor. A server that
+		// derives a new id, as for a new access URL, verifies with it first.
 		sub = subscription(ctx, t, f, automation.ID)
+		f.events.mu.Lock()
+		f.events.subscribeID = "sub_2"
+		f.events.mu.Unlock()
 		f.server.tickWebhookRenewals(ctx, sub.RenewAt.Time)
 		f.events.mu.Lock()
 		require.Len(t, f.events.subscribes, 2)
 		require.Equal(t, "seq:7", ptr.NilToEmpty(f.events.subscribes[1].Cursor))
 		f.events.mu.Unlock()
-		require.True(t, subscription(ctx, t, f, automation.ID).RenewAt.Time.After(sub.RenewAt.Time))
+		renewed := subscription(ctx, t, f, automation.ID)
+		require.Equal(t, "sub_2", renewed.WebhookSubscriptionID.String)
+		require.True(t, renewed.RenewAt.Time.After(sub.RenewAt.Time))
 
 		// Disable unsubscribes, enable subscribes at the next tick, and
 		// delete unsubscribes.
