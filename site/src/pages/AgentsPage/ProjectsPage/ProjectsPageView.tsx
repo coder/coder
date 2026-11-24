@@ -1,5 +1,6 @@
 import { PlusIcon } from "lucide-react";
-import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
+import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
+import type { ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -20,7 +21,7 @@ export type ProjectsTab = "yours" | "shared" | "archived";
 
 /** The project summaries on each active tab, in display order. */
 export type ProjectsByTab = Readonly<
-	Record<Exclude<ProjectsTab, "archived">, readonly ChatProjectSummary[]>
+	Record<Exclude<ProjectsTab, "archived">, readonly ChatProjectWithSummary[]>
 >;
 
 type ProjectAction = (
@@ -31,8 +32,10 @@ type ProjectAction = (
 type ProjectsPageViewProps = {
 	readonly tab: ProjectsTab;
 	readonly onTabChange: (tab: ProjectsTab) => void;
-	/** Undefined until the summaries first load. */
+	/** Undefined until the projects and their summaries first load. */
 	readonly projects: ProjectsByTab | undefined;
+	/** By project ID. A project has no entry until the counts load. */
+	readonly memberCounts: ReadonlyMap<string, number>;
 	readonly error: unknown;
 	readonly onRetry: () => void;
 	/** The query string that project links keep, such as sidebar filters. */
@@ -66,6 +69,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	tab,
 	onTabChange,
 	projects,
+	memberCounts,
 	error,
 	onRetry,
 	projectLinkSearch,
@@ -116,6 +120,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 					<ProjectCard
 						key={summary.project.id}
 						summary={summary}
+						memberCount={memberCounts.get(summary.project.id)}
 						to={projectPath(summary.project)}
 						onPin={() => onPin(summary.project)}
 						onUnpin={() => onUnpin(summary.project)}
