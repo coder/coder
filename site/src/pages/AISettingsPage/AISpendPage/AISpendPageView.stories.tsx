@@ -69,6 +69,7 @@ const meta = {
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		minDay: undefined,
 		reportFilter: "",
 		onReportFilterChange: fn(),
 		reportQuery: mockPendingReportQuery,
@@ -129,6 +130,12 @@ export const DatePickerOpen: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /Mar 6, 2026/ }));
 	},
+};
+
+/** The days before the retention can't be picked. */
+export const DatePickerOpenWithRetention: Story = {
+	args: { minDay: "2026-03-04" },
+	play: DatePickerOpen.play,
 };
 
 /** A failed refetch keeps the cached spend on screen. */

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { getErrorDetail } from "#/api/errors";
 import {
+	aiGatewayRetention,
 	aiSpendOrganizations,
 	exportOrganizationAISpend,
 	organizationAISpendOverview,
@@ -28,6 +29,7 @@ import { AISpendPageView, type AISpendTab } from "./AISpendPageView";
 import { toReportFilter } from "./DetailedReportFilter";
 import {
 	defaultSpendDays,
+	firstRetainedDay,
 	parseSpendDays,
 	type SpendDays,
 	toSpendPeriod,
@@ -89,13 +91,28 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		? undefined
 		: organizationSelection.organization;
 
+	// Only some views read data that gets purged, but the tabs share the days,
+	// so every view starts no earlier than the retention.
+	const retentionQuery = useQuery({
+		...aiGatewayRetention(),
+		enabled: isSpendAvailable,
+	});
+	const minDay =
+		retentionQuery.data === undefined
+			? undefined
+			: firstRetainedDay(now ?? new Date(), retentionQuery.data.retention_ms);
+	// The spend waits for the retention, so it doesn't request purged days.
+	const isSpendReady =
+		isSpendAvailable && organization !== undefined && !retentionQuery.isPending;
+
 	// The default range stays out of the URL, so a shared link without dates
 	// resolves against the viewer's last 7 days.
 	const days =
 		parseSpendDays(
 			searchParams.get(startDateSearchParam),
 			searchParams.get(endDateSearchParam),
-		) ?? defaultSpendDays(now ?? new Date());
+			minDay,
+		) ?? defaultSpendDays(now ?? new Date(), minDay);
 	const period = toSpendPeriod(days);
 	const reportFilter = useFilter({
 		searchParams,
@@ -215,7 +232,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			period,
 			TOP_SPENDERS_COUNT,
 		),
-		enabled: isSpendAvailable && organization !== undefined,
+		enabled: isSpendReady,
 	});
 
 	// The unpriced models are slower to compute, so the total renders first and
@@ -226,7 +243,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			period,
 			UNPRICED_MODELS_COUNT,
 		),
-		enabled: isSpendAvailable && organization !== undefined,
+		enabled: isSpendReady,
 	});
 
 	// The details need the overview's user IDs, so the list renders first and
@@ -268,6 +285,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 						[endDateSearchParam]: next.endDate,
 					})
 				}
+				minDay={minDay}
 				reportFilter={reportFilter.query}
 				onReportFilterChange={reportFilter.update}
 				reportQuery={reportQuery}

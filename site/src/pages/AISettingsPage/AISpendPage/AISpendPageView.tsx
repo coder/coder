@@ -40,6 +40,7 @@ type AISpendPageViewProps = {
 	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	minDay: string | undefined;
 	reportFilter: string;
 	onReportFilterChange: (filter: string) => void;
 	reportQuery: DetailedReportQuery;
@@ -73,6 +74,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	organizationsError,
 	days,
 	onDaysChange,
+	minDay,
 	reportFilter,
 	onReportFilterChange,
 	reportQuery,
@@ -165,6 +167,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
+							minDay={minDay}
 							overview={overview}
 							overviewError={overviewError}
 							unpricedModels={unpricedModels}
@@ -189,6 +192,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
+							minDay={minDay}
 							filter={reportFilter}
 							onFilterChange={onReportFilterChange}
 							canViewSessions={canViewSessions}
