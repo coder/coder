@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import * as authModule from "#/hooks/useAuthenticated";
 import {
 	MockEntitlements,
 	MockGroup,
@@ -20,16 +21,6 @@ import AISpendPage from "./AISpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
-const mockAuth = vi.hoisted(() => ({ canViewSessions: false }));
-vi.mock("#/hooks/useAuthenticated", () => ({
-	useAuthenticated: () => ({
-		user: MockUserMember,
-		permissions: {
-			...MockNoPermissions,
-			viewAnyAIBridgeInterception: mockAuth.canViewSessions,
-		},
-	}),
-}));
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: {
@@ -43,7 +34,6 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	mockAuth.canViewSessions = false;
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
@@ -52,7 +42,26 @@ const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 	(user) => user.user_id,
 );
 
-function renderAISpendPage(search = "") {
+function renderAISpendPage(search = "", { canViewSessions = false } = {}) {
+	vi.spyOn(authModule, "useAuthenticated").mockReturnValue({
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			viewAnyAIBridgeInterception: canViewSessions,
+		},
+		isLoading: false,
+		isSignedOut: false,
+		isSigningOut: false,
+		isConfiguringTheFirstUser: false,
+		isSignedIn: true,
+		isSigningIn: false,
+		isUpdatingProfile: false,
+		signInError: undefined,
+		updateProfileError: undefined,
+		signOut: vi.fn(),
+		signIn: vi.fn(),
+		updateProfile: vi.fn(),
+	});
 	vi.spyOn(API, "getOrganizations").mockResolvedValue([
 		MockOrganization,
 		MockOrganization2,
@@ -223,7 +232,6 @@ it("opens the Detailed report from the Top spenders card", async () => {
 });
 
 it("runs the report for the picked days and filter, resolving the user and group to IDs", async () => {
-	mockAuth.canViewSessions = true;
 	const user = userEvent.setup();
 	const getUserSpy = vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
 	const getGroupSpy = vi.spyOn(API, "getGroup").mockResolvedValue(MockGroup);
@@ -231,6 +239,7 @@ it("runs the report for the picked days and filter, resolving the user and group
 		'user:admin group:Front-End provider:openai model:gpt-5.4 client:"Claude Code"';
 	const { usersSpy } = renderAISpendPage(
 		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent(filter)}`,
+		{ canViewSessions: true },
 	);
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
 	await waitFor(() =>
