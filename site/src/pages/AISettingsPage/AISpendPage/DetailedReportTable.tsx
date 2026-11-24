@@ -22,8 +22,8 @@ import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
 import { ItemsBadge } from "#/pages/AIBridgePage/ItemsBadge";
 import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
-import { SpendAmount } from "#/pages/AISettingsPage/SpendPage/components/SpendAmount";
 import { formatCostMicros } from "#/utils/currency";
+import { TotalSpendAmount } from "./TotalSpendAmount";
 import { UnpricedModelsTooltip } from "./UnpricedModelsTooltip";
 import { UserSpendMenu } from "./UserSpendMenu";
 
@@ -96,8 +96,7 @@ export const DetailedReportTable: React.FC<DetailedReportTableProps> = ({
 				<div className="flex flex-col gap-1">
 					<span className="text-sm text-content-secondary">Total spend</span>
 					<span className="text-2xl font-semibold text-content-primary">
-						<SpendAmount
-							scope="organization"
+						<TotalSpendAmount
 							costMicros={report.totals.cost_micros}
 							hasUnpricedUsage={report.totals.has_unpriced_usage}
 						/>

@@ -1,7 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	getOrganizationLabel,
@@ -139,9 +138,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					)
 				}
 			>
-				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
-					AI spend
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.

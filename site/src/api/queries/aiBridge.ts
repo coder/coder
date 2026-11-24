@@ -70,44 +70,6 @@ export const aiSpendOrganizations = () =>
 		action: "read",
 	});
 
-const organizationAISpendScopeKey = (
-	organizationId: string,
-	filter: OrganizationAISpendFilter,
-) => ["organizations", organizationId, "aiSpend", filter] as const;
-
-export const paginatedOrganizationAISpend = (
-	organizationId: string,
-	filter: OrganizationAISpendFilter,
-): UsePaginatedQueryOptions<
-	OrganizationAISpendReport,
-	OrganizationAISpendFilter
-> => {
-	return {
-		queryPayload: () => filter,
-		queryKey: ({ payload, pageNumber }) => [
-			...organizationAISpendScopeKey(organizationId, payload),
-			pageNumber,
-		],
-		queryFn: ({ payload, limit, offset }) =>
-			API.experimental.getOrganizationAISpendUsers(organizationId, {
-				...payload,
-				limit,
-				offset,
-			}),
-		// Every page aggregates the whole organization window.
-		prefetch: false,
-		// Rows from another organization or filter must not appear under the
-		// new selection while its report loads; only a page change keeps the
-		// previous rows behind the refresh overlay.
-		placeholderData: (previousData, previousQuery) =>
-			previousQuery &&
-			hashKey(previousQuery.queryKey.slice(0, -1)) ===
-				hashKey(organizationAISpendScopeKey(organizationId, filter))
-				? previousData
-				: undefined,
-	};
-};
-
 /**
  * Filters a detailed AI spend report by provider, model, client, user, and
  * group. Users and groups are given by name, which the report resolves to the
