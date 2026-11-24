@@ -76,15 +76,16 @@ For example, a model configuration can set an OpenAI-specific output token limit
 
 ### Token usage limits
 
-Token counts come from the provider's response, and some providers report less than they bill:
+Token counts come from the model client Coder Agents uses, which drops some of what the provider reports:
 
 - **Anthropic:** when a response runs server-side tools such as web search, the model works in several internal iterations.
-  `gen_ai.usage.input_tokens` and the cache attributes report the input of the first iteration only, so they undercount the billed input.
+  Anthropic reports the input of all iterations, but the client keeps only the first iteration's input.
+  `gen_ai.usage.input_tokens` and the cache attributes therefore undercount the billed input.
   Output tokens cover the whole response.
-- **OpenAI-compatible providers, such as OpenRouter:** cache writes are not reported, so `gen_ai.usage.cache_creation.input_tokens` is absent.
+- **OpenAI-compatible providers, such as OpenRouter:** the client does not read the cache writes these providers report, so `gen_ai.usage.cache_creation.input_tokens` is absent.
   The input token total still includes them.
 
-For spend, use [AI Governance cost control](../../ai-governance/ai-gateway/cost-controls.md), which records the usage AI Gateway receives from the provider, rather than summing span tokens.
+[AI Governance cost control](../../ai-governance/ai-gateway/cost-controls.md) has the same Anthropic gap, so its spend for those responses is also low.
 
 The `execute_tool` span carries `gen_ai.tool.name`, `gen_ai.tool.call.id`, and `gen_ai.tool.type`.
 The tool type is `function` for built-in Coder Agents tools and `extension` for other tools, such as tools from MCP servers.
@@ -94,11 +95,5 @@ The `invoke_agent coder` span starts before the turn selects a model, so sampler
 A failed span has an error status and an `error.type` attribute.
 A tool call that returns an error result, such as an MCP server that cannot be reached, ends with `error.type` set to `tool_error`.
 
-## Recorded content
-
-GenAI attributes contain metadata only.
-Prompts, model responses, and tool arguments and results are not recorded as attributes.
-
-When tracing is enabled, the server also attaches its log messages to the active span as span events.
-Some of those messages contain content, such as the error text a tool returns to the model.
-If your tracing backend must not hold that content, drop span events whose name starts with `log:` in your collector.
+The `gen_ai.*` attributes contain metadata only: prompts, model responses, and tool arguments and results are not recorded in them.
+Other spans and span events in the same trace, such as AI Gateway spans and server log events, can contain parts of that content.

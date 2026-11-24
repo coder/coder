@@ -299,9 +299,10 @@ func genAIFinishReason(reason fantasy.FinishReason) (string, bool) {
 // The cache breakdown is recorded only when nonzero: the OpenAI-compatible
 // client never reports cache writes, so a zero can mean "not reported".
 //
-// For Anthropic, fantasy reports the input counts of the first internal
-// iteration, which measure context occupancy, so a response that ran
-// provider tools such as web search undercounts its billed input.
+// For Anthropic, fantasy keeps the input counts of the first internal
+// iteration, which measure context occupancy, and drops the cumulative
+// counts Anthropic reports, so a response that ran provider tools such as
+// web search undercounts its billed input.
 func usageAttributes(usage fantasy.Usage) []attribute.KeyValue {
 	if usage == (fantasy.Usage{}) {
 		return nil
