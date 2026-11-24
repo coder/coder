@@ -11794,7 +11794,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provisioner Key",
+                        "description": "Provisioner key placeholder (ignored; the key is read from the Coder-Provisioner-Daemon-Key header)",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true

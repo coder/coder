@@ -16,11 +16,14 @@ type RequestLogger interface {
 
 var _ RequestLogger = &SlogRequestLogger{}
 
-func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestLogger {
+// NewRequestLogger returns a logger for a request. The path is logged by WriteLog,
+// not before, so that secrets in route params can be masked once they are known.
+func NewRequestLogger(log slog.Logger, message, path string, start time.Time) RequestLogger {
 	return &SlogRequestLogger{
 		log:     log,
 		written: false,
 		message: message,
+		path:    path,
 		start:   start,
 	}
 }
