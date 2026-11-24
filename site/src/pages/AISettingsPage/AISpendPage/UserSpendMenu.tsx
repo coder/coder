@@ -12,6 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { stringifyFilter } from "#/components/Filter/filterQuery";
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { CostDetailsDialog, type CostDetailsUser } from "./CostDetailsDialog";
 
@@ -40,7 +41,7 @@ export const UserSpendMenu: React.FC<UserSpendMenuProps> = ({
 	const [isCostDetailsOpen, setIsCostDetailsOpen] = useState(false);
 	const menuTriggerRef = useRef<HTMLButtonElement>(null);
 	const sessionsFilter = queryWithTimeRange(
-		{ initiator: user.username },
+		stringifyFilter({ user: user.username }),
 		{
 			start: new Date(period.period_start),
 			end: new Date(period.period_end),
