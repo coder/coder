@@ -17,6 +17,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -43,6 +45,9 @@ const (
 	eventRefusedBackoff  = 10 * time.Minute
 	eventPollConcurrency = 8
 	maxLastErrorBytes    = 1024
+	// maxEventDataBytes bounds what one event of an untrusted server adds
+	// to the chat.
+	maxEventDataBytes = 64 << 10
 )
 
 // eventErrorAction is how a poll reacts to an error of the events extension:
@@ -84,6 +89,11 @@ var errSubscriptionInactive = xerrors.New("the MCP event subscription is not act
 // calls it. It holds the automation lock and no chat row, so it cannot form a
 // cycle with a drain, which locks the chat first.
 func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
+	for i, e := range in.Events {
+		if len(e.Data) > maxEventDataBytes {
+			in.Events[i].Data = json.RawMessage(`{"omitted":"The event data is larger than 64 KiB."}`)
+		}
+	}
 	// The query reads the occurrences in their wire shape.
 	events, err := json.Marshal(in.Events)
 	if err != nil {
@@ -211,8 +221,13 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 	wg.Wait()
 }
 
-// pollEventGroup polls the subscriptions of one owner on one MCP server.
+// pollEventGroup polls the subscriptions of one owner on one MCP server. It
+// polls nothing for an owner whose runs are refused; the lease retries.
 func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
+	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
+	if err != nil || status != database.UserStatusActive || p.automationsEnabled == nil || !p.automationsEnabled(ctx, owner) {
+		return
+	}
 	cfg, err := p.db.GetMCPServerConfigByID(ctx, configID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
