@@ -25,12 +25,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// chatAutomationsEnabled reports whether the chat-automations experiment is
+// on for a user. The evaluator fails closed, so an evaluation error is off.
+func (api *API) chatAutomationsEnabled(ctx context.Context, userID uuid.UUID) bool {
+	return api.ExperimentEvaluator.Enabled(ctx, userID, codersdk.ExperimentChatAutomations)
+}
+
 // requireChatAutomationsExperiment answers 404 when the chat-automations
-// experiment is off for the caller. The evaluator fails closed, so an
-// evaluation error is off too.
+// experiment is off for the caller.
 func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.ExperimentEvaluator.Enabled(r.Context(), httpmw.APIKey(r).UserID, codersdk.ExperimentChatAutomations) {
+		if !api.chatAutomationsEnabled(r.Context(), httpmw.APIKey(r).UserID) {
 			httpapi.RouteNotFound(rw)
 			return
 		}
@@ -294,7 +299,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	before, after, err := chatautomation.SetEnabled(ctx, api.Database, organization.ID, id, *req.Enabled, dbtime.Now())
+	before, after, err := chatautomation.Update(ctx, api.Database, organization.ID, id, req, dbtime.Now())
 	switch {
 	case errors.Is(err, chatautomation.ErrUpdateForbidden):
 		httpapi.Forbidden(rw)
@@ -353,8 +358,6 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("get chat automation: %w", err))
 		return
 	}
-	aReq.Old = automation
-	aReq.New = automation
 	// The run action belongs to the owner alone: an administrator can read,
 	// disable and delete the automation, but not send its prompt as the
 	// owner.
@@ -362,6 +365,8 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	aReq.Old = automation
+	aReq.New = automation
 	if automation.Kind != database.ChatAutomationKindSchedule || !automation.Enabled {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Only an enabled schedule can run now.",

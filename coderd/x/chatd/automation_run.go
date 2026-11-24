@@ -65,12 +65,12 @@ var runReasonOutcome = map[runReason]database.ChatAutomationRunOutcome{
 // changed after the run read it. The run sends nothing and records nothing.
 var ErrAutomationChanged = xerrors.New("the chat automation changed during the run")
 
-var (
-	errAutomationChatBusy      = xerrors.New("the target chat is busy")
-	errAutomationOverlap       = xerrors.New("a chat of the automation is still active")
-	errAutomationTargetMissing = xerrors.New("the target chat no longer exists")
-	errAutomationProjectDenied = xerrors.New("the owner can no longer use the project")
-)
+// runRefusedError ends a run with the outcome of its reason.
+type runRefusedError runReason
+
+func (e runRefusedError) Error() string {
+	return "chat automation run not accepted: " + string(e)
+}
 
 // AutomationRunResult is the outcome of one run.
 type AutomationRunResult struct {
@@ -87,9 +87,6 @@ type AutomationRunResult struct {
 // automation as it read it. ErrAutomationChanged means that the automation
 // was disabled or changed since then.
 func (p *Server) RunAutomationNow(ctx context.Context, automation database.ChatAutomation) (AutomationRunResult, error) {
-	if !automation.Enabled {
-		return AutomationRunResult{}, ErrAutomationChanged
-	}
 	return p.runAutomation(ctx, automation, automationTriggerRunNow)
 }
 
@@ -98,8 +95,11 @@ func (p *Server) RunAutomationNow(ctx context.Context, automation database.ChatA
 func (p *Server) runAutomation(ctx context.Context, automation database.ChatAutomation, trigger automationTrigger) (AutomationRunResult, error) {
 	//nolint:gocritic // A run reads and records automations as chatd and sends as the owner.
 	ctx = dbauthz.AsChatd(ctx)
-	result := AutomationRunResult{Outcome: database.ChatAutomationRunOutcomeAccepted}
-	chatID, err := p.deliverAutomation(ctx, automation, trigger)
+	result := AutomationRunResult{Outcome: database.ChatAutomationRunOutcomeAccepted, ChatID: automation.TargetChatID}
+	created, err := p.deliverAutomation(ctx, automation, trigger)
+	if created.Valid {
+		result.ChatID = created
+	}
 	if err != nil {
 		reason, ok := runReasonForError(err)
 		if !ok {
@@ -108,7 +108,6 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 		result.Outcome = runReasonOutcome[reason]
 		result.Reason = string(reason)
 	}
-	result.ChatID = chatID
 	p.recordAutomationRun(ctx, automation.ID, result)
 	return result, nil
 }
@@ -130,41 +129,37 @@ func (p *Server) recordAutomationRun(ctx context.Context, id uuid.UUID, result A
 }
 
 // deliverAutomation checks the owner and sends the prompt to the target. It
-// returns the target chat with any error.
+// returns the chat that a new_chat run created.
 func (p *Server) deliverAutomation(ctx context.Context, automation database.ChatAutomation, trigger automationTrigger) (uuid.NullUUID, error) {
 	owner, status, err := httpmw.UserRBACSubject(ctx, p.db, automation.OwnerID, rbac.ScopeAll)
 	if err != nil {
-		return automation.TargetChatID, xerrors.Errorf("load automation owner: %w", err)
+		return uuid.NullUUID{}, xerrors.Errorf("load automation owner: %w", err)
 	}
 	switch {
 	case status != database.UserStatusActive:
-		return automation.TargetChatID, errAutomationOwnerInactive
+		return uuid.NullUUID{}, runRefusedError(runReasonOwnerInactive)
 	case p.automationsEnabled == nil || !p.automationsEnabled(ctx, automation.OwnerID):
-		return automation.TargetChatID, errAutomationExperimentOff
+		return uuid.NullUUID{}, runRefusedError(runReasonExperimentDisabled)
 	}
 	ownerCtx := dbauthz.As(ctx, owner)
 	content := automationMessageContent(automation, owner.FriendlyName, trigger)
 	if automation.TargetMode == database.ChatAutomationTargetModeNewChat {
 		return p.deliverToNewChat(ctx, ownerCtx, automation, trigger, content)
 	}
-	return automation.TargetChatID, p.deliverToChat(ctx, ownerCtx, automation, content)
+	return uuid.NullUUID{}, p.deliverToChat(ctx, ownerCtx, automation, content)
 }
-
-var (
-	errAutomationOwnerInactive = xerrors.New("the automation owner is not active")
-	errAutomationExperimentOff = xerrors.New("chat automations are off for the owner")
-)
 
 // deliverToChat sends the prompt to an idle target chat. ctx acts as chatd
 // and ownerCtx as the automation's owner.
 func (p *Server) deliverToChat(ctx, ownerCtx context.Context, automation database.ChatAutomation, content []codersdk.ChatMessagePart) error {
+	// Deleting the target chat clears target_chat_id.
 	if !automation.TargetChatID.Valid {
-		return errAutomationTargetMissing
+		return runRefusedError(runReasonTargetUnavailable)
 	}
 	chatID := automation.TargetChatID.UUID
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return errAutomationTargetMissing
+		return chatstate.ErrChatNotFound
 	}
 	if err != nil {
 		return xerrors.Errorf("get target chat: %w", err)
@@ -178,7 +173,7 @@ func (p *Server) deliverToChat(ctx, ownerCtx context.Context, automation databas
 	}
 	// Checking before the hooks keeps a busy chat from dispatching them.
 	if !automationCanSend(chatstate.ClassifyExecutionState(chat, queue, true)) {
-		return errAutomationChatBusy
+		return runRefusedError(runReasonChatBusy)
 	}
 
 	opts := SendMessageOptions{
@@ -201,7 +196,7 @@ func (p *Server) deliverToChat(ctx, ownerCtx context.Context, automation databas
 			return err
 		}
 		if !automationCanSend(snapshot.State()) {
-			return errAutomationChatBusy
+			return runRefusedError(runReasonChatBusy)
 		}
 		var err error
 		result, promotedQueuedAt, err = p.sendMessageLocked(ownerCtx, tx, store, snapshot, opts, prepared)
@@ -227,7 +222,7 @@ func (p *Server) deliverToNewChat(ctx, ownerCtx context.Context, automation data
 			return xerrors.Errorf("count active chats: %w", err)
 		}
 		if active > 0 {
-			return errAutomationOverlap
+			return runRefusedError(runReasonOverlap)
 		}
 		return nil
 	}
@@ -238,6 +233,9 @@ func (p *Server) deliverToNewChat(ctx, ownerCtx context.Context, automation data
 	}
 	if automation.ProjectID.Valid {
 		project, err := p.db.GetChatProjectByID(ctx, automation.ProjectID.UUID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, runRefusedError(runReasonTargetUnavailable)
+		}
 		if err != nil {
 			return uuid.NullUUID{}, xerrors.Errorf("get project: %w", err)
 		}
@@ -246,7 +244,7 @@ func (p *Server) deliverToNewChat(ctx, ownerCtx context.Context, automation data
 			return uuid.NullUUID{}, err
 		}
 		if !usable {
-			return uuid.NullUUID{}, errAutomationProjectDenied
+			return uuid.NullUUID{}, runRefusedError(runReasonTargetForbidden)
 		}
 	}
 	chat, err := p.CreateChat(ownerCtx, CreateOptions{
@@ -300,24 +298,23 @@ func automationCanSend(state chatstate.ExecutionState) bool {
 // runReasonForError maps the error of a run step to the reason that the run
 // was not accepted. ok is false for an error that is not an outcome.
 func runReasonForError(err error) (reason runReason, ok bool) {
-	_, denied := errors.AsType[*chathooks.UserPromptDeniedError](err)
-	_, dispatchFailed := errors.AsType[*dispatch.Error](err)
+	var (
+		refused     runRefusedError
+		denied      *chathooks.UserPromptDeniedError
+		dispatchErr *dispatch.Error
+	)
 	switch {
-	case errors.Is(err, errAutomationChatBusy), errors.Is(err, chatstate.ErrMessageQueueFull):
+	case errors.As(err, &refused):
+		return runReason(refused), true
+	case errors.Is(err, chatstate.ErrMessageQueueFull):
 		return runReasonChatBusy, true
-	case errors.Is(err, errAutomationOverlap):
-		return runReasonOverlap, true
-	case errors.Is(err, errAutomationOwnerInactive):
-		return runReasonOwnerInactive, true
-	case errors.Is(err, errAutomationExperimentOff):
-		return runReasonExperimentDisabled, true
-	case errors.Is(err, errAutomationTargetMissing), errors.Is(err, chatstate.ErrChatNotFound), errors.Is(err, ErrChatArchived):
+	case errors.Is(err, chatstate.ErrChatNotFound), errors.Is(err, ErrChatArchived):
 		return runReasonTargetUnavailable, true
-	case errors.Is(err, errAutomationProjectDenied), dbauthz.IsNotAuthorizedError(err):
+	case dbauthz.IsNotAuthorizedError(err):
 		return runReasonTargetForbidden, true
 	case errors.Is(err, ErrInvalidModelConfigID), errors.Is(err, ErrNoDefaultChatModelConfig):
 		return runReasonModelUnavailable, true
-	case denied, dispatchFailed:
+	case errors.As(err, &denied), errors.As(err, &dispatchErr):
 		return runReasonPromptHookDenied, true
 	}
 	return "", false

@@ -11,20 +11,22 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ErrUpdateForbidden means that the actor can read the automation and cannot
 // update it.
 var ErrUpdateForbidden = xerrors.New("not allowed to update the chat automation")
 
-// SetEnabled turns an automation on or off as the actor in ctx and returns
-// the row before and after the change. Turning it on schedules the first
+// Update turns an automation on or off as the actor in ctx and returns the
+// row before and after the change. Turning it on schedules the first
 // occurrence after now, so occurrences missed while it was off do not run.
 // Setting the current state changes nothing. Errors follow Delete, with
 // ErrUpdateForbidden for an actor that cannot update the automation.
 //
 // Like Delete, it takes only the automation lock and no chat row.
-func SetEnabled(ctx context.Context, db database.Store, organizationID, id uuid.UUID, enabled bool, now time.Time) (before, after database.ChatAutomation, err error) {
+func Update(ctx context.Context, db database.Store, organizationID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, now time.Time) (before, after database.ChatAutomation, err error) {
+	enabled := req.Enabled != nil && *req.Enabled
 	err = db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, LockID(id)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)

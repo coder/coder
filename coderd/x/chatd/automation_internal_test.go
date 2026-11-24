@@ -155,7 +155,7 @@ func TestAutomationSchedule(t *testing.T) {
 		claimed, err := f.server.claimDueSchedules(ctx, now)
 		require.NoError(t, err)
 		require.Len(t, claimed, 1)
-		_, _, err = chatautomation.SetEnabled(ctx, f.worker.db, f.worker.org.ID, automation.ID, false, now)
+		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
 		require.NoError(t, err)
 		f.server.runScheduleOccurrence(ctx, claimed[0], now)
 
