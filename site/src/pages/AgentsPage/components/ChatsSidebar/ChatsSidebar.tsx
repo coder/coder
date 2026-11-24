@@ -121,9 +121,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
-		// Summaries name their projects by ID and refetch on focus, so a
-		// project pinned in another tab needs the list refetched with them.
-		refetchOnWindowFocus: true,
 	});
 	const summariesQuery = useQuery({
 		...chatProjectSummaries(),
