@@ -247,12 +247,15 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			"session": ssh.DefaultSessionHandler,
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
-			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
-			return conn
+			rc := newReadErrorConn(conn)
+			ctx.SetValue(clientSessionIDContextKey{}, rc.ClientSessionID())
+			ctx.SetValue(readErrorConnContextKey{}, rc)
+			return rc
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
-			// The conn here is our conn wrapped in a ssh.serverConn, so unwrap to get
-			// the client session ID from the inner conn.
+			// The conn here is our readErrorConn wrapped in a ssh.serverConn, so
+			// unwrap to get the client session ID from the inner conn.
+			// TestSSHServer_ConnectionFailedLogsClientSessionID covers this.
 			clientSessionID := ""
 			val := reflect.ValueOf(conn)
 			if val.Kind() == reflect.Ptr {
@@ -266,6 +269,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					}
 				}
 			}
+			s.logger.Flush(ctx)
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
@@ -562,6 +566,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
+	keepAlive := ctx.KeepAlive()
+	conn, _ := ctx.Value(readErrorConnContextKey{}).(*readErrorConn)
 	reportSession := true
 
 	if family == codersdk.AppFamilyJetBrains {
@@ -588,26 +594,46 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
-		defer func() {
-			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
-			if s.isClosing() {
-				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
-					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+		var reportOnce sync.Once
+		report := func(reason codersdk.DisconnectReason) {
+			reportOnce.Do(func() {
+				netErr := conn.networkError()
+				if netErr != nil || keepAlive.TimedOut() {
+					reason = codersdk.DisconnectReasonNetworkError
 				}
-				reason = codersdk.DisconnectReasonServerShutdown
-				fields = append(fields, serverShutdownFields()...)
-			} else {
-				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
-			}
-			logger.Info(ctx, "ssh session closed",
-				fields...,
-			)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:    st.exitCode(),
-				Reason:  string(reason),
-				RxBytes: st.RxBytes(),
-				TxBytes: st.TxBytes(),
+				fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+				if s.isClosing() {
+					if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+						fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+					}
+					reason = codersdk.DisconnectReasonServerShutdown
+					fields = append(fields, serverShutdownFields()...)
+				} else {
+					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+					if netErr != nil {
+						fields = append(fields, codersdk.SlogDisconnectDetail(netErr.Error()))
+					}
+				}
+				if !reason.Expected() {
+					logger.Flush(ctx)
+				}
+				logger.Info(ctx, "ssh session closed",
+					fields...,
+				)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:    st.exitCode(),
+					Reason:  string(reason),
+					RxBytes: st.RxBytes(),
+					TxBytes: st.TxBytes(),
+				})
 			})
+		}
+		// Non-PTY processes outlive the client like OpenSSH, so report the
+		// disconnect when the connection closes, not when the process exits.
+		stop := context.AfterFunc(ctx, func() { report(codersdk.DisconnectReasonClientClosed) })
+		defer func() {
+			stop()
+			report(reason)
 		}()
 	}
 
@@ -643,6 +669,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
+		} else {
+			closeCause(string(codersdk.DisconnectReasonGraceful))
 		}
 		return
 	default:
@@ -1561,4 +1589,45 @@ func ClientSessionIDFromConn(conn net.Conn) string {
 		return uc.ClientSessionID()
 	}
 	return ""
+}
+
+type readErrorConnContextKey struct{}
+
+// readErrorConn records the first read error so a session can be reported as
+// a network error rather than a client close. It is what ConnCallback hands to
+// the SSH server, so it implements UpgradedConn to keep the client session ID
+// reachable from the server's connection wrapper.
+type readErrorConn struct {
+	net.Conn
+	clientSessionID string
+	readErr         atomic.Pointer[error]
+}
+
+var _ UpgradedConn = (*readErrorConn)(nil)
+
+func newReadErrorConn(conn net.Conn) *readErrorConn {
+	return &readErrorConn{Conn: conn, clientSessionID: ClientSessionIDFromConn(conn)}
+}
+
+func (c *readErrorConn) ClientSessionID() string { return c.clientSessionID }
+
+func (c *readErrorConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if err != nil {
+		c.readErr.CompareAndSwap(nil, &err)
+	}
+	return n, err
+}
+
+// networkError returns the error the connection ended with, such as the
+// tailnet TCP retry limit, or nil if it is open or either side closed it.
+func (c *readErrorConn) networkError() error {
+	if c == nil {
+		return nil
+	}
+	err := c.readErr.Load()
+	if err == nil || errors.Is(*err, io.EOF) || errors.Is(*err, net.ErrClosed) {
+		return nil
+	}
+	return *err
 }

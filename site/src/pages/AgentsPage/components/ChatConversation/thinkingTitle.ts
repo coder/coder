@@ -1,8 +1,8 @@
 import type { Nodes } from "mdast";
 import remarkParse from "remark-parse";
 import remend from "remend";
-import { defaultRemarkPlugins } from "streamdown";
 import { unified } from "unified";
+import { chatRemarkPlugins } from "../ChatElements/chatMarkdown";
 import { sliceAtGraphemeBoundary, sliceGraphemes } from "./SmoothText";
 
 const DEFAULT_THINKING_TITLE = "Thinking";
@@ -11,11 +11,9 @@ const PREVIEW_TITLE_MAX_GRAPHEMES = 100;
 // reasoning that can grow to many kilobytes.
 const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_GRAPHEMES * 4;
 
-// Uses the Streamdown body's remark setup so titles read Markdown the way the
-// body does.
-const markdownParser = unified()
-	.use(remarkParse)
-	.use(Object.values(defaultRemarkPlugins));
+// Uses the chat body's remark setup so titles read Markdown the way the body
+// does.
+const markdownParser = unified().use(remarkParse).use(chatRemarkPlugins);
 
 type LineRange = {
 	line: string;

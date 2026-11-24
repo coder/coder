@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { Breadcrumb } from "#/components/Breadcrumb/Breadcrumb";
 import {
 	SearchField,
 	type SearchFieldProps,
@@ -99,35 +100,38 @@ export const ChartBreadcrumbs: React.FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
-		<ul className="m-0 flex w-(--y-axis-width) shrink-0 list-none items-center gap-1 p-(--section-padding) leading-none">
-			{breadcrumbs.map((b, i) => {
-				const isLast = i === breadcrumbs.length - 1;
-				return (
-					<li
-						key={b.label}
-						className={cn(
-							"flex items-center gap-1",
-							i === 0 && "text-content-secondary",
-						)}
-					>
-						{isLast ? (
-							b.label
-						) : (
-							<>
-								<button
-									type="button"
-									className="cursor-pointer bg-transparent p-0 text-inherit hover:text-content-primary"
-									onClick={b.onClick}
-								>
-									{b.label}
-								</button>
-								<ChevronRightIcon className="size-3.5 text-content-secondary" />
-							</>
-						)}
-					</li>
-				);
-			})}
-		</ul>
+		<Breadcrumb className="flex w-(--y-axis-width) shrink-0">
+			<ol className="m-0 flex list-none items-center gap-1 p-(--section-padding) leading-none">
+				{breadcrumbs.map((b, i) => {
+					const isLast = i === breadcrumbs.length - 1;
+					return (
+						<li
+							key={b.label}
+							className={cn(
+								"flex items-center gap-1",
+								i === 0 && "text-content-secondary",
+							)}
+							aria-current={isLast ? "location" : undefined}
+						>
+							{isLast ? (
+								b.label
+							) : (
+								<>
+									<button
+										type="button"
+										className="cursor-pointer bg-transparent p-0 text-inherit hover:text-content-primary"
+										onClick={b.onClick}
+									>
+										{b.label}
+									</button>
+									<ChevronRightIcon className="size-3.5 text-content-secondary" />
+								</>
+							)}
+						</li>
+					);
+				})}
+			</ol>
+		</Breadcrumb>
 	);
 };
 

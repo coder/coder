@@ -13,6 +13,7 @@ import {
 	keyboardHighlightRingClassName,
 	useHighlightSource,
 } from "#/components/Command/useHighlightSource";
+import { menuMaxHeightClassName } from "#/components/DropdownMenu/menuClasses";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
 	Popover,
@@ -27,13 +28,6 @@ import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 // `components/Combobox` single-select primitives. They overlap cosmetically
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
-
-/**
- * Height cap for the popup, bounded only by the space Radix reports to the
- * viewport edge, and for each menu inside it when the caller makes the popup
- * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
- */
-export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
 
 const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
 // cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
@@ -80,6 +74,11 @@ type FilterComboboxRootProps = {
 	 * or `highlightRef`.
 	 */
 	autoHighlight?: boolean;
+	/**
+	 * A row cmdk never highlights on its own, even while `autoHighlight` is
+	 * on. Only the navigation keys, the pointer, or `highlightRef` do.
+	 */
+	navigationOnlyValue?: string;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
 	onRemoveValue?: (value: string) => void;
@@ -92,9 +91,10 @@ type FilterComboboxRootProps = {
 	highlightRef?: React.Ref<FilterComboboxHighlight>;
 	/**
 	 * Called when cmdk moves the highlight, with the new value and the one it
-	 * replaced ("" when none). While `autoHighlight` is off, a row cmdk
-	 * highlights on its own is cleared at once, and this is called with "" as
-	 * the new value. Not called for `highlightRef.set`.
+	 * replaced ("" when none). While `autoHighlight` is off, or for a
+	 * `navigationOnlyValue` row, a row cmdk highlights on its own is cleared
+	 * at once, and this is called with "" as the new value. Not called for
+	 * `highlightRef.set`.
 	 */
 	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
@@ -117,6 +117,7 @@ type FilterComboboxRootProps = {
 export function FilterComboboxRoot({
 	open = false,
 	autoHighlight = true,
+	navigationOnlyValue,
 	onDismiss,
 	onRemoveValue,
 	inputValue = "",
@@ -192,7 +193,10 @@ export function FilterComboboxRoot({
 						const navigating = userNavigatingRef.current;
 						userNavigatingRef.current = false;
 						const previous = highlightedValueRef.current;
-						if (!autoHighlight && !navigating) {
+						if (
+							!navigating &&
+							(!autoHighlight || value === navigationOnlyValue)
+						) {
 							// cmdk has already stored the row it picked and only re-reads
 							// a controlled value when it changes. It trims the value, so
 							// switching between "" and " " resets it to nothing.
@@ -327,6 +331,8 @@ export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
+			// Several filter values can be applied at once.
+			aria-multiselectable
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
@@ -341,8 +347,10 @@ type FilterComboboxItemProps = React.ComponentProps<
 >;
 
 /**
- * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
- * click and on Enter for the highlighted row.
+ * A dropdown row. cmdk calls `onSelect` on click and on Enter for the
+ * highlighted row. `aria-selected` reports whether the row's value is applied,
+ * since `aria-activedescendant` already conveys the highlight. A row that
+ * toggles a setting marks its state with `aria-checked` instead.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
@@ -351,6 +359,7 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	return (
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
+			aria-selected={false}
 			className={cn(
 				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				keyboardHighlightRingClassName,

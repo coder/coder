@@ -45,15 +45,16 @@ export type SkillFormValues = {
 	action?: boolean;
 	/** Project skills only: labels the action instead of the name. */
 	displayName?: string;
-	/** Project skills only: lets agents find and load the skill. */
+	/** Lets agents find and load the skill on their own. */
 	modelInvocable?: boolean;
 };
 
-/** The fields of a skill that has not been written yet. */
+/** The fields and API defaults of a skill that has not been written yet. */
 export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+	modelInvocable: true,
 };
 
 /** The fields and API defaults of a project skill not written yet. */
@@ -61,7 +62,6 @@ export const emptyProjectSkillFormValues: SkillFormValues = {
 	...emptySkillFormValues,
 	action: false,
 	displayName: "",
-	modelInvocable: true,
 };
 
 type SkillSearchMetadata = {
@@ -214,9 +214,11 @@ export const parseSkillMarkdown = (content: string): SkillFormValues => {
 		throw new SkillMarkdownError("Skill body is required.");
 	}
 
-	// Claude Code marks skills that only users may invoke this way.
-	return parsed.attributes["disable-model-invocation"] === true
-		? { name, description, body, modelInvocable: false }
+	// Claude Code marks skills that only users may invoke this way. Like the
+	// server, only a boolean value counts.
+	const disableModelInvocation = parsed.attributes["disable-model-invocation"];
+	return typeof disableModelInvocation === "boolean"
+		? { name, description, body, modelInvocable: !disableModelInvocation }
 		: { name, description, body };
 };
 
@@ -287,6 +289,20 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
+
+/**
+ * Reports whether saving `values`, the editor's submitted values with trimmed
+ * fields, changes the SKILL.md fields the editor rebuilds. Settings-only edits
+ * omit content so the stored file keeps frontmatter keys and formatting that
+ * the editor does not show.
+ */
+export const isSkillContentChanged = (
+	opened: SkillFormValues,
+	values: SkillFormValues,
+): boolean =>
+	values.name !== opened.name ||
+	values.description !== opened.description.trim() ||
+	values.body !== opened.body;
 
 export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;

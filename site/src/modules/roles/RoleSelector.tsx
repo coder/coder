@@ -55,12 +55,14 @@ export const RoleSelector: React.FC<RoleSelectorProps> = ({
 	}
 
 	const impliedRoleNames = new Set(additionalImpliedRoles.map((r) => r.name));
-	const { selectableRoles = [], advancedRoles = [] } = Object.groupBy(
-		availableRoles.filter(
-			(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
-		),
-		(it) =>
-			advancedRoleNames.includes(it.name) ? "advancedRoles" : "selectableRoles",
+	const assignableRoles = availableRoles.filter(
+		(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
+	);
+	const selectableRoles = assignableRoles.filter(
+		(r) => !advancedRoleNames.includes(r.name),
+	);
+	const advancedRoles = assignableRoles.filter((r) =>
+		advancedRoleNames.includes(r.name),
 	);
 
 	if (selectableRoles.length === 0) {
@@ -195,9 +197,12 @@ const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
 	hideLabel,
 	children,
 }) => {
+	const labelId = useId();
 	return (
-		<div className="flex flex-col gap-2">
-			{!hideLabel && <span className="text-sm">Roles</span>}
+		<div role="group" aria-labelledby={labelId} className="flex flex-col gap-2">
+			<span id={labelId} className={cn("text-sm", hideLabel && "sr-only")}>
+				Roles
+			</span>
 			{children}
 		</div>
 	);
