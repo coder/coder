@@ -47,7 +47,7 @@ Publish the template change from Step 1 as a new version and make it the active 
 By default, new workspaces start on the active version.
 
 Keep the parameters of a security release the same as the previous version.
-If the new version adds a required parameter without a default, updates fail until each owner enters a value, and autostart stops for those workspaces.
+If the new version adds a required parameter without a default, updates fail until each user enters a value, and autostart stops for those workspaces.
 
 <div class="tabs">
 
@@ -114,14 +114,7 @@ coder templates edit <template-name> --require-active-version
 
 Refer to [Template update policies](./index.md#template-update-policies).
 
-### Let owners opt in to automatic updates
-
-Without a Premium license, ask workspace owners to turn on automatic updates.
-In the workspace's **Settings** > **General** page, the owner sets **Update Policy** to **Always**.
-The workspace then updates to the active version whenever it starts.
-Refer to [Automatic updates](../../workspaces/workspace-management.md#automatic-updates).
-
-### Restart long-running workspaces on a schedule
+### Enforce regular restarts
 
 > [!NOTE]
 > The autostop requirement is a Premium feature.
@@ -130,34 +123,23 @@ A workspace that never stops never picks up a new version on start.
 Set the template's [autostop requirement](./schedule.md#autostop-requirement) so workspaces stop on a regular schedule, even when a connection is open.
 Combine it with the template update policy, so those workspaces start on the active version.
 
+### Ask users to turn on automatic updates
+
+Without a Premium license, ask users to turn on automatic updates for their workspaces.
+In the workspace's **Settings** > **General** page, the user sets **Update Policy** to **Always**.
+The workspace then updates to the active version whenever it starts.
+Refer to [Automatic updates](../../workspaces/workspace-management.md#automatic-updates).
+
 ## Step 4: Update existing workspaces
 
-Update the workspaces that already exist, so the fix doesn't wait for each owner's next restart.
+Update the workspaces that already exist, so the fix doesn't wait for each user to restart their workspace.
 
 > [!WARNING]
 > Updating a running workspace stops it and starts it on the active version.
 > Anyone connected to the workspace is disconnected, unsaved work is lost, and data outside persistent storage is deleted.
-> Tell workspace owners before you update their workspaces.
+> Tell users before you update their workspaces.
 
 <div class="tabs">
-
-### Dashboard
-
-1. Open the **Workspaces** page.
-1. Replace the filter with `template:<template-name> outdated:true`.
-1. Select the checkbox in the table header to select every workspace on the page.
-1. Select **Bulk actions** > **Update…**.
-1. If the dialog shows **Running workspaces detected**, select **I acknowledge these risks.**
-1. Select **Update**.
-
-   If a selected workspace is starting or stopping, **Update** is unavailable until that build finishes.
-1. Repeat these steps until the filter shows no workspaces, or only dormant ones.
-
-The dialog lists the workspaces it updates and skips the ones already on the active version.
-Bulk update also starts selected workspaces that are stopped, and it skips dormant workspaces.
-
-Use **Update…**, not **Stop** followed by **Start**.
-Bulk **Start** starts each workspace on the version it already uses, so it doesn't apply the new image.
 
 ### CLI
 
@@ -177,10 +159,31 @@ Without it, `coder update` activates and starts each dormant workspace.
 `coder list` ignores `--search` when you also pass `--all`, so the command uses `--search` alone.
 Refer to [Update workspaces](../../workspaces/workspace-management.md#update-workspaces) for the other `coder update` options.
 
+### Dashboard
+
+The **Workspaces** page shows 25 workspaces at a time, and bulk actions apply only to the workspaces you select on the current page.
+For more than a few pages of workspaces, use the CLI.
+
+1. Open the **Workspaces** page.
+1. Replace the filter with `template:<template-name> outdated:true`.
+1. Select the checkbox in the table header to select every workspace on the page.
+1. Select **Bulk actions** > **Update…**.
+1. If the dialog shows **Running workspaces detected**, select **I acknowledge these risks.**
+1. Select **Update**.
+
+   If a selected workspace is starting or stopping, **Update** is unavailable until that build finishes.
+1. Repeat these steps until the filter shows no workspaces, or only dormant ones.
+
+The dialog lists the workspaces it updates and skips the ones already on the active version.
+Bulk update also starts selected workspaces that are stopped, and it skips dormant workspaces.
+
+Use **Update…**, not **Stop** followed by **Start**.
+Bulk **Start** starts each workspace on the version it already uses, so it doesn't apply the new image.
+
 </div>
 
 Dormant workspaces stay on their current version.
-When an owner activates one, update it, or turn on the template update policy so it starts on the active version.
+When a user activates one, update it, or turn on the template update policy so it starts on the active version.
 
 ## Step 5: Confirm every workspace is on the active version
 
@@ -222,10 +225,10 @@ The output shows the package name, then the installed version:
 ca-certificates    <version>
 ```
 
-## Where a rebuilt image doesn't change the files
+## Other places to update
 
-An updated template version replaces what the image provides.
-It doesn't replace files that live outside the image:
+A new template version replaces the image, but not files that live outside it.
+Update these separately:
 
 - **Dev containers:** a dev container builds from the `devcontainer.json` in the project repository, not from the template's image.
   Change the image reference in the repository's dev container configuration to the new tag or digest, then have developers select **Rebuild** on the dev container.
@@ -234,7 +237,7 @@ It doesn't replace files that live outside the image:
   Change the base image reference in the dev container configuration, for example to a new digest, so the build doesn't reuse the cached image.
   Refer to [Layer and image caching](../../admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md#layer-and-image-caching) and the [`envbuilder` caching documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md).
 - **Persistent home volumes:** files in a persistent home directory survive updates.
-  A copy of a certificate bundle or a tool installed under the home directory, such as in a language virtual environment, keeps the old version until the owner updates it.
+  A copy of a certificate bundle or a tool installed under the home directory, such as in a language virtual environment, keeps the old version until the user updates it.
 - **Persistent disks and VMs:** templates that keep a VM or its boot disk across stops don't get a new image on start.
   Patch those workspaces with the operating system's package manager, for example in the startup script, or change the template so the boot disk is recreated.
   Refer to [Resource persistence](../extending-templates/resource-persistence.md).
