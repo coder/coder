@@ -35,4 +35,13 @@ describe("Response", () => {
 
 		expect(writeText).toHaveBeenCalledWith(sampleFileCode);
 	});
+
+	it("exposes task-list checkbox state to assistive technologies", async () => {
+		render(<Response>{"- [x] Write tests\n- [ ] Ship it\n"}</Response>);
+
+		expect(
+			await screen.findByRole("img", { name: "Checked" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("img", { name: "Unchecked" })).toBeInTheDocument();
+	});
 });

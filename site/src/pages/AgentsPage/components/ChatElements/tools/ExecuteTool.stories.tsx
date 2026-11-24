@@ -32,7 +32,7 @@ export const ShortCommand: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summaryButton = await canvas.findByRole("button", {
-			name: "Expand command",
+			name: /^Expand command/,
 		});
 		await userEvent.click(summaryButton);
 	},
@@ -53,7 +53,7 @@ export const LongCommand: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summaryButton = await canvas.findByRole("button", {
-			name: "Expand command",
+			name: /^Expand command/,
 		});
 		await userEvent.click(summaryButton);
 	},

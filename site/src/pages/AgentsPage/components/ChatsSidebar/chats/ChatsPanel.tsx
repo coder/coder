@@ -21,7 +21,7 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -44,7 +44,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getOSKey } from "#/utils/platform";
+import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -158,6 +158,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
+	const searchShortcutId = useId();
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
@@ -538,13 +539,23 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						label="Search"
 						active={false}
 						ariaLabel="Search chats"
+						ariaDescribedBy={searchShortcutId}
+						ariaKeyShortcuts={isMac() ? "Meta+K" : "Control+K"}
 						onClick={onOpenSearchDialog}
 						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
 						trailing={
-							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-								<Kbd>{getOSKey()}</Kbd>
-								<Kbd>K</Kbd>
-							</KbdGroup>
+							<>
+								<span id={searchShortcutId} className="sr-only">
+									Keyboard shortcut: {isMac() ? "Command" : "Ctrl"}+K
+								</span>
+								<KbdGroup
+									aria-hidden
+									className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+								>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>K</Kbd>
+								</KbdGroup>
+							</>
 						}
 					/>
 				)}

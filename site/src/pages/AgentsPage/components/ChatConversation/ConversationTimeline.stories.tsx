@@ -2020,7 +2020,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const commandOutputButton = canvas.getByRole("button", {
-			name: "Expand command",
+			name: /^Expand command/,
 		});
 		await userEvent.click(commandOutputButton);
 		await canvas.findByText("tests passed");

@@ -317,10 +317,13 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 			</div>
 			<span className="inline-flex shrink-0 items-center gap-1.5 pt-0.5 text-xs text-content-secondary">
 				{chat.has_unread && (
-					<span
-						className="size-1.5 shrink-0 rounded-full bg-content-link"
-						aria-hidden="true"
-					/>
+					<>
+						<span
+							className="size-1.5 shrink-0 rounded-full bg-content-link"
+							aria-hidden="true"
+						/>
+						<span className="sr-only">(unread)</span>
+					</>
 				)}
 				{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
 				<span data-pixel="ignore" className="inline-block w-7 text-right">

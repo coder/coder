@@ -109,7 +109,9 @@ export const UploadError: Story = {
 	})(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const overlay = canvas.getByLabelText("Upload error");
+		const overlay = canvas.getByRole("img", {
+			name: "Upload error: Upload failed: server error",
+		});
 		await userEvent.hover(overlay);
 	},
 };
@@ -133,7 +135,9 @@ export const FileTooLarge: Story = {
 	})(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const overlay = canvas.getByLabelText("Upload error");
+		const overlay = canvas.getByRole("img", {
+			name: "Upload error: File too large (12.4 MiB). Maximum is 10 MiB.",
+		});
 		await userEvent.hover(overlay);
 	},
 };

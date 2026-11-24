@@ -474,6 +474,11 @@ export const ContextUsageIndicator: React.FC<{
 													<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
 														<ZapIcon className="size-3 shrink-0" />
 														<span className="truncate">{skill.name}</span>
+														{skill.description && (
+															<span className="sr-only">
+																: {skill.description}
+															</span>
+														)}
 													</div>
 												);
 												if (!skill.description) {
@@ -525,6 +530,9 @@ export const ContextUsageIndicator: React.FC<{
 										>
 											<PlugIcon className="size-3 shrink-0" />
 											<span className="truncate">{mcp.name}</span>
+											{mcp.source && (
+												<span className="sr-only"> ({mcp.source})</span>
+											)}
 										</div>
 										{mcp.tools.length > 0 && (
 											<div className="ml-4 flex flex-col gap-0.5">
@@ -533,6 +541,11 @@ export const ContextUsageIndicator: React.FC<{
 														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
 															<WrenchIcon className="size-3 shrink-0" />
 															<span className="truncate">{tool.name}</span>
+															{tool.description && (
+																<span className="sr-only">
+																	: {tool.description}
+																</span>
+															)}
 														</div>
 													);
 													if (!tool.description) {

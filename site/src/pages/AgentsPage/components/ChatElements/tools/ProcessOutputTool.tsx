@@ -76,6 +76,11 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	const isFailed = exitCode !== null && exitCode !== 0;
 	const hasOutput = output.length > 0;
 	const hasHeaderActions = Boolean(killedBySignal) || isFailed || hasOutput;
+	const processLabel = getProcessOutputLabel({
+		command,
+		isRunning,
+		isFailed,
+	});
 
 	return (
 		<ToolCall.Root
@@ -87,19 +92,13 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 			hasContent={hasOutput}
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>
-				expanded ? "Collapse process output" : "Expand process output"
+				`${expanded ? "Collapse" : "Expand"} process output: ${processLabel}`
 			}
 		>
 			<ToolCall.HeaderLayout>
 				<ToolCall.HeaderButton>
 					<ToolCall.LeadingIcon name="process_output" />
-					<ToolCall.Label>
-						{getProcessOutputLabel({
-							command,
-							isRunning,
-							isFailed,
-						})}
-					</ToolCall.Label>
+					<ToolCall.Label>{processLabel}</ToolCall.Label>
 					<ToolCall.Status />
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>

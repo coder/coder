@@ -7,7 +7,7 @@ import {
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
@@ -76,6 +76,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
 	const { effectiveType, statusLabel } = getWorkspaceStatus(workspace, agent);
+	const statusLabelId = useId();
 
 	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -141,6 +142,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							<button
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
+								aria-describedby={statusLabelId}
 								className={cn(
 									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 									// Heights match the model selector trigger.
@@ -148,6 +150,9 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 								)}
 							>
 								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
+								<span id={statusLabelId} className="sr-only">
+									{statusLabel}
+								</span>
 								<span className="min-w-0 truncate">{workspace.name}</span>
 								<ChevronDownIcon
 									className={cn(

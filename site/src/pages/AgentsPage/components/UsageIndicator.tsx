@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useId } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -156,6 +156,7 @@ const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 }) => {
 	const triggerAriaLabel =
 		sections.length > 1 ? "Usage" : (sections[0]?.title ?? "Usage");
+	const triggerDescriptionId = useId();
 
 	return (
 		<DropdownMenu>
@@ -163,8 +164,17 @@ const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 				<button
 					type="button"
 					aria-label={triggerAriaLabel}
+					aria-describedby={triggerDescriptionId}
 					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden"
 				>
+					<span id={triggerDescriptionId} className="sr-only">
+						{sections
+							.map(
+								(section) =>
+									`${section.hoverLabel}, ${Math.round(clampPercentage(section.percent))}% used`,
+							)
+							.join(". ")}
+					</span>
 					<UsageTriggerProgress sections={sections} />
 				</button>
 			</DropdownMenuTrigger>

@@ -42,6 +42,7 @@ const ChatLineStats: React.FC<{ readonly status: ChatDiffStatus }> = ({
 			className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 			title={`${filesChangedLabel}, +${additions} -${deletions}`}
 		>
+			<span className="sr-only">{filesChangedLabel}, </span>
 			<span className="text-git-added-bright">+{additions}</span>
 			<span className="text-git-deleted-bright">&minus;{deletions}</span>
 		</span>

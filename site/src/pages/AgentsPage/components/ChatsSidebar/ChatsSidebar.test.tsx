@@ -706,6 +706,23 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar search", () => {
+	it("exposes the search keyboard shortcut to assistive technologies", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		const searchButton = within(
+			screen.getByRole("navigation", { name: "Sidebar" }),
+		).getByRole("button", { name: "Search chats" });
+		expect(searchButton).toHaveAccessibleDescription(
+			"Keyboard shortcut: Ctrl+K",
+		);
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(

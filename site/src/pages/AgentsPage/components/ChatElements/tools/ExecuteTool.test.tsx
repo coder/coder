@@ -2,10 +2,12 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ExecuteTool } from "./ExecuteTool";
+import { signalTooltipLabel } from "./utils";
 
 const renderTool = (props: {
 	status: "running" | "completed";
 	startedAt?: string;
+	killedBySignal?: "kill" | "terminate";
 }) =>
 	render(
 		<TooltipProvider>
@@ -20,6 +22,24 @@ const renderTool = (props: {
 			/>
 		</TooltipProvider>,
 	);
+
+describe("ExecuteTool accessibility", () => {
+	it("keeps the command in the header button's accessible name", () => {
+		renderTool({ status: "completed" });
+
+		expect(
+			screen.getByRole("button", { name: /^Expand command: Ran make build/ }),
+		).toBeInTheDocument();
+	});
+
+	it("names the killed-by-signal indicator", () => {
+		renderTool({ status: "completed", killedBySignal: "kill" });
+
+		expect(
+			screen.getByRole("img", { name: signalTooltipLabel("kill") }),
+		).toBeInTheDocument();
+	});
+});
 
 describe("ExecuteTool elapsed time", () => {
 	afterEach(() => {
