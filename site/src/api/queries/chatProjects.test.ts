@@ -100,7 +100,7 @@ describe("chat project mutations", () => {
 		};
 		const mockOtherSummary = {
 			...MockChatProjectSummary,
-			project: mockOtherProject,
+			project_id: mockOtherProject.id,
 		};
 		vi.spyOn(API.experimental, "archiveChatProject").mockResolvedValue(
 			MockArchivedChatProject,

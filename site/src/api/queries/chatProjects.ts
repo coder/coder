@@ -372,7 +372,7 @@ const setCachedProjectArchiveState = (
 	if (project.archived_at) {
 		queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
 			chatProjectSummariesKey,
-			(summaries) => summaries?.filter((s) => s.project.id !== project.id),
+			(summaries) => summaries?.filter((s) => s.project_id !== project.id),
 		);
 	}
 };
