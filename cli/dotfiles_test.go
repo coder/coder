@@ -171,11 +171,9 @@ func TestDotfiles(t *testing.T) {
 
 		err := os.MkdirAll(filepath.Join(testRepo, ".config"), 0o750)
 		require.NoError(t, err)
-		// nolint:gosec
-		err = os.WriteFile(filepath.Join(testRepo, ".config", "foo"), []byte("foo"), 0o750)
+		err = os.WriteFile(filepath.Join(testRepo, ".config", "foo"), []byte("foo"), 0o600)
 		require.NoError(t, err)
-		// nolint:gosec
-		err = os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o750)
+		err = os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o600)
 		require.NoError(t, err)
 
 		c := exec.Command("git", "add", ".")
@@ -192,11 +190,9 @@ func TestDotfiles(t *testing.T) {
 		configDir := filepath.Join(string(root), ".config")
 		err = os.MkdirAll(configDir, 0o750)
 		require.NoError(t, err)
-		// nolint:gosec
-		err = os.WriteFile(filepath.Join(configDir, "existing"), []byte("existing"), 0o750)
+		err = os.WriteFile(filepath.Join(configDir, "existing"), []byte("existing"), 0o600)
 		require.NoError(t, err)
-		// nolint:gosec
-		err = os.WriteFile(filepath.Join(string(root), ".bashrc"), []byte("original"), 0o750)
+		err = os.WriteFile(filepath.Join(string(root), ".bashrc"), []byte("original"), 0o600)
 		require.NoError(t, err)
 
 		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
