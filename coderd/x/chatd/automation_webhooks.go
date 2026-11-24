@@ -72,7 +72,7 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	switch envelope.Type {
 	case "gap":
 		// A retry keeps its webhook-id, which Verify checked.
-		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true, GapKey: "gap:" + header.Get("webhook-id")})
+		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true, GapKey: "gap:" + header.Get("webhook-id"), MaxPending: maxPendingInboxRows})
 	case "terminated":
 		reason := runReasonMCPTerminated
 		if envelope.Error != nil && eventErrorActions[envelope.Error.Code].terminate != "" {
