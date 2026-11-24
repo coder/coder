@@ -37,6 +37,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.mocked(saveAs).mockClear();
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
