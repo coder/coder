@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useId, useRef } from "react";
 import { Link, type To } from "react-router";
+import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
 import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -36,7 +37,9 @@ import { useUnarchiveChatProject } from "../hooks/useUnarchiveChatProject";
 type DialogAction = (returnFocusTo: HTMLElement | null) => void;
 
 type ProjectCardProps = {
-	readonly summary: ChatProjectSummary;
+	readonly summary: ChatProjectWithSummary;
+	/** Undefined until the member counts load. */
+	readonly memberCount: number | undefined;
 	readonly to: To;
 	readonly onPin: () => void;
 	readonly onUnpin: () => void;
@@ -59,6 +62,7 @@ const runningStatus = getChatStatusDisplay("running");
  */
 export const ProjectCard: React.FC<ProjectCardProps> = ({
 	summary,
+	memberCount,
 	to,
 	onPin,
 	onUnpin,
@@ -67,7 +71,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	onArchive,
 	onDelete,
 }) => {
-	const { project, pinned, member_count, last_activity_at } = summary;
+	const { project, pinned, last_activity_at } = summary;
 	return (
 		<ProjectCardFrame
 			project={project}
@@ -75,22 +79,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 			footer={
 				<>
 					<ActivityLabel summary={summary} />
-					{member_count > 1 ? (
-						<span className="flex shrink-0 items-center gap-1">
-							<UsersIcon aria-hidden="true" className="size-3.5" />
-							<span aria-hidden="true" className="tabular-nums">
-								{compactNumber.format(member_count).toLowerCase()}
-							</span>
-							<span className="sr-only">
-								{member_count.toLocaleString("en-US")} members
-							</span>
-						</span>
-					) : (
-						<span className="flex shrink-0 items-center">
-							<LockIcon aria-hidden="true" className="size-3.5" />
-							<span className="sr-only">Only you</span>
-						</span>
-					)}
+					<ProjectMembers count={memberCount} />
 					{last_activity_at && <CardTime time={last_activity_at} />}
 				</>
 			}
@@ -330,6 +319,32 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
+	);
+};
+
+/** Shows who can use the project. Nothing shows until the counts load. */
+const ProjectMembers: React.FC<{ readonly count: number | undefined }> = ({
+	count,
+}) => {
+	if (count === undefined) {
+		return null;
+	}
+	if (count > 1) {
+		return (
+			<span className="flex shrink-0 items-center gap-1">
+				<UsersIcon aria-hidden="true" className="size-3.5" />
+				<span aria-hidden="true" className="tabular-nums">
+					{compactNumber.format(count).toLowerCase()}
+				</span>
+				<span className="sr-only">{count.toLocaleString("en-US")} members</span>
+			</span>
+		);
+	}
+	return (
+		<span className="flex shrink-0 items-center">
+			<LockIcon aria-hidden="true" className="size-3.5" />
+			<span className="sr-only">Only you</span>
+		</span>
 	);
 };
 
