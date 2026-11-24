@@ -109,6 +109,8 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 		WebhookSubscriptionID: res.ID,
 		RefreshBefore:         refreshBefore,
 		RenewAt:               renewAt,
+		Cursor:                sql.NullString{},
+		LastError:             sql.NullString{},
 		Now:                   now,
 	}
 	if res.Cursor != nil {
@@ -125,10 +127,12 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 // answer the server's verification during the call. A failed subscribe
 // deletes the automation.
 func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclient.EventsSession, cfg database.MCPServerConfig, args toolArgs, arguments json.RawMessage) (database.ChatAutomation, database.ChatAutomationMCPSubscription, error) {
-	secret := chatwebhook.GenerateSecret()
+	secret, err := chatwebhook.GenerateSecret()
+	if err != nil {
+		return database.ChatAutomation{}, database.ChatAutomationMCPSubscription{}, err
+	}
 	var sub database.ChatAutomationMCPSubscription
 	created, err := createEventAutomation(ctx, options.DB, options.Chat, args.Name, args.Prompt, func(tx database.Store, created database.ChatAutomation) error {
-		var err error
 		sub, err = tx.InsertChatAutomationMCPSubscription(ctx, database.InsertChatAutomationMCPSubscriptionParams{
 			AutomationID:      created.ID,
 			MCPServerConfigID: cfg.ID,
@@ -136,12 +140,14 @@ func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclie
 			Arguments:         arguments,
 			Delivery:          database.ChatAutomationEventDeliveryWebhook,
 			State:             database.ChatAutomationSubscriptionStatePending,
+			Cursor:            sql.NullString{},
+			NextPollAt:        sql.NullTime{},
 			RenewAt:           sql.NullTime{Time: options.Clock.Now().Add(webhookPendingLease), Valid: true},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert subscription: %w", err)
 		}
-		return tx.InsertChatAutomationWebhookSecret(ctx, database.InsertChatAutomationWebhookSecretParams{AutomationID: created.ID, Secret: secret})
+		return tx.InsertChatAutomationWebhookSecret(ctx, database.InsertChatAutomationWebhookSecretParams{AutomationID: created.ID, Secret: secret, SecretKeyID: sql.NullString{}})
 	})
 	if err != nil {
 		return database.ChatAutomation{}, sub, err

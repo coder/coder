@@ -127,7 +127,7 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 				created, sub, err = subscribeWebhook(ctx, options, session, cfg, args, encoded)
 				var eventsErr *mcpclient.EventsError
 				if errors.As(err, &eventsErr) && eventsErr.Code == codeCallbackEndpointError {
-					options.Logger.Warn(ctx, "MCP server cannot deliver to the webhook URL; polling instead", slog.F("server_slug", cfg.Slug), slog.Error(err))
+					options.Logger.Warn(ctx, "mcp server cannot deliver to the webhook url, polling instead", slog.F("server_slug", cfg.Slug), slog.Error(err))
 					continue
 				}
 				return refusal(err)
@@ -171,6 +171,7 @@ func subscribePoll(ctx context.Context, options ToolOptions, session *mcpclient.
 			State:             database.ChatAutomationSubscriptionStateActive,
 			Cursor:            cursor,
 			NextPollAt:        sql.NullTime{Time: now.Add(min(max(time.Duration(poll.NextPollMs)*time.Millisecond, firstPollFloor), firstPollCeiling)), Valid: true},
+			RenewAt:           sql.NullTime{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert subscription: %w", err)

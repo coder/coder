@@ -91,11 +91,12 @@ func Verify(header http.Header, body []byte, secret string, now time.Time) error
 
 // GenerateSecret returns a new "whsec_" secret over 32 random bytes, inside
 // the 24 to 64 bytes that MCP event servers accept.
-func GenerateSecret() string {
+func GenerateSecret() (string, error) {
 	key := make([]byte, 32)
-	// crypto/rand.Read never fails since Go 1.24.
-	_, _ = rand.Read(key)
-	return secretPrefix + base64.StdEncoding.EncodeToString(key)
+	if _, err := rand.Read(key); err != nil {
+		return "", xerrors.Errorf("read random bytes: %w", err)
+	}
+	return secretPrefix + base64.StdEncoding.EncodeToString(key), nil
 }
 
 // parseSecret returns the HMAC key inside a "whsec_" secret: standard base64
