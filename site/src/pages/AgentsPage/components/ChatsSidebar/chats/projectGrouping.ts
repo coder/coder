@@ -29,10 +29,10 @@ export const groupChatsByProject = (
 	isLoadingProjects = false,
 ): ChatsGroupedByProject => {
 	const folderProjectIds = new Set(
-		summaries.filter((s) => s.pinned).map((s) => s.project.id),
+		summaries.filter((s) => s.pinned).map((s) => s.project_id),
 	);
 	const unpinnedProjectIds = new Set(
-		summaries.filter((s) => !s.pinned).map((s) => s.project.id),
+		summaries.filter((s) => !s.pinned).map((s) => s.project_id),
 	);
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledChats: Chat[] = [];
