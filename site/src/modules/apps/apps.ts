@@ -275,14 +275,22 @@ const hasTrustedParams = (
 	);
 };
 
+const BARE_ORIGIN_PATTERN = /^[a-z][a-z\d+.-]*:\/\/([^/\\?#@\s]+)\/?$/i;
+
 const isThisDeployment = (
 	url: string,
 	accessUrl: string | undefined,
 ): boolean => {
-	if (!isBareOrigin(url)) {
+	const authority = BARE_ORIGIN_PATTERN.exec(url)?.[1];
+	if (authority === undefined || !isBareOrigin(url)) {
 		return false;
 	}
-	const { origin } = new URL(url);
+	const { origin, hostname } = new URL(url);
+	// trust only ASCII hosts that parsing leaves unchanged.
+	const rawHost = authority.replace(/:\d*$/, "");
+	if (/\P{ASCII}/u.test(rawHost) || rawHost.toLowerCase() !== hostname) {
+		return false;
+	}
 	return (
 		origin === location.origin ||
 		(accessUrl !== undefined && parseURL(accessUrl)?.origin === origin)
