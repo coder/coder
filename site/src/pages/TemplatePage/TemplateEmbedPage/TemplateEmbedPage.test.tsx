@@ -248,6 +248,21 @@ describe("TemplateEmbedPage", () => {
 				expect.stringContaining('"region":"us-east-4"'),
 			);
 		});
+
+		// A response that still carries an older value doesn't overwrite
+		// what the user typed.
+		await act(async () => {
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 1,
+						parameters: [paramRegion],
+						diagnostics: [],
+					} satisfies DynamicParametersResponse),
+				}),
+			);
+		});
+		expect(screen.getByDisplayValue("us-east-4")).toBeInTheDocument();
 	});
 
 	it("updates form state when server responds", async () => {
