@@ -20,12 +20,14 @@ var ErrUnsupportedContentEncoding = xerrors.New("unsupported content encoding")
 // DecodeRequestBody replaces r.Body with its decoded form when the request
 // has a Content-Encoding, and removes the Content-Encoding header.
 func DecodeRequestBody(r *http.Request) error {
+	// Stacked encodings are rejected: repeated header lines here, and
+	// comma-separated values by the default branch of the switch below.
+	if len(r.Header.Values("Content-Encoding")) > 1 {
+		return ErrUnsupportedContentEncoding
+	}
 	enc := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding")))
 	if enc == "" || enc == "identity" {
 		return nil
-	}
-	if strings.Contains(enc, ",") {
-		return ErrUnsupportedContentEncoding
 	}
 
 	var dec io.Reader
