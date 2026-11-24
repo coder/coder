@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -376,6 +383,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `organization`    | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of this interception. Nil when none was stored.                                    |
 | `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
@@ -452,6 +460,42 @@ title: Schemas
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
+## codersdk.AIBridgeInterceptionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "source": "workspace"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                             | false    |              |             |
+| `icon`         | string                                                                                             | false    |              |             |
+| `id`           | string                                                                                             | true     |              |             |
+| `name`         | string                                                                                             | false    |              |             |
+| `source`       | [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
+
+## codersdk.AIBridgeInterceptionOrganizationSource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                |
+|-----------------------------------------|
+| `chatd`, `effective_group`, `workspace` |
+
 ## codersdk.AIBridgeListSessionsResponse
 
 ```json
@@ -481,6 +525,17 @@ title: Schemas
         "blocked": 0,
         "total": 0
       },
+      "organizations": [
+        {
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "sources": [
+            "workspace"
+          ]
+        }
+      ],
       "providers": [
         "string"
       ],
@@ -626,6 +681,17 @@ title: Schemas
     "blocked": 0,
     "total": 0
   },
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "providers": [
     "string"
   ],
@@ -654,6 +720,7 @@ title: Schemas
 | » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
 | `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `organizations`       | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                     |
 | `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
 | `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
@@ -690,6 +757,30 @@ title: Schemas
 |----------|---------|----------|--------------|-------------|
 | `count`  | integer | false    |              |             |
 | `domain` | string  | false    |              |             |
+
+## codersdk.AIBridgeSessionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "sources": [
+    "workspace"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                        | Required | Restrictions | Description |
+|----------------|-------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                                      | false    |              |             |
+| `icon`         | string                                                                                                      | false    |              |             |
+| `id`           | string                                                                                                      | true     |              |             |
+| `name`         | string                                                                                                      | false    |              |             |
+| `sources`      | array of [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -736,6 +827,17 @@ title: Schemas
       "domain": "string"
     }
   ],
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
@@ -754,6 +856,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "organization": {
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "source": "workspace"
+          },
           "priced_model": {
             "cache_read_price": 0,
             "cache_write_price": 0,
@@ -807,6 +916,13 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -861,6 +977,7 @@ title: Schemas
 | `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
 | `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `organizations`        | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                                                                                                                                  |
 | `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
@@ -932,6 +1049,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -985,6 +1109,13 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -1025,6 +1156,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `organization`                   | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of the root interception. Nil when none was stored.                                                                                                                                                      |
 | `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -2094,18 +2226,20 @@ None
   "password": {
     "enabled": true
   },
+  "setup_token_required": true,
   "terms_of_service_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                   | Required | Restrictions | Description |
-|------------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |             |
-| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |             |
-| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |             |
-| `terms_of_service_url` | string                                                 | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                              |
+|------------------------|--------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------|
+| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |                                                                                          |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |                                                                                          |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |                                                                                          |
+| `setup_token_required` | boolean                                                | false    |              | Setup token required is true when the first user can only be created with a setup token. |
+| `terms_of_service_url` | string                                                 | false    |              |                                                                                          |
 
 ## codersdk.AuthorizationCheck
 
@@ -7272,6 +7406,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "newsletter_releases": true
   },
   "password": "string",
+  "setup_token": "string",
   "trial": true,
   "trial_info": {
     "company_name": "string",
@@ -7288,15 +7423,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                             | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`           | string                                                                           | true     |              |             |
-| `name`            | string                                                                           | false    |              |             |
-| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
-| `password`        | string                                                                           | true     |              |             |
-| `trial`           | boolean                                                                          | false    |              |             |
-| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
-| `username`        | string                                                                           | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description                                                                                           |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `email`           | string                                                                           | true     |              |                                                                                                       |
+| `name`            | string                                                                           | false    |              |                                                                                                       |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |                                                                                                       |
+| `password`        | string                                                                           | true     |              |                                                                                                       |
+| `setup_token`     | string                                                                           | false    |              | Setup token is required when AuthMethods.SetupTokenRequired is true. The server prints it at startup. |
+| `trial`           | boolean                                                                          | false    |              |                                                                                                       |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |                                                                                                       |
+| `username`        | string                                                                           | true     |              |                                                                                                       |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -8758,6 +8894,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_token_lifetime": 0,
       "refresh_default_duration": 0
     },
+    "setup_token": "string",
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
       "usage_stats": {
@@ -9398,6 +9535,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "max_token_lifetime": 0,
     "refresh_default_duration": 0
   },
+  "setup_token": "string",
   "ssh_keygen_algorithm": "string",
   "stats_collection": {
     "usage_stats": {
@@ -9557,6 +9695,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                                 | string                                                                                               | false    |              |                                                                           |
 | `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                           |
 | `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                           |
+| `setup_token`                                  | string                                                                                               | false    |              |                                                                           |
 | `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                           |
 | `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                           |
 | `strict_transport_security`                    | integer                                                                                              | false    |              |                                                                           |
@@ -12678,6 +12817,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendClient
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                     |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend from the client over the period.                                                |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage from the client was recorded without a price.                |
+| `name`               | string  | false    |              | Name is the client recorded on the intercepted request. Usage without a recorded client is reported as Unknown. |
+
+## codersdk.OrganizationAISpendModel
+
+```json
+{
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                   |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend on the model over the period.                                 |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any token usage of the model was recorded without a price. |
+| `name`               | string  | false    |              | Name is the model the client requested.                                                       |
+
 ## codersdk.OrganizationAISpendOverview
 
 ```json
@@ -12812,6 +12987,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_id`      | string                                                                                          | false    |              |                                                                                   |
 | `username`     | string                                                                                          | false    |              |                                                                                   |
 
+## codersdk.OrganizationAISpendProvider
+
+```json
+{
+  "cost_micros": 0,
+  "display_name": "string",
+  "has_unpriced_usage": true,
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name                 | Type                                               | Required | Restrictions | Description                                                                                           |
+|----------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer                                            | false    |              | Cost micros is the priced spend through the provider over the period.                                 |
+| `display_name`       | string                                             | false    |              | Display name falls back to the provider name when unset.                                              |
+| `has_unpriced_usage` | boolean                                            | false    |              | Has unpriced usage reports whether any token usage through the provider was recorded without a price. |
+| `icon`               | string                                             | false    |              | Icon is empty when the provider has no configured icon.                                               |
+| `name`               | string                                             | false    |              | Name is the name of the configured provider.                                                          |
+| `type`               | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              | Type is omitted when the provider name was never configured.                                          |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -12822,23 +13021,37 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "retention_start": "2019-08-24T14:15:22Z",
   "totals": {
     "cost_micros": 0,
-    "unpriced_usage_count": 0
+    "has_unpriced_usage": true
   },
   "users": [
     {
       "avatar_url": "string",
-      "clients": [
-        "string"
+      "client_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "cost_micros": 0,
-      "models": [
-        "string"
+      "model_spend": [
+        {
+          "cost_micros": 0,
+          "has_unpriced_usage": true,
+          "name": "string"
+        }
       ],
       "name": "string",
-      "providers": [
-        "string"
+      "provider_spend": [
+        {
+          "cost_micros": 0,
+          "display_name": "string",
+          "has_unpriced_usage": true,
+          "icon": "string",
+          "name": "string",
+          "type": "openai"
+        }
       ],
-      "unpriced_usage_count": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
       "username": "string"
     }
@@ -12862,34 +13075,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "cost_micros": 0,
-  "unpriced_usage_count": 0
+  "has_unpriced_usage": true
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                          |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
-| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
-| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+| Name                 | Type    | Required | Restrictions | Description                                                                               |
+|----------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `cost_micros`        | integer | false    |              | Cost micros is the priced spend of every matching user.                                   |
+| `has_unpriced_usage` | boolean | false    |              | Has unpriced usage reports whether any matching token usage was recorded without a price. |
 
 ## codersdk.OrganizationAISpendUser
 
 ```json
 {
   "avatar_url": "string",
-  "clients": [
-    "string"
+  "client_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "cost_micros": 0,
-  "models": [
-    "string"
+  "model_spend": [
+    {
+      "cost_micros": 0,
+      "has_unpriced_usage": true,
+      "name": "string"
+    }
   ],
   "name": "string",
-  "providers": [
-    "string"
+  "provider_spend": [
+    {
+      "cost_micros": 0,
+      "display_name": "string",
+      "has_unpriced_usage": true,
+      "icon": "string",
+      "name": "string",
+      "type": "openai"
+    }
   ],
-  "unpriced_usage_count": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "username": "string"
 }
@@ -12897,17 +13124,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
-|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
-| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
-| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
-| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
-| `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
-| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
-| `user_id`              | string          | false    |              |                                                                                                                                                   |
-| `username`             | string          | false    |              |                                                                                                                                                   |
+| Name             | Type                                                                                  | Required | Restrictions | Description                                                                                                                  |
+|------------------|---------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`     | string                                                                                | false    |              |                                                                                                                              |
+| `client_spend`   | array of [codersdk.OrganizationAISpendClient](#codersdkorganizationaispendclient)     | false    |              | Client spend is the user's spend per client, most expensive first. Usage without a recorded client is reported as Unknown.   |
+| `cost_micros`    | integer                                                                               | false    |              | Cost micros is the user's priced spend over the period. It is a lower bound when any entry in ModelSpend has unpriced usage. |
+| `model_spend`    | array of [codersdk.OrganizationAISpendModel](#codersdkorganizationaispendmodel)       | false    |              | Model spend is the user's spend per model, most expensive first.                                                             |
+| `name`           | string                                                                                | false    |              |                                                                                                                              |
+| `provider_spend` | array of [codersdk.OrganizationAISpendProvider](#codersdkorganizationaispendprovider) | false    |              | Provider spend is the user's spend per configured provider, most expensive first.                                            |
+| `user_id`        | string                                                                                | false    |              |                                                                                                                              |
+| `username`       | string                                                                                | false    |              |                                                                                                                              |
 
 ## codersdk.OrganizationChatModelsResponse
 
@@ -13205,6 +13431,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `updated_at`      | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
+
+## codersdk.OrganizationMemberAISpendStatus
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                         |
+|------------------------|--------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                   |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user in this organization. Null when no budget applies, leaving the user's spend unlimited.                 |
+| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group inside this organization that the spend is attributed to, falling back to the organization's Everyone group when no budget applies. |
+| `organization_id`      | string                                           | false    |              |                                                                                                                                                                     |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                      |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                    |
+| `user_id`              | string                                           | false    |              |                                                                                                                                                                     |
 
 ## codersdk.OrganizationMemberWithUserData
 
@@ -17058,12 +17313,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type                                                          | Required | Restrictions | Description                                                      |
-|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------|
-| `count`        | integer                                                       | false    |              | Count is the number of models listed.                            |
-| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are ordered by unpriced token count, highest first.       |
-| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.   |
-| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period. |
+| Name           | Type                                                          | Required | Restrictions | Description                                                                        |
+|----------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------|
+| `count`        | integer                                                       | false    |              | Count is the number of models over every page.                                     |
+| `models`       | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are one page of the models, ordered by unpriced token count, highest first. |
+| `period_end`   | string                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                     |
+| `period_start` | string                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                   |
 
 ## codersdk.UpdateAIProviderRequest
 
@@ -18922,6 +19177,69 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name         | Type                                     | Required | Restrictions | Description |
 |--------------|------------------------------------------|----------|--------------|-------------|
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+
+## codersdk.UserOrganizationAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                     |
+|------------------------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the spend on EffectiveGroupID over the current budget period, the same value the budget check compares. |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit)             | false    |              | Effective budget is null when no budget applies in Organization.                                                                |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the user's effective group inside Organization, falling back to its Everyone group.                       |
+| `organization`         | [codersdk.MinimalOrganization](#codersdkminimalorganization) | false    |              |                                                                                                                                 |
+
+## codersdk.UserOrganizationsAISpendStatus
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organizations": [
+    {
+      "current_spend_micros": 0,
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                   |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization_id` | string                                                                        | false    |              | Organization ID is the organization of the user's site-wide effective group, as reported by UserAISpendStatus. Null when no group resolves or when that organization is not in Organizations. |
+| `organizations`   | array of [codersdk.UserOrganizationAISpend](#codersdkuserorganizationaispend) | false    |              | Organizations is the spend per organization the user is a current member of and the caller can read, ordered by organization name.                                                            |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                                |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                              |
 
 ## codersdk.UserPreferenceSettings
 

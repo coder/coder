@@ -30,6 +30,28 @@ it("selects an option with the keyboard alone", async () => {
 	expect(onSelect).toHaveBeenCalledWith({ label: "Dormant", value: "dormant" });
 });
 
+it("marks the chosen option as selected", async () => {
+	const user = userEvent.setup();
+	const options = [
+		{ label: "Active", value: "active" },
+		{ label: "Dormant", value: "dormant" },
+	];
+	renderComponent(
+		<SelectFilter
+			label="Status"
+			options={options}
+			selectedOption={options[1]}
+			onSelect={vi.fn()}
+		/>,
+	);
+
+	await user.click(screen.getByRole("button", { name: "Status: Dormant" }));
+	await screen.findByRole("option", { name: "Active" });
+	expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
+		"Dormant",
+	);
+});
+
 it("names the search input with the search label", async () => {
 	const user = userEvent.setup();
 	const onValueChange = vi.fn();

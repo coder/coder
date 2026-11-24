@@ -12,6 +12,7 @@ import {
 	MockGroup2,
 	MockGroup3,
 	MockGroupWithoutMembers,
+	MockOrganizationMember,
 	MockWorkspace,
 	MockWorkspaceUser,
 	MockWorkspaceUserAdmin,
@@ -145,4 +146,37 @@ export const NarrowViewport: Story = {
 		],
 	},
 	play: ({ canvasElement }) => openSharing(canvasElement),
+};
+
+export const MemberSelected: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{
+				key: workspaceACLKey(MockWorkspace.id),
+				data: { users: [], group: [] },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember],
+			count: 1,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		await userEvent.click(
+			screen.getByRole("button", { name: "Search for user or group" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganizationMember.username),
+			}),
+		);
+	},
 };

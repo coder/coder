@@ -77,7 +77,7 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-type ComboboxButtonProps = React.ComponentProps<"button"> & {
+type ComboboxButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
@@ -86,7 +86,6 @@ type ComboboxButtonProps = React.ComponentProps<"button"> & {
 };
 
 export const ComboboxButton = ({
-	children,
 	className,
 	width,
 	selectedOption,
@@ -118,7 +117,10 @@ export const ComboboxButton = ({
 		>
 			<TooltipTrigger asChild>
 				<Button
-					className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+					className={cn(
+						"flex items-center justify-between shrink-0 grow gap-2 pr-1.5",
+						className,
+					)}
 					style={{ flexBasis: width }}
 					variant="outline"
 					ref={ref}
@@ -229,6 +231,7 @@ export const ComboboxItem = ({
 	return (
 		<CommandItem
 			value={value}
+			aria-selected={isSelected}
 			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);

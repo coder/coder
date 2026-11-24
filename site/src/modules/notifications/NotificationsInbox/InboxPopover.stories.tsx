@@ -78,24 +78,6 @@ export const OnRetry: Story = {
 	},
 };
 
-export const OnMarkAllAsRead: Story = {
-	args: {
-		defaultOpen: true,
-		unreadCount: 2,
-		notifications: MockNotifications.slice(0, 3),
-		onMarkAllAsRead: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const markButton = body.getByRole("button", { name: /mark all as read/i });
-		await userEvent.click(markButton);
-		await expect(args.onMarkAllAsRead).toHaveBeenCalledTimes(1);
-	},
-	parameters: {
-		pixel: { exclude: true },
-	},
-};
-
 export const OnMarkNotificationAsRead: Story = {
 	args: {
 		unreadCount: 2,

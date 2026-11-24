@@ -359,7 +359,7 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
             "get": {
-                "description": "Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.",
+                "description": "Returns one page of the requested models, for each provider, with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nThe response carries the number of models over every page.\nUnknown query parameters are rejected.",
                 "produces": [
                     "application/json"
                 ],
@@ -389,6 +389,18 @@ const docTemplate = `{
                         "format": "date-time",
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -477,7 +489,7 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/ai/spend/users": {
             "get": {
-                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists their spend per provider, model, and client, most expensive first, and the number of models with unpriced usage. The response carries the user count, total spend, and whether any usage is unpriced over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional user_ids, group_id, provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "application/json"
                 ],
@@ -507,6 +519,19 @@ const docTemplate = `{
                         "format": "date-time",
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of user IDs (maximum 100)",
+                        "name": "user_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
                         "in": "query"
                     },
                     {
@@ -2730,7 +2755,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -8337,7 +8362,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns per-user, per-group, per-model, per-provider, per-client aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage. Usage without a recorded client is reported as Unknown. New columns are only added at the end.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -8393,6 +8418,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Model name",
                         "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client name, or Unknown for usage without a recorded client",
+                        "name": "client",
                         "in": "query"
                     }
                 ],
@@ -9994,6 +10025,47 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/members/{user}/ai/spend": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization member AI spend",
+                "operationId": "get-organization-member-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMemberAISpendStatus"
+                        }
                     }
                 },
                 "security": [
@@ -11722,7 +11794,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provisioner Key",
+                        "description": "Provisioner key placeholder (ignored; the key is read from the Coder-Provisioner-Daemon-Key header)",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -14404,6 +14476,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/spend": {
             "get": {
+                "description": "Returns the user's site-wide effective AI budget and spend in the current budget period.\nThe effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.\nThe response does not depend on which organizations the caller can read.\nTo see spend per organization, use GET /users/{user}/ai/spend/organizations.",
                 "produces": [
                     "application/json"
                 ],
@@ -14426,6 +14499,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserAISpendStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai/spend/organizations": {
+            "get": {
+                "description": "Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.\nOrganizations the caller cannot read are omitted, so the response for a given user can differ between callers.\nEach organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.\norganization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.\nAccess requires permission to read the user, as for GET /users/{user}/ai/spend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI spend by organization",
+                "operationId": "get-user-ai-spend-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserOrganizationsAISpendStatus"
                         }
                     }
                 },
@@ -19833,6 +19941,14 @@ const docTemplate = `{
                 "model": {
                     "type": "string"
                 },
+                "organization": {
+                    "description": "Organization is the organization of this interception. Nil when none\nwas stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganization"
+                        }
+                    ]
+                },
                 "priced_model": {
                     "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
                     "allOf": [
@@ -19941,6 +20057,43 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AIBridgeInterceptionOrganization": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganizationSource"
+                }
+            }
+        },
+        "codersdk.AIBridgeInterceptionOrganizationSource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "chatd",
+                "effective_group"
+            ],
+            "x-enum-varnames": [
+                "AIBridgeInterceptionOrganizationSourceWorkspace",
+                "AIBridgeInterceptionOrganizationSourceChatd",
+                "AIBridgeInterceptionOrganizationSourceEffectiveGroup"
+            ]
         },
         "codersdk.AIBridgeListSessionsResponse": {
             "type": "object",
@@ -20090,6 +20243,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "organizations": {
+                    "description": "Organizations are the organizations this session's interceptions were\nattributed to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionOrganization"
+                    }
+                },
                 "providers": {
                     "type": "array",
                     "items": {
@@ -20127,6 +20287,33 @@ const docTemplate = `{
                 },
                 "domain": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionOrganization": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganizationSource"
+                    }
                 }
             }
         },
@@ -20179,6 +20366,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkDomain"
+                    }
+                },
+                "organizations": {
+                    "description": "Organizations are the organizations this session's interceptions were\nattributed to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionOrganization"
                     }
                 },
                 "page_ended_at": {
@@ -20306,6 +20500,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "organization": {
+                    "description": "Organization is the organization of the root interception. Nil when\nnone was stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganization"
+                        }
+                    ]
                 },
                 "priced_model": {
                     "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
@@ -21736,6 +21938,10 @@ const docTemplate = `{
                 },
                 "password": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
+                },
+                "setup_token_required": {
+                    "description": "SetupTokenRequired is true when the first user can only be\ncreated with a setup token.",
+                    "type": "boolean"
                 },
                 "terms_of_service_url": {
                     "type": "string"
@@ -25061,6 +25267,10 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "setup_token": {
+                    "description": "SetupToken is required when AuthMethods.SetupTokenRequired is\ntrue. The server prints it at startup.",
+                    "type": "string"
+                },
                 "trial": {
                     "type": "boolean"
                 },
@@ -26416,6 +26626,9 @@ const docTemplate = `{
                 },
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
+                },
+                "setup_token": {
+                    "type": "string"
                 },
                 "ssh_keygen_algorithm": {
                     "type": "string"
@@ -29276,6 +29489,40 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationAISpendClient": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend from the client over the period.",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage from the client was\nrecorded without a price.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "Name is the client recorded on the intercepted request. Usage without a\nrecorded client is reported as Unknown.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendModel": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend on the model over the period.",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage of the model was\nrecorded without a price.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "Name is the model the client requested.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OrganizationAISpendOverview": {
             "type": "object",
             "properties": {
@@ -29389,6 +29636,39 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationAISpendProvider": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend through the provider over the period.",
+                    "type": "integer"
+                },
+                "display_name": {
+                    "description": "DisplayName falls back to the provider name when unset.",
+                    "type": "string"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage through the provider\nwas recorded without a price.",
+                    "type": "boolean"
+                },
+                "icon": {
+                    "description": "Icon is empty when the provider has no configured icon.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the name of the configured provider.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is omitted when the provider name was never configured.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderType"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.OrganizationAISpendReport": {
             "type": "object",
             "properties": {
@@ -29430,9 +29710,9 @@ const docTemplate = `{
                     "description": "CostMicros is the priced spend of every matching user.",
                     "type": "integer"
                 },
-                "unpriced_usage_count": {
-                    "description": "UnpricedUsageCount is the number of token usage records without a cost\nacross every matching user.",
-                    "type": "integer"
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any matching token usage was recorded\nwithout a price.",
+                    "type": "boolean"
                 }
             }
         },
@@ -29442,37 +29722,33 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
-                "clients": {
-                    "description": "Clients are the clients the user spent through, sorted. Usage without a\nrecorded client is reported as Unknown.",
+                "client_spend": {
+                    "description": "ClientSpend is the user's spend per client, most expensive first. Usage\nwithout a recorded client is reported as Unknown.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendClient"
                     }
                 },
                 "cost_micros": {
-                    "description": "CostMicros is the user's priced spend over the period.",
+                    "description": "CostMicros is the user's priced spend over the period. It is a lower\nbound when any entry in ModelSpend has unpriced usage.",
                     "type": "integer"
                 },
-                "models": {
-                    "description": "Models are the models the user spent through, sorted.",
+                "model_spend": {
+                    "description": "ModelSpend is the user's spend per model, most expensive first.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendModel"
                     }
                 },
                 "name": {
                     "type": "string"
                 },
-                "providers": {
-                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
+                "provider_spend": {
+                    "description": "ProviderSpend is the user's spend per configured provider, most\nexpensive first.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendProvider"
                     }
-                },
-                "unpriced_usage_count": {
-                    "description": "UnpricedUsageCount is the number of the user's token usage records that\ncarry no cost because their model had no price when they were recorded.",
-                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",
@@ -29574,6 +29850,46 @@ const docTemplate = `{
                     }
                 },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OrganizationMemberAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+                    "type": "integer"
+                },
+                "effective_budget": {
+                    "description": "EffectiveBudget is the spend limit that applies to the user in this\norganization. Null when no budget applies, leaving the user's spend\nunlimited.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the group inside this organization that the spend\nis attributed to, falling back to the organization's Everyone group\nwhen no budget applies.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -33191,11 +33507,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "count": {
-                    "description": "Count is the number of models listed.",
+                    "description": "Count is the number of models over every page.",
                     "type": "integer"
                 },
                 "models": {
-                    "description": "Models are ordered by unpriced token count, highest first.",
+                    "description": "Models are one page of the models, ordered by unpriced token count,\nhighest first.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.UnpricedAIModel"
@@ -34698,6 +35014,58 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserOrganizationAISpend": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the spend on EffectiveGroupID over the current\nbudget period, the same value the budget check compares.",
+                    "type": "integer"
+                },
+                "effective_budget": {
+                    "description": "EffectiveBudget is null when no budget applies in Organization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the user's effective group inside Organization,\nfalling back to its Everyone group.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
+                }
+            }
+        },
+        "codersdk.UserOrganizationsAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "OrganizationID is the organization of the user's site-wide effective\ngroup, as reported by UserAISpendStatus. Null when no group resolves or\nwhen that organization is not in Organizations.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organizations": {
+                    "description": "Organizations is the spend per organization the user is a current\nmember of and the caller can read, ordered by organization name.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserOrganizationAISpend"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

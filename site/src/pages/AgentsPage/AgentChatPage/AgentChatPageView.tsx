@@ -631,7 +631,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									aria-live="polite"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
-									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									<TriangleAlertIcon className="size-4 shrink-0 text-border-warning" />
 									{unavailableModelNotice}
 								</div>
 							)}
@@ -704,7 +704,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 						</ChatWorkspaceContext>
 						{!isArchived && (
-							<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+							<div className="-mt-0.5 shrink-0 overflow-y-auto pt-0.5 pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}
 									store={store}
@@ -1015,7 +1015,7 @@ export const AgentChatPageLoadingView: React.FC<
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+				<div className="-mt-0.5 shrink-0 overflow-y-auto pt-0.5 pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
 						inputRef={inputRef}

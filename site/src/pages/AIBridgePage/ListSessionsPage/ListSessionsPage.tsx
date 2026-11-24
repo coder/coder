@@ -11,6 +11,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { useClientFilterMenu } from "../filters/ClientFilter";
 import { useModelFilterMenu } from "../filters/ModelFilter";
+import { useOrganizationFilterMenu } from "../filters/OrganizationFilter";
 import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { ListSessionsPageView } from "./ListSessionsPageView";
@@ -23,7 +24,7 @@ import {
 
 const AISessionListPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const navigate = useNavigate();
 
 	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
@@ -113,6 +114,16 @@ const AISessionListPage: React.FC = () => {
 			}),
 	});
 
+	const organizationMenu = useOrganizationFilterMenu({
+		value: filter.values.organization,
+		enabled: showOrganizations,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				organization: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Gateway")}</title>
@@ -120,6 +131,7 @@ const AISessionListPage: React.FC = () => {
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
+				isPlaceholderData={sessionsQuery.isPlaceholderData}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}
@@ -135,6 +147,7 @@ const AISessionListPage: React.FC = () => {
 						provider: providerMenu,
 						client: clientMenu,
 						model: modelMenu,
+						organization: showOrganizations ? organizationMenu : undefined,
 					},
 					timeRange: {
 						start: timeRange.start,

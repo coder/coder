@@ -85,9 +85,8 @@ export const Empty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /^Provider:/ }));
-		await waitFor(() => {
-			expect(screen.getByText("No providers found")).toBeVisible();
-		});
+		// The message also renders in the Command status region.
+		await screen.findAllByText("No providers found");
 		expect(screen.queryByRole("option")).toBeNull();
 	},
 };

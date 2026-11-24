@@ -89,7 +89,7 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		...MockOrganizationAISpendReport,
 		...period,
 		count: users.length,
-		totals: { cost_micros: 30_000_000, unpriced_usage_count: 0 },
+		totals: { cost_micros: 30_000_000, has_unpriced_usage: false },
 		users: users.slice(
 			params.offset ?? 0,
 			(params.offset ?? 0) + (params.limit ?? 10),
