@@ -194,6 +194,60 @@ Don't shorten it to "the agent" on a page that also discusses AI agents or Coder
 *Documentation-only.
 No Vale rule.*
 
+## Label sandboxing capabilities as Native or Integrated
+
+Pages about sandboxing AI agents describe what Coder does and what other tools do.
+Coder provisions the workspace, keeps compute ready, limits which sandbox each workload can get, limits the credentials that the workspace agent can reach, and records what the agent does.
+Tools that Coder works with provide the rest, such as kernel isolation, network rules, and just-in-time credentials.
+Label each capability, so the reader can tell what Coder provides and what they install and run themselves:
+
+| Label              | Use for                                                                                                                                | Examples                                                   |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `Native`           | A capability that Coder provides itself, which the reader configures in Coder or with the Coder Terraform provider                     | Parameters and presets, API key scopes                     |
+| `Native (Premium)` | A Native capability that needs a Premium license                                                                                       | AI Gateway, prebuilt workspaces, workspace process logging |
+| `Integrated`       | Isolation that a third-party tool, runtime, or cloud service provides, which the reader runs alongside Coder and sets up in a template | Kubernetes NetworkPolicy, gVisor, Cilium, HashiCorp Vault  |
+
+Label what enforces the limit, not the template that sets it up.
+A registry template that turns on gVisor sets up an Integrated method, even when Coder publishes the template.
+
+When every method in a section has the same label, state the label once in the section's introduction.
+When a table compares methods that have different labels, put the label in a `Type` column after the method name.
+When a page introduces a method in prose instead, state the label in the sentence that introduces the method.
+A later section that expands on a method the page already labeled doesn't repeat the label.
+
+Use the sentence or the column, not a callout for each method.
+[Callouts](./formatting.md#callouts) are for asides, and they lose their weight when every method has one.
+
+**Do**:
+
+```md
+Every method in this section is Integrated: a hypervisor, runtime, or cloud service isolates the kernel, and your template turns it on for each workspace.
+```
+
+```md
+| Method          | Type             | How it works                                          |
+|-----------------|------------------|-------------------------------------------------------|
+| API key scopes  | Native           | Give the agent a token with only the scopes it needs. |
+| AI Gateway      | Native (Premium) | The agent calls model providers through Coder.        |
+| Dynamic secrets | Integrated       | A secrets manager issues a short-lived credential.    |
+```
+
+**Don't**:
+
+```md
+| Method                   | How it works                                          | Tradeoffs                                       |
+|--------------------------|-------------------------------------------------------|-------------------------------------------------|
+| API key scopes           | Give the agent a token with only the scopes it needs. | Available in Coder. A narrow scope fails tasks. |
+| AI Gateway               | The agent calls model providers through Coder.        | Coder Premium. The agent needs a Coder token.   |
+| Kubernetes NetworkPolicy | Rules by IP address and port apply to the whole Pod.  | Built in, but IP-based.                         |
+```
+
+The **Don't** puts who provides each method in the Tradeoffs column, worded differently on each row.
+"Built in" can also mean built into Coder or built into Kubernetes.
+
+*Documentation-only.
+No Vale rule.*
+
 ## One term per concept
 
 Pick one name for each thing, then use that name every time the thing appears.
