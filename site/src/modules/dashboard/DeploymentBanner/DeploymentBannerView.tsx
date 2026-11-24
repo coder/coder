@@ -14,7 +14,7 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import { Fragment, memo, useEffect, useId, useMemo, useState } from "react";
+import { Fragment, memo, useId, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import { appFamilyDisplayNames } from "#/api/appFamiliesGenerated";
 import {
@@ -35,6 +35,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useTime } from "#/hooks/useTime";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 /** Unstyled native button so text-only tooltip triggers are keyboard focusable. */
@@ -45,12 +46,15 @@ type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
 	fetchStats?: () => void;
+	/** When the stats will next be fetched, in milliseconds since the epoch. */
+	refreshAt?: number;
 };
 
 export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 	health,
 	stats,
 	fetchStats,
+	refreshAt,
 }) => {
 	const aggregatedMinutes = useMemo(() => {
 		if (!stats) {
@@ -59,49 +63,11 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 		return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
 	}, [stats]);
 
-	const [timeUntilRefresh, setTimeUntilRefresh] = useState(() =>
-		stats && fetchStats ? getSecondsUntilRefresh(stats) : 0,
-	);
-
-	// The countdown restarts whenever the effect below re-runs, so it compares
-	// the same inputs by reference.
-	const [prevRefreshInputs, setPrevRefreshInputs] = useState({
-		stats,
-		fetchStats,
-	});
-	if (
-		stats !== prevRefreshInputs.stats ||
-		fetchStats !== prevRefreshInputs.fetchStats
-	) {
-		setPrevRefreshInputs({ stats, fetchStats });
-		if (stats && fetchStats) {
-			setTimeUntilRefresh(getSecondsUntilRefresh(stats));
-		}
-	}
-
-	useEffect(() => {
-		if (!stats || !fetchStats) {
-			return;
-		}
-
-		let timeUntilRefresh = getSecondsUntilRefresh(stats);
-		let canceled = false;
-		const loop = () => {
-			if (canceled) {
-				return undefined;
-			}
-			setTimeUntilRefresh(timeUntilRefresh--);
-			if (timeUntilRefresh > 0) {
-				return window.setTimeout(loop, 1000);
-			}
-			fetchStats();
-		};
-		const timeout = setTimeout(loop, 1000);
-		return () => {
-			canceled = true;
-			clearTimeout(timeout);
-		};
-	}, [fetchStats, stats]);
+	const now = useTime(() => Date.now(), { disabled: refreshAt === undefined });
+	const timeUntilRefresh =
+		refreshAt === undefined
+			? 0
+			: Math.max(0, Math.ceil((refreshAt - now) / 1000));
 
 	const lastAggregated = formatLastAggregated(stats, Boolean(fetchStats));
 
@@ -307,10 +273,6 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 			</div>
 		</section>
 	);
-};
-
-const getSecondsUntilRefresh = (stats: DeploymentStats): number => {
-	return dayjs(stats.next_update_at).diff(stats.collected_at, "seconds");
 };
 
 /**

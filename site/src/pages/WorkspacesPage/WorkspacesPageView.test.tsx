@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { API } from "#/api/api";
@@ -8,6 +8,7 @@ import {
 	MockDeletingWorkspace,
 	MockPendingWorkspace,
 	MockStoppedWorkspace,
+	MockStoppingWorkspace,
 	MockTemplate,
 	MockWorkspace,
 } from "#/testHelpers/entities";
@@ -329,5 +330,24 @@ describe("WorkspacesPageView", () => {
 		expect(
 			screen.queryByRole("menuitem", { name: /restart/i }),
 		).not.toBeInTheDocument();
+	});
+
+	it("closes the actions menu when a new build starts", async () => {
+		const user = userEvent.setup();
+		renderSelection(
+			[MockWorkspace],
+			[{ ...MockStoppingWorkspace, id: MockWorkspace.id }],
+		);
+
+		await screen.findByText(MockWorkspace.name);
+		await user.click(screen.getByTestId("workspace-options-button"));
+		await screen.findByRole("menu");
+
+		// fireEvent skips the pointer events that would dismiss the menu.
+		fireEvent.click(screen.getByRole("button", { name: "Refresh workspaces" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+		});
 	});
 });

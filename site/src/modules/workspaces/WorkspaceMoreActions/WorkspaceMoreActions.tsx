@@ -115,21 +115,21 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
-	// Since the workspace state is not updated immediately after the mutation, we
-	// need to be sure the menu is closed when the action gets disabled.
+	// The menu closes when a new build starts, because its actions may no
+	// longer apply. The workspace data can lag behind an action, so the menu
+	// may have been opened before the build arrived.
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
-	const [open, setOpen] = useState(false);
-	const [prevDisabled, setPrevDisabled] = useState(disabled);
-	if (disabled !== prevDisabled) {
-		setPrevDisabled(disabled);
-		if (disabled) {
-			setOpen(false);
-		}
-	}
+	const [openedForBuildId, setOpenedForBuildId] = useState<string>();
+	const open = openedForBuildId === workspace.latest_build.id;
 
 	return (
 		<>
-			<DropdownMenu open={open} onOpenChange={setOpen}>
+			<DropdownMenu
+				open={open}
+				onOpenChange={(nextOpen) => {
+					setOpenedForBuildId(nextOpen ? workspace.latest_build.id : undefined);
+				}}
+			>
 				<DropdownMenuTrigger asChild>
 					<Button
 						size="icon-lg"
