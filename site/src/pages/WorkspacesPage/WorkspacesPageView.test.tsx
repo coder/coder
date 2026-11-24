@@ -340,14 +340,15 @@ describe("WorkspacesPageView", () => {
 		);
 
 		await screen.findByText(MockWorkspace.name);
-		await user.click(screen.getByTestId("workspace-options-button"));
-		await screen.findByRole("menu");
+		const optionsButton = screen.getByTestId("workspace-options-button");
+		await user.click(optionsButton);
+		expect(optionsButton).toHaveAttribute("aria-expanded", "true");
 
 		// fireEvent skips the pointer events that would dismiss the menu.
 		fireEvent.click(screen.getByRole("button", { name: "Refresh workspaces" }));
 
 		await waitFor(() => {
-			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+			expect(optionsButton).toHaveAttribute("aria-expanded", "false");
 		});
 	});
 });
