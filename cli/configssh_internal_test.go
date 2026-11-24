@@ -391,6 +391,20 @@ func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
 			},
 			wantErr: `glob`,
 		},
+		{
+			name: "HostnamePrefixGlob",
+			coderd: codersdk.SSHConfigResponse{
+				HostnamePrefix: "*",
+			},
+			wantErr: `glob`,
+		},
+		{
+			name: "HostnamePrefixQuestionMark",
+			coderd: codersdk.SSHConfigResponse{
+				HostnamePrefix: "coder?.",
+			},
+			wantErr: `glob`,
+		},
 	}
 
 	for _, tt := range testCases {
