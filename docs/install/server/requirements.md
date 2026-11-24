@@ -52,7 +52,8 @@ For production, use an [external PostgreSQL database](./external-database.md) wi
 
 ## Internet access
 
-All Coder features work without internet access.
+Coder runs without internet access.
+Features that call a service outside your network, such as a hosted AI provider, work only if your network can reach that service.
 A deployment without internet access needs the following:
 
 - An external PostgreSQL database.

@@ -34,8 +34,9 @@ If you need to size the deployment before you choose a platform, refer to [Plan 
 
 ## Deployments without internet access
 
-All Coder features work in a network with no internet access.
-If the deployment has none, read [Air-gapped deployments](../prepare/airgap.md) before you install, and use it alongside the guide for your platform.
+Coder runs in a network with no internet access.
+Features that call a service outside your network, such as a hosted AI provider, work only if your network can reach that service.
+If the deployment has no internet access, read [Air-gapped deployments](../prepare/airgap.md) before you install, and use it alongside the guide for your platform.
 An air-gapped deployment needs an external PostgreSQL database and a way to install the Terraform providers that your templates use without the public Terraform registry.
 To try an air-gapped deployment from start to finish on one machine, follow [Install Coder on K3s in an air-gapped environment](./kubernetes/k3s-air-gapped.md).
 

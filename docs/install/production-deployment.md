@@ -18,7 +18,7 @@ The phases are recommendations, not a gate: you can install the control plane at
 | [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | A proof of concept can use the built-in database and skip the license and the identity provider application |
 | [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | Never: every deployment needs this phase                                                                    |
 | [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | An evaluation, until real users depend on the deployment                                                    |
-| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | Only after the deployment is running                                                                        |
+| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | Never: it starts once the deployment is running                                                             |
 
 Each phase page ends with a link to the next one, so you can also enter anywhere and keep reading in order.
 Most of the prerequisites in phase 2 belong to another team, so start the slowest requests early.
