@@ -83,6 +83,7 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 				presets={spendQuickPresets}
 				maxDays={MaxAISpendPeriodDays}
 				minDate={minDate}
+				valuePrefix="Time range:"
 				size="lg"
 			/>
 		</div>

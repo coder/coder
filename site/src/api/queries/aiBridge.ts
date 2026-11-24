@@ -40,18 +40,30 @@ export const paginatedSessions = (
 	};
 };
 
+export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+
 export const aiBridgeProviders = () => ({
-	queryKey: ["aiBridgeProviders"],
+	queryKey: aiBridgeProvidersKey,
 	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
 });
 
-export const aiBridgeModels = (options: Pagination & { model?: string }) => ({
-	queryKey: ["aiBridgeModels", options],
+type AIBridgeModelsOptions = Pagination & { model?: string };
+
+export const aiBridgeModelsKey = (options: AIBridgeModelsOptions) =>
+	["aiBridgeModels", options] as const;
+
+export const aiBridgeModels = (options: AIBridgeModelsOptions) => ({
+	queryKey: aiBridgeModelsKey(options),
 	queryFn: () => API.getAIBridgeModels(options),
 });
 
-export const aiBridgeClients = (options: Pagination & { q?: string }) => ({
-	queryKey: ["aiBridgeClients", options],
+type AIBridgeClientsOptions = Pagination & { q?: string };
+
+export const aiBridgeClientsKey = (options: AIBridgeClientsOptions) =>
+	["aiBridgeClients", options] as const;
+
+export const aiBridgeClients = (options: AIBridgeClientsOptions) => ({
+	queryKey: aiBridgeClientsKey(options),
 	queryFn: () => API.getAIBridgeClients(options),
 });
 
