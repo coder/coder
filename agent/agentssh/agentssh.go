@@ -568,19 +568,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	keepAlive := ctx.KeepAlive()
 	conn, _ := ctx.Value(readErrorConnContextKey{}).(*readErrorConn)
-	reportSession := true
-
-	if family == codersdk.AppFamilyJetBrains {
-		// Do nothing here because JetBrains launches hundreds of ssh sessions.
-		// We instead track JetBrains in the single persistent tcp forwarding channel.
-		reportSession = false
-	} else {
-		endSession := s.startSession(appName)
-		defer endSession()
-	}
+	// JetBrains launches hundreds of ssh sessions, so it is tracked in its single
+	// persistent tcp forwarding channel instead.
+	reportSession := family != codersdk.AppFamilyJetBrains
 
 	closeCause := func(_ string) {}
 	if reportSession {
+		endSession := s.startSession(appName)
 		var reason codersdk.DisconnectReason
 		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
@@ -597,6 +591,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		var reportOnce sync.Once
 		report := func(reason codersdk.DisconnectReason) {
 			reportOnce.Do(func() {
+				// Count the session until its disconnect is reported, not until
+				// its process exits, so session counts match the connection log.
+				endSession()
 				netErr := conn.networkError()
 				if netErr != nil || keepAlive.TimedOut() {
 					reason = codersdk.DisconnectReasonNetworkError
