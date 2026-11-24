@@ -19,12 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
-// webhookUnsubscribeTimeout bounds the unsubscribe that a delete or disable
-// makes before it answers.
+// webhookUnsubscribeTimeout bounds the unsubscribe of a delete or disable.
 const webhookUnsubscribeTimeout = 15 * time.Second
 
-// webhookEnvelope holds the fields of the control envelopes that the events
-// extension POSTs besides events. A body without a type is an event.
+// webhookEnvelope is a control envelope; a body without a type is an event.
 type webhookEnvelope struct {
 	Type      string  `json:"type"`
 	Challenge string  `json:"challenge"`
@@ -34,11 +32,10 @@ type webhookEnvelope struct {
 	} `json:"error"`
 }
 
-// ReceiveMCPEventWebhook answers one Standard Webhooks delivery to the
-// callback URL of an automation. It returns the HTTP status and, for a
-// verification, the challenge to echo. 410 tells the server to drop a
-// delivery that no subscription takes, 401 rejects one that does not verify,
-// and 503 asks it to retry later.
+// ReceiveMCPEventWebhook answers one Standard Webhooks delivery to an
+// automation's callback URL with the HTTP status and, for a verification, the
+// challenge to echo. 410 drops a delivery that no subscription takes, 401 one
+// that does not verify, and 503 asks for a retry.
 func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.UUID, header http.Header, body []byte) (status int, challenge string) {
 	//nolint:gocritic // A delivery has no session; its signature authenticates it.
 	ctx = dbauthz.AsChatd(ctx)
@@ -107,13 +104,12 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	return http.StatusOK, ""
 }
 
-// errOwnerAutomationsOff asks the server to retry: the experiment check
-// fails closed, so a refusal can be brief.
+// errOwnerAutomationsOff asks for a retry: the experiment check fails closed.
 var errOwnerAutomationsOff = xerrors.New("chat automations are off for the owner")
 
 // webhookTarget returns the webhook subscription of automationID and its
-// secret. errSubscriptionInactive means that no enabled automation has a live
-// webhook subscription there whose MCP server config is still enabled.
+// secret, or errSubscriptionInactive when no enabled automation and config
+// take deliveries there.
 func (p *Server) webhookTarget(ctx context.Context, automationID uuid.UUID) (database.ChatAutomationMCPSubscription, string, error) {
 	var none database.ChatAutomationMCPSubscription
 	automation, err := p.db.GetChatAutomationByID(ctx, automationID)
@@ -134,8 +130,7 @@ func (p *Server) webhookTarget(ctx context.Context, automationID uuid.UUID) (dat
 		subs[0].State == database.ChatAutomationSubscriptionStateTerminated {
 		return none, "", errSubscriptionInactive
 	}
-	// A server whose config an admin disabled or deleted (NULL here)
-	// delivers nothing.
+	// An admin disabled or deleted (NULL here) the server's config.
 	cfg, err := p.db.GetMCPServerConfigByID(ctx, subs[0].MCPServerConfigID.UUID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && !cfg.Enabled) {
 		return none, "", errSubscriptionInactive
@@ -151,8 +146,7 @@ func (p *Server) webhookTarget(ctx context.Context, automationID uuid.UUID) (dat
 }
 
 // tickWebhookRenewals subscribes again each webhook subscription whose
-// renewal is due, before the server's grant ends, and subscribes a pending
-// one that its subscribe left behind.
+// renewal is due, and each pending one that its subscribe left behind.
 func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 	//nolint:gocritic // The renewal reads the subscriptions and secrets of every owner.
 	ctx = dbauthz.AsChatd(ctx)
@@ -179,8 +173,7 @@ func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 }
 
 // renewWebhook subscribes sub with its stored cursor and secret and stores
-// the grant. It renews nothing for an owner whose runs are refused; the
-// lease retries.
+// the grant. For an owner whose runs are refused, the lease retries.
 func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMCPSubscription) {
 	if !sub.MCPServerConfigID.Valid {
 		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPServerUnavailable)

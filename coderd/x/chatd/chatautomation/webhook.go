@@ -22,16 +22,13 @@ import (
 )
 
 const (
-	// webhookTTL is the lifetime that a webhook subscribe suggests. The
-	// server's grant decides.
+	// webhookTTL is the lifetime that a subscribe asks for; the grant decides.
 	webhookTTL = time.Hour
 	// webhookMaxAge bounds the replay of a subscribe with a stored cursor.
 	webhookMaxAge = 24 * time.Hour
-	// webhookPendingLease is how long the automation loop leaves a pending
-	// subscription to the subscribe that created it.
+	// webhookPendingLease leaves a pending subscription to its subscribe.
 	webhookPendingLease = 2 * time.Minute
-	// codeCallbackEndpointError means that the server could not verify or
-	// reach the callback URL.
+	// codeCallbackEndpointError means that the callback URL failed.
 	codeCallbackEndpointError = -32027
 )
 
@@ -60,9 +57,8 @@ func deliveryModes(offered []mcpclient.DeliveryMode, accessURL *url.URL) []mcpcl
 // Unsubscriber ends a webhook subscription on its MCP server, best effort.
 type Unsubscriber func(ctx context.Context, owner uuid.UUID, sub database.ChatAutomationMCPSubscription)
 
-// WebhookURL returns the callback URL of an automation's webhook deliveries.
-// The path names the automation, so that each subscription has its own
-// server-side key and secret.
+// WebhookURL returns an automation's callback URL. The path names the
+// automation, so each subscription has its own server-side key and secret.
 func WebhookURL(accessURL *url.URL, automationID uuid.UUID) string {
 	if accessURL == nil {
 		accessURL = &url.URL{}
@@ -117,10 +113,9 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 	return grant
 }
 
-// subscribeWebhook creates the automation with a pending webhook
-// subscription and its secret, and then subscribes, so that the receiver can
-// answer the server's verification during the call. A failed subscribe
-// deletes the automation.
+// subscribeWebhook creates the automation with a pending subscription and
+// its secret before it subscribes, so that the receiver can answer the
+// verification during the call. A failed subscribe deletes the automation.
 func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclient.EventsSession, cfg database.MCPServerConfig, args toolArgs, arguments json.RawMessage) (database.ChatAutomation, database.ChatAutomationMCPSubscription, error) {
 	secret, err := chatwebhook.GenerateSecret()
 	if err != nil {

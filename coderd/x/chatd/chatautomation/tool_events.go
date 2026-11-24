@@ -43,8 +43,7 @@ type EventSource interface {
 	Servers(ctx context.Context) ([]database.MCPServerConfig, error)
 	// Open opens an events session to cfg. The caller closes it.
 	Open(ctx context.Context, cfg database.MCPServerConfig) (*mcpclient.EventsSession, error)
-	// Unsubscribe ends a webhook subscription on its MCP server, best
-	// effort.
+	// Unsubscribe ends a webhook subscription, best effort.
 	Unsubscribe(ctx context.Context, owner uuid.UUID, sub database.ChatAutomationMCPSubscription)
 }
 

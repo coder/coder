@@ -147,7 +147,6 @@ type SubscribeResult struct {
 // WebhookDeliveryStatus says how the deliveries of a webhook subscription
 // fare. LastError is a category such as "timeout" or "http_4xx".
 type WebhookDeliveryStatus struct {
-	Active    bool    `json:"active"`
 	LastError *string `json:"lastError"`
 }
 
