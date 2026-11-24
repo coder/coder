@@ -24,7 +24,7 @@ func userACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
 
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("t.id :: text", []string{"input", "object", "id"}),
 		sqltypes.StringVarMatcher("t.organization_id :: text", []string{"input", "object", "org_owner"}),
 		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
@@ -38,7 +38,7 @@ func TemplateConverter() *sqltypes.VariableConverter {
 
 func WorkspaceConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("workspaces.id :: text", []string{"input", "object", "id"}),
 		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
 		userOwnerMatcher(),
 	)
@@ -52,7 +52,7 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("audit_logs.id :: text", []string{"input", "object", "id"}),
 		sqltypes.UUIDVarMatcher("audit_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Audit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
@@ -66,7 +66,7 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 
 func ConnectionLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("connection_logs.id :: text", []string{"input", "object", "id"}),
 		sqltypes.UUIDVarMatcher("connection_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Connection logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
