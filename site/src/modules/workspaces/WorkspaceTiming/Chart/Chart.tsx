@@ -140,37 +140,13 @@ export const ChartSearch = (props: SearchFieldProps) => {
 	);
 };
 
-export type ChartLegend = {
+/** How a bar's category, such as a resource action or script status, is shown. */
+export type ChartCategory = {
 	label: string;
 	className?: string;
 };
 
-type ChartLegendsProps = {
-	legends: ChartLegend[];
-};
-
-export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
-	return (
-		<ul className="m-0 flex list-none items-center gap-6 pr-(--section-padding) p-0">
-			{legends.map((l) => (
-				<li
-					key={l.label}
-					className="flex items-center gap-2 font-medium leading-none"
-				>
-					<div
-						className={cn(
-							"size-icon-sm rounded border bg-surface-primary",
-							l.className,
-						)}
-					/>
-					{l.label}
-				</li>
-			))}
-		</ul>
-	);
-};
-
-type ChartRowLegendProps = {
+type ChartCategoryLabelProps = {
 	label: string;
 };
 
@@ -179,7 +155,9 @@ type ChartRowLegendProps = {
  * Hidden from assistive technology because the bar's accessible name already
  * includes the label.
  */
-export const ChartRowLegend: React.FC<ChartRowLegendProps> = ({ label }) => {
+export const ChartCategoryLabel: React.FC<ChartCategoryLabelProps> = ({
+	label,
+}) => {
 	return (
 		<span aria-hidden className="whitespace-nowrap text-content-secondary">
 			{label}

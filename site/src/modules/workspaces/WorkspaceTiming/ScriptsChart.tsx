@@ -9,10 +9,9 @@ import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
+	type ChartCategory,
+	ChartCategoryLabel,
 	ChartContent,
-	type ChartLegend,
-	ChartLegends,
-	ChartRowLegend,
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
@@ -54,9 +53,6 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
-	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
-		(s) => legendsByStatus[s],
-	);
 
 	return (
 		<Chart>
@@ -77,25 +73,24 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 					value={filter}
 					onChange={setFilter}
 				/>
-				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
 				<ChartTable caption={`Scripts in ${stage.name} stage`} ticks={ticks}>
 					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
-							const legend = legendsByStatus[t.status];
+							const category = categoriesByStatus[t.status];
 
 							return (
 								<ChartTableRow key={t.name} label={t.name}>
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<FocusableBar
-												aria-label={`${t.name}: ${legend.label}`}
+												aria-label={`${t.name}: ${category.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												className={legend.className}
+												className={category.className}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -107,7 +102,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									</Tooltip>
 
 									{formatTime(duration)}
-									<ChartRowLegend label={legend.label} />
+									<ChartCategoryLabel label={category.label} />
 								</ChartTableRow>
 							);
 						})}
@@ -139,9 +134,9 @@ function tooltipContent(t: ScriptTiming): React.ReactNode {
 	}
 }
 
-// Keyed by the union so a status without a legend fails the type check
+// Keyed by the union so a status without a category fails the type check
 // instead of omitting its label at runtime.
-const legendsByStatus: Record<WorkspaceAgentScriptStatus, ChartLegend> = {
+const categoriesByStatus: Record<WorkspaceAgentScriptStatus, ChartCategory> = {
 	ok: {
 		label: "success",
 		className: "bg-chart-success border-chart-success-border",
