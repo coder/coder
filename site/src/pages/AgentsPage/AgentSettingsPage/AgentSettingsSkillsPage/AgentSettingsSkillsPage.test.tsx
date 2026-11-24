@@ -80,12 +80,14 @@ describe("AgentSettingsSkillsPage", () => {
 				name,
 				content: `---\nname: ${name}\n---\nBody\n`,
 			}));
-		const viewSkill = async (organizationName: string) => {
+		const viewSkill = async (organizationName: string, skill: string) => {
 			const table = await screen.findByRole("table", {
 				name: organizationName,
 			});
 			await user.click(
-				await within(table).findByRole("button", { name: "Open menu" }),
+				await within(table).findByRole("button", {
+					name: `Open menu for ${skill}`,
+				}),
 			);
 			await user.click(await screen.findByRole("menuitem", { name: /View/ }));
 			await user.click(await screen.findByRole("button", { name: "Close" }));
@@ -93,7 +95,7 @@ describe("AgentSettingsSkillsPage", () => {
 
 		renderWithAuth(<AgentSettingsSkillsPage />);
 
-		await viewSkill(MockDefaultOrganization.display_name);
+		await viewSkill(MockDefaultOrganization.display_name, "default-skill");
 		expect(getOrganizationSkillByName).toHaveBeenLastCalledWith(
 			MockDefaultOrganization.id,
 			"default-skill",
@@ -108,7 +110,7 @@ describe("AgentSettingsSkillsPage", () => {
 			}),
 		);
 		await user.click(screen.getByRole("option", { name: /My Organization 2/ }));
-		await viewSkill(MockOrganization2.display_name);
+		await viewSkill(MockOrganization2.display_name, "second-skill");
 		expect(getOrganizationSkillByName).toHaveBeenLastCalledWith(
 			MockOrganization2.id,
 			"second-skill",

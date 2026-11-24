@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent } from "storybook/test";
+import { fn, screen, userEvent } from "storybook/test";
 import type {
 	OrganizationAISpendModel,
 	OrganizationAISpendOverview,
@@ -91,6 +91,7 @@ const meta = {
 		topSpenderDetailsError: null,
 		organizationName: "Coder",
 		canViewSessions: true,
+		onOpenDetailedReport: fn(),
 	},
 	decorators: [
 		(Story) => (

@@ -188,6 +188,12 @@ type StatusMessageInput = {
 // category key starts with "__load__".
 const INLINE_LOAD_ROW_VALUE_PREFIX = "__load__:";
 
+/**
+ * cmdk value of the scope toggle row in an open category. It is not a
+ * `key:value` token, so it never matches an option.
+ */
+export const SCOPE_TOGGLE_ROW_VALUE = "__scope__";
+
 /** Shown and announced when a category's options fail to load. */
 export const optionsLoadErrorMessage = (label: string) =>
 	`Couldn’t load ${label} options.`;
@@ -1557,9 +1563,11 @@ export const useFilterCombobox = ({
 			const hasHighlightedOption = activeOptions?.some(
 				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);
+			// cmdk toggles a highlighted scope row on Enter.
 			if (
 				!activeOptionsLoading &&
 				!hasHighlightedOption &&
+				highlighted !== SCOPE_TOGGLE_ROW_VALUE &&
 				parseChipToken(candidate, chipKeys)
 			) {
 				event.preventDefault();

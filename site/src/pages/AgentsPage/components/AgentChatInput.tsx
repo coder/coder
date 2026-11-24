@@ -402,6 +402,24 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [highlightKey]);
+	// Browsers treat any contenteditable focus as focus-visible, including
+	// autofocus, so only ring focus that arrived via Tab.
+	const lastInputWasTabRef = useRef(false);
+	const [isEditorKeyboardFocused, setIsEditorKeyboardFocused] = useState(false);
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			lastInputWasTabRef.current = event.key === "Tab";
+		};
+		const handlePointerDown = () => {
+			lastInputWasTabRef.current = false;
+		};
+		document.addEventListener("keydown", handleKeyDown, true);
+		document.addEventListener("pointerdown", handlePointerDown, true);
+		return () => {
+			document.removeEventListener("keydown", handleKeyDown, true);
+			document.removeEventListener("pointerdown", handlePointerDown, true);
+		};
+	}, []);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1018,12 +1036,29 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs",
+					isEditorKeyboardFocused && "ring-2 ring-content-link",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingMessage || warning) && "shadow-(--shadow-border-warning)",
 				)}
 				onKeyDown={handleComposerKeyDown}
+				onFocus={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(lastInputWasTabRef.current);
+					}
+				}}
+				onBlur={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(false);
+					}
+				}}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
