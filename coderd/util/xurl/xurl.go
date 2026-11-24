@@ -3,9 +3,12 @@
 package xurl
 
 import (
+	"net/netip"
 	"net/url"
 	"strings"
 	"unicode"
+
+	"github.com/coder/safedial"
 )
 
 // ContainsEncodedPath reports whether u's path is unsafe to forward to
@@ -48,4 +51,23 @@ func ContainsEncodedPath(u *url.URL) bool {
 
 func isPathSeparator(r rune) bool {
 	return r == '/' || r == '\\'
+}
+
+// IsPublicHTTPS reports whether u is an https URL whose host could be
+// reachable from the public internet: the host is not localhost and is
+// not an IP literal in a range that safedial blocks (loopback, private,
+// link-local, multicast, carrier-grade NAT, documentation, and other
+// special-use ranges). Host names are not resolved.
+func IsPublicHTTPS(u *url.URL) bool {
+	if u == nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return false
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return safedial.CheckAddr(ip) == nil
+	}
+	return true
 }

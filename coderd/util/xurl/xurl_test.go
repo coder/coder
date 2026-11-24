@@ -55,3 +55,22 @@ func TestContainsEncodedPath(t *testing.T) {
 		})
 	}
 }
+
+func TestIsPublicHTTPS(t *testing.T) {
+	t.Parallel()
+
+	for rawURL, want := range map[string]bool{
+		"https://coder.example.com":  true,
+		"https://8.8.8.8:8443/coder": true,
+		"http://coder.example.com":   false,
+		"https://localhost":          false,
+		"https://dev.localhost":      false,
+		"https://localhost.":         false,
+		// safedial owns the IP ranges; one blocked literal shows the delegation.
+		"https://100.64.1.2": false,
+	} {
+		u, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		require.Equal(t, want, xurl.IsPublicHTTPS(u), rawURL)
+	}
+}
