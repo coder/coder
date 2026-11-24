@@ -109,32 +109,20 @@ func SetFamilyArchived(
 		}
 		familyChats = make([]database.Chat, 0, len(ids))
 		for _, id := range ids {
-			var chat database.Chat
 			machine := NewChatMachine(tx, buffer, id)
-			err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
+			chat, err := machine.Update(ctx, func(state *Tx, _ database.Store, snapshot *ChatSnapshot) error {
 				// Classify each member so any invalid execution state
 				// aborts and rolls back the whole family update, even
 				// when that member already has the requested archived
 				// value.
-				current, from, err := state.loadState()
-				if err != nil {
-					return err
-				}
-				if from == StateInvalid {
+				if snapshot.State() == StateInvalid {
 					return ErrInvalidState
 				}
-				if current.Archived == input.Archived {
-					chat = current
+				if snapshot.Chat.Archived == input.Archived {
 					return nil
 				}
-				if _, err := state.SetArchived(SetArchivedInput{Archived: input.Archived}); err != nil {
-					return err
-				}
-				chat, err = state.Store().GetChatByID(state.Ctx(), state.ChatID())
-				if err != nil {
-					return xerrors.Errorf("reload archived chat: %w", err)
-				}
-				return nil
+				_, err := state.SetArchived(SetArchivedInput{Snapshot: snapshot, Archived: input.Archived})
+				return err
 			})
 			if err != nil {
 				return err
@@ -165,9 +153,10 @@ type SetFamilyProjectInput struct {
 
 // SetFamilyProject moves a root chat into a project, or out of its
 // project, inside one transaction. Every family member must be in W,
-// E0 or E1, or the move rolls back, so no step of the family runs with
-// the old project's memory tools after the move. Subagent chats have no
-// project and use the root's, so only the root's project_id changes.
+// E0, E1, E1P or P, or the move rolls back, so no step of the family
+// runs with the old project's memory tools after the move. Subagent
+// chats have no project and use the root's, so only the root's
+// project_id changes.
 //
 // Like [SetFamilyArchived], it locks the root first and then each
 // member in GetChatFamilyIDsByRootID order, and it publishes only after
@@ -220,8 +209,8 @@ func SetFamilyProject(
 			}
 			var chat database.Chat
 			machine := NewChatMachine(tx, buffer, id)
-			err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
-				result, err := state.SetProject(SetProjectInput{ProjectID: projectID})
+			_, err := machine.Update(ctx, func(state *Tx, _ database.Store, snapshot *ChatSnapshot) error {
+				result, err := state.SetProject(SetProjectInput{Snapshot: snapshot, ProjectID: projectID})
 				if err != nil {
 					return err
 				}

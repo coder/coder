@@ -8,6 +8,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { pageTitle } from "#/utils/page";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { useTokensData } from "./hooks";
 import { TokensPageView } from "./TokensPageView";
@@ -34,6 +35,7 @@ const TokensPage: React.FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("Tokens", "Settings")}</title>
 			<SettingsHeader
 				actions={
 					<Button asChild variant="outline">
@@ -56,7 +58,7 @@ const TokensPage: React.FC = () => {
 			</SettingsHeader>
 			<TokensPageView
 				tokens={tokens}
-				isLoading={isFetching}
+				isFetching={isFetching}
 				hasLoaded={isFetched}
 				getTokensError={getTokensError}
 				onDelete={(token) => {

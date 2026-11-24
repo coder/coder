@@ -140,10 +140,7 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({
 }) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
-		<TableHead
-			scope="row"
-			className="border-0 border-t border-border border-solid"
-		>
+		<TableHead scope="row">
 			<AvatarData
 				truncate
 				title={user.name || user.username}
@@ -155,21 +152,23 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({
 		<TableCell>
 			{/* Spend rows list configured provider names, not provider types. */}
 			<ProvidersBadge
-				providers={user.providers}
+				providers={user.provider_spend.map((provider) => provider.name)}
 				providersByName={providersByName}
 			/>
 		</TableCell>
 		<TableCell>
-			<ModelsBadge models={user.models} />
+			<ModelsBadge models={user.model_spend.map((model) => model.name)} />
 		</TableCell>
 		<TableCell>
-			<ClientsBadge clients={user.clients} />
+			<ClientsBadge clients={user.client_spend.map((client) => client.name)} />
 		</TableCell>
 		<TableCell className="text-right">
 			<SpendAmount
 				scope={{ user: user.name || user.username }}
 				costMicros={user.cost_micros}
-				unpricedUsageCount={user.unpriced_usage_count}
+				hasUnpricedUsage={user.model_spend.some(
+					(model) => model.has_unpriced_usage,
+				)}
 			/>
 		</TableCell>
 	</TableRow>
@@ -187,7 +186,7 @@ const SpendTotal: React.FC<SpendTotalProps> = ({ report }) => (
 			<SpendAmount
 				scope="organization"
 				costMicros={report.totals.cost_micros}
-				unpricedUsageCount={report.totals.unpriced_usage_count}
+				hasUnpricedUsage={report.totals.has_unpriced_usage}
 			/>
 		</span>
 	</div>

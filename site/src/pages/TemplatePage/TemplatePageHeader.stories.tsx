@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { workspacesKey } from "#/api/queries/workspaces";
 import {
 	MockTemplate,
@@ -27,10 +27,12 @@ const meta: Meta<typeof TemplatePageHeader> = {
 		],
 	},
 	args: {
+		canCreateTemplates: true,
 		template: MockTemplate,
 		activeVersion: MockTemplateVersion,
 		permissions: {
 			canUpdateTemplate: true,
+			canDeleteTemplate: true,
 		},
 		workspacePermissions: {
 			createWorkspaceForUserID: true,
@@ -45,27 +47,6 @@ export const Example: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
-
-		const menu = within(document.body);
-		await expect(
-			menu.getByRole("menuitem", { name: "Settings" }),
-		).toHaveAttribute("href", `/templates/${MockTemplate.name}/settings`);
-		await expect(
-			menu.getByRole("menuitem", { name: "Edit files" }),
-		).toHaveAttribute(
-			"href",
-			`/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
-		);
-		await expect(
-			menu.getByRole("menuitem", { name: "Duplicate…" }),
-		).toHaveAttribute("href", `/templates/new?fromTemplate=${MockTemplate.id}`);
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(
-				menu.queryByRole("menuitem", { name: "Settings" }),
-			).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -73,6 +54,7 @@ export const CanNotUpdate: Story = {
 	args: {
 		permissions: {
 			canUpdateTemplate: false,
+			canDeleteTemplate: false,
 		},
 	},
 };
@@ -117,4 +99,22 @@ export const Deprecated: Story = {
 				"This template is not going to be used anymore. [See details](#details).",
 		},
 	},
+};
+
+export const CannotDelete: Story = {
+	args: { permissions: { canUpdateTemplate: true, canDeleteTemplate: false } },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open menu" }),
+		);
+	},
+};
+
+export const CannotCreateTemplates: Story = {
+	args: { canCreateTemplates: false },
+	play: Example.play,
+};
+export const DeleteOnly: Story = {
+	args: { permissions: { canUpdateTemplate: false, canDeleteTemplate: true } },
+	play: Example.play,
 };

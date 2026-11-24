@@ -62,6 +62,83 @@ type Story = StoryObj<typeof Response>;
 
 export const MarkdownAndLinks: Story = {};
 
+const listsMarkdown = `
+Wrapped bullets keep their text aligned:
+
+- A bullet long enough to wrap onto a second line, so the wrapped text should line up with the first word and not with the marker.
+- A short bullet.
+  - A nested bullet that also runs long enough to wrap onto another line in a narrow column.
+
+1. An ordered item long enough to wrap onto a second line in a narrow column.
+2. A short ordered item.
+
+Loose list, with blank lines between items:
+
+- First loose item.
+
+- Second loose item that runs long enough to wrap onto a second line.
+
+  A second paragraph in the same item.
+
+3. An ordered list that starts at three.
+4. Its next item.
+
+Workflow:
+
+- [x] A finished task.
+- [ ] An open task.
+  - [ ] A nested task.
+- A plain item in a task list.
+`;
+
+export const Lists: Story = {
+	args: { children: listsMarkdown },
+	decorators: [
+		(Story) => (
+			<div className="max-w-[420px]">
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const LiteralListNumbers: Story = {
+	args: {
+		children: `Steps 2 and 6 were already done, so the rest are:
+
+1. Clone the repository.
+3. Install dependencies.
+4. Run the migrations.
+5. Start the server.
+7. Open the dashboard.
+
+A list written as all ones still counts up:
+
+1. First.
+1. Second.
+1. Third.
+`,
+	},
+};
+
+export const SingleTildes: Story = {
+	args: {
+		children:
+			"Each step takes ~5 min, so 10~15 min total, or 20~30 min on a cold cache. Only ~~double tildes~~ strike text through.",
+	},
+};
+
+export const TableColumnAlignment: Story = {
+	args: {
+		children: [
+			"| Left | Center | Right |",
+			"| :--- | :----: | ----: |",
+			"| one | two | three |",
+			"| a longer cell | b | c |",
+		].join("\n"),
+	},
+};
+
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,

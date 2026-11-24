@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
@@ -164,7 +163,7 @@ func acpRequest[T any](ctx context.Context, c *agentConn, method, path string, b
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
-		return result, codersdk.ReadBodyAsError(res)
+		return result, readAgentError(res)
 	}
 	return result, decodeAgentJSON(res, &result)
 }
@@ -178,7 +177,7 @@ func (c *agentConn) ListACPHarnesses(ctx context.Context) ([]ACPHarness, error) 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	return result, decodeAgentJSON(res, &result)
 }
@@ -219,7 +218,7 @@ func (c *agentConn) WatchACPSession(ctx context.Context, logger slog.Logger, id 
 	}
 	if err != nil {
 		if res != nil {
-			return nil, nil, codersdk.ReadBodyAsError(res)
+			return nil, nil, readAgentError(res)
 		}
 		return nil, nil, err
 	}

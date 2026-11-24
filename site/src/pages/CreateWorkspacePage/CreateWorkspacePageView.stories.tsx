@@ -31,6 +31,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		},
 		presets: [],
 		sendMessage: () => {},
+		isEvaluatingParameters: false,
 		template: MockTemplate,
 	},
 };
@@ -544,7 +545,7 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 		expect(docsLink).toHaveAttribute(
 			"href",
 			expect.stringContaining(
-				"/admin/templates/extending-templates/parameters/compatibility-mode",
+				"/templates/extending-templates/parameters/compatibility-mode",
 			),
 		);
 		expect(docsLink).toHaveAttribute("target", "_blank");

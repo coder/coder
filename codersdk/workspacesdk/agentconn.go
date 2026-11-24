@@ -127,6 +127,7 @@ type AgentConn interface {
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
+	ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
@@ -546,7 +547,7 @@ func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.WorkspaceAgentListeningPortsResponse{}, codersdk.ReadBodyAsError(res)
+		return codersdk.WorkspaceAgentListeningPortsResponse{}, readAgentError(res)
 	}
 
 	var resp codersdk.WorkspaceAgentListeningPortsResponse
@@ -563,7 +564,7 @@ func (c *agentConn) Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return healthsdk.AgentNetcheckReport{}, codersdk.ReadBodyAsError(res)
+		return healthsdk.AgentNetcheckReport{}, readAgentError(res)
 	}
 
 	var resp healthsdk.AgentNetcheckReport
@@ -579,7 +580,7 @@ func (c *agentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	defer res.Body.Close()
 	bs, err := io.ReadAll(res.Body)
@@ -600,7 +601,7 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -658,20 +659,19 @@ const bundleFilesResponseMaxBytes int64 = 110 * 1024 * 1024
 func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/bundle-files", req)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/bundle-files", req, agentRequestOptions{
+		maxResponseBytes: bundleFilesResponseMaxBytes,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
-	bs, err := io.ReadAll(io.LimitReader(res.Body, bundleFilesResponseMaxBytes+1))
+	bs, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
-	}
-	if int64(len(bs)) > bundleFilesResponseMaxBytes {
-		return nil, xerrors.Errorf("response exceeds %d bytes", bundleFilesResponseMaxBytes)
 	}
 	return bs, nil
 }
@@ -689,6 +689,10 @@ func WithLogsAfter(t time.Time) DebugLogsOption {
 	return func(c *debugLogsConfig) { c.after = t }
 }
 
+// debugLogsResponseMaxBytes matches the agent's combined cap on the logs
+// it returns, section headers included.
+const debugLogsResponseMaxBytes int64 = 100 << 20
+
 // DebugLogs returns up to 10 MiB of the active agent log. Pass WithLogsAfter to
 // also include rotated logs.
 func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error) {
@@ -698,13 +702,15 @@ func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]b
 	}
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(cfg.after), nil)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodGet, debugLogsPath(cfg.after), nil, agentRequestOptions{
+		maxResponseBytes: debugLogsResponseMaxBytes,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -731,7 +737,7 @@ func (c *agentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -750,7 +756,7 @@ func (c *agentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.WorkspaceAgentListContainersResponse{}, codersdk.ReadBodyAsError(res)
+		return codersdk.WorkspaceAgentListContainersResponse{}, readAgentError(res)
 	}
 	var resp codersdk.WorkspaceAgentListContainersResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -774,7 +780,7 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 		if res == nil {
 			return nil, nil, err
 		}
-		return nil, nil, codersdk.ReadBodyAsError(res)
+		return nil, nil, readAgentError(res)
 	}
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
@@ -819,7 +825,7 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 		if res == nil {
 			return nil, err
 		}
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
@@ -857,7 +863,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 		if res == nil {
 			return nil, err
 		}
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, readAgentError(res)
 	}
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
@@ -931,38 +937,16 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(
-		c.agentAddress().String(),
-		strconv.Itoa(AgentHTTPAPIServerPort),
-	)
-
-	body, err := json.Marshal(action)
-	if err != nil {
-		return DesktopActionResponse{}, xerrors.Errorf("marshal action: %w", err)
-	}
-
-	url := fmt.Sprintf("http://%s/api/v0/desktop/action", host)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return DesktopActionResponse{}, xerrors.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	c.headersMu.RLock()
-	if len(c.extraHeaders) > 0 {
-		for k, v := range c.extraHeaders {
-			req.Header[k] = v
-		}
-	}
-	c.headersMu.RUnlock()
-
-	resp, err := c.apiClient(ctx).Do(req)
+	resp, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/desktop/action", action, agentRequestOptions{
+		header: http.Header{"Content-Type": {"application/json"}},
+	})
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return DesktopActionResponse{}, codersdk.ReadBodyAsError(resp)
+		return DesktopActionResponse{}, readAgentError(resp)
 	}
 
 	var result DesktopActionResponse
@@ -985,7 +969,7 @@ func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopR
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return readAgentError(res)
 	}
 	return nil
 }
@@ -999,13 +983,16 @@ func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopR
 func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req, agentRequestOptions{
+		// The multipart framing adds a little to the video and thumbnail.
+		maxResponseBytes: MaxRecordingSize + MaxThumbnailSize + 1<<20,
+	})
 	if err != nil {
 		return StopDesktopRecordingResponse{}, xerrors.Errorf("stop recording request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()
-		return StopDesktopRecordingResponse{}, codersdk.ReadBodyAsError(res)
+		return StopDesktopRecordingResponse{}, readAgentError(res)
 	}
 	// Caller is responsible for closing res.Body.
 	return StopDesktopRecordingResponse{
@@ -1025,7 +1012,7 @@ func (c *agentConn) DeleteDevcontainer(ctx context.Context, devcontainerID strin
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
+		return readAgentError(res)
 	}
 	return nil
 }
@@ -1041,7 +1028,7 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusAccepted {
-		return codersdk.Response{}, codersdk.ReadBodyAsError(res)
+		return codersdk.Response{}, readAgentError(res)
 	}
 	var m codersdk.Response
 	if err := decodeAgentJSON(res, &m); err != nil {
@@ -1169,7 +1156,7 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return LSResponse{}, codersdk.ReadBodyAsError(res)
+		return LSResponse{}, readAgentError(res)
 	}
 
 	var m LSResponse
@@ -1198,7 +1185,7 @@ func (c *agentConn) ResolvePath(ctx context.Context, path string) (string, error
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return "", codersdk.ReadBodyAsError(res)
+		return "", readAgentError(res)
 	}
 
 	var m ResolvePathResponse
@@ -1228,7 +1215,7 @@ func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limi
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ReadFileLinesResponse{}, codersdk.ReadBodyAsError(res)
+		return ReadFileLinesResponse{}, readAgentError(res)
 	}
 
 	var resp ReadFileLinesResponse
@@ -1239,23 +1226,49 @@ func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limi
 }
 
 // ReadFile reads from a file from the workspace, returning a file reader and
-// the mime type.
+// the mime type. A limit of 0 reads at most 32 MiB.
 func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	//nolint:bodyclose // we want to return the body so the caller can stream.
-	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", neturl.Values{
+	return c.readFileRequest(ctx, "", path, offset, limit)
+}
+
+// ReadFileInRoot reads from a file at path, relative to the absolute
+// directory root, returning a file reader and the mime type. The agent
+// refuses a root that is a symlink, and a path that leaves root,
+// through symlinks included. Agents that predate root support reject
+// the request. A limit of 0 reads at most 32 MiB.
+func (c *agentConn) ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	return c.readFileRequest(ctx, root, path, offset, limit)
+}
+
+func (c *agentConn) readFileRequest(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	query := neturl.Values{
 		"path":   []string{path},
 		"offset": []string{strconv.FormatInt(offset, 10)},
 		"limit":  []string{strconv.FormatInt(limit, 10)},
-	}), nil)
+	}
+	if root != "" {
+		query.Set("root", root)
+	}
+
+	// The agent sends at most limit bytes.
+	opts := agentRequestOptions{}
+	if limit > 0 {
+		opts.maxResponseBytes = limit
+	}
+	//nolint:bodyclose // we want to return the body so the caller can stream.
+	res, err := c.apiRequestWithOptions(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", query), nil, opts)
 	if err != nil {
 		return nil, "", xerrors.Errorf("do request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		// codersdk.ReadBodyAsError will close the body.
-		return nil, "", codersdk.ReadBodyAsError(res)
+		// readAgentError will close the body.
+		return nil, "", readAgentError(res)
 	}
 
 	mimeType := res.Header.Get("Content-Type")
@@ -1283,7 +1296,7 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 
 func readWriteFileResponse(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return readAgentError(res)
 	}
 
 	var m codersdk.Response
@@ -1330,7 +1343,7 @@ func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileReques
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return AgentUploadChatFileResponse{}, codersdk.ReadBodyAsError(res)
+		return AgentUploadChatFileResponse{}, readAgentError(res)
 	}
 
 	var out AgentUploadChatFileResponse
@@ -1461,12 +1474,19 @@ type CallMCPToolRequest struct {
 	ToolName string `json:"tool_name"`
 	// Arguments is the tool input as key-value pairs.
 	Arguments map[string]any `json:"arguments"`
+	// IncludeResult asks the agent to return the MCP result in Result
+	// instead of Content. Older agents ignore it and return Content.
+	IncludeResult bool `json:"include_result,omitempty"`
 }
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
 type CallMCPToolResponse struct {
 	Content []MCPToolContent `json:"content"`
 	IsError bool             `json:"is_error"`
+	// Result is the MCP CallToolResult in MCP wire format. The agent sets
+	// it, and leaves Content empty, only when the request sets
+	// IncludeResult.
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 // MCPToolContent is a single content block in an MCP tool response.
@@ -1491,7 +1511,7 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 
 func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) {
 	if res.StatusCode != http.StatusOK {
-		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
+		return StartProcessResponse{}, readAgentError(res)
 	}
 	var resp StartProcessResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1509,7 +1529,7 @@ func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return CancelToolCallResponse{}, codersdk.ReadBodyAsError(res)
+		return CancelToolCallResponse{}, readAgentError(res)
 	}
 	var resp CancelToolCallResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1525,7 +1545,7 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
+		return ListProcessesResponse{}, readAgentError(res)
 	}
 	var resp ListProcessesResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1542,7 +1562,7 @@ func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
+		return ContextConfigResponse{}, readAgentError(res)
 	}
 	var resp ContextConfigResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1559,7 +1579,7 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
+		return CallMCPToolResponse{}, readAgentError(res)
 	}
 	var resp CallMCPToolResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1582,7 +1602,7 @@ func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessO
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ProcessOutputResponse{}, codersdk.ReadBodyAsError(res)
+		return ProcessOutputResponse{}, readAgentError(res)
 	}
 	var resp ProcessOutputResponse
 	return resp, decodeAgentJSON(res, &resp)
@@ -1598,7 +1618,7 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return readAgentError(res)
 	}
 	var m codersdk.Response
 	if err := decodeAgentJSON(res, &m); err != nil {
@@ -1624,7 +1644,7 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 
 func readEditFilesResponse(res *http.Response) (FileEditResponse, error) {
 	if res.StatusCode != http.StatusOK {
-		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, readAgentError(res)
 	}
 
 	var resp FileEditResponse
@@ -1644,7 +1664,7 @@ func agentAPIPath(path string, query neturl.Values) string {
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	return c.apiRequestWithHeader(ctx, method, path, body, nil)
+	return c.apiRequestWithOptions(ctx, method, path, body, agentRequestOptions{})
 }
 
 // toolCallRequest is apiRequest with CoderToolCallIDHeader from ctx. Use
@@ -1655,10 +1675,23 @@ func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, bo
 	if id, ok := ToolCallIDFromContext(ctx); ok {
 		header.Set(CoderToolCallIDHeader, id.String())
 	}
-	return c.apiRequestWithHeader(ctx, method, path, body, header)
+	return c.apiRequestWithOptions(ctx, method, path, body, agentRequestOptions{header: header})
 }
 
-func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path string, body interface{}, header http.Header) (*http.Response, error) {
+// agentRequestOptions configures apiRequestWithOptions.
+type agentRequestOptions struct {
+	// header is set on the request after the connection's extra headers.
+	header http.Header
+	// maxResponseBytes bounds the response body. Zero means
+	// agentResponseMaxBytes.
+	maxResponseBytes int64
+}
+
+// apiRequestWithOptions makes a request to the workspace agent's HTTP API
+// server. Workspace code can impersonate the agent API, so reads of the
+// returned body fail past opts.maxResponseBytes. readAgentError reads
+// error bodies with the smaller agentErrorResponseMaxBytes limit.
+func (c *agentConn) apiRequestWithOptions(ctx context.Context, method, path string, body interface{}, opts agentRequestOptions) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -1698,11 +1731,83 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 			req.Header.Add(key, value)
 		}
 	}
-	for key, values := range header {
+	for key, values := range opts.header {
 		req.Header[key] = values
 	}
 
-	return c.apiClient(ctx).Do(req)
+	res, err := c.apiClient(ctx).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	limit := opts.maxResponseBytes
+	if limit <= 0 {
+		limit = agentResponseMaxBytes
+	}
+	res.Body = newLimitedResponseBody(res.Body, limit)
+	return res, nil
+}
+
+const (
+	// agentResponseMaxBytes bounds coderd memory against workspace code
+	// impersonating the agent API. Legitimate JSON responses are far
+	// smaller: MCP results and screenshots carry media sized for model
+	// providers, whose whole request limits are about this size.
+	agentResponseMaxBytes int64 = 32 << 20
+	// agentErrorResponseMaxBytes bounds agent error bodies, which only
+	// carry a short codersdk.Response.
+	agentErrorResponseMaxBytes int64 = 64 << 10
+)
+
+// readAgentError is codersdk.ReadBodyAsError with a bounded body read.
+// It reads at most agentErrorResponseMaxBytes of the body, whatever the
+// status, so an unexpected 2xx or a websocket handshake response cannot
+// use a larger limit. A body that cannot be read or decoded still yields
+// a *codersdk.Error carrying the agent's status code.
+func readAgentError(res *http.Response) error {
+	res.Body = newLimitedResponseBody(res.Body, agentErrorResponseMaxBytes)
+	err := codersdk.ReadBodyAsError(res)
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) {
+		return err
+	}
+	return codersdk.NewError(res.StatusCode, codersdk.Response{
+		Message: fmt.Sprintf("unexpected status code %d, response body could not be read", res.StatusCode),
+		Detail:  err.Error(),
+	})
+}
+
+// limitedResponseBody fails reads once more than limit bytes arrive. It
+// follows net/http's maxBytesReader, whose error text describes request
+// bodies.
+type limitedResponseBody struct {
+	io.ReadCloser
+	remaining int64
+	limit     int64
+}
+
+func newLimitedResponseBody(body io.ReadCloser, limit int64) *limitedResponseBody {
+	return &limitedResponseBody{ReadCloser: body, remaining: limit, limit: limit}
+}
+
+func (b *limitedResponseBody) Read(p []byte) (int, error) {
+	if b.remaining < 0 {
+		return 0, b.exceeded()
+	}
+	if int64(len(p)) > b.remaining {
+		p = p[:b.remaining+1]
+	}
+	n, err := b.ReadCloser.Read(p)
+	if int64(n) > b.remaining {
+		n = int(b.remaining)
+		b.remaining = -1
+		return n, b.exceeded()
+	}
+	b.remaining -= int64(n)
+	return n, err
+}
+
+func (b *limitedResponseBody) exceeded() error {
+	return xerrors.Errorf("workspace agent response exceeds %d bytes", b.limit)
 }
 
 // decodeAgentJSON decodes an agent-direct HTTP response body. Agent

@@ -50,6 +50,8 @@ import (
 var bedrockSupportedBetaFlags = map[string]bool{
 	// Supported on Claude 3.7 Sonnet.
 	"computer-use-2025-01-24": true,
+	// Supported on Claude Opus 4.5 and later. Enables computer_20251124.
+	"computer-use-2025-11-24": true,
 	// Supported on Claude 3.7 Sonnet and Claude 4+.
 	"token-efficient-tools-2025-02-19": true,
 	// Supported on Claude 4+ models.

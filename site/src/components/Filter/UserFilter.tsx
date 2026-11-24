@@ -8,8 +8,6 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
-export const DEFAULT_USER_FILTER_WIDTH = 175;
-
 export const useUserFilterMenu = ({
 	value,
 	onChange,
@@ -101,12 +99,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search user"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search user..."
 					value={menu.query}
 					onValueChange={menu.setQuery}
-					aria-label="Search user"
 				/>
 			}
 		/>

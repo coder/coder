@@ -30,56 +30,56 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID        uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	ID        uuid.UUID `json:"id" format:"uuid" wsrelated:""`
+	CreatedAt time.Time `json:"created_at" format:"date-time" wsrelated:""`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time" wsrelated:""`
+	OwnerID   uuid.UUID `json:"owner_id" format:"uuid" wsrelated:""`
 	// OwnerName is the username of the owner of the workspace.
-	OwnerName                            string              `json:"owner_name"`
-	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
-	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
-	OrganizationName                     string              `json:"organization_name"`
-	TemplateID                           uuid.UUID           `json:"template_id" format:"uuid"`
-	TemplateName                         string              `json:"template_name"`
-	TemplateDisplayName                  string              `json:"template_display_name"`
-	TemplateIcon                         string              `json:"template_icon"`
-	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs"`
-	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid"`
-	TemplateRequireActiveVersion         bool                `json:"template_require_active_version"`
-	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow"`
-	LatestBuild                          WorkspaceBuild      `json:"latest_build"`
-	LatestAppStatus                      *WorkspaceAppStatus `json:"latest_app_status"`
-	Outdated                             bool                `json:"outdated"`
-	Name                                 string              `json:"name"`
-	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
-	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
-	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
+	OwnerName                            string              `json:"owner_name" wsrelated:""`
+	OwnerAvatarURL                       string              `json:"owner_avatar_url" wsrelated:""`
+	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid" wsrelated:""`
+	OrganizationName                     string              `json:"organization_name" wsrelated:""`
+	TemplateID                           uuid.UUID           `json:"template_id" format:"uuid" wsrelated:""`
+	TemplateName                         string              `json:"template_name" wsrelated:""`
+	TemplateDisplayName                  string              `json:"template_display_name" wsrelated:""`
+	TemplateIcon                         string              `json:"template_icon" wsrelated:""`
+	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs" wsrelated:"template"`
+	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid" wsrelated:"template"`
+	TemplateRequireActiveVersion         bool                `json:"template_require_active_version" wsrelated:"template"`
+	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow" wsrelated:"template"`
+	LatestBuild                          WorkspaceBuild      `json:"latest_build" wsrelated:"latest_build"`
+	LatestAppStatus                      *WorkspaceAppStatus `json:"latest_app_status" wsrelated:"latest_build.resources.agents.apps.statuses"`
+	Outdated                             bool                `json:"outdated" wsrelated:"template,latest_build"`
+	Name                                 string              `json:"name" wsrelated:""`
+	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty" wsrelated:""`
+	TTLMillis                            *int64              `json:"ttl_ms,omitempty" wsrelated:"template"`
+	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time" wsrelated:""`
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
-	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
+	DeletingAt *time.Time `json:"deleting_at" format:"date-time" wsrelated:""`
 	// DormantAt being non-nil indicates a workspace that is dormant.
 	// A dormant workspace is no longer accessible must be activated.
 	// It is subject to deletion if it breaches
 	// the duration of the time_til_ field on its template.
-	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
+	DormantAt *time.Time `json:"dormant_at" format:"date-time" wsrelated:""`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
-	Health           WorkspaceHealth  `json:"health"`
-	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
+	Health           WorkspaceHealth  `json:"health" wsrelated:"latest_build.resources.agents"`
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" wsrelated:""`
 	// AllowRenames is the effective rename permission for this workspace,
 	// derived from the template's allow_workspace_renames setting and the
 	// deprecated deployment-wide flag.
-	AllowRenames bool       `json:"allow_renames"`
-	Favorite     bool       `json:"favorite"`
-	NextStartAt  *time.Time `json:"next_start_at" format:"date-time"`
+	AllowRenames bool       `json:"allow_renames" wsrelated:"template"`
+	Favorite     bool       `json:"favorite" wsrelated:""`
+	NextStartAt  *time.Time `json:"next_start_at" format:"date-time" wsrelated:""`
 	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
 	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
 	// such as being managed differently from regular workspaces.
 	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
 	// and IsPrebuild returns false.
-	IsPrebuild bool                   `json:"is_prebuild"`
-	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
+	IsPrebuild bool                   `json:"is_prebuild" wsrelated:""`
+	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty" wsrelated:""`
 }
 
 func (w Workspace) FullName() string {
@@ -122,7 +122,9 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
-	ProvisionerState  []byte              `json:"state,omitempty"`
+	// ProvisionerState overrides the provisioner state for this build. JSON
+	// carries it as a base64 string.
+	ProvisionerState []byte `json:"state,omitempty" swaggertype:"string" format:"byte"`
 	// Orphan may be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
@@ -831,7 +833,7 @@ type WorkspaceUser struct {
 
 type SharedWorkspaceActor struct {
 	ID        uuid.UUID                `json:"id" format:"uuid"`
-	ActorType SharedWorkspaceActorType `json:"actor_type" enums:"group,user"`
+	ActorType SharedWorkspaceActorType `json:"actor_type"`
 	Name      string                   `json:"name"`
 	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
 	Roles     []WorkspaceRole          `json:"roles"`

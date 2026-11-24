@@ -23,13 +23,13 @@ const newSecurityFormValues = {
 };
 
 const fillAndSubmitSecurityForm = () => {
-	fireEvent.change(screen.getByLabelText("Old Password"), {
+	fireEvent.change(screen.getByLabelText("Old password"), {
 		target: { value: newSecurityFormValues.old_password },
 	});
-	fireEvent.change(screen.getByLabelText("New Password"), {
+	fireEvent.change(screen.getByLabelText("New password"), {
 		target: { value: newSecurityFormValues.password },
 	});
-	fireEvent.change(screen.getByLabelText("Confirm Password"), {
+	fireEvent.change(screen.getByLabelText("Confirm password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
 	fireEvent.click(screen.getByText("Update password"));
@@ -40,6 +40,18 @@ beforeEach(() => {
 	vi.spyOn(API, "getUserLoginType").mockResolvedValue({
 		login_type: "password",
 	});
+});
+
+test("sets a page title that identifies the page", async () => {
+	await renderPage();
+	expect(document.title).toBe("Security - Settings - Coder");
+});
+
+test("nests section headings under the page heading", async () => {
+	await renderPage();
+	expect(
+		screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+	).toEqual(["Password", "Single sign-on"]);
 });
 
 test("update password successfully", async () => {
@@ -81,10 +93,14 @@ test("update password when submit returns an unknown error", async () => {
 	});
 
 	const { user } = await renderPage();
+	// The live region exists before the error so screen readers announce it.
+	const errorRegion = screen.getByRole("alert");
+	expect(errorRegion).toBeEmptyDOMElement();
 	fillAndSubmitSecurityForm();
 
-	const errorMessage = await screen.findByText("Something went wrong.");
-	expect(errorMessage).toBeDefined();
+	await waitFor(() =>
+		expect(errorRegion).toHaveTextContent("Something went wrong."),
+	);
 	expect(API.updateUserPassword).toBeCalledTimes(1);
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 });

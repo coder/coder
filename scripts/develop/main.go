@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/serpent"
 )
 
@@ -63,7 +64,8 @@ const (
 	portOffsetStep         = 20
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
-	defaultPassword        = "SomeSecurePassword!"
+	defaultBindAddress     = "0.0.0.0"
+	loopbackBindAddress    = "127.0.0.1"
 	defaultStarterTemplate = "docker"
 	healthTimeout          = 60 * time.Second
 	shutdownTimeout        = 15 * time.Second
@@ -91,123 +93,9 @@ func main() {
 	var cfg devConfig
 
 	cmd := &serpent.Command{
-		Use:   "develop",
-		Short: "Orchestrate the Coder development environment.",
-		Options: serpent.OptionSet{
-			{
-				Flag:        "port",
-				Env:         "CODER_DEV_PORT",
-				Default:     defaultAPIPort,
-				Description: "API server port.",
-				Value:       serpent.Int64Of(&cfg.apiPort),
-			},
-			{
-				Flag:        "web-port",
-				Env:         "CODER_DEV_WEB_PORT",
-				Default:     defaultWebPort,
-				Description: "Frontend dev server port.",
-				Value:       serpent.Int64Of(&cfg.webPort),
-			},
-			{
-				Flag:        "proxy-port",
-				Env:         "CODER_DEV_PROXY_PORT",
-				Default:     defaultProxyPort,
-				Description: "Workspace proxy port.",
-				Value:       serpent.Int64Of(&cfg.proxyPort),
-			},
-			{
-				Flag:        "prometheus-port",
-				Env:         "CODER_DEV_PROMETHEUS_PORT",
-				Default:     defaultPrometheusPort,
-				Description: "Prometheus metrics port. Set to 0 to disable.",
-				Value:       serpent.Int64Of(&cfg.coderMetricsPort),
-			},
-			{
-				Flag:        "port-offset",
-				Env:         "CODER_DEV_PORT_OFFSET",
-				Default:     "false",
-				Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
-				Value:       serpent.BoolOf(&cfg.portOffsetEnabled),
-			},
-			{
-				Flag:        "prometheus-server",
-				Env:         "CODER_DEV_PROMETHEUS_SERVER",
-				Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
-				Value:       serpent.BoolOf(&cfg.prometheusServer),
-			},
-			{
-				Flag:        "agpl",
-				Env:         "CODER_BUILD_AGPL",
-				Description: "Build AGPL-licensed code only.",
-				Value:       serpent.BoolOf(&cfg.agpl),
-			},
-			{
-				Flag:        "access-url",
-				Env:         "CODER_DEV_ACCESS_URL",
-				Default:     defaultAccessURL,
-				Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
-				Value:       serpent.StringOf(&cfg.accessURL),
-			},
-			{
-				Flag:        "password",
-				Env:         "CODER_DEV_ADMIN_PASSWORD",
-				Default:     defaultPassword,
-				Description: "Admin user password.",
-				Value:       serpent.StringOf(&cfg.password),
-			},
-			{
-				Flag:        "use-proxy",
-				Description: "Start a workspace proxy.",
-				Value:       serpent.BoolOf(&cfg.useProxy),
-			},
-			{
-				Flag:        "debug",
-				Description: "Run under Delve debugger.",
-				Value:       serpent.BoolOf(&cfg.debug),
-			},
-			{
-				Flag:        "skip-setup",
-				Env:         "CODER_DEV_SKIP_SETUP",
-				Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
-				Value:       serpent.BoolOf(&cfg.skipSetup),
-			},
-			{
-				Flag:        "multi-organization",
-				Description: "Create a second organization.",
-				Value:       serpent.BoolOf(&cfg.multiOrg),
-			},
-			{
-				Flag:        "starter-template",
-				Env:         "CODER_DEV_STARTER_TEMPLATE",
-				Default:     defaultStarterTemplate,
-				Description: "Starter template to create (empty to skip).",
-				Value:       serpent.StringOf(&cfg.starterTemplate),
-			},
-			{
-				Flag:        "db-rollback",
-				Env:         "CODER_DEV_DB_ROLLBACK",
-				Description: "Roll back database migrations that no longer exist on the current branch.",
-				Value:       serpent.BoolOf(&cfg.dbRollback),
-			},
-			{
-				Flag:        "db-reset",
-				Env:         "CODER_DEV_DB_RESET",
-				Description: "Destroy the development database and start fresh.",
-				Value:       serpent.BoolOf(&cfg.dbReset),
-			},
-			{
-				Flag:        "db-continue",
-				Env:         "CODER_DEV_DB_CONTINUE",
-				Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
-				Value:       serpent.BoolOf(&cfg.dbContinue),
-			},
-			{
-				Flag:        "env-file",
-				Env:         "CODER_DEV_ENV_FILE",
-				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
-				Value:       serpent.StringOf(&cfg.envFile),
-			},
-		},
+		Use:     "develop",
+		Short:   "Orchestrate the Coder development environment.",
+		Options: cfg.options(),
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
 			cfg.portExplicit = portExplicitFromInvocation(inv)
@@ -230,6 +118,131 @@ func main() {
 	}
 }
 
+// options binds the develop flags and environment variables to the config.
+func (c *devConfig) options() serpent.OptionSet {
+	return serpent.OptionSet{
+		{
+			Flag:        "port",
+			Env:         "CODER_DEV_PORT",
+			Default:     defaultAPIPort,
+			Description: "API server port.",
+			Value:       serpent.Int64Of(&c.apiPort),
+		},
+		{
+			Flag:        "web-port",
+			Env:         "CODER_DEV_WEB_PORT",
+			Default:     defaultWebPort,
+			Description: "Frontend dev server port.",
+			Value:       serpent.Int64Of(&c.webPort),
+		},
+		{
+			Flag:        "proxy-port",
+			Env:         "CODER_DEV_PROXY_PORT",
+			Default:     defaultProxyPort,
+			Description: "Workspace proxy port.",
+			Value:       serpent.Int64Of(&c.proxyPort),
+		},
+		{
+			Flag:        "prometheus-port",
+			Env:         "CODER_DEV_PROMETHEUS_PORT",
+			Default:     defaultPrometheusPort,
+			Description: "Prometheus metrics port. Set to 0 to disable.",
+			Value:       serpent.Int64Of(&c.coderMetricsPort),
+		},
+		{
+			Flag:        "port-offset",
+			Env:         "CODER_DEV_PORT_OFFSET",
+			Default:     "false",
+			Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
+			Value:       serpent.BoolOf(&c.portOffsetEnabled),
+		},
+		{
+			Flag:        "prometheus-server",
+			Env:         "CODER_DEV_PROMETHEUS_SERVER",
+			Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
+			Value:       serpent.BoolOf(&c.prometheusServer),
+		},
+		{
+			Flag:        "agpl",
+			Env:         "CODER_BUILD_AGPL",
+			Description: "Build AGPL-licensed code only.",
+			Value:       serpent.BoolOf(&c.agpl),
+		},
+		{
+			Flag:        "access-url",
+			Env:         "CODER_DEV_ACCESS_URL",
+			Default:     defaultAccessURL,
+			Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
+			Value:       serpent.StringOf(&c.accessURL),
+		},
+		{
+			Flag:        "bind-address",
+			Env:         "CODER_DEV_BIND_ADDRESS",
+			Default:     defaultBindAddress,
+			Description: "Address the API server, the frontend dev server and Prometheus listen on: 0.0.0.0 (every interface) or 127.0.0.1 (loopback only). Workspaces in Docker containers cannot reach a loopback-bound server.",
+			Value:       serpent.StringOf(&c.bindAddress),
+		},
+		{
+			Flag:        "password",
+			Env:         "CODER_DEV_ADMIN_PASSWORD",
+			Description: "Admin user password. When unset, develop generates one and stores it in .coderv2/admin-password.",
+			Value:       serpent.StringOf(&c.password),
+		},
+		{
+			Flag:        "use-proxy",
+			Description: "Start a workspace proxy.",
+			Value:       serpent.BoolOf(&c.useProxy),
+		},
+		{
+			Flag:        "debug",
+			Description: "Run under Delve debugger.",
+			Value:       serpent.BoolOf(&c.debug),
+		},
+		{
+			Flag:        "skip-setup",
+			Env:         "CODER_DEV_SKIP_SETUP",
+			Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
+			Value:       serpent.BoolOf(&c.skipSetup),
+		},
+		{
+			Flag:        "multi-organization",
+			Description: "Create a second organization.",
+			Value:       serpent.BoolOf(&c.multiOrg),
+		},
+		{
+			Flag:        "starter-template",
+			Env:         "CODER_DEV_STARTER_TEMPLATE",
+			Default:     defaultStarterTemplate,
+			Description: "Starter template to create (empty to skip).",
+			Value:       serpent.StringOf(&c.starterTemplate),
+		},
+		{
+			Flag:        "db-rollback",
+			Env:         "CODER_DEV_DB_ROLLBACK",
+			Description: "Roll back database migrations that no longer exist on the current branch.",
+			Value:       serpent.BoolOf(&c.dbRollback),
+		},
+		{
+			Flag:        "db-reset",
+			Env:         "CODER_DEV_DB_RESET",
+			Description: "Destroy the development database and start fresh.",
+			Value:       serpent.BoolOf(&c.dbReset),
+		},
+		{
+			Flag:        "db-continue",
+			Env:         "CODER_DEV_DB_CONTINUE",
+			Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
+			Value:       serpent.BoolOf(&c.dbContinue),
+		},
+		{
+			Flag:        "env-file",
+			Env:         "CODER_DEV_ENV_FILE",
+			Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
+			Value:       serpent.StringOf(&c.envFile),
+		},
+	}
+}
+
 type devConfig struct {
 	apiPort           int64
 	webPort           int64
@@ -239,7 +252,10 @@ type devConfig struct {
 	prometheusServer  bool
 	agpl              bool
 	accessURL         string
+	bindAddress       string
 	password          string
+	adminLogin        devLogin
+	memberLogin       devLogin
 	useProxy          bool
 	debug             bool
 	skipSetup         bool
@@ -263,6 +279,17 @@ type devConfig struct {
 	metricsPortSource portSource
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
+	// setupToken is sent to the server and with the first-user request
+	// when the server opens a tunnel.
+	setupToken string
+}
+
+type devLogin struct {
+	// password is empty when the user already existed and develop did
+	// not set its password.
+	password string
+	fromFlag bool
+	seeded   bool
 }
 
 type portExplicit struct {
@@ -343,6 +370,33 @@ func (c *devConfig) applyPortOffset() {
 	}
 }
 
+// listenAddress joins the bind address and a port.
+func (c *devConfig) listenAddress(port int64) string {
+	return net.JoinHostPort(c.bindAddress, strconv.FormatInt(port, 10))
+}
+
+// prometheusReusable reports whether a running Prometheus container, given
+// as docker inspect "{{.State.Running}} {{json .Args}}" output, listens on
+// the current bind address.
+func (c *devConfig) prometheusReusable(inspect string) bool {
+	return strings.Contains(inspect, `"--web.listen-address=`+c.listenAddress(prometheusServerPort)+`"`)
+}
+
+// prometheusRunArgs builds the docker run arguments for the Prometheus UI.
+func (c *devConfig) prometheusRunArgs(configPath, dataDir string) []string {
+	return []string{
+		"run",
+		"--rm",
+		"--name", prometheusContainerName,
+		"--net=host",
+		"-v", configPath + ":/etc/prometheus/prometheus.yml:ro",
+		"-v", dataDir + ":/prometheus",
+		prometheusImage,
+		"--config.file=/etc/prometheus/prometheus.yml",
+		"--web.listen-address=" + c.listenAddress(prometheusServerPort),
+	}
+}
+
 func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 	if c.portOffset == 0 {
 		return portSourceDefault
@@ -352,6 +406,15 @@ func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 }
 
 func (c *devConfig) validate() error {
+	// develop's own health check, the Vite proxy and the Prometheus scrape
+	// target reach the API on 127.0.0.1, so only the wildcard and loopback
+	// addresses work.
+	if c.bindAddress != defaultBindAddress && c.bindAddress != loopbackBindAddress {
+		return xerrors.Errorf("--bind-address must be %s or %s, got %q", defaultBindAddress, loopbackBindAddress, c.bindAddress)
+	}
+	if c.password == oldDefaultPassword {
+		return xerrors.New("--password must not be the old default password: unset --password and CODER_DEV_ADMIN_PASSWORD to use a generated one")
+	}
 	if c.agpl && c.useProxy {
 		return xerrors.New("cannot use both --agpl and --use-proxy")
 	}
@@ -612,6 +675,12 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		return err
 	}
 
+	// Checked here so that an unusable password file stops the run
+	// before the build, not after it.
+	if err := cfg.checkPasswordFiles(); err != nil {
+		return err
+	}
+
 	// Check the database before building. The mismatch check is
 	// a cheap file read; only starts temp postgres on actual
 	// mismatch. This avoids a wasted build cycle when the
@@ -635,6 +704,16 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}()
 
 	ctx = group.Ctx()
+
+	// With --skip-setup the developer creates the first user by hand,
+	// and needs the token that the server prints itself.
+	if cfg.accessURL == "" && !cfg.skipSetup {
+		var err error
+		cfg.setupToken, err = cryptorand.String(32)
+		if err != nil {
+			return xerrors.Errorf("generate setup token: %w", err)
+		}
+	}
 
 	if err := startServer(cfg, group); err != nil {
 		return err
@@ -766,33 +845,48 @@ func buildBinary(ctx context.Context, logger slog.Logger, cfg *devConfig) error 
 }
 
 func startServer(cfg *devConfig, group *procGroup) error {
+	serverArgs := cfg.serverArgs()
+	if cfg.debug {
+		return startServerDebug(cfg, serverArgs, group)
+	}
+	cmd := cfg.serverCmd(group.Ctx(), cfg.binaryPath, serverArgs...)
+	return group.Start("api", cmd)
+}
+
+// serverCmd builds the coder server command. The setup token is passed
+// in the environment so that it is not visible in the process list.
+func (c *devConfig) serverCmd(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	cmd := c.cmd(ctx, bin, args...)
+	if c.setupToken != "" {
+		cmd.Env = append(cmd.Env, "CODER_SETUP_TOKEN="+c.setupToken)
+	}
+	return cmd
+}
+
+// serverArgs builds the coder server command line.
+func (c *devConfig) serverArgs() []string {
 	serverArgs := []string{
-		"--global-config", cfg.configDir,
+		"--global-config", c.configDir,
 		"server",
-		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
+		"--http-address", c.listenAddress(c.apiPort),
 		"--swagger-enable",
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+		"--cluster-host=127.0.0.1",
 	}
-	if cfg.accessURL != "" {
+	if c.accessURL != "" {
 		// Setting access url to `""` enables a `try.coder.app` url
-		serverArgs = append(serverArgs, "--access-url", cfg.accessURL)
+		serverArgs = append(serverArgs, "--access-url", c.accessURL)
 	}
-	if cfg.coderMetricsPort != 0 {
+	if c.coderMetricsPort != 0 {
 		serverArgs = append(serverArgs,
 			"--prometheus-enable",
-			"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", cfg.coderMetricsPort),
+			"--prometheus-address", c.listenAddress(c.coderMetricsPort),
 			"--prometheus-collect-agent-stats",
 			"--prometheus-collect-db-metrics",
 		)
 	}
-	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
-
-	if cfg.debug {
-		return startServerDebug(cfg, serverArgs, group)
-	}
-	cmd := cfg.cmd(group.Ctx(), cfg.binaryPath, serverArgs...)
-	return group.Start("api", cmd)
+	return append(serverArgs, c.serverExtraArgs...)
 }
 
 func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) error {
@@ -837,7 +931,7 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 		return xerrors.Errorf("debug build: %w", err)
 	}
 
-	srvCmd := cfg.cmd(ctx, debugBin, serverArgs...)
+	srvCmd := cfg.serverCmd(ctx, debugBin, serverArgs...)
 	if err := group.Start("api", srvCmd); err != nil {
 		return err
 	}
@@ -896,20 +990,65 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		}
 	}
 
+	adminPath := cfg.passwordPath(adminPasswordFile)
+	hasUser := loggedIn
 	if !loggedIn {
-		hasUser, err := client.HasFirstUser(ctx)
+		var err error
+		hasUser, err = client.HasFirstUser(ctx)
 		if err != nil {
 			return nil, xerrors.Errorf("checking first user: %w", err)
 		}
+	}
+	if hasUser && cfg.password == "" {
+		replaced, err := replaceOldDefaultAdmin(ctx, serverURL, adminPath)
+		if err != nil {
+			logger.Warn(ctx, "failed to replace the old default password of admin@coder.com", slog.Error(err))
+		}
+		if replaced {
+			logger.Info(ctx, "replaced the old default password", slog.F("email", "admin@coder.com"))
+			// The server deleted the saved session together with the
+			// password, so develop signs in again below.
+			loggedIn = false
+			client.SetSessionToken("")
+		}
+	}
+
+	if !loggedIn {
+		// A password is generated only when develop is about to create
+		// the user or has just replaced the old default. A user that
+		// exists without a password file has a password develop does
+		// not know.
+		var err error
+		password := cfg.password
+		refused := errUnknownAdminPassword
+		switch {
+		case password != "":
+		case hasUser:
+			var ok bool
+			password, ok, err = readPassword(adminPath)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, errUnknownAdminPassword
+			}
+			refused = errRefusedAdminPassword
+		default:
+			password, err = loadOrCreatePassword(adminPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		if !hasUser {
 			logger.Info(ctx, "creating first user",
-				slog.F("email", "admin@coder.com"),
-				slog.F("password", cfg.password))
+				slog.F("email", "admin@coder.com"))
 			_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-				Email:    "admin@coder.com",
-				Username: "admin",
-				Name:     "Admin User",
-				Password: cfg.password,
+				Email:      "admin@coder.com",
+				Username:   "admin",
+				Name:       "Admin User",
+				Password:   password,
+				SetupToken: cfg.setupToken,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("creating first user: %w", err)
@@ -918,9 +1057,12 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 
 		loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    "admin@coder.com",
-			Password: cfg.password,
+			Password: password,
 		})
 		if err != nil {
+			if apiErr, ok := codersdk.AsError(err); ok && hasUser && apiErr.StatusCode() == http.StatusUnauthorized {
+				return nil, refused
+			}
 			return nil, xerrors.Errorf("login: %w", err)
 		}
 		client.SetSessionToken(loginResp.SessionToken)
@@ -931,6 +1073,19 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 		if err := cfgRoot.URL().Write(apiURL); err != nil {
 			return nil, xerrors.Errorf("writing url: %w", err)
 		}
+		if cfg.password != "" {
+			// The server just accepted the override, so it is stored for
+			// the runs after the session expires. A stored password that
+			// differs is one the server no longer accepts.
+			if stored, ok, err := readPassword(adminPath); err != nil || !ok || stored != password {
+				if err := replacePassword(adminPath, password); err != nil {
+					logger.Warn(ctx, "failed to store the admin password", slog.Error(err))
+				}
+			}
+		}
+		cfg.adminLogin = devLogin{password: password, fromFlag: cfg.password != "", seeded: true}
+	} else {
+		cfg.adminLogin = cfg.knownLogin(ctx, logger, "admin@coder.com", adminPath, cfg.password)
 	}
 	logger.Info(ctx, "authenticated as admin user", slog.F("email", "admin@coder.com"))
 
@@ -941,23 +1096,137 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	}
 
 	// Member user is best-effort.
+	memberPath := cfg.passwordPath(memberPasswordFile)
 	if _, err := client.User(ctx, "member"); err != nil {
-		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			Email:           "member@coder.com",
-			Username:        "member",
-			Name:            "Regular User",
-			Password:        cfg.password,
-			UserLoginType:   codersdk.LoginTypePassword,
-			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
-		})
+		memberPassword, err := loadOrCreatePassword(memberPath)
+		if err == nil {
+			_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+				Email:           "member@coder.com",
+				Username:        "member",
+				Name:            "Regular User",
+				Password:        memberPassword,
+				UserLoginType:   codersdk.LoginTypePassword,
+				OrganizationIDs: []uuid.UUID{defaultOrg.ID},
+			})
+		}
 		if err != nil {
 			logger.Warn(ctx, "failed to create member user", slog.Error(err))
 		} else {
 			logger.Info(ctx, "created member user", slog.F("email", "member@coder.com"))
+			cfg.memberLogin = devLogin{password: memberPassword, seeded: true}
 		}
+	} else {
+		replaced, err := replaceOldDefault(ctx, client, "member", memberPath)
+		if err != nil {
+			logger.Warn(ctx, "failed to replace the old default password of member@coder.com", slog.Error(err))
+		}
+		if replaced {
+			logger.Info(ctx, "replaced the old default password", slog.F("email", "member@coder.com"))
+		}
+		cfg.memberLogin = cfg.knownLogin(ctx, logger, "member@coder.com", memberPath, "")
 	}
 
 	return client, nil
+}
+
+var errUnknownAdminPassword = xerrors.New("cannot sign in as admin@coder.com: develop.sh does not know the password of this instance: " +
+	"run once with --password and the current password, or save it in .coderv2/" + adminPasswordFile + ", or run with --db-reset to start fresh")
+
+var errRefusedAdminPassword = xerrors.New("cannot sign in as admin@coder.com: the server refused the password stored in .coderv2/" + adminPasswordFile + ": " +
+	"run once with --password and the current password to replace it, or run with --db-reset to start fresh")
+
+func (c *devConfig) checkPasswordFiles() error {
+	if c.skipSetup {
+		return nil
+	}
+	if c.password != "" {
+		return nil
+	}
+	// The member file is not checked, because member setup is
+	// best-effort and warns about an unusable file itself.
+	_, _, err := readPassword(c.passwordPath(adminPasswordFile))
+	return err
+}
+
+// replaceOldDefaultAdmin signs in with the old default instead of using
+// the saved session, because the saved session can belong to another
+// user and the change applies to the user that is signed in.
+func replaceOldDefaultAdmin(ctx context.Context, serverURL *url.URL, path string) (bool, error) {
+	client := codersdk.New(serverURL)
+	resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    "admin@coder.com",
+		Password: oldDefaultPassword,
+	})
+	if err != nil {
+		if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusUnauthorized {
+			return false, nil
+		}
+		return false, xerrors.Errorf("sign in with the old default password: %w", err)
+	}
+	client.SetSessionToken(resp.SessionToken)
+	return replaceOldDefault(ctx, client, codersdk.Me, path)
+}
+
+// replaceOldDefault gives an existing user the stored password, or a
+// generated one, when its password is still the old default, which is
+// public. The server checks the old password, so a password that was
+// changed by hand is kept. A stored password does not show that the
+// user has it: an older develop can recreate the user with the old
+// default in the same checkout. It reports false when the user keeps
+// its password.
+func replaceOldDefault(ctx context.Context, client *codersdk.Client, user, path string) (bool, error) {
+	password, stored, err := readPassword(path)
+	if err != nil {
+		return false, err
+	}
+	if stored && password == oldDefaultPassword {
+		// The server refuses a new password that equals the current one.
+		if err := os.Remove(path); err != nil {
+			return false, xerrors.Errorf("remove password file %s: %w", path, err)
+		}
+		stored = false
+	}
+	if !stored {
+		password, err = loadOrCreatePassword(path)
+		if err != nil {
+			return false, err
+		}
+	}
+	err = client.UpdateUserPassword(ctx, user, codersdk.UpdateUserPasswordRequest{
+		OldPassword: oldDefaultPassword,
+		Password:    password,
+	})
+	if err == nil {
+		return true, nil
+	}
+	if !stored {
+		// A generated password that the server did not accept would be
+		// shown in the banner and tried at the next sign-in.
+		if rmErr := os.Remove(path); rmErr != nil {
+			return false, xerrors.Errorf("remove unused password file %s: %w", path, rmErr)
+		}
+	}
+	if apiErr, ok := codersdk.AsError(err); ok && apiErr.StatusCode() == http.StatusBadRequest {
+		for _, v := range apiErr.Validations {
+			if v.Field == "old_password" {
+				return false, nil
+			}
+		}
+	}
+	return false, xerrors.Errorf("update password: %w", err)
+}
+
+func (*devConfig) knownLogin(ctx context.Context, logger slog.Logger, email, path, override string) devLogin {
+	if override != "" {
+		return devLogin{password: override, fromFlag: true, seeded: true}
+	}
+	password, ok, err := readPassword(path)
+	if err != nil || !ok {
+		logger.Warn(ctx, fmt.Sprintf("develop.sh does not know the password of %s on this instance, so the banner cannot show it. "+
+			"Save the password in %s to have develop.sh use it.", email, path))
+		return devLogin{seeded: true}
+	}
+	return devLogin{password: password, seeded: true}
 }
 
 func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
@@ -1154,19 +1423,29 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 	}
 
 	// If the port is already in use, check whether it's our
-	// container from a previous run. If so, reuse it.
+	// container from a previous run. Reuse it only when it listens on
+	// the current bind address, so a loopback run never claims a UI that
+	// listens on every interface. A running container usually belongs to
+	// another live develop run, so a mismatch skips it instead of
+	// replacing it.
 	if isPortBusy(ctx, prometheusServerPort) {
 		out, err := exec.CommandContext(ctx, "docker", "inspect",
-			"-f", "{{.State.Running}}",
+			"-f", "{{.State.Running}} {{json .Args}}",
 			prometheusContainerName).Output()
-		if err == nil && strings.TrimSpace(string(out)) == "true" {
+		if err != nil || !strings.HasPrefix(string(out), "true ") {
+			logger.Info(ctx, "prometheus server port already in use, skipping",
+				slog.F("port", prometheusServerPort))
+			return false, nil
+		}
+		if cfg.prometheusReusable(string(out)) {
 			logger.Info(ctx, "reusing existing prometheus server",
 				slog.F("ui", fmt.Sprintf("http://localhost:%d", prometheusServerPort)),
 				slog.F("note", fmt.Sprintf("scrape target may differ from current --prometheus-port %d; restart to apply", cfg.coderMetricsPort)))
 			return true, nil
 		}
-		logger.Info(ctx, "prometheus server port already in use, skipping",
-			slog.F("port", prometheusServerPort))
+		logger.Warn(ctx, "a running prometheus server listens on another address, skipping",
+			slog.F("container", prometheusContainerName),
+			slog.F("bind_address", cfg.bindAddress))
 		return false, nil
 	}
 
@@ -1229,16 +1508,7 @@ scrape_configs:
 		return false, xerrors.Errorf("chmod prometheus config: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "run", //nolint:gosec // args are all controlled constants or our own temp file path
-		"--rm",
-		"--name", prometheusContainerName,
-		"--net=host",
-		"-v", tmpFile.Name()+":/etc/prometheus/prometheus.yml:ro",
-		"-v", prometheusDataDir+":/prometheus",
-		prometheusImage,
-		"--config.file=/etc/prometheus/prometheus.yml",
-		fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusServerPort),
-	)
+	cmd := exec.CommandContext(ctx, "docker", cfg.prometheusRunArgs(tmpFile.Name(), prometheusDataDir)...) //nolint:gosec // args are all controlled constants or our own temp file path
 
 	named := logger.Named("prometheus")
 	w := &logWriter{logger: named}
@@ -1275,7 +1545,12 @@ scrape_configs:
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
-	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
+	// A bare --host keeps Vite's default of every IPv4 and IPv6 interface.
+	host := []string{"--host"}
+	if cfg.bindAddress != defaultBindAddress {
+		host = append(host, cfg.bindAddress)
+	}
+	cmd := cfg.cmd(ctx, "pnpm", append([]string{"--dir", "./site", "dev"}, host...)...)
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("PORT=%d", cfg.webPort),
 		fmt.Sprintf("CODER_HOST=http://127.0.0.1:%d", cfg.apiPort),
@@ -1320,20 +1595,32 @@ func portSourceLabel(source portSource, offset int) string {
 	}
 }
 
-func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
-	ifaces := []string{"localhost"}
+// bannerHosts lists the hosts the banner shows URLs for. A loopback bind
+// answers on localhost only. The default listens on every interface, so the
+// banner lists each IPv4 interface and, inside a workspace, the Coder Desktop
+// names.
+func bannerHosts(bindAddress string) []string {
+	if bindAddress == loopbackBindAddress {
+		return []string{"localhost"}
+	}
+	hosts := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-				ifaces = append(ifaces, ipnet.IP.String())
+				hosts = append(hosts, ipnet.IP.String())
 			}
 		}
 	}
 	if os.Getenv("CODER") == "true" {
 		// Inside a workspace, add Coder Desktop entry.
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
 	}
+	return hosts
+}
+
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
+	ifaces := bannerHosts(cfg.bindAddress)
 	var b strings.Builder
 	w := 64
 	line := func(content ...string) {
@@ -1390,6 +1677,7 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 			line(indent(fmt.Sprintf("http://%s:%d", h, port)))
 		}
 	}
+	line(loginBannerLines(cfg)...)
 	line(
 		"",
 		"Use ./scripts/coder-dev.sh to talk to this instance!",
@@ -1398,6 +1686,42 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 	)
 	_, _ = fmt.Fprintln(&b, bottom)
 	logger.Info(ctx, b.String())
+}
+
+func loginBannerLines(cfg *devConfig) []string {
+	if !cfg.adminLogin.seeded && !cfg.memberLogin.seeded {
+		return nil
+	}
+	const indent = "           "
+	show := func(l devLogin) string {
+		if l.password == "" {
+			return "password not set by develop.sh"
+		}
+		return l.password
+	}
+
+	lines := []string{"", "Logins:"}
+	var files []string
+	if cfg.adminLogin.seeded {
+		lines = append(lines, indent+"admin@coder.com   "+show(cfg.adminLogin))
+		switch {
+		case cfg.adminLogin.fromFlag:
+			lines = append(lines, indent+"  (from --password)")
+		case cfg.adminLogin.password != "":
+			files = append(files, indent+".coderv2/"+adminPasswordFile)
+		}
+	}
+	if cfg.memberLogin.seeded {
+		lines = append(lines, indent+"member@coder.com  "+show(cfg.memberLogin))
+		if cfg.memberLogin.password != "" {
+			files = append(files, indent+".coderv2/"+memberPasswordFile)
+		}
+	}
+	if len(files) > 0 {
+		lines = append(lines, "", "Password files:")
+		lines = append(lines, files...)
+	}
+	return lines
 }
 
 // logWriter adapts an slog.Logger into an io.Writer. Each complete

@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/serpent"
 )
 
 func TestLogWriter(t *testing.T) {
@@ -294,7 +295,7 @@ func TestDevConfigValidate(t *testing.T) {
 			webPort:          8080,
 			proxyPort:        3010,
 			coderMetricsPort: 2114,
-			password:         defaultPassword,
+			bindAddress:      defaultBindAddress,
 		}
 	}
 
@@ -305,6 +306,20 @@ func TestDevConfigValidate(t *testing.T) {
 	}{
 		{
 			name: "Valid",
+		},
+		{
+			name:   "LoopbackBindAddress",
+			mutate: func(cfg *devConfig) { cfg.bindAddress = "127.0.0.1" },
+		},
+		{
+			name:     "BindAddressHostname",
+			mutate:   func(cfg *devConfig) { cfg.bindAddress = "localhost" },
+			wantErrs: []string{"--bind-address must be 0.0.0.0 or 127.0.0.1"},
+		},
+		{
+			name:     "BindAddressOtherIP",
+			mutate:   func(cfg *devConfig) { cfg.bindAddress = "::1" },
+			wantErrs: []string{"--bind-address must be 0.0.0.0 or 127.0.0.1"},
 		},
 		{
 			name: "AgplAndProxy",
@@ -321,6 +336,15 @@ func TestDevConfigValidate(t *testing.T) {
 				cfg.multiOrg = true
 			},
 			wantErrs: []string{"--agpl and --multi-organization"},
+		},
+		{
+			name:     "OldDefaultPassword",
+			mutate:   func(cfg *devConfig) { cfg.password = oldDefaultPassword },
+			wantErrs: []string{"--password must not be the old default password"},
+		},
+		{
+			name:   "PasswordContainingOldDefault",
+			mutate: func(cfg *devConfig) { cfg.password = oldDefaultPassword + "-and-more" },
 		},
 		{
 			name:     "PortTooLow",
@@ -613,6 +637,75 @@ func TestDevConfigResolveEnvExplicitAccessURL(t *testing.T) {
 	assert.Equal(t, "http://myhost:5000", cfg.accessURL)
 }
 
+func TestBindAddressOption(t *testing.T) {
+	t.Parallel()
+
+	parse := func(t *testing.T, env []string, args ...string) *devConfig {
+		t.Helper()
+		cfg := &devConfig{}
+		cmd := &serpent.Command{
+			Use:     "develop",
+			Options: cfg.options(),
+			Handler: func(*serpent.Invocation) error { return nil },
+		}
+		inv := cmd.Invoke(args...)
+		inv.Environ = serpent.ParseEnviron(env, "")
+		require.NoError(t, inv.Run())
+		return cfg
+	}
+
+	assert.Equal(t, defaultBindAddress, parse(t, nil).bindAddress)
+	assert.Equal(t, loopbackBindAddress, parse(t, nil, "--bind-address", "127.0.0.1").bindAddress)
+	assert.Equal(t, loopbackBindAddress, parse(t, []string{"CODER_DEV_BIND_ADDRESS=127.0.0.1"}).bindAddress)
+}
+
+func TestListenAddresses(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{
+		bindAddress:      loopbackBindAddress,
+		apiPort:          3000,
+		coderMetricsPort: 2114,
+		configDir:        "/fake/.coderv2",
+	}
+	args := strings.Join(cfg.serverArgs(), " ")
+	assert.Contains(t, args, "--http-address 127.0.0.1:3000")
+	assert.Contains(t, args, "--prometheus-address 127.0.0.1:2114")
+	assert.Contains(t, cfg.prometheusRunArgs("/fake/prometheus.yml", "/fake/data"),
+		fmt.Sprintf("--web.listen-address=127.0.0.1:%d", prometheusServerPort))
+
+	cfg.bindAddress = defaultBindAddress
+	assert.Contains(t, strings.Join(cfg.serverArgs(), " "), "--http-address 0.0.0.0:3000")
+}
+
+func TestPrometheusReusable(t *testing.T) {
+	t.Parallel()
+
+	inspect := fmt.Sprintf(`true ["--config.file=/etc/prometheus/prometheus.yml","--web.listen-address=0.0.0.0:%d"]`, prometheusServerPort)
+	assert.True(t, (&devConfig{bindAddress: defaultBindAddress}).prometheusReusable(inspect))
+	assert.False(t, (&devConfig{bindAddress: loopbackBindAddress}).prometheusReusable(inspect))
+}
+
+func TestPnpmCmdHost(t *testing.T) {
+	t.Parallel()
+
+	// The default keeps a bare --host, which listens on IPv4 and IPv6.
+	cfg := &devConfig{bindAddress: defaultBindAddress, webPort: 8080, apiPort: 3000}
+	assert.Equal(t, []string{"pnpm", "--dir", "./site", "dev", "--host"}, pnpmCmd(context.Background(), cfg).Args)
+
+	cfg.bindAddress = loopbackBindAddress
+	assert.Equal(t, []string{"pnpm", "--dir", "./site", "dev", "--host", "127.0.0.1"}, pnpmCmd(context.Background(), cfg).Args)
+}
+
+func TestBannerHosts(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"localhost"}, bannerHosts(loopbackBindAddress))
+	all := bannerHosts(defaultBindAddress)
+	require.NotEmpty(t, all)
+	assert.Equal(t, "localhost", all[0])
+}
+
 func TestDevConfigCmd(t *testing.T) {
 	t.Parallel()
 
@@ -628,6 +721,19 @@ func TestDevConfigCmd(t *testing.T) {
 	// Verify childEnv is cloned, not shared.
 	cmd.Env = append(cmd.Env, "C=3")
 	assert.Len(t, cfg.childEnv, 2, "original childEnv must not be mutated")
+}
+
+func TestDevConfigServerCmdSetupToken(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{childEnv: []string{"A=1"}}
+	cmd := cfg.serverCmd(context.Background(), "coder", "server")
+	assert.Equal(t, []string{"A=1"}, cmd.Env)
+
+	cfg.setupToken = "0123456789abcdefghijklmnopqrstuv"
+	cmd = cfg.serverCmd(context.Background(), "coder", "server")
+	assert.Equal(t, []string{"A=1", "CODER_SETUP_TOKEN=0123456789abcdefghijklmnopqrstuv"}, cmd.Env)
+	assert.NotContains(t, cmd.Args, cfg.setupToken)
 }
 
 func TestProcGroupProcessExit(t *testing.T) {

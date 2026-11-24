@@ -357,9 +357,139 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
+            "get": {
+                "description": "Returns one page of the requested models, for each provider, with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nThe response carries the number of models over every page.\nUnknown query parameters are rejected.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization unpriced AI models",
+                "operationId": "list-organization-unpriced-ai-models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UnpricedAIModels"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/ai/spend": {
+            "get": {
+                "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day, and with the current day only including the spend recorded so far), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization AI spend overview",
+                "operationId": "get-organization-ai-spend-overview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound at 00:00:00 UTC (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound at 00:00:00 UTC (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendOverview"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/ai/spend/users": {
             "get": {
-                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists their spend per provider, model, and client, most expensive first, and the number of models with unpriced usage. The response carries the user count, total spend, and whether any usage is unpriced over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional user_ids, group_id, provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "application/json"
                 ],
@@ -389,6 +519,19 @@ const docTemplate = `{
                         "format": "date-time",
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of user IDs (maximum 100)",
+                        "name": "user_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
                         "in": "query"
                     },
                     {
@@ -1337,6 +1480,282 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/templates/{template}": {
+            "put": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Attach template to chat project",
+                "operationId": "attach-template-to-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Detach template from chat project",
+                "operationId": "detach-template-from-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill preferences for a member",
+                "operationId": "get-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill preferences for a member",
+                "operationId": "update-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill preferences request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/skill-settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill settings",
+                "operationId": "get-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill settings",
+                "operationId": "update-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/skills": {
             "get": {
                 "produces": [
@@ -2246,13 +2665,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "description": "Literal model identifier substring, matched case-insensitively. Cannot be combined with q.",
                         "name": "model",
                         "in": "query"
                     }
@@ -2336,7 +2755,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -2927,7 +3346,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\\|paused\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -3058,6 +3477,74 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/coderd.chatsByWorkspaceResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/advisor": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat advisor config",
+                "operationId": "get-chat-advisor-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AdvisorConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat advisor config",
+                "operationId": "update-chat-advisor-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAdvisorConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -3781,8 +4268,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "x-example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -3948,6 +4435,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -3957,8 +4445,8 @@ const docTemplate = `{
                 "summary": "Watch chat events for a user via WebSockets",
                 "operationId": "watch-chat-events-for-a-user-via-websockets",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatWatchEvent"
                         }
@@ -4371,6 +4859,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Interrupts the active turn of a chat.\nIf the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -4632,6 +5121,52 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat queued message",
+                "operationId": "edit-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat queued message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
@@ -4713,6 +5248,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.\n\nEach WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it changes the chat's messages, queue, or status.\nA change's ` + "`" + `snapshot_version` + "`" + ` is the chat's ` + "`" + `snapshot_version` + "`" + ` when the server made the change.\nOnly the newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before the messages and the queue, so the page can include changes with a higher ` + "`" + `snapshot_version` + "`" + `.\nThe stream can send changes that are already in the page.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends what changed at a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that isn't deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` isn't an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the ID of a message that was edited.\nThe edit deleted that message and every message after it.\nWhen managing history state, delete every message with that ID or higher.\nAfter the ` + "`" + `history_reset` + "`" + ` event, the stream sends each message with that ID or higher that isn't deleted.\n\nA messages page that you request with ` + "`" + `before_id` + "`" + ` includes no ` + "`" + `snapshot_version` + "`" + `.\nIf an edit occurs after the server reads the page, the page can contain messages that the edit deleted.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then again sends the ` + "`" + `message_part` + "`" + ` events of the response that the agent is writing, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nOn a new connection, when ` + "`" + `after_id` + "`" + ` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.\nWhen ` + "`" + `after_id` + "`" + ` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a ` + "`" + `history_reset` + "`" + ` event if the chat has a deleted message.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
                 "produces": [
                     "application/json"
                 ],
@@ -4732,14 +5268,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Send what changed at this snapshot version or later",
+                        "name": "snapshot_version",
                         "in": "query"
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -4757,6 +5299,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/git": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each server message is either a ` + "`" + `changes` + "`" + ` message with a delta of repository changes after the previous message or an ` + "`" + `error` + "`" + ` message, and you can send ` + "`" + `{\"type\": \"refresh\"}` + "`" + ` to request an immediate re-scan.",
                 "produces": [
                     "application/json"
                 ],
@@ -4776,8 +5319,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
                         }
@@ -4792,6 +5335,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/parts": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends no events until you send a control message with ` + "`" + `history_version` + "`" + ` and ` + "`" + `generation_attempt` + "`" + `, and then each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -4811,8 +5355,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -8027,7 +8571,8 @@ const docTemplate = `{
                             "explore",
                             "title_generation",
                             "compaction",
-                            "advisor"
+                            "advisor",
+                            "computer_use"
                         ],
                         "type": "string",
                         "description": "Override context",
@@ -9952,32 +10497,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by provisioner daemon IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "offline",
+                                "idle",
+                                "busy"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -10063,32 +10601,29 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown",
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed"
-                        ],
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "pending",
+                                "running",
+                                "succeeded",
+                                "canceling",
+                                "canceled",
+                                "failed",
+                                "unknown"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
                         "description": "Filter results by status",
                         "name": "status",
                         "in": "query"
@@ -11036,6 +11571,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "description": "Returns the template version that precedes the named version.",
                 "produces": [
                     "application/json"
                 ],
@@ -11076,7 +11612,7 @@ const docTemplate = `{
                         }
                     },
                     "204": {
-                        "description": "No Content"
+                        "description": "The template version has no previous version"
                     }
                 },
                 "security": [
@@ -11295,16 +11831,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get the available idp sync claim fields",
                 "operationId": "get-the-available-idp-sync-claim-fields",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -11334,14 +11860,6 @@ const docTemplate = `{
                 "summary": "Get the idp sync claim field values",
                 "operationId": "get-the-idp-sync-claim-field-values",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "string",
@@ -16579,6 +17097,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a list of ` + "`" + `codersdk.WorkspaceAgentMetadata` + "`" + ` and ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -16598,8 +17117,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -18377,6 +18896,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -18396,8 +18916,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -18742,7 +19262,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
                         "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
                         "name": "Authorization",
                         "in": "header"
@@ -19338,6 +19858,14 @@ const docTemplate = `{
                 "model": {
                     "type": "string"
                 },
+                "organization": {
+                    "description": "Organization is the organization of this interception. Nil when none\nwas stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganization"
+                        }
+                    ]
+                },
                 "priced_model": {
                     "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
                     "allOf": [
@@ -19415,6 +19943,10 @@ const docTemplate = `{
                     "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
                     "type": "boolean"
                 },
+                "embedded_enabled": {
+                    "description": "EmbeddedEnabled controls whether coderd starts the in-memory AI\nGateway. It only takes effect when Enabled is true.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -19442,6 +19974,43 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AIBridgeInterceptionOrganization": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganizationSource"
+                }
+            }
+        },
+        "codersdk.AIBridgeInterceptionOrganizationSource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "chatd",
+                "effective_group"
+            ],
+            "x-enum-varnames": [
+                "AIBridgeInterceptionOrganizationSourceWorkspace",
+                "AIBridgeInterceptionOrganizationSourceChatd",
+                "AIBridgeInterceptionOrganizationSourceEffectiveGroup"
+            ]
         },
         "codersdk.AIBridgeListSessionsResponse": {
             "type": "object",
@@ -19591,6 +20160,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "organizations": {
+                    "description": "Organizations are the organizations this session's interceptions were\nattributed to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionOrganization"
+                    }
+                },
                 "providers": {
                     "type": "array",
                     "items": {
@@ -19628,6 +20204,33 @@ const docTemplate = `{
                 },
                 "domain": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionOrganization": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganizationSource"
+                    }
                 }
             }
         },
@@ -19680,6 +20283,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkDomain"
+                    }
+                },
+                "organizations": {
+                    "description": "Organizations are the organizations this session's interceptions were\nattributed to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionOrganization"
                     }
                 },
                 "page_ended_at": {
@@ -19807,6 +20417,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "organization": {
+                    "description": "Organization is the organization of the root interception. Nil when\nnone was stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeInterceptionOrganization"
+                        }
+                    ]
                 },
                 "priced_model": {
                     "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
@@ -20190,17 +20808,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "login_type": {
-                    "enum": [
-                        "password",
-                        "github",
-                        "oidc",
-                        "token"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
-                    ]
+                    ],
+                    "example": "password"
                 },
                 "scope": {
                     "description": "Deprecated: use Scopes instead.",
@@ -20783,6 +21396,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AdvisorConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled is always true and cannot be changed.",
+                    "type": "boolean"
+                },
+                "max_output_tokens": {
+                    "description": "MaxOutputTokens caps the advisor model response tokens. 0 means\nuse the runtime default.",
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat turn. 0 means unlimited.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AgentChatSendShortcut": {
             "type": "string",
             "enum": [
@@ -21226,6 +21856,10 @@ const docTemplate = `{
                 "password": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
+                "setup_token_required": {
+                    "description": "SetupTokenRequired is true when the first user can only be\ncreated with a setup token.",
+                    "type": "boolean"
+                },
                 "terms_of_service_url": {
                     "type": "string"
                 }
@@ -21236,17 +21870,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "read",
-                        "update",
-                        "delete"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.RBACAction"
                         }
-                    ]
+                    ],
+                    "example": "read"
                 },
                 "object": {
                     "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
@@ -21390,7 +22019,8 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "autodelete"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -21401,7 +22031,8 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection"
+                "BuildReasonJetbrainsConnection",
+                "BuildReasonAutodelete"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -21724,12 +22355,12 @@ const docTemplate = `{
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
-                "queue",
-                "interrupt"
+                "steer",
+                "queue"
             ],
             "x-enum-varnames": [
-                "ChatBusyBehaviorQueue",
-                "ChatBusyBehaviorInterrupt"
+                "ChatBusyBehaviorSteer",
+                "ChatBusyBehaviorQueue"
             ]
         },
         "codersdk.ChatClientType": {
@@ -21741,6 +22372,19 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatClientTypeUI",
                 "ChatClientTypeAPI"
+            ]
+        },
+        "codersdk.ChatComputerUseProvider": {
+            "type": "string",
+            "enum": [
+                "anthropic",
+                "openai",
+                "openai-compat"
+            ],
+            "x-enum-varnames": [
+                "ChatComputerUseProviderAnthropic",
+                "ChatComputerUseProviderOpenAI",
+                "ChatComputerUseProviderOpenAICompat"
             ]
         },
         "codersdk.ChatConfig": {
@@ -22341,10 +22985,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "args_delta": {
                     "type": "string"
@@ -22393,10 +23034,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "end_line": {
                     "type": "integer"
@@ -22446,21 +23086,12 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
-                "provider_metadata": {
-                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Result is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "result_delta": {
                     "type": "string"
@@ -22623,10 +23254,15 @@ const docTemplate = `{
                     }
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                     }
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot version, a number that the\nserver increases each time it changes the chat's messages, queue or\nstatus. The server sets it only when the request has neither\nbefore_id nor after_id. Pass it as the stream's snapshot_version\nparameter. The server reads this version before the page's messages\nand queued messages, so the page can include changes made at a\nhigher version. The stream can send changes that are already in the\npage.",
+                    "type": "integer"
                 },
                 "turn_start_id": {
                     "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
@@ -22643,6 +23279,14 @@ const docTemplate = `{
                 },
                 "compression_threshold": {
                     "type": "integer"
+                },
+                "computer_use_provider": {
+                    "description": "ComputerUseProvider names the computer use tool that Coder sends for\nthis model. It is omitted when computer use can't run on the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProvider"
+                        }
+                    ]
                 },
                 "context_limit": {
                     "type": "integer"
@@ -23014,14 +23658,16 @@ const docTemplate = `{
                 "explore",
                 "title_generation",
                 "compaction",
-                "advisor"
+                "advisor",
+                "computer_use"
             ],
             "x-enum-varnames": [
                 "ChatModelOverrideContextGeneral",
                 "ChatModelOverrideContextExplore",
                 "ChatModelOverrideContextTitleGeneration",
                 "ChatModelOverrideContextCompaction",
-                "ChatModelOverrideContextAdvisor"
+                "ChatModelOverrideContextAdvisor",
+                "ChatModelOverrideContextComputerUse"
             ]
         },
         "codersdk.ChatModelOverrideResponse": {
@@ -23289,8 +23935,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_template": {
+                    "description": "DefaultTemplate is omitted when the project has none or the caller\ncannot access it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
+                },
+                "hidden_template_count": {
+                    "description": "HiddenTemplateCount is the number of attached templates the caller\ncannot access. Nothing else about them is returned.",
+                    "type": "integer"
                 },
                 "icon": {
                     "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
@@ -23299,6 +23957,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to its attached\ntemplates, and to none when nothing is attached. When false, the chats\ncan use every template their owner can use.",
+                    "type": "boolean"
                 },
                 "name": {
                     "description": "Name is a display label and is not unique; ID identifies the project.",
@@ -23315,6 +23977,13 @@ const docTemplate = `{
                 "permissions": {
                     "$ref": "#/definitions/codersdk.ChatProjectPermissions"
                 },
+                "templates": {
+                    "description": "Templates are the attached templates the caller can access. Deprecated\ntemplates and templates that do not allow agents are left out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplate"
+                    }
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -23330,11 +23999,40 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatProjectGroup"
                     }
                 },
+                "owner": {
+                    "description": "Owner is the project owner, who is never listed in Users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
                 "users": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatProjectUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatProjectDefaultTemplate": {
+            "type": "object",
+            "properties": {
+                "parameters": {
+                    "description": "Parameters are parameter values, keyed by name, applied when a chat\ncreates a workspace from the template. Values the chat passes take\nprecedence.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "preset_id": {
+                    "description": "PresetID is a preset of the template's active version, applied when a\nchat creates a workspace from the template without choosing a preset.\nIt is mutually exclusive with Parameters.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -23482,6 +24180,24 @@ const docTemplate = `{
                 "ChatProjectRoleDeleted"
             ]
         },
+        "codersdk.ChatProjectTemplate": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatProjectUser": {
             "type": "object",
             "required": [
@@ -23541,6 +24257,18 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior is the lane of the message. Steer messages go in\nbefore the next model call, and queue messages go in after the\nturn ends.",
+                    "enum": [
+                        "steer",
+                        "queue"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -23555,12 +24283,20 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "editing_since": {
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends. A\nsteer message under edit also holds the steer messages ahead of\nit. A turn that ends at a message under edit pauses the chat.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "integer"
                 },
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -23605,14 +24341,16 @@ const docTemplate = `{
                 "running",
                 "error",
                 "requires_action",
-                "interrupting"
+                "interrupting",
+                "paused"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
                 "ChatStatusRunning",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
-                "ChatStatusInterrupting"
+                "ChatStatusInterrupting",
+                "ChatStatusPaused"
             ]
         },
         "codersdk.ChatStreamActionRequired": {
@@ -23639,6 +24377,14 @@ const docTemplate = `{
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
+                "history_reset": {
+                    "description": "HistoryReset is set on history_reset events of streams opened with a\nsnapshot_version.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+                        }
+                    ]
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -23646,6 +24392,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -23653,6 +24400,10 @@ const docTemplate = `{
                 },
                 "retry": {
                     "$ref": "#/definitions/codersdk.ChatStreamRetry"
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is set on the message, queue_update and history_reset\nevents of streams opened with a snapshot_version. It is the chat's\nsnapshot version when the change that the event reports was made. To\nreconnect, open the stream with the highest one received from the\nmessages page or from events.",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStreamStatus"
@@ -23686,6 +24437,15 @@ const docTemplate = `{
                 "ChatStreamEventTypePreviewReset",
                 "ChatStreamEventTypeHistoryReset"
             ]
+        },
+        "codersdk.ChatStreamHistoryReset": {
+            "type": "object",
+            "properties": {
+                "from_message_id": {
+                    "description": "FromMessageID is the ID of a message that was edited. The edit deleted\nthat message and every message after it. When managing history state,\ndelete every message with this ID or higher. The messages that follow\nwere written by the edit or after it and should be kept.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
@@ -24160,10 +24920,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "busy_behavior": {
-                    "enum": [
-                        "queue",
-                        "interrupt"
-                    ],
+                    "description": "BusyBehavior controls when the message reaches the agent if the\nchat is busy. \"steer\", the default, delivers it before the next\nmodel call. \"queue\" delivers it after the active turn ends.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatBusyBehavior"
@@ -24214,7 +24971,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
                 "messages": {
-                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A queued send on an errored chat may promote the\nprevious queue head, so clients must upsert the full batch.",
+                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A send to an errored or paused chat can also insert\nqueued messages: a steer send inserts the queued steer messages\nbefore the new message, and a queue send to an errored chat inserts\nthe steer lane, or the first queue message when that lane is empty.\nClients must upsert the full batch.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
@@ -24289,14 +25046,34 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate must name one of TemplateIDs.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "limit_templates": {
+                    "description": "LimitTemplates restricts the project's chats to TemplateIDs.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "template_ids": {
+                    "description": "TemplateIDs are attached to the new project.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },
@@ -24405,6 +25182,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.CreateFirstUserOnboardingInfo"
                 },
                 "password": {
+                    "type": "string"
+                },
+                "setup_token": {
+                    "description": "SetupToken is required when AuthMethods.SetupTokenRequired is\ntrue. The server prints it at startup.",
                     "type": "string"
                 },
                 "trial": {
@@ -24546,6 +25327,18 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
+                },
                 "oauth2_client_secret": {
                     "type": "string"
                 },
@@ -24631,7 +25424,11 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. It must be a single\nline of at most MaxSkillDisplayNameLength characters, and surrounding\nwhitespace is trimmed.",
                     "type": "string"
                 },
                 "model_invocable": {
@@ -24686,6 +25483,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
                         }
                     ]
+                },
+                "browser_only": {
+                    "description": "BrowserOnly makes coderd refuse non-browser client connections, such as\nSSH, port forwarding and desktop IDEs, to workspaces built from this\ntemplate. Defaults to false. Enabling it requires the browser-only\nentitlement.",
+                    "type": "boolean"
                 },
                 "cors_behavior": {
                     "description": "CORSBehavior allows optionally specifying the CORS behavior for all shared ports.",
@@ -24839,36 +25640,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AuditAction"
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "organization_id": {
                     "type": "string",
@@ -24883,20 +25661,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ResourceType"
                 },
                 "time": {
                     "type": "string",
@@ -25208,10 +25973,9 @@ const docTemplate = `{
                     }
                 },
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "ProvisionerState overrides the provisioner state for this build. JSON\ncarries it as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -25780,6 +26544,9 @@ const docTemplate = `{
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
                 },
+                "setup_token": {
+                    "type": "string"
+                },
                 "ssh_keygen_algorithm": {
                     "type": "string"
                 },
@@ -25940,10 +26707,7 @@ const docTemplate = `{
                 },
                 "input_schema": {
                     "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "name": {
                     "type": "string"
@@ -26005,6 +26769,30 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.EditChatQueuedMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content replaces the queued content. An empty array is rejected.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "editing": {
+                    "description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. While the chat is paused, beginning an edit on another\nmessage returns 409. Ending the edit of a paused chat's head sends\nit.",
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID and ReasoningEffort require Content; sending either\nwithout it returns 400. Omitted values keep the stored ones.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -26061,35 +26849,35 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
-                "mcp-tool-search",
                 "workspace-build-updates",
                 "no_nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
                 "chat-project-sharing",
-                "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "chat-automations",
+                "agent-plugins"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentAgentPlugins": "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.",
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
-                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-                "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -26101,40 +26889,40 @@ const docTemplate = `{
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
-                "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables sharing agent chat projects with other users and groups.",
-                "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents.",
+                "Enables virtual desktop and computer use for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
-                "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNoNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatProjectSharing",
-                "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentChatAutomations",
+                "ExperimentAgentPlugins"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -26647,12 +27435,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -26710,12 +27498,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -27043,11 +27831,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "REQUIRED_TEMPLATE_VARIABLES",
-                "INSUFFICIENT_QUOTA"
+                "INSUFFICIENT_QUOTA",
+                "MISSING_TEMPLATE_PARAMETER"
             ],
             "x-enum-varnames": [
                 "RequiredTemplateVariables",
-                "InsufficientQuota"
+                "InsufficientQuota",
+                "MissingTemplateParameter"
             ]
         },
         "codersdk.License": {
@@ -27168,6 +27958,7 @@ const docTemplate = `{
                 "github",
                 "oidc",
                 "token",
+                "oauth2_provider_app",
                 "none"
             ],
             "x-enum-varnames": [
@@ -27176,6 +27967,7 @@ const docTemplate = `{
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
                 "LoginTypeToken",
+                "LoginTypeOAuth2ProviderApp",
                 "LoginTypeNone"
             ]
         },
@@ -27273,6 +28065,9 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "description": "OAuth2 fields (only populated for admins).",
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
                 },
                 "oauth2_resource": {
                     "type": "string"
@@ -27434,6 +28229,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.MCPServerOAuth2ClientRegistration": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "MCPServerOAuth2ClientRegistrationManual",
+                "MCPServerOAuth2ClientRegistrationDynamic"
+            ]
         },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
             "type": "object",
@@ -28600,6 +29406,186 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationAISpendClient": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend from the client over the period.",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage from the client was\nrecorded without a price.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "Name is the client recorded on the intercepted request. Usage without a\nrecorded client is reported as Unknown.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendModel": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend on the model over the period.",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage of the model was\nrecorded without a price.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "Name is the model the client requested.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverview": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of users with spend in the period.",
+                    "type": "integer"
+                },
+                "intervals": {
+                    "description": "Intervals holds the daily spend, one interval per UTC day in the period\n(omitting days after the current day). Days without spend are zero. When\nthe period includes the current day, its interval only has the spend\nrecorded so far.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewInterval"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "totals": {
+                    "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewTotals"
+                },
+                "users": {
+                    "description": "Users is the requested page, most spend first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewUser"
+                    }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewGroup": {
+            "type": "object",
+            "properties": {
+                "group_display_name": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the user's spend attributed to this group in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewInterval": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_micros": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewTotals": {
+            "type": "object",
+            "properties": {
+                "median_spend_micros": {
+                    "description": "MedianSpendMicros is the median spend across users with spend in the\nperiod. It is zero when no user has spend.",
+                    "type": "integer"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the total spend of all users in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "groups": {
+                    "description": "Groups are the groups the user's spend was attributed to, most spend\nfirst.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewGroup"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the user's total spend in the period, across all of\ntheir groups.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendProvider": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend through the provider over the period.",
+                    "type": "integer"
+                },
+                "display_name": {
+                    "description": "DisplayName falls back to the provider name when unset.",
+                    "type": "string"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any token usage through the provider\nwas recorded without a price.",
+                    "type": "boolean"
+                },
+                "icon": {
+                    "description": "Icon is empty when the provider has no configured icon.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the name of the configured provider.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is omitted when the provider name was never configured.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderType"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.OrganizationAISpendReport": {
             "type": "object",
             "properties": {
@@ -28608,12 +29594,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -28641,9 +29627,9 @@ const docTemplate = `{
                     "description": "CostMicros is the priced spend of every matching user.",
                     "type": "integer"
                 },
-                "unpriced_usage_count": {
-                    "description": "UnpricedUsageCount is the number of token usage records without a cost\nacross every matching user.",
-                    "type": "integer"
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports whether any matching token usage was recorded\nwithout a price.",
+                    "type": "boolean"
                 }
             }
         },
@@ -28653,37 +29639,33 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
-                "clients": {
-                    "description": "Clients are the clients the user spent through, sorted. Usage without a\nrecorded client is reported as Unknown.",
+                "client_spend": {
+                    "description": "ClientSpend is the user's spend per client, most expensive first. Usage\nwithout a recorded client is reported as Unknown.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendClient"
                     }
                 },
                 "cost_micros": {
-                    "description": "CostMicros is the user's priced spend over the period.",
+                    "description": "CostMicros is the user's priced spend over the period. It is a lower\nbound when any entry in ModelSpend has unpriced usage.",
                     "type": "integer"
                 },
-                "models": {
-                    "description": "Models are the models the user spent through, sorted.",
+                "model_spend": {
+                    "description": "ModelSpend is the user's spend per model, most expensive first.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendModel"
                     }
                 },
                 "name": {
                     "type": "string"
                 },
-                "providers": {
-                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
+                "provider_spend": {
+                    "description": "ProviderSpend is the user's spend per configured provider, most\nexpensive first.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendProvider"
                     }
-                },
-                "unpriced_usage_count": {
-                    "description": "UnpricedUsageCount is the number of the user's token usage records that\ncarry no cost because their model had no price when they were recorded.",
-                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",
@@ -28756,12 +29738,12 @@ const docTemplate = `{
                     }
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 }
@@ -28841,15 +29823,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "updated_at": {
                     "type": "string",
@@ -28944,6 +29918,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSkillPreferences": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "description": "AllSkillsDisabled turns off every organization skill, including\nskills added later. DisabledSkillIDs is kept and applies again when it\nis false.",
+                    "type": "boolean"
+                },
+                "disabled_skill_ids": {
+                    "description": "DisabledSkillIDs lists the organization skills the member turned off.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills is the organization's setting.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OrganizationSkillRole": {
             "type": "string",
             "enum": [
@@ -28954,6 +29949,15 @@ const docTemplate = `{
                 "OrganizationSkillRoleRead",
                 "OrganizationSkillRoleDeleted"
             ]
+        },
+        "codersdk.OrganizationSkillSettings": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills lets each organization member turn off\norganization skills for their own chats.",
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.OrganizationSkillUser": {
             "type": "object",
@@ -29672,6 +30676,9 @@ const docTemplate = `{
                 "collect_db_metrics": {
                     "type": "boolean"
                 },
+                "collect_workspace_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -29762,16 +30769,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "offline",
-                        "idle",
-                        "busy"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -29792,19 +30790,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "template_display_name": {
                     "type": "string"
@@ -29856,15 +30842,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "error_code": {
-                    "enum": [
-                        "REQUIRED_TEMPLATE_VARIABLES",
-                        "INSUFFICIENT_QUOTA"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.JobErrorCode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.JobErrorCode"
                 },
                 "file_id": {
                     "type": "string",
@@ -29902,19 +30880,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "running",
-                        "succeeded",
-                        "canceling",
-                        "canceled",
-                        "failed"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                 },
                 "tags": {
                     "type": "object",
@@ -29961,18 +30927,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "log_level": {
-                    "enum": [
-                        "trace",
-                        "debug",
-                        "info",
-                        "warn",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.LogLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "log_source": {
                     "$ref": "#/definitions/codersdk.LogSource"
@@ -30186,17 +31141,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "mode": {
-                    "enum": [
-                        "inherit",
-                        "on",
-                        "off",
-                        "condition"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ExperimentRuleMode"
                 }
             }
         },
@@ -30456,15 +31401,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -30958,15 +31895,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actor_type": {
-                    "enum": [
-                        "group",
-                        "user"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
                 },
                 "avatar_url": {
                     "type": "string",
@@ -31006,6 +31935,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
+                    "description": "Content is the SKILL.md file, with its ` + "`" + `disable-model-invocation` + "`" + `\nfrontmatter key set to agree with ` + "`" + `model_invocable` + "`" + `. A stored file whose\nkey the server cannot set, such as a list, is returned unchanged.",
                     "type": "string"
                 },
                 "created_at": {
@@ -31013,6 +31943,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -31047,6 +31981,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -31223,6 +32161,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
                         }
                     ]
+                },
+                "browser_only": {
+                    "description": "BrowserOnly makes coderd refuse non-browser client connections, such as\nSSH, port forwarding and desktop IDEs, to workspaces built from this\ntemplate. The deployment-wide browser-only setting applies on top of\nthis one.",
+                    "type": "boolean"
                 },
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
@@ -31656,10 +32598,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Default is the variable's default as a JSON string, number, or boolean,\nmatching the variable's type.",
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -32052,15 +32992,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -32125,9 +33057,6 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "enum": [
-                            "DEPRECATED_PARAMETERS"
-                        ],
                         "$ref": "#/definitions/codersdk.TemplateVersionWarning"
                     }
                 }
@@ -32231,15 +33160,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "validation_monotonic": {
-                    "enum": [
-                        "increasing",
-                        "decreasing"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
                 },
                 "validation_regex": {
                     "type": "string"
@@ -32388,10 +33309,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Output is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "tool_call_id": {
                     "type": "string"
@@ -32425,6 +33344,65 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UnpricedAIModel": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "description": "Model is the model the client requested.",
+                    "type": "string"
+                },
+                "provider_display_name": {
+                    "description": "ProviderDisplayName falls back to the provider name when unset.",
+                    "type": "string"
+                },
+                "provider_icon": {
+                    "description": "ProviderIcon is empty when the provider has no configured icon.",
+                    "type": "string"
+                },
+                "provider_name": {
+                    "description": "ProviderName is the name of the configured provider.",
+                    "type": "string"
+                },
+                "provider_type": {
+                    "description": "ProviderType is the type of the configured provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderType"
+                        }
+                    ]
+                },
+                "token_count": {
+                    "description": "TokenCount is the number of tokens used without a price in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UnpricedAIModels": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of models over every page.",
+                    "type": "integer"
+                },
+                "models": {
+                    "description": "Models are one page of the models, ordered by unpriced token count,\nhighest first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UnpricedAIModel"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -32463,6 +33441,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAdvisorConfigRequest": {
+            "type": "object",
+            "properties": {
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "type": "integer"
                 }
             }
         },
@@ -32637,11 +33626,22 @@ const docTemplate = `{
         "codersdk.UpdateChatProjectRequest": {
             "type": "object",
             "properties": {
+                "default_template": {
+                    "description": "DefaultTemplate replaces the project's default template, preset, and\nparameters as a whole when set. A zero TemplateID clears them.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectDefaultTemplate"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
+                },
+                "limit_templates": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -32814,6 +33814,18 @@ const docTemplate = `{
                 "oauth2_client_id": {
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
+                },
                 "oauth2_client_secret": {
                     "type": "string"
                 },
@@ -32911,6 +33923,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateOrganizationSkillPreferencesRequest": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "type": "boolean"
+                },
+                "skills": {
+                    "description": "Skills maps an organization skill ID to whether the skill is enabled\nfor the member's chats.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationSkillSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateRoles": {
             "type": "object",
             "properties": {
@@ -32930,13 +33965,18 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body. A ` + "`" + `disable-model-invocation` + "`" + ` key must\nhold a value the server can replace with true or false, so a list is\nrejected.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. An empty value\nclears it.",
                     "type": "string"
                 },
                 "enabled": {
                     "type": "boolean"
                 },
                 "model_invocable": {
+                    "description": "ModelInvocable is left unchanged when unset, unless the new content\nfrontmatter sets ` + "`" + `disable-model-invocation` + "`" + ` to a boolean: true turns it\noff and false turns it on.",
                     "type": "boolean"
                 }
             }
@@ -33002,6 +34042,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
                         }
                     ]
+                },
+                "browser_only": {
+                    "description": "BrowserOnly makes coderd refuse non-browser client connections, such as\nSSH, port forwarding and desktop IDEs, to workspaces built from this\ntemplate. Enabling it requires the browser-only entitlement; disabling it\ndoes not.",
+                    "type": "boolean"
                 },
                 "cors_behavior": {
                     "$ref": "#/definitions/codersdk.CORSBehavior"
@@ -33076,6 +34120,12 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
                 },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
@@ -33303,10 +34353,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "State is the provisioner state, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 }
             }
         },
@@ -33331,11 +34380,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -33449,28 +34493,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 }
             }
         },
@@ -33555,15 +34581,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.UserStatus"
                 },
                 "theme_preference": {
                     "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
@@ -33640,12 +34658,12 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period_end": {
-                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "period_start": {
-                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -33721,6 +34739,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size, and the web terminal will use the default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",
@@ -34081,15 +35103,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "automatic_updates": {
-                    "enum": [
-                        "always",
-                        "never"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AutomaticUpdates"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.AutomaticUpdates"
                 },
                 "autostart_schedule": {
                     "type": "string"
@@ -34259,6 +35273,7 @@ const docTemplate = `{
                     }
                 },
                 "environment_variables": {
+                    "description": "EnvironmentVariables lists the variables set on the agent. Non-empty\nvalues are redacted as \"***REDACTED***\" because they often hold credentials.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -34755,28 +35770,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "enum": [
-                        "http",
-                        "https"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
                 },
                 "share_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "workspace_id": {
                     "type": "string",
@@ -35005,17 +36002,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
                 },
                 "sharing_level": {
-                    "enum": [
-                        "owner",
-                        "authenticated",
-                        "organization",
-                        "public"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
                 },
                 "slug": {
                     "description": "Slug is a unique identifier within the agent.",
@@ -35187,16 +36174,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "reason": {
-                    "enum": [
-                        "initiator",
-                        "autostart",
-                        "autostop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.BuildReason"
                 },
                 "resources": {
                     "type": "array",
@@ -35205,23 +36183,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "enum": [
-                        "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceStatus"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -35235,16 +36197,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 },
                 "updated_at": {
                     "type": "string",
@@ -35565,16 +36518,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_transition": {
-                    "enum": [
-                        "start",
-                        "stop",
-                        "delete"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
                 }
             }
         },
@@ -35690,11 +36634,6 @@ const docTemplate = `{
             "properties": {
                 "shareable_workspace_owners": {
                     "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
@@ -35854,7 +36793,9 @@ const docTemplate = `{
                 "EDERP03",
                 "EPD01",
                 "EPD02",
-                "EPD03"
+                "EPD03",
+                "EPS01",
+                "EPS02"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -35875,7 +36816,9 @@ const docTemplate = `{
                 "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
-                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated",
+                "CodePubsubNotConnected",
+                "CodePubsubServerNotRunning"
             ]
         },
         "health.Message": {
@@ -35925,16 +36868,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "status_code": {
                     "type": "integer"
@@ -35979,16 +36913,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36042,16 +36967,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "stun": {
                     "$ref": "#/definitions/healthsdk.STUNReport"
@@ -36087,16 +37003,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/tailcfg.DERPRegion"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36129,16 +37036,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "threshold_ms": {
                     "type": "integer"
@@ -36159,7 +37057,8 @@ const docTemplate = `{
                 "Websocket",
                 "Database",
                 "WorkspaceProxy",
-                "ProvisionerDaemons"
+                "ProvisionerDaemons",
+                "Pubsub"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
@@ -36167,7 +37066,8 @@ const docTemplate = `{
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
                 "HealthSectionWorkspaceProxy",
-                "HealthSectionProvisionerDaemons"
+                "HealthSectionProvisionerDaemons",
+                "HealthSectionPubsub"
             ]
         },
         "healthsdk.HealthSettings": {
@@ -36204,13 +37104,11 @@ const docTemplate = `{
                 "provisioner_daemons": {
                     "$ref": "#/definitions/healthsdk.ProvisionerDaemonsReport"
                 },
+                "pubsub": {
+                    "$ref": "#/definitions/healthsdk.PubsubReport"
+                },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
                     "allOf": [
                         {
                             "$ref": "#/definitions/health.Severity"
@@ -36246,16 +37144,7 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36270,6 +37159,30 @@ const docTemplate = `{
             "properties": {
                 "provisioner_daemon": {
                     "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthsdk.PubsubReport": {
+            "type": "object",
+            "properties": {
+                "backend": {
+                    "description": "Backend is the pubsub implementation in use.",
+                    "type": "string"
+                },
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36324,16 +37237,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -36357,16 +37261,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "severity": {
-                    "enum": [
-                        "ok",
-                        "warning",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/health.Severity"
-                        }
-                    ]
+                    "$ref": "#/definitions/health.Severity"
                 },
                 "warnings": {
                     "type": "array",
@@ -37041,7 +37936,6 @@ const docTemplate = `{
         "workspacesdk.WatchErrorCode": {
             "type": "integer",
             "enum": [
-                0,
                 1,
                 2,
                 3,
@@ -37049,20 +37943,7 @@ const docTemplate = `{
                 5,
                 6
             ],
-            "x-enum-comments": {
-                "_": "Ensure that zero value is not a valid code"
-            },
-            "x-enum-descriptions": [
-                "Ensure that zero value is not a valid code",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-            ],
             "x-enum-varnames": [
-                "_",
                 "WatchErrorTooManyAgents",
                 "WatchErrorNameNotFound",
                 "WatchErrorNoAgents",

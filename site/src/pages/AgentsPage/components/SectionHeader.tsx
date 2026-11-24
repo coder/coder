@@ -3,6 +3,7 @@ export type SectionHeaderLevel = "page" | "section";
 type SectionHeaderProps = {
 	label: React.ReactNode;
 	description?: string;
+	descriptionId?: string;
 	badge?: React.ReactNode;
 	action?: React.ReactNode;
 	level?: SectionHeaderLevel;
@@ -11,6 +12,7 @@ type SectionHeaderProps = {
 export const SectionHeader: React.FC<SectionHeaderProps> = ({
 	label,
 	description,
+	descriptionId,
 	badge,
 	action,
 	level = "page",
@@ -32,7 +34,11 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 					<Heading className={headingClass}>{label}</Heading>
 					{badge}
 				</div>
-				{description && <p className={descriptionClass}>{description}</p>}
+				{description && (
+					<p id={descriptionId} className={descriptionClass}>
+						{description}
+					</p>
+				)}
 			</div>
 			{action}
 		</div>

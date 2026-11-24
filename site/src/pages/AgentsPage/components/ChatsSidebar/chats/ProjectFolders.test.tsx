@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect, useRef } from "react";
+import { MemoryRouter, useLocation } from "react-router";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -10,34 +11,62 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { hasHighlightComposerState } from "../../../utils/composerHighlight";
+import { buildAgentProjectPath } from "../../../utils/navigation";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
 	readonly currentUserId?: string;
+	readonly route?: string;
+	readonly withComposer?: boolean;
+};
+
+// Stands in for the project page's composer, which takes focus when a New
+// chat navigation asks for the highlight.
+const ComposerStandIn: React.FC = () => {
+	const location = useLocation();
+	const inputRef = useRef<HTMLInputElement>(null);
+	const highlightKey = hasHighlightComposerState(location.state)
+		? location.key
+		: undefined;
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			inputRef.current?.focus();
+		}
+	}, [highlightKey]);
+	return <input ref={inputRef} aria-label="Composer" />;
 };
 
 const projectFoldersElement = (
 	projects: readonly ChatProject[],
-	{ error, currentUserId = MockUserOwner.id }: ProjectFoldersOptions = {},
+	{
+		error,
+		currentUserId = MockUserOwner.id,
+		route = "/agents",
+		withComposer = false,
+	}: ProjectFoldersOptions = {},
 ) => (
-	<MemoryRouter>
+	<MemoryRouter initialEntries={[route]}>
 		<ProjectFolders
 			currentUserId={currentUserId}
 			projects={projects}
 			organizations={[MockDefaultOrganization]}
 			chatsByProjectId={new Map()}
+			pinnedChatsByProjectId={new Map()}
+			chatListInput={{}}
 			expandedProjectIds={{}}
 			onToggle={vi.fn()}
 			onOpenProjectDialog={vi.fn()}
 			onDelete={vi.fn()}
-			emptyMessage="No agents yet"
+			emptyMessage="No chats yet"
 			isLoading={false}
 			error={error}
 			isLoadError={false}
 			onRetry={vi.fn()}
 		/>
+		{withComposer && <ComposerStandIn />}
 	</MemoryRouter>
 );
 
@@ -65,11 +94,13 @@ describe("ProjectFolders", () => {
 					projects={[MockChatProject]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
+					pinnedChatsByProjectId={new Map()}
+					chatListInput={{}}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
 					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
+					emptyMessage="No chats yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
 					isLoadError={false}
@@ -102,6 +133,36 @@ describe("ProjectFolders", () => {
 			projectFoldersElement([], { error: new Error("Projects unavailable") }),
 		);
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
+	});
+
+	it("leaves focus in the composer after New chat on the project's page", async () => {
+		// In browsers the navigation commits, and the composer takes focus,
+		// before the closing menu's timer returns focus to its button. Fake
+		// timers hold that timer so the test can reproduce the order.
+		vi.useFakeTimers();
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ delay: null });
+		renderProjectFolders([MockChatProject], {
+			route: buildAgentProjectPath({ projectId: MockChatProject.id }),
+			withComposer: true,
+		});
+
+		await user.click(
+			screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
+		await act(async () => {});
+		const composer = screen.getByRole("textbox", { name: "Composer" });
+		expect(composer).toHaveFocus();
+		act(() => {
+			vi.runOnlyPendingTimers();
+		});
+
+		expect(composer).toHaveFocus();
 	});
 
 	it("collapses and expands the whole Projects section", async () => {
@@ -167,11 +228,13 @@ describe("ProjectFolders", () => {
 					projects={[MockChatProject, otherProject]}
 					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}
+					pinnedChatsByProjectId={new Map()}
+					chatListInput={{}}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
 					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
+					emptyMessage="No chats yet"
 					isLoading={false}
 					error={undefined}
 					isLoadError={false}

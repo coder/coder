@@ -2,34 +2,34 @@ package unit
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
-	"gonum.org/v1/gonum/graph/encoding/dot"
-	"gonum.org/v1/gonum/graph/simple"
-	"gonum.org/v1/gonum/graph/topo"
 )
 
-// Graph provides a bidirectional interface over gonum's directed graph implementation.
-// While the underlying gonum graph is directed, we overlay bidirectional semantics
-// by distinguishing between forward and reverse edges. Wanting and being wanted by
-// other units are related but different concepts that have different graph traversal
+// Graph is a directed acyclic graph with typed edges. Forward and reverse
+// adjacency are both indexed. Wanting and being wanted by other units are
+// related but different concepts that have different graph traversal
 // implications when Units update their status.
 //
 // The graph stores edge types to represent different relationships between units,
 // allowing for domain-specific semantics beyond simple connectivity.
 type Graph[EdgeType, VertexType comparable] struct {
 	mu sync.RWMutex
-	// The underlying gonum graph. It stores vertices and edges without knowing about the types of the vertices and edges.
-	gonumGraph *simple.DirectedGraph
-	// Maps vertices to their IDs so that a gonum vertex ID can be used to lookup the vertex type.
+	// Maps vertices to their IDs. IDs are assigned in insertion order and
+	// give DOT output a stable ordering.
 	vertexToID map[VertexType]int64
-	// Maps vertex IDs to their types so that a vertex type can be used to lookup the gonum vertex ID.
+	// Maps vertex IDs back to their vertices.
 	idToVertex map[int64]VertexType
 	// The next ID to assign to a vertex.
 	nextID int64
-	// Store edge types by "fromID->toID" key. This is used to lookup the edge type for a given edge.
-	edgeTypes map[string]EdgeType
+	// forward maps a vertex ID to the IDs it has edges to, with edge types.
+	forward map[int64]map[int64]EdgeType
+	// reverse maps a vertex ID to the IDs that have edges to it.
+	reverse map[int64]map[int64]struct{}
 }
 
 // Edge is a convenience type for representing an edge in the graph.
@@ -40,17 +40,17 @@ type Edge[EdgeType, VertexType comparable] struct {
 	Edge EdgeType
 }
 
-// AddEdge adds an edge to the graph. It initializes the graph and metadata on first use,
-// checks for cycles, and adds the edge to the gonum graph.
+// AddEdge adds an edge to the graph. It initializes the graph on first use and
+// rejects edges that would create a cycle.
 func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.gonumGraph == nil {
-		g.gonumGraph = simple.NewDirectedGraph()
+	if g.vertexToID == nil {
 		g.vertexToID = make(map[VertexType]int64)
 		g.idToVertex = make(map[int64]VertexType)
-		g.edgeTypes = make(map[string]EdgeType)
+		g.forward = make(map[int64]map[int64]EdgeType)
+		g.reverse = make(map[int64]map[int64]struct{})
 		g.nextID = 1
 	}
 
@@ -61,10 +61,8 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 		return xerrors.Errorf("adding edge (%v -> %v): %w", from, to, ErrCycleDetected)
 	}
 
-	g.gonumGraph.SetEdge(simple.Edge{F: simple.Node(fromID), T: simple.Node(toID)})
-
-	edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
-	g.edgeTypes[edgeKey] = edge
+	g.forward[fromID][toID] = edge
+	g.reverse[toID][fromID] = struct{}{}
 
 	return nil
 }
@@ -80,16 +78,8 @@ func (g *Graph[EdgeType, VertexType]) GetForwardAdjacentVertices(from VertexType
 	}
 
 	edges := []Edge[EdgeType, VertexType]{}
-	toNodes := g.gonumGraph.From(fromID)
-	for toNodes.Next() {
-		toID := toNodes.Node().ID()
-		to := g.idToVertex[toID]
-
-		// Get the edge type
-		edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
-		edgeType := g.edgeTypes[edgeKey]
-
-		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edgeType})
+	for toID, edgeType := range g.forward[fromID] {
+		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: g.idToVertex[toID], Edge: edgeType})
 	}
 
 	return edges
@@ -106,16 +96,9 @@ func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) 
 	}
 
 	edges := []Edge[EdgeType, VertexType]{}
-	fromNodes := g.gonumGraph.To(toID)
-	for fromNodes.Next() {
-		fromID := fromNodes.Node().ID()
-		from := g.idToVertex[fromID]
-
-		// Get the edge type
-		edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
-		edgeType := g.edgeTypes[edgeKey]
-
-		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edgeType})
+	for fromID := range g.reverse[toID] {
+		edgeType := g.forward[fromID][toID]
+		edges = append(edges, Edge[EdgeType, VertexType]{From: g.idToVertex[fromID], To: to, Edge: edgeType})
 	}
 
 	return edges
@@ -131,9 +114,8 @@ func (g *Graph[EdgeType, VertexType]) getOrCreateVertexID(vertex VertexType) int
 	g.nextID++
 	g.vertexToID[vertex] = id
 	g.idToVertex[id] = vertex
-
-	// Add the node to the gonum graph
-	g.gonumGraph.AddNode(simple.Node(id))
+	g.forward[id] = make(map[int64]EdgeType)
+	g.reverse[id] = make(map[int64]struct{})
 
 	return id
 }
@@ -151,24 +133,73 @@ func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
 		return false
 	}
 
-	// Use gonum's built-in path existence check
-	return topo.PathExistsIn(g.gonumGraph, simple.Node(startID), simple.Node(endID))
+	visited := map[int64]struct{}{startID: {}}
+	stack := []int64{startID}
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for next := range g.forward[id] {
+			if next == endID {
+				return true
+			}
+			if _, seen := visited[next]; seen {
+				continue
+			}
+			visited[next] = struct{}{}
+			stack = append(stack, next)
+		}
+	}
+	return false
 }
 
-// ToDOT exports the graph to DOT format for visualization
+// ToDOT exports the graph to DOT format for visualization. Vertices are
+// written by their numeric IDs, and nodes and edges are sorted by ID.
 func (g *Graph[EdgeType, VertexType]) ToDOT(name string) (string, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if g.gonumGraph == nil {
+	if g.vertexToID == nil {
 		return "", xerrors.New("graph is not initialized")
 	}
 
-	// Marshal the graph to DOT format
-	dotBytes, err := dot.Marshal(g.gonumGraph, name, "", "  ")
-	if err != nil {
-		return "", xerrors.Errorf("failed to marshal graph to DOT: %w", err)
+	ids := slices.Sorted(maps.Keys(g.idToVertex))
+	var edgeLines []string
+	for _, from := range ids {
+		for _, to := range slices.Sorted(maps.Keys(g.forward[from])) {
+			edgeLines = append(edgeLines, fmt.Sprintf("  %d -> %d;", from, to))
+		}
 	}
 
-	return string(dotBytes), nil
+	header := "strict digraph {"
+	if name != "" {
+		header = "strict digraph " + dotID(name) + " {"
+	}
+	lines := []string{header, "  // Node definitions."}
+	for _, id := range ids {
+		lines = append(lines, fmt.Sprintf("  %d;", id))
+	}
+	if len(edgeLines) > 0 {
+		lines = append(lines, "", "  // Edge definitions.")
+		lines = append(lines, edgeLines...)
+	}
+	lines = append(lines, "}")
+
+	return strings.Join(lines, "\n"), nil
+}
+
+// dotID returns s as a DOT identifier, quoting it unless it is a plain
+// alphanumeric identifier that is not a DOT keyword.
+func dotID(s string) string {
+	switch strings.ToLower(s) {
+	case "node", "edge", "graph", "digraph", "subgraph", "strict":
+		return fmt.Sprintf("%q", s)
+	}
+	for i, r := range s {
+		isLetter := r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		if !isLetter && (!isDigit || i == 0) {
+			return fmt.Sprintf("%q", s)
+		}
+	}
+	return s
 }

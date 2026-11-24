@@ -1,29 +1,22 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
-	ArrowUpIcon,
 	CheckIcon,
-	ChevronDownIcon,
 	ChevronRightIcon,
-	InfoIcon,
-	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
+	PlugIcon,
 	PlusIcon,
-	ServerIcon,
 	SquareIcon,
 	TriangleAlertIcon,
-	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "react-router";
-import { getErrorMessage } from "#/api/errors";
-import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { useQuery } from "react-query";
+import { useLocation, useNavigate } from "react-router";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -37,74 +30,69 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
-	type PopoverContentProps,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
-import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import {
-	isBelowMdViewport,
-	isMobileViewport,
-	mobileViewportMediaQuery,
-} from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
+import { useChatDropdownPosition } from "../hooks/useChatDropdownPosition";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
-import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import {
-	getAgentChatSendShortcut,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../utils/agentChatSendShortcut";
+import { getAgentChatSendShortcut } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
-import { AgentSetupNotice } from "./AgentSetupNotice";
+import { AgentChatSendButton } from "./AgentChatSendButton";
+import {
+	AgentSetupNotice,
+	shouldShowAgentSetupNotice,
+} from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { isPendingRowID } from "./ChatConversation/chatStore";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { type AttachedWorkspaceInfo, ChatToolBadges } from "./ChatToolBadges";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
-import { MCPServerIconStack } from "./MCPServerIconStack";
+import { MCPServersMenuContent } from "./MCPServersMenuContent";
+import { getActiveMCPServers } from "./mcpMenuServers";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import {
+	canSendQueuedMessageNow,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
-import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
 export {
@@ -137,11 +125,15 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (message: string, busyBehavior?: TypesGen.ChatBusyBehavior) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading: boolean;
+	// Locks the editor while isLoading. Set it when the caller does not
+	// clear the composer at submit, so text typed during the request would
+	// join the sent text.
+	lockWhileLoading?: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
@@ -194,13 +186,16 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
-	// When set, also hides the editor and every control (view-only mode).
-	readOnlyNotice?: string;
-	// History editing state, owned by the parent.
-	isEditingHistoryMessage?: boolean;
-	onCancelHistoryEdit?: () => void;
+	isChatPaused?: boolean;
+	// Editing state, owned by the parent. The kind selects the banner text.
+	editingKind?: EditingTarget["kind"];
+	queuedMessageUnderEditID?: number | null;
+	composerQueuedMessageID?: number | null;
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -229,12 +224,10 @@ type AgentChatInputProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
@@ -248,275 +241,70 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
-export type AttachedWorkspaceInfo = {
-	id: string;
-	name: string;
-	route: string;
-	statusIcon: React.ReactNode;
-	statusLabel: string;
+type MCPServersMenuRowContentProps = {
+	activeCount: number;
+	isOpen?: boolean;
 };
-// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
-// it), grow expands into free row space, and max-w-max caps at the
-// label's natural width. Below the floor the +N overflow takes over.
-const pillSizingClasses =
-	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-const pillFocusRingClasses =
-	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
-
-const pillFocusWithinRingClasses =
-	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
-
-// Pills clamp to the popover width so a long name truncates instead
-// of pushing its X out of view.
-const BadgePopoverContent: React.FC<PopoverContentProps> = ({
-	className,
-	...props
+const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
+	activeCount,
+	isOpen,
 }) => (
-	<PopoverContent
-		side="top"
-		align="start"
-		className={cn(
-			"flex w-auto max-w-64 flex-wrap gap-1 p-2 *:max-w-full",
-			className,
-		)}
-		{...props}
-	/>
+	<>
+		<PlugIcon className="size-3.5 shrink-0" />
+		<span>MCP servers</span>
+		<span className="ml-auto">{activeCount} on</span>
+		<ChevronRightIcon
+			className={cn(
+				"size-icon-sm transition-transform",
+				isOpen && "rotate-180",
+			)}
+		/>
+	</>
 );
 
-type ToolBadgeData =
-	| { kind: "workspace"; name: string }
-	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
-	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
-	| { kind: "planning" };
+type PlusMenuSubmenu = "workspace" | "mcp";
 
-// Non-MCP badges can share a kind, so their keys are position-qualified.
-const badgeKey = (badge: ToolBadgeData, index: number) => {
-	switch (badge.kind) {
-		case "mcp":
-			return badge.server.id;
-		case "mcp-group":
-			return badge.kind;
-		default:
-			return `${badge.kind}-${index}`;
-	}
+// Below md, swapping the plus menu's views unmounts the focused control.
+// A callback ref moves focus to its replacement, because biome's
+// lint/a11y/noAutofocus rule rejects autoFocus on native buttons.
+const focusOnMount = (element: HTMLElement | null) => {
+	element?.focus();
 };
 
-// Small `X` button rendered inside pill-style badges (attached
-// workspace, MCP server, planning indicator) to dismiss or disable
-// the badge without opening the `+` menu. Callers pass the action
-// handler and a descriptive aria-label.
-const BadgeDismissButton: React.FC<{
-	onClick: () => void;
-	ariaLabel: string;
-	isDisabled?: boolean;
-}> = ({ onClick, ariaLabel, isDisabled = false }) => (
-	<button
-		type="button"
-		onClick={onClick}
-		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-		aria-label={ariaLabel}
-	>
-		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary group-focus-visible:bg-surface-tertiary group-focus-visible:text-content-primary">
-			<XIcon className="size-2.5!" />
-		</span>
-	</button>
+type PlusMenuSubmenuPanelProps = {
+	onBack: () => void;
+	children: React.ReactNode;
+};
+
+const PlusMenuSubmenuPanel: React.FC<PlusMenuSubmenuPanelProps> = ({
+	onBack,
+	children,
+}) => (
+	<div className="p-0">
+		<button
+			ref={focusOnMount}
+			type="button"
+			onClick={onBack}
+			className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+		>
+			<ArrowLeftIcon className="size-3.5 shrink-0" />
+			<span>Back</span>
+		</button>
+		<Separator className="my-1" />
+		{children}
+	</div>
 );
-
-type MCPGroupBadgeProps = {
-	servers: readonly TypesGen.MCPServerConfig[];
-	onRemoveMcp?: (serverId: string) => void;
-	isDisabled: boolean;
-	className: string;
-};
-
-const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
-	servers,
-	onRemoveMcp,
-	isDisabled,
-	className,
-}) => {
-	const [open, setOpen] = useState(false);
-	const label = `${servers.length} MCPs`;
-
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label={label}
-					className={cn(
-						className,
-						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-						pillFocusRingClasses,
-					)}
-				>
-					<MCPServerIconStack servers={servers} />
-					{label}
-					<ChevronDownIcon
-						className={cn("size-3 transition-transform", open && "rotate-180")}
-					/>
-				</button>
-			</PopoverTrigger>
-			<BadgePopoverContent>
-				{servers.map((server) => (
-					<ToolBadge
-						key={server.id}
-						badge={{ kind: "mcp", server }}
-						onRemoveMcp={onRemoveMcp}
-						isDisabled={isDisabled}
-					/>
-				))}
-			</BadgePopoverContent>
-		</Popover>
-	);
-};
-
-const ToolBadge: React.FC<{
-	badge: ToolBadgeData;
-	onRemoveWorkspace?: () => void;
-	onRemoveMcp?: (serverId: string) => void;
-	onRemovePlanning?: () => void;
-	isDisabled: boolean;
-	className?: string;
-	// The overflow popover auto-focuses badges; suppress the tooltip there.
-	disableTooltip?: boolean;
-}> = ({
-	badge,
-	onRemoveWorkspace,
-	onRemoveMcp,
-	onRemovePlanning,
-	isDisabled,
-	className,
-	disableTooltip,
-}) => {
-	const badgeCls = cn(
-		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
-		pillFocusWithinRingClasses,
-		className,
-	);
-
-	if (badge.kind === "planning") {
-		return (
-			<span data-testid="planning-badge" className={badgeCls}>
-				<PencilIcon className="size-3" />
-				Planning
-				{onRemovePlanning && (
-					<BadgeDismissButton
-						onClick={onRemovePlanning}
-						ariaLabel="Disable plan mode"
-						isDisabled={isDisabled}
-					/>
-				)}
-			</span>
-		);
-	}
-
-	if (badge.kind === "attached-workspace") {
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<span
-						className={cn(
-							badgeCls,
-							"transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-						)}
-					>
-						<Link
-							to={badge.route}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline focus-visible:outline-hidden"
-						>
-							{badge.statusIcon}
-							<span className="truncate">{badge.name}</span>
-						</Link>
-						{onRemoveWorkspace && (
-							<BadgeDismissButton
-								onClick={onRemoveWorkspace}
-								ariaLabel={`Remove workspace ${badge.name}`}
-								isDisabled={isDisabled}
-							/>
-						)}
-					</span>
-				</TooltipTrigger>
-				{/* Hidden below md: touch focus would stick the tooltip open. */}
-				{!disableTooltip && (
-					<TooltipContent className="hidden md:block">
-						{badge.statusLabel}
-					</TooltipContent>
-				)}
-			</Tooltip>
-		);
-	}
-
-	if (badge.kind === "workspace") {
-		return (
-			<span className={badgeCls}>
-				<MonitorIcon className="size-3" />
-				<span className="truncate">{badge.name}</span>
-				{onRemoveWorkspace && (
-					<BadgeDismissButton
-						onClick={onRemoveWorkspace}
-						ariaLabel={`Remove workspace ${badge.name}`}
-						isDisabled={isDisabled}
-					/>
-				)}
-			</span>
-		);
-	}
-
-	if (badge.kind === "mcp-group") {
-		return (
-			<MCPGroupBadge
-				servers={badge.servers}
-				onRemoveMcp={onRemoveMcp}
-				isDisabled={isDisabled}
-				className={badgeCls}
-			/>
-		);
-	}
-
-	const isForceOn = badge.server.availability === "force_on";
-	return (
-		<span className={badgeCls}>
-			{badge.server.icon_url ? (
-				<ExternalImage
-					src={badge.server.icon_url}
-					alt=""
-					className="size-3 rounded-sm"
-				/>
-			) : (
-				<ServerIcon className="size-3" />
-			)}
-			<span className="truncate">{badge.server.display_name}</span>
-			{isForceOn ? (
-				<>
-					<LockIcon className="size-3 shrink-0" />
-					<span className="sr-only">Always on</span>
-				</>
-			) : (
-				onRemoveMcp && (
-					<BadgeDismissButton
-						onClick={() => onRemoveMcp(badge.server.id)}
-						ariaLabel={`Remove ${badge.server.display_name}`}
-						isDisabled={isDisabled}
-					/>
-				)
-			)}
-		</span>
-	);
-};
 
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
 	isReadOnly = false,
+	lockWhileLoading = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -546,10 +334,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	warning,
-	readOnlyNotice,
-	isEditingHistoryMessage = false,
-	onCancelHistoryEdit,
+	isChatPaused = false,
+	editingKind,
+	queuedMessageUnderEditID = null,
+	composerQueuedMessageID = null,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -565,12 +357,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	workspaceSkills,
 	workspace,
 	workspaceAgent,
 	chatId,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
@@ -580,7 +370,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 	fillWidth = false,
+	highlightKey,
 }) => {
+	const isEditingMessage = editingKind !== undefined;
+	const enterSendsHead =
+		!isEditingMessage &&
+		queuedMessages.length > 0 &&
+		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior) &&
+		!isPendingRowID(queuedMessages[0].id);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -588,19 +386,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
-	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
-	const showAgentSetupNotice =
-		aiGatewayDisabled ||
-		(canConfigureAgentSetup
-			? providerCount !== undefined &&
-				modelCount !== undefined &&
-				(providerCount === 0 || modelCount === 0)
-			: modelCount !== undefined && modelCount === 0);
+	const showAgentSetupNotice = shouldShowAgentSetupNotice({
+		isAdmin: canConfigureAgentSetup,
+		providerCount,
+		modelCount,
+		aiGatewayDisabled,
+	});
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			internalRef.current?.focus();
+		}
+	}, [highlightKey]);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -610,33 +411,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		string | null
 	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
+	const [plusMenuView, setPlusMenuView] = useState<"main" | PlusMenuSubmenu>(
 		"main",
 	);
+	// The submenu that Back closed, so the main view focuses its row.
+	const [lastPlusMenuSubmenu, setLastPlusMenuSubmenu] =
+		useState<PlusMenuSubmenu | null>(null);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
-		useMCPOAuthFlow({
-			organizationId: chatOrganizationId,
-			onAuthComplete: onMCPAuthComplete,
-			onFlowSuccess: (serverID) => {
-				if (
-					onMCPSelectionChange &&
-					selectedMCPServerIds &&
-					mcpServers?.some(
-						(server) => server.id === serverID && server.enabled,
-					) &&
-					!selectedMCPServerIds.includes(serverID)
-				) {
-					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
-				}
-			},
-		});
-	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
-		useState<TypesGen.MCPServerConfig | null>(null);
-	const queryClient = useQueryClient();
-	const mcpDisconnectMutation = useMutation(
-		disconnectMCPServerOAuth2(queryClient),
-	);
+	const [mcpMenuOpen, setMcpMenuOpen] = useState(false);
+	const navigate = useNavigate();
+	const location = useLocation();
 
 	const [hasChips, setHasChips] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
@@ -725,28 +509,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		}
 	};
 
-	const handleMcpDisconnectConfirm = () => {
-		if (!mcpDisconnectTarget) {
-			return;
-		}
-		const name = mcpDisconnectTarget.display_name;
-		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: (response) => {
-				setMcpDisconnectTarget(null);
-				if (response.token_revocation_error) {
-					toast.warning(`Disconnected ${name}.`, {
-						description: response.token_revocation_error,
-					});
-				} else {
-					toast.success(`Disconnected ${name}.`);
-				}
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
-			},
-		});
-	};
-
 	// Only a chat-bound workspace counts: an unbound selection (new chat
 	// form, or a picked workspace before the first send) has no pinned
 	// context to resolve, so treating it as a workspace would leave the
@@ -758,218 +520,79 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 	const canUseWorkspacePicker =
 		Boolean(onWorkspaceChange) && !isWorkspaceLoading;
-	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
-
-	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
-		? selectedWorkspace.id !== linkedWorkspaceId
-		: false;
-
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
-	const activeMcpServers = enabledMcpServers.filter(
-		(s) =>
-			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
+	const activeMcpServers = getActiveMCPServers(
+		enabledMcpServers,
+		selectedMCPServerIds,
 	);
 
-	const badgeContainerRef = useRef<HTMLDivElement>(null);
-
-	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
-	const shouldOverflowPlanningBadge =
-		planModeEnabled && contextUsage !== undefined;
-
-	let workspacePillBadge: ToolBadgeData | undefined;
-	if (workspace && workspaceAgent && chatId) {
-		workspacePillBadge = attachedWorkspace
-			? { kind: "attached-workspace", ...attachedWorkspace }
-			: { kind: "workspace", name: workspace.name };
-	}
-
-	// Ordered list of active tool badge data so we can determine
-	// which ones ended up in the overflow popover.
-	const allBadges: ToolBadgeData[] = [];
-	if (shouldOverflowPlanningBadge) {
-		allBadges.push({ kind: "planning" });
-	}
-	if (workspacePillBadge) {
-		allBadges.push(workspacePillBadge);
-	} else if (attachedWorkspace) {
-		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
-	}
-	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
-		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
-	}
-	if (activeMcpServers.length >= 3) {
-		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
-	} else {
-		for (const server of activeMcpServers) {
-			allBadges.push({ kind: "mcp", server });
-		}
-	}
-
-	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
-	const visibleCount = Math.max(0, allBadges.length - overflowCount);
-	const overflowBadges = allBadges.slice(visibleCount);
-
-	const isReadOnlyView = readOnlyNotice !== undefined;
-	const readOnlyModel = isReadOnlyView
-		? modelOptions.find((option) => option.id === selectedModel)
+	const handleRemoveWorkspace = onWorkspaceChange
+		? () => onWorkspaceChange(null)
 		: undefined;
-	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
-	const removeWorkspaceHandler =
-		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
-	const handleRemoveMcp = isReadOnlyView
-		? undefined
-		: (serverId: string) => handleMcpToggle(serverId, false);
+
+	const closePlusMenuSubmenu = (submenu: PlusMenuSubmenu) => {
+		setLastPlusMenuSubmenu(submenu);
+		setPlusMenuView("main");
+	};
+	const plusMenuRowRef = (submenu: PlusMenuSubmenu) =>
+		lastPlusMenuSubmenu === submenu ? focusOnMount : undefined;
+
+	const handleManageConnections = () => {
+		setMcpMenuOpen(false);
+		setPlusMenuOpen(false);
+		setPlusMenuView("main");
+		navigate("/agents/settings/mcp-connections", {
+			state: {
+				from: location.pathname + location.search,
+				organizationId: chatOrganizationId,
+			},
+		});
+	};
+	const mcpMenuContent = (
+		<MCPServersMenuContent
+			servers={enabledMcpServers}
+			selectedServerIds={selectedMCPServerIds}
+			isDisabled={isDisabled}
+			onToggle={handleMcpToggle}
+			onManageConnections={handleManageConnections}
+		/>
+	);
+
+	let plusMenuSubmenuPanel: React.ReactNode = null;
+	if (plusMenuView === "mcp") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("mcp")}>
+				{mcpMenuContent}
+			</PlusMenuSubmenuPanel>
+		);
+	} else if (plusMenuView === "workspace") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("workspace")}>
+				<WorkspacePickerList
+					workspaceOptions={workspaceOptions}
+					selectedWorkspaceId={selectedWorkspaceId}
+					chatOrganizationId={chatOrganizationId}
+					onSelect={(id) => {
+						onWorkspaceChange?.(id);
+						setPlusMenuOpen(false);
+					}}
+				/>
+			</PlusMenuSubmenuPanel>
+		);
+	}
 
 	const handlePlanModeToggle = () => {
 		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisablePlanMode = isReadOnlyView
-		? undefined
-		: () => onPlanModeToggle(false);
+	const handleDisablePlanMode = () => onPlanModeToggle(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
-	useEffect(() => {
-		if (!composerElement) return;
-		// Radix popover wrappers are fixed-positioned, so their
-		// inset values need to be in layout-viewport coordinates.
-		// The visual viewport can be offset inside the layout
-		// viewport when the mobile keyboard is open. Treat
-		// `visualViewport.offsetTop` as a clamp only when it yields
-		// a positive height, since mobile WebKit can report mixed
-		// coordinate systems while the keyboard is settling.
-		const viewport = globalThis.visualViewport;
-		const root = document.documentElement;
-		const fixedProbe = document.createElement("div");
-		Object.assign(fixedProbe.style, {
-			position: "fixed",
-			bottom: "0",
-			left: "0",
-			width: "0",
-			height: "0",
-			pointerEvents: "none",
-			visibility: "hidden",
-		});
-		document.body.appendChild(fixedProbe);
-		const composerGap = 8;
-		const viewportPadding = 16;
-		const minimumMenuHeight = 96;
-		const update = () => {
-			const rect = composerElement.getBoundingClientRect();
-			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
-			const visibleViewportTop = viewport?.offsetTop ?? 0;
-			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
-			// Keep the dropdown's bottom edge above the software keyboard,
-			// which covers the bottom of the layout viewport without moving
-			// fixed-positioned elements.
-			const keyboardInset = viewport
-				? Math.max(
-						0,
-						fixedViewportBottom - (viewport.offsetTop + viewport.height),
-					)
-				: 0;
-			const aboveComposerBottom = Math.max(
-				0,
-				fixedViewportBottom - rect.top + composerGap,
-				keyboardInset + composerGap,
-			);
-			const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
-			const maxHeightCandidates = [
-				dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
-				dropdownBottomEdgeTop - viewportPadding,
-			].filter((height) => height > 0);
-			const aboveComposerMaxHeight = Math.max(
-				minimumMenuHeight,
-				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
-			);
-			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
-			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
-			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-bottom",
-				`${aboveComposerBottom}px`,
-			);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-max-height",
-				`${aboveComposerMaxHeight}px`,
-			);
-		};
-		const animationFrameIDs = new Set<number>();
-		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
-		const cancelScheduledUpdates = () => {
-			for (const id of animationFrameIDs) {
-				cancelAnimationFrame(id);
-			}
-			animationFrameIDs.clear();
-			for (const id of timeoutIDs) {
-				clearTimeout(id);
-			}
-			timeoutIDs.clear();
-		};
-		const queueAnimationFrame = (callback: () => void) => {
-			const id = requestAnimationFrame(() => {
-				animationFrameIDs.delete(id);
-				callback();
-			});
-			animationFrameIDs.add(id);
-		};
-		const scheduleUpdate = () => {
-			cancelScheduledUpdates();
-			update();
-			// Mobile WebKit can finish keyboard panning after focus and
-			// input events. Re-read geometry after the viewport settles so
-			// the first slash-menu render is not stuck under the composer.
-			queueAnimationFrame(() => {
-				update();
-				queueAnimationFrame(update);
-			});
-			for (const delay of [50, 150, 300]) {
-				const id = setTimeout(() => {
-					timeoutIDs.delete(id);
-					update();
-				}, delay);
-				timeoutIDs.add(id);
-			}
-		};
-		scheduleUpdate();
-		const ro = new ResizeObserver(scheduleUpdate);
-		ro.observe(composerElement);
-		addEventListener("resize", scheduleUpdate);
-		addEventListener("scroll", scheduleUpdate, { passive: true });
-		addEventListener("focusin", scheduleUpdate);
-		addEventListener("focusout", scheduleUpdate);
-		composerElement.addEventListener("input", scheduleUpdate);
-		composerElement.addEventListener("keyup", scheduleUpdate);
-		document.addEventListener("selectionchange", scheduleUpdate);
-		viewport?.addEventListener("resize", scheduleUpdate);
-		viewport?.addEventListener("scroll", scheduleUpdate);
-		viewport?.addEventListener("scrollend", scheduleUpdate);
-		return () => {
-			ro.disconnect();
-			cancelScheduledUpdates();
-			removeEventListener("resize", scheduleUpdate);
-			removeEventListener("scroll", scheduleUpdate);
-			removeEventListener("focusin", scheduleUpdate);
-			removeEventListener("focusout", scheduleUpdate);
-			composerElement.removeEventListener("input", scheduleUpdate);
-			composerElement.removeEventListener("keyup", scheduleUpdate);
-			document.removeEventListener("selectionchange", scheduleUpdate);
-			viewport?.removeEventListener("resize", scheduleUpdate);
-			viewport?.removeEventListener("scroll", scheduleUpdate);
-			viewport?.removeEventListener("scrollend", scheduleUpdate);
-			fixedProbe.remove();
-			root.style.removeProperty("--mobile-dropdown-bottom");
-			root.style.removeProperty("--mobile-dropdown-left");
-			root.style.removeProperty("--mobile-dropdown-width");
-			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
-			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
-		};
-	}, [composerElement]);
+	useChatDropdownPosition(composerElement);
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The
@@ -1119,16 +742,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
+	// A locked editor loses focus during the request, so re-focus it after
+	// a send completes.
 	const prevIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
 		const wasLoading = prevIsLoadingRef.current;
 		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
+		if (lockWhileLoading && wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}
-	}, [isLoading]);
+	}, [isLoading, lockWhileLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1159,12 +782,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// If the input is empty and there are queued messages,
-		// promote the first one instead of submitting.
 		if (
+			!busyBehavior &&
 			!text &&
 			!hasUploadedAttachments &&
 			!hasChips &&
@@ -1172,7 +794,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1190,12 +812,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		onSend(text, busyBehavior);
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
+	const handleSubmit = () => submit();
+	const offersSendAfterTurn = isStreaming && !isEditingMessage;
+	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
 		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
@@ -1224,10 +849,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
+		// React bubbles keydown from portaled popovers (MCP servers, model
+		// selector) through the composer; Escape there only closes the popover.
+		if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) {
+			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1254,7 +881,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isReadOnly || isLoading;
+			isEditingMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1317,47 +944,27 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
+	const sendButtonLabel = isEditingMessage ? "Save edit" : "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
-	// recording also takes precedence over history editing.
+	// recording also takes precedence over history editing. A queued edit
+	// does not start a turn, so it takes the slot like a draft.
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
-	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const editingHoldsStop = editingKind === "history" && !speech.isRecording;
 	const canShowProjectActions =
 		showProjectActions &&
 		!isReadOnly &&
-		!isReadOnlyView &&
 		!isLoading &&
 		!isDisabled &&
 		hasModelOptions &&
 		!aiGatewayDisabled;
 	const showStopButton =
-		!isReadOnlyView &&
 		isStreaming &&
 		onInterrupt !== undefined &&
 		(!draftOccupiesSlot || editingHoldsStop);
 	const showSendButton =
-		!isReadOnlyView &&
-		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
-	// Mobile viewports advertise no send shortcut.
-	const sendShortcutLabel = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
+		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
 
 	const content = (
 		<div
@@ -1366,7 +973,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				fillWidth
 					? "max-w-full"
 					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
-				isEditingHistoryMessage && "pt-1",
+				isEditingMessage && "pt-1",
 			)}
 		>
 			{canShowProjectActions && chatOrganizationId && chatProjectId && (
@@ -1379,8 +986,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onDelete={onDeleteQueuedMessage}
+					onPromote={onPromoteQueuedMessage}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					isChatPaused={isChatPaused}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}
@@ -1414,39 +1027,49 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					(isEditingHistoryMessage || warning) &&
-						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-					isReadOnlyView && "border border-solid border-border",
+					(isEditingMessage || warning) && "shadow-(--shadow-border-warning)",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{highlightKey !== undefined && (
+					<span
+						key={highlightKey}
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-flash"
+					/>
+				)}
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
 				)}
-				{isEditingHistoryMessage && (
+				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
-						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
+						<span className="flex items-center gap-1.5 text-xs text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
 							variant="subtle"
 							size="icon"
-							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							aria-label={
+								editingKind === "queued" && isChatPaused
+									? "Cancel edit and send unchanged"
+									: "Cancel editing"
+							}
+							onClick={onCancelEdit}
 							disabled={isLoading}
-							className="size-6 rounded text-content-warning hover:text-content-primary"
+							className="size-6 rounded text-border-warning hover:text-content-primary"
 						>
 							<XIcon className="size-3.5" />
 						</Button>
@@ -1470,40 +1093,37 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onRemove={workspaceUploads.onRemove}
 					/>
 				)}
-				{isReadOnlyView ? (
-					<div
-						role="status"
-						className="flex items-center gap-2 px-3 py-2 text-[13px] text-content-primary"
-					>
-						<InfoIcon className="size-4 shrink-0 text-content-link" />
-						{readOnlyNotice}
-					</div>
-				) : (
-					<ChatMessageInput
-						ref={internalRef}
-						onFilePaste={onAttach ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
-						onPaste={resetPromptCycle}
-						aria-label="Chat message"
-						aria-describedby={warning ? warningId : undefined}
-						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-						placeholder={placeholder}
-						initialValue={initialValue}
-						initialEditorState={initialEditorState}
-						remountKey={remountKey}
-						onChange={handleContentChange}
-						onKeyDown={handleEditorKeyDown}
-						onEnter={handleSubmit}
-						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
-						hasWorkspace={hasSkillsWorkspace}
-						organizationId={chatOrganizationId}
-						projectId={chatProjectId}
-						workspaceSkills={workspaceSkills}
-						slashCommands={slashCommands}
-						skillsMenuAnchor={composerElement}
-					/>
-				)}
+				<ChatMessageInput
+					ref={internalRef}
+					onFilePaste={onAttach ? handleFilePaste : undefined}
+					acceptFilePasteWhileDisabled={
+						lockWhileLoading && isLoading && !isReadOnly
+					}
+					onPaste={resetPromptCycle}
+					aria-label="Chat message"
+					aria-describedby={warning ? warningId : undefined}
+					className="min-h-15 sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					placeholder={placeholder}
+					initialValue={initialValue}
+					initialEditorState={initialEditorState}
+					remountKey={remountKey}
+					onChange={handleContentChange}
+					onKeyDown={handleEditorKeyDown}
+					onEnter={handleSubmit}
+					onSendAfterTurn={
+						offersSendAfterTurn ? handleSubmitAfterTurn : undefined
+					}
+					sendShortcut={sendShortcut}
+					// An unlocked editor stays editable while isLoading, and
+					// submit sends nothing then.
+					disabled={isReadOnly || (lockWhileLoading && isLoading)}
+					hasWorkspace={hasSkillsWorkspace}
+					organizationId={chatOrganizationId}
+					projectId={chatProjectId}
+					workspaceSkills={workspaceSkills}
+					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
+				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
@@ -1550,7 +1170,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
 								setPlusMenuOpen(open);
-								if (!open) setPlusMenuView("main");
+								setLastPlusMenuSubmenu(null);
+								if (!open) {
+									setPlusMenuView("main");
+									setMcpMenuOpen(false);
+								}
 							}}
 						>
 							{" "}
@@ -1559,10 +1183,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className={cn(
-										"size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0",
-										isReadOnlyView && "hidden",
-									)}
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1576,29 +1197,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							<PopoverContent
 								side="bottom"
 								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-50 p-1"
 							>
-								{plusMenuView === "workspace" ? (
-									<div className="p-0">
-										<button
-											type="button"
-											onClick={() => setPlusMenuView("main")}
-											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-										>
-											<ArrowLeftIcon className="size-3.5 shrink-0" />
-											<span>Back</span>
-										</button>
-										<Separator className="my-1" />
-										<WorkspacePickerList
-											workspaceOptions={workspaceOptions}
-											selectedWorkspaceId={selectedWorkspaceId}
-											chatOrganizationId={chatOrganizationId}
-											onSelect={(id) => {
-												onWorkspaceChange?.(id);
-												setPlusMenuOpen(false);
-											}}
-										/>
-									</div>
+								{plusMenuView !== "main" ? (
+									plusMenuSubmenuPanel
 								) : (
 									<>
 										{onAttach && (
@@ -1635,6 +1237,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												<button
 													type="button"
 													disabled={!canUseWorkspacePicker}
+													ref={plusMenuRowRef("workspace")}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1685,94 +1288,43 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										{enabledMcpServers.length > 0 && (
 											<>
 												<Separator className="my-1" />
-												{enabledMcpServers.map((server) => {
-													const isForceOn = server.availability === "force_on";
-													const isSelected =
-														isForceOn ||
-														(selectedMCPServerIds?.includes(server.id) ??
-															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
-														!server.auth_connected;
-													const isConnecting = mcpConnectingId === server.id;
-													return (
-														<div
-															key={server.id}
-															className="flex items-center gap-1.5 px-1 py-1.5"
-														>
-															{server.icon_url ? (
-																<ExternalImage
-																	src={server.icon_url}
-																	alt=""
-																	className="size-3.5 shrink-0 rounded-sm"
+												{isBelowMdViewport() ? (
+													<button
+														type="button"
+														ref={plusMenuRowRef("mcp")}
+														onClick={() => setPlusMenuView("mcp")}
+														className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+													>
+														<MCPServersMenuRowContent
+															activeCount={activeMcpServers.length}
+														/>
+													</button>
+												) : (
+													<Popover
+														open={mcpMenuOpen}
+														onOpenChange={setMcpMenuOpen}
+													>
+														<PopoverTrigger asChild>
+															<button
+																type="button"
+																className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+															>
+																<MCPServersMenuRowContent
+																	activeCount={activeMcpServers.length}
+																	isOpen={mcpMenuOpen}
 																/>
-															) : (
-																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-															)}
-															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-																{server.display_name}
-															</span>
-															{isForceOn && (
-																<LockIcon className="size-3 shrink-0 text-content-secondary" />
-															)}
-															{needsAuth ? (
-																<>
-																	{isForceOn && (
-																		<span className="sr-only">Always on</span>
-																	)}
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																		onClick={() => connectMCPServer(server.id)}
-																		disabled={
-																			isDisabled || mcpConnectingId !== null
-																		}
-																	>
-																		{isConnecting ? (
-																			<Spinner
-																				loading
-																				className="h-2.5 w-2.5"
-																			/>
-																		) : null}
-																		Auth
-																	</Button>
-																</>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
-																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={
-																			isForceOn
-																				? `${server.display_name} always on`
-																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
-																		}
-																	/>
-																</>
-															)}
-														</div>
-													);
-												})}
+															</button>
+														</PopoverTrigger>
+														<PopoverContent
+															side="right"
+															align="end"
+															sideOffset={8}
+															className="w-72 p-1"
+														>
+															{mcpMenuContent}
+														</PopoverContent>
+													</Popover>
+												)}
 											</>
 										)}
 									</>
@@ -1781,19 +1333,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</Popover>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
-						) : isReadOnlyView ? (
-							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
-								{readOnlyModel && (
-									<ProviderIcon
-										provider={readOnlyModel.provider}
-										icon={readOnlyModel.providerIcon}
-										className="size-3 shrink-0"
-									/>
-								)}
-								<span className="truncate">
-									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
-								</span>
-							</span>
 						) : (
 							<ModelSelector
 								value={selectedModel}
@@ -1801,10 +1340,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className={cn(
-									pillSizingClasses,
-									"md:h-auto focus-visible:ring-inset",
-								)}
+								className="grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max md:h-auto focus-visible:ring-inset"
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1812,150 +1348,41 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								onReasoningEffortChange={onReasoningEffortChange}
 							/>
 						)}
-						{planModeEnabled && !shouldOverflowPlanningBadge && (
-							<span
-								data-testid="planning-badge"
-								className={cn(
-									"hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex",
-									pillFocusWithinRingClasses,
-								)}
-							>
-								<PencilIcon className="size-3" />
-								Planning
-								{handleDisablePlanMode && (
-									<BadgeDismissButton
-										onClick={handleDisablePlanMode}
-										ariaLabel="Disable plan mode"
-										isDisabled={isDisabled}
-									/>
-								)}
-							</span>
-						)}
-						{/* Badges and the +N pill stay mounted for measurement:
-						 * overflowed badges are display:none, the pill merely
-						 * invisible so its width stays readable. */}
-						<div
-							ref={badgeContainerRef}
-							className="flex min-w-0 items-center gap-1 overflow-hidden"
-						>
-							{allBadges.map((badge, i) => {
-								const isOverflow = overflowCount > 0 && i >= visibleCount;
-								if (
-									badge === workspacePillBadge &&
-									workspace &&
-									workspaceAgent &&
-									chatId
-								) {
-									return (
-										<span
-											key="workspace-pill"
-											className={cn(
-												"flex min-w-0 text-xs",
-												pillSizingClasses,
-												isOverflow && "hidden",
-											)}
-										>
-											<WorkspacePill
-												workspace={workspace}
-												agent={workspaceAgent}
-												chatId={chatId}
-												sshCommand={sshCommand}
-												folder={folder}
-												onRemoveWorkspace={removeWorkspaceHandler}
-											/>
-										</span>
-									);
-								}
-								return (
-									<ToolBadge
-										key={badgeKey(badge, i)}
-										badge={badge}
-										onRemoveWorkspace={removeWorkspaceHandler}
-										onRemoveMcp={handleRemoveMcp}
-										onRemovePlanning={handleDisablePlanMode}
-										isDisabled={isDisabled}
-										className={isOverflow ? "hidden" : undefined}
-									/>
-								);
-							})}
-							<Popover
-								open={overflowPopoverOpen && overflowCount > 0}
-								onOpenChange={setOverflowPopoverOpen}
-							>
-								<PopoverTrigger asChild>
-									<button
-										type="button"
-										className={cn(
-											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-											pillFocusRingClasses,
-											overflowCount === 0 && "invisible",
-										)}
-										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
-										aria-hidden={overflowCount === 0}
-									>
-										+{overflowCount}
-									</button>
-								</PopoverTrigger>
-								<BadgePopoverContent
-									onInteractOutside={(event) => {
-										// The workspace pill portals its menu outside
-										// this popover; dismissing would unmount the
-										// open menu. Ignore focus shifts and pointer
-										// presses inside the menu.
-										if (event.detail.originalEvent.type !== "pointerdown") {
-											event.preventDefault();
-											return;
-										}
-										if (
-											event.target instanceof Element &&
-											event.target.closest('[role="menu"]')
-										) {
-											event.preventDefault();
-										}
-									}}
-								>
-									{overflowBadges.map((badge, i) => {
-										if (
-											badge === workspacePillBadge &&
-											workspace &&
-											workspaceAgent &&
-											chatId
-										) {
-											return (
-												<span
-													key="workspace-pill-overflow"
-													className="flex min-w-0 text-xs"
-												>
-													<WorkspacePill
-														workspace={workspace}
-														agent={workspaceAgent}
-														chatId={chatId}
-														sshCommand={sshCommand}
-														folder={folder}
-														onRemoveWorkspace={removeWorkspaceHandler}
-														inOverflowPopover
-													/>
-												</span>
-											);
-										}
-										return (
-											<ToolBadge
-												key={badgeKey(badge, visibleCount + i)}
-												badge={badge}
-												onRemoveWorkspace={removeWorkspaceHandler}
-												onRemoveMcp={handleRemoveMcp}
-												onRemovePlanning={handleDisablePlanMode}
-												isDisabled={isDisabled}
-												disableTooltip
-											/>
-										);
-									})}
-								</BadgePopoverContent>
-							</Popover>
-						</div>
+						<ChatToolBadges
+							planModeEnabled={planModeEnabled}
+							collapsePlanningBadge={contextUsage !== undefined}
+							workspace={workspace}
+							workspaceAgent={workspaceAgent}
+							chatId={chatId}
+							folder={folder}
+							attachedWorkspace={attachedWorkspace}
+							selectedWorkspace={selectedWorkspace}
+							mcpServers={
+								enabledMcpServers.length > 0 ? activeMcpServers : undefined
+							}
+							mcpMenu={mcpMenuContent}
+							onRemoveWorkspace={handleRemoveWorkspace}
+							onRemovePlanning={handleDisablePlanMode}
+							isDisabled={isDisabled}
+						/>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && !isReadOnlyView && (
+						{contextUsage !== undefined && (
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported && !speech.error && "-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+									onManageServers={handleManageConnections}
+								/>
+							</div>
+						)}
+						{speech.isSupported && (
 							<>
 								<Button
 									type="button"
@@ -1990,53 +1417,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								)}
 							</>
 						)}
-						{contextUsage !== undefined && (
-							<div
-								className={cn(
-									"flex",
-									speech.isSupported && !speech.error && "-ml-2",
-								)}
-							>
-								<ContextUsageIndicator
-									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
-								/>
-							</div>
-						)}
 						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
-								</TooltipContent>
-							</Tooltip>
+							<AgentChatSendButton
+								label={sendButtonLabel}
+								sendShortcut={sendShortcut}
+								canSend={canSend}
+								offersSendAfterTurn={offersSendAfterTurn}
+								isRecording={speech.isRecording}
+								isSending={isLoading && !isInterruptPending}
+								onSend={handleSubmit}
+								onSendAfterTurn={handleSubmitAfterTurn}
+								onAcceptRecording={handleAcceptRecording}
+							/>
 						)}
 						{showStopButton && (
 							<Tooltip>
@@ -2090,16 +1482,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
-			<ConfirmDialog
-				open={mcpDisconnectTarget !== null}
-				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
-				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
-				type="delete"
-				confirmText="Disconnect"
-				confirmLoading={mcpDisconnectMutation.isPending}
-				onConfirm={handleMcpDisconnectConfirm}
-				onClose={() => setMcpDisconnectTarget(null)}
-			/>
 		</>
 	);
 };
@@ -2130,7 +1512,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	onSelect,
 }) => {
 	return (
-		<Command loop>
+		<Command loop label="Search workspaces">
 			<CommandInput placeholder="Search workspaces..." className="text-xs" />
 			<CommandList>
 				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
@@ -2151,6 +1533,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 								)}
 								key={workspace.id}
 								value={workspace.name}
+								aria-selected={isSelected}
 								disabled={isUnavailable}
 								onSelect={() => {
 									if (!isUnavailable) {

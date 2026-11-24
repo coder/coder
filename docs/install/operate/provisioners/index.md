@@ -10,7 +10,7 @@ However, there are often benefits to running external provisioner daemons:
 
 - **Isolate APIs:**
   Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
-  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
+  See [Provider Authentication](../../../templates/extending-templates/provider-authentication.md) for more details.
 
 - **Isolate secrets**:
   Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
@@ -22,7 +22,7 @@ However, there are often benefits to running external provisioner daemons:
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://coder.com/downloads).
 Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
@@ -76,7 +76,7 @@ Keep reading to see instructions for running provisioners on Kubernetes, Docker,
 ## User Tokens
 
 A user account with the role `Template Admin` or `Owner` can start provisioners using their user account.
-This may be beneficial if you are running provisioners via [automation](../../../reference/index.md).
+This can be beneficial if you are running provisioners via [automation](../../../reference/index.md).
 
 ```sh
 coder login https://<your-coder-url>
@@ -95,7 +95,7 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners), 
 
 ## Global PSK (Not Recommended)
 
-We do not recommend using global PSK.
+We do not recommend using global pre-shared key (PSK).
 
 Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 
@@ -146,11 +146,11 @@ This can also be done in the UI when building a template:
 ![template tags](../../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
-See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
+See the [workspace tags documentation](../../../templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!
-> You may need to specify the desired tags when importing the template.
+> You might need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
 
@@ -173,7 +173,7 @@ It will also not pick up any build jobs from templates with the tag `scope=user`
 > [!NOTE]
 > If you only run tagged provisioners, you will need to specify a set of tags that matches at least one provisioner for _all_ template import jobs and workspace build jobs.
 >
-> You may wish to run at least one additional provisioner with no additional tags so that provisioner jobs with no additional tags defined will be picked up instead of potentially remaining in the Pending state indefinitely.
+> You might wish to run at least one additional provisioner with no additional tags so that provisioner jobs with no additional tags defined will be picked up instead of potentially remaining in the Pending state indefinitely.
 
 This is illustrated in the below table:
 
@@ -212,7 +212,7 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`.
 The scope of a provisioner can be specified with [`-tag=scope=<scope>`](../../../reference/cli/provisioner/start.md#-t---tag) when starting the provisioner daemon.
-Only users with at least the [Template Admin](../../../admin/users/index.md#roles) role or higher may create organization-scoped provisioner daemons.
+Only users with at least the [Template Admin](../../../admin/users/index.md#roles) role or higher can create organization-scoped provisioner daemons.
 
 There are two exceptions:
 
@@ -307,19 +307,25 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
 
 ## Example: Running an external provisioner on a VM
 
+Replace `<your-provisioner-key>` with a [scoped key](#scoped-key-recommended) from `coder provisioner keys create`.
+To authenticate with a [user token](#user-tokens) instead, set `CODER_SESSION_TOKEN` in place of `CODER_PROVISIONER_DAEMON_KEY`.
+
 ```sh
 curl -fsSL https://coder.com/install.sh | sh
 export CODER_URL=https://coder.example.com
-export CODER_SESSION_TOKEN=your_token
+export CODER_PROVISIONER_DAEMON_KEY=<your-provisioner-key>
 coder provisioner start
 ```
 
 ## Example: Running an external provisioner via Docker
 
+Replace `<your-provisioner-key>` with a [scoped key](#scoped-key-recommended) from `coder provisioner keys create`.
+To authenticate with a [user token](#user-tokens) instead, set `CODER_SESSION_TOKEN` in place of `CODER_PROVISIONER_DAEMON_KEY`.
+
 ```sh
 docker run --rm -it \
   -e CODER_URL=https://coder.example.com/ \
-  -e CODER_SESSION_TOKEN=your_token \
+  -e CODER_PROVISIONER_DAEMON_KEY=<your-provisioner-key> \
   --entrypoint /opt/coder \
   ghcr.io/coder/coder:latest \
   provisioner start
@@ -336,12 +342,74 @@ coder server --provisioner-daemons=0
 
 ## Prometheus metrics
 
-Coder provisioner daemon exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
+Provisioner metrics come from two places:
 
-The Prometheus endpoint address is `http://localhost:2112/` by default.
-You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
+- Each provisioner daemon reports on the jobs it runs.
+  An external provisioner daemon serves these metrics on its own Prometheus endpoint, and the control plane reports them only for its built-in provisioners.
+- The control plane reports on the job queue for every provisioner, built-in or external.
 
-If you have provisioners daemons deployed as pods, it is advised to monitor them separately.
+To monitor external provisioners, scrape each provisioner daemon and the control plane.
+
+### Metrics from each provisioner daemon
+
+| Metric                                                | Purpose                                                                            |
+|-------------------------------------------------------|------------------------------------------------------------------------------------|
+| `coderd_provisionerd_jobs_current`                    | Provisioner jobs running now.                                                      |
+| `coderd_provisionerd_num_daemons`                     | Provisioner daemons in the process. Always `1` for an external provisioner daemon. |
+| `coderd_provisionerd_job_timings_seconds`             | Duration of each provisioner job.                                                  |
+| `coderd_provisionerd_workspace_build_timings_seconds` | Duration of each workspace build.                                                  |
+| `coderd_workspace_builds_total`                       | Workspaces started, updated, or deleted.                                           |
+
+An external provisioner daemon also exports the standard `go_*`, `process_*`, and `promhttp_*` metrics for its own process.
+
+### Metrics from the control plane
+
+| Metric                                      | Purpose                                                        |
+|---------------------------------------------|----------------------------------------------------------------|
+| `coderd_provisioner_job_queue_wait_seconds` | Time from job creation until a provisioner daemon acquires it. |
+| `coderd_workspace_builds_enqueued_total`    | Attempts to add a workspace build to the job queue.            |
+
+The control plane records the queue wait time when a provisioner daemon acquires a job.
+A rising queue wait time means that jobs wait longer before a provisioner daemon acquires them (for example, because every matching provisioner daemon is busy).
+A job that no provisioner daemon's [tags](#provisioner-tags) match doesn't appear in this metric until a matching provisioner daemon acquires it.
+To find these jobs, refer to [Troubleshoot provisioner jobs](./manage-provisioner-jobs.md#troubleshoot-provisioner-jobs).
+
+For each metric's type and labels, and for the full list of Coder metrics, refer to [Available metrics](../../../admin/integrations/prometheus.md#available-metrics).
+
+### Enable metrics on a provisioner daemon
+
+An external provisioner daemon doesn't serve metrics by default.
+To turn on its Prometheus endpoint, set `CODER_PROMETHEUS_ENABLE=true` or pass [`--prometheus-enable`](../../../reference/cli/provisioner/start.md#--prometheus-enable) to `coder provisioner start`.
+
+The endpoint listens on `127.0.0.1:2112` by default.
+To listen on another address, set `CODER_PROMETHEUS_ADDRESS` or pass [`--prometheus-address`](../../../reference/cli/provisioner/start.md#--prometheus-address) (for example, `0.0.0.0:2112`).
+The endpoint does not require authentication, so expose it only to your monitoring network.
+
+If you install provisioners with the `coder-provisioner` Helm chart, the chart sets `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`, and you can't change it.
+To turn on the endpoint, add `CODER_PROMETHEUS_ENABLE` with the value `"true"` to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+```
+
+The chart then exposes container port `2112` with the name `prometheus-http`.
+It doesn't create a Service.
+For Prometheus Pod-based discovery, add scrape annotations to each provisioner Pod with `coder.podAnnotations`:
+
+```yaml
+coder:
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "2112"
+```
+
+To use a `PodMonitor` instead, select the chart's `app.kubernetes.io/name` and `app.kubernetes.io/instance` Pod labels and the `prometheus-http` port.
+
+The control plane exports its metrics on a separate endpoint.
+To turn it on and configure Prometheus to scrape it, refer to [Enable Prometheus metrics](../../../admin/integrations/prometheus.md#enable-prometheus-metrics) and [Prometheus configuration](../../../admin/integrations/prometheus.md#prometheus-configuration).
 
 ## Next
 

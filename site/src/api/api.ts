@@ -70,12 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	afterMessageId?: number,
+	snapshotVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	if (afterMessageId !== undefined && afterMessageId > 0) {
-		params.set("after_id", afterMessageId.toString());
-	}
+	params.set("snapshot_version", snapshotVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
@@ -368,6 +366,13 @@ const organizationSkillPath = (organizationId: string, name: string) =>
 	`${organizationSkillsPath(organizationId)}/${encodeURIComponent(name)}`;
 const organizationSkillACLPath = (organizationId: string, name: string) =>
 	`${organizationSkillPath(organizationId, name)}/acl`;
+const organizationSkillSettingsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/skill-settings`;
+const organizationSkillPreferencesPath = (
+	organizationId: string,
+	user: string,
+) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/skill-preferences`;
 const chatProjectSkillsPath = (organizationId: string, projectId: string) =>
 	`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/skills`;
 const chatProjectSkillPath = (
@@ -3429,6 +3434,27 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACL,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+			req,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
@@ -3601,6 +3627,17 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	editChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
+			req,
+		);
+	};
+
 	getChatDiffContents = async (
 		chatId: string,
 		ref?: TypesGen.DiffStatusRef,
@@ -3634,6 +3671,29 @@ class ExperimentalApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		return response.data;
+	};
+
+	getOrganizationAISpendOverview = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.OrganizationAISpendOverview> => {
+		const response = await this.axios.get<TypesGen.OrganizationAISpendOverview>(
+			`/api/experimental/organizations/${organizationId}/ai/spend`,
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getOrganizationUnpricedAIModels = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+	): Promise<TypesGen.UnpricedAIModels> => {
+		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
+			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
+			{ params: period },
+		);
 		return response.data;
 	};
 
@@ -3867,7 +3927,7 @@ class ExperimentalApiMethods {
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
-			"/api/experimental/chats/config/advisor",
+			"/api/v2/chats/config/advisor",
 		);
 		return response.data;
 	};
@@ -3875,25 +3935,7 @@ class ExperimentalApiMethods {
 	updateChatAdvisorConfig = async (
 		req: UpdateAdvisorConfigRequest,
 	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/advisor", req);
-	};
-
-	getChatComputerUseProvider =
-		async (): Promise<TypesGen.ChatComputerUseProviderResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatComputerUseProviderResponse>(
-					"/api/experimental/chats/config/computer-use-provider",
-				);
-			return response.data;
-		};
-
-	updateChatComputerUseProvider = async (
-		req: TypesGen.UpdateChatComputerUseProviderRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			"/api/experimental/chats/config/computer-use-provider",
-			req,
-		);
+		await this.axios.put("/api/v2/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =
@@ -4094,6 +4136,50 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateOrganizationSkillACLRequest,
 	): Promise<void> => {
 		await this.axios.patch(organizationSkillACLPath(organizationId, name), req);
+	};
+
+	getOrganizationSkillSettings = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.get<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkillSettings = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillSettingsRequest,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.put<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+			req,
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillPreferences = async (
+		organizationId: string,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+			);
+		return response.data;
+	};
+
+	updateOrganizationSkillPreferences = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillPreferencesRequest,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.patch<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+				req,
+			);
+		return response.data;
 	};
 
 	getUserChatCompactionThresholds =

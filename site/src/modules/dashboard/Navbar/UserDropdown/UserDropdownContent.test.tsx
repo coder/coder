@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -53,11 +54,38 @@ describe("UserDropdownContent", () => {
 		expect(link).toHaveAttribute("href", MockBuildInfo.external_url);
 	});
 
+	it("keeps focus on the version item when the pointer leaves it", async () => {
+		const user = userEvent.setup();
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const item = screen.getByRole("menuitem", { name: /opens in new tab/ });
+		await user.hover(item);
+		expect(item).toHaveFocus();
+		await user.unhover(item);
+		expect(item).toHaveFocus();
+	});
+
+	it("announces when the deployment ID is copied", async () => {
+		const user = userEvent.setup();
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+		await user.click(
+			screen.getByRole("menuitem", {
+				name: new RegExp(MockBuildInfo.deployment_id),
+			}),
+		);
+		expect(status).toHaveTextContent("Copied");
+	});
+
 	it("calls the onSignOut function", async () => {
 		const onSignOut = vi.fn();
 		renderUserDropdownContent({ onSignOut });
 		await waitForLoaderToBeRemoved();
-		screen.getByText("Sign Out").click();
+		screen.getByText("Sign out").click();
 		expect(onSignOut).toBeCalledTimes(1);
 	});
 

@@ -9,10 +9,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -50,7 +50,7 @@ const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
-				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+				<div className="px-2 py-1.5 text-xs text-content-secondary">
 					Select a provider
 				</div>
 				{addableProviders.map((entry) => (
@@ -88,9 +88,9 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					Bedrock. Providers configured here power Coder Agents, AI Gateway, and
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
-					<Link href={docs("/ai-coder/ai-gateway/setup#configure-providers")}>
-						View docs
-					</Link>
+					<SettingsHeaderDocsLink
+						href={docs("/ai-governance/ai-gateway/setup#configure-providers")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{Boolean(error) && (
@@ -98,7 +98,11 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table className="table-fixed" aria-label="AI providers">
+			<Table
+				className="table-fixed"
+				aria-label="AI providers"
+				aria-busy={isFetching}
+			>
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
@@ -112,7 +116,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody size="lg">
-					{isLoading || isFetching ? (
+					{isLoading ? (
 						<TableLoader />
 					) : providers.length === 0 ? (
 						<TableEmpty

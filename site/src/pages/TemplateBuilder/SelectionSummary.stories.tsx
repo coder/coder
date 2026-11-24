@@ -103,6 +103,23 @@ export const WithModules: Story = {
 	},
 };
 
+export const ModulesStepKeyboardFocus: Story = {
+	args: {
+		currentStep: 2,
+		maxReachedStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{ id: "git-clone", name: "Git clone", iconUrl: "/icon/git.svg" },
+		],
+	},
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const WithLongNameModule: Story = {
 	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
 	parameters: { pixel: { exclude: true } },
@@ -197,7 +214,7 @@ export const NavigationClicks: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Go to Base Template" }),
+			await canvas.findByRole("button", { name: "Go to Base template" }),
 		);
 		await expect(args.onNavigateStep).toHaveBeenCalledWith("base-infra");
 

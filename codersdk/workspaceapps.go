@@ -60,41 +60,41 @@ var MapWorkspaceAppOpenIns = map[WorkspaceAppOpenIn]struct{}{
 }
 
 type WorkspaceApp struct {
-	ID uuid.UUID `json:"id" format:"uuid"`
+	ID uuid.UUID `json:"id" format:"uuid" wsrelated:"latest_build.resources.agents.apps"`
 	// URL is the address being proxied to inside the workspace.
 	// If external is specified, this will be opened on the client.
-	URL string `json:"url,omitempty"`
+	URL string `json:"url,omitempty" wsrelated:"latest_build.resources.agents.apps"`
 	// External specifies whether the URL should be opened externally on
 	// the client or not.
-	External bool `json:"external"`
+	External bool `json:"external" wsrelated:"latest_build.resources.agents.apps"`
 	// Slug is a unique identifier within the agent.
-	Slug string `json:"slug"`
+	Slug string `json:"slug" wsrelated:"latest_build.resources.agents.apps"`
 	// DisplayName is a friendly name for the app.
-	DisplayName string `json:"display_name,omitempty"`
-	Command     string `json:"command,omitempty"`
+	DisplayName string `json:"display_name,omitempty" wsrelated:"latest_build.resources.agents.apps"`
+	Command     string `json:"command,omitempty" wsrelated:"latest_build.resources.agents.apps"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
-	Icon string `json:"icon,omitempty"`
+	Icon string `json:"icon,omitempty" wsrelated:"latest_build.resources.agents.apps"`
 	// Subdomain denotes whether the app should be accessed via a path on the
 	// `coder server` or via a hostname-based dev URL. If this is set to true
 	// and there is no app wildcard configured on the server, the app will not
 	// be accessible in the UI.
-	Subdomain bool `json:"subdomain"`
+	Subdomain bool `json:"subdomain" wsrelated:"latest_build.resources.agents.apps"`
 	// SubdomainName is the application domain exposed on the `coder server`.
-	SubdomainName string                   `json:"subdomain_name,omitempty"`
-	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,organization,public"`
+	SubdomainName string                   `json:"subdomain_name,omitempty" wsrelated:"latest_build.resources.agents.apps"`
+	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" wsrelated:"latest_build.resources.agents.apps"`
 	// Healthcheck specifies the configuration for checking app health.
-	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
-	Health      WorkspaceAppHealth `json:"health"`
-	Group       string             `json:"group,omitempty"`
-	Hidden      bool               `json:"hidden"`
-	OpenIn      WorkspaceAppOpenIn `json:"open_in"`
+	Healthcheck Healthcheck        `json:"healthcheck,omitempty" wsrelated:"latest_build.resources.agents.apps"`
+	Health      WorkspaceAppHealth `json:"health" wsrelated:"latest_build.resources.agents.apps"`
+	Group       string             `json:"group,omitempty" wsrelated:"latest_build.resources.agents.apps"`
+	Hidden      bool               `json:"hidden" wsrelated:"latest_build.resources.agents.apps"`
+	OpenIn      WorkspaceAppOpenIn `json:"open_in" wsrelated:"latest_build.resources.agents.apps"`
 	// Tooltip is an optional markdown supported field that is displayed
 	// when hovering over workspace apps in the UI.
-	Tooltip string `json:"tooltip,omitempty"`
+	Tooltip string `json:"tooltip,omitempty" wsrelated:"latest_build.resources.agents.apps"`
 
 	// Statuses is a list of statuses for the app.
-	Statuses []WorkspaceAppStatus `json:"statuses"`
+	Statuses []WorkspaceAppStatus `json:"statuses" wsrelated:"latest_build.resources.agents.apps.statuses"`
 }
 
 type Healthcheck struct {

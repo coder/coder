@@ -16,11 +16,11 @@ const ReadFileContent: React.FC<{
 	content: string;
 }> = ({ path, content }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 
 	return (
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${path}`}
 			orientation="both"

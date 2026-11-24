@@ -121,11 +121,12 @@ describe("ConnectionLogPage", () => {
 			await renderPage();
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
-			);
-			await user.click(
-				await screen.findByRole("option", { name: "Web Terminal" }),
+			await user.click(screen.getByRole("button", { name: "Filters" }));
+			await user.hover(await screen.findByRole("option", { name: "Method" }));
+			// user-event omits relatedTarget when entering the flyout, closing it.
+			await userEvent.click(
+				await screen.findByRole("button", { name: "Web Terminal" }),
+				{ skipHover: true },
 			);
 
 			await waitFor(() =>
@@ -145,14 +146,48 @@ describe("ConnectionLogPage", () => {
 					count: 1,
 					count_cap: 0,
 				});
-			await renderPage({ filter: "status:ongoing type:ssh" });
-			expect(screen.getByRole("alert")).toHaveTextContent(
-				"The type filter is deprecated",
-			);
+			await renderPage({
+				filter: "status:ongoing type:ssh app:code-server workspace_owner:alice",
+			});
 
 			const user = userEvent.setup();
-			await user.click(
-				screen.getByRole("button", { name: "Filter by connection method" }),
+			await user.click(screen.getByRole("button", { name: "Filters" }));
+			await user.hover(await screen.findByRole("option", { name: "Method" }));
+			await userEvent.click(
+				await screen.findByRole("button", { name: "SSH" }),
+				{ skipHover: true },
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "status:ongoing workspace_owner:alice method:ssh app:code-server",
+				}),
+			);
+		});
+
+		it("resets page to 1 when filter is changed", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 100,
+					count_cap: 0,
+				});
+			await renderPage({ page: 2 });
+			expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+				limit: DEFAULT_RECORDS_PER_PAGE,
+				offset: DEFAULT_RECORDS_PER_PAGE,
+				q: "",
+			});
+
+			const user = userEvent.setup();
+			await user.type(
+				screen.getByRole("combobox", {
+					name: "Search and filter connection logs…",
+				}),
+				"method:",
 			);
 			await user.click(await screen.findByRole("option", { name: "SSH" }));
 
@@ -160,27 +195,7 @@ describe("ConnectionLogPage", () => {
 				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
 					limit: DEFAULT_RECORDS_PER_PAGE,
 					offset: 0,
-					q: "status:ongoing method:ssh",
-				}),
-			);
-			expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-		});
-
-		it("resets page to 1 when filter is changed", async () => {
-			await renderPage({ page: 2 });
-
-			const getConnectionLogsSpy = vi.spyOn(API, "getConnectionLogs");
-			getConnectionLogsSpy.mockClear();
-
-			const filterField = screen.getByLabelText("Filter");
-			const query = "method:ssh status:ongoing";
-			await userEvent.type(filterField, query);
-
-			await waitFor(() =>
-				expect(getConnectionLogsSpy).toHaveBeenCalledWith({
-					limit: DEFAULT_RECORDS_PER_PAGE,
-					offset: 0,
-					q: query,
+					q: "method:ssh",
 				}),
 			);
 		});

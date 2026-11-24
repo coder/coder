@@ -48,7 +48,7 @@ These resources can be VMs, Kubernetes clusters, storage buckets, or whatever el
 
 The resources that run the workspace agent are described as _computational resources_, while those that don't are called _peripheral resources_.
 
-Each resource may also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
+Each resource can also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
 
 ### Agents
 
@@ -62,7 +62,7 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../../admin/templates/extending-templates/index.md#workspace-agents) within workspaces.
+Templates are responsible for [creating and running agents](../../templates/extending-templates/index.md#workspace-agents) within workspaces.
 
 ## Service Bundling
 
@@ -80,7 +80,7 @@ While `coderd` runs a bundled version of PostgreSQL, we recommend running an ext
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL (preferably using [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
+- For AWS: Amazon Relational Database Service (RDS) for PostgreSQL (preferably using [RDS Identity and Access Management (IAM) authentication](../../reference/cli/server/index.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
@@ -115,7 +115,7 @@ The governance layer provides centralized oversight and policy enforcement for A
 
 ### AI Gateway
 
-AI Gateway is a centralized feature that sits between coding agents and LLM providers such as OpenAI and Anthropic.
+AI Gateway is a centralized feature that sits between coding agents and large language model (LLM) providers such as OpenAI and Anthropic.
 Users authenticate through Coder instead of managing separate provider API keys.
 All prompts, token usage, and tool invocations are recorded for compliance and cost tracking.
 
@@ -131,11 +131,11 @@ They keep ephemeral provider snapshots, caches, and metrics in memory, and can o
 `coderd` is the source of truth and the only component that writes AI Gateway state to the database.
 Each replica maintains a control connection to `coderd` for Coder API key validation, provider configuration, and AI session recording, and becomes unready when that connection is unavailable.
 
-Refer to [AI Gateway](../../ai-coder/ai-gateway/index.md) and [standalone deployment](../../ai-coder/ai-gateway/standalone.md) for configuration and operational guidance.
+Refer to [AI Gateway](../../ai-governance/ai-gateway/index.md) and [standalone deployment](../../ai-governance/ai-gateway/standalone.md) for configuration and operational guidance.
 
 ### Agent Firewall
 
 Agent Firewall is a process-level firewall that restricts and audits network access for AI agents running in workspaces.
 It enforces allowlist-based policies controlling which domains, HTTP methods, and URL paths agents can reach, while streaming audit logs to the Coder control plane for centralized monitoring.
 
-Learn more: [Agent Firewall](../../ai-coder/agent-firewall/index.md)
+Learn more: [Agent Firewall](../../ai-governance/agent-firewall/index.md)

@@ -65,7 +65,7 @@ export const WorkspaceSharingPageView: React.FC<
 				<SettingsHeaderDescription>
 					Share this workspace with other users and groups.{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/user-guides/shared-workspaces")}
+						href={docs("/workspaces/shared-workspaces")}
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

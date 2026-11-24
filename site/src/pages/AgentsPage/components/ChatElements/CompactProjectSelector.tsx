@@ -122,6 +122,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 								className="text-xs font-normal"
 								value="no-project"
 								keywords={[noProjectLabel]}
+								aria-selected={value === null}
 								onSelect={() => select(null)}
 							>
 								<MessageCircleIcon />
@@ -165,6 +166,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 											className="text-xs font-normal"
 											value={project.id}
 											keywords={[project.name]}
+											aria-selected={value?.id === project.id}
 											onSelect={() => select(project)}
 										>
 											<ChatProjectIcon project={project} className="size-4" />
@@ -181,7 +183,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				</Command>
 				{/* Outside Command so search never filters it out and it stays
 				    visible while the list scrolls. */}
-				<div className="border-0 border-t border-solid border-border p-1">
+				<div className="border-t p-1">
 					<Button
 						variant="subtle"
 						size="sm"

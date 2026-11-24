@@ -6,7 +6,7 @@ Users can generate tokens to make API requests on behalf of themselves.
 
 ## Short-Lived Tokens (Sessions)
 
-The [Coder CLI](../../install/cli.md) and [Backstage Plugin](https://github.com/coder/backstage-plugins) use short-lived token to authenticate.
+The [Coder CLI](../../reference/cli/index.md) and [Backstage Plugin](https://github.com/coder/backstage-plugins) use short-lived token to authenticate.
 To generate a short-lived session token on behalf of your account, visit the following URL: `https://coder.example.com/cli-auth`
 
 ### Retrieve the current session token
@@ -153,7 +153,7 @@ Refer to the [Deprecated scope names](../../reference/api-key-scopes.md#deprecat
 ### Allow lists (advanced)
 
 For additional security, you can combine scopes with allow lists to restrict tokens to specific resources.
-Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their UUID:
+Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their universally unique identifier (UUID):
 
 ```sh
 # Create a token limited to a specific workspace

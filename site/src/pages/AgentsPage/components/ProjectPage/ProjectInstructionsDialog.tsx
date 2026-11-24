@@ -128,7 +128,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				</label>
 				<TextareaAutosize
 					id={textareaId}
-					className="max-h-[50vh] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link scrollbar-thin"
+					className="max-h-[50vh] w-full resize-none overflow-y-auto rounded-lg border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link scrollbar-thin"
 					placeholder="Conventions, context, and preferences for every chat in this project"
 					value={draft}
 					onChange={(event) => {
