@@ -2976,7 +2976,7 @@ GROUP BY
 	ai.provider,
 	ai.provider_name,
 	COALESCE(ai.client, 'Unknown')
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, client
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown')
 OFFSET $9
 LIMIT NULLIF($10::int, 0)
 `

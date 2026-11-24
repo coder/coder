@@ -609,7 +609,7 @@ GROUP BY
 	ai.provider,
 	ai.provider_name,
 	COALESCE(ai.client, 'Unknown')
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, client
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown')
 OFFSET @offset_opt
 LIMIT NULLIF(@limit_opt::int, 0);
 
