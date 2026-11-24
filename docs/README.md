@@ -3,6 +3,33 @@ title: Home
 markdown_url: /docs.md
 ---
 
+These docs are for the platform teams who run Coder and for the developers who work in Coder workspaces.
+Start with one of the following pages, or browse every section from the navigation.
+
+## Get started
+
+<div class="cards">
+
+- [Quickstart](./get-started/index.md): Run Coder on one machine and launch your first workspace in under 10&nbsp;minutes.
+- [Install Coder](./install/index.md): Install the control plane in your own infrastructure, including networks with no internet access.
+- [Templates](./templates/index.md): Define the infrastructure for your workspaces with Terraform, then publish and maintain it.
+- [Coder Agents](./coder-agents/index.md): Delegate development work to coding agents that run in your own deployment.
+
+</div>
+
+## Common tasks
+
+<div class="cards">
+
+- [Connect to a workspace](./workspaces/workspace-access/index.md): Connect over SSH, from VS Code or a JetBrains IDE, in code-server or a web terminal, or through forwarded ports.
+- [Docker in workspaces](./templates/extending-templates/docker-in-workspaces.md): Run Docker or Podman inside container-based workspaces with Sysbox, Envbox, rootless Podman, or a privileged sidecar.
+- [Manage users and sign-in](./admin/users/index.md): Set up single sign-on, reset passwords, and organize users into groups and roles.
+- [Configure the control plane](./admin/setup/index.md): Set the access URL, the wildcard domain for workspace apps, TLS certificates, and a reverse proxy.
+- [Git authentication](./admin/external-auth.md): Connect GitHub, GitLab, Bitbucket, and other OAuth providers so workspaces can clone and push.
+- [MCP server](./mcp-server.md): Give AI assistants tools and context for your deployment through the built-in Model Context Protocol (MCP) server.
+
+</div>
+
 ![Coder platform showing templates and a running workspace](./images/hero-image.png)
 
 ## Coder Workspaces
@@ -148,10 +175,3 @@ See the [templates documentation](./templates/index.md) for details.
 - Coder is not a SaaS/fully-managed offering.
   - Coder is a [self-hosted](<https://en.wikipedia.org/wiki/Self-hosting_(web_services)>) solution.
     You must host Coder in a private data center or on a cloud service, such as AWS, Azure, or GCP.
-
-## Learn more
-
-- [Coder Agents](./coder-agents/index.md)
-- [Templates](./templates/index.md)
-- [Installing Coder](./install/index.md)
-- [Quickstart tutorial](./get-started/index.md)
