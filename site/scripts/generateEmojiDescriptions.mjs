@@ -1,15 +1,14 @@
 import { readdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { normalizeEmojiCode } from "../src/theme/normalizeEmojiCode.mjs";
 
 const require = createRequire(import.meta.url);
 const data = require("emojibase-data/en/data.json");
 
-// Some shipped filenames omit the emoji presentation selector.
-const normalize = (code) => code.toLowerCase().replace(/-fe0f/g, "");
 const labels = new Map(
 	data.flatMap((emoji) =>
 		[emoji, ...(emoji.skins ?? [])].map((variant) => [
-			normalize(variant.hexcode),
+			normalizeEmojiCode(variant.hexcode),
 			variant.label,
 		]),
 	),
@@ -22,7 +21,7 @@ for (const file of readdirSync(
 	if (!/^[0-9a-f-]+\.png$/.test(file)) {
 		continue;
 	}
-	const code = normalize(file.slice(0, -4));
+	const code = normalizeEmojiCode(file.slice(0, -4));
 	const label = labels.get(code);
 	if (!label) {
 		throw new Error(`No Emojibase description for shipped emoji ${file}`);

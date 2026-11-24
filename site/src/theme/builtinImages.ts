@@ -1,5 +1,6 @@
 import icons from "./builtinIcons.json";
 import emojiDescriptions from "./emojiDescriptionsGenerated.json";
+import { normalizeEmojiCode } from "./normalizeEmojiCode.mjs";
 
 const iconDescriptions = new Map(
 	icons.flatMap((icon) =>
@@ -25,6 +26,6 @@ export function getBuiltinImageDescription(
 	}
 	const emoji = /^\/emojis\/([0-9a-f-]+)\.png$/.exec(path);
 	return emoji
-		? emojiDescriptionsByCode.get(emoji[1].replace(/-fe0f/g, ""))
+		? emojiDescriptionsByCode.get(normalizeEmojiCode(emoji[1]))
 		: undefined;
 }

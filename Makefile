@@ -1406,7 +1406,7 @@ site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/prot
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
 
-site/src/theme/emojiDescriptionsGenerated.json: site/node_modules/.installed site/scripts/generateEmojiDescriptions.mjs site/pnpm-lock.yaml site/static/emojis $(wildcard site/static/emojis/*.png) | _gen
+site/src/theme/emojiDescriptionsGenerated.json: site/node_modules/.installed site/scripts/generateEmojiDescriptions.mjs site/src/theme/normalizeEmojiCode.mjs site/pnpm-lock.yaml site/static/emojis $(wildcard site/static/emojis/*.png) | _gen
 	$(call atomic_write,node site/scripts/generateEmojiDescriptions.mjs,./scripts/biome_format.sh)
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen _gen/bin/gensite
