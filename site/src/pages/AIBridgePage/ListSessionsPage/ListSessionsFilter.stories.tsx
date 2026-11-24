@@ -102,6 +102,25 @@ export const ExplicitTimeRange: Story = {
 	},
 };
 
+/** Times before the retention can't be picked. */
+export const DatePickerOpenWithRetention: Story = {
+	args: {
+		...defaultFilterProps,
+		timeRange: {
+			start: new Date("2026-08-12T15:00:00Z"),
+			end: new Date("2026-08-13T15:00:00Z"),
+		},
+		minDate: new Date("2026-08-10T15:00:00Z"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Custom range" }),
+		);
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		...defaultFilterProps,

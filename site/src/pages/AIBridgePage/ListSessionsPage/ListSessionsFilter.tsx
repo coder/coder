@@ -33,6 +33,7 @@ type ListSessionsFilterProps = {
 	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
+	minDate?: Date;
 };
 
 export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
@@ -41,6 +42,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	menus,
 	timeRange,
 	onTimeRangeChange,
+	minDate,
 }) => {
 	return (
 		<Filter
@@ -55,6 +57,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					<DateTimeRangePicker
 						value={timeRange}
 						onChange={onTimeRangeChange}
+						minDate={minDate}
 						size="lg"
 					/>
 					<UserMenu
