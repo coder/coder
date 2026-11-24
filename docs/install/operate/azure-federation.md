@@ -2,15 +2,6 @@
 title: Federate Coder's control plane to Azure
 ---
 
-<div>
-  <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Eric Paulsen</span>
-  </a>
-</div>
-January 26, 2024
-
----
-
 This guide will walkthrough how to authenticate a Coder Provisioner to Microsoft Azure, using a Service Principal with a client certificate.
 You can use this guide for authenticating Coder to Azure, regardless of where Coder is run, either on-premise or in a non-Azure cloud.
 This method is one of several [recommended by Terraform](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).

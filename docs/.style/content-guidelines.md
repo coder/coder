@@ -310,6 +310,11 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").
   Generic lowercase concepts and internal-only identifiers with no user-facing surface do not.
   This is what keeps the glossary from drifting as the product's vocabulary changes.
+- **Pages show no dates or authors.**
+  Do not add a publication date, an updated date, or an author name or byline to a page.
+  A page describes the current version, so a date gives the reader nothing to act on, and both a date and an author go stale with the next edit.
+  Git history already records who changed a page and when.
+  A date that is part of the content, such as a release date or a deprecation deadline, is still allowed.
 
 ## What does not belong in the docs
 

@@ -2,15 +2,6 @@
 title: Test and publish Coder templates through CI/CD
 ---
 
-<div>
-  <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Muhammad Atif Ali</span>
-  </a>
-</div>
-November 15, 2024
-
----
-
 ## Overview
 
 This guide demonstrates how to test and publish Coder templates in a Continuous Integration (CI) pipeline using the [coder/setup-action](https://github.com/coder/setup-coder).

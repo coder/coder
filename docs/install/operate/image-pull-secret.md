@@ -2,15 +2,6 @@
 title: Define ImagePullSecrets for Coder workspaces
 ---
 
-<div>
-  <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Eric Paulsen</span>
-  </a>
-</div>
-January 12, 2024
-
----
-
 Coder workspaces are commonly run as Kubernetes pods.
 When run inside of an enterprise, the pod image is typically pulled from a private image registry.
 This guide walks through creating an ImagePullSecret to use for authenticating to your registry, and defining it in your workspace template.

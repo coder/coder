@@ -2,15 +2,6 @@
 title: Island browser integration
 ---
 
-<div>
-  <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Eric Paulsen</span>
-  </a>
-</div>
-April 24, 2024
-
----
-
 [Island](https://www.island.io/) is an enterprise-grade browser, offering a Chromium-based experience similar to popular web browsers like Chrome and Edge.
 It includes built-in security features for corporate applications and data, aiming to bridge the gap between consumer-focused browsers and the security needs of the enterprise.
 

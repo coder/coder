@@ -2,16 +2,6 @@
 title: Cloning Git repositories
 ---
 
-<div style="padding: 0px; margin: 0px;">
-  <span style="vertical-align:middle;">Author: </span>
-  <a href="https://github.com/BrunoQuaresma" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
-    <span style="vertical-align:middle;">Bruno Quaresma</span>
-  </a>
-</div>
-August 06, 2024
-
----
-
 When starting to work on a project, engineers usually need to clone a Git repository.
 Even though this is often a quick step, it can be automated using the [Coder Registry](https://registry.coder.com/) to make a seamless Git-first workflow.
 
