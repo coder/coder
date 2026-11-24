@@ -657,7 +657,30 @@ jobs:
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          if [[ -z "${CODER_BASE_IMAGE_TAG:-}" ]]; then
+            make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          else
+            # The base image is a multi-arch index. Build each architecture
+            # on its own manifest from that index.
+            base_index="$(docker buildx imagetools inspect --raw "$CODER_BASE_IMAGE_TAG")"
+            for arch in amd64 arm64 armv7; do
+              case "$arch" in
+              armv7) platform="linux/arm/v7" ;;
+              *) platform="linux/${arch}" ;;
+              esac
+              base_digest="$(
+                jq -r --arg platform "$platform" \
+                  '.manifests[] | select((.platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)) == $platform) | .digest' \
+                  <<<"$base_index"
+              )"
+              if [[ ! "$base_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo "::error::expected one ${platform} manifest in ${CODER_BASE_IMAGE_TAG}, got '${base_digest}'"
+                exit 1
+              fi
+              CODER_BASE_IMAGE_TAG="${CODER_BASE_IMAGE_TAG%@*}@${base_digest}" \
+                make build/coder_"$version"_linux_"$arch".tag
+            done
+          fi
 
           # Anyone who can write the staging package can move its tags, so
           # every digest below comes from the registry's response to our own
