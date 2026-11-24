@@ -167,7 +167,8 @@ type ChatActionsMenuProps = Omit<
 	readonly align?: "start" | "end";
 	readonly contentClassName?: string;
 	readonly disabled?: boolean;
-	readonly onArchived?: (chatId: string) => void;
+	/** Called when the user starts archiving the chat and deleting its workspace. */
+	readonly onArchive?: (chatId: string) => void;
 };
 
 /** Owns chat menu actions and keeps confirmation alive after the menu closes. */
@@ -177,7 +178,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	align = "end",
 	contentClassName,
 	disabled,
-	onArchived,
+	onArchive,
 	...items
 }) => {
 	const { chat } = items;
@@ -202,7 +203,6 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 					result.deleteBuild,
 				);
 			}
-			onArchived?.(variables.chatId);
 		},
 		onError: (error, variables) => {
 			notifyArchiveAndDeleteFailed(
@@ -218,6 +218,10 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	});
 
 	const filters = { mutationKey: chatArchiveMutationKey(chat.id) };
+	const archiveAndDelete = (workspaceId: string | undefined) => {
+		mutation.mutate({ chatId: chat.id, workspaceId });
+		onArchive?.(chat.id);
+	};
 	const requestArchiveAndDelete = async () => {
 		const workspaceId = chat.workspace_id;
 		if (chat.archived || !workspaceId || queryClient.isMutating(filters)) {
@@ -246,10 +250,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 				),
 			);
 		} else {
-			mutation.mutate({
-				chatId: chat.id,
-				workspaceId: action === "archive-only" ? undefined : workspaceId,
-			});
+			archiveAndDelete(action === "archive-only" ? undefined : workspaceId);
 		}
 	};
 
@@ -306,7 +307,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 				onCancel={() => setConfirmation(undefined)}
 				onConfirm={(workspace) => {
 					if (!queryClient.isMutating(filters)) {
-						mutation.mutate({ chatId: chat.id, workspaceId: workspace.id });
+						archiveAndDelete(workspace.id);
 					}
 					setConfirmation(undefined);
 				}}

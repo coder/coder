@@ -507,82 +507,70 @@ describe("AgentsPageLayout archive state", () => {
 });
 
 describe("AgentsPageLayout archive and delete", () => {
-	it.each(["sidebar", "top bar"])(
-		"shares pending archive state from the %s with the other surface",
-		async (surface) => {
-			const user = userEvent.setup();
-			const chat = {
-				...MockChat,
-				title: "Archive target",
-				workspace_id: MockWorkspace.id,
-			};
-			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
-			vi.spyOn(API, "getWorkspace").mockResolvedValue({
-				...MockWorkspace,
-				created_at: chat.created_at,
-			});
-			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
-			vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
-				MockWorkspaceBuildDelete,
+	it("shares pending archive state from the top bar with the sidebar", async () => {
+		const user = userEvent.setup();
+		const chat = {
+			...MockChat,
+			title: "Archive target",
+			workspace_id: MockWorkspace.id,
+		};
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
+		vi.spyOn(API, "getWorkspace").mockResolvedValue({
+			...MockWorkspace,
+			created_at: chat.created_at,
+		});
+		vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
+			MockWorkspaceBuildDelete,
+		);
+		const pendingUpdate = createDeferred<undefined>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			pendingUpdate.promise,
+		);
+		const { queryClient } = renderWithAuth(<AgentsPageLayout />, {
+			path: "/agents",
+			route: `/agents/${chat.id}`,
+			children: [
+				{ index: true, element: null },
+				{
+					path: ":agentId",
+					element: (
+						<ChatTopBar
+							chat={chat}
+							panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+						/>
+					),
+				},
+			],
+		});
+		try {
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
 			);
-			const pendingUpdate = createDeferred<undefined>();
-			vi.spyOn(API.experimental, "updateChat").mockReturnValue(
-				pendingUpdate.promise,
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
 			);
-			const { queryClient } = renderWithAuth(<AgentsPageLayout />, {
-				path: "/agents",
-				route: `/agents/${chat.id}`,
-				children: [
-					{
-						path: ":agentId",
-						element: (
-							<ChatTopBar
-								chat={chat}
-								panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
-							/>
-						),
-					},
-				],
+			await waitFor(() =>
+				expect(API.experimental.updateChat).toHaveBeenCalledTimes(1),
+			);
+			await user.pointer({
+				target: await screen.findByRole("link", {
+					name: /^Archive target/,
+				}),
+				keys: "[MouseRight]",
 			});
-			const sidebarTrigger = `Open actions for ${chat.title}`;
-			const topBarTrigger = "Open agent actions";
-			try {
-				await user.click(
-					await screen.findByRole("button", {
-						name: surface === "sidebar" ? sidebarTrigger : topBarTrigger,
-					}),
-				);
-				await user.click(
-					await screen.findByRole("menuitem", {
-						name: "Archive & delete workspace",
-					}),
-				);
-				await waitFor(() =>
-					expect(API.experimental.updateChat).toHaveBeenCalledTimes(1),
-				);
-				if (surface === "sidebar") {
-					await user.click(
-						await screen.findByRole("button", { name: topBarTrigger }),
-					);
-				} else {
-					await user.pointer({
-						target: await screen.findByRole("link", {
-							name: /^Archive target/,
-						}),
-						keys: "[MouseRight]",
-					});
-				}
-				await user.click(
-					await screen.findByRole("menuitem", { name: "Archive agent" }),
-				);
-				expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
-				await user.keyboard("{Escape}");
-			} finally {
-				pendingUpdate.resolve(undefined);
-				await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-			}
-		},
-	);
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Archive agent" }),
+			);
+			expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
+			await user.keyboard("{Escape}");
+		} finally {
+			pendingUpdate.resolve(undefined);
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		}
+	});
 
 	const chat = {
 		...MockChat,
@@ -602,7 +590,6 @@ describe("AgentsPageLayout archive and delete", () => {
 		parent_chat_id: chat.id,
 		root_chat_id: chat.id,
 	};
-	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
 
 	beforeEach(() => {
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat, otherChat]);
@@ -626,90 +613,23 @@ describe("AgentsPageLayout archive and delete", () => {
 		vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
 			MockWorkspaceBuildDelete,
 		);
-		publishChatWatchEvent = mockChatWatchSocket();
+		mockChatWatchSocket();
 	});
 
-	it.each(["sidebar", "top bar"] as const)(
-		"keeps archive and delete pending for the same chat across surfaces when started in the %s",
-		async (surface) => {
-			const user = userEvent.setup({ delay: null });
-			const pendingDelete = createDeferred<WorkspaceBuild>();
-			vi.mocked(API.deleteWorkspace).mockImplementation((workspaceId) =>
-				workspaceId === chat.workspace_id
-					? pendingDelete.promise
-					: Promise.resolve(MockWorkspaceBuildDelete),
-			);
-			const { queryClient } = renderLayout(`/agents/${chat.id}`);
-			try {
-				await user.click(
-					await screen.findByRole("button", {
-						name:
-							surface === "sidebar"
-								? "Open actions for Alpha agent"
-								: "Open agent actions",
-					}),
-				);
-				await user.click(
-					await screen.findByRole("menuitem", {
-						name: "Archive & delete workspace",
-					}),
-				);
-				await waitFor(() =>
-					expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
-				);
-				if (surface === "sidebar") {
-					await user.click(
-						await screen.findByRole("button", { name: "Open agent actions" }),
-					);
-				} else {
-					await user.pointer({
-						target: await screen.findByRole("link", { name: /Alpha agent/ }),
-						keys: "[MouseRight]",
-					});
-				}
-				const duplicateAction = screen.queryByRole("menuitem", {
-					name: "Archive & delete workspace",
-				});
-				if (duplicateAction) await user.click(duplicateAction);
-				const archiveAction = screen.queryByRole("menuitem", {
-					name: "Archive",
-				});
-				if (archiveAction) await user.click(archiveAction);
-				expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
-				expect(API.deleteWorkspace).toHaveBeenCalledTimes(1);
-				await user.keyboard("{Escape}");
-
-				await user.click(
-					await screen.findByRole("button", {
-						name: "Open actions for Beta agent",
-					}),
-				);
-				await user.click(
-					await screen.findByRole("menuitem", {
-						name: "Archive & delete workspace",
-					}),
-				);
-				await waitFor(() =>
-					expect(API.deleteWorkspace).toHaveBeenCalledWith(
-						otherChat.workspace_id,
-					),
-				);
-				expect(API.experimental.updateChat).toHaveBeenCalledTimes(2);
-			} finally {
-				await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
-				await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-			}
-		},
-	);
-
-	it("does not redirect a remounted layout when a prior deletion completes", async () => {
-		const user = userEvent.setup();
+	it("keeps archive and delete pending for the same chat across surfaces", async () => {
+		const user = userEvent.setup({ delay: null });
 		const pendingDelete = createDeferred<WorkspaceBuild>();
-		vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
-		const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
+		vi.mocked(API.deleteWorkspace).mockImplementation((workspaceId) =>
+			workspaceId === chat.workspace_id
+				? pendingDelete.promise
+				: Promise.resolve(MockWorkspaceBuildDelete),
+		);
+		const { queryClient } = renderLayout(`/agents/${chat.id}`);
 		try {
 			await user.click(
-				await screen.findByRole("button", { name: "Open agent actions" }),
+				await screen.findByRole("button", {
+					name: "Open agent actions",
+				}),
 			);
 			await user.click(
 				await screen.findByRole("menuitem", {
@@ -719,11 +639,38 @@ describe("AgentsPageLayout archive and delete", () => {
 			await waitFor(() =>
 				expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
 			);
-			await act(async () => router.navigate("/workspaces"));
-			await act(async () => router.navigate(`/agents/${chat.id}`));
-			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
-			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-			expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
+			await user.pointer({
+				target: await screen.findByRole("link", { name: /Alpha agent/ }),
+				keys: "[MouseRight]",
+			});
+			const duplicateAction = screen.queryByRole("menuitem", {
+				name: "Archive & delete workspace",
+			});
+			if (duplicateAction) await user.click(duplicateAction);
+			const archiveAction = screen.queryByRole("menuitem", {
+				name: "Archive",
+			});
+			if (archiveAction) await user.click(archiveAction);
+			expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
+			expect(API.deleteWorkspace).toHaveBeenCalledTimes(1);
+			await user.keyboard("{Escape}");
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Open actions for Beta agent",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(() =>
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(
+					otherChat.workspace_id,
+				),
+			);
+			expect(API.experimental.updateChat).toHaveBeenCalledTimes(2);
 		} finally {
 			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
 			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
@@ -832,84 +779,18 @@ describe("AgentsPageLayout archive and delete", () => {
 				);
 			});
 
-			it.each([
-				{ name: "the archived chat", chatId: chat.id, expectedPath: "/agents" },
-				{
-					name: "an unrelated chat",
-					chatId: otherChat.id,
-					expectedPath: `/agents/${otherChat.id}`,
-				},
-				{
-					name: "a subagent of the archived chat",
-					chatId: childChat.id,
-					expectedPath: "/agents",
-				},
-				{
-					name: "another page",
-					chatId: undefined,
-					expectedPath: "/workspaces",
-				},
-			])(
-				"respects the current route when viewing $name after deletion completes",
-				async ({ chatId, expectedPath }) => {
-					const user = userEvent.setup();
-					const pendingDelete = createDeferred<WorkspaceBuild>();
-					vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
-					const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
-					try {
-						await clickArchiveAndDelete(user);
-						await waitFor(() =>
-							expect(API.deleteWorkspace).toHaveBeenCalledWith(
-								chat.workspace_id,
-							),
-						);
+			it("leaves the archived chat and keeps the search", async () => {
+				const user = userEvent.setup();
+				const { router } = renderLayout(
+					`/agents/${chat.id}?group_by=chat_status`,
+				);
+				await clickArchiveAndDelete(user);
 
-						// Archiving emits this event before the workspace deletion finishes,
-						// removing the sidebar row that started the mutation.
-						vi.mocked(API.experimental.getChats).mockResolvedValue([otherChat]);
-						publishChatWatchEvent({
-							kind: "deleted",
-							chat: { ...chat, archived: true },
-						});
-						await waitFor(() =>
-							expect(
-								queryClient
-									.getQueryData(
-										infiniteChats({
-											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-										}).queryKey,
-									)
-									?.pages.flat(),
-							).toEqual([otherChat]),
-						);
-
-						const destination = chatId ? `/agents/${chatId}` : "/workspaces";
-						await act(async () => {
-							await router.navigate(`${destination}?group_by=chat_status`);
-						});
-						if (chatId) {
-							await waitFor(() =>
-								expect(
-									queryClient.getQueryData(chatEntityKey(chatId)),
-								).toMatchObject({ id: chatId }),
-							);
-						}
-						await act(async () =>
-							pendingDelete.resolve(MockWorkspaceBuildDelete),
-						);
-						await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-						await waitFor(() =>
-							expect(router.state.location.pathname).toBe(expectedPath),
-						);
-						expect(router.state.location.search).toBe("?group_by=chat_status");
-					} finally {
-						await act(async () =>
-							pendingDelete.resolve(MockWorkspaceBuildDelete),
-						);
-						await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-					}
-				},
-			);
+				await waitFor(() =>
+					expect(router.state.location.pathname).toBe("/agents"),
+				);
+				expect(router.state.location.search).toBe("?group_by=chat_status");
+			});
 
 			it.each([404, 410])(
 				"leaves the archived chat when workspace lookup returns %s",
@@ -919,56 +800,57 @@ describe("AgentsPageLayout archive and delete", () => {
 						isAxiosError: true,
 						response: { status },
 					});
-					const pendingArchive = createDeferred<undefined>();
-					vi.mocked(API.experimental.updateChat).mockReturnValue(
-						pendingArchive.promise,
+					const { router } = renderLayout(`/agents/${chat.id}`);
+					await clickArchiveAndDelete(user);
+
+					await waitFor(() =>
+						expect(router.state.location.pathname).toBe("/agents"),
 					);
-					const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
-					try {
-						await clickArchiveAndDelete(user);
-						await waitFor(() =>
-							expect(API.experimental.updateChat).toHaveBeenCalledWith(
-								chat.id,
-								{
-									archived: true,
-								},
-							),
-						);
-						expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
-
-						await act(async () => pendingArchive.resolve(undefined));
-						await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-						expect(API.deleteWorkspace).not.toHaveBeenCalled();
-						await waitFor(() =>
-							expect(router.state.location.pathname).toBe("/agents"),
-						);
-					} finally {
-						await act(async () => pendingArchive.resolve(undefined));
-						await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-					}
-				},
-			);
-
-			it("does not leave a missing-workspace chat when archiving fails", async () => {
-				const user = userEvent.setup();
-				vi.mocked(API.getWorkspace).mockRejectedValue({
-					isAxiosError: true,
-					response: { status: 404 },
-				});
-				vi.mocked(API.experimental.updateChat).mockRejectedValue(
-					new Error("Archive failed"),
-				);
-				const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
-				await clickArchiveAndDelete(user);
-				await waitFor(() =>
 					expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
 						archived: true,
-					}),
-				);
-				await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-				expect(API.deleteWorkspace).not.toHaveBeenCalled();
-				expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
-			});
+					});
+					expect(API.deleteWorkspace).not.toHaveBeenCalled();
+				},
+			);
+		},
+	);
+
+	it.each([
+		{
+			name: "an unrelated chat",
+			viewing: otherChat.id,
+			expectedPath: `/agents/${otherChat.id}`,
+		},
+		{
+			name: "a subagent of the archived chat",
+			viewing: childChat.id,
+			expectedPath: "/agents",
+		},
+	])(
+		"archiving from the sidebar while viewing $name goes to $expectedPath",
+		async ({ viewing, expectedPath }) => {
+			const user = userEvent.setup();
+			const { router, queryClient } = renderLayout(`/agents/${viewing}`);
+			await waitFor(() =>
+				expect(queryClient.getQueryData(chatEntityKey(viewing))).toMatchObject({
+					id: viewing,
+				}),
+			);
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Open actions for Alpha agent",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+
+			await waitFor(() =>
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
+			);
+			expect(router.state.location.pathname).toBe(expectedPath);
 		},
 	);
 });

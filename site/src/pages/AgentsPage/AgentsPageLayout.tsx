@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -82,7 +82,8 @@ export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
-	navigateAfterArchive: (chatId: string) => void;
+	/** Leaves the chat when the user archives the one they are viewing. */
+	navigateOnArchive: (chatId: string) => void;
 	/**
 	 * The active chat's children from the chat list cache, which watch
 	 * events keep fresh. The entity cache's embedded children are only a
@@ -247,44 +248,14 @@ const AgentsPageLayout: React.FC = () => {
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
 
-	// Archives can outlive their row, so read the route this layout last
-	// committed. Unset while unmounted, and after navigating so a second
-	// matching archive before the next commit does not navigate again.
-	const archiveRouteRef = useRef<{
-		agentId: string | undefined;
-		search: string;
-	}>(undefined);
-
-	useEffect(() => {
-		archiveRouteRef.current = { agentId, search: location.search };
-
-		return () => {
-			archiveRouteRef.current = undefined;
-		};
-	});
-
-	const navigateAfterArchive = (chatId: string) => {
-		const route = archiveRouteRef.current;
-		if (!route) {
-			return;
-		}
-
-		const activeChat = route.agentId
-			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(route.agentId))
+	const navigateOnArchive = (chatId: string) => {
+		const activeChat = agentId
+			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(agentId))
 			: undefined;
 
-		if (
-			!shouldNavigateAfterArchive(
-				route.agentId,
-				chatId,
-				activeChat?.root_chat_id,
-			)
-		) {
-			return;
+		if (shouldNavigateAfterArchive(agentId, chatId, activeChat?.root_chat_id)) {
+			void navigate({ pathname: "/agents", search: location.search });
 		}
-
-		archiveRouteRef.current = undefined;
-		void navigate({ pathname: "/agents", search: route.search });
 	};
 
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
@@ -529,7 +500,7 @@ const AgentsPageLayout: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		navigateAfterArchive,
+		navigateOnArchive,
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
@@ -562,7 +533,7 @@ const AgentsPageLayout: React.FC = () => {
 					modelConfigs={organizationModels.models}
 					isLoadingModelConfigs={organizationModels.isLoading}
 					onArchiveSuccess={clearChatErrorReason}
-					navigateAfterArchive={navigateAfterArchive}
+					navigateOnArchive={navigateOnArchive}
 					onRenameTitle={requestRenameTitle}
 					onProposeTitle={requestProposeTitle}
 					chatPendingRename={chatPendingRename}
