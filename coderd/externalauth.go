@@ -192,7 +192,8 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 			OAuthExpiry:            token.Expiry,
 			// No extra data from device auth!
-			OAuthExtra: pqtype.NullRawMessage{},
+			OAuthExtra:      pqtype.NullRawMessage{},
+			OAuthExtraKeyID: sql.NullString{}, // dbcrypt will set as required
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -212,6 +213,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:               token.Expiry,
 			OAuthExtra:                pqtype.NullRawMessage{},
+			OAuthExtraKeyID:           sql.NullString{}, // dbcrypt will update as required
 			OauthRefreshFailureReason: "",
 			RefreshLeaseExpiresAt:     sql.NullTime{},
 		})
@@ -297,6 +299,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 				OAuthExpiry:            state.Token.Expiry,
 				OAuthExtra:             extra,
+				OAuthExtraKeyID:        sql.NullString{}, // dbcrypt will set as required
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -316,6 +319,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:               state.Token.Expiry,
 				OAuthExtra:                extra,
+				OAuthExtraKeyID:           sql.NullString{}, // dbcrypt will update as required
 				OauthRefreshFailureReason: "",
 				RefreshLeaseExpiresAt:     sql.NullTime{},
 			})

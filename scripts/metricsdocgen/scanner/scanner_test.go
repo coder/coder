@@ -40,8 +40,6 @@ import (
 	"github.com/coder/coder/v2/server/costcontrol"
 	gwmetrics "github.com/coder/coder/v2/gateway/metrics"
 	"github.com/coder/coder/v2/gateway/keypool"
-	"github.com/coder/coder/v2/proxy"
-	prometheusmetrics "github.com/coder/coder/v2/prometheusmetrics"
 )
 
 func run(registry *prometheus.Registry) {
@@ -51,9 +49,6 @@ func run(registry *prometheus.Registry) {
 	gatewayReg := prometheus.WrapRegistererWithPrefix(gwmetrics.PrometheusMetricPrefix, registry)
 	gwmetrics.NewMetrics(gatewayReg)
 	gatewayReg.MustRegister(keypool.NewStateCollector(nil))
-
-	aliasReg := prometheusmetrics.NewMetricAliasRegisterer(registry, "coder_ai_gateway_proxy_", "coder_legacy_")
-	proxy.NewMetrics(aliasReg)
 }
 `)
 	writeGoFile(t, root, "gateway/metrics", "metrics.go", `package metrics
@@ -62,7 +57,6 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 `)
 	writeGoFile(t, root, "server/costcontrol", "metrics.go", "package costcontrol\n")
 	writeGoFile(t, root, "gateway/keypool", "collector.go", "package keypool\n")
-	writeGoFile(t, root, "proxy", "metrics.go", "package proxy\n")
 	// A prefix resolved through a constant declared in the wrapping file's own
 	// package.
 	writeGoFile(t, root, "server/cmd", "run.go", `package cmd
@@ -97,8 +91,6 @@ func run(registry *prometheus.Registry) {
 		{"gateway/metrics", []string{"coder_ai_gateway_"}},
 		// Collector registered directly against the wrapped registerer.
 		{"gateway/keypool", []string{"coder_ai_gateway_"}},
-		// Alias registerer indexes only the canonical prefix.
-		{"proxy", []string{"coder_ai_gateway_proxy_"}},
 		// Prefix resolved through a same-package constant.
 		{"server/local", []string{"coder_local_"}},
 	}
@@ -106,9 +98,6 @@ func run(registry *prometheus.Registry) {
 		if got := index[tc.dir]; !slices.Equal(got, tc.want) {
 			t.Errorf("index[%q] = %v, want %v", tc.dir, got, tc.want)
 		}
-	}
-	if got := index["proxy"]; slices.Contains(got, "coder_legacy_") {
-		t.Errorf("index[\"proxy\"] = %v, must not include the legacy alias", got)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -45,7 +46,8 @@ const (
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow              = time.Second
 	maxOrganizationGroupsAISpendGroupIDs = 100
-	maxGroupMembersAISpendUserIDs        = 100
+	// maxAISpendUserIDs caps the user_ids filter on the AI spend endpoints.
+	maxAISpendUserIDs = 100
 	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
 	// most 31 days, matching the maximum length of the monthly default period.
 	maxAISpendExportPeriod = codersdk.MaxAISpendPeriodDays * 24 * time.Hour
@@ -160,7 +162,7 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
@@ -235,14 +237,15 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(db database.Store) error {
 		var err error
 		count, err = db.CountAIBridgeSessions(ctx, database.CountAIBridgeSessionsParams{
-			StartedAfter:  filter.StartedAfter,
-			StartedBefore: filter.StartedBefore,
-			InitiatorID:   filter.InitiatorID,
-			Provider:      filter.Provider,
-			ProviderName:  filter.ProviderName,
-			Model:         filter.Model,
-			Client:        filter.Client,
-			SessionID:     filter.SessionID,
+			StartedAfter:   filter.StartedAfter,
+			StartedBefore:  filter.StartedBefore,
+			InitiatorID:    filter.InitiatorID,
+			Provider:       filter.Provider,
+			ProviderName:   filter.ProviderName,
+			Model:          filter.Model,
+			Client:         filter.Client,
+			SessionID:      filter.SessionID,
+			OrganizationID: filter.OrganizationID,
 		})
 		if err != nil {
 			return xerrors.Errorf("count authorized aibridge sessions: %w", err)
@@ -576,6 +579,10 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// An empty result must encode as [], not null.
+	if models == nil {
+		models = []string{}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, models)
 }
@@ -628,6 +635,10 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	// An empty result must encode as [], not null.
+	if clients == nil {
+		clients = []string{}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, clients)
@@ -1033,6 +1044,10 @@ func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
 }
 
 // @Summary Get user AI spend
+// @Description Returns the user's site-wide effective AI budget and spend in the current budget period.
+// @Description The effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.
+// @Description The response does not depend on which organizations the caller can read.
+// @Description To see spend per organization, use GET /users/{user}/ai/spend/organizations.
 // @ID get-user-ai-spend
 // @Security CoderSessionToken
 // @Produce json
@@ -1098,6 +1113,138 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Get user AI spend by organization
+// @Description Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.
+// @Description Organizations the caller cannot read are omitted, so the response for a given user can differ between callers.
+// @Description Each organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.
+// @Description organization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.
+// @Description Access requires permission to read the user, as for GET /users/{user}/ai/spend.
+// @ID get-user-ai-spend-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.UserOrganizationsAISpendStatus
+// @Router /api/v2/users/{user}/ai/spend/organizations [get]
+func (api *API) userOrganizationsAISpendStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+	logger := api.Logger.With(slog.F("user_id", user.ID))
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	organizations, err := api.userOrganizationsAISpend(ctx, user.ID, periodWindow.Start, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to get user AI spend per organization", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.UserOrganizationsAISpendStatus{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		Organizations: organizations,
+	}
+
+	// The site-wide group tells the client which organization to show first.
+	// It can land in an organization the caller cannot read, so report it only
+	// when that organization is in the caller-visible list.
+	siteWideGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if ok && slices.ContainsFunc(organizations, func(entry codersdk.UserOrganizationAISpend) bool {
+		return entry.Organization.ID == siteWideGroup.OrganizationID
+	}) {
+		resp.OrganizationID = &siteWideGroup.OrganizationID
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// userOrganizationsAISpend returns the user's effective group, budget and
+// spend since periodStart in each live organization they are a member of,
+// ordered by organization name. Organizations where no effective group
+// resolves are omitted. The result is never nil.
+func (api *API) userOrganizationsAISpend(ctx context.Context, userID uuid.UUID, periodStart time.Time, budgetPolicy codersdk.AIBudgetPolicy) ([]codersdk.UserOrganizationAISpend, error) {
+	// The budget and spend queries below only check that the caller can read
+	// the user. dbauthz filters this list to organizations the caller can
+	// read, which keeps an organization-scoped admin from seeing the budget
+	// and spend of the user's other organizations. Spend is only queried for
+	// the organizations that remain.
+	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  userID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user organizations: %w", err)
+	}
+	slices.SortFunc(orgs, func(a, b database.Organization) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	entries := make([]codersdk.UserOrganizationAISpend, 0, len(orgs))
+	groupIDs := make([]uuid.UUID, 0, len(orgs))
+	for _, org := range orgs {
+		group, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, userID, uuid.NullUUID{UUID: org.ID, Valid: true}, budgetPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve effective group in organization %s: %w", org.ID, err)
+		}
+		if !ok {
+			continue
+		}
+		entries = append(entries, codersdk.UserOrganizationAISpend{
+			Organization:     db2sdk.Organization(org).MinimalOrganization,
+			EffectiveGroupID: group.GroupID,
+			EffectiveBudget:  aiBudgetLimitToSDK(group.Limit),
+		})
+		groupIDs = append(groupIDs, group.GroupID)
+	}
+
+	spends, err := api.Database.GetUserAISpendByEffectiveGroupsSince(ctx, database.GetUserAISpendByEffectiveGroupsSinceParams{
+		UserID:            userID,
+		EffectiveGroupIds: groupIDs,
+		PeriodStart:       periodStart,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user AI spend by effective groups: %w", err)
+	}
+	spendByGroup := make(map[uuid.UUID]int64, len(spends))
+	for _, spend := range spends {
+		spendByGroup[spend.EffectiveGroupID] = spend.SpendMicros
+	}
+	for i := range entries {
+		entries[i].CurrentSpendMicros = spendByGroup[entries[i].EffectiveGroupID]
+	}
+	return entries, nil
+}
+
+// aiBudgetLimitToSDK converts a resolved budget limit, returning nil when no
+// limit applies.
+func aiBudgetLimitToSDK(limit *budget.Limit) *codersdk.AIBudgetLimit {
+	if limit == nil {
+		return nil
+	}
+	return &codersdk.AIBudgetLimit{
+		SpendLimitMicros: limit.SpendLimitMicros,
+		LimitSource:      limit.Source,
+	}
 }
 
 // @Summary Get organization groups AI spend
@@ -1579,10 +1726,10 @@ func (api *API) organizationAISpend(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary List organization AI spend by user
-// @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
+// @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists their spend per provider, model, and client, most expensive first, and the number of models with unpriced usage. The response carries the user count, total spend, and whether any usage is unpriced over every matching user.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.
-// @Description The optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
+// @Description The optional user_ids, group_id, provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
 // @Description Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.
 // @ID list-organization-ai-spend-by-user
@@ -1592,6 +1739,8 @@ func (api *API) organizationAISpend(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param user_ids query string false "Comma-separated list of user IDs (maximum 100)"
+// @Param group_id query string false "Effective group ID" format(uuid)
 // @Param provider_name query string false "Only include usage through this provider configuration name"
 // @Param model query string false "Only include usage of this model"
 // @Param client query string false "Only include usage from this client. Unknown matches usage without a recorded client."
@@ -1615,6 +1764,17 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	page := parseOrganizationAISpendPage(parser, query)
+	userIDs := parser.UUIDs(query, nil, "user_ids")
+	if len(userIDs) > maxAISpendUserIDs {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field: "user_ids",
+			Detail: fmt.Sprintf(
+				"user_ids has %d entries, maximum is %d.",
+				len(userIDs), maxAISpendUserIDs,
+			),
+		})
+	}
+	groupID := parser.UUID(query, uuid.Nil, "group_id")
 	// An empty dimension matches every request.
 	providerName := parser.String(query, "", "provider_name")
 	model := parser.String(query, "", "model")
@@ -1632,6 +1792,8 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 		OrganizationID: org.ID,
 		PeriodStart:    period.start,
 		PeriodEnd:      period.end,
+		UserIds:        userIDs,
+		GroupID:        groupID,
 		ProviderName:   providerName,
 		Model:          model,
 		Client:         client,
@@ -1658,9 +1820,15 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	users, err := db2sdk.OrganizationAISpendUsers(rows)
+	if err != nil {
+		logger.Error(ctx, "failed to convert organization AI spend users", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	report := codersdk.OrganizationAISpendReport{
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
-		Users:               make([]codersdk.OrganizationAISpendUser, 0, len(rows)),
+		Users:               users,
 	}
 	if !period.retentionStart.IsZero() {
 		report.RetentionStart = &period.retentionStart
@@ -1668,12 +1836,9 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	if len(totals) > 0 {
 		report.Count = totals[0].Count
 		report.Totals = codersdk.OrganizationAISpendTotals{
-			CostMicros:         totals[0].TotalCostMicros,
-			UnpricedUsageCount: totals[0].TotalUnpricedUsageCount,
+			CostMicros:       totals[0].TotalCostMicros,
+			HasUnpricedUsage: totals[0].TotalHasUnpricedUsage,
 		}
-	}
-	for _, row := range rows {
-		report.Users = append(report.Users, db2sdk.OrganizationAISpendUser(row))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, report)
 }
@@ -1767,20 +1932,20 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser()
 	parser.RequiredNotEmpty("user_ids")
 	userIDs := parser.UUIDs(r.URL.Query(), nil, "user_ids")
+	if len(userIDs) > maxAISpendUserIDs {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field: "user_ids",
+			Detail: fmt.Sprintf(
+				"user_ids has %d entries, maximum is %d.",
+				len(userIDs), maxAISpendUserIDs,
+			),
+		})
+	}
 	parser.ErrorExcessParams(r.URL.Query())
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: parser.Errors,
-		})
-		return
-	}
-	if len(userIDs) > maxGroupMembersAISpendUserIDs {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(
-				"user_ids has %d entries, maximum is %d.",
-				len(userIDs), maxGroupMembersAISpendUserIDs,
-			),
 		})
 		return
 	}

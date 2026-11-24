@@ -240,6 +240,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 								<CommandGroup className="p-1">
 									<CommandItem
 										value="__unset__"
+										aria-selected={!value}
 										onSelect={() => {
 											onValueChange("");
 											handleOpenChange(false);
@@ -411,6 +412,7 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 	return (
 		<CommandItem
 			value={option.id}
+			aria-selected={isSelected}
 			onSelect={onSelect}
 			className={cn(
 				"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",

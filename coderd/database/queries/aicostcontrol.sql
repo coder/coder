@@ -291,6 +291,20 @@ WHERE user_id = @user_id
 	AND effective_group_id = @effective_group_id
 	AND day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date;
 
+-- name: GetUserAISpendByEffectiveGroupsSince :many
+-- Total spend for user_id per effective group in @effective_group_ids on or
+-- after period_start until NOW. Groups with no spend return 0. The
+-- period_start parameter is normalized to its UTC calendar day.
+SELECT
+	g.id::uuid AS effective_group_id,
+	COALESCE(SUM(s.spend_micros), 0)::BIGINT AS spend_micros
+FROM UNNEST(@effective_group_ids::uuid[]) AS g(id)
+LEFT JOIN ai_user_daily_spend s
+	ON s.effective_group_id = g.id
+	AND s.user_id = @user_id
+	AND s.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+GROUP BY g.id;
+
 -- name: GetOrganizationGroupsAISpend :many
 -- Returns AI spend limits and aggregate spend for groups in @group_ids that
 -- belong to @organization_id, on or after period_start until NOW.
@@ -611,18 +625,21 @@ LIMIT NULLIF(@limit_opt::int, 0);
 
 -- name: ListOrganizationAISpendUsers :many
 -- Returns one page of per-user AI spend for @organization_id over the
--- [period_start, period_end) window, most expensive first, together with the
--- providers, clients, and models each user spent through and the count and
--- totals over every matching user. It must keep the same joins and predicates as
--- ExportOrganizationAISpend so both report the same token usage.
+-- [period_start, period_end) window, most expensive first. Each user has one
+-- row per provider, model, and client they spent through, and every row
+-- carries the user's spend and the count and totals over every matching user.
+-- It must count the same token usage as the CSV export for the same filters.
 WITH spend AS (
 	SELECT
 		ai.initiator_id AS user_id,
+		ai.provider_name,
+		ai.model,
+		COALESCE(ai.client, 'Unknown') AS client,
+		GROUPING(ai.provider_name) = 0 AS is_provider,
+		GROUPING(ai.model) = 0 AS is_model,
+		GROUPING(COALESCE(ai.client, 'Unknown')) = 0 AS is_client,
 		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+		BOOL_OR(tu.cost_micros IS NULL) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN groups ON groups.id = tu.effective_group_id
@@ -630,7 +647,17 @@ WITH spend AS (
 		AND tu.created_at >= @period_start::timestamptz
 		AND tu.created_at < @period_end::timestamptz
 		AND CASE
-			WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+			WHEN COALESCE(cardinality(@user_ids::uuid[]), 0) > 0
+				THEN ai.initiator_id = ANY(@user_ids::uuid[])
+			ELSE true
+		END
+		AND (
+			@group_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+			OR tu.effective_group_id = @group_id
+		)
+		AND CASE
+			WHEN @provider_name::text != ''
+				THEN ai.provider_name = @provider_name::text
 			ELSE true
 		END
 		AND CASE
@@ -638,30 +665,85 @@ WITH spend AS (
 			ELSE true
 		END
 		AND CASE
-			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+			WHEN @client::text != ''
+				THEN COALESCE(ai.client, 'Unknown') = @client::text
 			ELSE true
 		END
-	GROUP BY ai.initiator_id
+	GROUP BY GROUPING SETS (
+		(ai.initiator_id),
+		(ai.initiator_id, ai.provider_name),
+		(ai.initiator_id, ai.model),
+		(ai.initiator_id, COALESCE(ai.client, 'Unknown'))
+	)
+),
+-- The page, count, and totals apply to users, not to their provider, model,
+-- and client rows.
+user_page AS (
+	SELECT
+		spend.user_id,
+		users.username,
+		users.name,
+		users.avatar_url,
+		spend.cost_micros,
+		COUNT(*) OVER ()::BIGINT AS count,
+		COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+		BOOL_OR(spend.has_unpriced_usage) OVER () AS total_has_unpriced_usage
+	FROM spend
+	JOIN users ON users.id = spend.user_id
+	WHERE NOT (spend.is_provider OR spend.is_model OR spend.is_client)
+	ORDER BY spend.cost_micros DESC, LOWER(users.username), spend.user_id
+	LIMIT NULLIF(@limit_opt::int, 0)
+	OFFSET @offset_opt::int
 )
 SELECT
-	spend.user_id,
-	users.username,
-	users.name,
-	users.avatar_url,
+	user_page.user_id,
+	user_page.username,
+	user_page.name,
+	user_page.avatar_url,
 	@organization_id::uuid AS organization_id,
-	spend.cost_micros,
-	spend.unpriced_usage_count,
-	spend.providers,
-	spend.clients,
-	spend.models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM spend
-JOIN users ON users.id = spend.user_id
-ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
-LIMIT NULLIF(@limit_opt::int, 0)
-OFFSET @offset_opt::int;
+	user_page.cost_micros,
+	user_page.count,
+	user_page.total_cost_micros,
+	user_page.total_has_unpriced_usage,
+	(CASE
+		WHEN spend.is_provider THEN 'provider'
+		WHEN spend.is_model THEN 'model'
+		WHEN spend.is_client THEN 'client'
+	END)::text AS dimension,
+	(CASE
+		WHEN spend.is_provider THEN spend.provider_name
+		WHEN spend.is_model THEN spend.model
+		WHEN spend.is_client THEN spend.client
+	END)::text AS dimension_name,
+	COALESCE(providers.display_name, '')::text AS provider_display_name,
+	COALESCE(providers.icon, '')::text AS provider_icon,
+	COALESCE(providers.type::text, '')::text AS provider_type,
+	spend.cost_micros AS dimension_cost_micros,
+	spend.has_unpriced_usage AS dimension_has_unpriced_usage
+FROM user_page
+JOIN spend
+	ON spend.user_id = user_page.user_id
+	AND (spend.is_provider OR spend.is_model OR spend.is_client)
+-- Provider details include deleted providers, since usage still references
+-- them, and prefer the live provider when a name was reused.
+LEFT JOIN LATERAL (
+	SELECT ai_providers.display_name, ai_providers.icon, ai_providers.type
+	FROM ai_providers
+	WHERE ai_providers.name = spend.provider_name
+	ORDER BY ai_providers.deleted ASC, ai_providers.updated_at DESC
+	LIMIT 1
+) AS providers ON spend.is_provider
+ORDER BY
+	user_page.cost_micros DESC,
+	LOWER(user_page.username),
+	user_page.user_id,
+	CASE
+		WHEN spend.is_provider THEN 1
+		WHEN spend.is_model THEN 2
+		WHEN spend.is_client THEN 3
+	END,
+	spend.cost_micros DESC,
+	dimension_name ASC;
 
 -- name: GetOrganizationAISpendPerDay :many
 -- Returns the AI spend in @organization_id for every UTC day in the
@@ -775,7 +857,8 @@ ORDER BY
 -- reported by the provider, or whose cost could not be computed from a found
 -- price, is not reported as unpriced. openai-compat providers cannot be priced,
 -- so they are excluded. @organization_id limits the usage to one organization,
--- and null includes all.
+-- and null includes all. count is the number of models before the limit, and a
+-- @limit_opt of zero returns every model.
 WITH unpriced_usage AS (
 	SELECT
 		groups.organization_id,
@@ -808,7 +891,8 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	SUM(unpriced_usage.token_count)::bigint AS token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count,
+	COUNT(*) OVER ()::BIGINT AS count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -839,4 +923,6 @@ ORDER BY
 	token_count DESC,
 	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
-	unpriced_usage.model ASC;
+	unpriced_usage.model ASC
+LIMIT NULLIF(@limit_opt::int, 0)
+OFFSET @offset_opt::int;

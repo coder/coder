@@ -314,6 +314,8 @@ Visibility follows the viewer's role:
 - The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
+This endpoint resolves the effective group across all of the user's organizations, so it can be a group in a different organization.
+To see the user's effective group, budget, and spend in each of their organizations that you can read, use the [Get user AI spend by organization](../../reference/api/enterprise.md#get-user-ai-spend-by-organization) API endpoint.
 
 For a user in several organizations, some of these reports can differ from the budget that applied to a request.
 Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).

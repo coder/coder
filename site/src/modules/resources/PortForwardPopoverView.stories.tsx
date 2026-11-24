@@ -41,7 +41,9 @@ const listeningPortsWithSubstringMatch = [
 
 const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
 	userEvent.type(
-		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
+		within(
+			within(canvasElement).getByRole("group", { name: "Listening ports" }),
+		).getByRole("textbox", { name: "Port" }),
 		text,
 	);
 

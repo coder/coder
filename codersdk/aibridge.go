@@ -77,6 +77,33 @@ type UserAISpendStatus struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// UserOrganizationsAISpendStatus is a user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+type UserOrganizationsAISpendStatus struct {
+	AISpendPeriodWindow
+	// OrganizationID is the organization of the user's site-wide effective
+	// group, as reported by UserAISpendStatus. Null when no group resolves or
+	// when that organization is not in Organizations.
+	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
+	// Organizations is the spend per organization the user is a current
+	// member of and the caller can read, ordered by organization name.
+	Organizations []UserOrganizationAISpend `json:"organizations"`
+}
+
+// UserOrganizationAISpend is a user's AI spend inside one organization in
+// the active budget period.
+type UserOrganizationAISpend struct {
+	Organization MinimalOrganization `json:"organization"`
+	// EffectiveGroupID is the user's effective group inside Organization,
+	// falling back to its Everyone group.
+	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// EffectiveBudget is null when no budget applies in Organization.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+	// CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	// budget period, the same value the budget check compares.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+}
+
 // OrganizationGroupsAISpend reports AI spend for a set of groups in the
 // active budget period.
 type OrganizationGroupsAISpend struct {
@@ -137,6 +164,30 @@ type GroupMemberAISpend struct {
 	GroupSpendMicros int64 `json:"group_spend_micros"`
 }
 
+// AIBridgeInterceptionOrganizationSource is how AI Gateway chose the
+// organization of an interception.
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AIBridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AIBridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AIBridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+// AIBridgeInterceptionOrganization is the organization a single
+// interception was attributed to and how it was chosen.
+type AIBridgeInterceptionOrganization struct {
+	MinimalOrganization
+	Source AIBridgeInterceptionOrganizationSource `json:"source"`
+}
+
+// AIBridgeSessionOrganization is an organization a session's interceptions
+// were attributed to, with every source used for it.
+type AIBridgeSessionOrganization struct {
+	MinimalOrganization
+	Sources []AIBridgeInterceptionOrganizationSource `json:"sources"`
+}
+
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -148,6 +199,9 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
+	// Organizations are the organizations this session's interceptions were
+	// attributed to.
+	Organizations []AIBridgeSessionOrganization `json:"organizations"`
 	// NetworkCalls summarizes the Agent Firewall network requests made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
@@ -199,6 +253,9 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
+	// Organizations are the organizations this session's interceptions were
+	// attributed to.
+	Organizations []AIBridgeSessionOrganization `json:"organizations"`
 	// NetworkCalls summarizes the Agent Firewall network calls made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
@@ -272,6 +329,9 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	// Organization is the organization of the root interception. Nil when
+	// none was stored.
+	Organization *AIBridgeInterceptionOrganization `json:"organization,omitempty"`
 	// PricedModel is the model and prices used for the root interception
 	// (the prompt). Other requests in the thread may use different models
 	// and prices, see agentic_actions[].priced_model. Nil when the root
@@ -309,6 +369,9 @@ type AIBridgeAgenticAction struct {
 	// Unknown attribution is serialized as an empty object.
 	Attribution AIBridgeAttribution              `json:"attribution"`
 	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	// Organization is the organization of this interception. Nil when none
+	// was stored.
+	Organization *AIBridgeInterceptionOrganization `json:"organization,omitempty"`
 	// PricedModel is the model and prices used for this interception. Nil
 	// when it was not priced.
 	PricedModel *AIBridgePricedModel   `json:"priced_model,omitempty"`
@@ -357,6 +420,9 @@ type AIBridgeListSessionsFilter struct {
 	Client       string `json:"client,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
 
+	// Organization is an organization ID or name.
+	Organization string `json:"organization,omitempty"`
+
 	// AfterSessionID is a cursor for pagination. It is the session ID of the
 	// last session in the previous page.
 	AfterSessionID string `json:"after_session_id,omitempty"`
@@ -391,6 +457,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		}
 		if f.SessionID != "" {
 			params = append(params, fmt.Sprintf("session_id:%q", f.SessionID))
+		}
+		if f.Organization != "" {
+			params = append(params, fmt.Sprintf("organization:%q", f.Organization))
 		}
 		if f.FilterQuery != "" {
 			params = append(params, f.FilterQuery)
@@ -525,6 +594,10 @@ type OrganizationAISpendFilter struct {
 	// must be supplied together.
 	PeriodStart time.Time `json:"period_start,omitempty" format:"date-time"`
 	PeriodEnd   time.Time `json:"period_end,omitempty" format:"date-time"`
+	// UserIDs restricts the report to these users.
+	UserIDs []uuid.UUID `json:"user_ids,omitempty" format:"uuid"`
+	// GroupID matches the effective group recorded on the token usage.
+	GroupID uuid.UUID `json:"group_id,omitempty" format:"uuid"`
 	// ProviderName matches the configured provider name recorded on the
 	// intercepted request.
 	ProviderName string `json:"provider_name,omitempty"`
@@ -543,6 +616,16 @@ func (f OrganizationAISpendFilter) asRequestOption() RequestOption {
 		}
 		if !f.PeriodEnd.IsZero() {
 			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if len(f.UserIDs) > 0 {
+			ids := make([]string, 0, len(f.UserIDs))
+			for _, id := range f.UserIDs {
+				ids = append(ids, id.String())
+			}
+			q.Set("user_ids", strings.Join(ids, ","))
+		}
+		if f.GroupID != uuid.Nil {
+			q.Set("group_id", f.GroupID.String())
 		}
 		if f.ProviderName != "" {
 			q.Set("provider_name", f.ProviderName)
@@ -564,19 +647,61 @@ type OrganizationAISpendUser struct {
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	AvatarURL string    `json:"avatar_url"`
-	// CostMicros is the user's priced spend over the period.
+	// CostMicros is the user's priced spend over the period. It is a lower
+	// bound when any entry in ModelSpend has unpriced usage.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of the user's token usage records that
-	// carry no cost because their model had no price when they were recorded.
-	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
-	// Providers are the configured provider names the user spent through,
-	// sorted.
-	Providers []string `json:"providers"`
-	// Clients are the clients the user spent through, sorted. Usage without a
+	// ProviderSpend is the user's spend per configured provider, most
+	// expensive first.
+	ProviderSpend []OrganizationAISpendProvider `json:"provider_spend"`
+	// ModelSpend is the user's spend per model, most expensive first.
+	ModelSpend []OrganizationAISpendModel `json:"model_spend"`
+	// ClientSpend is the user's spend per client, most expensive first. Usage
+	// without a recorded client is reported as Unknown.
+	ClientSpend []OrganizationAISpendClient `json:"client_spend"`
+}
+
+// OrganizationAISpendProvider is a user's AI spend through one configured
+// provider, summed over every (provider, model, client) tuple with that
+// provider.
+type OrganizationAISpendProvider struct {
+	// Name is the name of the configured provider.
+	Name string `json:"name"`
+	// DisplayName falls back to the provider name when unset.
+	DisplayName string `json:"display_name"`
+	// Icon is empty when the provider has no configured icon.
+	Icon string `json:"icon"`
+	// Type is omitted when the provider name was never configured.
+	Type AIProviderType `json:"type,omitempty"`
+	// CostMicros is the priced spend through the provider over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage through the provider
+	// was recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
+}
+
+// OrganizationAISpendModel is a user's AI spend on one model, summed over
+// every (provider, model, client) tuple with that model.
+type OrganizationAISpendModel struct {
+	// Name is the model the client requested.
+	Name string `json:"name"`
+	// CostMicros is the priced spend on the model over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage of the model was
+	// recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
+}
+
+// OrganizationAISpendClient is a user's AI spend from one client, summed
+// over every (provider, model, client) tuple with that client.
+type OrganizationAISpendClient struct {
+	// Name is the client recorded on the intercepted request. Usage without a
 	// recorded client is reported as Unknown.
-	Clients []string `json:"clients"`
-	// Models are the models the user spent through, sorted.
-	Models []string `json:"models"`
+	Name string `json:"name"`
+	// CostMicros is the priced spend from the client over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// HasUnpricedUsage reports whether any token usage from the client was
+	// recorded without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
 }
 
 // OrganizationAISpendTotals aggregates every user matching the report's
@@ -584,9 +709,9 @@ type OrganizationAISpendUser struct {
 type OrganizationAISpendTotals struct {
 	// CostMicros is the priced spend of every matching user.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of token usage records without a cost
-	// across every matching user.
-	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
+	// HasUnpricedUsage reports whether any matching token usage was recorded
+	// without a price.
+	HasUnpricedUsage bool `json:"has_unpriced_usage"`
 }
 
 // OrganizationAISpendReport is one page of per-user AI spend for an
@@ -950,6 +1075,25 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 		return UserAISpendStatus{}, ReadBodyAsError(res)
 	}
 	var resp UserAISpendStatus
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UserOrganizationsAISpendStatus returns the user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+func (c *Client) UserOrganizationsAISpendStatus(ctx context.Context, user string) (UserOrganizationsAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/spend/organizations", user),
+		nil,
+	)
+	if err != nil {
+		return UserOrganizationsAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserOrganizationsAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp UserOrganizationsAISpendStatus
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

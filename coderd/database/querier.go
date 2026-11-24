@@ -1023,7 +1023,8 @@ type sqlcQuerier interface {
 	// reported by the provider, or whose cost could not be computed from a found
 	// price, is not reported as unpriced. openai-compat providers cannot be priced,
 	// so they are excluded. @organization_id limits the usage to one organization,
-	// and null includes all.
+	// and null includes all. count is the number of models before the limit, and a
+	// @limit_opt of zero returns every model.
 	GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
@@ -1046,6 +1047,10 @@ type sqlcQuerier interface {
 	// Filters to active, non-deleted, non-system users to match the canonical
 	// seat count query (GetActiveAISeatCount).
 	GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
+	// Total spend for user_id per effective group in @effective_group_ids on or
+	// after period_start until NOW. Groups with no spend return 0. The
+	// period_start parameter is normalized to its UTC calendar day.
+	GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg GetUserAISpendByEffectiveGroupsSinceParams) ([]GetUserAISpendByEffectiveGroupsSinceRow, error)
 	// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
 	// The period_start parameter is normalized to its UTC calendar day.
 	GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error)
@@ -1468,10 +1473,14 @@ type sqlcQuerier interface {
 	// day. Users match GetOrganizationAISpendTotals.
 	ListOrganizationAISpendPerUser(ctx context.Context, arg ListOrganizationAISpendPerUserParams) ([]ListOrganizationAISpendPerUserRow, error)
 	// Returns one page of per-user AI spend for @organization_id over the
-	// [period_start, period_end) window, most expensive first, together with the
-	// providers, clients, and models each user spent through and the count and
-	// totals over every matching user. It must keep the same joins and predicates as
-	// ExportOrganizationAISpend so both report the same token usage.
+	// [period_start, period_end) window, most expensive first. Each user has one
+	// row per provider, model, and client they spent through, and every row
+	// carries the user's spend and the count and totals over every matching user.
+	// It must count the same token usage as the CSV export for the same filters.
+	// The page, count, and totals apply to users, not to their provider, model,
+	// and client rows.
+	// Provider details include deleted providers, since usage still references
+	// them, and prefer the live provider when a name was reused.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error)
 	ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error)
