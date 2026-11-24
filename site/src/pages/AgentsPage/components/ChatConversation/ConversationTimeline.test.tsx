@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useLayoutEffect } from "react";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -65,7 +66,15 @@ type TimelineStage = {
 	pendingToolCallIDs?: ReadonlySet<string>;
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
-function renderTimeline(initial: TimelineStage = {}) {
+/**
+ * Renders the timeline in a MessageScroller. Each stage renders afterTimeline
+ * after it in the scroller's content, so its layout effects run after the
+ * timeline's.
+ */
+function renderTimeline(
+	initial: TimelineStage = {},
+	afterTimeline?: () => React.ReactNode,
+) {
 	const queryClient = createTestQueryClient();
 	queryClient.setQueryDefaults(preferenceSettingsKey, {
 		staleTime: Number.POSITIVE_INFINITY,
@@ -106,6 +115,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
 							/>
+							{afterTimeline?.()}
 						</MessageScroller.Content>
 					</MessageScroller.Viewport>
 				</MessageScroller.Root>
@@ -776,11 +786,28 @@ const scrollRowHeight = (messageId: string) => {
 	return messageId === "message:14" ? 200 : 40;
 };
 
+// Reports the view's scroll position in each commit that renders it, before
+// the browser paints and before passive effects run.
+const CommitScrollTop: React.FC<{ onCommit: (scrollTop: number) => void }> = ({
+	onCommit,
+}) => {
+	useLayoutEffect(() => {
+		onCommit(viewport().scrollTop);
+	});
+	return null;
+};
+
 describe("ConversationTimeline in a MessageScroller", () => {
 	setupMessageScrollerLayout({ rowHeight: scrollRowHeight });
 
 	it("keeps the anchored prompt in place in the commit that merges its turn's blocks", async () => {
-		const { rerenderStage } = renderTimeline({ messages: mockScrollHistory });
+		const committedScrollTops: number[] = [];
+		const { rerenderStage } = renderTimeline(
+			{ messages: mockScrollHistory },
+			() => (
+				<CommitScrollTop onCommit={(top) => committedScrollTops.push(top)} />
+			),
+		);
 		await flushLayout();
 		// The prompt arrives with the Thinking row, which anchors it.
 		rerenderStage({
@@ -798,6 +825,7 @@ describe("ConversationTimeline in a MessageScroller", () => {
 		});
 		await flushLayout();
 		const anchoredScrollTop = viewport().scrollTop;
+		committedScrollTops.length = 0;
 
 		// The turn ends: its blocks and the reply between them fold into one
 		// block, and the timeline below the prompt shrinks by 200px.
@@ -806,9 +834,8 @@ describe("ConversationTimeline in a MessageScroller", () => {
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		await act(() => Promise.resolve());
 
-		expect(viewport().scrollTop).toBe(anchoredScrollTop);
+		expect(committedScrollTops).toEqual([anchoredScrollTop]);
 	});
 
 	it("scrolls a prompt sent from the end of the transcript straight to its anchor", async () => {
