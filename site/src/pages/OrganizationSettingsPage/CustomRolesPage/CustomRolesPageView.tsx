@@ -368,10 +368,9 @@ const RoleRow: React.FC<RoleRowProps> = ({
 							<ShadcnButton
 								size="icon-lg"
 								variant="subtle"
-								aria-label="Open menu"
+								aria-label={`Open menu for ${role.display_name || role.name}`}
 							>
 								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
 							</ShadcnButton>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">

@@ -244,6 +244,7 @@ Depending on the scale of the user-base, workspace activity, and High Availabili
 Prepare internal scripts for dumping and restoring your database.
 We recommend scheduling regular database backups, especially before upgrading Coder to a new release.
 Coder does not support downgrades without initially restoring the database to the prior version.
+For backup, restore, and outage planning, refer to [Disaster recovery](../../operate/disaster-recovery.md).
 
 ### Performance efficiency
 

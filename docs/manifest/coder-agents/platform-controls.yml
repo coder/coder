@@ -42,3 +42,6 @@ children:
   - title: Chat debug logging
     description: Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.
     path: ./coder-agents/platform-controls/chat-debug-logging.md
+  - title: OpenTelemetry tracing
+    description: Export Coder Agents traces that follow the OpenTelemetry GenAI semantic conventions.
+    path: ./coder-agents/platform-controls/opentelemetry-tracing.md

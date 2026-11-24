@@ -2532,6 +2532,44 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
+// The middle pin's menu shows both "Move up" and "Move down".
+export const ReorderPinMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pin-1",
+				title: "First pin",
+				updated_at: recentTimestamp,
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "pin-2",
+				title: "Middle pin",
+				updated_at: recentTimestamp,
+				pin_order: 2,
+			}),
+			buildChat({
+				id: "pin-3",
+				title: "Last pin",
+				updated_at: recentTimestamp,
+				pin_order: 3,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Middle pin"),
+		);
+	},
+};
+
 export const ReadStateContextMenu: Story = {
 	args: {
 		chats: [
