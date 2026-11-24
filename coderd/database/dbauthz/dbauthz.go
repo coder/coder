@@ -8017,13 +8017,6 @@ func (q *querier) SetChatAutomationWebhookRenewAt(ctx context.Context, arg datab
 	return q.authorizeAutomationUpdate(ctx, arg.AutomationID, func() error { return q.db.SetChatAutomationWebhookRenewAt(ctx, arg) })
 }
 
-func (q *querier) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg database.SetChatAutomationWebhookSubscriptionIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
-		return err
-	}
-	return q.db.SetChatAutomationWebhookSubscriptionID(ctx, arg)
-}
-
 func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {

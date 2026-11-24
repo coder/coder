@@ -10856,20 +10856,6 @@ func (mr *MockStoreMockRecorder) SetChatAutomationWebhookRenewAt(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatAutomationWebhookRenewAt", reflect.TypeOf((*MockStore)(nil).SetChatAutomationWebhookRenewAt), ctx, arg)
 }
 
-// SetChatAutomationWebhookSubscriptionID mocks base method.
-func (m *MockStore) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg database.SetChatAutomationWebhookSubscriptionIDParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetChatAutomationWebhookSubscriptionID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetChatAutomationWebhookSubscriptionID indicates an expected call of SetChatAutomationWebhookSubscriptionID.
-func (mr *MockStoreMockRecorder) SetChatAutomationWebhookSubscriptionID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatAutomationWebhookSubscriptionID", reflect.TypeOf((*MockStore)(nil).SetChatAutomationWebhookSubscriptionID), ctx, arg)
-}
-
 // SetChatContextSnapshot mocks base method.
 func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
 	m.ctrl.T.Helper()

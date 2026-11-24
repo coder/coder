@@ -154,6 +154,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/automations/{automation}/mcp-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Receive MCP event webhook delivery",
+                "operationId": "receive-chat-automation-mcp-event-webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -22822,7 +22855,8 @@ const docTemplate = `{
                 "delivery": {
                     "type": "string",
                     "enum": [
-                        "poll"
+                        "poll",
+                        "webhook"
                     ]
                 },
                 "event_name": {
@@ -22834,9 +22868,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "state": {
-                    "description": "State is terminated after the server ends the subscription. A\nterminated subscription receives no more events.",
+                    "description": "State is pending while a webhook subscribe runs, and terminated after\nthe server ends the subscription. A terminated subscription receives\nno more events.",
                     "type": "string",
                     "enum": [
+                        "pending",
                         "active",
                         "terminated"
                     ]

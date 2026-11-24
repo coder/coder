@@ -60,13 +60,6 @@ UPDATE chat_automation_mcp_subscriptions
 SET renew_at = @renew_at::timestamptz, last_error = sqlc.narg('last_error')::text, updated_at = @now::timestamptz
 WHERE automation_id = @automation_id::uuid AND delivery = 'webhook' AND state <> 'terminated';
 
--- name: SetChatAutomationWebhookSubscriptionID :exec
--- Records the id of a first verification, before the subscribe result
--- arrives.
-UPDATE chat_automation_mcp_subscriptions
-SET webhook_subscription_id = @webhook_subscription_id::text
-WHERE automation_id = @automation_id::uuid AND delivery = 'webhook' AND webhook_subscription_id IS NULL;
-
 -- name: CountPendingChatAutomationInboxRows :one
 -- Counts the undelivered inbox rows of a subscription, up to @max_pending.
 SELECT count(*)::int

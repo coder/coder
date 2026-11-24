@@ -136,6 +136,9 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 				return xerrors.Errorf("insert gap: %w", err)
 			}
 		}
+		if len(in.Events) == 0 {
+			return nil
+		}
 		if _, err := tx.InsertChatAutomationInboxEvents(ctx, database.InsertChatAutomationInboxEventsParams{
 			AutomationID: in.AutomationID,
 			Events:       events,

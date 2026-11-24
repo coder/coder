@@ -5712,14 +5712,6 @@ func (m queryMetricsStore) SetChatAutomationWebhookRenewAt(ctx context.Context, 
 	return r0
 }
 
-func (m queryMetricsStore) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg database.SetChatAutomationWebhookSubscriptionIDParams) error {
-	start := time.Now()
-	r0 := m.s.SetChatAutomationWebhookSubscriptionID(ctx, arg)
-	m.queryLatencies.WithLabelValues("SetChatAutomationWebhookSubscriptionID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetChatAutomationWebhookSubscriptionID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
 	start := time.Now()
 	r0 := m.s.SetChatContextSnapshot(ctx, arg)

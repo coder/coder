@@ -7220,24 +7220,6 @@ func (q *sqlQuerier) SetChatAutomationWebhookRenewAt(ctx context.Context, arg Se
 	return err
 }
 
-const setChatAutomationWebhookSubscriptionID = `-- name: SetChatAutomationWebhookSubscriptionID :exec
-UPDATE chat_automation_mcp_subscriptions
-SET webhook_subscription_id = $1::text
-WHERE automation_id = $2::uuid AND delivery = 'webhook' AND webhook_subscription_id IS NULL
-`
-
-type SetChatAutomationWebhookSubscriptionIDParams struct {
-	WebhookSubscriptionID string    `db:"webhook_subscription_id" json:"webhook_subscription_id"`
-	AutomationID          uuid.UUID `db:"automation_id" json:"automation_id"`
-}
-
-// Records the id of a first verification, before the subscribe result
-// arrives.
-func (q *sqlQuerier) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg SetChatAutomationWebhookSubscriptionIDParams) error {
-	_, err := q.db.ExecContext(ctx, setChatAutomationWebhookSubscriptionID, arg.WebhookSubscriptionID, arg.AutomationID)
-	return err
-}
-
 const updateChatAutomationWebhookGrant = `-- name: UpdateChatAutomationWebhookGrant :execrows
 UPDATE chat_automation_mcp_subscriptions
 SET

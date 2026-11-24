@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	// WebhookTTL is the lifetime that a webhook subscribe suggests. The
+	// webhookTTL is the lifetime that a webhook subscribe suggests. The
 	// server's grant decides.
-	WebhookTTL = time.Hour
+	webhookTTL = time.Hour
 	// webhookMaxAge bounds the replay of a subscribe with a stored cursor.
 	webhookMaxAge = 24 * time.Hour
 	// webhookPendingLease is how long the automation loop leaves a pending
@@ -83,7 +83,7 @@ func WebhookSubscribeParams(accessURL *url.URL, sub database.ChatAutomationMCPSu
 		Name:      sub.EventName,
 		Arguments: args,
 		Delivery:  mcpclient.WebhookDelivery{URL: WebhookURL(accessURL, sub.AutomationID), Secret: secret},
-		TTLMs:     ptr.Ref(WebhookTTL.Milliseconds()),
+		TTLMs:     ptr.Ref(webhookTTL.Milliseconds()),
 	}
 	if sub.Cursor.Valid {
 		params.Cursor = &sub.Cursor.String
@@ -96,7 +96,7 @@ func WebhookSubscribeParams(accessURL *url.URL, sub database.ChatAutomationMCPSu
 // subscription renews when a quarter of the grant is left.
 func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now time.Time) database.UpdateChatAutomationWebhookGrantParams {
 	// A null grant means no expiry, which only a ttlMs of null may ask for.
-	refreshBefore := now.Add(WebhookTTL)
+	refreshBefore := now.Add(webhookTTL)
 	if res.RefreshBefore != nil {
 		refreshBefore = *res.RefreshBefore
 	}
@@ -155,8 +155,7 @@ func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclie
 		}
 	}
 	if err != nil {
-		// The server keeps nothing that a failed subscribe asked for, and the
-		// receiver refuses deliveries to a deleted automation.
+		// The receiver refuses deliveries to the deleted automation.
 		if _, derr := Delete(ctx, options.DB, created.OrganizationID, created.ID, nil); derr != nil {
 			options.Logger.Warn(ctx, "delete chat automation after a failed webhook subscribe", slog.F("automation_id", created.ID), slog.Error(derr))
 		}

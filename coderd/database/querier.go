@@ -1619,9 +1619,6 @@ type sqlcQuerier interface {
 	// Schedules the next subscribe of a webhook subscription, after an error or
 	// to subscribe again at once. A NULL error clears it.
 	SetChatAutomationWebhookRenewAt(ctx context.Context, arg SetChatAutomationWebhookRenewAtParams) error
-	// Records the id of a first verification, before the subscribe result
-	// arrives.
-	SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg SetChatAutomationWebhookSubscriptionIDParams) error
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the
 	// refresh endpoint. Does not bump updated_at: context pinning is

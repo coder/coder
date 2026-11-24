@@ -2,11 +2,16 @@ package chatd
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,25 +32,49 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
 const fakeEventName = "repo.push"
 
-// fakeEventsServer is an MCP server that offers one event type for poll
-// delivery. Its cursor is "seq:<index>" into the emitted events.
+const fakeSubscriptionID = "sub_1"
+
+// fakeEventsServer is an MCP server that offers one event type in the
+// delivery modes of delivery. Its cursor is "seq:<index>" into the emitted
+// events. Each webhook subscribe sends a verification to receive.
 type fakeEventsServer struct {
-	mu       sync.Mutex
-	events   []mcpclient.EventOccurrence
-	pageSize int
-	truncate bool
-	failCode int64
-	polls    int
+	mu            sync.Mutex
+	events        []mcpclient.EventOccurrence
+	pageSize      int
+	truncate      bool
+	failCode      int64
+	polls         int
+	delivery      []mcpclient.DeliveryMode
+	subscribeCode int64
+	subscribes    []mcpclient.SubscribeParams
+	unsubscribes  int
+	receive       func(callbackURL string, header http.Header, body []byte) (int, string)
+}
+
+// signWebhook signs body as a Standard Webhooks sender of the fake
+// subscription does. A retry of a body keeps its webhook-id.
+func signWebhook(secret, body string) http.Header {
+	key, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(secret, "whsec_"))
+	id, ts := fmt.Sprintf("msg_%x", sha256.Sum256([]byte(body)))[:20], strconv.FormatInt(time.Now().Unix(), 10)
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte(id + "." + ts + "." + body))
+	h := http.Header{}
+	h.Set("webhook-id", id)
+	h.Set("webhook-timestamp", ts)
+	h.Set("webhook-signature", "v1,"+base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+	h.Set("X-MCP-Subscription-Id", fakeSubscriptionID)
+	return h
 }
 
 func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 	t.Helper()
-	fake := &fakeEventsServer{pageSize: 50}
+	fake := &fakeEventsServer{pageSize: 50, delivery: []mcpclient.DeliveryMode{mcpclient.DeliveryPoll}}
 	caps := &mcp.ServerCapabilities{}
 	caps.AddExtension(mcpclient.EventsExtensionID, map[string]any{})
 	srv := mcp.NewServer(&mcp.Implementation{Name: "events", Version: "1"}, &mcp.ServerOptions{Capabilities: caps})
@@ -54,7 +83,30 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 		Events []mcpclient.EventType `json:"events"`
 	}
 	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/list", func(context.Context, *mcp.ServerSession, *mcpclient.PollParams) (*list, error) {
-		return &list{Events: []mcpclient.EventType{{Name: fakeEventName, Delivery: []mcpclient.DeliveryMode{mcpclient.DeliveryPoll}}}}, nil
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return &list{Events: []mcpclient.EventType{{Name: fakeEventName, Delivery: fake.delivery}}}, nil
+	}))
+	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/subscribe", func(_ context.Context, _ *mcp.ServerSession, p *mcpclient.SubscribeParams) (*mcpclient.SubscribeResult, error) {
+		fake.mu.Lock()
+		fake.subscribes = append(fake.subscribes, *p)
+		code, receive, cursor := fake.subscribeCode, fake.receive, fmt.Sprintf("seq:%d", len(fake.events))
+		fake.mu.Unlock()
+		if code != 0 {
+			return nil, &jsonrpc.Error{Code: code, Message: "refused"}
+		}
+		body := `{"type":"verification","challenge":"nonce-1"}`
+		if status, challenge := receive(p.Delivery.URL, signWebhook(p.Delivery.Secret, body), []byte(body)); status != http.StatusOK || challenge != "nonce-1" {
+			return nil, &jsonrpc.Error{Code: -32027, Message: "challenge_failed"}
+		}
+		return &mcpclient.SubscribeResult{ID: fakeSubscriptionID, RefreshBefore: new(time.Now().Add(time.Hour)), Cursor: &cursor}, nil
+	}))
+	type empty struct{ mcp.ResultBase }
+	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/unsubscribe", func(context.Context, *mcp.ServerSession, *mcpclient.SubscribeParams) (*empty, error) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		fake.unsubscribes++
+		return &empty{}, nil
 	}))
 	require.NoError(t, mcp.AddReceivingCustomMethod(srv, "events/poll", func(_ context.Context, _ *mcp.ServerSession, p *mcpclient.PollParams) (*mcpclient.PollResult, error) {
 		fake.mu.Lock()
@@ -95,11 +147,12 @@ func TestAutomationEvents(t *testing.T) {
 	t.Parallel()
 
 	type fixture struct {
-		worker *workerTestFixture
-		server *Server
-		events *fakeEventsServer
-		config database.MCPServerConfig
-		chat   database.Chat
+		worker    *workerTestFixture
+		server    *Server
+		events    *fakeEventsServer
+		config    database.MCPServerConfig
+		chat      database.Chat
+		accessURL *url.URL
 	}
 	newServer := func(t *testing.T, f fixture) *Server {
 		server, err := New(f.worker.pubsub, Config{
@@ -107,6 +160,7 @@ func TestAutomationEvents(t *testing.T) {
 			Database:           f.worker.db,
 			ReplicaID:          uuid.New(),
 			AutomationsEnabled: func(context.Context, uuid.UUID) bool { return true },
+			AccessURL:          f.accessURL,
 			Auditor:            mockAuditorPtr(audit.NewMock()),
 			// The fake server listens on loopback, which the default client refuses.
 			MCPHTTPClient: &http.Client{Transport: http.DefaultTransport},
@@ -115,16 +169,30 @@ func TestAutomationEvents(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, server.Close()) })
 		return server
 	}
-	setup := func(t *testing.T) fixture {
+	// setupWith serves the event type in delivery to a deployment at
+	// accessURL.
+	setupWith := func(t *testing.T, accessURL string, delivery ...mcpclient.DeliveryMode) fixture {
 		db, ps := dbtestutil.NewDB(t)
 		user, org, model := seedInternalChatDeps(t, db)
 		f := fixture{worker: &workerTestFixture{db: db, pubsub: newRecordingPubsub(ps), user: user, org: org}}
-		var url string
-		f.events, url = newFakeEventsServer(t)
-		f.config = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{OrganizationID: org.ID, Slug: "events", Url: url, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
+		var serverURL string
+		f.events, serverURL = newFakeEventsServer(t)
+		f.events.delivery = delivery
+		f.config = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{OrganizationID: org.ID, Slug: "events", Url: serverURL, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		f.chat = dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID, MCPServerIDs: []uuid.UUID{f.config.ID}})
+		f.accessURL, _ = url.Parse(accessURL)
 		f.server = newServer(t, f)
+		f.events.receive = func(callbackURL string, header http.Header, body []byte) (int, string) {
+			id, err := uuid.Parse(path.Base(path.Dir(callbackURL)))
+			if err != nil {
+				return http.StatusNotFound, ""
+			}
+			return f.server.ReceiveMCPEventWebhook(context.Background(), id, header, body)
+		}
 		return f
+	}
+	setup := func(t *testing.T) fixture {
+		return setupWith(t, "", mcpclient.DeliveryPoll)
 	}
 	call := func(ctx context.Context, t *testing.T, f fixture, chat database.Chat, input string) fantasy.ToolResponse {
 		resp, err := f.server.manageAutomationsTool(chat).Run(ctx, fantasy.ToolCall{ID: "call", Name: chatautomation.ToolName, Input: input})
@@ -258,6 +326,108 @@ func TestAutomationEvents(t *testing.T) {
 				require.Equal(t, database.ChatAutomationRunOutcomeRefused, automation.LastRunOutcome.ChatAutomationRunOutcome)
 				require.Equal(t, string(tc.reason), automation.LastRunReason.String)
 				require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
+			})
+		}
+	})
+
+	deliver := func(ctx context.Context, f fixture, id uuid.UUID, body string, edit func(http.Header)) int {
+		f.events.mu.Lock()
+		header := signWebhook(f.events.subscribes[0].Delivery.Secret, body)
+		f.events.mu.Unlock()
+		if edit != nil {
+			edit(header)
+		}
+		status, _ := f.server.ReceiveMCPEventWebhook(ctx, id, header, []byte(body))
+		return status
+	}
+	const webhookEvent = `{"eventId":"evt_1","name":"repo.push","timestamp":"2026-01-05T09:30:00Z","data":{"n":1},"cursor":"seq:1"}`
+
+	t.Run("Webhook", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setupWith(t, "https://coder.example.com", mcpclient.DeliveryWebhook, mcpclient.DeliveryPoll)
+		// The server's verification during subscribe passed with the
+		// pending secret.
+		automation := subscribe(ctx, t, f)
+		sub := subscription(ctx, t, f, automation.ID)
+		require.Equal(t, database.ChatAutomationEventDeliveryWebhook, sub.Delivery)
+		require.Equal(t, database.ChatAutomationSubscriptionStateActive, sub.State)
+		f.events.mu.Lock()
+		require.Equal(t, "https://coder.example.com/api/experimental/chats/automations/"+automation.ID.String()+"/mcp-events", f.events.subscribes[0].Delivery.URL)
+		f.events.mu.Unlock()
+
+		// A retry of an event appends nothing.
+		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, webhookEvent, nil))
+		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, webhookEvent, nil))
+		require.Equal(t, http.StatusUnauthorized, deliver(ctx, f, automation.ID, webhookEvent, func(h http.Header) {
+			h.Set("webhook-signature", "v1,"+base64.StdEncoding.EncodeToString(make([]byte, 32)))
+		}))
+		require.Equal(t, http.StatusUnauthorized, deliver(ctx, f, automation.ID, webhookEvent, func(h http.Header) {
+			h.Set("X-MCP-Subscription-Id", "sub_other")
+		}))
+		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"gap","cursor":"seq:7"}`, nil))
+		rows, err := f.worker.db.GetPendingChatAutomationInboxRows(ctx, database.GetPendingChatAutomationInboxRowsParams{AutomationID: automation.ID, LimitCount: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		require.Equal(t, "evt_1", rows[0].EventID.String)
+		require.Equal(t, database.ChatAutomationInboxKindGap, rows[1].Kind)
+
+		// The renewal subscribes again from the stored cursor.
+		sub = subscription(ctx, t, f, automation.ID)
+		f.server.tickWebhookRenewals(ctx, sub.RenewAt.Time)
+		f.events.mu.Lock()
+		require.Len(t, f.events.subscribes, 2)
+		require.Equal(t, "seq:7", *f.events.subscribes[1].Cursor)
+		f.events.mu.Unlock()
+		require.True(t, subscription(ctx, t, f, automation.ID).RenewAt.Time.After(sub.RenewAt.Time))
+
+		// Disable unsubscribes, enable subscribes at the next tick, and
+		// delete unsubscribes.
+		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID)).IsError)
+		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(true)}, time.Now(), nil)
+		require.NoError(t, err)
+		f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
+		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"delete","automation_id":%q}`, automation.ID)).IsError)
+		f.events.mu.Lock()
+		require.Len(t, f.events.subscribes, 3)
+		require.Equal(t, 2, f.events.unsubscribes)
+		f.events.mu.Unlock()
+		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
+	})
+
+	t.Run("WebhookTerminated", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setupWith(t, "https://coder.example.com", mcpclient.DeliveryWebhook)
+		automation := subscribe(ctx, t, f)
+		require.Equal(t, http.StatusOK, deliver(ctx, f, automation.ID, `{"type":"terminated","error":{"code":-32024,"message":"Forbidden"}}`, nil))
+		require.Equal(t, database.ChatAutomationSubscriptionStateTerminated, subscription(ctx, t, f, automation.ID).State)
+		automation, err := f.worker.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, string(runReasonMCPForbidden), automation.LastRunReason.String)
+		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
+	})
+
+	t.Run("DeliveryChoice", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name          string
+			accessURL     string
+			subscribeCode int64
+		}{
+			{"HTTPAccessURL", "http://coder.example.com", 0},
+			{"CallbackEndpointError", "https://coder.example.com", -32027},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f := setupWith(t, tc.accessURL, mcpclient.DeliveryWebhook, mcpclient.DeliveryPoll)
+				f.events.subscribeCode = tc.subscribeCode
+				automation := subscribe(ctx, t, f)
+				require.Equal(t, database.ChatAutomationEventDeliveryPoll, subscription(ctx, t, f, automation.ID).Delivery)
+				all, err := f.worker.db.GetChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{OrganizationID: f.worker.org.ID, OwnerID: f.worker.user.ID})
+				require.NoError(t, err)
+				require.Len(t, all, 1, "a failed webhook subscribe left its automation")
 			})
 		}
 	})

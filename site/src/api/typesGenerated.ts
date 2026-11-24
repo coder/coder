@@ -2448,8 +2448,9 @@ export interface ChatAutomationEvent {
 	readonly arguments: Record<string, unknown>;
 	readonly delivery: string;
 	/**
-	 * State is terminated after the server ends the subscription. A
-	 * terminated subscription receives no more events.
+	 * State is pending while a webhook subscribe runs, and terminated after
+	 * the server ends the subscription. A terminated subscription receives
+	 * no more events.
 	 */
 	readonly state: string;
 }

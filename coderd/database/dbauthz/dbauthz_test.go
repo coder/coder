@@ -1549,11 +1549,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateEncryptedChatAutomationWebhookSecret(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
 	}))
-	s.Run("SetChatAutomationWebhookSubscriptionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.SetChatAutomationWebhookSubscriptionIDParams{AutomationID: uuid.New()}
-		dbm.EXPECT().SetChatAutomationWebhookSubscriptionID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
-	}))
 	s.Run("InsertChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		arg := database.InsertChatAutomationWebhookSecretParams{AutomationID: automation.ID}

@@ -53,24 +53,15 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	if chatwebhook.Verify(header, body, secret, p.clock.Now("chatd", "automation-webhooks")) != nil {
 		return http.StatusUnauthorized, ""
 	}
-	id := header.Get("X-MCP-Subscription-Id")
-	if sub.WebhookSubscriptionID.Valid && id != sub.WebhookSubscriptionID.String {
+	if sub.WebhookSubscriptionID.Valid && header.Get("X-MCP-Subscription-Id") != sub.WebhookSubscriptionID.String {
 		return http.StatusUnauthorized, ""
 	}
 	var envelope webhookEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return http.StatusBadRequest, ""
 	}
+	// A first subscribe verifies before its result stores the id.
 	if envelope.Type == "verification" {
-		// A first subscribe verifies before its result names the id.
-		if !sub.WebhookSubscriptionID.Valid && id != "" {
-			if err := p.db.SetChatAutomationWebhookSubscriptionID(ctx, database.SetChatAutomationWebhookSubscriptionIDParams{
-				AutomationID:          automationID,
-				WebhookSubscriptionID: id,
-			}); err != nil {
-				return http.StatusServiceUnavailable, ""
-			}
-		}
 		return http.StatusOK, envelope.Challenge
 	}
 	if sub.State == database.ChatAutomationSubscriptionStatePending {
