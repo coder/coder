@@ -124,7 +124,6 @@ describe("useDesktopConnection", () => {
 
 		expect(result.current.status).toBe("idle");
 		expect(result.current.hasConnected).toBe(false);
-		expect(result.current.rfb).toBeNull();
 		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 	});
 
@@ -398,8 +397,8 @@ describe("useDesktopConnection", () => {
 		expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
 	});
 
-	it("stores remote clipboard text when the server sends it", async () => {
-		const { result } = renderHook(() =>
+	it("copies remote clipboard text to the local clipboard", async () => {
+		renderHook(() =>
 			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
@@ -407,7 +406,6 @@ describe("useDesktopConnection", () => {
 		act(() => rfb.simulateEvent("connect"));
 		act(() => rfb.simulateEvent("clipboard", { text: "from remote" }));
 
-		expect(result.current.remoteClipboardText).toBe("from remote");
 		await vi.waitFor(() => {
 			expect(mockClipboardWriteText).toHaveBeenCalledWith("from remote");
 		});
@@ -730,8 +728,14 @@ describe("useDesktopConnection", () => {
 		vi.useFakeTimers();
 
 		try {
-			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1", activated: true }),
+			const { result, rerender } = renderHook(
+				({ scaleViewport }) =>
+					useDesktopConnection({
+						chatId: "chat-1",
+						activated: true,
+						scaleViewport,
+					}),
+				{ initialProps: { scaleViewport: false } },
 			);
 
 			const rfb = getLastRFBInstance();
@@ -740,12 +744,14 @@ describe("useDesktopConnection", () => {
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("error");
 
-			// User clicks Reconnect.
+			// User switches to fit mode, then clicks Reconnect.
+			rerender({ scaleViewport: true });
 			mockWatchChatDesktop.mockClear();
 			act(() => result.current.reconnect());
 
 			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
 			expect(result.current.status).toBe("connecting");
+			expect(getLastRFBInstance().scaleViewport).toBe(true);
 		} finally {
 			vi.useRealTimers();
 		}
