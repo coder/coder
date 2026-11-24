@@ -1328,9 +1328,9 @@ func (m queryMetricsStore) GetAIProviderKeysByProviderIDs(ctx context.Context, p
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderSummaries(ctx context.Context, arg database.GetAIProviderSummariesParams) ([]database.GetAIProviderSummariesRow, error) {
+func (m queryMetricsStore) GetAIProviderSummaries(ctx context.Context) ([]database.GetAIProviderSummariesRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIProviderSummaries(ctx, arg)
+	r0, r1 := m.s.GetAIProviderSummaries(ctx)
 	m.queryLatencies.WithLabelValues("GetAIProviderSummaries").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderSummaries").Inc()
 	return r0, r1

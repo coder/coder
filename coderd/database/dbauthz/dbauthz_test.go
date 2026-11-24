@@ -7985,9 +7985,8 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIProviderSummaries", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		summaryA := testutil.Fake(s.T(), faker, database.GetAIProviderSummariesRow{})
 		summaryB := testutil.Fake(s.T(), faker, database.GetAIProviderSummariesRow{})
-		arg := database.GetAIProviderSummariesParams{}
-		dbm.EXPECT().GetAIProviderSummaries(gomock.Any(), arg).Return([]database.GetAIProviderSummariesRow{summaryA, summaryB}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.GetAIProviderSummariesRow{summaryA, summaryB})
+		dbm.EXPECT().GetAIProviderSummaries(gomock.Any()).Return([]database.GetAIProviderSummariesRow{summaryA, summaryB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.GetAIProviderSummariesRow{summaryA, summaryB})
 	}))
 	s.Run("GetAIProviderFilterOptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		options := []database.GetAIProviderFilterOptionsRow{

@@ -52,8 +52,7 @@ SELECT
 FROM
     ai_providers
 WHERE
-    (@include_deleted::boolean OR NOT deleted)
-    AND (@include_disabled::boolean OR enabled)
+    NOT deleted
 ORDER BY
     name ASC;
 

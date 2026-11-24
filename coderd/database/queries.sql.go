@@ -726,16 +726,10 @@ SELECT
 FROM
     ai_providers
 WHERE
-    ($1::boolean OR NOT deleted)
-    AND ($2::boolean OR enabled)
+    NOT deleted
 ORDER BY
     name ASC
 `
-
-type GetAIProviderSummariesParams struct {
-	IncludeDeleted  bool `db:"include_deleted" json:"include_deleted"`
-	IncludeDisabled bool `db:"include_disabled" json:"include_disabled"`
-}
 
 type GetAIProviderSummariesRow struct {
 	ID          uuid.UUID      `db:"id" json:"id"`
@@ -748,8 +742,8 @@ type GetAIProviderSummariesRow struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) GetAIProviderSummaries(ctx context.Context, arg GetAIProviderSummariesParams) ([]GetAIProviderSummariesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAIProviderSummaries, arg.IncludeDeleted, arg.IncludeDisabled)
+func (q *sqlQuerier) GetAIProviderSummaries(ctx context.Context) ([]GetAIProviderSummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderSummaries)
 	if err != nil {
 		return nil, err
 	}
