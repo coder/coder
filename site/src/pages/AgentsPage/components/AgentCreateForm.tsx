@@ -745,14 +745,16 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	// fails at attach time instead of after creating a chat destined
 	// for an upload failure, and the rare mismatch with the server's
 	// pick still surfaces as an upload error on submit.
-	const selectedWorkspace = filteredWorkspaces.find(
-		(ws) => ws.id === effectiveWorkspaceId,
-	);
-	const canUploadWorkspaceFiles =
-		selectedWorkspace !== undefined &&
-		getWorkspaceAgents(selectedWorkspace).some(
-			(agent) => !agent.parent_id && agent.status === "connected",
+	const canUploadToWorkspace = (workspaceId: string | null) => {
+		const workspace = filteredWorkspaces.find((ws) => ws.id === workspaceId);
+		return (
+			workspace !== undefined &&
+			getWorkspaceAgents(workspace).some(
+				(agent) => !agent.parent_id && agent.status === "connected",
+			)
 		);
+	};
+	const canUploadWorkspaceFiles = canUploadToWorkspace(effectiveWorkspaceId);
 
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	// The editor lives outside React state, so drop chips whose scope changed.
@@ -814,26 +816,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const isSubmitPending = isCreating || isSubmitSequencePending;
 
 	// Workspace files can only upload into a workspace whose agent is
-	// connected. An explicit scope change that loses that (deselecting,
-	// an org change, or switching to a stopped workspace) drops the
-	// queued files; keeping them would let a submit create an idle chat
-	// whose uploads are guaranteed to fail. A status flap on the same
-	// workspace (a passive refetch reporting the agent disconnected)
-	// keeps the queue and only blocks submit until it reconnects: the
-	// queued File objects cannot be restored once dropped.
+	// connected. A user change that loses that (deselecting, an org
+	// change, or switching to a stopped workspace) drops the queued
+	// files. Data changes, such as a refetch reporting the agent
+	// disconnected, keep the queue and only block submit: the queued
+	// File objects cannot be restored once dropped.
 	const workspaceUploadCount = workspaceUploadEntries.length;
-	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
-	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
-	useEffect(() => {
-		if (
-			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Permission and workspace refetches also change the scope, and dropping the queued uploads aborts their requests.
-			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
-		) {
-			return;
-		}
-		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, the scope also changes from refetches.
-		if (canUploadWorkspaceFiles || workspaceUploadCount === 0) {
+	const dropQueuedWorkspaceUploads = () => {
+		if (workspaceUploadCount === 0) {
 			return;
 		}
 		resetWorkspaceUploads();
@@ -842,12 +832,16 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				? "Removed 1 file that uploads to the workspace"
 				: `Removed ${workspaceUploadCount} files that upload to the workspace`,
 		);
-	}, [
-		workspaceUploadScopeKey,
-		canUploadWorkspaceFiles,
-		workspaceUploadCount,
-		resetWorkspaceUploads,
-	]);
+	};
+	const handleWorkspaceChange = (workspaceId: string | null) => {
+		if (
+			workspaceId !== effectiveWorkspaceId &&
+			!canUploadToWorkspace(workspaceId)
+		) {
+			dropQueuedWorkspaceUploads();
+		}
+		setSelectedWorkspaceId(workspaceId);
+	};
 
 	const handleAttachWhenIdle = (files: File[]) => {
 		if (submitInFlightRef.current) {
@@ -1004,8 +998,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 								onChange={(newOrg) => {
 									const orgChanged = newOrg.id !== effectiveOrg?.id;
 									// Queued workspace files are dropped alongside DB
-									// attachments when the org changes (the workspace
-									// deselect effect clears them), so they get the
+									// attachments when the org changes, so they get the
 									// same confirmation.
 									if (
 										orgChanged &&
@@ -1115,7 +1108,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					// Do not persist a workspace until its organization is authorized.
 					onWorkspaceChange={
 						orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
-							? setSelectedWorkspaceId
+							? handleWorkspaceChange
 							: undefined
 					}
 					isWorkspaceLoading={isWorkspacesLoading}
@@ -1149,6 +1142,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						return;
 					}
 					resetAttachments();
+					dropQueuedWorkspaceUploads();
 					setSelectedWorkspaceId(null);
 					selectOrganization(pendingOrgChange);
 				}}
