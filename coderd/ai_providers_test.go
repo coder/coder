@@ -554,6 +554,11 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, want, got)
 
+		_, err = memberClient.AIProvider(ctx, openai.Name)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
 		token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
 		})
@@ -561,7 +566,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		scopedClient := codersdk.New(ownerClient.URL)
 		scopedClient.SetSessionToken(token.Key)
 		_, err = scopedClient.AIProviders(ctx)
-		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})

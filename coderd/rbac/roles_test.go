@@ -1358,7 +1358,7 @@ func TestRolePermissions(t *testing.T) {
 			// material (api_key, settings) so it is not exposed to
 			// org admins or auditors.
 			Name:     "AIProviders",
-			Actions:  crud,
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionReadSecret},
 			Resource: rbac.ResourceAIProvider,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
@@ -1368,6 +1368,20 @@ func TestRolePermissions(t *testing.T) {
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+			},
+		},
+		{
+			Name:     "AIProviderRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAIProvider,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {
+					owner, orgWorkspaceAccessUser, memberMe, orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+				false: {},
 			},
 		},
 		{

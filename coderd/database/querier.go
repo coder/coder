@@ -398,6 +398,7 @@ type sqlcQuerier interface {
 	// Returns all keys for the requested providers, ordered by provider then created_at ASC
 	// so callers can select the oldest non-empty key per provider without issuing N queries.
 	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIds []uuid.UUID) ([]AIProviderKey, error)
+	GetAIProviderSummaries(ctx context.Context, arg GetAIProviderSummariesParams) ([]GetAIProviderSummariesRow, error)
 	// Returns AI provider rows. Soft-deleted and disabled rows are excluded
 	// unless include_deleted or include_disabled is set.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)

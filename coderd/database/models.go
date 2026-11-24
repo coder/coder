@@ -612,6 +612,7 @@ const (
 	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
 	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
 	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
+	ApiKeyScopeAIProviderReadSecret                APIKeyScope = "ai_provider:read_secret"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -914,7 +915,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceSecretCreate,
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
-		ApiKeyScopeWorkspaceSecretUpdate:
+		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeAIProviderReadSecret:
 		return true
 	}
 	return false
@@ -1186,6 +1188,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
 		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeAIProviderReadSecret,
 	}
 }
 

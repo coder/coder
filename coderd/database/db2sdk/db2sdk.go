@@ -51,9 +51,18 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
 func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
-	out := AIProviderRedacted(row)
-	out.BaseURL = row.BaseUrl
-	out.APIKeys = maskAIProviderKeys(keys)
+	out := codersdk.AIProvider{
+		ID:          row.ID,
+		Type:        codersdk.AIProviderType(row.Type),
+		Name:        row.Name,
+		DisplayName: aiProviderDisplayName(row.Name, row.DisplayName),
+		Icon:        row.Icon,
+		Enabled:     row.Enabled,
+		BaseURL:     row.BaseUrl,
+		APIKeys:     maskAIProviderKeys(keys),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
 	s, err := AIProviderSettings(row.Settings)
 	if err != nil {
 		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
@@ -62,24 +71,27 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 	return out, nil
 }
 
-// AIProviderRedacted converts a provider row without its base URL, keys, or
-// settings.
-func AIProviderRedacted(row database.AIProvider) codersdk.AIProvider {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
-	}
+// AIProviderFromSummary converts a summary row. The base URL, keys, and
+// settings stay empty.
+func AIProviderFromSummary(row database.GetAIProviderSummariesRow) codersdk.AIProvider {
 	return codersdk.AIProvider{
 		ID:          row.ID,
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
-		DisplayName: display,
+		DisplayName: aiProviderDisplayName(row.Name, row.DisplayName),
 		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		APIKeys:     []codersdk.AIProviderKey{},
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
+}
+
+func aiProviderDisplayName(name string, displayName sql.NullString) string {
+	if displayName.Valid && displayName.String != "" {
+		return displayName.String
+	}
+	return name
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

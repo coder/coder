@@ -452,6 +452,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// All users can see OAuth2 provider applications.
 				ResourceOauth2App.Type:      {policy.ActionRead},
 				ResourceWorkspaceProxy.Type: {policy.ActionRead},
+				ResourceAIProvider.Type:     {policy.ActionRead},
 			}),
 			denyPermissions...,
 		),

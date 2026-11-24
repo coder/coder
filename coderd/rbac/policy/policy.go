@@ -470,10 +470,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"ai_provider": {
 		Name: "AIProvider",
 		Actions: map[Action]ActionDefinition{
-			ActionRead:   "read AI provider configuration",
-			ActionCreate: "create an AI provider",
-			ActionUpdate: "update an AI provider",
-			ActionDelete: "delete an AI provider",
+			ActionRead:       "read AI provider metadata, never the configuration",
+			ActionCreate:     "create an AI provider",
+			ActionUpdate:     "update an AI provider",
+			ActionDelete:     "delete an AI provider",
+			ActionReadSecret: "read AI provider configuration and keys",
 		},
 	},
 	"ai_seat": {

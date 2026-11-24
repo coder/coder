@@ -21,7 +21,8 @@ export const RBACResourceActions: Partial<
 	ai_provider: {
 		create: "create an AI provider",
 		delete: "delete an AI provider",
-		read: "read AI provider configuration",
+		read: "read AI provider metadata, never the configuration",
+		read_secret: "read AI provider configuration and keys",
 		update: "update an AI provider",
 	},
 	ai_seat: {

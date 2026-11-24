@@ -137,7 +137,7 @@
 	},
 	"viewAnyAIProvider": {
 		"object": { "resource_type": "ai_provider" },
-		"action": "read"
+		"action": "read_secret"
 	},
 	"viewAIGatewayKeys": {
 		"object": { "resource_type": "ai_gateway_key" },

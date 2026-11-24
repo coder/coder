@@ -549,7 +549,7 @@ var (
 					rbac.ResourceOauth2App.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChat.Type:                        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceAIProvider.Type:                  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIProvider.Type:                  {policy.ActionCreate, policy.ActionRead, policy.ActionReadSecret, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIGatewayKey.Type:                {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
@@ -720,12 +720,12 @@ var (
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceAiModelPrice.Type:         {policy.ActionRead, policy.ActionUpdate}, // Read: per-interception cost lookup. Update: startup price seeder.
-					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
-					rbac.ResourceAIProvider.Type:           {policy.ActionRead},                      // Required to load the provider snapshot (and per-provider keys) at startup.
-					rbac.ResourceGroup.Type:                {policy.ActionRead},                      // Required to read the effective group.
-					rbac.ResourceOrganization.Type:         {policy.ActionRead},                      // Required to name the organization in budget notification links and to check org membership.
-					rbac.ResourceWorkspace.Type:            {policy.ActionRead},                      // Required to resolve the organization of a workspace session token.
+					rbac.ResourceAiModelPrice.Type:         {policy.ActionRead, policy.ActionUpdate},     // Read: per-interception cost lookup. Update: startup price seeder.
+					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                        // Required for UpsertAISeatState.
+					rbac.ResourceAIProvider.Type:           {policy.ActionRead, policy.ActionReadSecret}, // Required to load the provider snapshot (and per-provider keys) at startup.
+					rbac.ResourceGroup.Type:                {policy.ActionRead},                          // Required to read the effective group.
+					rbac.ResourceOrganization.Type:         {policy.ActionRead},                          // Required to name the organization in budget notification links and to check org membership.
+					rbac.ResourceWorkspace.Type:            {policy.ActionRead},                          // Required to resolve the organization of a workspace session token.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -814,7 +814,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type:        {policy.ActionRead},
+					rbac.ResourceAIProvider.Type:        {policy.ActionRead, policy.ActionReadSecret},
 					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
@@ -852,7 +852,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "ai-provider-metadata-reader"},
 				DisplayName: "AI Provider Metadata Reader",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type: {policy.ActionRead},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead, policy.ActionReadSecret},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -3094,21 +3094,21 @@ func (q *querier) GetAIModelPrices(ctx context.Context, arg database.GetAIModelP
 }
 
 func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
 	}
 	return q.db.GetAIProviderByID(ctx, id)
 }
 
 func (q *querier) GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
 	}
 	return q.db.GetAIProviderByIDForReferenceLock(ctx, id)
 }
 
 func (q *querier) GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
 	}
 	return q.db.GetAIProviderByName(ctx, name)
@@ -3127,7 +3127,7 @@ func (q *querier) GetAIProviderFilterOptions(ctx context.Context) ([]database.Ge
 }
 
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return database.AIProviderKey{}, err
 	}
 	return q.db.GetAIProviderKeyByID(ctx, id)
@@ -3145,28 +3145,35 @@ func (q *querier) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([
 	// rotation utility, which needs to re-encrypt every row that holds
 	// a foreign-key reference to dbcrypt_keys regardless of whether
 	// the parent provider is still live.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIProviderKeys(ctx, includeDeleted)
 }
 
 func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIProviderKeysByProviderID(ctx, providerID)
 }
 
 func (q *querier) GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIProviderKeysByProviderIDs(ctx, providerIDs)
 }
 
-func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
+func (q *querier) GetAIProviderSummaries(ctx context.Context, arg database.GetAIProviderSummariesParams) ([]database.GetAIProviderSummariesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProviderSummaries(ctx, arg)
+}
+
+func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIProviders(ctx, arg)
@@ -5544,7 +5551,7 @@ func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg data
 }
 
 func (q *querier) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserAIProviderKeys(ctx)
