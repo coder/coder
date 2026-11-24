@@ -402,7 +402,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 							<Button
 								size="icon"
 								variant="subtle"
-								aria-label="Open menu"
+								aria-label={`Open menu for ${skill.name}`}
 								onPointerDown={rememberTrigger}
 								onKeyDown={rememberTrigger}
 							>
