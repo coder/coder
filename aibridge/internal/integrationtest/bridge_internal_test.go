@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
 	v4signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
+	"github.com/klauspost/compress/zstd"
 	"github.com/openai/openai-go/v3"
 	oaissestream "github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/stretchr/testify/assert"
@@ -3017,6 +3018,121 @@ func TestEnvironmentDoNotLeak(t *testing.T) {
 			received := upstream.ReceivedRequests()
 			require.Len(t, received, 1)
 			require.Empty(t, received[0].Header.Get(tc.headerName))
+		})
+	}
+}
+
+func TestCompressedRequestBody(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		fixture []byte
+		path    string
+	}{
+		{
+			name:    "copilot_messages",
+			fixture: fixtures.AntSimple,
+			path:    "/copilot/v1/messages",
+		},
+		{
+			name:    "copilot_responses",
+			fixture: fixtures.OaiResponsesBlockingSimple,
+			path:    pathCopilotResponses,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			fix := fixtures.Parse(t, tc.fixture)
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+				withCustomProvider(provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})),
+			)
+
+			enc, err := zstd.NewWriter(nil)
+			require.NoError(t, err)
+			defer enc.Close()
+			compressed := enc.EncodeAll(fix.Request(), nil)
+
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, compressed, http.Header{
+				"Content-Encoding": {"zstd"},
+				"Authorization":    {"Bearer test-copilot-token"},
+			})
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			received := upstream.ReceivedRequests()
+			require.Len(t, received, 1)
+			require.Empty(t, received[0].Header.Get("Content-Encoding"))
+			require.True(t, json.Valid(received[0].Body))
+			require.Len(t, bridgeServer.Recorder.RecordedInterceptions(), 1)
+		})
+	}
+}
+
+func TestCompressedRequestBodyRejected(t *testing.T) {
+	t.Parallel()
+
+	enc, err := zstd.NewWriter(nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = enc.Close() })
+
+	cases := []struct {
+		name       string
+		encoding   string
+		body       []byte
+		wantStatus int
+	}{
+		{
+			name:       "unsupported_encoding",
+			encoding:   "compress",
+			body:       []byte("anything"),
+			wantStatus: http.StatusUnsupportedMediaType,
+		},
+		{
+			name:       "corrupt_zstd",
+			encoding:   "zstd",
+			body:       []byte("definitely not zstd"),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "decoded_too_large",
+			encoding:   "zstd",
+			body:       enc.EncodeAll(bytes.Repeat([]byte("A"), 33<<20), nil),
+			wantStatus: http.StatusRequestEntityTooLarge,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				t.Error("rejected requests must not reach upstream")
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			t.Cleanup(upstream.Close)
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+				withCustomProvider(provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})),
+			)
+
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, "/copilot/v1/messages", tc.body, http.Header{
+				"Content-Encoding": {tc.encoding},
+				"Authorization":    {"Bearer test-copilot-token"},
+			})
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
 		})
 	}
 }
