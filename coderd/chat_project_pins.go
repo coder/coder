@@ -43,10 +43,7 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
-		UserID:             apiKey.UserID,
-		CountSharedMembers: api.chatProjectSharingAvailable(),
-	})
+	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat project summaries.",
@@ -55,21 +52,32 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	compactChatProjectPinOrders(rows)
-	projects, err := api.convertChatProjects(r, slice.List(rows, func(row database.GetChatProjectSummariesByUserIDRow) database.ChatProject {
-		return row.ChatProject
-	}))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectSummary))
+}
+
+// @Summary List chat project member counts
+// @ID list-chat-project-member-counts
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProjectMemberCount
+// @Router /api/experimental/chats/projects/member-counts [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatProjectMemberCounts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	rows, err := api.Database.GetChatProjectMemberCountsByUserID(ctx, database.GetChatProjectMemberCountsByUserIDParams{
+		UserID:             httpmw.APIKey(r).UserID,
+		CountSharedMembers: api.chatProjectSharingAvailable(),
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat project summaries.",
+			Message: "Failed to list chat project member counts.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	summaries := make([]codersdk.ChatProjectSummary, 0, len(rows))
-	for i, row := range rows {
-		summaries = append(summaries, db2sdk.ChatProjectSummary(row, projects[i]))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, summaries)
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectMemberCount))
 }
 
 // compactChatProjectPinOrders renumbers the pinned rows 1..N in their
@@ -145,9 +153,7 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if pinOrder.Valid {
-			rows, err := tx.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
-				UserID: apiKey.UserID,
-			})
+			rows, err := tx.GetChatProjectSummariesByUserID(ctx, apiKey.UserID)
 			if err != nil {
 				return xerrors.Errorf("list visible chat project pins: %w", err)
 			}
@@ -186,7 +192,7 @@ func chatProjectPinPosition(rows []database.GetChatProjectSummariesByUserIDRow, 
 	for _, row := range rows {
 		switch {
 		case !row.Pinned:
-		case row.ChatProject.ID == projectID:
+		case row.ProjectID == projectID:
 			targetOrder = row.PinOrder
 		default:
 			visible = append(visible, row.PinOrder)
@@ -247,9 +253,9 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// chatProjectSharingAvailable reports whether summaries count the users a
-// project is shared with. It matches the gate on the project ACL routes.
-// Which projects are listed does not depend on it: as in GET
+// chatProjectSharingAvailable reports whether member counts include the
+// users a project is shared with. It matches the gate on the project ACL
+// routes. Which projects are listed does not depend on it: as in GET
 // /chats/projects, grant keys select candidates and RBAC decides.
 func (api *API) chatProjectSharingAvailable() bool {
 	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))

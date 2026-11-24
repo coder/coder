@@ -590,14 +590,13 @@ export const MockArchivedChatProject: TypesGen.ChatProject = {
 };
 
 export const MockChatProjectSummary: TypesGen.ChatProjectSummary = {
-	project: MockChatProject,
+	project_id: MockChatProject.id,
 	pinned: true,
 	pin_order: 1,
 	own_chat_count: 0,
 	own_unread_count: 0,
 	own_running: false,
 	own_needs_attention: false,
-	member_count: 1,
 };
 
 export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {

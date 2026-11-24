@@ -2139,11 +2139,10 @@ func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectP
 	return converted
 }
 
-// ChatProjectSummary converts a project summary row; project is the row's
-// project converted with the caller's permissions.
-func ChatProjectSummary(row database.GetChatProjectSummariesByUserIDRow, project codersdk.ChatProject) codersdk.ChatProjectSummary {
+// ChatProjectSummary converts a project summary row.
+func ChatProjectSummary(row database.GetChatProjectSummariesByUserIDRow) codersdk.ChatProjectSummary {
 	return codersdk.ChatProjectSummary{
-		Project:           project,
+		ProjectID:         row.ProjectID,
 		Pinned:            row.Pinned,
 		PinOrder:          row.PinOrder,
 		OwnChatCount:      row.OwnChatCount,
@@ -2151,7 +2150,14 @@ func ChatProjectSummary(row database.GetChatProjectSummariesByUserIDRow, project
 		OwnRunning:        row.OwnRunning,
 		OwnNeedsAttention: row.OwnNeedsAttention,
 		LastActivityAt:    nullTimePtr(row.LastActivityAt),
-		MemberCount:       row.MemberCount,
+	}
+}
+
+// ChatProjectMemberCount converts a project member count row.
+func ChatProjectMemberCount(row database.GetChatProjectMemberCountsByUserIDRow) codersdk.ChatProjectMemberCount {
+	return codersdk.ChatProjectMemberCount{
+		ProjectID:   row.ProjectID,
+		MemberCount: row.MemberCount,
 	}
 }
 

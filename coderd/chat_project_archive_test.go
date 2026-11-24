@@ -303,9 +303,11 @@ func TestChatProjectArchivePins(t *testing.T) {
 	_, err := client.ArchiveChatProject(ctx, orgID, b.ID, codersdk.ArchiveChatProjectRequest{})
 	require.NoError(t, err)
 
-	// An archived project leaves the summaries, and its pin takes no
-	// position, either in summaries or in requested positions.
+	// An archived project leaves the summaries and the member counts, and
+	// its pin takes no position, either in summaries or in requested
+	// positions.
 	require.NotContains(t, chatProjectSummariesByID(ctx, t, client), b.ID)
+	requireSummariesMatchList(ctx, t, client)
 	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{a.ID: 1, c.ID: 2})
 	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
 	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, a.ID: 2})
