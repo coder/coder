@@ -100,6 +100,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 								{spend ? (
 									<UserDropdownAISpend
 										{...spend}
+										perOrganization={Boolean(menuSpend.orgSelection)}
 										periodStart={menuSpend.period.period_start}
 										periodEnd={menuSpend.period.period_end}
 									/>

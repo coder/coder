@@ -12,6 +12,8 @@ import { getSpendSeverity, type ViewedSpend } from "./viewedSpend";
 type UserDropdownAISpendProps = ViewedSpend & {
 	periodStart: string;
 	periodEnd: string;
+	/** AI Gateway enforces the limit per organization. */
+	perOrganization: boolean;
 };
 
 export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
@@ -19,6 +21,7 @@ export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
 	spendLimit,
 	periodStart,
 	periodEnd,
+	perOrganization,
 }) => {
 	const severity = getSpendSeverity({ currentSpend, spendLimit });
 	const exceeded = severity === "exceeded";
@@ -44,7 +47,9 @@ export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
 			/>
 			{exceeded && (
 				<div className="mt-1 text-xs text-content-primary">
-					AI requests are paused until{" "}
+					{perOrganization
+						? "AI requests in this organization are paused until"
+						: "AI requests are paused until"}{" "}
 					<span className="whitespace-nowrap">
 						{formatSpendPeriodEnd(periodEnd)}.
 					</span>

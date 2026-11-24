@@ -68,7 +68,7 @@ describe("UserDropdown AI spend", () => {
 		expect(menu).toHaveTextContent("$1,250 / $1,200 USD");
 		expect(menu).toHaveTextContent("Limit exceeded");
 		expect(menu).toHaveTextContent(
-			"AI requests are paused until July 1, 2026.",
+			"AI requests in this organization are paused until July 1, 2026.",
 		);
 
 		await user.click(orgTrigger);
