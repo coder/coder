@@ -531,6 +531,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserOrganizationsAISpend =
+		async (): Promise<TypesGen.UserOrganizationsAISpendStatus> => {
+			const response =
+				await this.axios.get<TypesGen.UserOrganizationsAISpendStatus>(
+					"/api/v2/users/me/ai/spend/organizations",
+				);
+			return response.data;
+		};
+
 	getUser = async (usernameOrId: string) => {
 		const response = await this.axios.get<TypesGen.User>(
 			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
