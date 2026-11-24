@@ -89,9 +89,8 @@ export const Empty: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Select provider" }),
 		);
-		await waitFor(() => {
-			expect(screen.getByText("No providers found")).toBeVisible();
-		});
+		// The message also renders in the Command status region.
+		await screen.findAllByText("No providers found");
 		expect(screen.queryByRole("option")).toBeNull();
 	},
 };

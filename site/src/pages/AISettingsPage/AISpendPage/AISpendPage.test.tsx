@@ -16,6 +16,7 @@ import {
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import AISpendPage from "./AISpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
+import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
@@ -84,7 +85,11 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 			period,
 			TOP_SPENDERS_COUNT,
 		);
-		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			UNPRICED_MODELS_COUNT,
+		);
 		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
 			...period,
 			user_ids: topSpenderIds,
@@ -122,7 +127,11 @@ it("writes a picked range to the URL as days and requests it", async () => {
 			period,
 			TOP_SPENDERS_COUNT,
 		);
-		expect(unpricedModelsSpy).toHaveBeenCalledWith(MockOrganization.id, period);
+		expect(unpricedModelsSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			period,
+			UNPRICED_MODELS_COUNT,
+		);
 		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
 			...period,
 			user_ids: topSpenderIds,
