@@ -12,11 +12,11 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestMigration000645ChatDiffStatusesRootChats(t *testing.T) {
+func TestMigration000647ChatDiffStatusesRootChats(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 644)
+	stepTo(t, sqlDB, 646)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Historical fixtures must not depend on current sqlc column lists.
@@ -284,7 +284,7 @@ func TestMigration000645ChatDiffStatusesRootChats(t *testing.T) {
 		movedTo(root, chatIDTieStatus),
 	}
 
-	stepTo(t, sqlDB, 645)
+	stepTo(t, sqlDB, 647)
 
 	// Read the complete table so unexpected rows cannot be omitted by an ID filter.
 	rows, err := sqlDB.QueryContext(ctx,
