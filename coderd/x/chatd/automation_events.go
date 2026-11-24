@@ -522,7 +522,7 @@ func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	// A longer JSON body fails to decode, which retries after a backoff.
 	// ConnectEvents bounds each event of an SSE stream instead.
-	if mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mediaType != "text/event-stream" {
+	if mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); err != nil || mediaType != "text/event-stream" {
 		resp.Body = struct {
 			io.Reader
 			io.Closer
