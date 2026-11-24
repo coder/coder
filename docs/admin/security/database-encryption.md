@@ -35,6 +35,7 @@ The following database fields are currently encrypted:
 - `mcp_server_configs.signing_secret`
 - `mcp_server_user_tokens.access_token`
 - `mcp_server_user_tokens.refresh_token`
+- `chat_automation_webhook_secrets.secret`
 
 Additional database fields might be encrypted in the future.
 

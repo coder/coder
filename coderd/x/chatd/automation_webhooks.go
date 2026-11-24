@@ -185,13 +185,17 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 		if err != nil {
 			return err
 		}
+		// The gap goes first: appendInbox clears the error that the grant
+		// records. A pending subscription has no cursor to fall behind.
+		if res.Truncated {
+			if err := p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Truncated: true}); err != nil && !errors.Is(err, errSubscriptionInactive) {
+				return err
+			}
+		}
 		if _, err := p.db.UpdateChatAutomationWebhookGrant(ctx, chatautomation.WebhookGrant(sub.AutomationID, res, p.clock.Now("chatd", "automation-webhooks"))); err != nil {
 			return xerrors.Errorf("store webhook grant: %w", err)
 		}
-		if !res.Truncated {
-			return nil
-		}
-		return p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Truncated: true})
+		return nil
 	})
 	if err == nil || errors.Is(err, errSubscriptionInactive) {
 		return
