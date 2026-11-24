@@ -1,11 +1,5 @@
-/*
- * Styles for the overlay's shadow root. They mirror the dashboard's dark
- * theme tokens and component primitives (Button, Badge, Tooltip, Popover,
- * Textarea) from src/index.css and src/components; the overlay renders
- * inside a shadow root in a third-party page, so it cannot consume
- * Tailwind or the theme variables directly. mountAnnotator imports this
- * file inline and the build bundles it into annotator.js as a string.
- */
+/* The third-party page's shadow-root overlay cannot inherit dashboard
+   styles, so these tokens mirror the dark theme in src/index.css. */
 :host {
 	all: initial;
 	--content-primary: hsl(0 0% 100%);
@@ -21,8 +15,6 @@
 	--border: hsl(240 4% 16%);
 	--radius-md: 0.375rem;
 	--radius-lg: 0.5rem;
-	/* Shared by the selection outline and the working-state ring so the
-	   two states read as the same box. */
 	--outline-width: 2px;
 	--shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 	--shadow-lg:
@@ -47,7 +39,6 @@ button {
 	cursor: pointer;
 }
 
-/* focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link */
 button:focus-visible,
 textarea:focus-visible {
 	outline: none;
@@ -78,24 +69,11 @@ textarea:focus-visible {
 	height: 2rem;
 	padding: 0 0.375rem;
 	border-radius: var(--radius-md);
-	color: var(--content-secondary);
-	transition:
-		color 150ms,
-		background-color 150ms;
-}
-
-.icon-button:hover {
-	color: var(--content-primary);
 }
 
 .icon-button[aria-pressed="true"] {
 	background: var(--surface-tertiary);
 	color: var(--content-primary);
-}
-
-.icon-button[disabled] {
-	pointer-events: none;
-	color: var(--content-disabled);
 }
 
 .icon-button svg {
@@ -172,15 +150,21 @@ textarea:focus-visible {
 	text-overflow: ellipsis;
 }
 
-/* When an edge is clamped to the viewport, decorations that hang off it
-   move so they stay visible. The label moves inside once the top is
-   clamped; the badge moves above the box when only the right edge is
-   clamped, matching the label, and inside once the top is too. */
+/* Keep decorations visible when the outline reaches a viewport edge. */
 .highlight.at-top .highlight-label {
 	bottom: auto;
 	top: 6px;
 	left: 6px;
 	transform: none;
+}
+
+.highlight.at-right .highlight-label {
+	left: auto;
+	right: 24px;
+}
+
+.highlight.at-top.at-right .highlight-label {
+	right: 30px;
 }
 
 .highlight.at-right .highlight-badge {
@@ -205,6 +189,8 @@ textarea:focus-visible {
 	z-index: 2147483647;
 	width: 24rem;
 	max-width: calc(100vw - 16px);
+	max-height: calc(100dvh - 16px);
+	overflow: auto;
 	padding: 1.25rem;
 	display: flex;
 	flex-direction: column;
@@ -253,7 +239,6 @@ textarea:focus-visible {
 	gap: 0.5rem;
 }
 
-/* Button size=sm variants default and outline. */
 .button {
 	display: inline-flex;
 	align-items: center;
@@ -276,7 +261,6 @@ textarea:focus-visible {
 	background: var(--surface-invert-secondary);
 }
 
-/* Button variant=default disabled: surface-secondary and content-disabled. */
 .button[disabled] {
 	pointer-events: none;
 	background: var(--surface-secondary);

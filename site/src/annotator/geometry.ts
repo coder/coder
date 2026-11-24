@@ -1,7 +1,7 @@
-// How far outside an element its outline is drawn, so the border does not
-// sit on the element's own edges. Shared by every state that outlines.
+/** Offset from the target's edges that keeps its outline from obscuring content. */
 export const outlineInset = 4;
 
+/** An overlay rectangle measured in viewport CSS pixels. */
 export type ViewportBox = {
 	left: number;
 	top: number;

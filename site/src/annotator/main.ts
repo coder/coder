@@ -40,11 +40,7 @@ function bootstrap() {
 			) {
 				return;
 			}
-			switch (event.data.type) {
-				case "coder-annotator:set-picking":
-					annotator.setPicking(event.data.picking);
-					break;
-			}
+			annotator.setPicking(event.data.picking);
 		});
 
 		post({ type: "coder-annotator:ready" });

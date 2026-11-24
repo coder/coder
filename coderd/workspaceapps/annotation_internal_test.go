@@ -115,6 +115,14 @@ func TestInjectAnnotationScript(t *testing.T) {
 			wantChanged: true,
 		},
 		{
+			name:        "Noscript",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<head><noscript></head><img src=x onerror=alert(1)></noscript></head>`,
+			want:        `<head><noscript></head><img src=x onerror=alert(1)></noscript>` + scriptTag + `</head>`,
+			wantChanged: true,
+		},
+		{
 			name:        "UnterminatedScript",
 			statusCode:  http.StatusOK,
 			contentType: "text/html; charset=utf-8",
@@ -136,13 +144,126 @@ func TestInjectAnnotationScript(t *testing.T) {
 			contentType: "text/html",
 			body:        "<html><head></head><body></body></html>",
 			want:        "<html><head></head><body></body></html>",
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8MetaAfterScript",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<!doctype html><html><head><script type="module" src="/@vite/client"></script><meta name="viewport" content="width=device-width"><meta charset="UTF-8"><title>日本語</title></head><body></body></html>`,
+			want:        `<!doctype html><html><head><script type="module" src="/@vite/client"></script><meta name="viewport" content="width=device-width"><meta charset="UTF-8"><title>日本語</title>` + scriptTag + `</head><body></body></html>`,
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8MetaHTTPEquiv",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"></head>`,
+			want:        `<head><meta content="text/html; charset=utf-8" http-equiv="Content-Type">` + scriptTag + `</head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8BOMWithoutCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "\xef\xbb\xbf<head><title>日本語</title></head>",
+			want:        "\xef\xbb\xbf<head><title>日本語</title>" + scriptTag + "</head>",
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8MetaAtSniffLimit",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "<head>" + strings.Repeat(" ", 996) + `<meta charset="utf-8"></head>`,
+			want:        "<head>" + strings.Repeat(" ", 996) + `<meta charset="utf-8">` + scriptTag + `</head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8MetaPastSniffLimit",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "<head>" + strings.Repeat(" ", 997) + `<meta charset="utf-8"></head>`,
+			want:        "<head>" + strings.Repeat(" ", 997) + `<meta charset="utf-8"></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "ConflictingMetaCharsets",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta charset=iso-2022-jp><meta charset=utf-8></head>`,
+			want:        `<head><meta charset=iso-2022-jp><meta charset=utf-8></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "ConflictingHTTPEquivCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta http-equiv=content-type content="text/html; charset=iso-2022-jp"><meta charset=utf-8></head>`,
+			want:        `<head><meta http-equiv=content-type content="text/html; charset=iso-2022-jp"><meta charset=utf-8></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "DuplicateCharsetAttributes",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta charset=iso-2022-jp charset=utf-8></head>`,
+			want:        `<head><meta charset=iso-2022-jp charset=utf-8></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "CharacterReferenceCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta charset="&#xA0;utf-8"><meta charset=iso-2022-jp></head>`,
+			want:        `<head><meta charset="&#xA0;utf-8"><meta charset=iso-2022-jp></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "VerticalTabCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "<head><meta charset=\"\x0butf-8\"><meta charset=iso-2022-jp></head>",
+			want:        "<head><meta charset=\"\x0butf-8\"><meta charset=iso-2022-jp></head>",
+			wantChanged: true,
+		},
+		{
+			name:        "InertCharsetDeclarations",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><!-- <meta charset=utf-8> --><script>const meta = "<meta charset=utf-8>";</script><noscript><meta charset=utf-8></noscript></head>`,
+			want:        `<head><!-- <meta charset=utf-8> --><script>const meta = "<meta charset=utf-8>";</script><noscript><meta charset=utf-8></noscript></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "UndeclaredUTF8",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><meta name=description content="日本語"></head>`,
+			want:        `<head><meta name=description content="日本語"></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "NonASCIIBeforeCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        `<head><title>日本語</title><meta charset=utf-8></head>`,
+			want:        `<head><title>日本語</title><meta charset=utf-8></head>`,
+			wantChanged: true,
+		},
+		{
+			name:        "EscapeBeforeCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "<head><title>\x1b$B</title><meta charset=utf-8></head>",
+			want:        "<head><title>\x1b$B</title><meta charset=utf-8></head>",
+			wantChanged: true,
 		},
 		{
 			name:        "OtherCharset",
 			statusCode:  http.StatusOK,
 			contentType: "text/html; charset=iso-2022-jp",
-			body:        "<html><head></head><body></body></html>",
-			want:        "<html><head></head><body></body></html>",
+			body:        `<head><meta charset=utf-8></head>`,
+			want:        `<head><meta charset=utf-8></head>`,
 		},
 		{
 			name:        "ImplicitHead",
@@ -254,7 +375,6 @@ func TestInjectAnnotationScriptPassthrough(t *testing.T) {
 		{"UnterminatedComment", `<head><!-- </head><body>`},
 		{"UnterminatedAttribute", `<head><meta content="</head><body>`},
 		{"Template", `<head><template><head></head></template></head>`},
-		{"Noscript", `<head><noscript></head></noscript></head>`},
 		{"Select", `<head><select><style><script>"</style></head>"</script></select>`},
 		{"MathML", `<head><math><annotation-xml><head></head></annotation-xml></math></head>`},
 		{"SelfClosingScript", `<head><script/>"</head>"</script></head>`},
@@ -362,16 +482,24 @@ func TestInjectAnnotationScriptStreams(t *testing.T) {
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
 	longScript := "<html><head><script>" + strings.Repeat("x", 2*annotationMaxTokenBytes)
 	for _, tc := range []struct {
-		name      string
-		first     string
-		wantFirst string
-		tail      string
+		name        string
+		contentType string
+		first       string
+		wantFirst   string
+		tail        string
 	}{
 		{
 			name:      "Head",
 			first:     "<html><head></head><body>",
 			wantFirst: "<html><head>" + scriptTag + "</head><body>",
 			tail:      "tail</body></html>",
+		},
+		{
+			name:        "MetaCharset",
+			contentType: "text/html",
+			first:       "<html><head><meta charset=utf-8></head><body>",
+			wantFirst:   "<html><head><meta charset=utf-8>" + scriptTag + "</head><body>",
+			tail:        "tail</body></html>",
 		},
 		{
 			name:      "OversizedToken",
@@ -390,11 +518,15 @@ func TestInjectAnnotationScriptStreams(t *testing.T) {
 				_ = pr.Close()
 				_ = pw.Close()
 			})
+			contentType := tc.contentType
+			if contentType == "" {
+				contentType = "text/html; charset=utf-8"
+			}
 			resp := &http.Response{
 				StatusCode:    http.StatusOK,
-				Header:        http.Header{"Content-Type": {"text/html; charset=utf-8"}},
+				Header:        http.Header{"Content-Type": {contentType}},
 				Body:          pr,
-				ContentLength: -1,
+				ContentLength: int64(len(tc.first) + len(tc.tail)),
 				Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
 			}
 			require.NoError(t, injectAnnotationScript(resp, scriptTag))
@@ -554,6 +686,13 @@ func TestAnnotationRequested(t *testing.T) {
 			rawQuery:     "z=1&path=%2Fa+b&" + AnnotationQueryParam + "=1&flag&legacy=a;b",
 			want:         true,
 			wantQuery:    "z=1&path=%2Fa+b&flag&legacy=a;b",
+		},
+		{
+			name:         "MalformedFirstMarker",
+			experiments:  codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
+			accessMethod: AccessMethodSubdomain,
+			rawQuery:     "coder_annotate=%zz&coder_annotate=1&keep=value",
+			wantQuery:    "keep=value",
 		},
 		{
 			name:         "EncodedKeyAndRepeats",

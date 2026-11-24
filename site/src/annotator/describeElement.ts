@@ -11,9 +11,9 @@ const maxClassLength = 100;
 // escaping and running through the selector engine.
 const maxIdLength = 200;
 
-// Attributes that help locate an element in source without carrying page
-// state. Everything else (value, data-*, style, handlers, arbitrary
-// attributes) is where tokens, form state, and serialized blobs live.
+// Limit capture to attributes useful for locating an element in source.
+// Exclude form values, arbitrary data attributes, styles, and handlers;
+// allowlisted values remain page-controlled.
 const allowedAttributes = new Set([
 	"id",
 	"class",
@@ -99,14 +99,8 @@ function segmentFor(element: Element): string {
 	return segment;
 }
 
-/**
- * Builds a short selector for the element, preferring ids and test ids,
- * then stable class names, then positional fallbacks. Each step checks
- * for uniqueness but the walk stops at `maxSelectorDepth` segments: the
- * result is meant for a human or an agent to grep, not for runtime
- * querying, so readability wins over exhaustiveness.
- */
-export function buildSelector(element: Element): string {
+/** Builds a depth-bounded selector, favoring source readability over uniqueness. */
+function buildSelector(element: Element): string {
 	const root = element.ownerDocument;
 	if (element === root.documentElement || element === root.body) {
 		return element.tagName.toLowerCase();
@@ -171,11 +165,8 @@ function stripUrlSecrets(value: string): string {
 	return cut === -1 ? value : value.slice(0, cut);
 }
 
-/**
- * Rebuilds the element's opening tag from an attribute allowlist so the
- * output is greppable without leaking page state.
- */
-export function describeOpeningTag(element: Element): string {
+/** Rebuilds an opening tag from selected, bounded attributes. */
+function describeOpeningTag(element: Element): string {
 	const parts = [element.tagName.toLowerCase()];
 	for (const { name, value } of Array.from(element.attributes)) {
 		const lower = name.toLowerCase();
@@ -243,16 +234,11 @@ function visibleText(element: Element): string {
 	return text;
 }
 
-/**
- * Captures everything an agent needs to locate the element in source:
- * selector, identifying attributes, visible text, an allowlisted opening
- * tag, geometry, and (when available) the owning React components.
- */
+/** Captures bounded context to help locate the selected element in source. */
 export function describeElement(element: Element): AnnotatedElement {
 	const rect = element.getBoundingClientRect();
 	const text = truncate(visibleText(element), maxTextLength);
 	const react = describeReactOwner(element);
-	const openingTag = describeOpeningTag(element);
 	const attribute = (name: string) => {
 		const value = element.getAttribute(name);
 		return value ? truncate(value, maxAttributeLength) : undefined;
@@ -269,7 +255,7 @@ export function describeElement(element: Element): AnnotatedElement {
 		role: attribute("role"),
 		ariaLabel: attribute("aria-label"),
 		text: text || undefined,
-		openingTag,
+		openingTag: describeOpeningTag(element),
 		rect: {
 			x: Math.round(rect.x + window.scrollX),
 			y: Math.round(rect.y + window.scrollY),
