@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html/charset"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -29,41 +30,12 @@ func (s *Server) annotationsEnabled() bool {
 // navigation inside the app keeps the injected script, while a full
 // navigation drops it until the dashboard asks again.
 func (s *Server) annotationRequested(r *http.Request, accessMethod AccessMethod) bool {
-	value, found, rest := stripAnnotationParam(r.URL.RawQuery)
+	rest, value, found := stripQueryParam(r.URL.RawQuery, AnnotationQueryParam)
 	if !found {
 		return false
 	}
 	r.URL.RawQuery = rest
 	return value == "1" && s.annotationsEnabled() && accessMethod == AccessMethodSubdomain
-}
-
-// stripAnnotationParam removes the marker from a raw query string and
-// returns its value along with the remaining query. The rest is left
-// byte for byte as the client sent it rather than re-encoded through
-// url.Values, which would reorder parameters, normalise escapes and drop
-// pairs Go does not parse; none of that is the proxy's to change.
-func stripAnnotationParam(rawQuery string) (value string, found bool, rest string) {
-	if rawQuery == "" {
-		return "", false, rawQuery
-	}
-	segments := strings.Split(rawQuery, "&")
-	kept := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		rawKey, rawValue, _ := strings.Cut(segment, "=")
-		if key, err := url.QueryUnescape(rawKey); err != nil || key != AnnotationQueryParam {
-			kept = append(kept, segment)
-			continue
-		}
-		if !found {
-			found = true
-			// A value that does not unescape cannot be "1", so it is treated
-			// as absent while the marker is still removed.
-			if unescaped, err := url.QueryUnescape(rawValue); err == nil {
-				value = unescaped
-			}
-		}
-	}
-	return value, found, strings.Join(kept, "&")
 }
 
 // injectAnnotationScript rewrites a successful, uncompressed UTF-8 HTML GET
@@ -80,16 +52,15 @@ func injectAnnotationScript(resp *http.Response, scriptTag string) error {
 	if err != nil || !strings.EqualFold(mediaType, "text/html") {
 		return nil
 	}
-	// An explicit UTF-8 charset keeps the tokenizer and browser in agreement.
-	// Without it the browser can sniff a different encoding from the body.
-	if !strings.EqualFold(params["charset"], "utf-8") && !strings.EqualFold(params["charset"], "utf8") {
+	utf8Confirmed := strings.EqualFold(params["charset"], "utf-8") || strings.EqualFold(params["charset"], "utf8")
+	if params["charset"] != "" && !utf8Confirmed {
 		return nil
 	}
 
 	src := &annotationSource{ReadCloser: resp.Body}
 	tokenizer := xhtml.NewTokenizer(src)
 	tokenizer.SetMaxBuf(annotationMaxTokenBytes)
-	resp.Body = &annotationInjector{src: src, tag: []byte(scriptTag), tokenizer: tokenizer}
+	resp.Body = &annotationInjector{src: src, tag: []byte(scriptTag), tokenizer: tokenizer, utf8Confirmed: utf8Confirmed}
 	// Injection can be declined after headers have been sent, so its length
 	// cannot be included in Content-Length in advance.
 	resp.ContentLength = -1
@@ -104,8 +75,9 @@ func injectAnnotationScript(resp *http.Response, scriptTag string) error {
 }
 
 const (
-	annotationMaxTokenBytes  = 64 << 10
-	annotationMaxPrefixBytes = 1 << 20
+	annotationMaxTokenBytes   = 64 << 10
+	annotationMaxPrefixBytes  = 1 << 20
+	annotationMaxCharsetBytes = 1024
 )
 
 // annotationSource retains errors returned alongside bytes. Switching from
@@ -134,10 +106,11 @@ type annotationInjector struct {
 	pending   []byte
 	rest      io.Reader
 
-	scanned     int
-	htmlSeen    bool
-	headStarted bool
-	rawTag      string
+	scanned       int
+	htmlSeen      bool
+	headStarted   bool
+	rawTag        string
+	utf8Confirmed bool
 }
 
 func (a *annotationInjector) Read(p []byte) (int, error) {
@@ -173,8 +146,30 @@ func (a *annotationInjector) fill() {
 		return
 	}
 
+	if !a.utf8Confirmed {
+		if a.scanned == len(a.pending) && bytes.HasPrefix(a.pending, []byte("\xef\xbb\xbf")) {
+			a.utf8Confirmed = true
+		} else {
+			// Without a transport charset, require a declaration in the first
+			// 1024 bytes, the browser's recommended prescan limit.
+			if a.scanned > annotationMaxCharsetBytes {
+				a.passthrough()
+				return
+			}
+			// Non-ASCII bytes and ISO-2022 escapes can change how the browser
+			// interprets markup. Lookup also trims vertical tabs from encoding
+			// labels, unlike browsers.
+			for _, b := range a.pending {
+				if b >= utf8.RuneSelf || b == '\x1b' || b == '\v' {
+					a.passthrough()
+					return
+				}
+			}
+		}
+	}
+
 	inject, valid := a.inspect(tt)
-	if inject {
+	if inject && a.utf8Confirmed {
 		a.pending = bytes.Join([][]byte{a.tag, a.pending}, nil)
 	}
 	if inject || !valid {
@@ -214,10 +209,30 @@ func (a *annotationInjector) inspect(tt xhtml.TokenType) (inject, valid bool) {
 		name, _ := a.tokenizer.TagName()
 		return string(name) == "head" && a.headStarted, false
 	case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
-		name, _ := a.tokenizer.TagName()
+		name, hasAttr := a.tokenizer.TagName()
 		switch string(name) {
-		case "base", "link", "meta":
+		case "base", "link":
 			a.headStarted = true
+			return false, true
+		case "meta":
+			a.headStarted = true
+			for hasAttr && !a.utf8Confirmed {
+				var key, value []byte
+				key, value, hasAttr = a.tokenizer.TagAttr()
+				if string(key) == "charset" || (string(key) == "http-equiv" && strings.EqualFold(string(value), "content-type")) {
+					// Character references can produce non-ASCII whitespace that
+					// charset.Lookup trims but the browser does not.
+					if bytes.IndexByte(a.pending, '&') >= 0 {
+						return false, false
+					}
+					// Inspect only a real meta token, never raw text or comments.
+					// The token is ASCII, so DetermineEncoding cannot guess UTF-8
+					// from text bytes when no declaration is present.
+					_, encoding, _ := charset.DetermineEncoding(a.pending, "")
+					a.utf8Confirmed = encoding == "utf-8"
+					return false, a.utf8Confirmed
+				}
+			}
 			return false, true
 		}
 		if tt == xhtml.SelfClosingTagToken {
@@ -234,7 +249,9 @@ func (a *annotationInjector) inspect(tt xhtml.TokenType) (inject, valid bool) {
 				return false, false
 			}
 			a.headStarted = true
-		case "script", "style", "title":
+		case "script", "style", "title", "noscript":
+			// With scripting enabled, noscript is raw text. Otherwise the
+			// injected script cannot run either.
 			a.headStarted = true
 			a.rawTag = string(name)
 		case "body":
