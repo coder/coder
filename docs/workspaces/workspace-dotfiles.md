@@ -78,6 +78,10 @@ On Windows workspaces:
 If any of the above files are found (in the specified order), Coder will try to execute the first match.
 After the first match is found, other files will be ignored.
 
+If none of the above files are found, Coder symlinks the files and directories in your dotfiles repo that start with `.` into your home directory, except `.git*` entries other than `.gitconfig`.
+If any of them already exists as a directory in your home directory, such as `~/.config`, the dotfiles setup fails without changing anything.
+Use a setup script to install directories like `.config`.
+
 On Windows workspaces, Coder runs the script with PowerShell and does not check for executable permissions.
 
 On non-Windows workspaces, the setup script must be executable, otherwise the dotfiles setup will fail.
