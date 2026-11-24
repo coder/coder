@@ -71,7 +71,7 @@ type LeasedRefreshOptions struct {
 	// caller holds the lease. Without it a held lease returns at once.
 	WaitForLease bool
 	// Force refreshes a token the MCP server rejected with HTTP 401,
-	// even when it is valid by the clock. Every refresh error then
+	// even when it is valid by the clock. Every token endpoint error then
 	// starts with "mcp server rejected the access token (HTTP 401)", so
 	// a stored failure reason says why the token was refreshed.
 	Force bool
@@ -138,24 +138,20 @@ type LeasedRefresh struct {
 	RefreshErr error
 }
 
-// RefreshOAuth2TokenWithLease refreshes an expired MCP user token, or
-// with opts.Force a rejected one, while holding the row's refresh lease,
-// so concurrent callers on any replica
-// never spend the same refresh token twice. Under the lease it reads the
-// row again: a row that another caller refreshed or marked is returned
-// without a provider call. An unchanged row after a wait for another
-// holder means that holder did not change the row, so it returns
-// LeasedRefreshFailed without a provider call rather than retrying the
-// provider once per waiting caller. Otherwise it refreshes with the
-// leased row's refresh token, then saves any successful answer or marks
-// a permanent failure, both only while the row and the lease are
-// unchanged.
-//
-// ctx carries the database subject for the lease, the save and the mark.
-// The lease wait ends with ctx, but the refresh, the save and the release
-// run on detached contexts that always end before the lease does.
-// Release errors are logged, never returned. Returned errors are
-// database errors.
+// RefreshOAuth2TokenWithLease refreshes an expired MCP user token, or with
+// opts.Force a rejected one, while holding the row's refresh lease, so
+// concurrent callers on any replica never spend the same refresh token
+// twice. Under the lease it reads the row again: a row that another caller
+// refreshed or marked is returned without a provider call. An unchanged row
+// after a wait for another holder means that holder did not change the row,
+// so it returns LeasedRefreshFailed without a provider call rather than
+// retrying the provider once per waiting caller. Otherwise it refreshes with
+// the leased row's refresh token, then saves any successful answer or marks
+// a permanent failure, both only while the row and the lease are unchanged.
+// ctx carries the database subject for the lease, the save and the mark. The
+// lease wait ends with ctx, but the refresh, the save and the release run on
+// detached contexts that always end before the lease does. Release errors
+// are logged, never returned. Returned errors are database errors.
 func RefreshOAuth2TokenWithLease(
 	ctx context.Context,
 	logger slog.Logger,

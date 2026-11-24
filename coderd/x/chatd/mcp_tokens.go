@@ -189,19 +189,18 @@ func (p *Server) newMCPTokenRefresher(
 	}
 }
 
-// RefreshRejected returns the token for the next connect after a 401.
-// A token that this step's expiry refresh just issued, or one without a
-// refresh token, is sent again as it is, which ConnectAllWithRefresh
-// does only after a short grace. An expired token without a refresh
-// token is marked for reconnect at once instead, because nothing can
-// make it valid again. A token whose expiry refresh failed in
-// this step, or that already had its forced refresh or its grace this
-// turn, gets no reconnect. Otherwise it refreshes the token whatever its
-// stored expiry, under the token's refresh lease; when the leased row
-// already holds another access token, it reconnects with that row
-// without a refresh. There is no reconnect when it cannot help: the
-// token is marked for reconnect or gone, or the refresh failed
-// temporarily.
+// RefreshRejected returns the token for the next connect after a 401. A
+// token that this step's expiry refresh just issued, or one without a
+// refresh token, is sent again as it is, which ConnectAllWithRefresh does
+// only after a short grace. An expired token without a refresh token is
+// marked for reconnect at once instead, because nothing can make it valid
+// again. A token whose expiry refresh failed in this step, or that already
+// had its forced refresh or its grace this turn, gets no reconnect.
+// Otherwise it refreshes the token whatever its stored expiry, under the
+// token's refresh lease; when the leased row already holds another access
+// token, it reconnects with that row without a refresh. There is no
+// reconnect when it cannot help: the token is marked for reconnect or gone,
+// or the refresh failed temporarily.
 func (r *mcpTokenRefresher) RefreshRejected(
 	ctx context.Context,
 	srv mcpclient.Server,
@@ -342,19 +341,18 @@ func (p *Server) currentMCPToken(
 	return tok, nil
 }
 
-// mcpTokenRefreshTracker allows each MCP OAuth2 token one attempt per
-// turn after a 401: a forced refresh, or a reconnect after the grace for
-// a token without a refresh token or one that the step's expiry refresh
-// just issued. A failed expiry refresh also spends the attempt. So an MCP
-// server that keeps rejecting a token costs one attempt per turn, not
-// one per step. It lives on the
-// runner, which keeps its chat across queued-message promotions, so
-// claims are keyed by the turn's prompt (see stopNudgeKey) and a new key
-// clears them. On one runner the key changes only with a newly inserted
-// prompt: a queued message promoted when a turn ends, or a steered
-// message delivered within a turn. A chat that stops running is
-// abandoned, and its next turn runs on a new runner. Tokens are keyed by
-// ID. A nil tracker allows every attempt.
+// mcpTokenRefreshTracker allows each MCP OAuth2 token one attempt per turn
+// after a 401: a forced refresh, or a reconnect after the grace for a token
+// without a refresh token or one that the step's expiry refresh just issued.
+// A failed expiry refresh also spends the attempt. So an MCP server that
+// keeps rejecting a token costs one attempt per turn, not one per step. It
+// lives on the runner, which keeps its chat across queued-message
+// promotions, so claims are keyed by the turn's prompt (see stopNudgeKey)
+// and a new key clears them. On one runner the key changes only with a newly
+// inserted prompt: a queued message promoted when a turn ends, or a steered
+// message delivered within a turn. A chat that stops running is abandoned,
+// and its next turn runs on a new runner. Tokens are keyed by ID. A nil
+// tracker allows every attempt.
 type mcpTokenRefreshTracker struct {
 	mu      sync.Mutex
 	turnKey int64

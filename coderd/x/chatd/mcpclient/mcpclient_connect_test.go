@@ -364,13 +364,14 @@ const (
 // requests that carry "Bearer "+accessToken, and answers any other request
 // with the recorded 401. answer, called once per request and never
 // concurrently, can override that. The returned counter counts the
-// requests not served.
+// requests not served, and the returned channel closes when a request
+// first reaches answerStall.
 func newAuthCheckingMCPServer(
 	t *testing.T,
 	transport mcpclient.Transport,
 	accessToken string,
 	answer func(connectRequest) connectAnswer,
-) (*httptest.Server, *atomic.Int32) {
+) (*httptest.Server, *atomic.Int32, <-chan struct{}) {
 	t.Helper()
 	srv := mcp.NewServer(&mcp.Implementation{Name: "authed", Version: "1.0.0"}, nil)
 	tool := echoTool()
@@ -384,9 +385,11 @@ func newAuthCheckingMCPServer(
 	}
 
 	var (
-		mu       sync.Mutex
-		unserved atomic.Int32
+		mu          sync.Mutex
+		unserved    atomic.Int32
+		stalledOnce sync.Once
 	)
+	stalled := make(chan struct{})
 	stop := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req := connectRequest{method: r.Method}
@@ -428,6 +431,7 @@ func newAuthCheckingMCPServer(
 		case answerInternalError:
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		case answerStall:
+			stalledOnce.Do(func() { close(stalled) })
 			select {
 			case <-r.Context().Done():
 			case <-stop:
@@ -441,7 +445,25 @@ func newAuthCheckingMCPServer(
 		ts.CloseClientConnections()
 		ts.Close()
 	})
-	return ts, &unserved
+	return ts, &unserved, stalled
+}
+
+// expireOnSignal is a context whose deadline passes when expired closes,
+// so a test can end a connect on a stalled request without a timer.
+type expireOnSignal struct {
+	context.Context
+	expired <-chan struct{}
+}
+
+func (c expireOnSignal) Done() <-chan struct{} { return c.expired }
+
+func (c expireOnSignal) Err() error {
+	select {
+	case <-c.expired:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
 }
 
 // TestConnectAll_UnauthorizedOutcome pins when a connect counts as an
@@ -533,7 +555,7 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 				if tc.revoked {
 					serverToken = "another-access-token"
 				}
-				ts, unserved := newAuthCheckingMCPServer(t, transport, serverToken, tc.answer())
+				ts, unserved, stalled := newAuthCheckingMCPServer(t, transport, serverToken, tc.answer())
 				srv := mcpclient.Server{
 					ID:        uuid.New(),
 					Slug:      "authed",
@@ -553,11 +575,10 @@ func TestConnectAll_UnauthorizedOutcome(t *testing.T) {
 				}
 				ctx := testutil.Context(t, testutil.WaitShort)
 				if want == string(mcpclient.ConnectOutcomeTimeout) {
-					// A deadline on ctx ends the connect like the 10 s connect
+					// The deadline passes once the server holds the stalled
+					// request, which ends the connect like the 10 s connect
 					// timeout does, without the wait.
-					var cancel context.CancelFunc
-					ctx, cancel = context.WithTimeout(ctx, testutil.IntervalSlow)
-					t.Cleanup(cancel)
+					ctx = expireOnSignal{Context: ctx, expired: stalled}
 				}
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
@@ -620,7 +641,7 @@ func TestConnectAllWithRefresh_RejectedTokenGrace(t *testing.T) {
 			// The server rejects the token until its token store catches
 			// up, which the test makes happen during the grace.
 			var caughtUp atomic.Bool
-			ts, _ := newAuthCheckingMCPServer(t, mcpclient.TransportStreamableHTTP, accessToken, func(connectRequest) connectAnswer {
+			ts, _, _ := newAuthCheckingMCPServer(t, mcpclient.TransportStreamableHTTP, accessToken, func(connectRequest) connectAnswer {
 				if caughtUp.Load() {
 					return answerServe
 				}

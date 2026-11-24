@@ -639,13 +639,12 @@ type reconnectTurnWant struct {
 	graceWaits int
 }
 
-// TestMCPServerOAuth2Reconnect401 runs full chat turns against an MCP
-// server that rejects the stored OAuth access token with a 401. A turn
-// refreshes the token once, even before its stored expiry, and reconnects
-// once; a token that is still rejected after a short grace is marked for
-// reconnect, so the MCP server list reports it as not connected. The
-// grace runs on a mock clock that the env advances at once. Token
-// endpoint calls are HTTP
+// TestMCPServerOAuth2Reconnect401 runs full chat turns against an MCP server
+// that rejects the stored OAuth access token with a 401. A turn refreshes
+// the token once, even before its stored expiry, and reconnects once; a
+// token that is still rejected after a short grace is marked for reconnect,
+// so the MCP server list reports it as not connected. The grace runs on a
+// mock clock that the env advances at once. Token endpoint calls are HTTP
 // calls: golang.org/x/oauth2 retries every failed token request once with
 // the other client auth style, so a failed refresh attempt is 2 calls.
 func TestMCPServerOAuth2Reconnect401(t *testing.T) {
@@ -768,7 +767,7 @@ func TestMCPServerOAuth2Reconnect401(t *testing.T) {
 			skipFirstRejection: true,
 		},
 		{
-			// The failed expiry refresh counts as the step's attempt, so
+			// The failed expiry refresh counts as the turn's attempt, so
 			// the 401 for the expired token triggers no forced refresh.
 			name:          "11 expired token and token endpoint 503",
 			expiry:        hourAgo,
