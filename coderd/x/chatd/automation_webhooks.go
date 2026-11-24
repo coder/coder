@@ -87,7 +87,7 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 		if envelope.Error != nil && eventErrorActions[envelope.Error.Code].terminate != "" {
 			reason = eventErrorActions[envelope.Error.Code].terminate
 		}
-		err = p.endSubscription(ctx, automationID, reason)
+		err = p.endSubscription(ctx, automationID, sql.NullTime{}, reason)
 	case "":
 		var event mcpclient.EventOccurrence
 		if err := json.Unmarshal(body, &event); err != nil || event.EventID == "" || event.Name != sub.EventName {
@@ -191,7 +191,7 @@ func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 // the grant. For an owner whose runs are refused, the lease retries.
 func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMCPSubscription) {
 	if !sub.MCPServerConfigID.Valid {
-		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPServerUnavailable)
+		p.terminateSubscription(ctx, sub.AutomationID, sql.NullTime{}, runReasonMCPServerUnavailable)
 		return
 	}
 	automation, err := p.db.GetChatAutomationByID(ctx, sub.AutomationID)
@@ -228,7 +228,7 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 	if err == nil || errors.Is(err, errSubscriptionInactive) {
 		return
 	}
-	p.handleEventError(ctx, sub.AutomationID, err, conn, func(now time.Time, backoff time.Duration, message string) error {
+	p.handleEventError(ctx, sub.AutomationID, sql.NullTime{}, err, conn, func(now time.Time, backoff time.Duration, message string) error {
 		return p.db.SetChatAutomationWebhookRenewAt(ctx, database.SetChatAutomationWebhookRenewAtParams{
 			AutomationID: sub.AutomationID,
 			RenewAt:      now.Add(backoff),

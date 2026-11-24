@@ -77,7 +77,9 @@ WHERE automation_id = @automation_id::uuid;
 -- name: UpdateChatAutomationMCPCursor :execrows
 -- Records a delivery or a failed poll of an active subscription of an enabled
 -- automation: the cursor to resume from, the next poll and the error. A NULL
--- cursor or next poll keeps the stored one; a NULL error clears it.
+-- cursor or next poll keeps the stored one; a NULL error clears it. A poll's
+-- delivery passes its lease, and updates nothing once the subscription no
+-- longer holds it.
 UPDATE chat_automation_mcp_subscriptions s
 SET
     cursor = COALESCE(sqlc.narg('cursor')::text, s.cursor),
@@ -85,12 +87,22 @@ SET
     last_error = sqlc.narg('last_error')::text,
     updated_at = @now::timestamptz
 FROM chat_automations a
-WHERE s.automation_id = @automation_id::uuid AND s.state = 'active' AND a.id = s.automation_id AND a.enabled;
+WHERE
+    s.automation_id = @automation_id::uuid
+    AND s.state = 'active'
+    AND a.id = s.automation_id
+    AND a.enabled
+    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR s.next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: TerminateChatAutomationMCPSubscription :execrows
+-- Ends a pending or active subscription. A poll passes its lease, and ends
+-- nothing once the subscription no longer holds it.
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = @reason::text, updated_at = @now::timestamptz
-WHERE automation_id = @automation_id::uuid AND state <> 'terminated';
+WHERE
+    automation_id = @automation_id::uuid
+    AND state <> 'terminated'
+    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: InsertChatAutomationInboxEvents :execrows
 -- Appends @events, a JSON array of MCP event occurrences, in their order. An

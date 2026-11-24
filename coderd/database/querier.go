@@ -1660,6 +1660,8 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	// Ends a pending or active subscription. A poll passes its lease, and ends
+	// nothing once the subscription no longer holds it.
 	TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
@@ -1686,8 +1688,9 @@ type sqlcQuerier interface {
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	// Setting the current state keeps the schedule and updated_at, so the
 	// caller still needs update permission and a run in flight is not voided.
-	// Turning an automation on clears the cursor of its MCP event subscription,
-	// so that polls resume from now and events missed meanwhile do not run.
+	// Turning an automation on clears the cursor of its MCP event subscription
+	// and makes its poll due, so that polls resume from now, events missed
+	// meanwhile do not run, and a poll still in flight is voided.
 	UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error)
 	// updated_at tracks changes by people, so a run leaves it alone. A run that
 	// was not accepted is recorded only while the automation is still enabled and
@@ -1696,7 +1699,9 @@ type sqlcQuerier interface {
 	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
 	// Records a delivery or a failed poll of an active subscription of an enabled
 	// automation: the cursor to resume from, the next poll and the error. A NULL
-	// cursor or next poll keeps the stored one; a NULL error clears it.
+	// cursor or next poll keeps the stored one; a NULL error clears it. A poll's
+	// delivery passes its lease, and updates nothing once the subscription no
+	// longer holds it.
 	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
 	// Stores what an events/subscribe call returned and activates the
 	// subscription, unless renew_at moved off @lease during the call, as a reset

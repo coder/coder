@@ -69,14 +69,26 @@ func newEventsTestServer(t *testing.T, extensions map[string]any) *eventsTestSer
 	eventType := func(name, inputSchema string) mcpclient.EventType {
 		return mcpclient.EventType{Name: name, Delivery: []mcpclient.DeliveryMode{mcpclient.DeliveryPoll}, InputSchema: json.RawMessage(inputSchema)}
 	}
+	annotated := func(n int) string {
+		props := make([]string, n)
+		for i := range props {
+			props[i] = fmt.Sprintf(`"p%d":{"type":"string","x-mcp-header":"H%d"}`, i, i)
+		}
+		return `{"type":"object","properties":{` + strings.Join(props, ",") + `}}`
+	}
 	pages := map[string]*eventsTestList{
 		"": {NextCursor: "page2", Events: []mcpclient.EventType{
-			eventType("a.created", `{"type":"object","properties":{"region":{"type":"string","x-mcp-header":"Region"},"filter":{"type":"object","properties":{"team":{"type":"string","x-mcp-header":"Team"}}}}}`),
+			eventType("a.created", `{"type":"object","properties":{"region":{"type":"string","x-mcp-header":"Region"},"filter":{"type":"object","properties":{"team":{"type":"string","x-mcp-header":"Team"}}},"source":{"type":"object","properties":{"repo":{"type":"object","properties":{"owner":{"type":"object","properties":{"login":{"type":"string","x-mcp-header":"Login"},"kind":{"type":"string","x-mcp-header":"Kind"}}}}}}}}}`),
 			eventType("bad.items", `{"type":"object","properties":{"tags":{"type":"array","items":{"type":"string","x-mcp-header":"Tag"}}}}`),
 			eventType("bad.number", `{"type":"object","properties":{"limit":{"type":"number","x-mcp-header":"Limit"}}}`),
 			eventType("bad.repeat", `{"type":"object","properties":{"a":{"type":"string","x-mcp-header":"Key"},"b":{"type":"string","x-mcp-header":"key"}}}`),
 		}},
-		"page2": {Events: []mcpclient.EventType{eventType("b.created", `{"type":"object"}`)}},
+		"page2": {Events: []mcpclient.EventType{eventType("b.created", `{"type":"object"}`), eventType("bad.many", annotated(33))}},
+	}
+	// A type keeps at most 32 annotations and a list 1024: bad.many has
+	// one too many, and full.31 would pass 1024 after a.created's 4.
+	for i := range 32 {
+		pages["page2"].Events = append(pages["page2"].Events, eventType(fmt.Sprintf("full.%d", i), annotated(32)))
 	}
 	require.NoError(t, errors.Join(
 		mcp.AddReceivingCustomMethod(srv, "events/list", func(_ context.Context, _ *mcp.ServerSession, p *eventsTestParams) (*eventsTestList, error) {
@@ -138,7 +150,10 @@ func connectEventsTest(t *testing.T, es *eventsTestServer) *mcpclient.EventsSess
 
 func TestEventsRequests(t *testing.T) {
 	t.Parallel()
-	args := map[string]any{"region": "Hello, 世界", "filter": map[string]string{"team": "core"}, "other": 1}
+	args := map[string]any{
+		"region": "Hello, 世界", "filter": map[string]string{"team": "core"}, "other": 1,
+		"source": map[string]any{"repo": map[string]any{"owner": map[string]any{"login": "octo", "kind": "org"}}},
+	}
 	hook := "https://coder.example.com/hook"
 	cases := []struct {
 		method string
@@ -189,6 +204,9 @@ func TestEventsRequests(t *testing.T) {
 			// The encoded form is the example in the transport's Value Encoding table.
 			assert.Equal(t, "=?base64?SGVsbG8sIOS4lueVjA==?=", req.header.Get("Mcp-Param-Region"))
 			assert.Equal(t, "core", req.header.Get("Mcp-Param-Team"))
+			// Sibling leaves four levels deep each keep their own path.
+			assert.Equal(t, "octo", req.header.Get("Mcp-Param-Login"))
+			assert.Equal(t, "org", req.header.Get("Mcp-Param-Kind"))
 			for key, want := range tc.params {
 				assert.JSONEq(t, want, string(req.params[key]), key)
 			}
@@ -207,7 +225,11 @@ func TestEventsList(t *testing.T) {
 	for _, et := range types {
 		names = append(names, et.Name)
 	}
-	assert.Equal(t, []string{"a.created", "b.created"}, names)
+	want := []string{"a.created", "b.created"}
+	for i := range 31 {
+		want = append(want, fmt.Sprintf("full.%d", i))
+	}
+	assert.Equal(t, want, names)
 }
 
 func TestEventsTokenForAnotherServer(t *testing.T) {

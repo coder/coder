@@ -6582,17 +6582,28 @@ func (q *sqlQuerier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg Set
 const terminateChatAutomationMCPSubscription = `-- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
-WHERE automation_id = $3::uuid AND state <> 'terminated'
+WHERE
+    automation_id = $3::uuid
+    AND state <> 'terminated'
+    AND ($4::timestamptz IS NULL OR next_poll_at = $4::timestamptz)
 `
 
 type TerminateChatAutomationMCPSubscriptionParams struct {
-	Reason       string    `db:"reason" json:"reason"`
-	Now          time.Time `db:"now" json:"now"`
-	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	Reason       string       `db:"reason" json:"reason"`
+	Now          time.Time    `db:"now" json:"now"`
+	AutomationID uuid.UUID    `db:"automation_id" json:"automation_id"`
+	LeaseUntil   sql.NullTime `db:"lease_until" json:"lease_until"`
 }
 
+// Ends a pending or active subscription. A poll passes its lease, and ends
+// nothing once the subscription no longer holds it.
 func (q *sqlQuerier) TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription, arg.Reason, arg.Now, arg.AutomationID)
+	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription,
+		arg.Reason,
+		arg.Now,
+		arg.AutomationID,
+		arg.LeaseUntil,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -6607,7 +6618,12 @@ SET
     last_error = $3::text,
     updated_at = $4::timestamptz
 FROM chat_automations a
-WHERE s.automation_id = $5::uuid AND s.state = 'active' AND a.id = s.automation_id AND a.enabled
+WHERE
+    s.automation_id = $5::uuid
+    AND s.state = 'active'
+    AND a.id = s.automation_id
+    AND a.enabled
+    AND ($6::timestamptz IS NULL OR s.next_poll_at = $6::timestamptz)
 `
 
 type UpdateChatAutomationMCPCursorParams struct {
@@ -6616,11 +6632,14 @@ type UpdateChatAutomationMCPCursorParams struct {
 	LastError    sql.NullString `db:"last_error" json:"last_error"`
 	Now          time.Time      `db:"now" json:"now"`
 	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+	LeaseUntil   sql.NullTime   `db:"lease_until" json:"lease_until"`
 }
 
 // Records a delivery or a failed poll of an active subscription of an enabled
 // automation: the cursor to resume from, the next poll and the error. A NULL
-// cursor or next poll keeps the stored one; a NULL error clears it.
+// cursor or next poll keeps the stored one; a NULL error clears it. A poll's
+// delivery passes its lease, and updates nothing once the subscription no
+// longer holds it.
 func (q *sqlQuerier) UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatAutomationMCPCursor,
 		arg.Cursor,
@@ -6628,6 +6647,7 @@ func (q *sqlQuerier) UpdateChatAutomationMCPCursor(ctx context.Context, arg Upda
 		arg.LastError,
 		arg.Now,
 		arg.AutomationID,
+		arg.LeaseUntil,
 	)
 	if err != nil {
 		return 0, err
@@ -6959,7 +6979,9 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 const updateChatAutomationEnabled = `-- name: UpdateChatAutomationEnabled :one
 WITH resumed AS (
     UPDATE chat_automation_mcp_subscriptions s
-    SET cursor = NULL
+    SET
+        cursor = NULL,
+        next_poll_at = CASE WHEN s.delivery = 'poll' THEN $3::timestamptz END
     FROM chat_automations a
     WHERE s.automation_id = $4::uuid AND a.id = s.automation_id AND NOT a.enabled AND $1::boolean
 )
@@ -6985,8 +7007,9 @@ type UpdateChatAutomationEnabledParams struct {
 
 // Setting the current state keeps the schedule and updated_at, so the
 // caller still needs update permission and a run in flight is not voided.
-// Turning an automation on clears the cursor of its MCP event subscription,
-// so that polls resume from now and events missed meanwhile do not run.
+// Turning an automation on clears the cursor of its MCP event subscription
+// and makes its poll due, so that polls resume from now, events missed
+// meanwhile do not run, and a poll still in flight is voided.
 func (q *sqlQuerier) UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error) {
 	row := q.db.QueryRowContext(ctx, updateChatAutomationEnabled,
 		arg.Enabled,
