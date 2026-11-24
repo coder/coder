@@ -139,7 +139,7 @@ it("requests the default organization and switches organizations from the first 
 
 	await user.click(
 		screen.getByRole("combobox", {
-			name: `Organization ${MockOrganization.display_name}`,
+			name: `Organization: ${MockOrganization.display_name}`,
 		}),
 	);
 	await user.click(

@@ -112,7 +112,7 @@ export const OrganizationMenu: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("combobox", {
-				name: `Organization ${MockOrganization.display_name}`,
+				name: `Organization: ${MockOrganization.display_name}`,
 			}),
 		);
 	},

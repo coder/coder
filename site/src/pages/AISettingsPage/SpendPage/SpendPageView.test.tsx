@@ -48,7 +48,7 @@ it("reports the organization picked from the switcher", async () => {
 
 	await user.click(
 		screen.getByRole("combobox", {
-			name: `Organization ${MockOrganization.display_name}`,
+			name: `Organization: ${MockOrganization.display_name}`,
 		}),
 	);
 	await user.click(

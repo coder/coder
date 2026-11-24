@@ -1,10 +1,7 @@
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	ClientFilter,
 	type ClientFilterMenu,
@@ -55,10 +52,7 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 			{organizations.length > 1 && (
 				<OrganizationAutocomplete
 					value={organization}
-					ariaLabel={`Organization ${getOrganizationLabel(
-						organization,
-						organizations,
-					)}`}
+					label="Organization"
 					options={organizations}
 					triggerClassName="basis-[150px] grow"
 					optionsTabbable
