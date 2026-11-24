@@ -238,7 +238,7 @@ const ProjectsPage: React.FC = () => {
 						summariesQuery.refetch(),
 						memberCountsQuery.refetch(),
 					]);
-					// The loaded grid replaces Retry, so focus moves to New project.
+					// A successful retry removes Retry, so focus moves to New project.
 					if (results.every(({ isSuccess }) => isSuccess)) {
 						requestAnimationFrame(() => newProjectButtonRef.current?.focus());
 					}
