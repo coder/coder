@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import isEqual from "lodash/isEqual";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
@@ -514,12 +513,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		chatId,
 		selectedWorkspaceId ?? undefined,
 	);
-	// Workspace file references preserved from the message being
-	// edited. They are already uploaded; editing only re-references
-	// them (or drops them when the chip is removed).
-	const [preservedWorkspaceUploads, setPreservedWorkspaceUploads] = useState<
-		readonly WorkspaceFileUpload[]
-	>([]);
+	// Preserved references the user removed, for the edited blocks and
+	// workspace binding they were removed from.
+	const [removedPreservedUploads, setRemovedPreservedUploads] = useState<{
+		blocks: readonly TypesGen.ChatMessagePart[];
+		workspaceId: string | null;
+		ids: readonly string[];
+	} | null>(null);
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -556,25 +556,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			resetEditAttachments();
 		}
 	}, [organizationId, chatId, resetEditAttachments]);
-
-	// Preserved references point at files inside the bound workspace's
-	// filesystem. Rebinding or clearing the workspace mid-edit makes
-	// them unreadable for the agent, so drop them (regular attachments
-	// are chat files and survive workspace changes). Scope tracks the
-	// chat's bound workspace ID, not the async-loaded workspace
-	// object, which resolves after mount without a rebind. A chat scope
-	// change drops them too.
-	const preservedScopeInputs = {
-		organizationId,
-		chatId,
-		workspaceId: selectedWorkspaceId,
-	};
-
-	const [preservedScope, setPreservedScope] = useState(preservedScopeInputs);
-	if (!isEqual(preservedScopeInputs, preservedScope)) {
-		setPreservedScope(preservedScopeInputs);
-		setPreservedWorkspaceUploads([]);
-	}
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
@@ -623,59 +604,35 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setEditUploadStates,
 	]);
 
-	// Workspace file references from the edited message become
-	// preserved (already-uploaded) entries so they survive the
-	// edit unless explicitly removed. Only references uploaded to
-	// the currently bound workspace qualify: after a rebind the
-	// old paths are unreadable for the agent and the server
-	// rejects them. Compare against the chat's bound workspace ID
-	// (available with the chat record) rather than the
-	// async-loaded workspace object, whose late resolution would
-	// otherwise drop references hydrated before it arrived.
-	// Kept separate from the attachment hydration above, applied after
-	// the scope drop above so a rehydration wins, and keyed on the
-	// blocks reference plus the workspace binding: a rebind mid-edit
-	// only recomputes the references (ordinary attachments added during
-	// the edit survive), a failed edit submission restores the same
-	// array on rollback (same key, no rehydration, so uploads added
-	// mid-edit survive), and rebinding the workspace away and back
-	// rehydrates so references valid for the restored binding reappear.
-	// Editing a different message passes a fresh array.
-	const [hydratedEditBlocks, setHydratedEditBlocks] = useState<{
-		blocks: readonly TypesGen.ChatMessagePart[];
-		workspaceId: string | null;
-	} | null>(null);
+	// Workspace file references from the edited message, already
+	// uploaded, so editing only re-references them unless their chip is
+	// removed. Only references uploaded to the chat's bound workspace
+	// qualify: other paths are unreadable for the agent and the server
+	// rejects them.
+	const removedPreservedIds =
+		removedPreservedUploads?.blocks === editingFileBlocks &&
+		removedPreservedUploads.workspaceId === selectedWorkspaceId
+			? removedPreservedUploads.ids
+			: [];
+	const preservedWorkspaceUploads = isEditing
+		? getPreservedWorkspaceUploads(
+				editingFileBlocks,
+				selectedWorkspaceId,
+			).filter((upload) => !removedPreservedIds.includes(upload.id))
+		: [];
 
-	if (
-		isEditing &&
-		(hydratedEditBlocks === null ||
-			hydratedEditBlocks.blocks !== editingFileBlocks ||
-			hydratedEditBlocks.workspaceId !== selectedWorkspaceId)
-	) {
-		setHydratedEditBlocks({
-			blocks: editingFileBlocks,
-			workspaceId: selectedWorkspaceId,
-		});
-		setPreservedWorkspaceUploads(
-			getPreservedWorkspaceUploads(editingFileBlocks, selectedWorkspaceId),
-		);
-	}
-
-	// Each hydration also drops uploads added to the edit bucket. The
-	// reset aborts in-flight uploads, so it runs from an effect rather
-	// than during render; the ref makes it run once per hydration.
-	const lastResetHydrationRef = useRef(hydratedEditBlocks);
+	// Uploads added while editing one message are dropped when another
+	// message is edited. A failed edit restores the same blocks, so its
+	// uploads survive for retry.
+	const editUploadsBlocksRef = useRef(editingFileBlocks);
 	useEffect(() => {
-		if (
-			hydratedEditBlocks === null ||
-			lastResetHydrationRef.current === hydratedEditBlocks
-		) {
+		if (!isEditing || editUploadsBlocksRef.current === editingFileBlocks) {
 			return;
 		}
 
-		lastResetHydrationRef.current = hydratedEditBlocks;
+		editUploadsBlocksRef.current = editingFileBlocks;
 		resetEditWorkspaceUploads();
-	}, [hydratedEditBlocks, resetEditWorkspaceUploads]);
+	}, [isEditing, editingFileBlocks, resetEditWorkspaceUploads]);
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
@@ -695,10 +652,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		wasEditingRef.current = false;
-		setHydratedEditBlocks(null);
 		resetEditAttachments();
 		resetEditWorkspaceUploads();
-		setPreservedWorkspaceUploads([]);
 	}, [
 		isEditing,
 		isSendPending,
@@ -740,9 +695,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			isEditing &&
 			preservedWorkspaceUploads.some((upload) => upload.id === id)
 		) {
-			setPreservedWorkspaceUploads((current) =>
-				current.filter((upload) => upload.id !== id),
-			);
+			setRemovedPreservedUploads({
+				blocks: editingFileBlocks,
+				workspaceId: selectedWorkspaceId,
+				ids: [...removedPreservedIds, id],
+			});
 			return;
 		}
 		modeWorkspaceUploads.remove(id);
@@ -855,7 +812,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
 					} else {
 						for (const file of attachments) {
 							composeAttachments.handleRemoveAttachment(file);
