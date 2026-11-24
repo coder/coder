@@ -261,9 +261,9 @@ func jsonbGrowth(value any) (int64, bool) {
 }
 
 // terminateSubscription ends a subscription for good, tells the chat in its
-// inbox and records the reason as a refused run. A poll passes its lease.
-// Terminating an inactive subscription, or one whose poll a re-enable voided,
-// changes nothing.
+// inbox and records the reason as a refused run. A poll or a webhook renewal
+// passes its lease. Terminating an inactive subscription, or one whose lease
+// a re-enable or a rebind replaced, changes nothing.
 func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UUID, lease sql.NullTime, reason runReason) {
 	if err := p.endSubscription(ctx, automationID, lease, reason); err != nil && ctx.Err() == nil {
 		p.logger.Warn(ctx, "terminate chat automation subscription", slog.F("automation_id", automationID), slog.Error(err))
@@ -479,8 +479,8 @@ func (p *Server) handlePollError(ctx context.Context, sub database.ClaimDueChatA
 
 // handleEventError terminates the subscription, or records the error and
 // retries after the backoff that eventErrorActions gives, through retry. A
-// poll passes its lease. The backoff starts now, not at the tick, whose calls
-// can take up to eventPollBudget.
+// poll or a webhook renewal passes its lease. The backoff starts now, not at
+// the tick, whose calls can take up to eventPollBudget.
 func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, lease sql.NullTime, err error, conn *eventsConn, retry func(now time.Time, backoff time.Duration, message string) error) {
 	if ctx.Err() != nil {
 		return

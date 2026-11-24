@@ -6598,7 +6598,8 @@ SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
 WHERE
     automation_id = $3::uuid
     AND state <> 'terminated'
-    AND ($4::timestamptz IS NULL OR next_poll_at = $4::timestamptz)
+    AND ($4::timestamptz IS NULL
+        OR CASE WHEN delivery = 'poll' THEN next_poll_at ELSE renew_at END = $4::timestamptz)
 `
 
 type TerminateChatAutomationMCPSubscriptionParams struct {
@@ -6608,8 +6609,8 @@ type TerminateChatAutomationMCPSubscriptionParams struct {
 	LeaseUntil   sql.NullTime `db:"lease_until" json:"lease_until"`
 }
 
-// Ends a pending or active subscription. A poll passes its lease, and ends
-// nothing once the subscription no longer holds it.
+// Ends a pending or active subscription. A poll or a webhook renewal passes
+// its lease, and ends nothing once the subscription no longer holds it.
 func (q *sqlQuerier) TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription,
 		arg.Reason,

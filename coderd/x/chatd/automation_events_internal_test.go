@@ -82,6 +82,8 @@ type fakeEventsServer struct {
 	receive       func(callbackURL string, header http.Header, body []byte) (int, string)
 	// noEvents serves a server that no longer offers the events extension.
 	noEvents bool
+	// onRequest runs once, at the next HTTP request, before the answer.
+	onRequest func()
 }
 
 // signWebhook signs body as a Standard Webhooks sender of the fake
@@ -156,8 +158,12 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 	withoutEvents := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return plain }, &mcp.StreamableHTTPOptions{Stateless: true})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
-		unauthorized, dropConn, jsonResponse, ssePad, noEvents := fake.unauthorized, fake.dropConn, fake.jsonResponse, fake.ssePad, fake.noEvents
+		unauthorized, dropConn, jsonResponse, ssePad, noEvents, onRequest := fake.unauthorized, fake.dropConn, fake.jsonResponse, fake.ssePad, fake.noEvents, fake.onRequest
+		fake.onRequest = nil
 		fake.mu.Unlock()
+		if onRequest != nil {
+			onRequest()
+		}
 		switch {
 		case noEvents:
 			withoutEvents.ServeHTTP(w, r)
@@ -536,6 +542,18 @@ func TestAutomationEvents(t *testing.T) {
 
 	t.Run("WebhookRevoked", func(t *testing.T) {
 		t.Parallel()
+		// A rebind during a renewal that the old server refuses keeps the
+		// subscription for the new server.
+		reboundDuringRefusal := func(refuse func(*fakeEventsServer)) func(context.Context, fixture, uuid.UUID) error {
+			return func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				f.events.mu.Lock()
+				refuse(f.events)
+				f.events.onRequest = func() { _ = f.worker.db.ResetChatAutomationMCPSubscriptions(ctx, f.config.ID) }
+				f.events.mu.Unlock()
+				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
+				return nil
+			}
+		}
 		for _, tc := range []struct {
 			name   string
 			status int
@@ -592,6 +610,8 @@ func TestAutomationEvents(t *testing.T) {
 				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
 				return nil
 			}},
+			{"ReboundDuringUnsupportedRenewal", http.StatusServiceUnavailable, reboundDuringRefusal(func(e *fakeEventsServer) { e.noEvents = true })},
+			{"ReboundDuringForbiddenRenewal", http.StatusServiceUnavailable, reboundDuringRefusal(func(e *fakeEventsServer) { e.subscribeCode = -32024 })},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

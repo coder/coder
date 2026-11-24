@@ -188,7 +188,9 @@ func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 }
 
 // renewWebhook subscribes sub with its stored cursor and secret and stores
-// the grant. For an owner whose runs are refused, the lease retries.
+// the grant. For an owner whose runs are refused, the lease retries. A refusal
+// ends the subscription only under the lease, so that a rebind during the call
+// keeps it for the new server; a deleted config never comes back.
 func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMCPSubscription) {
 	if !sub.MCPServerConfigID.Valid {
 		p.terminateSubscription(ctx, sub.AutomationID, sql.NullTime{}, runReasonMCPServerUnavailable)
@@ -229,10 +231,10 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 	case err == nil || errors.Is(err, errSubscriptionInactive):
 		return
 	case errors.Is(err, mcpclient.ErrEventsUnsupported):
-		p.terminateSubscription(ctx, sub.AutomationID, sql.NullTime{}, runReasonMCPEventUnsupported)
+		p.terminateSubscription(ctx, sub.AutomationID, sub.RenewAt, runReasonMCPEventUnsupported)
 		return
 	}
-	p.handleEventError(ctx, sub.AutomationID, sql.NullTime{}, err, conn, func(now time.Time, backoff time.Duration, message string) error {
+	p.handleEventError(ctx, sub.AutomationID, sub.RenewAt, err, conn, func(now time.Time, backoff time.Duration, message string) error {
 		return p.db.SetChatAutomationWebhookRenewAt(ctx, database.SetChatAutomationWebhookRenewAtParams{
 			AutomationID: sub.AutomationID,
 			RenewAt:      now.Add(backoff),
