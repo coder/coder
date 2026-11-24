@@ -57,6 +57,7 @@ const renderProjectFolders = (
 				<ProjectFolders
 					pinnedProjects={projects.map((project) => ({
 						...MockChatProjectSummary,
+						project_id: project.id,
 						project,
 					}))}
 					dragInstructionsId="drag-instructions"
