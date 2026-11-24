@@ -75,9 +75,10 @@ func (p *Server) claimDueSchedules(ctx context.Context, now time.Time) ([]databa
 // too late is skipped as missed and not replayed.
 func (p *Server) runScheduleOccurrence(ctx context.Context, automation database.ChatAutomation, now time.Time) {
 	if now.Sub(automation.ScheduleNextRunAt.Time) > scheduleMissedAfter {
-		p.recordAutomationRun(ctx, automation.ID, AutomationRunResult{
-			Outcome: database.ChatAutomationRunOutcomeSkipped,
+		p.recordAutomationRun(ctx, automation, AutomationRunResult{
+			Outcome: runReasonOutcome[runReasonMissed],
 			Reason:  string(runReasonMissed),
+			ChatID:  automation.TargetChatID,
 		})
 		return
 	}

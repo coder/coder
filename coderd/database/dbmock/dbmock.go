@@ -10895,11 +10895,12 @@ func (mr *MockStoreMockRecorder) UpdateChatAutomationEnabled(ctx, arg any) *gomo
 }
 
 // UpdateChatAutomationLastRun mocks base method.
-func (m *MockStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
+func (m *MockStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateChatAutomationLastRun", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateChatAutomationLastRun indicates an expected call of UpdateChatAutomationLastRun.

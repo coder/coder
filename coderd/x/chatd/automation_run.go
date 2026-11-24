@@ -45,6 +45,7 @@ const (
 	runReasonTargetForbidden    runReason = "target_forbidden"
 	runReasonModelUnavailable   runReason = "model_unavailable"
 	runReasonPromptHookDenied   runReason = "prompt_hook_denied"
+	runReasonPromptHookFailed   runReason = "prompt_hook_failed"
 )
 
 // runReasonOutcome is skipped when a later run can succeed without a change,
@@ -53,6 +54,7 @@ var runReasonOutcome = map[runReason]database.ChatAutomationRunOutcome{
 	runReasonChatBusy:           database.ChatAutomationRunOutcomeSkipped,
 	runReasonMissed:             database.ChatAutomationRunOutcomeSkipped,
 	runReasonOverlap:            database.ChatAutomationRunOutcomeSkipped,
+	runReasonPromptHookFailed:   database.ChatAutomationRunOutcomeSkipped,
 	runReasonOwnerInactive:      database.ChatAutomationRunOutcomeRefused,
 	runReasonExperimentDisabled: database.ChatAutomationRunOutcomeRefused,
 	runReasonTargetUnavailable:  database.ChatAutomationRunOutcomeRefused,
@@ -108,24 +110,33 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 		result.Outcome = runReasonOutcome[reason]
 		result.Reason = string(reason)
 	}
-	p.recordAutomationRun(ctx, automation.ID, result)
+	if !p.recordAutomationRun(ctx, automation, result) {
+		return AutomationRunResult{}, ErrAutomationChanged
+	}
 	return result, nil
 }
 
-// recordAutomationRun writes the last run. It runs after the run's
+// recordAutomationRun writes the last run and reports false when an
+// automation that was disabled or changed since the run read it kept a run
+// that was not accepted from being recorded. It runs after the run's
 // transaction, so a run never writes an automation row while it holds a
 // chat row. A failed write does not change the outcome.
-func (p *Server) recordAutomationRun(ctx context.Context, id uuid.UUID, result AutomationRunResult) {
-	err := p.db.UpdateChatAutomationLastRun(ctx, database.UpdateChatAutomationLastRunParams{
-		ID:             id,
+func (p *Server) recordAutomationRun(ctx context.Context, read database.ChatAutomation, result AutomationRunResult) bool {
+	recorded, err := p.db.UpdateChatAutomationLastRun(ctx, database.UpdateChatAutomationLastRunParams{
+		ID:             read.ID,
 		LastRunAt:      dbtime.Time(p.clock.Now("chatd", "automation-run")),
 		LastRunOutcome: result.Outcome,
 		LastRunReason:  sql.NullString{String: result.Reason, Valid: result.Reason != ""},
 		LastRunChatID:  result.ChatID,
+		ReadUpdatedAt:  read.UpdatedAt,
 	})
-	if err != nil && ctx.Err() == nil {
-		p.logger.Warn(ctx, "record chat automation run", slog.F("automation_id", id), slog.Error(err))
+	if err != nil {
+		if ctx.Err() == nil {
+			p.logger.Warn(ctx, "record chat automation run", slog.F("automation_id", read.ID), slog.Error(err))
+		}
+		return true
 	}
+	return recorded > 0 || result.Outcome == database.ChatAutomationRunOutcomeAccepted
 }
 
 // deliverAutomation checks the owner and sends the prompt to the target. It
@@ -282,7 +293,10 @@ func lockAutomationForRun(ctx context.Context, store database.Store, read databa
 	if err != nil {
 		return xerrors.Errorf("get chat automation: %w", err)
 	}
-	if !current.Enabled || !current.UpdatedAt.Equal(read.UpdatedAt) {
+	// Deleting the target chat or the project clears its column without
+	// touching updated_at.
+	if !current.Enabled || !current.UpdatedAt.Equal(read.UpdatedAt) ||
+		current.TargetChatID != read.TargetChatID || current.ProjectID != read.ProjectID {
 		return ErrAutomationChanged
 	}
 	return nil
@@ -314,8 +328,11 @@ func runReasonForError(err error) (reason runReason, ok bool) {
 		return runReasonTargetForbidden, true
 	case errors.Is(err, ErrInvalidModelConfigID), errors.Is(err, ErrNoDefaultChatModelConfig):
 		return runReasonModelUnavailable, true
-	case errors.As(err, &denied), errors.As(err, &dispatchErr):
+	case errors.As(err, &denied):
 		return runReasonPromptHookDenied, true
+	case errors.As(err, &dispatchErr):
+		// The hook endpoint failed, which a later run can get past.
+		return runReasonPromptHookFailed, true
 	}
 	return "", false
 }

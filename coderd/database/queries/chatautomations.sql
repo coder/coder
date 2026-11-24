@@ -94,8 +94,11 @@ UPDATE chat_automations
 SET schedule_next_run_at = sqlc.narg('schedule_next_run_at')::timestamptz
 WHERE id = @id::uuid;
 
--- name: UpdateChatAutomationLastRun :exec
--- updated_at tracks changes by people, so a run leaves it alone.
+-- name: UpdateChatAutomationLastRun :execrows
+-- updated_at tracks changes by people, so a run leaves it alone. A run that
+-- was not accepted is recorded only while the automation is still enabled and
+-- unchanged since the run read it, so a disable or change that commits first
+-- wins. An accepted run sent its message, so it is always recorded.
 UPDATE chat_automations
 SET
     last_run_at = @last_run_at::timestamptz,
@@ -106,7 +109,12 @@ SET
         WHEN @last_run_outcome::chat_automation_run_outcome = 'accepted' THEN 0
         ELSE last_run_unaccepted_count + 1
     END
-WHERE id = @id::uuid;
+WHERE
+    id = @id::uuid
+    AND (
+        @last_run_outcome::chat_automation_run_outcome = 'accepted'
+        OR (enabled AND updated_at = @read_updated_at::timestamptz)
+    );
 
 -- name: UpdateChatAutomationEnabled :one
 UPDATE chat_automations

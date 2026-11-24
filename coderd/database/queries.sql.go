@@ -6515,7 +6515,7 @@ func (q *sqlQuerier) UpdateChatAutomationEnabled(ctx context.Context, arg Update
 	return i, err
 }
 
-const updateChatAutomationLastRun = `-- name: UpdateChatAutomationLastRun :exec
+const updateChatAutomationLastRun = `-- name: UpdateChatAutomationLastRun :execrows
 UPDATE chat_automations
 SET
     last_run_at = $1::timestamptz,
@@ -6526,7 +6526,12 @@ SET
         WHEN $2::chat_automation_run_outcome = 'accepted' THEN 0
         ELSE last_run_unaccepted_count + 1
     END
-WHERE id = $5::uuid
+WHERE
+    id = $5::uuid
+    AND (
+        $2::chat_automation_run_outcome = 'accepted'
+        OR (enabled AND updated_at = $6::timestamptz)
+    )
 `
 
 type UpdateChatAutomationLastRunParams struct {
@@ -6535,18 +6540,26 @@ type UpdateChatAutomationLastRunParams struct {
 	LastRunReason  sql.NullString           `db:"last_run_reason" json:"last_run_reason"`
 	LastRunChatID  uuid.NullUUID            `db:"last_run_chat_id" json:"last_run_chat_id"`
 	ID             uuid.UUID                `db:"id" json:"id"`
+	ReadUpdatedAt  time.Time                `db:"read_updated_at" json:"read_updated_at"`
 }
 
-// updated_at tracks changes by people, so a run leaves it alone.
-func (q *sqlQuerier) UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatAutomationLastRun,
+// updated_at tracks changes by people, so a run leaves it alone. A run that
+// was not accepted is recorded only while the automation is still enabled and
+// unchanged since the run read it, so a disable or change that commits first
+// wins. An accepted run sent its message, so it is always recorded.
+func (q *sqlQuerier) UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatAutomationLastRun,
 		arg.LastRunAt,
 		arg.LastRunOutcome,
 		arg.LastRunReason,
 		arg.LastRunChatID,
 		arg.ID,
+		arg.ReadUpdatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows

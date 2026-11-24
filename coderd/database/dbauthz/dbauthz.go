@@ -8068,10 +8068,10 @@ func (q *querier) UpdateChatAutomationEnabled(ctx context.Context, arg database.
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateChatAutomationEnabled)(ctx, arg)
 }
 
-func (q *querier) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
+func (q *querier) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) (int64, error) {
 	// Only a run records its outcome.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.UpdateChatAutomationLastRun(ctx, arg)
 }

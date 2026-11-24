@@ -148,37 +148,60 @@ func TestAutomationSchedule(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		f := setup(t, nil)
-		chat := idleChat(t, f)
+		// The idle chat stops the run under the lock; the busy chat stops it
+		// before, so the disable must also keep chat_busy out of last_run.
+		idle, busy := idleChat(t, f), idleChat(t, f)
+		forceExecutionState(t, f.worker, busy.ID, database.ChatStatusRunning, false)
 		now := dbtime.Now()
-		automation := schedule(t, f, existingChat(chat), now)
+		automations := []database.ChatAutomation{schedule(t, f, existingChat(idle), now), schedule(t, f, existingChat(busy), now)}
 
 		claimed, err := f.server.claimDueSchedules(ctx, now)
 		require.NoError(t, err)
-		require.Len(t, claimed, 1)
-		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
-		require.NoError(t, err)
-		f.server.runScheduleOccurrence(ctx, claimed[0], now)
-
-		require.Zero(t, sentBy(ctx, t, f, chat.ID, automation.ID))
-		require.False(t, read(ctx, t, f, automation.ID).LastRunOutcome.Valid)
+		require.Len(t, claimed, 2)
+		for _, a := range automations {
+			_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, a.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
+			require.NoError(t, err)
+		}
+		for _, a := range claimed {
+			f.server.runScheduleOccurrence(ctx, a, now)
+			require.Zero(t, sentBy(ctx, t, f, a.TargetChatID.UUID, a.ID))
+			require.False(t, read(ctx, t, f, a.ID).LastRunOutcome.Valid)
+		}
 	})
 
-	t.Run("PromptHookDenies", func(t *testing.T) {
+	t.Run("PromptHook", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
-		}))
-		t.Cleanup(consumer.Close)
-		f := setup(t, dispatch.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), consumer.Client(), consumer.URL, false,
-			"test-hook-secret-32-bytes-minimum!!", time.Second, "test-deployment", "test-version", prometheus.NewRegistry()))
-		chat := idleChat(t, f)
-		now := dbtime.Now()
-		automation := schedule(t, f, existingChat(chat), now)
+		for _, tc := range []struct {
+			name    string
+			status  int
+			body    string
+			outcome database.ChatAutomationRunOutcome
+			reason  runReason
+		}{
+			{"Denies", http.StatusOK, `{"permission":{"decision":"deny"},"user_message":"blocked"}`, database.ChatAutomationRunOutcomeRefused, runReasonPromptHookDenied},
+			// A failing hook endpoint is not a decision, and a later run can
+			// succeed.
+			{"Fails", http.StatusInternalServerError, "", database.ChatAutomationRunOutcomeSkipped, runReasonPromptHookFailed},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(tc.status)
+					_, _ = w.Write([]byte(tc.body))
+				}))
+				t.Cleanup(consumer.Close)
+				f := setup(t, dispatch.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), consumer.Client(), consumer.URL, false,
+					"test-hook-secret-32-bytes-minimum!!", time.Second, "test-deployment", "test-version", prometheus.NewRegistry()))
+				chat := idleChat(t, f)
+				now := dbtime.Now()
+				automation := schedule(t, f, existingChat(chat), now)
 
-		f.server.tickSchedules(ctx, now)
-		requireLastRun(t, read(ctx, t, f, automation.ID), database.ChatAutomationRunOutcomeRefused, string(runReasonPromptHookDenied), 1)
-		require.Zero(t, sentBy(ctx, t, f, chat.ID, automation.ID))
+				f.server.tickSchedules(ctx, now)
+				requireLastRun(t, read(ctx, t, f, automation.ID), tc.outcome, string(tc.reason), 1)
+				require.Zero(t, sentBy(ctx, t, f, chat.ID, automation.ID))
+			})
+		}
 	})
 
 	t.Run("NewChatSkipsWhileEarlierChatRuns", func(t *testing.T) {

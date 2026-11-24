@@ -1639,8 +1639,11 @@ type sqlcQuerier interface {
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error)
-	// updated_at tracks changes by people, so a run leaves it alone.
-	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) error
+	// updated_at tracks changes by people, so a run leaves it alone. A run that
+	// was not accepted is recorded only while the automation is still enabled and
+	// unchanged since the run read it, so a disable or change that commits first
+	// wins. An accepted run sent its message, so it is always recorded.
+	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a

@@ -1457,8 +1457,8 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("UpdateChatAutomationLastRun", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.UpdateChatAutomationLastRunParams{ID: uuid.New(), LastRunOutcome: database.ChatAutomationRunOutcomeAccepted}
-		dbm.EXPECT().UpdateChatAutomationLastRun(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+		dbm.EXPECT().UpdateChatAutomationLastRun(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("UpdateChatAutomationEnabled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})

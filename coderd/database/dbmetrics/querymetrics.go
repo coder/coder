@@ -5736,12 +5736,12 @@ func (m queryMetricsStore) UpdateChatAutomationEnabled(ctx context.Context, arg 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) error {
+func (m queryMetricsStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.UpdateChatAutomationLastRun(ctx, arg)
+	r0, r1 := m.s.UpdateChatAutomationLastRun(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatAutomationLastRun").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAutomationLastRun").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

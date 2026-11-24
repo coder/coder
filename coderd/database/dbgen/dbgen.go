@@ -187,6 +187,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		Labels:            labels,
 		DynamicTools:      seed.DynamicTools,
 		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
+		AutomationID:      seed.AutomationID,
 	})
 	require.NoError(t, err, "insert chat")
 	return chat
@@ -221,6 +222,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
+		AutomationID:        []uuid.UUID{seed.AutomationID.UUID},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
