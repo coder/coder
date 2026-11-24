@@ -35,7 +35,7 @@ const summary = (
 
 // Serves the projects and their summaries from one list. The summaries spy
 // is returned so a test can fail its first request.
-const mockProjects = (summaries: readonly ChatProjectWithSummary[]) => {
+const mockProjectsApi = (summaries: readonly ChatProjectWithSummary[]) => {
 	vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(
 		summaries.map(({ project }) => project),
 	);
@@ -55,7 +55,7 @@ describe("ProjectsPage", () => {
 		const user = userEvent.setup();
 		const earlier = "2026-11-01T00:00:00Z";
 		const later = "2026-11-02T00:00:00Z";
-		mockProjects([
+		mockProjectsApi([
 			summary("zeta"),
 			summary("Alpha"),
 			summary("theirs", {}, MockUserMember.id),
@@ -81,7 +81,7 @@ describe("ProjectsPage", () => {
 	});
 
 	it("describes a project with its member count once the counts load", async () => {
-		mockProjects([summary("Kilo")]);
+		mockProjectsApi([summary("Kilo")]);
 		vi.spyOn(API.experimental, "getChatProjectMemberCounts").mockResolvedValue([
 			{ project_id: "Kilo", member_count: 3 },
 		]);
@@ -95,7 +95,7 @@ describe("ProjectsPage", () => {
 
 	it("pins at the end and holds back Pin while each project's pin is pending", async () => {
 		const user = userEvent.setup();
-		mockProjects([summary("India"), summary("Kilo")]);
+		mockProjectsApi([summary("India"), summary("Kilo")]);
 		const pin = vi
 			.spyOn(API.experimental, "pinChatProject")
 			.mockReturnValue(new Promise(() => {}));
@@ -126,7 +126,7 @@ describe("ProjectsPage", () => {
 
 	it("unpins once when the pin button is double-clicked", async () => {
 		const user = userEvent.setup({ delay: null });
-		mockProjects([
+		mockProjectsApi([
 			summary("Juliet", { pinned: true, pin_order: 1 }),
 			summary("Kilo"),
 		]);
@@ -152,8 +152,10 @@ describe("ProjectsPage", () => {
 	it("archives a project from its card and moves focus to New project", async () => {
 		const user = userEvent.setup();
 		// Summaries leave out archived projects.
-		const kilo = summary("Kilo");
-		mockProjects([kilo]).mockResolvedValueOnce([kilo]).mockResolvedValue([]);
+		const mockKilo = summary("Kilo");
+		mockProjectsApi([mockKilo])
+			.mockResolvedValueOnce([mockKilo])
+			.mockResolvedValue([]);
 		vi.spyOn(
 			API.experimental,
 			"getChatProjectArchivePreview",
@@ -241,7 +243,7 @@ describe("ProjectsPage", () => {
 
 	it("moves focus to New project when Retry loads the projects", async () => {
 		const user = userEvent.setup();
-		mockProjects([summary("Kilo")]).mockRejectedValueOnce(new Error("boom"));
+		mockProjectsApi([summary("Kilo")]).mockRejectedValueOnce(new Error("boom"));
 		renderWithAuth(<ProjectsPage />);
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await waitFor(() =>

@@ -322,10 +322,11 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	);
 };
 
-/** Shows who can use the project. Nothing shows until the counts load. */
-const ProjectMembers: React.FC<{ readonly count: number | undefined }> = ({
-	count,
-}) => {
+type ProjectMembersProps = {
+	readonly count: number | undefined;
+};
+
+const ProjectMembers: React.FC<ProjectMembersProps> = ({ count }) => {
 	if (count === undefined) {
 		return null;
 	}
