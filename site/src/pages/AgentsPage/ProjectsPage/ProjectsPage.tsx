@@ -10,14 +10,18 @@ import { useLocation, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archivedChatProjects,
+	type ChatProjectWithSummary,
+	chatProjectMemberCounts,
 	chatProjectSummaries,
+	chatProjects,
 	createChatProject,
 	deleteChatProject,
+	joinChatProjectSummaries,
 	pinChatProject,
 	unpinChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
-import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
+import type { ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -51,16 +55,19 @@ const isPinVariables = (
 ): variables is { readonly project: ChatProject } =>
 	typeof variables === "object" && variables !== null && "project" in variables;
 
-const compareNames = (a: ChatProjectSummary, b: ChatProjectSummary) =>
+const compareNames = (a: ChatProjectWithSummary, b: ChatProjectWithSummary) =>
 	a.project.name.localeCompare(b.project.name, "en-US", {
 		sensitivity: "accent",
 	});
 
 // Projects without chats have no activity and sort as the oldest.
-const activityTime = (summary: ChatProjectSummary) =>
+const activityTime = (summary: ChatProjectWithSummary) =>
 	summary.last_activity_at ? Date.parse(summary.last_activity_at) : 0;
 
-const compareSummaries = (a: ChatProjectSummary, b: ChatProjectSummary) => {
+const compareSummaries = (
+	a: ChatProjectWithSummary,
+	b: ChatProjectWithSummary,
+) => {
 	if (a.pinned !== b.pinned) {
 		return a.pinned ? -1 : 1;
 	}
@@ -75,7 +82,7 @@ const compareSummaries = (a: ChatProjectSummary, b: ChatProjectSummary) => {
  * activity, then projects without chats, with ties broken by name.
  */
 const getProjectsByTab = (
-	summaries: readonly ChatProjectSummary[],
+	summaries: readonly ChatProjectWithSummary[],
 	userId: string,
 ): ProjectsByTab => {
 	const sorted = summaries.toSorted(compareSummaries);
@@ -135,7 +142,9 @@ const ProjectsPage: React.FC = () => {
 	const { organizations } = useDashboard();
 	const location = useLocation();
 	const queryClient = useQueryClient();
+	const projectsQuery = useQuery(chatProjects());
 	const summariesQuery = useQuery(chatProjectSummaries());
+	const memberCountsQuery = useQuery(chatProjectMemberCounts());
 	const archivedQuery = useQuery(archivedChatProjects());
 	const { tab, showArchivedTab, changeTab } = useProjectsTab(archivedQuery);
 
@@ -219,9 +228,19 @@ const ProjectsPage: React.FC = () => {
 	const projectLinkSearch = normalizeLocationSearch(
 		linkSearchParams.toString(),
 	);
-	const projectsByTab = summariesQuery.data
-		? getProjectsByTab(summariesQuery.data, user.id)
-		: undefined;
+	const projectsByTab =
+		projectsQuery.data && summariesQuery.data
+			? getProjectsByTab(
+					joinChatProjectSummaries(projectsQuery.data, summariesQuery.data),
+					user.id,
+				)
+			: undefined;
+	const memberCounts = new Map(
+		memberCountsQuery.data?.map((count) => [
+			count.project_id,
+			count.member_count,
+		]),
+	);
 	const projectMutation = projectDialog.project
 		? updateMutation
 		: createMutation;
@@ -264,11 +283,18 @@ const ProjectsPage: React.FC = () => {
 				tab={tab}
 				onTabChange={changeTab}
 				projects={projectsByTab}
-				error={summariesQuery.error}
+				memberCounts={memberCounts}
+				error={
+					projectsQuery.error ?? summariesQuery.error ?? memberCountsQuery.error
+				}
 				onRetry={async () => {
-					const { isSuccess } = await summariesQuery.refetch();
+					const results = await Promise.all([
+						projectsQuery.refetch(),
+						summariesQuery.refetch(),
+						memberCountsQuery.refetch(),
+					]);
 					// The loaded grid replaces Retry, so focus moves to New project.
-					if (isSuccess) {
+					if (results.every(({ isSuccess }) => isSuccess)) {
 						focusNewProject();
 					}
 				}}
