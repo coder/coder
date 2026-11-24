@@ -148,7 +148,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelConfigs: [],
-	navigateAfterArchive: vi.fn(),
+	navigateOnArchive: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,

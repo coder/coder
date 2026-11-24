@@ -72,7 +72,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		currentUserId,
 		toggleExpanded,
 		onArchiveSuccess,
-		navigateAfterArchive,
+		navigateOnArchive,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -236,7 +236,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 				},
 		onArchiveAgent: () => archiveMutation.mutate(chat.id),
 		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
-		onArchived: navigateAfterArchive,
+		onArchive: navigateOnArchive,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
