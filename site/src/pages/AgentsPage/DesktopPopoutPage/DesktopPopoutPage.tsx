@@ -27,7 +27,6 @@ import { useZoomShortcuts } from "../hooks/useZoomShortcuts";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };
-	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isControlling, setIsControlling] = useState(false);
 
 	// The pop-out renders outside the chat page, so it resolves the
@@ -48,13 +47,19 @@ export default function DesktopPopoutPage() {
 	// Same gating as DesktopPanel: dial only while the agent is connected
 	// so a stopped workspace tears the session down and a restarted one
 	// reconnects on its own.
-	const { status, reconnect, attach } = useDesktopConnection({
-		chatId: agentId,
-		activated:
-			workspace !== undefined &&
-			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
-		scaleViewport: scaleMode === "fit",
-	});
+	const { status, reconnect, attach, scaleViewport, setScaleViewport } =
+		useDesktopConnection({
+			chatId: agentId,
+			activated:
+				workspace !== undefined &&
+				isDesktopReachable(
+					workspace.latest_build.status,
+					workspaceAgent?.status,
+				),
+			initialScaleViewport: true,
+		});
+	const scaleMode: ScaleMode = scaleViewport ? "fit" : "native";
+	const setScaleMode = (mode: ScaleMode) => setScaleViewport(mode === "fit");
 
 	// BroadcastChannel for parent window communication.
 	useEffect(() => {

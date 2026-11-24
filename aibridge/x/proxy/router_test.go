@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil/mockprovider"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -58,21 +59,21 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 	}{
 		{
 			name:      "ValidNames",
-			providers: []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}, &aibtestutil.MockProvider{NameStr: "anthropic-eu-1"}},
+			providers: []provider.Provider{&mockprovider.MockProvider{NameStr: "openai"}, &mockprovider.MockProvider{NameStr: "anthropic-eu-1"}},
 		},
 		{
 			name:        "InvalidName",
-			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "OpenAI_1"}},
+			providers:   []provider.Provider{&mockprovider.MockProvider{NameStr: "OpenAI_1"}},
 			errContains: `invalid provider name "OpenAI_1"`,
 		},
 		{
 			name:        "DuplicateName",
-			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}, &aibtestutil.MockProvider{NameStr: "openai"}},
+			providers:   []provider.Provider{&mockprovider.MockProvider{NameStr: "openai"}, &mockprovider.MockProvider{NameStr: "openai"}},
 			errContains: `duplicate provider name: "openai"`,
 		},
 		{
 			name:        "MalformedBaseURL",
-			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai", URL: "http://upstream.example.test/%zz"}},
+			providers:   []provider.Provider{&mockprovider.MockProvider{NameStr: "openai", URL: "http://upstream.example.test/%zz"}},
 			errContains: `configure provider "openai" base URL`,
 		},
 	} {
@@ -94,7 +95,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 func TestNewRouterRequiresRecorder(t *testing.T) {
 	t.Parallel()
 
-	router, err := proxy.NewRouter(t.Context(), []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{&mockprovider.MockProvider{NameStr: "openai"}}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 	require.ErrorContains(t, err, `configure provider "openai" bridged handler: recorder is required`)
 	require.Nil(t, router)
 }
@@ -214,7 +215,7 @@ func TestRouterRoutes(t *testing.T) {
 				_, _ = io.WriteString(w, r.URL.Path)
 			}))
 			t.Cleanup(upstream.Close)
-			enabled := &aibtestutil.MockProvider{
+			enabled := &mockprovider.MockProvider{
 				NameStr:     "openai",
 				URL:         upstream.URL,
 				Bridged:     []string{"/bridged/exact/path", "/bridged/whole/subtree/", "/passthrough/whole/subtree/bridged"},
@@ -262,7 +263,7 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 	gate := newRouterGate(t)
 	router, err := proxy.NewRouter(
 		t.Context(), []provider.Provider{
-			&aibtestutil.MockProvider{
+			&mockprovider.MockProvider{
 				NameStr:     "openai",
 				URL:         upstream.URL,
 				Bridged:     []string{"/v1/chat/completions"},
@@ -325,7 +326,7 @@ func TestRouterSnapshotsProviders(t *testing.T) {
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
-	providers[0] = &aibtestutil.MockProvider{NameStr: "swapped"}
+	providers[0] = &mockprovider.MockProvider{NameStr: "swapped"}
 
 	require.NoError(t, promtestutil.CollectAndCompare(keypool.NewStateCollector(router.KeyPools), strings.NewReader(`
 # HELP key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).

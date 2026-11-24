@@ -124,6 +124,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build base image
+        id: build_base
         uses: depot/build-push-action@98e78adca7817480b8185f474a400b451d74e287 # v1.18.0
         if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
@@ -150,14 +151,24 @@ jobs:
         if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           IMAGE_VERSION: ${{ matrix.image-version }}
-          BASE_SHA: ${{ steps.shas.outputs.base_sha }}
+          BASE_DIGEST: ${{ steps.build_base.outputs.digest }}
           FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
         # --output makes the OCI layout location explicit so the later
         # `mise oci push --image-dir` steps point at the right path even
         # if mise oci's default ever changes (it's experimental).
+        #
+        # --from uses the digest the base build just pushed, never the tag:
+        # every same-repo PR run pushes that same cache-key tag, so a PR could
+        # move it between this job's push and this read, and main would then
+        # ship the PR's base to codercom/oss-dogfood.
         run: |
+          set -euo pipefail
+          if [[ ! "$BASE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::the base image build returned no digest"
+            exit 1
+          fi
           mise oci build \
-            --from "ghcr.io/coder/oss-dogfood-base:${IMAGE_VERSION}-${BASE_SHA}" \
+            --from "ghcr.io/coder/oss-dogfood-base@${BASE_DIGEST}" \
             --tag "codercom/oss-dogfood:${FINAL_SHA}-${IMAGE_VERSION}" \
             --output ./mise-oci
 

@@ -1710,8 +1710,8 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	}).WithAgent().Do()
 
 	fs := afero.NewMemMapFs()
-	require.NoError(t, fs.MkdirAll("/tmp", 0o755))
-	require.NoError(t, afero.WriteFile(fs, "/tmp/secret.txt", []byte("secret-content"), 0o644))
+	filePath := filepath.Join(os.TempDir(), "secret.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("secret-content"), 0o644))
 
 	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
 		opts.Filesystem = fs
@@ -1746,7 +1746,7 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 		Name: toolsdk.ToolNameWorkspaceReadFile,
 		Arguments: map[string]any{
 			"workspace": workspaceIdent,
-			"path":      "/tmp/secret.txt",
+			"path":      filePath,
 		},
 	})
 	require.NoError(t, err)
@@ -1776,8 +1776,8 @@ func TestMCPHTTP_E2E_TemplateBrowserOnly(t *testing.T) {
 	}).WithAgent().Do()
 
 	fs := afero.NewMemMapFs()
-	require.NoError(t, fs.MkdirAll("/tmp", 0o755))
-	require.NoError(t, afero.WriteFile(fs, "/tmp/file.txt", []byte("content"), 0o644))
+	filePath := filepath.Join(os.TempDir(), "file.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("content"), 0o644))
 
 	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
 		opts.Filesystem = fs
@@ -1800,12 +1800,15 @@ func TestMCPHTTP_E2E_TemplateBrowserOnly(t *testing.T) {
 		Name: toolsdk.ToolNameWorkspaceReadFile,
 		Arguments: map[string]any{
 			"workspace": r.Workspace.Name,
-			"path":      "/tmp/file.txt",
+			"path":      filePath,
 		},
 	}
 	toolResult, err := mcpClient.CallTool(ctx, readFile)
 	require.NoError(t, err)
-	require.False(t, toolResult.IsError, "expected tool call to succeed before the template is browser-only")
+	require.Len(t, toolResult.Content, 1)
+	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	require.False(t, toolResult.IsError, "tool call failed before the template is browser-only: %s", textContent.Text)
 
 	me, err := coderClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -1835,7 +1838,7 @@ func TestMCPHTTP_E2E_TemplateBrowserOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, toolResult.IsError, "expected tool call to fail for a browser-only template")
 	require.Len(t, toolResult.Content, 1)
-	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+	textContent, ok = toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Equal(t, "failed to dial agent: non-browser connections are disabled for this template", textContent.Text)
 }

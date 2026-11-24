@@ -3,7 +3,7 @@ import { useFormik } from "formik";
 import { useEffect } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 import {
 	permittedOrganizations,
 	provisionerDaemons,
@@ -40,15 +40,6 @@ export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
 const emptyOrgs: readonly Organization[] = [];
-
-// The create endpoint returns these statuses without field validations, so map
-// each one to the field the user has to change.
-const createErrorFields: Partial<
-	Record<number, keyof CustomizationsFormValues>
-> = {
-	404: "organization_id",
-	409: "name",
-};
 
 const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),
@@ -96,6 +87,9 @@ export const TemplateCustomizationsStep: React.FC<
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
+	const createValidations = isApiValidationError(createError)
+		? mapApiErrorToFieldErrors(createError.response.data)
+		: {};
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: initialValues ?? {
 			organization_id: "",
@@ -104,39 +98,15 @@ export const TemplateCustomizationsStep: React.FC<
 			description: state.description,
 			icon: state.icon,
 		},
+		// The step remounts after a failed create, so the fields it names start
+		// touched for getFormHelpers to show their errors.
+		initialTouched: Object.fromEntries(
+			Object.keys(createValidations).map((field) => [field, true]),
+		),
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
-	// A create error sits on the field it names. When it names no field, or
-	// that field is not rendered (the Organization field while organizations
-	// fail to load), the alert above the form shows it instead.
-	const namedCreateErrorField = isApiError(createError)
-		? createErrorFields[createError.response.status]
-		: undefined;
-	const createErrorField =
-		namedCreateErrorField === "organization_id" && showOrgsError
-			? undefined
-			: namedCreateErrorField;
-	const showCreateErrorAlert = createError != null && !createErrorField;
-	const getFormFieldHelpers = getFormHelpers(form);
-	const getFieldHelpers: typeof getFormFieldHelpers = (field, options) => {
-		const helpers = getFormFieldHelpers(field, options);
-		// Keep the create error on its field until the user changes the value.
-		if (
-			field === createErrorField &&
-			form.values[field] === form.initialValues[field]
-		) {
-			return {
-				...helpers,
-				error: true,
-				helperText: getErrorMessage(
-					createError,
-					"Unable to create the template.",
-				),
-			};
-		}
-		return helpers;
-	};
+	const getFieldHelpers = getFormHelpers(form, createError);
 	const displayNameField = getFieldHelpers("display_name");
 	const nameField = getFieldHelpers("name", {
 		helperText: "Used to identify the template in URLs and the API.",
@@ -172,6 +142,16 @@ export const TemplateCustomizationsStep: React.FC<
 			void setFieldValue("organization_id", orgOptions[0].id);
 		}
 	}, [orgOptions, organizationId, setFieldValue]);
+
+	// The Organization field is not rendered while organizations fail to load,
+	// so its error moves to the alert above the form.
+	const fieldsShowingCreateError = Object.keys(createValidations).filter(
+		(field) =>
+			Object.hasOwn(form.initialValues, field) &&
+			!(field === "organization_id" && showOrgsError),
+	);
+	const showCreateErrorAlert =
+		Boolean(createError) && fieldsShowingCreateError.length === 0;
 
 	const handleOrgChange = (org: Organization | null) => {
 		void form.setFieldValue("organization_id", org?.id ?? "");
@@ -232,7 +212,9 @@ export const TemplateCustomizationsStep: React.FC<
 								<OrganizationAutocomplete
 									{...props}
 									required
-									autoFocus={createErrorField === "organization_id"}
+									autoFocus={fieldsShowingCreateError.includes(
+										"organization_id",
+									)}
 									disabled={permittedOrgsQuery.isPending}
 									value={selectedOrg}
 									onChange={handleOrgChange}
@@ -284,7 +266,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={nameField}
 						label="ID"
 						required
-						autoFocus={createErrorField === "name"}
+						autoFocus={fieldsShowingCreateError.includes("name")}
 						id="template-name"
 						placeholder="my-template"
 					/>

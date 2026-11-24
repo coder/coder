@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	defaultSpendDays,
+	firstRetainedDay,
 	formatSpendDaysLabel,
 	fromPickerValue,
 	parseSpendDays,
@@ -16,6 +17,31 @@ describe("defaultSpendDays", () => {
 			startDate: "2026-03-06",
 			endDate: "2026-03-12",
 		});
+	});
+
+	it("starts no earlier than the minimum day", () => {
+		expect(
+			defaultSpendDays(new Date("2026-03-12T15:30:00Z"), "2026-03-10"),
+		).toEqual({ startDate: "2026-03-10", endDate: "2026-03-12" });
+	});
+});
+
+describe("firstRetainedDay", () => {
+	const now = new Date("2026-03-12T15:30:00Z");
+	const day = 24 * 60 * 60 * 1000;
+
+	it("skips the partly purged day", () => {
+		expect(firstRetainedDay(now, 3 * day)).toBe("2026-03-10");
+	});
+
+	it("keeps a day that starts at the cutoff", () => {
+		expect(firstRetainedDay(now, 3 * day + 15.5 * 60 * 60 * 1000)).toBe(
+			"2026-03-09",
+		);
+	});
+
+	it("has no first day when data is never purged", () => {
+		expect(firstRetainedDay(now, 0)).toBeUndefined();
 	});
 });
 
@@ -36,6 +62,10 @@ describe("parseSpendDays", () => {
 		["a range over 31 days", "2026-01-01", "2026-02-01"],
 	])("rejects %s", (_, startDate, endDate) => {
 		expect(parseSpendDays(startDate, endDate)).toBeNull();
+	});
+
+	it("rejects a range that starts before the minimum day", () => {
+		expect(parseSpendDays("2026-03-09", "2026-03-12", "2026-03-10")).toBeNull();
 	});
 });
 

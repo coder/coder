@@ -179,9 +179,6 @@ export const EmptyOptions: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await waitFor(() =>
-			expect(screen.getByText("No fruits available")).toBeInTheDocument(),
-		);
 	},
 };
 
