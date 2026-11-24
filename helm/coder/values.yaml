@@ -592,9 +592,10 @@ coder:
     #           kubernetes.io/metadata.name: monitoring
     egress:
       # coder.networkPolicy.egress.enable -- Whether to also restrict egress.
-      # When true, only DNS (port 53), PostgreSQL, and extraEgress rules are
-      # allowed, so you must also allow the Kubernetes API, workspaces, and any
-      # external services Coder uses (OIDC, git providers, etc.).
+      # When true, only DNS (port 53), PostgreSQL, ports 8080 and 6222 to other
+      # Coder replicas, and extraEgress rules are allowed, so you must also
+      # allow the Kubernetes API, workspaces, and any external services Coder
+      # uses (OIDC, git providers, etc.).
       enable: false
       postgres:
         # coder.networkPolicy.egress.postgres.to -- NetworkPolicyPeer objects

@@ -70,7 +70,9 @@ pods. Your CNI must enforce NetworkPolicy for it to have any effect.
 
 The provisioner only makes outbound connections, so ingress is limited to
 Prometheus metrics when `CODER_PROMETHEUS_ENABLE` is set in `coder.env`, with no
-extra toggle. Restrict who can scrape with `coder.networkPolicy.prometheus.from`,
+extra toggle. The chart does not detect `CODER_PROMETHEUS_ENABLE` set through
+`valueFrom`, so set it as a literal value in `coder.env`; otherwise the port is
+never added to the NetworkPolicy and scrapes are blocked. Restrict who can scrape with `coder.networkPolicy.prometheus.from`,
 or allow more with `coder.networkPolicy.extraIngress`.
 
 Egress is restricted by default. Only DNS, the Coder server, and the Kubernetes
@@ -85,7 +87,8 @@ API ports are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
   set `to` to an `ipBlock` for your API server to tighten it.
 
 Your templates probably reach other services during builds, such as cloud APIs
-and registries. Allow them with `extraEgress`:
+and registries. Allow them with `extraEgress`. This example opens HTTPS to any destination;
+narrow `cidr` to the ranges you need:
 
 ```yaml
 coder:

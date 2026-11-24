@@ -156,6 +156,16 @@ networkPolicy:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: monitoring
+  # Only used with egress.enable. Allow your AI providers, for example:
+  egress:
+    enable: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
 ```
 
 ## Scaling and resources
