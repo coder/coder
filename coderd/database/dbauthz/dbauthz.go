@@ -2047,7 +2047,6 @@ func (q *querier) ClaimChatAutomationInboxDrains(ctx context.Context, arg databa
 }
 
 func (q *querier) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg database.ClaimDueChatAutomationMCPPollsParams) ([]database.ClaimDueChatAutomationMCPPollsRow, error) {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return nil, err
 	}
@@ -6765,7 +6764,6 @@ func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertC
 }
 
 func (q *querier) InsertChatAutomationInboxEvents(ctx context.Context, arg database.InsertChatAutomationInboxEventsParams) (int64, error) {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return 0, err
 	}
@@ -6773,7 +6771,6 @@ func (q *querier) InsertChatAutomationInboxEvents(ctx context.Context, arg datab
 }
 
 func (q *querier) InsertChatAutomationInboxNotice(ctx context.Context, arg database.InsertChatAutomationInboxNoticeParams) error {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return err
 	}
@@ -7831,7 +7828,6 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 }
 
 func (q *querier) MarkChatAutomationInboxDelivered(ctx context.Context, arg database.MarkChatAutomationInboxDeliveredParams) (int64, error) {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return 0, err
 	}
@@ -7965,7 +7961,6 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 }
 
 func (q *querier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg database.SetChatAutomationMCPDrainAfterParams) error {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return err
 	}
@@ -8042,7 +8037,6 @@ func (q *querier) SyncAgentChatsContextLiveResources(ctx context.Context, agentI
 }
 
 func (q *querier) TerminateChatAutomationMCPSubscription(ctx context.Context, arg database.TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return 0, err
 	}
@@ -8177,7 +8171,6 @@ func (q *querier) UpdateChatAutomationLastRun(ctx context.Context, arg database.
 }
 
 func (q *querier) UpdateChatAutomationMCPCursor(ctx context.Context, arg database.UpdateChatAutomationMCPCursorParams) (int64, error) {
-	// Only the automation loop of chatd writes subscriptions and their inbox.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
 		return 0, err
 	}

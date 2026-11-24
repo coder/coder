@@ -6430,10 +6430,10 @@ INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_na
 SELECT
     $1::uuid,
     'event',
-    e.value->>'event_id',
-    e.value->>'event_name',
-    (e.value->>'occurred_at')::timestamptz,
-    e.value->'data'
+    e.value->>'eventId',
+    e.value->>'name',
+    (e.value->>'timestamp')::timestamptz,
+    COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
 FROM jsonb_array_elements($2::jsonb) WITH ORDINALITY AS e(value, ord)
 ORDER BY e.ord
 ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
@@ -6444,9 +6444,8 @@ type InsertChatAutomationInboxEventsParams struct {
 	Events       json.RawMessage `db:"events" json:"events"`
 }
 
-// Appends events in their order in @events, a JSON array of
-// {event_id, event_name, occurred_at, data}. An event_id that the
-// subscription already received inserts nothing.
+// Appends @events, a JSON array of MCP event occurrences, in their order. An
+// eventId that the subscription already received inserts nothing.
 func (q *sqlQuerier) InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertChatAutomationInboxEvents, arg.AutomationID, arg.Events)
 	if err != nil {

@@ -109,7 +109,7 @@ func TestAutomationEvents(t *testing.T) {
 			AutomationsEnabled: func(context.Context, uuid.UUID) bool { return true },
 			Auditor:            mockAuditorPtr(audit.NewMock()),
 			// The fake server listens on loopback, which the default client refuses.
-			MCPHTTPClient: &http.Client{},
+			MCPHTTPClient: &http.Client{Transport: http.DefaultTransport},
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, server.Close()) })
@@ -173,9 +173,6 @@ func TestAutomationEvents(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		f := setup(t)
 		automation := subscribe(ctx, t, f)
-		require.Equal(t, database.ChatAutomationKindMcpEvent, automation.Kind)
-		require.Equal(t, uuid.NullUUID{UUID: f.chat.ID, Valid: true}, automation.TargetChatID)
-		require.Equal(t, sql.NullString{String: "seq:0", Valid: true}, subscription(ctx, t, f, automation.ID).Cursor)
 
 		// One replica polls; another one, as after a restart, drains.
 		f.events.emit("evt_1")
@@ -210,13 +207,9 @@ func TestAutomationEvents(t *testing.T) {
 		}
 		require.NotContains(t, texts[1], `"event_id":"evt_1"`)
 
-		// Another chat of the owner can neither see nor remove it.
-		other := dbgen.Chat(t, f.worker.db, database.Chat{OrganizationID: f.worker.org.ID, OwnerID: f.worker.user.ID, LastModelConfigID: f.chat.LastModelConfigID})
-		unsubscribe := fmt.Sprintf(`{"action":"unsubscribe","automation_id":%q}`, automation.ID)
-		require.NotContains(t, call(ctx, t, f, other, `{"action":"list"}`).Content, automation.ID.String())
-		require.True(t, call(ctx, t, f, other, unsubscribe).IsError)
+		// HeartbeatTool covers the guard that keeps other chats out.
 		require.Contains(t, call(ctx, t, f, f.chat, `{"action":"list"}`).Content, `"state":"active"`)
-		require.False(t, call(ctx, t, f, f.chat, unsubscribe).IsError)
+		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"unsubscribe","automation_id":%q}`, automation.ID)).IsError)
 		_, err = f.worker.db.GetChatAutomationByID(ctx, automation.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})

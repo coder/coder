@@ -108,17 +108,16 @@ SET
 WHERE automation_id = @automation_id::uuid AND state = 'active';
 
 -- name: InsertChatAutomationInboxEvents :execrows
--- Appends events in their order in @events, a JSON array of
--- {event_id, event_name, occurred_at, data}. An event_id that the
--- subscription already received inserts nothing.
+-- Appends @events, a JSON array of MCP event occurrences, in their order. An
+-- eventId that the subscription already received inserts nothing.
 INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
 SELECT
     @automation_id::uuid,
     'event',
-    e.value->>'event_id',
-    e.value->>'event_name',
-    (e.value->>'occurred_at')::timestamptz,
-    e.value->'data'
+    e.value->>'eventId',
+    e.value->>'name',
+    (e.value->>'timestamp')::timestamptz,
+    COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
 FROM jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
 ORDER BY e.ord
 ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;

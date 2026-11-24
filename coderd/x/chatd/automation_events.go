@@ -24,27 +24,22 @@ import (
 )
 
 const (
-	// eventClaimBatch bounds the subscriptions that one claim leases.
 	eventClaimBatch = 100
-	// eventLease is how long a claimed poll or drain keeps other replicas
-	// away. A replica that dies mid-way loses the work for this long.
+	// eventLease keeps other replicas from a claimed poll or drain. Work of
+	// a replica that dies waits this long.
 	eventLease = 2 * time.Minute
-	// eventPollFloor is the shortest time between two polls of one
-	// subscription, whatever the server asks for.
+	// eventPollFloor applies whatever nextPollMs the server sends.
 	eventPollFloor   = 30 * time.Second
 	eventPollJitter  = 5 * time.Second
 	eventPollCeiling = time.Hour
-	// eventMaxAge keeps a late poll from replaying older events.
-	eventMaxAge = 24 * time.Hour
-	// maxEventsPerMessage bounds the inbox rows of one message, and the
-	// events of one poll.
+	eventMaxAge      = 24 * time.Hour
+	// maxEventsPerMessage bounds one poll and one message.
 	maxEventsPerMessage = 50
-	// maxPendingInboxRows stops polling a subscription whose chat has not
-	// taken its events; the server keeps them meanwhile.
-	maxPendingInboxRows = 1000
-	eventErrorBackoff   = time.Minute
-	eventAuthBackoff    = 10 * time.Minute
-	// eventRefusedBackoff spaces the drains of a chat that refuses runs.
+	// maxPendingInboxRows stops polling a subscription whose chat does not
+	// take its events; the server keeps them meanwhile.
+	maxPendingInboxRows  = 1000
+	eventErrorBackoff    = time.Minute
+	eventAuthBackoff     = 10 * time.Minute
 	eventRefusedBackoff  = 10 * time.Minute
 	eventPollConcurrency = 8
 	maxLastErrorBytes    = 1024
@@ -81,15 +76,6 @@ type inboxAppend struct {
 	NextPollAt sql.NullTime
 }
 
-// inboxEvent is the JSON shape of an event that InsertChatAutomationInboxEvents
-// reads.
-type inboxEvent struct {
-	EventID    string          `json:"event_id"`
-	EventName  string          `json:"event_name"`
-	OccurredAt time.Time       `json:"occurred_at"`
-	Data       json.RawMessage `json:"data"`
-}
-
 // errSubscriptionInactive means that the subscription was deleted or
 // terminated, so the delivery is dropped.
 var errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
@@ -98,15 +84,8 @@ var errSubscriptionInactive = xerrors.New("the MCP event subscription is not act
 // calls it. It holds the automation lock and no chat row, so it cannot form a
 // cycle with a drain, which locks the chat first.
 func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
-	events := make([]inboxEvent, 0, len(in.Events))
-	for _, e := range in.Events {
-		data := e.Data
-		if len(data) == 0 || string(data) == "null" {
-			data = json.RawMessage(`{}`)
-		}
-		events = append(events, inboxEvent{EventID: e.EventID, EventName: e.Name, OccurredAt: e.Timestamp, Data: data})
-	}
-	encoded, err := json.Marshal(events)
+	// The query reads the occurrences in their wire shape.
+	events, err := json.Marshal(in.Events)
 	if err != nil {
 		return xerrors.Errorf("encode events: %w", err)
 	}
@@ -135,12 +114,9 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 				return xerrors.Errorf("insert gap: %w", err)
 			}
 		}
-		if len(events) == 0 {
-			return nil
-		}
 		if _, err := tx.InsertChatAutomationInboxEvents(ctx, database.InsertChatAutomationInboxEventsParams{
 			AutomationID: in.AutomationID,
-			Events:       encoded,
+			Events:       events,
 		}); err != nil {
 			return xerrors.Errorf("insert events: %w", err)
 		}
@@ -264,10 +240,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 // polls again at once while the server has more, up to the pending limit.
 func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
 	var args map[string]any
-	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
-		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPInvalidArguments)
-		return
-	}
+	_ = json.Unmarshal(sub.Arguments, &args)
 	var cursor *string
 	if sub.Cursor.Valid {
 		cursor = &sub.Cursor.String
@@ -405,6 +378,7 @@ func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, now tim
 // answered 401, which no error type carries.
 type eventsConn struct {
 	session      *mcpclient.EventsSession
+	base         http.RoundTripper
 	unauthorized atomic.Bool
 }
 
@@ -412,15 +386,10 @@ func (c *eventsConn) close() {
 	_ = c.session.Close()
 }
 
-type unauthorizedRecorder struct {
-	base http.RoundTripper
-	seen *atomic.Bool
-}
-
-func (r unauthorizedRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := r.base.RoundTrip(req)
+func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := c.base.RoundTrip(req)
 	if err == nil && resp.StatusCode == http.StatusUnauthorized {
-		r.seen.Store(true)
+		c.unauthorized.Store(true)
 	}
 	return resp, err
 }
@@ -451,13 +420,12 @@ func (p *Server) openEvents(ctx context.Context, cfg database.MCPServerConfig, o
 		}
 		tok = &row
 	}
-	conn := &eventsConn{}
 	hc := *p.mcpHTTPClient
-	base := hc.Transport
-	if base == nil {
-		base = http.DefaultTransport
+	if hc.Transport == nil {
+		hc = *mcpclient.NewHTTPClient(p.mcpHTTPClient)
 	}
-	hc.Transport = unauthorizedRecorder{base: base, seen: &conn.unauthorized}
+	conn := &eventsConn{base: hc.Transport}
+	hc.Transport = conn
 	session, err := mcpclient.ConnectEvents(ctx, p.logger, cfg, tok, map[string]string{chatprovider.HeaderCoderOwnerID: owner.String()}, &hc)
 	if err != nil {
 		return conn, err

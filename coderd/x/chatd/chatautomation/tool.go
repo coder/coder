@@ -262,16 +262,11 @@ func toToolAutomation(a database.ChatAutomation, refs db2sdk.ChatAutomationRefs,
 // toolErrorText is the text that the model reads for an error that the chat
 // can act on. No text quotes the prompt.
 func toolErrorText(err error) (string, bool) {
-	var (
-		invalid  *InvalidRequestError
-		rejected *eventsRejectedError
-	)
+	var invalid *InvalidRequestError
 	switch {
 	case errors.Is(err, errUnknownAction), errors.Is(err, errNotInThisChat),
 		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent):
 		return err.Error(), true
-	case errors.As(err, &rejected):
-		return rejected.Error(), true
 	case errors.Is(err, ErrMCPAuthRequired):
 		return "The chat owner must connect to this MCP server first.", true
 	case errors.As(err, &invalid):

@@ -1316,9 +1316,8 @@ type sqlcQuerier interface {
 	// wait for this transaction, so its cleanup trigger then deletes the new row.
 	// The insert trigger refuses an owner that is already deleted.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
-	// Appends events in their order in @events, a JSON array of
-	// {event_id, event_name, occurred_at, data}. An event_id that the
-	// subscription already received inserts nothing.
+	// Appends @events, a JSON array of MCP event occurrences, in their order. An
+	// eventId that the subscription already received inserts nothing.
 	InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error)
 	InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error
 	InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error)

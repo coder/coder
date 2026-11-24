@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // firstPollDelay is when the poll loop first polls a new subscription. The
@@ -40,27 +41,10 @@ type EventSource interface {
 	Open(ctx context.Context, cfg database.MCPServerConfig) (*mcpclient.EventsSession, error)
 }
 
-// eventsRejectedError carries the error answer of an MCP server, so that the
-// agent can correct its arguments.
-type eventsRejectedError struct {
-	message string
-}
-
-func (e *eventsRejectedError) Error() string {
-	return "The MCP server rejected the subscription: " + e.message
-}
-
-type toolEventType struct {
-	Name        string                   `json:"name"`
-	Description string                   `json:"description,omitempty"`
-	Delivery    []mcpclient.DeliveryMode `json:"delivery"`
-	InputSchema json.RawMessage          `json:"input_schema,omitempty"`
-}
-
 type toolEventServer struct {
-	MCPServer string          `json:"mcp_server"`
-	Events    []toolEventType `json:"events,omitempty"`
-	Error     string          `json:"error,omitempty"`
+	MCPServer string                `json:"mcp_server"`
+	Events    []mcpclient.EventType `json:"events,omitempty"`
+	Error     string                `json:"error,omitempty"`
 }
 
 // listEventTypes lists the event types of the chat's MCP servers that support
@@ -73,11 +57,8 @@ func listEventTypes(ctx context.Context, options ToolOptions, slug string) (map[
 	out := []toolEventServer{}
 	for _, cfg := range servers {
 		entry := toolEventServer{MCPServer: cfg.Slug}
-		err := withEvents(ctx, options, cfg, func(session *mcpclient.EventsSession) error {
-			types, err := session.List(ctx)
-			for _, t := range types {
-				entry.Events = append(entry.Events, toolEventType{Name: t.Name, Description: t.Description, Delivery: t.Delivery, InputSchema: t.InputSchema})
-			}
+		err := withEvents(ctx, options, cfg, func(session *mcpclient.EventsSession) (err error) {
+			entry.Events, err = session.List(ctx)
 			return err
 		})
 		switch {
@@ -133,9 +114,12 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 			return errUnknownEvent
 		}
 		poll, err = session.Poll(ctx, mcpclient.PollParams{Name: args.Event, Arguments: arguments})
+		// The server checks the arguments; its answer helps the agent fix them.
 		var eventsErr *mcpclient.EventsError
 		if errors.As(err, &eventsErr) {
-			return &eventsRejectedError{message: fmt.Sprintf("%d %.300s", eventsErr.Code, eventsErr.Message)}
+			return &InvalidRequestError{Validations: []codersdk.ValidationError{{
+				Field: "arguments", Detail: fmt.Sprintf("The MCP server rejected them: %d %.300s", eventsErr.Code, eventsErr.Message),
+			}}}
 		}
 		return err
 	})
