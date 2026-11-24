@@ -325,7 +325,7 @@ Start with Template Fundamentals, which teaches you how to customize a template.
 <div class="cards">
 
 - [Template Fundamentals](https://coder.com/learn/coder-quickstart): Make a template your own by adding languages and tools, and learn Terraform basics along the way.
-- [All Coder courses](https://coder.com/learn): Browse hands-on courses for everyone, from your first workspace to running Coder in production.
+- [All Coder courses](https://coder.com/learn): Browse every hands-on Coder course, from your first workspace to running Coder in production.
 
 </div>
 
