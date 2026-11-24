@@ -50,8 +50,8 @@ const (
 	maxEventDataBytes = 64 << 10
 )
 
-// eventErrorAction is how a poll reacts to an error of the events extension:
-// terminate the subscription with a reason, or try again after a backoff.
+// eventErrorAction ends the subscription with a reason, or retries after a
+// backoff.
 type eventErrorAction struct {
 	terminate runReason
 	backoff   time.Duration
@@ -69,16 +69,15 @@ var eventErrorActions = map[int64]eventErrorAction{
 	-32020: {backoff: time.Minute},
 }
 
-// inboxAppend is what one delivery adds to a subscription's inbox.
+// inboxAppend is what one delivery adds to a subscription's inbox. A nil
+// Cursor and an invalid NextPollAt keep the stored ones. Truncated adds a
+// gap row: the server dropped events before these.
 type inboxAppend struct {
 	AutomationID uuid.UUID
 	Events       []mcpclient.EventOccurrence
-	// Cursor is stored when it is not nil.
-	Cursor *string
-	// Truncated adds a gap row: the server dropped events before these.
-	Truncated bool
-	// NextPollAt is stored when it is valid.
-	NextPollAt sql.NullTime
+	Cursor       *string
+	Truncated    bool
+	NextPollAt   sql.NullTime
 }
 
 // errSubscriptionInactive means that the subscription was deleted or

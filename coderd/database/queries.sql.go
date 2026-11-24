@@ -6172,9 +6172,8 @@ type ClaimChatAutomationInboxDrainsParams struct {
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
-// Leases the subscriptions of enabled automations that have undelivered
-// inbox rows and whose drain_after has passed, by moving drain_after to
-// @lease_until.
+// Leases subscriptions of enabled automations with undelivered inbox rows
+// whose drain_after has passed by moving drain_after to @lease_until.
 func (q *sqlQuerier) ClaimChatAutomationInboxDrains(ctx context.Context, arg ClaimChatAutomationInboxDrainsParams) ([]ChatAutomationMCPSubscription, error) {
 	rows, err := q.db.QueryContext(ctx, claimChatAutomationInboxDrains, arg.LeaseUntil, arg.Now, arg.LimitCount)
 	if err != nil {
@@ -6264,10 +6263,9 @@ type ClaimDueChatAutomationMCPPollsRow struct {
 	OwnerID           uuid.UUID                       `db:"owner_id" json:"owner_id"`
 }
 
-// Leases the active poll subscriptions of enabled automations that are due
-// and have fewer than @max_pending undelivered inbox rows, by moving
-// next_poll_at to @lease_until. SKIP LOCKED lets every replica claim a
-// different set.
+// Leases due active poll subscriptions of enabled automations with fewer
+// than @max_pending undelivered inbox rows by moving next_poll_at to
+// @lease_until. SKIP LOCKED lets every replica claim a different set.
 func (q *sqlQuerier) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg ClaimDueChatAutomationMCPPollsParams) ([]ClaimDueChatAutomationMCPPollsRow, error) {
 	rows, err := q.db.QueryContext(ctx, claimDueChatAutomationMCPPolls,
 		arg.LeaseUntil,
@@ -6471,22 +6469,10 @@ func (q *sqlQuerier) InsertChatAutomationInboxNotice(ctx context.Context, arg In
 }
 
 const insertChatAutomationMCPSubscription = `-- name: InsertChatAutomationMCPSubscription :one
-INSERT INTO chat_automation_mcp_subscriptions (
-    automation_id,
-    mcp_server_config_id,
-    event_name,
-    arguments,
-    delivery,
-    cursor,
-    next_poll_at
-) VALUES (
-    $1::uuid,
-    $2::uuid,
-    $3::text,
-    $4::jsonb,
-    $5::chat_automation_event_delivery,
-    $6::text,
-    $7::timestamptz
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+VALUES (
+    $1::uuid, $2::uuid, $3::text, $4::jsonb,
+    $5::chat_automation_event_delivery, $6::text, $7::timestamptz
 )
 RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at
 `
@@ -6567,10 +6553,7 @@ func (q *sqlQuerier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg Set
 
 const terminateChatAutomationMCPSubscription = `-- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
-SET
-    state = 'terminated',
-    last_error = $1::text,
-    updated_at = $2::timestamptz
+SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
 WHERE automation_id = $3::uuid AND state = 'active'
 `
 

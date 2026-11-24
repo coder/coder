@@ -88,14 +88,12 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
-	// Leases the subscriptions of enabled automations that have undelivered
-	// inbox rows and whose drain_after has passed, by moving drain_after to
-	// @lease_until.
+	// Leases subscriptions of enabled automations with undelivered inbox rows
+	// whose drain_after has passed by moving drain_after to @lease_until.
 	ClaimChatAutomationInboxDrains(ctx context.Context, arg ClaimChatAutomationInboxDrainsParams) ([]ChatAutomationMCPSubscription, error)
-	// Leases the active poll subscriptions of enabled automations that are due
-	// and have fewer than @max_pending undelivered inbox rows, by moving
-	// next_poll_at to @lease_until. SKIP LOCKED lets every replica claim a
-	// different set.
+	// Leases due active poll subscriptions of enabled automations with fewer
+	// than @max_pending undelivered inbox rows by moving next_poll_at to
+	// @lease_until. SKIP LOCKED lets every replica claim a different set.
 	ClaimDueChatAutomationMCPPolls(ctx context.Context, arg ClaimDueChatAutomationMCPPollsParams) ([]ClaimDueChatAutomationMCPPollsRow, error)
 	// Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
 	// a different set; the caller advances each row in the same transaction.

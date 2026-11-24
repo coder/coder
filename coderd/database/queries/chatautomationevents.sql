@@ -1,20 +1,8 @@
 -- name: InsertChatAutomationMCPSubscription :one
-INSERT INTO chat_automation_mcp_subscriptions (
-    automation_id,
-    mcp_server_config_id,
-    event_name,
-    arguments,
-    delivery,
-    cursor,
-    next_poll_at
-) VALUES (
-    @automation_id::uuid,
-    @mcp_server_config_id::uuid,
-    @event_name::text,
-    @arguments::jsonb,
-    @delivery::chat_automation_event_delivery,
-    sqlc.narg('cursor')::text,
-    sqlc.narg('next_poll_at')::timestamptz
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+VALUES (
+    @automation_id::uuid, @mcp_server_config_id::uuid, @event_name::text, @arguments::jsonb,
+    @delivery::chat_automation_event_delivery, sqlc.narg('cursor')::text, sqlc.narg('next_poll_at')::timestamptz
 )
 RETURNING *;
 
@@ -24,10 +12,9 @@ FROM chat_automation_mcp_subscriptions
 WHERE automation_id = ANY(@automation_ids::uuid[]);
 
 -- name: ClaimDueChatAutomationMCPPolls :many
--- Leases the active poll subscriptions of enabled automations that are due
--- and have fewer than @max_pending undelivered inbox rows, by moving
--- next_poll_at to @lease_until. SKIP LOCKED lets every replica claim a
--- different set.
+-- Leases due active poll subscriptions of enabled automations with fewer
+-- than @max_pending undelivered inbox rows by moving next_poll_at to
+-- @lease_until. SKIP LOCKED lets every replica claim a different set.
 WITH due AS (
     SELECT s.automation_id
     FROM chat_automation_mcp_subscriptions s
@@ -57,9 +44,8 @@ WHERE s.automation_id = due.automation_id AND a.id = s.automation_id
 RETURNING s.*, a.owner_id;
 
 -- name: ClaimChatAutomationInboxDrains :many
--- Leases the subscriptions of enabled automations that have undelivered
--- inbox rows and whose drain_after has passed, by moving drain_after to
--- @lease_until.
+-- Leases subscriptions of enabled automations with undelivered inbox rows
+-- whose drain_after has passed by moving drain_after to @lease_until.
 WITH due AS (
     SELECT s.automation_id
     FROM chat_automation_mcp_subscriptions s
@@ -101,10 +87,7 @@ WHERE automation_id = @automation_id::uuid AND state = 'active';
 
 -- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
-SET
-    state = 'terminated',
-    last_error = @reason::text,
-    updated_at = @now::timestamptz
+SET state = 'terminated', last_error = @reason::text, updated_at = @now::timestamptz
 WHERE automation_id = @automation_id::uuid AND state = 'active';
 
 -- name: InsertChatAutomationInboxEvents :execrows
