@@ -113,6 +113,9 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 // registerExperimentalChatRoutes mounts the chat routes that were not
 // promoted to /api/v2 on r, the /api/experimental root router.
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
+	// MCP servers sign each delivery with the subscription's secret, so the
+	// route stays outside the API key middleware.
+	r.Post("/chats/automations/{automation}/mcp-events", api.postChatAutomationMCPEvents)
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
 		r.Get("/projects", api.listChatProjects)

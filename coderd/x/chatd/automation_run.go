@@ -63,6 +63,7 @@ const (
 	runReasonMCPInvalidArguments  runReason = "mcp_invalid_arguments"
 	runReasonMCPAuthRequired      runReason = "mcp_auth_required"
 	runReasonMCPServerUnavailable runReason = "mcp_server_unavailable"
+	runReasonMCPTerminated        runReason = "mcp_terminated"
 )
 
 // runReasonOutcome is skipped when a later run can succeed without a change,
@@ -86,6 +87,7 @@ var runReasonOutcome = map[runReason]database.ChatAutomationRunOutcome{
 	runReasonMCPInvalidArguments:  database.ChatAutomationRunOutcomeRefused,
 	runReasonMCPAuthRequired:      database.ChatAutomationRunOutcomeRefused,
 	runReasonMCPServerUnavailable: database.ChatAutomationRunOutcomeRefused,
+	runReasonMCPTerminated:        database.ChatAutomationRunOutcomeRefused,
 }
 
 // ErrAutomationChanged means that the automation was deleted, disabled or

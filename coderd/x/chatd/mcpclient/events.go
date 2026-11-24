@@ -140,6 +140,15 @@ type SubscribeResult struct {
 	RefreshBefore *time.Time `json:"refreshBefore"`
 	Cursor        *string    `json:"cursor"`
 	Truncated     bool       `json:"truncated"`
+	// DeliveryStatus may come with a refresh of an existing subscription.
+	DeliveryStatus *WebhookDeliveryStatus `json:"deliveryStatus,omitempty"`
+}
+
+// WebhookDeliveryStatus says how the deliveries of a webhook subscription
+// fare. LastError is a category such as "timeout" or "http_4xx".
+type WebhookDeliveryStatus struct {
+	Active    bool    `json:"active"`
+	LastError *string `json:"lastError"`
 }
 
 type listEventsParams struct {

@@ -1,8 +1,9 @@
 -- name: InsertChatAutomationMCPSubscription :one
-INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, renew_at)
 VALUES (
     @automation_id::uuid, @mcp_server_config_id::uuid, @event_name::text, @arguments::jsonb,
-    @delivery::chat_automation_event_delivery, sqlc.narg('cursor')::text, sqlc.narg('next_poll_at')::timestamptz
+    @delivery::chat_automation_event_delivery, @state::chat_automation_subscription_state,
+    sqlc.narg('cursor')::text, sqlc.narg('next_poll_at')::timestamptz, sqlc.narg('renew_at')::timestamptz
 )
 RETURNING *;
 
@@ -88,7 +89,7 @@ WHERE automation_id = @automation_id::uuid AND state = 'active';
 -- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = @reason::text, updated_at = @now::timestamptz
-WHERE automation_id = @automation_id::uuid AND state = 'active';
+WHERE automation_id = @automation_id::uuid AND state <> 'terminated';
 
 -- name: InsertChatAutomationInboxEvents :execrows
 -- Appends @events, a JSON array of MCP event occurrences, in their order. An

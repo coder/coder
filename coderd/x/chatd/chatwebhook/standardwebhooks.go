@@ -1,4 +1,5 @@
-// Package chatwebhook verifies Standard Webhooks requests:
+// Package chatwebhook verifies Standard Webhooks requests and generates their
+// secrets:
 // https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md
 //
 // Verify keeps no state and never logs. Every error it returns is built from
@@ -8,6 +9,7 @@ package chatwebhook
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -85,6 +87,15 @@ func Verify(header http.Header, body []byte, secret string, now time.Time) error
 		}
 	}
 	return xerrors.New("no signature matches")
+}
+
+// GenerateSecret returns a new "whsec_" secret over 32 random bytes, inside
+// the 24 to 64 bytes that MCP event servers accept.
+func GenerateSecret() string {
+	key := make([]byte, 32)
+	// crypto/rand.Read never fails since Go 1.24.
+	_, _ = rand.Read(key)
+	return secretPrefix + base64.StdEncoding.EncodeToString(key)
 }
 
 // parseSecret returns the HMAC key inside a "whsec_" secret: standard base64

@@ -6163,7 +6163,7 @@ UPDATE chat_automation_mcp_subscriptions s
 SET drain_after = $1::timestamptz
 FROM due
 WHERE s.automation_id = due.automation_id
-RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at
 `
 
 type ClaimChatAutomationInboxDrainsParams struct {
@@ -6196,6 +6196,9 @@ func (q *sqlQuerier) ClaimChatAutomationInboxDrains(ctx context.Context, arg Cla
 			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WebhookSubscriptionID,
+			&i.RefreshBefore,
+			&i.RenewAt,
 		); err != nil {
 			return nil, err
 		}
@@ -6237,7 +6240,7 @@ UPDATE chat_automation_mcp_subscriptions s
 SET next_poll_at = $1::timestamptz
 FROM due, chat_automations a
 WHERE s.automation_id = due.automation_id AND a.id = s.automation_id
-RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, a.owner_id
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at, a.owner_id
 `
 
 type ClaimDueChatAutomationMCPPollsParams struct {
@@ -6248,19 +6251,22 @@ type ClaimDueChatAutomationMCPPollsParams struct {
 }
 
 type ClaimDueChatAutomationMCPPollsRow struct {
-	AutomationID      uuid.UUID                       `db:"automation_id" json:"automation_id"`
-	MCPServerConfigID uuid.NullUUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	EventName         string                          `db:"event_name" json:"event_name"`
-	Arguments         json.RawMessage                 `db:"arguments" json:"arguments"`
-	Delivery          ChatAutomationEventDelivery     `db:"delivery" json:"delivery"`
-	State             ChatAutomationSubscriptionState `db:"state" json:"state"`
-	Cursor            sql.NullString                  `db:"cursor" json:"cursor"`
-	NextPollAt        sql.NullTime                    `db:"next_poll_at" json:"next_poll_at"`
-	DrainAfter        time.Time                       `db:"drain_after" json:"drain_after"`
-	LastError         sql.NullString                  `db:"last_error" json:"last_error"`
-	CreatedAt         time.Time                       `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                       `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID                       `db:"owner_id" json:"owner_id"`
+	AutomationID          uuid.UUID                       `db:"automation_id" json:"automation_id"`
+	MCPServerConfigID     uuid.NullUUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	EventName             string                          `db:"event_name" json:"event_name"`
+	Arguments             json.RawMessage                 `db:"arguments" json:"arguments"`
+	Delivery              ChatAutomationEventDelivery     `db:"delivery" json:"delivery"`
+	State                 ChatAutomationSubscriptionState `db:"state" json:"state"`
+	Cursor                sql.NullString                  `db:"cursor" json:"cursor"`
+	NextPollAt            sql.NullTime                    `db:"next_poll_at" json:"next_poll_at"`
+	DrainAfter            time.Time                       `db:"drain_after" json:"drain_after"`
+	LastError             sql.NullString                  `db:"last_error" json:"last_error"`
+	CreatedAt             time.Time                       `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time                       `db:"updated_at" json:"updated_at"`
+	WebhookSubscriptionID sql.NullString                  `db:"webhook_subscription_id" json:"webhook_subscription_id"`
+	RefreshBefore         sql.NullTime                    `db:"refresh_before" json:"refresh_before"`
+	RenewAt               sql.NullTime                    `db:"renew_at" json:"renew_at"`
+	OwnerID               uuid.UUID                       `db:"owner_id" json:"owner_id"`
 }
 
 // Leases due active poll subscriptions of enabled automations with fewer
@@ -6293,6 +6299,9 @@ func (q *sqlQuerier) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg Cla
 			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WebhookSubscriptionID,
+			&i.RefreshBefore,
+			&i.RenewAt,
 			&i.OwnerID,
 		); err != nil {
 			return nil, err
@@ -6335,7 +6344,7 @@ func (q *sqlQuerier) DeleteOldChatAutomationInboxRows(ctx context.Context, arg D
 }
 
 const getChatAutomationMCPSubscriptionsByAutomationIDs = `-- name: GetChatAutomationMCPSubscriptionsByAutomationIDs :many
-SELECT automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at
+SELECT automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at
 FROM chat_automation_mcp_subscriptions
 WHERE automation_id = ANY($1::uuid[])
 `
@@ -6362,6 +6371,9 @@ func (q *sqlQuerier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx contex
 			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WebhookSubscriptionID,
+			&i.RefreshBefore,
+			&i.RenewAt,
 		); err != nil {
 			return nil, err
 		}
@@ -6469,22 +6481,25 @@ func (q *sqlQuerier) InsertChatAutomationInboxNotice(ctx context.Context, arg In
 }
 
 const insertChatAutomationMCPSubscription = `-- name: InsertChatAutomationMCPSubscription :one
-INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, renew_at)
 VALUES (
     $1::uuid, $2::uuid, $3::text, $4::jsonb,
-    $5::chat_automation_event_delivery, $6::text, $7::timestamptz
+    $5::chat_automation_event_delivery, $6::chat_automation_subscription_state,
+    $7::text, $8::timestamptz, $9::timestamptz
 )
-RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at
+RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at, webhook_subscription_id, refresh_before, renew_at
 `
 
 type InsertChatAutomationMCPSubscriptionParams struct {
-	AutomationID      uuid.UUID                   `db:"automation_id" json:"automation_id"`
-	MCPServerConfigID uuid.UUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	EventName         string                      `db:"event_name" json:"event_name"`
-	Arguments         json.RawMessage             `db:"arguments" json:"arguments"`
-	Delivery          ChatAutomationEventDelivery `db:"delivery" json:"delivery"`
-	Cursor            sql.NullString              `db:"cursor" json:"cursor"`
-	NextPollAt        sql.NullTime                `db:"next_poll_at" json:"next_poll_at"`
+	AutomationID      uuid.UUID                       `db:"automation_id" json:"automation_id"`
+	MCPServerConfigID uuid.UUID                       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	EventName         string                          `db:"event_name" json:"event_name"`
+	Arguments         json.RawMessage                 `db:"arguments" json:"arguments"`
+	Delivery          ChatAutomationEventDelivery     `db:"delivery" json:"delivery"`
+	State             ChatAutomationSubscriptionState `db:"state" json:"state"`
+	Cursor            sql.NullString                  `db:"cursor" json:"cursor"`
+	NextPollAt        sql.NullTime                    `db:"next_poll_at" json:"next_poll_at"`
+	RenewAt           sql.NullTime                    `db:"renew_at" json:"renew_at"`
 }
 
 func (q *sqlQuerier) InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error) {
@@ -6494,8 +6509,10 @@ func (q *sqlQuerier) InsertChatAutomationMCPSubscription(ctx context.Context, ar
 		arg.EventName,
 		arg.Arguments,
 		arg.Delivery,
+		arg.State,
 		arg.Cursor,
 		arg.NextPollAt,
+		arg.RenewAt,
 	)
 	var i ChatAutomationMCPSubscription
 	err := row.Scan(
@@ -6511,6 +6528,9 @@ func (q *sqlQuerier) InsertChatAutomationMCPSubscription(ctx context.Context, ar
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WebhookSubscriptionID,
+		&i.RefreshBefore,
+		&i.RenewAt,
 	)
 	return i, err
 }
@@ -6554,7 +6574,7 @@ func (q *sqlQuerier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg Set
 const terminateChatAutomationMCPSubscription = `-- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
-WHERE automation_id = $3::uuid AND state = 'active'
+WHERE automation_id = $3::uuid AND state <> 'terminated'
 `
 
 type TerminateChatAutomationMCPSubscriptionParams struct {
@@ -7024,6 +7044,256 @@ func (q *sqlQuerier) UpdateChatAutomationLastRun(ctx context.Context, arg Update
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const claimDueChatAutomationWebhookRenewals = `-- name: ClaimDueChatAutomationWebhookRenewals :many
+WITH due AS (
+    SELECT s.automation_id
+    FROM chat_automation_mcp_subscriptions s
+    JOIN chat_automations a ON a.id = s.automation_id
+    WHERE
+        s.delivery = 'webhook'
+        AND s.state <> 'terminated'
+        AND s.renew_at <= $2::timestamptz
+        AND a.enabled
+    ORDER BY s.renew_at
+    LIMIT $3::int
+    FOR UPDATE OF s SKIP LOCKED
+)
+UPDATE chat_automation_mcp_subscriptions s
+SET renew_at = $1::timestamptz
+FROM due
+WHERE s.automation_id = due.automation_id
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, s.webhook_subscription_id, s.refresh_before, s.renew_at
+`
+
+type ClaimDueChatAutomationWebhookRenewalsParams struct {
+	LeaseUntil time.Time `db:"lease_until" json:"lease_until"`
+	Now        time.Time `db:"now" json:"now"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Leases the pending and active webhook subscriptions of enabled automations
+// whose renew_at has passed by moving renew_at to @lease_until.
+func (q *sqlQuerier) ClaimDueChatAutomationWebhookRenewals(ctx context.Context, arg ClaimDueChatAutomationWebhookRenewalsParams) ([]ChatAutomationMCPSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, claimDueChatAutomationWebhookRenewals, arg.LeaseUntil, arg.Now, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomationMCPSubscription
+	for rows.Next() {
+		var i ChatAutomationMCPSubscription
+		if err := rows.Scan(
+			&i.AutomationID,
+			&i.MCPServerConfigID,
+			&i.EventName,
+			&i.Arguments,
+			&i.Delivery,
+			&i.State,
+			&i.Cursor,
+			&i.NextPollAt,
+			&i.DrainAfter,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WebhookSubscriptionID,
+			&i.RefreshBefore,
+			&i.RenewAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countPendingChatAutomationInboxRows = `-- name: CountPendingChatAutomationInboxRows :one
+SELECT count(*)::int
+FROM (
+    SELECT 1
+    FROM chat_automation_event_inbox
+    WHERE automation_id = $1::uuid AND delivered_at IS NULL
+    LIMIT $2::int
+) pending
+`
+
+type CountPendingChatAutomationInboxRowsParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	MaxPending   int32     `db:"max_pending" json:"max_pending"`
+}
+
+// Counts the undelivered inbox rows of a subscription, up to @max_pending.
+func (q *sqlQuerier) CountPendingChatAutomationInboxRows(ctx context.Context, arg CountPendingChatAutomationInboxRowsParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countPendingChatAutomationInboxRows, arg.AutomationID, arg.MaxPending)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getChatAutomationWebhookSecret = `-- name: GetChatAutomationWebhookSecret :one
+SELECT automation_id, secret, secret_key_id
+FROM chat_automation_webhook_secrets
+WHERE automation_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatAutomationWebhookSecret(ctx context.Context, automationID uuid.UUID) (ChatAutomationWebhookSecret, error) {
+	row := q.db.QueryRowContext(ctx, getChatAutomationWebhookSecret, automationID)
+	var i ChatAutomationWebhookSecret
+	err := row.Scan(&i.AutomationID, &i.Secret, &i.SecretKeyID)
+	return i, err
+}
+
+const getChatAutomationWebhookSecrets = `-- name: GetChatAutomationWebhookSecrets :many
+SELECT automation_id, secret, secret_key_id
+FROM chat_automation_webhook_secrets
+ORDER BY automation_id
+`
+
+func (q *sqlQuerier) GetChatAutomationWebhookSecrets(ctx context.Context) ([]ChatAutomationWebhookSecret, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationWebhookSecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomationWebhookSecret
+	for rows.Next() {
+		var i ChatAutomationWebhookSecret
+		if err := rows.Scan(&i.AutomationID, &i.Secret, &i.SecretKeyID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatAutomationWebhookSecret = `-- name: InsertChatAutomationWebhookSecret :exec
+INSERT INTO chat_automation_webhook_secrets (automation_id, secret, secret_key_id)
+VALUES ($1::uuid, $2::text, $3::text)
+`
+
+type InsertChatAutomationWebhookSecretParams struct {
+	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+	Secret       string         `db:"secret" json:"secret"`
+	SecretKeyID  sql.NullString `db:"secret_key_id" json:"secret_key_id"`
+}
+
+func (q *sqlQuerier) InsertChatAutomationWebhookSecret(ctx context.Context, arg InsertChatAutomationWebhookSecretParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatAutomationWebhookSecret, arg.AutomationID, arg.Secret, arg.SecretKeyID)
+	return err
+}
+
+const setChatAutomationWebhookRenewAt = `-- name: SetChatAutomationWebhookRenewAt :exec
+UPDATE chat_automation_mcp_subscriptions
+SET renew_at = $1::timestamptz, last_error = $2::text, updated_at = $3::timestamptz
+WHERE automation_id = $4::uuid AND delivery = 'webhook' AND state <> 'terminated'
+`
+
+type SetChatAutomationWebhookRenewAtParams struct {
+	RenewAt      time.Time      `db:"renew_at" json:"renew_at"`
+	LastError    sql.NullString `db:"last_error" json:"last_error"`
+	Now          time.Time      `db:"now" json:"now"`
+	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+}
+
+// Schedules the next subscribe of a webhook subscription, after an error or
+// to subscribe again at once. A NULL error clears it.
+func (q *sqlQuerier) SetChatAutomationWebhookRenewAt(ctx context.Context, arg SetChatAutomationWebhookRenewAtParams) error {
+	_, err := q.db.ExecContext(ctx, setChatAutomationWebhookRenewAt,
+		arg.RenewAt,
+		arg.LastError,
+		arg.Now,
+		arg.AutomationID,
+	)
+	return err
+}
+
+const setChatAutomationWebhookSubscriptionID = `-- name: SetChatAutomationWebhookSubscriptionID :exec
+UPDATE chat_automation_mcp_subscriptions
+SET webhook_subscription_id = $1::text
+WHERE automation_id = $2::uuid AND delivery = 'webhook' AND webhook_subscription_id IS NULL
+`
+
+type SetChatAutomationWebhookSubscriptionIDParams struct {
+	WebhookSubscriptionID string    `db:"webhook_subscription_id" json:"webhook_subscription_id"`
+	AutomationID          uuid.UUID `db:"automation_id" json:"automation_id"`
+}
+
+// Records the id of a first verification, before the subscribe result
+// arrives.
+func (q *sqlQuerier) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg SetChatAutomationWebhookSubscriptionIDParams) error {
+	_, err := q.db.ExecContext(ctx, setChatAutomationWebhookSubscriptionID, arg.WebhookSubscriptionID, arg.AutomationID)
+	return err
+}
+
+const updateChatAutomationWebhookGrant = `-- name: UpdateChatAutomationWebhookGrant :execrows
+UPDATE chat_automation_mcp_subscriptions
+SET
+    state = 'active',
+    webhook_subscription_id = $1::text,
+    refresh_before = $2::timestamptz,
+    renew_at = $3::timestamptz,
+    cursor = COALESCE($4::text, cursor),
+    last_error = $5::text,
+    updated_at = $6::timestamptz
+WHERE automation_id = $7::uuid AND delivery = 'webhook' AND state <> 'terminated'
+`
+
+type UpdateChatAutomationWebhookGrantParams struct {
+	WebhookSubscriptionID string         `db:"webhook_subscription_id" json:"webhook_subscription_id"`
+	RefreshBefore         time.Time      `db:"refresh_before" json:"refresh_before"`
+	RenewAt               time.Time      `db:"renew_at" json:"renew_at"`
+	Cursor                sql.NullString `db:"cursor" json:"cursor"`
+	LastError             sql.NullString `db:"last_error" json:"last_error"`
+	Now                   time.Time      `db:"now" json:"now"`
+	AutomationID          uuid.UUID      `db:"automation_id" json:"automation_id"`
+}
+
+// Stores what an events/subscribe call returned and activates the
+// subscription. A NULL cursor keeps the stored one.
+func (q *sqlQuerier) UpdateChatAutomationWebhookGrant(ctx context.Context, arg UpdateChatAutomationWebhookGrantParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatAutomationWebhookGrant,
+		arg.WebhookSubscriptionID,
+		arg.RefreshBefore,
+		arg.RenewAt,
+		arg.Cursor,
+		arg.LastError,
+		arg.Now,
+		arg.AutomationID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateEncryptedChatAutomationWebhookSecret = `-- name: UpdateEncryptedChatAutomationWebhookSecret :exec
+UPDATE chat_automation_webhook_secrets
+SET secret = $1::text, secret_key_id = $2::text
+WHERE automation_id = $3::uuid
+`
+
+type UpdateEncryptedChatAutomationWebhookSecretParams struct {
+	Secret       string         `db:"secret" json:"secret"`
+	SecretKeyID  sql.NullString `db:"secret_key_id" json:"secret_key_id"`
+	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+}
+
+func (q *sqlQuerier) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	_, err := q.db.ExecContext(ctx, updateEncryptedChatAutomationWebhookSecret, arg.Secret, arg.SecretKeyID, arg.AutomationID)
+	return err
 }
 
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows

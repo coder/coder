@@ -66,10 +66,11 @@ type ChatAutomationEvent struct {
 	MCPServerConfigID *uuid.UUID     `json:"mcp_server_config_id" format:"uuid"`
 	EventName         string         `json:"event_name"`
 	Arguments         map[string]any `json:"arguments"`
-	Delivery          string         `json:"delivery" enums:"poll"`
-	// State is terminated after the server ends the subscription. A
-	// terminated subscription receives no more events.
-	State string `json:"state" enums:"active,terminated"`
+	Delivery          string         `json:"delivery" enums:"poll,webhook"`
+	// State is pending while a webhook subscribe runs, and terminated after
+	// the server ends the subscription. A terminated subscription receives
+	// no more events.
+	State string `json:"state" enums:"pending,active,terminated"`
 }
 
 // ChatAutomation sends a saved prompt to a chat as its owner, on a schedule

@@ -653,6 +653,44 @@ func (db *dbCrypt) UpdateEncryptedUserAIProviderKey(ctx context.Context, params 
 	return key, nil
 }
 
+func (db *dbCrypt) InsertChatAutomationWebhookSecret(ctx context.Context, params database.InsertChatAutomationWebhookSecretParams) error {
+	if err := db.encryptField(&params.Secret, &params.SecretKeyID); err != nil {
+		return err
+	}
+	return db.Store.InsertChatAutomationWebhookSecret(ctx, params)
+}
+
+func (db *dbCrypt) GetChatAutomationWebhookSecret(ctx context.Context, automationID uuid.UUID) (database.ChatAutomationWebhookSecret, error) {
+	secret, err := db.Store.GetChatAutomationWebhookSecret(ctx, automationID)
+	if err != nil {
+		return database.ChatAutomationWebhookSecret{}, err
+	}
+	if err := db.decryptField(&secret.Secret, secret.SecretKeyID); err != nil {
+		return database.ChatAutomationWebhookSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) GetChatAutomationWebhookSecrets(ctx context.Context) ([]database.ChatAutomationWebhookSecret, error) {
+	secrets, err := db.Store.GetChatAutomationWebhookSecrets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range secrets {
+		if err := db.decryptField(&secrets[i].Secret, secrets[i].SecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return secrets, nil
+}
+
+func (db *dbCrypt) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, params database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	if err := db.encryptField(&params.Secret, &params.SecretKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateEncryptedChatAutomationWebhookSecret(ctx, params)
+}
+
 // decryptMCPServerConfig decrypts all encrypted fields on a
 // single MCPServerConfig in place.
 func (db *dbCrypt) decryptMCPServerConfig(cfg *database.MCPServerConfig) error {

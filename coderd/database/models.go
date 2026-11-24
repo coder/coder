@@ -1567,7 +1567,8 @@ func AllBuildReasonValues() []BuildReason {
 type ChatAutomationEventDelivery string
 
 const (
-	ChatAutomationEventDeliveryPoll ChatAutomationEventDelivery = "poll"
+	ChatAutomationEventDeliveryPoll    ChatAutomationEventDelivery = "poll"
+	ChatAutomationEventDeliveryWebhook ChatAutomationEventDelivery = "webhook"
 )
 
 func (e *ChatAutomationEventDelivery) Scan(src interface{}) error {
@@ -1607,7 +1608,8 @@ func (ns NullChatAutomationEventDelivery) Value() (driver.Value, error) {
 
 func (e ChatAutomationEventDelivery) Valid() bool {
 	switch e {
-	case ChatAutomationEventDeliveryPoll:
+	case ChatAutomationEventDeliveryPoll,
+		ChatAutomationEventDeliveryWebhook:
 		return true
 	}
 	return false
@@ -1616,6 +1618,7 @@ func (e ChatAutomationEventDelivery) Valid() bool {
 func AllChatAutomationEventDeliveryValues() []ChatAutomationEventDelivery {
 	return []ChatAutomationEventDelivery{
 		ChatAutomationEventDeliveryPoll,
+		ChatAutomationEventDeliveryWebhook,
 	}
 }
 
@@ -1804,6 +1807,7 @@ type ChatAutomationSubscriptionState string
 const (
 	ChatAutomationSubscriptionStateActive     ChatAutomationSubscriptionState = "active"
 	ChatAutomationSubscriptionStateTerminated ChatAutomationSubscriptionState = "terminated"
+	ChatAutomationSubscriptionStatePending    ChatAutomationSubscriptionState = "pending"
 )
 
 func (e *ChatAutomationSubscriptionState) Scan(src interface{}) error {
@@ -1844,7 +1848,8 @@ func (ns NullChatAutomationSubscriptionState) Value() (driver.Value, error) {
 func (e ChatAutomationSubscriptionState) Valid() bool {
 	switch e {
 	case ChatAutomationSubscriptionStateActive,
-		ChatAutomationSubscriptionStateTerminated:
+		ChatAutomationSubscriptionStateTerminated,
+		ChatAutomationSubscriptionStatePending:
 		return true
 	}
 	return false
@@ -1854,6 +1859,7 @@ func AllChatAutomationSubscriptionStateValues() []ChatAutomationSubscriptionStat
 	return []ChatAutomationSubscriptionState{
 		ChatAutomationSubscriptionStateActive,
 		ChatAutomationSubscriptionStateTerminated,
+		ChatAutomationSubscriptionStatePending,
 	}
 }
 
@@ -5868,6 +5874,20 @@ type ChatAutomationMCPSubscription struct {
 	LastError  sql.NullString `db:"last_error" json:"last_error"`
 	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time      `db:"updated_at" json:"updated_at"`
+	// The id that the MCP server derived for a webhook subscription and sends in X-MCP-Subscription-Id.
+	WebhookSubscriptionID sql.NullString `db:"webhook_subscription_id" json:"webhook_subscription_id"`
+	// When the MCP server's grant of a webhook subscription expires.
+	RefreshBefore sql.NullTime `db:"refresh_before" json:"refresh_before"`
+	// When a webhook subscription is next subscribed again. A claim moves it ahead as a lease.
+	RenewAt sql.NullTime `db:"renew_at" json:"renew_at"`
+}
+
+// The Standard Webhooks secret that signs the deliveries of a webhook subscription.
+type ChatAutomationWebhookSecret struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	Secret       string    `db:"secret" json:"secret"`
+	// The ID of the key used to encrypt the secret. If this is NULL, the secret is not encrypted.
+	SecretKeyID sql.NullString `db:"secret_key_id" json:"secret_key_id"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.

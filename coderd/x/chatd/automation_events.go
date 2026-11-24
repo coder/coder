@@ -75,6 +75,7 @@ var eventErrorActions = map[int64]eventErrorAction{
 	-32602: {terminate: runReasonMCPInvalidArguments},
 	-32025: {backoff: 5 * time.Minute},
 	-32020: {backoff: time.Minute},
+	-32027: {backoff: 5 * time.Minute},
 }
 
 // inboxAppend is what one delivery adds to a subscription's inbox. A nil
@@ -244,8 +245,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 // pollEventGroup polls the subscriptions of one owner on one MCP server. It
 // polls nothing for an owner whose runs are refused; the lease retries.
 func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
-	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
-	if err != nil || status != database.UserStatusActive || p.automationsEnabled == nil || !p.automationsEnabled(ctx, owner) {
+	if !p.eventOwnerActive(ctx, owner) {
 		return
 	}
 	cfg, err := p.db.GetMCPServerConfigByID(ctx, configID)
@@ -271,6 +271,12 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 		}
 		p.pollSubscription(ctx, conn, sub, now)
 	}
+}
+
+// eventOwnerActive reports whether the loop may reach MCP servers as owner.
+func (p *Server) eventOwnerActive(ctx context.Context, owner uuid.UUID) bool {
+	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
+	return err == nil && status == database.UserStatusActive && p.automationsEnabled != nil && p.automationsEnabled(ctx, owner)
 }
 
 // pollSubscription polls one subscription and appends what it returns. It
@@ -332,6 +338,21 @@ func nextPollAt(now time.Time, nextPollMs int64) time.Time {
 // handlePollError terminates the subscription or schedules a retry, as
 // eventErrorActions says.
 func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, now time.Time) {
+	p.handleEventError(ctx, automationID, err, conn, func(backoff time.Duration, message string) error {
+		_, err := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
+			AutomationID: automationID,
+			Cursor:       sql.NullString{},
+			NextPollAt:   sql.NullTime{Time: now.Add(backoff), Valid: true},
+			LastError:    sql.NullString{String: message, Valid: true},
+			Now:          now,
+		})
+		return err
+	})
+}
+
+// handleEventError terminates the subscription, or records the error and
+// retries after the backoff that eventErrorActions gives, through retry.
+func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, retry func(backoff time.Duration, message string) error) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -354,14 +375,8 @@ func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, er
 	if len(message) > maxLastErrorBytes {
 		message = message[:maxLastErrorBytes]
 	}
-	if _, uerr := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
-		AutomationID: automationID,
-		Cursor:       sql.NullString{},
-		NextPollAt:   sql.NullTime{Time: now.Add(action.backoff), Valid: true},
-		LastError:    sql.NullString{String: message, Valid: true},
-		Now:          now,
-	}); uerr != nil {
-		p.logger.Warn(ctx, "record chat automation poll error", slog.F("automation_id", automationID), slog.Error(uerr))
+	if rerr := retry(action.backoff, message); rerr != nil {
+		p.logger.Warn(ctx, "record chat automation event error", slog.F("automation_id", automationID), slog.Error(rerr))
 	}
 	if authFailed {
 		p.recordEventRefusal(ctx, automationID, runReasonMCPAuthRequired)

@@ -34,7 +34,7 @@ var ErrMCPAuthRequired = xerrors.New("the chat owner must connect to the MCP ser
 var (
 	errNoEvents         = xerrors.New("MCP events are not available in this chat")
 	errUnknownMCPServer = xerrors.New("this chat has no MCP server with that slug that supports events")
-	errUnknownEvent     = xerrors.New("the MCP server offers no event with that name for poll delivery; run list_event_types")
+	errUnknownEvent     = xerrors.New("the MCP server offers no event with that name in a delivery mode that this deployment receives; run list_event_types")
 )
 
 // EventSource reaches the MCP servers of the tool's chat as the chat owner.
@@ -43,6 +43,9 @@ type EventSource interface {
 	Servers(ctx context.Context) ([]database.MCPServerConfig, error)
 	// Open opens an events session to cfg. The caller closes it.
 	Open(ctx context.Context, cfg database.MCPServerConfig) (*mcpclient.EventsSession, error)
+	// Unsubscribe ends a webhook subscription on its MCP server, best
+	// effort.
+	Unsubscribe(ctx context.Context, owner uuid.UUID, sub database.ChatAutomationMCPSubscription)
 }
 
 type toolEventServer struct {
@@ -79,10 +82,9 @@ func listEventTypes(ctx context.Context, options ToolOptions, slug string) (map[
 	return map[string][]toolEventServer{"mcp_servers": out}, nil
 }
 
-// subscribe subscribes the tool's chat to an event. It polls once from now,
-// which makes the server check the arguments, and then creates the
-// automation and its subscription with the returned cursor in one
-// transaction.
+// subscribe subscribes the tool's chat to an event in the first mode of
+// deliveryOrder that the event type offers. A webhook subscribe that the
+// server cannot deliver to falls back to the next mode.
 func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time.Time) (toolAutomation, error) {
 	rejected := validateNameAndPrompt(args.Name, args.Prompt)
 	if args.MCPServer == "" {
@@ -98,35 +100,42 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 	if arguments == nil {
 		arguments = map[string]any{}
 	}
+	encoded, err := json.Marshal(arguments)
+	if err != nil {
+		return toolAutomation{}, xerrors.Errorf("encode arguments: %w", err)
+	}
 	servers, err := eventServers(ctx, options, args.MCPServer)
 	if err != nil {
 		return toolAutomation{}, err
 	}
 	cfg := servers[0]
-	var poll mcpclient.PollResult
+	var (
+		created database.ChatAutomation
+		sub     database.ChatAutomationMCPSubscription
+	)
 	err = withEvents(ctx, options, cfg, func(session *mcpclient.EventsSession) error {
 		types, err := session.List(ctx)
 		if err != nil {
 			return err
 		}
-		if !slices.ContainsFunc(types, func(t mcpclient.EventType) bool {
-			return t.Name == args.Event && slices.Contains(t.Delivery, mcpclient.DeliveryPoll)
-		}) {
+		i := slices.IndexFunc(types, func(t mcpclient.EventType) bool { return t.Name == args.Event })
+		if i < 0 {
 			return errUnknownEvent
 		}
-		poll, err = session.Poll(ctx, mcpclient.PollParams{Name: args.Event, Arguments: arguments})
-		// The server checks the arguments; its answer helps the agent.
-		var eventsErr *mcpclient.EventsError
-		if !errors.As(err, &eventsErr) {
-			return err
+		for _, mode := range deliveryModes(types[i].Delivery, options.AccessURL) {
+			if mode == mcpclient.DeliveryWebhook {
+				created, sub, err = subscribeWebhook(ctx, options, session, cfg, args, encoded)
+				var eventsErr *mcpclient.EventsError
+				if errors.As(err, &eventsErr) && eventsErr.Code == codeCallbackEndpointError {
+					options.Logger.Warn(ctx, "MCP server cannot deliver to the webhook URL; polling instead", slog.F("server_slug", cfg.Slug), slog.Error(err))
+					continue
+				}
+				return refusal(err)
+			}
+			created, sub, err = subscribePoll(ctx, options, session, cfg, args, arguments, encoded, now)
+			return refusal(err)
 		}
-		field := "event"
-		if eventsErr.Code == jsonrpc.CodeInvalidParams {
-			field = "arguments"
-		}
-		return &InvalidRequestError{Validations: []codersdk.ValidationError{{
-			Field: field, Detail: fmt.Sprintf("The MCP server refused the subscription: %d %.300s", eventsErr.Code, eventsErr.Message),
-		}}}
+		return errUnknownEvent
 	})
 	switch {
 	case errors.Is(err, mcpclient.ErrEventsUnsupported):
@@ -134,9 +143,18 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 	case err != nil:
 		return toolAutomation{}, err
 	}
-	encoded, err := json.Marshal(arguments)
+	options.Audit(ctx, database.AuditActionCreate, database.ChatAutomation{}, created)
+	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{created.ID: sub}}
+	return toToolAutomation(created, refs, now), nil
+}
+
+// subscribePoll polls once from now, which makes the server check the
+// arguments, and then creates the automation and its poll subscription with
+// the returned cursor in one transaction.
+func subscribePoll(ctx context.Context, options ToolOptions, session *mcpclient.EventsSession, cfg database.MCPServerConfig, args toolArgs, arguments map[string]any, encoded json.RawMessage, now time.Time) (database.ChatAutomation, database.ChatAutomationMCPSubscription, error) {
+	poll, err := session.Poll(ctx, mcpclient.PollParams{Name: args.Event, Arguments: arguments})
 	if err != nil {
-		return toolAutomation{}, xerrors.Errorf("encode arguments: %w", err)
+		return database.ChatAutomation{}, database.ChatAutomationMCPSubscription{}, err
 	}
 	var sub database.ChatAutomationMCPSubscription
 	created, err := createEventAutomation(ctx, options.DB, options.Chat, args.Name, args.Prompt, func(tx database.Store, created database.ChatAutomation) error {
@@ -150,6 +168,7 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 			EventName:         args.Event,
 			Arguments:         encoded,
 			Delivery:          database.ChatAutomationEventDeliveryPoll,
+			State:             database.ChatAutomationSubscriptionStateActive,
 			Cursor:            cursor,
 			NextPollAt:        sql.NullTime{Time: now.Add(min(max(time.Duration(poll.NextPollMs)*time.Millisecond, firstPollFloor), firstPollCeiling)), Valid: true},
 		})
@@ -158,12 +177,23 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 		}
 		return nil
 	})
-	if err != nil {
-		return toolAutomation{}, err
+	return created, sub, err
+}
+
+// refusal turns an events error into a validation error that helps the agent;
+// the server checks the arguments.
+func refusal(err error) error {
+	var eventsErr *mcpclient.EventsError
+	if !errors.As(err, &eventsErr) {
+		return err
 	}
-	options.Audit(ctx, database.AuditActionCreate, database.ChatAutomation{}, created)
-	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{created.ID: sub}}
-	return toToolAutomation(created, refs, now), nil
+	field := "event"
+	if eventsErr.Code == jsonrpc.CodeInvalidParams {
+		field = "arguments"
+	}
+	return &InvalidRequestError{Validations: []codersdk.ValidationError{{
+		Field: field, Detail: fmt.Sprintf("The MCP server refused the subscription: %d %.300s", eventsErr.Code, eventsErr.Message),
+	}}}
 }
 
 // eventServers returns the chat's MCP servers that an events session can

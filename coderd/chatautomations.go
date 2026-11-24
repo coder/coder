@@ -252,7 +252,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	deleted, err := chatautomation.Delete(ctx, api.Database, organization.ID, id)
+	deleted, err := chatautomation.Delete(ctx, api.Database, organization.ID, id, api.unsubscribeChatAutomationWebhook)
 	switch {
 	case errors.Is(err, chatautomation.ErrDeleteForbidden):
 		httpapi.Forbidden(rw)
@@ -299,7 +299,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	before, after, err := chatautomation.Update(ctx, api.Database, organization.ID, id, req, dbtime.Now())
+	before, after, err := chatautomation.Update(ctx, api.Database, organization.ID, id, req, dbtime.Now(), api.unsubscribeChatAutomationWebhook)
 	switch {
 	case errors.Is(err, chatautomation.ErrUpdateForbidden):
 		httpapi.Forbidden(rw)

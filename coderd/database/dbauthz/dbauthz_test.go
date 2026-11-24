@@ -1525,6 +1525,56 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertChatAutomationMCPSubscription(gomock.Any(), arg).Return(sub, nil).AnyTimes()
 		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(sub)
 	}))
+	s.Run("ClaimDueChatAutomationWebhookRenewals", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimDueChatAutomationWebhookRenewalsParams{Now: dbtime.Now()}
+		dbm.EXPECT().ClaimDueChatAutomationWebhookRenewals(gomock.Any(), arg).Return([]database.ChatAutomationMCPSubscription{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns([]database.ChatAutomationMCPSubscription{})
+	}))
+	s.Run("CountPendingChatAutomationInboxRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.CountPendingChatAutomationInboxRowsParams{AutomationID: uuid.New()}
+		dbm.EXPECT().CountPendingChatAutomationInboxRows(gomock.Any(), arg).Return(int32(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int32(1))
+	}))
+	s.Run("GetChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		secret := database.ChatAutomationWebhookSecret{AutomationID: uuid.New()}
+		dbm.EXPECT().GetChatAutomationWebhookSecret(gomock.Any(), secret.AutomationID).Return(secret, nil).AnyTimes()
+		check.Args(secret.AutomationID).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(secret)
+	}))
+	s.Run("GetChatAutomationWebhookSecrets", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatAutomationWebhookSecrets(gomock.Any()).Return([]database.ChatAutomationWebhookSecret{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns([]database.ChatAutomationWebhookSecret{})
+	}))
+	s.Run("UpdateEncryptedChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateEncryptedChatAutomationWebhookSecretParams{AutomationID: uuid.New()}
+		dbm.EXPECT().UpdateEncryptedChatAutomationWebhookSecret(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
+	s.Run("SetChatAutomationWebhookSubscriptionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.SetChatAutomationWebhookSubscriptionIDParams{AutomationID: uuid.New()}
+		dbm.EXPECT().SetChatAutomationWebhookSubscriptionID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
+	s.Run("InsertChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.InsertChatAutomationWebhookSecretParams{AutomationID: automation.ID}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomationWebhookSecret(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate)
+	}))
+	s.Run("SetChatAutomationWebhookRenewAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.SetChatAutomationWebhookRenewAtParams{AutomationID: automation.ID}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().SetChatAutomationWebhookRenewAt(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate)
+	}))
+	s.Run("UpdateChatAutomationWebhookGrant", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.UpdateChatAutomationWebhookGrantParams{AutomationID: automation.ID}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationWebhookGrant(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("DeleteOldChatAutomationInboxRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.DeleteOldChatAutomationInboxRowsParams{BeforeTime: dbtime.Now(), LimitCount: 10}
 		dbm.EXPECT().DeleteOldChatAutomationInboxRows(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()

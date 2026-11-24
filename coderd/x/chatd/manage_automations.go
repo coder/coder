@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -23,12 +24,13 @@ func (p *Server) manageAutomationsAvailable(ctx context.Context, chat database.C
 
 func (p *Server) manageAutomationsTool(chat database.Chat) fantasy.AgentTool {
 	return chatautomation.Tool(chatautomation.ToolOptions{
-		DB:     p.db,
-		Chat:   chat,
-		Audit:  toolAuditor[database.ChatAutomation](p, chat),
-		Events: chatEventSource{server: p, chat: chat},
-		Logger: p.logger,
-		Clock:  p.clock,
+		DB:        p.db,
+		Chat:      chat,
+		Audit:     toolAuditor[database.ChatAutomation](p, chat),
+		Events:    chatEventSource{server: p, chat: chat},
+		AccessURL: p.accessURL,
+		Logger:    p.logger,
+		Clock:     p.clock,
 	})
 }
 
@@ -54,4 +56,8 @@ func (s chatEventSource) Open(ctx context.Context, cfg database.MCPServerConfig)
 		return nil, err
 	}
 	return conn.session, nil
+}
+
+func (s chatEventSource) Unsubscribe(ctx context.Context, owner uuid.UUID, sub database.ChatAutomationMCPSubscription) {
+	s.server.UnsubscribeWebhook(ctx, owner, sub)
 }

@@ -26,6 +26,7 @@ func (w *chatWorker) automationLoop(ctx context.Context) {
 		{name: "schedule", tick: w.server.tickSchedules},
 		{name: "event_poll", tick: w.server.tickEventPolls},
 		{name: "event_drain", tick: w.server.tickEventDrains},
+		{name: "webhook_renew", tick: w.server.tickWebhookRenewals},
 	}
 	run := func(now time.Time) {
 		for _, kind := range work {

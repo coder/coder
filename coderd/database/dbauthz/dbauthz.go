@@ -1872,6 +1872,19 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
 }
 
+// authorizeAutomationUpdate runs write when the actor may update the
+// automation that owns a subscription row.
+func (q *querier) authorizeAutomationUpdate(ctx context.Context, automationID uuid.UUID, write func() error) error {
+	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return err
+	}
+	return write()
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2059,6 +2072,13 @@ func (q *querier) ClaimDueChatAutomationSchedules(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.ClaimDueChatAutomationSchedules(ctx, arg)
+}
+
+func (q *querier) ClaimDueChatAutomationWebhookRenewals(ctx context.Context, arg database.ClaimDueChatAutomationWebhookRenewalsParams) ([]database.ChatAutomationMCPSubscription, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return nil, err
+	}
+	return q.db.ClaimDueChatAutomationWebhookRenewals(ctx, arg)
 }
 
 func (q *querier) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
@@ -2258,6 +2278,13 @@ func (q *querier) CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]database.Co
 		return nil, err
 	}
 	return q.db.CountOIDCLinkedIDsByIssuer(ctx)
+}
+
+func (q *querier) CountPendingChatAutomationInboxRows(ctx context.Context, arg database.CountPendingChatAutomationInboxRowsParams) (int32, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return 0, err
+	}
+	return q.db.CountPendingChatAutomationInboxRows(ctx, arg)
 }
 
 func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
@@ -3475,6 +3502,21 @@ func (q *querier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.C
 		return nil, err
 	}
 	return q.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, automationIDs)
+}
+
+func (q *querier) GetChatAutomationWebhookSecret(ctx context.Context, automationID uuid.UUID) (database.ChatAutomationWebhookSecret, error) {
+	// Only the webhook receiver and renewal of chatd read secrets.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return database.ChatAutomationWebhookSecret{}, err
+	}
+	return q.db.GetChatAutomationWebhookSecret(ctx, automationID)
+}
+
+func (q *querier) GetChatAutomationWebhookSecrets(ctx context.Context) ([]database.ChatAutomationWebhookSecret, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationWebhookSecrets(ctx)
 }
 
 func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.ChatAutomation, error) {
@@ -6788,6 +6830,10 @@ func (q *querier) InsertChatAutomationMCPSubscription(ctx context.Context, arg d
 	return q.db.InsertChatAutomationMCPSubscription(ctx, arg)
 }
 
+func (q *querier) InsertChatAutomationWebhookSecret(ctx context.Context, arg database.InsertChatAutomationWebhookSecretParams) error {
+	return q.authorizeAutomationUpdate(ctx, arg.AutomationID, func() error { return q.db.InsertChatAutomationWebhookSecret(ctx, arg) })
+}
+
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7967,6 +8013,17 @@ func (q *querier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg databa
 	return q.db.SetChatAutomationMCPDrainAfter(ctx, arg)
 }
 
+func (q *querier) SetChatAutomationWebhookRenewAt(ctx context.Context, arg database.SetChatAutomationWebhookRenewAtParams) error {
+	return q.authorizeAutomationUpdate(ctx, arg.AutomationID, func() error { return q.db.SetChatAutomationWebhookRenewAt(ctx, arg) })
+}
+
+func (q *querier) SetChatAutomationWebhookSubscriptionID(ctx context.Context, arg database.SetChatAutomationWebhookSubscriptionIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return err
+	}
+	return q.db.SetChatAutomationWebhookSubscriptionID(ctx, arg)
+}
+
 func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -8175,6 +8232,15 @@ func (q *querier) UpdateChatAutomationMCPCursor(ctx context.Context, arg databas
 		return 0, err
 	}
 	return q.db.UpdateChatAutomationMCPCursor(ctx, arg)
+}
+
+func (q *querier) UpdateChatAutomationWebhookGrant(ctx context.Context, arg database.UpdateChatAutomationWebhookGrantParams) (int64, error) {
+	var updated int64
+	err := q.authorizeAutomationUpdate(ctx, arg.AutomationID, func() (err error) {
+		updated, err = q.db.UpdateChatAutomationWebhookGrant(ctx, arg)
+		return err
+	})
+	return updated, err
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
@@ -8540,6 +8606,13 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 		return database.AIProvider{}, err
 	}
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatAutomation); err != nil {
+		return err
+	}
+	return q.db.UpdateEncryptedChatAutomationWebhookSecret(ctx, arg)
 }
 
 func (q *querier) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {
