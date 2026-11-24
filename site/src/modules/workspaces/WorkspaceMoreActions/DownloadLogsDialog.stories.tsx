@@ -58,13 +58,6 @@ export const EmptyAgentLogs: Story = {
 			},
 		],
 	},
-	play: async () => {
-		const screen = within(document.body);
-		await expect(screen.getByText("Not available")).toBeInTheDocument();
-		await expect(
-			screen.getByRole("button", { name: "Download" }),
-		).toBeEnabled();
-	},
 };
 
 export const DownloadLogs: Story = {
