@@ -102,6 +102,32 @@ export const Lists: Story = {
 	],
 };
 
+export const LiteralListNumbers: Story = {
+	args: {
+		children: `Steps 2 and 6 were already done, so the rest are:
+
+1. Clone the repository.
+3. Install dependencies.
+4. Run the migrations.
+5. Start the server.
+7. Open the dashboard.
+
+A list written as all ones still counts up:
+
+1. First.
+1. Second.
+1. Third.
+`,
+	},
+};
+
+export const SingleTildes: Story = {
+	args: {
+		children:
+			"Each step takes ~5 min, so 10~15 min total, or 20~30 min on a cold cache. Only ~~double tildes~~ strike text through.",
+	},
+};
+
 export const TableColumnAlignment: Story = {
 	args: {
 		children: [

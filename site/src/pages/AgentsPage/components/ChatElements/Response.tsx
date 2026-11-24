@@ -8,13 +8,13 @@ import remarkBreaks from "remark-breaks";
 import {
 	type Components,
 	defaultRehypePlugins,
-	defaultRemarkPlugins,
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { chatRemarkPlugins } from "./chatMarkdown";
 import {
 	type InlineNode,
 	inlineNodeIndexProperty,
@@ -57,10 +57,7 @@ const inlineNodeRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
-const lineBreakRemarkPlugins = [
-	...Object.values(defaultRemarkPlugins),
-	remarkBreaks,
-];
+const lineBreakRemarkPlugins = [...chatRemarkPlugins, remarkBreaks];
 
 // Spacing and list layout for every chat Markdown block. These are
 // descendant selectors rather than component overrides so Streamdown
@@ -396,7 +393,7 @@ export const Response = ({
 					components={components}
 					urlTransform={urlTransform}
 					remarkPlugins={
-						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
+						preserveLineBreaks ? lineBreakRemarkPlugins : chatRemarkPlugins
 					}
 					rehypePlugins={
 						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
