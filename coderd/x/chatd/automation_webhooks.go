@@ -124,10 +124,11 @@ func (p *Server) webhookTarget(ctx context.Context, automationID uuid.UUID) (dat
 		return none, "", err
 	}
 	if len(subs) != 1 || subs[0].Delivery != database.ChatAutomationEventDeliveryWebhook ||
-		subs[0].State == database.ChatAutomationSubscriptionStateTerminated || !subs[0].MCPServerConfigID.Valid {
+		subs[0].State == database.ChatAutomationSubscriptionStateTerminated {
 		return none, "", errSubscriptionInactive
 	}
-	// A server whose config an admin disabled or deleted delivers nothing.
+	// A server whose config an admin disabled or deleted (NULL here)
+	// delivers nothing.
 	cfg, err := p.db.GetMCPServerConfigByID(ctx, subs[0].MCPServerConfigID.UUID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && !cfg.Enabled) {
 		return none, "", errSubscriptionInactive
