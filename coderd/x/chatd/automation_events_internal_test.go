@@ -321,7 +321,9 @@ func TestAutomationEvents(t *testing.T) {
 			// want is in the one message; nil when the poll fails.
 			want []string
 		}{
-			{"NULInData", []mcpclient.EventOccurrence{occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_ok", `{}`)}, "", []string{`"kind":"gap"`, `"event_id":"evt_ok"`}},
+			{"UnstorableData", []mcpclient.EventOccurrence{
+				occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_surrogate", `{"note":"\ud800"}`), occurrence("evt_ok", `{}`),
+			}, "", []string{`"kind":"gap"`, `"event_id":"evt_surrogate"`, `"event_id":"evt_ok"`}},
 			{"LargeData", []mcpclient.EventOccurrence{occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`)}, "", []string{`"event_id":"evt_big"`, "larger than 16 KiB"}},
 			{"LongPage", long, "", []string{`"kind":"gap"`, `"event_id":"evt_48"`}},
 			{"NULInCursor", []mcpclient.EventOccurrence{occurrence("evt_ok", `{}`)}, "seq:\x00", nil},
