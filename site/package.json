@@ -13,8 +13,9 @@
 		"dev": "vite",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"lint": "pnpm run lint:check && pnpm run lint:oxlint && pnpm run lint:types && pnpm run lint:circular-deps && pnpm run lint:compiler && knip",
+		"lint": "pnpm run lint:check && pnpm run lint:oxlint && pnpm run lint:types && pnpm run lint:circular-deps && pnpm run lint:compiler && pnpm run lint:sentence-case && knip",
 		"lint:compiler": "node scripts/check-compiler.mjs",
+		"lint:sentence-case": "node scripts/check-sentence-case.mjs",
 		"lint:check": "biome lint --error-on-warnings .",
 		"lint:oxlint": "oxlint --deny-warnings",
 		"lint:design-system": "oxlint --config .oxlintrc.design-system.jsonc",
@@ -28,6 +29,7 @@
 		"gen:provisioner": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./e2e/ --ts_proto_opt=outputJsonMethods=false,outputEncodeMethods=encode-no-creation,outputClientImpl=false,nestJs=false,outputPartialMethods=false,fileSuffix=Generated,suffix=hey -I ../provisionersdk/proto ../provisionersdk/proto/provisioner.proto",
 		"storybook": "STORYBOOK=true storybook dev -p 6006",
 		"storybook:build": "storybook build",
+		"storybook:screenshot": "node scripts/storybook-screenshot.mjs",
 		"pixel-storybook:ci": "node scripts/pixelStorybookCi.mjs",
 		"test": "vitest run --project=unit",
 		"test:storybook": "vitest --project=storybook",
@@ -40,7 +42,7 @@
 		"#/*": "./src/*"
 	},
 	"dependencies": {
-		"@coder/frimousse": "0.4.1",
+		"@coder/frimousse": "0.4.2",
 		"@dnd-kit/abstract": "0.5.1",
 		"@dnd-kit/collision": "0.5.1",
 		"@dnd-kit/dom": "0.5.1",

@@ -353,6 +353,8 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		Stages:               p.stages,
+		StageModel:           advisor.stageModel(),
 		PriorUses:            priorUses,
 	})
 	if err != nil {
@@ -2711,7 +2713,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chat)
 	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
 		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
@@ -2720,7 +2722,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chat), stop
 }
 
 func chatKind(chat database.Chat) chatloop.ChatKind {
@@ -2730,8 +2732,24 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+func chatIdentity(chat database.Chat) chatloop.ChatIdentity {
+	return chatloop.ChatIdentity{
+		ChatID:         chat.ID,
+		OwnerID:        chat.OwnerID,
+		OrganizationID: chat.OrganizationID,
+		WorkspaceID:    chat.WorkspaceID,
+		ParentChatID:   chat.ParentChatID,
+		RootChatID:     chat.RootChatID,
+	}
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, chat database.Chat) context.Context {
+	return stageIdentityContext(ctx, scope, chatKind(chat), chatIdentity(chat))
+}
+
+func stageIdentityContext(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, identity chatloop.ChatIdentity) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
+	ctx = chatloop.ContextWithChatIdentity(ctx, identity)
 	return chatloop.ContextWithChatKind(ctx, kind)
 }
 

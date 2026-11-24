@@ -15,7 +15,6 @@ import {
 	parseTimeRange,
 	queryWithTimeRange,
 	withDefaultTimeRange,
-	withoutUnsupportedFilters,
 } from "./timeRange";
 
 const AISessionListPage: React.FC = () => {
@@ -42,7 +41,7 @@ const AISessionListPage: React.FC = () => {
 		// the unfiltered sessions query never scans the entire table.
 		queryPayload: () =>
 			withDefaultTimeRange(
-				withoutUnsupportedFilters(searchParams.get(useFilterParamsKey) ?? ""),
+				searchParams.get(useFilterParamsKey) ?? "",
 				defaultRange,
 			),
 		enabled: canViewSessions,
@@ -86,6 +85,7 @@ const AISessionListPage: React.FC = () => {
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
+				isPlaceholderData={sessionsQuery.isPlaceholderData}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}

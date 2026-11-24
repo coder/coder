@@ -192,17 +192,22 @@ If your control plane is on a network or cloud device, or you are having trouble
 It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find it.
 
+The setup page asks for a setup token, whichever URL you use.
+Copy it from the line that starts with `Setup token:` in the same output.
+
 This section includes some of the quicker ways to install Coder.
 For more detailed options, visit the [Install](../install/index.md) page.
 
 ## Step 3: Initial setup
 
 1. Create your admin account:
+   - Setup token: Copy it from the line that starts with `Setup token:` in the `coder server` output.
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin account.
-   Coder automatically grants admin permissions to the first user that signs in.
+   Coder automatically grants admin permissions to the first user.
+   To sign in with GitHub later, create the account with your GitHub account's primary email.
+   After setup, switch the account to GitHub sign-in under **Account** > **Security**.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -232,7 +237,7 @@ The template builder guides you through creating one without writing any Terrafo
      `my-docker-template`
    - **Display name** and **Description**: fill in as you like.
 
-1. Select **Create Template**.
+1. Select **Create template**.
    Coder composes and validates the Terraform configuration, then creates your template.
 
    ![Template builder base selection step](../images/templatebuilder_01_bases.png)
@@ -257,7 +262,7 @@ Now it's time to launch a workspace.
 
 ## Step 5: Launch your workspace
 
-1. After the template is ready, select **+ Create Workspace**.
+1. After the template is ready, select **+ Create workspace**.
 
 1. Give the workspace a name.
 

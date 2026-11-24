@@ -33,7 +33,7 @@ export const getClientFilterOptions = async (
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const clients = await queryClient.fetchQuery(
-		aiBridgeClients(query, SUGGESTIONS_LIMIT),
+		aiBridgeClients({ q: query, limit: SUGGESTIONS_LIMIT }),
 	);
 	return clients.map((client) => ({
 		label: client,
@@ -47,7 +47,7 @@ export const getModelFilterOptions = async (
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const models = await queryClient.fetchQuery(
-		aiBridgeModels(query, SUGGESTIONS_LIMIT),
+		aiBridgeModels({ model: query, limit: SUGGESTIONS_LIMIT }),
 	);
 	return models.map((model) => ({
 		label: model,

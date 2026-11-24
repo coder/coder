@@ -84,11 +84,11 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 		queries: [
 			{ key: aiBridgeProvidersKey, data: mockProviders },
 			{
-				key: aiBridgeClientsKey("", 25),
+				key: aiBridgeClientsKey({ q: "", limit: 25 }),
 				data: ["claude-code", "cursor"],
 			},
 			{
-				key: aiBridgeModelsKey("", 25),
+				key: aiBridgeModelsKey({ model: "", limit: 25 }),
 				data: ["claude-sonnet-4-5", "us.anthropic.claude-3-5-sonnet-v2:0"],
 			},
 			{

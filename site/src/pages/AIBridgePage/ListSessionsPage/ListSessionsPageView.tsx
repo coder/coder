@@ -29,6 +29,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 type ListSessionsPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
+	isPlaceholderData: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -62,6 +63,7 @@ const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
 export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
+	isPlaceholderData,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -98,14 +100,14 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 				query={sessionsQuery}
 				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
 			>
-				<Table className="text-sm font-normal">
+				<Table className="text-sm font-normal" aria-busy={isFetching}>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="text-nowrap">Last Prompt</TableHead>
+							<TableHead className="text-nowrap">Last prompt</TableHead>
 							<TableHead className="text-nowrap">User</TableHead>
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
-							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+							<TableHead className="text-nowrap">In/Out tokens</TableHead>
 							<TableHead className="text-nowrap">Network</TableHead>
 							<TableHead>
 								<div className="flex items-center flex-nowrap gap-1">
@@ -144,7 +146,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading || isFetching ? (
+						{isLoading || isPlaceholderData ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

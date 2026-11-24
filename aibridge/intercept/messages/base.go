@@ -202,7 +202,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {
-	return i.reqPayload.correlatingToolCallID()
+	return i.reqPayload.CorrelatingToolCallID()
 }
 
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
@@ -234,7 +234,7 @@ func (i *interceptionBase) Model() string {
 		return model
 	}
 
-	return i.reqPayload.model()
+	return i.reqPayload.Model()
 }
 
 // upstreamModel returns the identifier sent to Bedrock as the invocation

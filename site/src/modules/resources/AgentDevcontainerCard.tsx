@@ -64,7 +64,8 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 	template,
 	wildcardHostname,
 }) => {
-	const { browser_only } = useFeatureVisibility();
+	const browser_only =
+		useFeatureVisibility().browser_only || template.browser_only;
 	const { proxy } = useProxy();
 	const queryClient = useQueryClient();
 

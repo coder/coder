@@ -4,7 +4,9 @@ import {
 	preferenceSettings,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { Switch } from "#/components/Switch/Switch";
+import { getOSKey } from "#/utils/platform";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
@@ -29,8 +31,13 @@ export const ChatSendShortcutSettings: React.FC = () => {
 					id={descriptionId}
 					className="m-0 flex-1 text-xs text-content-secondary"
 				>
-					Require Cmd/Ctrl+Enter to send agent messages. When enabled, Enter
-					inserts a newline instead.
+					Require{" "}
+					<KbdGroup>
+						<Kbd>{getOSKey()}</Kbd>
+						<Kbd>Enter</Kbd>
+					</KbdGroup>{" "}
+					to send agent messages. When enabled, <Kbd>Enter</Kbd> inserts a
+					newline instead.
 				</p>
 				<Switch
 					checked={requiresModifierEnter}

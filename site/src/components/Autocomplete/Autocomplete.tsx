@@ -345,7 +345,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
-													aria-selected={index === highlightedIndex}
+													aria-selected={isSelected(option)}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
@@ -377,7 +377,6 @@ export function Autocomplete<TOption>({
 						id={id}
 						data-testid={testId}
 						aria-expanded={isOpen}
-						aria-haspopup="listbox"
 						aria-describedby={triggerAriaDescribedBy}
 						aria-labelledby={triggerAriaLabelledBy}
 						disabled={disabled}
@@ -434,6 +433,7 @@ export function Autocomplete<TOption>({
 			<PopoverContent
 				className="w-(--radix-popover-trigger-width) p-0"
 				align="start"
+				aria-label={placeholder}
 				onKeyDownCapture={handleKeyDown}
 			>
 				<Command
@@ -464,6 +464,7 @@ export function Autocomplete<TOption>({
 												key={optionValue}
 												value={optionValue}
 												keywords={[optionLabel]}
+												aria-selected={selected}
 												onSelect={() => handleSelect(option)}
 												className="cursor-pointer"
 											>

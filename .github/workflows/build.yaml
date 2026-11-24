@@ -1,8 +1,9 @@
 name: build
 
 # Builds, signs and publishes ghcr.io/coder/coder-preview for every commit to
-# main and release/*. dogfood.cdr.dev pulls new main builds itself through Flux
-# image automation in coder/dogfood, so this workflow needs no cluster access.
+# main and release/*, through coder/ghcr-publisher (see "Build Linux Docker
+# images"). dogfood.cdr.dev pulls new main builds itself through Flux image
+# automation in coder/dogfood, so this workflow needs no cluster access.
 #
 # The build job signs exactly like release.yaml, through the same
 # ./.github/actions/build-coder action. This workflow has no pull_request or
@@ -125,7 +126,7 @@ jobs:
             echo "GPG_KMS_KEY is not set, skipping."
             exit 0
           fi
-          go run ./scripts/gpgkms public-key -key "$GPG_KMS_KEY" > "$RUNNER_TEMP/gpg-kms-public.key"
+          ./scripts/gpgkms.sh public-key -key "$GPG_KMS_KEY" > "$RUNNER_TEMP/gpg-kms-public.key"
           gpg --show-keys --with-fingerprint "$RUNNER_TEMP/gpg-kms-public.key"
           {
             echo "### Cloud KMS release signing key"
@@ -152,10 +153,21 @@ jobs:
           # artifacts and were only built as make prerequisites.
           rm -f ./build/*.apk ./build/*.rpm
 
+      # Builds go to ghcr.io/coder/coder-preview-staging. coder/ghcr-publisher,
+      # the only repository that can write ghcr.io/coder/coder-preview, copies
+      # a build after verifying its preview attestation (below), and derives
+      # every public tag from the verified commit: the version,
+      # main-<commit time>-<sha> (which dogfood's Flux deploys), main, latest
+      # and release-X.Y.
+      #
+      # Anyone who can write the staging package can move its tags, so every
+      # digest here comes from the registry's response to our own push, and
+      # the multi-arch index is built from those digests. No staging tag is
+      # ever read back.
       - name: Build Linux Docker images
         id: build-docker
         env:
-          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview-staging
           DOCKER_CLI_EXPERIMENTAL: "enabled"
           # Skip building .deb/.rpm/.apk/.tar.gz as prerequisites for
           # the Docker image targets; they were already built above.
@@ -172,125 +184,154 @@ jobs:
           # note: omitting the -j argument to avoid race conditions when pushing
           make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-          # only push if we are on main branch or release branch
-          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == refs/heads/release/* ]]; then
-            # build and push multi-arch manifest, this depends on the other images
-            # being pushed so will automatically push them
-            # note: omitting the -j argument to avoid race conditions when pushing
-            make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
-
-            # Define specific tags
-            tags=("$tag")
-            if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-              # main-<commit unix time>-<sha> sorts by commit time, so the
-              # dogfood Flux ImagePolicy can select the newest main build.
-              tags+=("main" "latest" "main-$(git log -1 --format=%ct HEAD)-$(git rev-parse --short=12 HEAD)")
-            elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
-              tags+=("release-${GITHUB_REF#refs/heads/release/}")
+          refs=()
+          for arch in amd64 arm64 armv7; do
+            image_tag="$(cat "build/coder_${version}_linux_${arch}.tag")"
+            push_output="$(docker push "$image_tag")"
+            echo "$push_output"
+            digest="$(sed -nE 's/^.*: digest: (sha256:[0-9a-f]{64}) size: [0-9]+$/\1/p' <<<"$push_output" | tail -n1)"
+            if [[ -z "$digest" ]]; then
+              echo "::error::docker push printed no digest for ${image_tag}"
+              exit 1
             fi
+            refs+=("${CODER_IMAGE_BASE}@${digest}")
+          done
 
-            # Create and push a multi-arch manifest for each tag
-            # we are adding `latest` tag and keeping `main` for backward
-            # compatibality
-            for t in "${tags[@]}"; do
-              echo "Pushing multi-arch manifest for tag: $t"
-              # shellcheck disable=SC2046
-              ./scripts/build_docker_multiarch.sh \
-                  --push \
-                  --target "ghcr.io/coder/coder-preview:$t" \
-                  --version "$version" \
-                  $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-            done
+          index="${CODER_IMAGE_BASE}:${tag}"
+          docker manifest create --amend "$index" "${refs[@]}"
+          push_output="$(docker manifest push "$index")"
+          echo "$push_output"
+          digest="$(grep -oE '^sha256:[0-9a-f]{64}$' <<<"$push_output" | tail -n1)"
+          if [[ -z "$digest" ]]; then
+            echo "::error::docker manifest push printed no digest for ${index}"
+            exit 1
           fi
+          {
+            echo "digest=${digest}"
+            echo "ref=${CODER_IMAGE_BASE}@${digest}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: SBOM Generation and Attestation
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           COSIGN_EXPERIMENTAL: 1
-          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
+          # By digest (see "Build Linux Docker images"). The attestation is
+          # stored next to the digest; coder/ghcr-publisher copies it along.
+          IMAGE_REF: ${{ steps.build-docker.outputs.ref }}
         run: |
           set -euxo pipefail
-
-          # Define image base and tags
-          IMAGE_BASE="ghcr.io/coder/coder-preview"
-          TAGS=("${BUILD_TAG}" "main" "latest")
-
-          # Generate and attest SBOM for each tag
-          for tag in "${TAGS[@]}"; do
-            IMAGE="${IMAGE_BASE}:${tag}"
-            SBOM_FILE="coder_sbom_${tag//[:\/]/_}.spdx.json"
-
-            echo "Generating SBOM for image: ${IMAGE}"
-            syft "${IMAGE}" -o spdx-json > "${SBOM_FILE}"
-
-            echo "Attesting SBOM to image: ${IMAGE}"
-            cosign clean --force=true "${IMAGE}"
-            cosign attest --type spdxjson \
-              --predicate "${SBOM_FILE}" \
-              --yes \
-              "${IMAGE}"
-          done
-
-      - name: Resolve Docker image digests for attestation
-        id: docker_digests
-        if: github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          IMAGE_BASE: ghcr.io/coder/coder-preview
-          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
-        run: |
-          set -euxo pipefail
-          main_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:main" | sha256sum | awk '{print "sha256:"$1}')
-          echo "main_digest=${main_digest}" >> "$GITHUB_OUTPUT"
-          latest_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:latest" | sha256sum | awk '{print "sha256:"$1}')
-          echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
-          version_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:${BUILD_TAG}" | sha256sum | awk '{print "sha256:"$1}')
-          echo "version_digest=${version_digest}" >> "$GITHUB_OUTPUT"
+          syft "${IMAGE_REF}" -o spdx-json > coder_sbom.spdx.json
+          cosign clean --force=true "${IMAGE_REF}"
+          cosign attest --type spdxjson \
+            --predicate coder_sbom.spdx.json \
+            --yes \
+            "${IMAGE_REF}"
 
       - name: GitHub Attestation for Docker image
-        id: attest_main
-        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.main_digest != ''
+        id: attest_image
+        if: github.ref == 'refs/heads/main'
         continue-on-error: true
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-name: ghcr.io/coder/coder-preview
-          subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
-          push-to-registry: true
-
-      - name: GitHub Attestation for Docker image (latest tag)
-        id: attest_latest
-        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.latest_digest != ''
-        continue-on-error: true
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-name: ghcr.io/coder/coder-preview
-          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
-          push-to-registry: true
-
-      - name: GitHub Attestation for version-specific Docker image
-        id: attest_version
-        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.version_digest != ''
-        continue-on-error: true
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-name: ghcr.io/coder/coder-preview
-          subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
+          subject-name: ghcr.io/coder/coder-preview-staging
+          subject-digest: ${{ steps.build-docker.outputs.digest }}
           push-to-registry: true
 
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: github.ref == 'refs/heads/main'
         run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
-          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
-            echo "::warning::GitHub attestation for main tag failed"
+          if [[ "${{ steps.attest_image.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for the Docker image failed"
           fi
-          if [[ "${{ steps.attest_latest.outcome }}" == "failure" ]]; then
-            echo "::warning::GitHub attestation for latest tag failed"
+
+      # coder/ghcr-publisher promotes a build only with this attestation: this
+      # workflow, on this branch, at this commit, for coder-preview. It must
+      # succeed.
+      - name: Preview attestation predicate
+        id: preview_predicate
+        env:
+          VERSION_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          if [[ "$commit" != "$GITHUB_SHA" ]]; then
+            echo "::error::checked out ${commit}, but this run is for ${GITHUB_SHA}"
+            exit 1
           fi
-          if [[ "${{ steps.attest_version.outcome }}" == "failure" ]]; then
-            echo "::warning::GitHub attestation for version-specific tag failed"
+          predicate="$(jq -nc --arg c "$commit" --arg v "$VERSION_TAG" \
+            '{commit: $c, version_tag: $v, target: "ghcr.io/coder/coder-preview"}')"
+          echo "predicate=${predicate}" >> "$GITHUB_OUTPUT"
+
+      - name: Preview attestation for Docker image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder-preview-staging
+          subject-digest: ${{ steps.build-docker.outputs.digest }}
+          predicate-type: https://coder.com/attestations/preview/v1
+          predicate: ${{ steps.preview_predicate.outputs.predicate }}
+
+      # coder-ghcr-dispatch has only contents: write, on coder/ghcr-publisher
+      # only: enough for a repository_dispatch and nothing else. The token is
+      # revoked right after.
+      - name: Generate coder-ghcr-dispatch token
+        id: dispatch_token
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_GHCR_DISPATCH_APP_ID }}
+          kms-key: ${{ secrets.CODER_GHCR_DISPATCH_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: ghcr-publisher
+          permissions: |
+            contents: write
+          skip-token-revoke: true
+
+      - name: Promote to ghcr.io/coder/coder-preview
+        env:
+          GH_TOKEN: ${{ steps.dispatch_token.outputs.token }}
+          DIGEST: ${{ steps.build-docker.outputs.digest }}
+          VERSION_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api repos/coder/ghcr-publisher/dispatches \
+            -f event_type=promote-preview \
+            -f "client_payload[digest]=${DIGEST}"
+          gh api -X DELETE installation/token || echo "::warning::could not revoke the dispatch token; it expires within an hour"
+          unset GH_TOKEN
+
+          # Wait until the public tags that never move show this build (or an
+          # earlier build of this commit, which the publisher keeps). The
+          # publisher's main-<commit time>-<sha> uses the commit's own time.
+          # Anonymous reads: the package is public.
+          remote_digest() {
+            local repo="coder/coder-preview" token
+            token="$(curl -fsS "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r .token)"
+            curl -fsS -o /dev/null -D - -I \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repo}/manifests/$1" |
+              tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" {print $2}'
+          }
+          tags=("$VERSION_TAG")
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tags+=("main-$(git log -1 --format=%ct HEAD)-$(git rev-parse --short=12 HEAD)")
           fi
+          deadline=$((SECONDS + 1200))
+          for tag in "${tags[@]}"; do
+            until got="$(remote_digest "$tag" 2>/dev/null)" && [[ -n "$got" ]]; do
+              if ((SECONDS > deadline)); then
+                echo "::error::ghcr.io/coder/coder-preview:${tag} did not appear in 20 minutes; check https://github.com/coder/ghcr-publisher/actions/workflows/promote-preview.yaml"
+                exit 1
+              fi
+              sleep 15
+            done
+            if [[ "$got" != "$DIGEST" ]]; then
+              echo "::notice::ghcr.io/coder/coder-preview:${tag} is ${got}, an earlier build of this commit"
+            fi
+            echo "ghcr.io/coder/coder-preview:${tag} -> ${got}"
+          done
 
       - name: GitHub Attestation for binaries
         id: attest_binaries
@@ -378,18 +419,18 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Prune old images
+      # Prunes the staging package this workflow pushes to. Only
+      # coder/ghcr-publisher can write ghcr.io/coder/coder-preview, and public
+      # package storage is free, so the public builds are kept.
+      - name: Prune old staging images
         uses: vlaurin/action-ghcr-prune@0cf7d39f88546edd31965acba78cdcb0be14d641 # v0.6.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
-          container: coder-preview
+          container: coder-preview-staging
           keep-younger-than: 30 # days
-          keep-tags: latest
-          keep-tags-regexes: ^pr
           prune-tags-regexes: |
-            ^main-
-            ^v
+            ^
           prune-untagged: true
 
   notify-slack-on-failure:

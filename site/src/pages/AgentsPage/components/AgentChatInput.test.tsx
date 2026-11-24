@@ -76,6 +76,14 @@ const stubViewport = (
 	});
 };
 
+const mobileDropdownVariables = [
+	"--mobile-dropdown-bottom",
+	"--mobile-dropdown-left",
+	"--mobile-dropdown-width",
+	"--mobile-dropdown-above-composer-bottom",
+	"--mobile-dropdown-above-composer-max-height",
+];
+
 const modelOptions = [
 	{
 		id: "model-config-1",
@@ -926,7 +934,7 @@ describe("AgentChatInput", () => {
 
 	it.each([
 		["history", "Stop", "onInterrupt"],
-		["queued", "Save Edit", "onSend"],
+		["queued", "Save edit", "onSend"],
 	] as const)(
 		"a %s edit while streaming puts %s in the footer slot",
 		async (editingKind, buttonName, calledHandler) => {
@@ -1547,7 +1555,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -1558,6 +1566,41 @@ describe("AgentChatInput", () => {
 			);
 		} else {
 			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
+	});
+
+	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
+		stubViewport(false, belowMdViewportMediaQuery);
+		const user = userEvent.setup();
+		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
+
+		renderInput(<AgentChatInput {...inputProps} />);
+		const textbox = screen.getByRole("textbox", { name: "Chat message" });
+		await user.click(textbox);
+		await user.keyboard("when");
+
+		const rootWrites = setProperty.mock.calls.filter(([name]) =>
+			name.startsWith("--mobile-dropdown-"),
+		);
+		expect(rootWrites).toEqual([]);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
+		}
+	});
+
+	it("writes mobile dropdown variables below the md breakpoint and removes them on unmount", () => {
+		stubViewport(true, belowMdViewportMediaQuery);
+
+		const { unmount } = renderInput(<AgentChatInput {...inputProps} />);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toMatch(
+				/^\d+px$/,
+			);
+		}
+
+		unmount();
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
 		}
 	});
 });
