@@ -314,12 +314,13 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = before
 	aReq.New = after
 
-	out, err := api.convertChatAutomations(ctx, []database.ChatAutomation{after})
+	// The change is committed, so a failed read of the owner and chats
+	// leaves them out of the response instead of failing it.
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, []database.ChatAutomation{after})
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+		api.Logger.Warn(ctx, "load chat automation references for the update response", slog.Error(err))
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, out[0])
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatAutomation(after, refs, dbtime.Now()))
 }
 
 // @Summary Run chat automation now
@@ -358,6 +359,8 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("get chat automation: %w", err))
 		return
 	}
+	aReq.Old = automation
+	aReq.New = automation
 	// The run action belongs to the owner alone: an administrator can read,
 	// disable and delete the automation, but not send its prompt as the
 	// owner.
@@ -365,8 +368,6 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-	aReq.Old = automation
-	aReq.New = automation
 	if automation.Kind != database.ChatAutomationKindSchedule || !automation.Enabled {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Only an enabled schedule can run now.",

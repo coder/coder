@@ -139,6 +139,12 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 		}
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
+			// An automation run records the failure as its outcome
+			// instead of failing the chat, so a run that turns out to be
+			// stale leaves the chat as it was.
+			if opts.AutomationID.Valid {
+				return sendPreparation{}, chathooks.UserPromptDenial(err)
+			}
 			return sendPreparation{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)

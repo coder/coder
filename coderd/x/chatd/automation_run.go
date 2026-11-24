@@ -273,6 +273,11 @@ func (p *Server) deliverToNewChat(ctx, ownerCtx context.Context, automation data
 			return checkOverlap(store)
 		},
 	})
+	// The automation lock does not hold the project, so a project deleted
+	// after the re-read fails the insert. Its automation changed too.
+	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+		return uuid.NullUUID{}, ErrAutomationChanged
+	}
 	if err != nil {
 		return uuid.NullUUID{}, err
 	}

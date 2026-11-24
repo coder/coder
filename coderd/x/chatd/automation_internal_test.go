@@ -200,6 +200,10 @@ func TestAutomationSchedule(t *testing.T) {
 				f.server.tickSchedules(ctx, now)
 				requireLastRun(t, read(ctx, t, f, automation.ID), tc.outcome, string(tc.reason), 1)
 				require.Zero(t, sentBy(ctx, t, f, chat.ID, automation.ID))
+				// The outcome reports the hook; the chat stays as it was.
+				chat, err := f.worker.db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusWaiting, chat.Status)
 			})
 		}
 	})
