@@ -44,8 +44,6 @@ const timeRange: DateTimeRangeValue = {
 const rangeQuery =
 	'started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"';
 
-// Stateful harness so `filter.update` feeds back into the combobox value the
-// way the real `useFilter` hook does.
 const ListSessionsFilterHarness = ({
 	initialQuery = "",
 	error,

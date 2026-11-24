@@ -25,8 +25,7 @@ const joinQuery = (...parts: string[]): string =>
 		.filter((part) => part.length > 0)
 		.join(" ");
 
-// stringifyFilter quotes the RFC 3339 values because the backend query
-// parser treats unquoted colons as key/value separators.
+// Unquoted colons split values in the backend query parser.
 const rangeTokens = (range: TimeRange): string =>
 	stringifyFilter({
 		started_after: toRFC3339(range.start),
@@ -59,25 +58,19 @@ export const withDefaultTimeRange = (
 	return joinQuery(query, rangeTokens(range));
 };
 
-/**
- * Removes the started_after and started_before tokens from a filter query,
- * keeping every other token and search text verbatim.
- */
+/** Removes the time bounds from a filter query. */
 export const withoutTimeRange = (query: string): string => {
 	return extractFreeText(query, TIME_RANGE_KEYS);
 };
 
-/**
- * Sets both time bounds of a filter query to the given range, keeping every
- * other token and search text.
- */
+/** Sets both time bounds of a filter query to the given range. */
 export const queryWithTimeRange = (query: string, range: TimeRange): string => {
 	return joinQuery(withoutTimeRange(query), rangeTokens(range));
 };
 
 /**
- * Replaces everything but the time bounds of a filter query with `search`.
- * A time bound typed in `search` overrides that bound and keeps the other.
+ * Swaps the search part of a filter query, keeping its time bounds.
+ * A bound typed in `search` wins.
  */
 export const queryWithSearch = (query: string, search: string): string => {
 	const values = parseFilterQuery(query);

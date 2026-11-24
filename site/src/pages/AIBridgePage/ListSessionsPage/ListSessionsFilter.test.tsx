@@ -10,7 +10,6 @@ const rangeQuery =
 	'started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"';
 const bedrockModel = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
 
-// Feeds `filter.update` back into the value the way `useFilter` does.
 const ListSessionsFilterHarness = ({
 	onUpdate,
 	initialQuery,

@@ -6,13 +6,13 @@ import type {
 	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { stringifyFilter } from "#/components/Filter/filterQuery";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { stringifyFilter } from "#/components/Filter/filterQuery";
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { CostDetailsDialog, type CostDetailsUser } from "./CostDetailsDialog";
 

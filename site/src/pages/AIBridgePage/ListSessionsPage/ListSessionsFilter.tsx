@@ -90,8 +90,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 			: []),
 	];
 
-	// The page hides its ErrorAlert for API validation errors, so the filter
-	// owns surfacing the actionable "invalid query" message.
+	// Other errors show in the page's ErrorAlert.
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
@@ -104,8 +103,6 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 					}
 					categories={categories}
 					placeholder="Search and filter sessions…"
-					// Full width on mobile. From `sm` up it starts at a compact width
-					// and widens to fit chips before wrapping.
 					className="w-full min-w-0 sm:w-auto sm:min-w-lg sm:max-w-full"
 					errorMessage={
 						showValidationError ? getValidationErrorMessage(error) : undefined

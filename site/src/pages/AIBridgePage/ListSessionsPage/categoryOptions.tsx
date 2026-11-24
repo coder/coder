@@ -10,15 +10,13 @@ import type { OptionsQueryClient } from "#/utils/filters";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
-// Client and model suggestions are capped; the APIs are prefix searches.
 const SUGGESTIONS_LIMIT = 25;
 
 export const getProviderFilterOptions = async (
 	query: string,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
-	// The providers endpoint has no search parameter and the list is small,
-	// so it is filtered here.
+	// The providers endpoint has no search, so filter here.
 	const providers = await queryClient.fetchQuery(aiBridgeProviders());
 	const options = providers.map((provider) => ({
 		label: provider.display_name || provider.name,
