@@ -2,7 +2,9 @@ package chatd
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -76,8 +78,10 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	}
 	switch envelope.Type {
 	case "gap":
-		// A retry keeps its webhook-id, which Verify checked.
-		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true, GapKey: "gap:" + header.Get("webhook-id"), MaxPending: maxPendingInboxRows})
+		// A retry keeps its webhook-id, which Verify checked; its hash
+		// bounds the key.
+		key := sha256.Sum256([]byte(header.Get("webhook-id")))
+		err = p.appendInbox(ctx, inboxAppend{AutomationID: automationID, Cursor: envelope.Cursor, Truncated: true, GapKey: "gap:" + hex.EncodeToString(key[:]), MaxPending: maxPendingInboxRows})
 	case "terminated":
 		reason := runReasonMCPTerminated
 		if envelope.Error != nil && eventErrorActions[envelope.Error.Code].terminate != "" {
@@ -216,7 +220,7 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 				return err
 			}
 		}
-		if _, err := p.db.UpdateChatAutomationWebhookGrant(ctx, chatautomation.WebhookGrant(sub.AutomationID, res, p.clock.Now("chatd", "automation-webhooks"))); err != nil {
+		if _, err := p.db.UpdateChatAutomationWebhookGrant(ctx, chatautomation.WebhookGrant(sub.AutomationID, res, sub.RenewAt.Time, p.clock.Now("chatd", "automation-webhooks"))); err != nil {
 			return xerrors.Errorf("store webhook grant: %w", err)
 		}
 		return nil

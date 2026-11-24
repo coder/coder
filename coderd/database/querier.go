@@ -326,10 +326,6 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
-	// Ends the grants of the webhook subscriptions to an MCP server config whose
-	// server changed: the receiver refuses the old server, and the next tick
-	// subscribes the new one. Rows lock in automation_id order.
-	ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
@@ -1614,6 +1610,11 @@ type sqlcQuerier interface {
 	// granted, so a lease that a committed admission counted as stale cannot
 	// be renewed afterwards.
 	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
+	// Restarts the subscriptions to an MCP server config whose server, principal
+	// or enabled state changed. Each resumes from now, and each webhook grant
+	// ends, so the receiver refuses the old server and the next tick subscribes
+	// again. Rows lock in automation_id order.
+	ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1698,7 +1699,8 @@ type sqlcQuerier interface {
 	// cursor or next poll keeps the stored one; a NULL error clears it.
 	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
 	// Stores what an events/subscribe call returned and activates the
-	// subscription. A NULL cursor keeps the stored one.
+	// subscription, unless renew_at moved off @lease during the call, as a reset
+	// or a re-enable does. A NULL cursor keeps the stored one.
 	UpdateChatAutomationWebhookGrant(ctx context.Context, arg UpdateChatAutomationWebhookGrantParams) (int64, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

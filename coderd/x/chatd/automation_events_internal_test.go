@@ -443,12 +443,22 @@ func TestAutomationEvents(t *testing.T) {
 			{"ConfigDeleted", http.StatusGone, func(ctx context.Context, f fixture, _ uuid.UUID) error {
 				return f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID)
 			}},
-			// A renewal may be in flight, so the server retries.
-			{"GrantExpired", http.StatusServiceUnavailable, func(ctx context.Context, f fixture, id uuid.UUID) error {
-				_, err := f.worker.db.UpdateChatAutomationWebhookGrant(ctx, database.UpdateChatAutomationWebhookGrantParams{
-					AutomationID: id, WebhookSubscriptionID: fakeSubscriptionID, RefreshBefore: time.Now().Add(-time.Minute), RenewAt: time.Now(), Now: time.Now(),
-				})
-				return err
+			// The grant ends, and a renewal may be in flight, so the server
+			// retries.
+			{"ConfigRebound", http.StatusServiceUnavailable, func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				return f.worker.db.ResetChatAutomationMCPSubscriptions(ctx, f.config.ID)
+			}},
+			// A rebind during a renewal's call keeps the grant from coming back.
+			{"ReboundDuringRenewal", http.StatusServiceUnavailable, func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				receive := f.events.receive
+				f.events.mu.Lock()
+				f.events.receive = func(callbackURL string, header http.Header, body []byte) (int, string) {
+					_ = f.worker.db.ResetChatAutomationMCPSubscriptions(ctx, f.config.ID)
+					return receive(callbackURL, header, body)
+				}
+				f.events.mu.Unlock()
+				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
+				return nil
 			}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {

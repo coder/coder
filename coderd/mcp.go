@@ -660,10 +660,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var (
-		updated database.MCPServerConfig
-		rebound bool
-	)
+	var updated database.MCPServerConfig
 	err = api.Database.InTx(func(tx database.Store) error {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
@@ -689,10 +686,19 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		rebound = mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing)
-		if rebound {
+		grantRebound := mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing)
+		if grantRebound {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
+			}
+		}
+		// Event subscriptions belong to the server and principal, and the old
+		// one keeps the webhook secrets. A disabled config had its webhook
+		// deliveries refused, so its servers dropped them.
+		if grantRebound || next.APIKeyHeader != existing.APIKeyHeader || next.APIKeyValue != existing.APIKeyValue ||
+			next.CustomHeaders != existing.CustomHeaders || (next.Enabled && !existing.Enabled) {
+			if err := tx.ResetChatAutomationMCPSubscriptions(ctx, existing.ID); err != nil {
+				return xerrors.Errorf("reset chat automation event subscriptions: %w", err)
 			}
 		}
 
@@ -777,13 +783,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = updated
-	// The old server keeps the secrets of its webhook subscriptions, so their
-	// grants end and the automation loop subscribes the new server.
-	if rebound {
-		if err := api.Database.ExpireChatAutomationWebhookGrants(ctx, updated.ID); err != nil {
-			api.Logger.Warn(ctx, "expire chat automation webhook grants", slog.F("mcp_server_config_id", updated.ID), slog.Error(err))
-		}
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }

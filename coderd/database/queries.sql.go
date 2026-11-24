@@ -7160,27 +7160,6 @@ func (q *sqlQuerier) CountPendingChatAutomationInboxRows(ctx context.Context, ar
 	return column_1, err
 }
 
-const expireChatAutomationWebhookGrants = `-- name: ExpireChatAutomationWebhookGrants :exec
-UPDATE chat_automation_mcp_subscriptions s
-SET refresh_before = now(), renew_at = now(), updated_at = now()
-FROM (
-    SELECT automation_id
-    FROM chat_automation_mcp_subscriptions
-    WHERE mcp_server_config_id = $1::uuid AND delivery = 'webhook' AND state = 'active'
-    ORDER BY automation_id
-    FOR UPDATE
-) due
-WHERE s.automation_id = due.automation_id
-`
-
-// Ends the grants of the webhook subscriptions to an MCP server config whose
-// server changed: the receiver refuses the old server, and the next tick
-// subscribes the new one. Rows lock in automation_id order.
-func (q *sqlQuerier) ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, expireChatAutomationWebhookGrants, mcpServerConfigID)
-	return err
-}
-
 const getChatAutomationWebhookSecret = `-- name: GetChatAutomationWebhookSecret :one
 SELECT automation_id, secret, secret_key_id
 FROM chat_automation_webhook_secrets
@@ -7239,6 +7218,32 @@ func (q *sqlQuerier) InsertChatAutomationWebhookSecret(ctx context.Context, arg 
 	return err
 }
 
+const resetChatAutomationMCPSubscriptions = `-- name: ResetChatAutomationMCPSubscriptions :exec
+UPDATE chat_automation_mcp_subscriptions s
+SET
+    cursor = NULL,
+    refresh_before = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.refresh_before END,
+    renew_at = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.renew_at END,
+    updated_at = now()
+FROM (
+    SELECT automation_id
+    FROM chat_automation_mcp_subscriptions
+    WHERE mcp_server_config_id = $1::uuid AND state <> 'terminated'
+    ORDER BY automation_id
+    FOR UPDATE
+) due
+WHERE s.automation_id = due.automation_id
+`
+
+// Restarts the subscriptions to an MCP server config whose server, principal
+// or enabled state changed. Each resumes from now, and each webhook grant
+// ends, so the receiver refuses the old server and the next tick subscribes
+// again. Rows lock in automation_id order.
+func (q *sqlQuerier) ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, resetChatAutomationMCPSubscriptions, mcpServerConfigID)
+	return err
+}
+
 const setChatAutomationWebhookRenewAt = `-- name: SetChatAutomationWebhookRenewAt :exec
 UPDATE chat_automation_mcp_subscriptions
 SET renew_at = $1::timestamptz, last_error = $2::text, updated_at = $3::timestamptz
@@ -7275,6 +7280,7 @@ SET
     last_error = $5::text,
     updated_at = $6::timestamptz
 WHERE automation_id = $7::uuid AND delivery = 'webhook' AND state <> 'terminated'
+    AND renew_at = $8::timestamptz
 `
 
 type UpdateChatAutomationWebhookGrantParams struct {
@@ -7285,10 +7291,12 @@ type UpdateChatAutomationWebhookGrantParams struct {
 	LastError             sql.NullString `db:"last_error" json:"last_error"`
 	Now                   time.Time      `db:"now" json:"now"`
 	AutomationID          uuid.UUID      `db:"automation_id" json:"automation_id"`
+	Lease                 time.Time      `db:"lease" json:"lease"`
 }
 
 // Stores what an events/subscribe call returned and activates the
-// subscription. A NULL cursor keeps the stored one.
+// subscription, unless renew_at moved off @lease during the call, as a reset
+// or a re-enable does. A NULL cursor keeps the stored one.
 func (q *sqlQuerier) UpdateChatAutomationWebhookGrant(ctx context.Context, arg UpdateChatAutomationWebhookGrantParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatAutomationWebhookGrant,
 		arg.WebhookSubscriptionID,
@@ -7298,6 +7306,7 @@ func (q *sqlQuerier) UpdateChatAutomationWebhookGrant(ctx context.Context, arg U
 		arg.LastError,
 		arg.Now,
 		arg.AutomationID,
+		arg.Lease,
 	)
 	if err != nil {
 		return 0, err

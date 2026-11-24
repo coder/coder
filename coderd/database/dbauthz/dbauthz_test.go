@@ -1535,10 +1535,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CountPendingChatAutomationInboxRows(gomock.Any(), arg).Return(int32(1), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int32(1))
 	}))
-	s.Run("ExpireChatAutomationWebhookGrants", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("ResetChatAutomationMCPSubscriptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
 		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
-		dbm.EXPECT().ExpireChatAutomationWebhookGrants(gomock.Any(), config.ID).Return(nil).AnyTimes()
+		dbm.EXPECT().ResetChatAutomationMCPSubscriptions(gomock.Any(), config.ID).Return(nil).AnyTimes()
 		check.Args(config.ID).Asserts(config, policy.ActionUpdate)
 	}))
 	s.Run("GetChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

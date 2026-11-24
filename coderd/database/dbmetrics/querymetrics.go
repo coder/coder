@@ -1184,14 +1184,6 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
-func (m queryMetricsStore) ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.ExpireChatAutomationWebhookGrants(ctx, mcpServerConfigID)
-	m.queryLatencies.WithLabelValues("ExpireChatAutomationWebhookGrants").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ExpireChatAutomationWebhookGrants").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	start := time.Now()
 	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
@@ -5686,6 +5678,14 @@ func (m queryMetricsStore) RenewChatHeartbeats(ctx context.Context, arg database
 	m.queryLatencies.WithLabelValues("RenewChatHeartbeats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenewChatHeartbeats").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ResetChatAutomationMCPSubscriptions(ctx, mcpServerConfigID)
+	m.queryLatencies.WithLabelValues("ResetChatAutomationMCPSubscriptions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResetChatAutomationMCPSubscriptions").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

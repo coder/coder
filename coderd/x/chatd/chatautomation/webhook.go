@@ -87,9 +87,10 @@ func WebhookSubscribeParams(accessURL *url.URL, sub database.ChatAutomationMCPSu
 	return params, nil
 }
 
-// WebhookGrant returns the update that stores a subscribe result. The
-// subscription renews when a quarter of the grant is left.
-func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now time.Time) database.UpdateChatAutomationWebhookGrantParams {
+// WebhookGrant returns the update that stores a subscribe result, made while
+// the subscription's renew_at was lease. The subscription renews when a
+// quarter of the grant is left.
+func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, lease, now time.Time) database.UpdateChatAutomationWebhookGrantParams {
 	// A null grant means no expiry, which only a ttlMs of null may ask for,
 	// and no grant outlives the TTL that Coder asked for.
 	refreshBefore := now.Add(webhookTTL)
@@ -102,6 +103,7 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 		WebhookSubscriptionID: res.ID,
 		RefreshBefore:         refreshBefore,
 		RenewAt:               renewAt,
+		Lease:                 lease,
 		Cursor:                sql.NullString{},
 		LastError:             sql.NullString{},
 		Now:                   now,
@@ -150,7 +152,7 @@ func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclie
 		var res mcpclient.SubscribeResult
 		res, err = session.Subscribe(ctx, params)
 		if err == nil {
-			_, err = options.DB.UpdateChatAutomationWebhookGrant(ctx, WebhookGrant(created.ID, res, options.Clock.Now()))
+			_, err = options.DB.UpdateChatAutomationWebhookGrant(ctx, WebhookGrant(created.ID, res, sub.RenewAt.Time, options.Clock.Now()))
 		}
 	}
 	if err != nil {

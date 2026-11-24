@@ -334,6 +334,10 @@ func (s *EventsSession) Subscribe(ctx context.Context, p SubscribeParams) (Subsc
 	if err != nil {
 		return SubscribeResult{}, err
 	}
+	// Every delivery carries the id, so a result without one cannot route.
+	if res.ID == "" {
+		return SubscribeResult{}, xerrors.New("events/subscribe returned no subscription id")
+	}
 	return *res, nil
 }
 

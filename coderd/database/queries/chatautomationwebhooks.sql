@@ -41,7 +41,8 @@ RETURNING s.*;
 
 -- name: UpdateChatAutomationWebhookGrant :execrows
 -- Stores what an events/subscribe call returned and activates the
--- subscription. A NULL cursor keeps the stored one.
+-- subscription, unless renew_at moved off @lease during the call, as a reset
+-- or a re-enable does. A NULL cursor keeps the stored one.
 UPDATE chat_automation_mcp_subscriptions
 SET
     state = 'active',
@@ -51,18 +52,24 @@ SET
     cursor = COALESCE(sqlc.narg('cursor')::text, cursor),
     last_error = sqlc.narg('last_error')::text,
     updated_at = @now::timestamptz
-WHERE automation_id = @automation_id::uuid AND delivery = 'webhook' AND state <> 'terminated';
+WHERE automation_id = @automation_id::uuid AND delivery = 'webhook' AND state <> 'terminated'
+    AND renew_at = @lease::timestamptz;
 
--- name: ExpireChatAutomationWebhookGrants :exec
--- Ends the grants of the webhook subscriptions to an MCP server config whose
--- server changed: the receiver refuses the old server, and the next tick
--- subscribes the new one. Rows lock in automation_id order.
+-- name: ResetChatAutomationMCPSubscriptions :exec
+-- Restarts the subscriptions to an MCP server config whose server, principal
+-- or enabled state changed. Each resumes from now, and each webhook grant
+-- ends, so the receiver refuses the old server and the next tick subscribes
+-- again. Rows lock in automation_id order.
 UPDATE chat_automation_mcp_subscriptions s
-SET refresh_before = now(), renew_at = now(), updated_at = now()
+SET
+    cursor = NULL,
+    refresh_before = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.refresh_before END,
+    renew_at = CASE WHEN s.delivery = 'webhook' THEN now() ELSE s.renew_at END,
+    updated_at = now()
 FROM (
     SELECT automation_id
     FROM chat_automation_mcp_subscriptions
-    WHERE mcp_server_config_id = @mcp_server_config_id::uuid AND delivery = 'webhook' AND state = 'active'
+    WHERE mcp_server_config_id = @mcp_server_config_id::uuid AND state <> 'terminated'
     ORDER BY automation_id
     FOR UPDATE
 ) due

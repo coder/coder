@@ -3048,17 +3048,6 @@ func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.E
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
-func (q *querier) ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	config, err := q.db.GetMCPServerConfigByID(ctx, mcpServerConfigID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
-		return err
-	}
-	return q.db.ExpireChatAutomationWebhookGrants(ctx, mcpServerConfigID)
-}
-
 func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
 		return err
@@ -8000,6 +7989,17 @@ func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewCha
 		return nil, err
 	}
 	return q.db.RenewChatHeartbeats(ctx, arg)
+}
+
+func (q *querier) ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	config, err := q.db.GetMCPServerConfigByID(ctx, mcpServerConfigID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
+		return err
+	}
+	return q.db.ResetChatAutomationMCPSubscriptions(ctx, mcpServerConfigID)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
