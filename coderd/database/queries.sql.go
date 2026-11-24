@@ -9911,13 +9911,17 @@ const countActiveChatsByAutomationID = `-- name: CountActiveChatsByAutomationID 
 SELECT COUNT(*)::bigint
 FROM chats
 WHERE
-    automation_id = $1::uuid
+    (
+        automation_id = $1::uuid
+        OR root_chat_id IN (SELECT id FROM chats WHERE automation_id = $1::uuid)
+    )
     AND NOT archived
     AND status NOT IN ('waiting', 'error')
 `
 
-// Counts the chats that an automation created and that are still working:
-// not archived, and not idle in waiting or error.
+// Counts the chats that an automation created, with their sub-agent chats,
+// that are still working: not archived, and not idle in waiting or error. A
+// root can wait while a sub-agent it started still runs.
 func (q *sqlQuerier) CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countActiveChatsByAutomationID, automationID)
 	var column_1 int64

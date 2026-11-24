@@ -1,3 +1,9 @@
+-- A query on chats_expanded locks the view before chats, so dropping the
+-- view first takes the locks in that order too, and a query that already
+-- holds the view cannot wait for chats while this migration waits for the
+-- view. The view is recreated at the end.
+DROP VIEW chats_expanded;
+
 -- Provenance of the chats and messages that automation runs create. No
 -- foreign key: the provenance outlives the automation.
 ALTER TABLE chats ADD COLUMN automation_id uuid;
@@ -15,9 +21,8 @@ COMMENT ON COLUMN chat_automations.last_run_unaccepted_count IS 'Skipped and ref
 
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:run';
 
--- Adding a column at the end keeps every existing column, so the view can
--- be replaced in place.
-CREATE OR REPLACE VIEW chats_expanded AS
+-- Recreate chats_expanded, dropped at the top, with automation_id.
+CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
     c.workspace_id,

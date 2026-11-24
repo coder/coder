@@ -360,12 +360,16 @@ FROM chats_expanded
 WHERE id = @id::uuid;
 
 -- name: CountActiveChatsByAutomationID :one
--- Counts the chats that an automation created and that are still working:
--- not archived, and not idle in waiting or error.
+-- Counts the chats that an automation created, with their sub-agent chats,
+-- that are still working: not archived, and not idle in waiting or error. A
+-- root can wait while a sub-agent it started still runs.
 SELECT COUNT(*)::bigint
 FROM chats
 WHERE
-    automation_id = @automation_id::uuid
+    (
+        automation_id = @automation_id::uuid
+        OR root_chat_id IN (SELECT id FROM chats WHERE automation_id = @automation_id::uuid)
+    )
     AND NOT archived
     AND status NOT IN ('waiting', 'error');
 

@@ -226,7 +226,18 @@ func TestAutomationSchedule(t *testing.T) {
 		require.Equal(t, uuid.NullUUID{UUID: automation.ID, Valid: true}, created.AutomationID)
 		require.Equal(t, 1, sentBy(ctx, t, f, created.ID, automation.ID))
 
+		now = automation.ScheduleNextRunAt.Time.Add(time.Second)
+		f.server.tickSchedules(ctx, now)
+		automation = read(ctx, t, f, automation.ID)
+		requireLastRun(t, automation, database.ChatAutomationRunOutcomeSkipped, string(runReasonOverlap), 1)
+
+		// The root waits while a sub-agent it started still runs.
+		forceExecutionState(t, f.worker, created.ID, database.ChatStatusWaiting, false)
+		dbgen.Chat(t, f.worker.db, database.Chat{
+			OrganizationID: f.worker.org.ID, OwnerID: f.worker.user.ID, LastModelConfigID: f.model.ID, Status: database.ChatStatusRunning,
+			ParentChatID: uuid.NullUUID{UUID: created.ID, Valid: true}, RootChatID: uuid.NullUUID{UUID: created.ID, Valid: true},
+		})
 		f.server.tickSchedules(ctx, automation.ScheduleNextRunAt.Time.Add(time.Second))
-		requireLastRun(t, read(ctx, t, f, automation.ID), database.ChatAutomationRunOutcomeSkipped, string(runReasonOverlap), 1)
+		requireLastRun(t, read(ctx, t, f, automation.ID), database.ChatAutomationRunOutcomeSkipped, string(runReasonOverlap), 2)
 	})
 }

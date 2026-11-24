@@ -108,8 +108,9 @@ type sqlcQuerier interface {
 	// history. Used when the workspace is deleted.
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
-	// Counts the chats that an automation created and that are still working:
-	// not archived, and not idle in waiting or error.
+	// Counts the chats that an automation created, with their sub-agent chats,
+	// that are still working: not archived, and not idle in waiting or error. A
+	// root can wait while a sub-agent it started still runs.
 	CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Counts the automations of one owner across all organizations.
