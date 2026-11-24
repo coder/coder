@@ -1009,6 +1009,27 @@ describe("CreateWorkspacePage", () => {
 			).toBeInTheDocument();
 		});
 
+		it("selects the default preset in the form", async () => {
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				{ ...mockGpuPreset, Default: true },
+			]);
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({ id: 2, parameters, diagnostics: [] }),
+					}),
+				);
+			});
+			await waitForLoaderToBeRemoved();
+
+			expect(
+				screen.getByRole("button", { name: /gpu-large \(Default\)/i }),
+			).toBeInTheDocument();
+		});
+
 		it("resolves a preset against the pinned template version", async () => {
 			const version = "custom-version";
 			const { mockPublisher } = await renderPageWithSocket({

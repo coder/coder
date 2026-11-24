@@ -172,6 +172,9 @@ export const CreateWorkspacePageView: React.FC<
 			initialValues: {
 				name: defaultName ?? "",
 				template_id: template.id,
+				// URL preset takes precedence over default preset.
+				template_version_preset_id:
+					urlPreset?.ID ?? presets.find((p) => p.Default)?.ID,
 				rich_parameter_values: getInitialParameterValues(
 					parameters,
 					autofillParameters,
@@ -184,6 +187,8 @@ export const CreateWorkspacePageView: React.FC<
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
 			enableReinitialize: false,
+			// Shows the error for a prefilled name straight away.
+			validateOnMount: true,
 			validateOnChange: true,
 			validateOnBlur: true,
 			onSubmit: (request) => {
@@ -229,21 +234,6 @@ export const CreateWorkspacePageView: React.FC<
 	);
 	const presetParameterNames =
 		selectedPreset?.Parameters?.map((p) => p.Name) ?? [];
-
-	// Apply the URL or default preset whenever the presets or the URL preset
-	// change.
-	useEffect(() => {
-		// URL preset takes precedence over default preset.
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Presets load asynchronously, so the URL or default preset is applied when they arrive.
-		if (urlPreset) {
-			setFieldValue("template_version_preset_id", urlPreset.ID);
-			return;
-		}
-
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
-		const defaultPreset = presets.find((p) => p.Default);
-		setFieldValue("template_version_preset_id", defaultPreset?.ID);
-	}, [presets, setFieldValue, urlPreset]);
 
 	// include any modified parameters and all edited parameters to the websocket request
 	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(

@@ -421,8 +421,8 @@ const CreateWorkspacePage: React.FC = () => {
 		autoCreateReady ||
 		(!latestResponse && !wsError) ||
 		(isInitializing && !wsError) ||
-		(effectivePresetName &&
-			!templateVersionPresetsQuery.isSuccess &&
+		// The form starts on the URL or default preset, so it waits for them.
+		(!templateVersionPresetsQuery.isSuccess &&
 			!templateVersionPresetsQuery.isError);
 
 	return (
