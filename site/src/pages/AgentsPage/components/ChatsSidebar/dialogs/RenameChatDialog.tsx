@@ -168,16 +168,6 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 		};
 	}, []);
 
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The caret can only move to the end after React writes each typed frame into the input.
-		if (!isTypingGeneratedTitle) return;
-		const input = inputRef.current;
-		if (!input) return;
-		input.focus();
-		const end = renameTitle.length;
-		input.setSelectionRange(end, end);
-	}, [isTypingGeneratedTitle, renameTitle]);
-
 	const handleGenerate = async () => {
 		if (!chat || !onPropose) return;
 		const requestedSession = sessionRef.current;
@@ -294,7 +284,8 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 									setGenerateTitleError(null);
 								}
 							}}
-							disabled={isRenamingChat || isGeneratingTitle}
+							disabled={isRenamingChat}
+							readOnly={isGeneratingTitle}
 							maxLength={MaxChatTitleRunes}
 							aria-label="Chat title"
 							aria-invalid={generateTitleError ? true : undefined}
