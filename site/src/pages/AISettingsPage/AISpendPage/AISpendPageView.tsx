@@ -20,8 +20,11 @@ import {
 } from "#/components/Tabs/Tabs";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
+import { DetailedReportTab } from "./DetailedReportTab";
 import { OverviewTab } from "./OverviewTab";
 import type { SpendDays } from "./spendDays";
+
+export type AISpendTab = "overview" | "detailed-report";
 
 type AISpendPageViewProps = {
 	isEntitled: boolean;
@@ -30,10 +33,13 @@ type AISpendPageViewProps = {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
+	tab: AISpendTab;
+	onTabChange: (tab: string) => void;
 	isOrganizationsLoading: boolean;
 	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	onOpenDetailedReport: () => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
 	unpricedModels: TypesGen.UnpricedAIModels | undefined;
@@ -50,10 +56,13 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,
+	tab,
+	onTabChange,
 	isOrganizationsLoading,
 	organizationsError,
 	days,
 	onDaysChange,
+	onOpenDetailedReport,
 	overview,
 	overviewError,
 	unpricedModels,
@@ -121,13 +130,14 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					This organization is unavailable, or you don't have access to it.
 				</Alert>
 			) : (
-				<Tabs defaultValue="overview" className="flex flex-col gap-6">
+				<Tabs
+					value={tab}
+					onValueChange={onTabChange}
+					className="flex flex-col gap-6"
+				>
 					<TabsList>
 						<TabsTrigger value="overview">Overview</TabsTrigger>
-						{/* TODO(AIGOV-731): enable once the Detailed report tab is built. */}
-						<TabsTrigger value="detailed-report" disabled>
-							Detailed report
-						</TabsTrigger>
+						<TabsTrigger value="detailed-report">Detailed report</TabsTrigger>
 					</TabsList>
 					<TabsContent value="overview">
 						<OverviewTab
@@ -145,6 +155,14 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 								organizations,
 							)}
 							canViewSessions={canViewSessions}
+							onOpenDetailedReport={onOpenDetailedReport}
+						/>
+					</TabsContent>
+					<TabsContent value="detailed-report">
+						<DetailedReportTab
+							now={now}
+							days={days}
+							onDaysChange={onDaysChange}
 						/>
 					</TabsContent>
 				</Tabs>

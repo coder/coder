@@ -41,10 +41,13 @@ const meta = {
 		organizations: [MockOrganization, MockOrganization2],
 		organization: MockOrganization,
 		onOrganizationChange: fn(),
+		tab: "overview",
+		onTabChange: fn(),
 		isOrganizationsLoading: false,
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
 		unpricedModels: MockUnpricedAIModels,
@@ -59,10 +62,6 @@ export default meta;
 type Story = StoryObj<typeof AISpendPageView>;
 
 export const Overview: Story = {};
-
-export const Mobile: Story = {
-	globals: { viewport: { value: "iphone12", isRotated: false } },
-};
 
 export const OverviewLoading: Story = {
 	args: {
@@ -114,6 +113,19 @@ export const OverviewError: Story = {
 		overview: undefined,
 		overviewError: mockApiQueryError({ message: "Unable to load AI spend." }),
 	},
+};
+
+export const OverviewMobile: Story = {
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const DetailedReport: Story = {
+	args: { tab: "detailed-report" },
+};
+
+export const DetailedReportMobile: Story = {
+	args: { tab: "detailed-report" },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 export const Paywall: Story = {
