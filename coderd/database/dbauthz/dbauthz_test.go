@@ -1395,11 +1395,24 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatProjectSummariesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.GetChatProjectSummariesByUserIDParams{UserID: uuid.New()}
+		userID := uuid.New()
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
+		rows := []database.GetChatProjectSummariesByUserIDRow{{
+			ProjectID: project.ID, OrganizationID: project.OrganizationID, OwnerID: project.OwnerID,
+			UserACL: project.UserACL, GroupACL: project.GroupACL, Pinned: true, PinOrder: 1,
+		}}
+		dbm.EXPECT().GetChatProjectSummariesByUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
+		check.Args(userID).Asserts(rbac.ResourceUserObject(userID), policy.ActionReadPersonal, project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatProjectMemberCountsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatProjectMemberCountsByUserIDParams{UserID: uuid.New(), CountSharedMembers: true}
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: arg.UserID})
-		rows := []database.GetChatProjectSummariesByUserIDRow{{ChatProject: project, Pinned: true, PinOrder: 1}}
-		dbm.EXPECT().GetChatProjectSummariesByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionReadPersonal, project, policy.ActionRead).Returns(rows)
+		rows := []database.GetChatProjectMemberCountsByUserIDRow{{
+			ProjectID: project.ID, OrganizationID: project.OrganizationID, OwnerID: project.OwnerID,
+			UserACL: project.UserACL, GroupACL: project.GroupACL, MemberCount: 1,
+		}}
+		dbm.EXPECT().GetChatProjectMemberCountsByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("InsertChatProjectPin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
