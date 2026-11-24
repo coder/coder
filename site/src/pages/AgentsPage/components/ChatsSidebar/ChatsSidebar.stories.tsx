@@ -3549,7 +3549,10 @@ export const SameNamedProjects: Story = {
 export const ProjectActions: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		queries: [{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
