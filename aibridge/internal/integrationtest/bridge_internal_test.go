@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/sse"
 )
 
 func TestMain(m *testing.M) {
@@ -109,7 +110,7 @@ func TestAnthropicMessages(t *testing.T) {
 
 				// Response-specific checks.
 				if tc.streaming {
-					sp := aibridge.NewSSEParser()
+					sp := sse.NewParser()
 					require.NoError(t, sp.Parse(resp.Body))
 
 					// Ensure the message starts and completes, at a minimum.
@@ -472,7 +473,7 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			if tc.streaming {
-				sp := aibridge.NewSSEParser()
+				sp := sse.NewParser()
 				require.NoError(t, sp.Parse(resp.Body))
 				assert.Contains(t, sp.AllEvents(), "message_start")
 				assert.Contains(t, sp.AllEvents(), "message_stop")
@@ -817,7 +818,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		// The re-emitted client SSE proves the binary frames were decoded.
-		sp := aibridge.NewSSEParser()
+		sp := sse.NewParser()
 		require.NoError(t, sp.Parse(resp.Body))
 		assert.Contains(t, sp.AllEvents(), "message_start")
 		assert.Contains(t, sp.AllEvents(), "message_stop")
@@ -1320,7 +1321,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 
 				// Response-specific checks.
 				if tc.streaming {
-					sp := aibridge.NewSSEParser()
+					sp := sse.NewParser()
 					require.NoError(t, sp.Parse(resp.Body))
 
 					// OpenAI sends all events under the same type.
@@ -1367,7 +1368,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		)
 		defer resp.Body.Close()
 
-		sp := aibridge.NewSSEParser()
+		sp := sse.NewParser()
 		require.NoError(t, sp.Parse(resp.Body))
 
 		var finalUsage gjson.Result
@@ -2366,7 +2367,7 @@ func TestErrorHandling(t *testing.T) {
 					// Server responds first with 200 OK then starts streaming.
 					require.Equal(t, http.StatusOK, resp.StatusCode)
 
-					sp := aibridge.NewSSEParser()
+					sp := sse.NewParser()
 					require.NoError(t, sp.Parse(resp.Body))
 					require.Len(t, sp.EventsByType("error"), 1)
 					require.Contains(t, sp.EventsByType("error")[0].Data, "Overloaded")
@@ -2380,7 +2381,7 @@ func TestErrorHandling(t *testing.T) {
 					// Server responds first with 200 OK then starts streaming.
 					require.Equal(t, http.StatusOK, resp.StatusCode)
 
-					sp := aibridge.NewSSEParser()
+					sp := sse.NewParser()
 					require.NoError(t, sp.Parse(resp.Body))
 					// OpenAI sends all events under the same type.
 					messageEvents := sp.MessageEvents()
