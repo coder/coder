@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -33,14 +34,17 @@ import (
 const fakeEventName = "repo.push"
 
 // fakeEventsServer is an MCP server that offers one event type for poll
-// delivery. Its cursor is "seq:<index>" into the emitted events.
+// delivery. Its cursor is "seq:<index>" into the emitted events, unless
+// cursor replaces it.
 type fakeEventsServer struct {
-	mu       sync.Mutex
-	events   []mcpclient.EventOccurrence
-	pageSize int
-	truncate bool
-	failCode int64
-	polls    int
+	mu           sync.Mutex
+	events       []mcpclient.EventOccurrence
+	pageSize     int
+	truncate     bool
+	failCode     int64
+	unauthorized bool
+	cursor       string
+	polls        int
 }
 
 func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
@@ -69,13 +73,23 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 		}
 		to := min(len(fake.events), from+fake.pageSize)
 		res := &mcpclient.PollResult{
-			Events: append([]mcpclient.EventOccurrence{}, fake.events[from:to]...), Cursor: new(fmt.Sprintf("seq:%d", to)),
+			Events: append([]mcpclient.EventOccurrence{}, fake.events[from:to]...), Cursor: new(cmp.Or(fake.cursor, fmt.Sprintf("seq:%d", to))),
 			Truncated: fake.truncate, HasMore: to < len(fake.events), NextPollMs: 1000,
 		}
 		fake.truncate = false
 		return res, nil
 	}))
-	ts := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{Stateless: true}))
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{Stateless: true})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		unauthorized := fake.unauthorized
+		fake.mu.Unlock()
+		if unauthorized {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(ts.Close)
 	return fake, ts.URL
 }
@@ -131,8 +145,9 @@ func TestAutomationEvents(t *testing.T) {
 		require.NoError(t, err)
 		return resp
 	}
+	const subscribeInput = `{"action":"subscribe","name":"pushes","prompt":"Review the push.","mcp_server":"events","event":"repo.push","arguments":{"repo":"coder/coder"}}`
 	subscribe := func(ctx context.Context, t *testing.T, f fixture) database.ChatAutomation {
-		resp := call(ctx, t, f, f.chat, `{"action":"subscribe","name":"pushes","prompt":"Review the push.","mcp_server":"events","event":"repo.push","arguments":{"repo":"coder/coder"}}`)
+		resp := call(ctx, t, f, f.chat, subscribeInput)
 		require.False(t, resp.IsError, resp.Content)
 		var created struct {
 			ID uuid.UUID `json:"id"`
@@ -258,6 +273,81 @@ func TestAutomationEvents(t *testing.T) {
 				require.Equal(t, database.ChatAutomationRunOutcomeRefused, automation.LastRunOutcome.ChatAutomationRunOutcome)
 				require.Equal(t, string(tc.reason), automation.LastRunReason.String)
 				require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
+			})
+		}
+	})
+
+	t.Run("AuthRequired", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t)
+		automation := subscribe(ctx, t, f)
+		f.events.mu.Lock()
+		f.events.unauthorized = true
+		f.events.mu.Unlock()
+
+		// A 401 keeps the subscription and records the refusal once.
+		now := time.Now().Add(time.Minute)
+		for range 2 {
+			f.server.tickEventPolls(ctx, now)
+			now = now.Add(eventAuthBackoff + time.Minute)
+		}
+		require.Equal(t, database.ChatAutomationSubscriptionStateActive, subscription(ctx, t, f, automation.ID).State)
+		automation, err := f.worker.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, string(runReasonMCPAuthRequired), automation.LastRunReason.String)
+		require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
+
+		resp := call(ctx, t, f, f.chat, subscribeInput)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "must connect")
+	})
+
+	// A page that the inbox cannot store whole still moves the subscription
+	// on, or shows why it does not.
+	t.Run("UntrustedPage", func(t *testing.T) {
+		t.Parallel()
+		occurrence := func(id, data string) mcpclient.EventOccurrence {
+			return mcpclient.EventOccurrence{EventID: id, Name: fakeEventName, Timestamp: time.Now(), Data: json.RawMessage(data)}
+		}
+		long := make([]mcpclient.EventOccurrence, maxEventsPerMessage+1)
+		for i := range long {
+			long[i] = occurrence(fmt.Sprintf("evt_%d", i), `{}`)
+		}
+		for _, tc := range []struct {
+			name   string
+			page   []mcpclient.EventOccurrence
+			cursor string
+			// want is in the one message; nil when the poll fails.
+			want []string
+		}{
+			{"NULInData", []mcpclient.EventOccurrence{occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_ok", `{}`)}, "", []string{`"kind":"gap"`, `"event_id":"evt_ok"`}},
+			{"LargeData", []mcpclient.EventOccurrence{occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`)}, "", []string{`"event_id":"evt_big"`, "larger than 16 KiB"}},
+			{"LongPage", long, "", []string{`"kind":"gap"`, `"event_id":"evt_48"`}},
+			{"NULInCursor", []mcpclient.EventOccurrence{occurrence("evt_ok", `{}`)}, "seq:\x00", nil},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f := setup(t)
+				automation := subscribe(ctx, t, f)
+				f.events.mu.Lock()
+				f.events.events, f.events.pageSize, f.events.cursor = tc.page, len(tc.page), tc.cursor
+				f.events.mu.Unlock()
+
+				now := time.Now().Add(time.Minute)
+				f.server.tickEventPolls(ctx, now)
+				f.server.tickEventDrains(ctx, now)
+				texts := sent(ctx, t, f, automation.ID)
+				if tc.want == nil {
+					require.Empty(t, texts)
+					require.NotEmpty(t, subscription(ctx, t, f, automation.ID).LastError.String, "a failed append left no error")
+					return
+				}
+				require.Len(t, texts, 1)
+				for _, want := range tc.want {
+					require.Contains(t, texts[0], want)
+				}
 			})
 		}
 	})
