@@ -3848,6 +3848,12 @@ func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, pro
 	return q.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
 }
 
+// GetChatProjectMemberCountsByUserID authorizes each count through its
+// project.
+func (q *querier) GetChatProjectMemberCountsByUserID(ctx context.Context, arg database.GetChatProjectMemberCountsByUserIDParams) ([]database.GetChatProjectMemberCountsByUserIDRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectMemberCountsByUserID)(ctx, arg)
+}
+
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return nil, err
@@ -3880,11 +3886,28 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 // GetChatProjectSummariesByUserID returns a user's pins and chat counts,
 // which are that user's personal data, so the read is authorized on the
 // user as well as on each project.
-func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
+func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	// The row count at or above which rows are authorized with one partial
+	// evaluation instead of a full evaluation each. Clients refetch
+	// summaries on chat watch events, and for an organization member a
+	// partial evaluation measured about 6 ms against about 0.03 ms per row,
+	// so rbac.DefaultFilterThreshold would make nearly every refetch pay
+	// for a partial evaluation that only a list of about 200 projects
+	// recovers.
+	const filterThreshold = 200
+
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(userID)); err != nil {
 		return nil, err
 	}
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectSummariesByUserID)(ctx, arg)
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+	rows, err := q.db.GetChatProjectSummariesByUserID(ctx, userID)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch object: %w", err)
+	}
+	return rbac.Filter(ctx, q.auth, act, policy.ActionRead, rows, filterThreshold)
 }
 
 // GetChatProjectTemplatesByProjectIDs authorizes each attachment through its
