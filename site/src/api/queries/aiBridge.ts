@@ -1,5 +1,6 @@
 import {
 	hashKey,
+	type QueryClient,
 	queryOptions,
 	type UseInfiniteQueryOptions,
 } from "react-query";
@@ -15,7 +16,9 @@ import type {
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { group } from "./groups";
 import { permittedOrganizations } from "./organizations";
+import { user } from "./users";
 
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
 
@@ -119,6 +122,7 @@ const organizationAISpendReportKey = (
 	["organizations", organizationId, "aiSpendReport", period, filter] as const;
 
 export const paginatedOrganizationAISpendReport = (
+	queryClient: QueryClient,
 	organizationId: string,
 	period: AISpendPeriodWindow,
 	filter: AISpendReportFilter,
@@ -138,17 +142,19 @@ export const paginatedOrganizationAISpendReport = (
 			limit,
 			offset,
 		}) => {
-			const [user, group] = await Promise.all([
-				username ? API.getUser(username) : undefined,
+			const [resolvedUser, resolvedGroup] = await Promise.all([
+				username ? queryClient.fetchQuery(user(username)) : undefined,
 				group_name
-					? API.getGroup(organizationId, group_name, { exclude_members: true })
+					? queryClient.fetchQuery(
+							group(organizationId, group_name, { exclude_members: true }),
+						)
 					: undefined,
 			]);
 			return API.experimental.getOrganizationAISpendUsers(organizationId, {
 				...period,
 				...dimensions,
-				user_ids: user && [user.id],
-				group_id: group?.id,
+				user_ids: resolvedUser && [resolvedUser.id],
+				group_id: resolvedGroup?.id,
 				limit,
 				offset,
 			});

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import {
 	aiSpendOrganizations,
@@ -54,6 +54,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		permissions,
 	);
 	const isSpendAvailable = isEntitled && isEnabled;
+	const queryClient = useQueryClient();
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const updateSearchParams = useUpdateSearchParams();
@@ -109,6 +110,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 			lastReportRun.filter !== appliedReportFilter);
 	const reportQuery = usePaginatedQuery({
 		...paginatedOrganizationAISpendReport(
+			queryClient,
 			lastReportRun?.organizationId ?? "",
 			toSpendPeriod(lastReportRun?.days ?? days),
 			toReportFilter(lastReportRun?.filter ?? ""),

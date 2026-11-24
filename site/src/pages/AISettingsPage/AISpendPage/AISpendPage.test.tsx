@@ -247,9 +247,12 @@ it("runs the report for the picked days and filter, resolving the user and group
 		}),
 	);
 	expect(getUserSpy).toHaveBeenCalledWith("admin");
-	expect(getGroupSpy).toHaveBeenCalledWith(MockOrganization.id, "Front-End", {
-		exclude_members: true,
-	});
+	expect(getGroupSpy).toHaveBeenCalledWith(
+		MockOrganization.id,
+		"Front-End",
+		{ exclude_members: true },
+		expect.any(AbortSignal),
+	);
 });
 
 it("ignores the URL filter when the viewer can't use it", async () => {
