@@ -19,6 +19,8 @@ The control plane is the core of a Coder deployment.
 If the control plane is compromised in a security incident, it can affect every other part of your deployment.
 Even a successful read-only attack against the control plane could result in a complete compromise of the Coder deployment if credentials are stolen.
 
+For the server settings that apply this guidance, and the settings that weaken Coder's defaults, refer to the [Security configuration reference](hardening.md).
+
 ### User authentication
 
 Configure [OpenID Connect (OIDC) authentication](../users/oidc-auth/index.md) against your organization’s Identity Provider (IdP), such as Okta, to allow single-sign on.
