@@ -1183,6 +1183,7 @@ The generation goroutine supports:
 - MCP tools
 - memory tools (`read_memory`, `save_memory`, `delete_memory`) for root chats in a project, see [Project memory](#project-memory)
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
+- TODO(human): `manage_automations` (`create`, `list`, `disable`, `delete`) in root chats that are not archived, that no automation created, and that are not in plan mode, while the chat-automations experiment is on for the owner. It acts as the chat owner and reaches only the schedules that target its chat; its changes are audited as the owner with the chat ID.
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
 - workspace binding

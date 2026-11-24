@@ -32,11 +32,16 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
 }
 
-// memoryAuditor records memory changes made by a chat's tools. There is no
-// HTTP request, so entries are attributed to the chat owner and name the
-// chat that made it.
+// memoryAuditor records memory changes made by a chat's tools.
 func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
-	return func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
+	return toolAuditor[database.ChatProjectMemory](p, chat)
+}
+
+// toolAuditor records changes made by a chat's tools. There is no HTTP
+// request, so entries are attributed to the chat owner and name the chat
+// that made it.
+func toolAuditor[T audit.Auditable](p *Server, chat database.Chat) func(ctx context.Context, action database.AuditAction, oldValue, newValue T) {
+	return func(ctx context.Context, action database.AuditAction, oldValue, newValue T) {
 		if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
 			return
 		}
@@ -46,18 +51,21 @@ func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 		}
 		// Marshaling a map of strings cannot fail.
 		raw, _ := json.Marshal(map[string]string{"chat_id": chat.ID.String()})
-		status := http.StatusCreated
-		if action == database.AuditActionDelete {
+		status := http.StatusOK
+		switch action {
+		case database.AuditActionCreate:
+			status = http.StatusCreated
+		case database.AuditActionDelete:
 			status = http.StatusNoContent
 		}
-		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.ChatProjectMemory]{
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[T]{
 			Audit:            *auditor,
 			Log:              p.logger.With(slog.F("chat_id", chat.ID)),
 			UserID:           chat.OwnerID,
 			OrganizationID:   chat.OrganizationID,
 			Action:           action,
-			Old:              oldMemory,
-			New:              newMemory,
+			Old:              oldValue,
+			New:              newValue,
 			Status:           status,
 			AdditionalFields: raw,
 		})
