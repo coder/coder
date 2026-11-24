@@ -3,6 +3,7 @@ package dbauthz_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -101,12 +102,19 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 			TokenType:         "bearer",
 		})
 		require.NoError(t, err)
+		// The mark requires the token's refresh lease.
+		leased, err := store.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+			ID:        token.ID,
+			TimeoutMs: time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
 
 		markFailure := func(ctx context.Context) error {
 			_, err := db.MarkMCPServerUserTokenRefreshFailure(ctx, database.MarkMCPServerUserTokenRefreshFailureParams{
 				ID:                        token.ID,
 				UpdatedAt:                 token.UpdatedAt,
 				OauthRefreshFailureReason: "test",
+				Lease:                     leased.RefreshLeaseExpiresAt.Time,
 			})
 			return err
 		}

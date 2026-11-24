@@ -1,4 +1,4 @@
-package mcpclient_test
+package mcpoauth_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpoauth"
 )
 
 type revokeRequest struct {
@@ -36,9 +36,9 @@ func TestRevokeOAuth2Token(t *testing.T) {
 	t.Run("NoRevocationURL", func(t *testing.T) {
 		t.Parallel()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
-			nil,
+			testMCPHTTPClient(nil),
 			database.MCPServerConfig{OAuth2ClientID: "cid"},
 			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
 		)
@@ -53,7 +53,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		srv := httptest.NewServer(captureRevoke(t, got))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -81,7 +81,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -102,7 +102,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -122,7 +122,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		srv := httptest.NewServer(captureRevoke(t, got))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -162,7 +162,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -191,7 +191,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -221,7 +221,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -247,9 +247,9 @@ func TestRevokeOAuth2Token(t *testing.T) {
 			"https:/revoke":                    "has no host",
 			"https:///revoke":                  "has no host",
 		} {
-			revoked, err := mcpclient.RevokeOAuth2Token(
+			revoked, err := mcpoauth.RevokeOAuth2Token(
 				context.Background(),
-				nil,
+				testMCPHTTPClient(nil),
 				database.MCPServerConfig{
 					OAuth2ClientID:      "cid",
 					OAuth2RevocationURL: u,
@@ -270,7 +270,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -299,7 +299,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -322,7 +322,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -352,7 +352,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -380,7 +380,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -404,7 +404,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
@@ -426,7 +426,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
+		revoked, err := mcpoauth.RevokeOAuth2Token(
 			context.Background(),
 			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{

@@ -120,6 +120,14 @@ func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock i
 	return r0
 }
 
+func (m queryMetricsStore) AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg database.AcquireMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireMCPServerUserTokenRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireMCPServerUserTokenRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireMCPServerUserTokenRefreshLease").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireNotificationMessages(ctx, arg)
@@ -5469,6 +5477,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	r0 := m.s.ReleaseExternalAuthLinkRefreshLease(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReleaseExternalAuthLinkRefreshLease").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseExternalAuthLinkRefreshLease").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) ReleaseMCPServerUserTokenRefreshLease(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshLeaseParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseMCPServerUserTokenRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseMCPServerUserTokenRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseMCPServerUserTokenRefreshLease").Inc()
 	return r0
 }
 
