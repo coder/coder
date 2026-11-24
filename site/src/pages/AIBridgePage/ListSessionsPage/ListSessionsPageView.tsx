@@ -27,6 +27,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 type ListSessionsPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
+	isPlaceholderData: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -60,6 +61,7 @@ const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
 export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
+	isPlaceholderData,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -136,7 +138,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading || sessionsQuery.isPlaceholderData ? (
+						{isLoading || isPlaceholderData ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

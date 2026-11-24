@@ -46,6 +46,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 	args: {
 		isLoading: false,
 		isFetching: false,
+		isPlaceholderData: false,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
 		filterProps: defaultFilterProps,
@@ -101,8 +102,8 @@ export const Fetching: Story = {
 export const ChangingPage: Story = {
 	args: {
 		isFetching: true,
+		isPlaceholderData: true,
 		sessions: [MockSession],
-		sessionsQuery: { ...mockSuccessResult, isPlaceholderData: true },
 	},
 };
 
