@@ -1,4 +1,3 @@
-import isEqual from "lodash/isEqual";
 import { useId, useState } from "react";
 import {
 	type TerminalFontName,
@@ -67,7 +66,9 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
-	const [values, setValues] = useState(() => toFormValues(initialValues));
+	// The latest choice, shown while saves are in flight. A save can wait
+	// behind another one, so the cache may not hold it yet.
+	const [submitted, setSubmitted] = useState<AppearanceFormValues>();
 	const themeModeId = useId();
 	const fontGroupId = useId();
 	const fontFamilyId = `${fontGroupId}-family`;
@@ -75,19 +76,13 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
-	const syncInputs = { isUpdating, initialValues };
-	const [prevSyncInputs, setPrevSyncInputs] = useState(syncInputs);
-	if (!isEqual(syncInputs, prevSyncInputs)) {
-		setPrevSyncInputs(syncInputs);
-		if (!isUpdating) {
-			setValues(toFormValues(initialValues));
-		}
-	}
+	const values =
+		isUpdating && submitted ? submitted : toFormValues(initialValues);
 
 	const { draft, terminalFont, terminalFontSize } = values;
 
 	const submit = (next: AppearanceFormValues) => {
-		setValues(next);
+		setSubmitted(next);
 		onSubmit(toUpdateRequest(next, activeScheme));
 	};
 
