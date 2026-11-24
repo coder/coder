@@ -33,6 +33,12 @@ const (
 	eventsMinProtocolVersion = "2026-07-28"
 	// maxEventListPages stops a server that always returns a next cursor.
 	maxEventListPages = 100
+	// maxTypeHeaderBindings and maxListHeaderBindings bound the
+	// x-mcp-header annotations kept for one event type and for one
+	// List. Each binding holds a copy of its properties path, so
+	// without a bound a hostile schema costs depth times leaves.
+	maxTypeHeaderBindings = 32
+	maxListHeaderBindings = 1024
 	// maxSafeHeaderInteger bounds integer x-mcp-header values (the
 	// JavaScript safe-integer range).
 	maxSafeHeaderInteger = 1<<53 - 1
@@ -273,13 +279,15 @@ func (s *EventsSession) Supported() bool {
 }
 
 // List returns the event types of every page. It drops, with a warning,
-// a type whose x-mcp-header annotations break the transport's rules.
+// a type whose x-mcp-header annotations break the transport's rules or
+// pass the binding bounds.
 func (s *EventsSession) List(ctx context.Context) ([]EventType, error) {
 	if !s.Supported() {
 		return nil, ErrEventsUnsupported
 	}
 	var types []EventType
 	bindings := make(map[string][]paramHeader)
+	kept := 0
 	params := &listEventsParams{}
 	for range maxEventListPages {
 		res, err := callEvents[*listEventsResult](ctx, s, "events/list", params, nil)
@@ -288,11 +296,15 @@ func (s *EventsSession) List(ctx context.Context) ([]EventType, error) {
 		}
 		for _, et := range res.Events {
 			headers, err := paramHeaderBindings(et.InputSchema)
+			if err == nil && kept+len(headers) > maxListHeaderBindings {
+				err = xerrors.Errorf("events/list has more than %d x-mcp-header annotations", maxListHeaderBindings)
+			}
 			if err != nil {
 				s.logger.Warn(ctx, "dropping MCP event type with an invalid x-mcp-header annotation",
 					slog.F("event", et.Name), slog.Error(err))
 				continue
 			}
+			kept += len(headers)
 			bindings[et.Name] = headers
 			types = append(types, et)
 		}
@@ -420,7 +432,8 @@ func argumentsObject(args map[string]any) map[string]any {
 // inputSchema. An annotation is invalid when a chain of properties keys
 // from the root does not reach it, its type is not string, integer or
 // boolean, its name is not an HTTP token, or it repeats another
-// case-insensitively.
+// case-insensitively. A schema with more than maxTypeHeaderBindings
+// annotations is refused too.
 func paramHeaderBindings(schema json.RawMessage) ([]paramHeader, error) {
 	if len(schema) == 0 {
 		return nil, nil
@@ -452,16 +465,20 @@ func paramHeaderBindings(schema json.RawMessage) ([]paramHeader, error) {
 					return xerrors.Errorf("x-mcp-header %q is not an HTTP token", header)
 				case seen[strings.ToLower(header)]:
 					return xerrors.Errorf("x-mcp-header %q repeats", header)
+				case len(bindings) == maxTypeHeaderBindings:
+					return xerrors.Errorf("more than %d x-mcp-header annotations", maxTypeHeaderBindings)
 				}
 				seen[strings.ToLower(header)] = true
-				bindings = append(bindings, paramHeader{path: path, header: header})
+				bindings = append(bindings, paramHeader{path: slices.Clone(path), header: header})
 			}
 			for key, child := range node {
 				switch key {
 				case "properties":
 					props, _ := child.(map[string]any)
 					for name, prop := range props {
-						if err := walk(prop, append(slices.Clone(path), name), reachable); err != nil {
+						// Siblings share path's backing array; only an
+						// accepted binding copies it.
+						if err := walk(prop, append(path, name), reachable); err != nil {
 							return err
 						}
 					}
