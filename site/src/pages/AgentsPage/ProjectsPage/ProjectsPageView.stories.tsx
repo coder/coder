@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent, within } from "storybook/test";
+import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
 import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -12,15 +13,16 @@ import { ProjectsPageView } from "./ProjectsPageView";
 const projectSummary = (
 	project: Pick<ChatProject, "id" | "name"> & Partial<ChatProject>,
 	overrides: Partial<ChatProjectSummary> = {},
-): ChatProjectSummary => ({
+): ChatProjectWithSummary => ({
 	...MockChatProjectSummary,
 	pinned: false,
 	pin_order: 0,
 	...overrides,
+	project_id: project.id,
 	project: { ...MockChatProject, description: "", ...project },
 });
 
-const mockYourProjects: ChatProjectSummary[] = [
+const mockYourProjects: ChatProjectWithSummary[] = [
 	projectSummary(
 		{ id: "launch", name: "Launch", description: "Chats for the launch work." },
 		{
@@ -29,7 +31,6 @@ const mockYourProjects: ChatProjectSummary[] = [
 			own_chat_count: 4,
 			own_needs_attention: true,
 			own_running: true,
-			member_count: 4,
 			last_activity_at: "2026-11-10T12:00:00Z",
 		},
 	),
@@ -57,7 +58,6 @@ const mockYourProjects: ChatProjectSummary[] = [
 		{
 			own_chat_count: 3,
 			own_unread_count: 1,
-			member_count: 1234,
 			last_activity_at: "2026-11-08T12:00:00Z",
 		},
 	),
@@ -70,14 +70,13 @@ const mockYourProjects: ChatProjectSummary[] = [
 		},
 		{
 			own_chat_count: 3,
-			member_count: 2,
 			last_activity_at: "2026-10-01T12:00:00Z",
 		},
 	),
 	projectSummary({ id: "empty", name: "Experiments" }),
 ];
 
-const mockSharedProjects: ChatProjectSummary[] = [
+const mockSharedProjects: ChatProjectWithSummary[] = [
 	projectSummary(
 		{
 			id: "oncall",
@@ -88,11 +87,19 @@ const mockSharedProjects: ChatProjectSummary[] = [
 		},
 		{
 			own_chat_count: 1,
-			member_count: 12,
 			last_activity_at: "2026-11-10T08:00:00Z",
 		},
 	),
 ];
+
+const mockMemberCounts = new Map([
+	["launch", 4],
+	["docs", 1],
+	["billing", 1234],
+	["design", 2],
+	["empty", 1],
+	["oncall", 12],
+]);
 
 const meta: Meta<typeof ProjectsPageView> = {
 	title: "pages/AgentsPage/ProjectsPage/ProjectsPageView",
@@ -108,6 +115,7 @@ const meta: Meta<typeof ProjectsPageView> = {
 		tab: "yours",
 		onTabChange: fn(),
 		projects: { yours: mockYourProjects, shared: mockSharedProjects },
+		memberCounts: mockMemberCounts,
 		onRetry: fn(),
 		projectLinkSearch: "",
 		onCreateProject: fn(),
@@ -127,6 +135,9 @@ export const YourProjects: Story = {};
 export const SharedWithYou: Story = { args: { tab: "shared" } };
 
 export const Loading: Story = { args: { projects: undefined } };
+
+/** Cards show before the member counts load, without who can use them. */
+export const MemberCountsLoading: Story = { args: { memberCounts: new Map() } };
 
 export const LoadError: Story = {
 	args: {
