@@ -349,6 +349,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/retention", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiGatewayRetention)
+		})
 		r.Route("/ai/model-prices", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
