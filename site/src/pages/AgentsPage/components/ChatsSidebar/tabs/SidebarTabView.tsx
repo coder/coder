@@ -386,6 +386,12 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 						ref={tabScrollRef}
 						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scroll-px-9 scrollbar-none [&::-webkit-scrollbar]:hidden"
 						onFocus={(event) => {
+							// Browsers scroll only the focused tab or × into view, so the
+							// rest of its pill can stay clipped. Skip pointer focus: scrolling
+							// on mousedown moves the pill under the pointer and drops the click.
+							if (!event.target.matches(":focus-visible")) {
+								return;
+							}
 							let pill: Element | null = event.target;
 							while (pill && pill.parentElement !== event.currentTarget) {
 								pill = pill.parentElement;
