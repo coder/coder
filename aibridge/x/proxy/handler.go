@@ -426,8 +426,7 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		AgentFirewallSequenceNumber: firewallSequence,
 		CredentialKind:              cred.Kind(),
 		CredentialHint:              cred.Hint(),
-		// The route's extractor sets Model, ClientSessionID, and
-		// CorrelatingToolCallID, see forwardedRequest.start.
+		// forwardedRequest.start sets ClientSessionID, Model and CorrelatingToolCallID.
 	}
 
 	return logger, ir, cred
