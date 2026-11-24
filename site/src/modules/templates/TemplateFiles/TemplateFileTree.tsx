@@ -53,17 +53,34 @@ const buildNodes = (
 	Object.entries(fileTree)
 		.sort(compareFileTreeEntries)
 		.map(([filename, content]) =>
-			buildNode(filename, filename, content, parentPath, depth, parentPath),
+			buildNode({
+				label: filename,
+				filename,
+				content,
+				pathPrefix: parentPath,
+				depth,
+				parentPath,
+			}),
 		);
 
-const buildNode = (
-	label: string,
-	filename: string,
-	content: FileTree | string,
-	pathPrefix: string | undefined,
-	depth: number,
-	parentPath: string | undefined,
-): TreeNode => {
+type BuildNodeOptions = {
+	label: string;
+	filename: string;
+	content: FileTree | string;
+	/** Directory containing `filename`. Inside grouped folders it differs from `parentPath`. */
+	pathPrefix?: string;
+	depth: number;
+	parentPath?: string;
+};
+
+const buildNode = ({
+	label,
+	filename,
+	content,
+	pathPrefix,
+	depth,
+	parentPath,
+}: BuildNodeOptions): TreeNode => {
 	const path = pathPrefix ? `${pathPrefix}/${filename}` : filename;
 
 	if (!isFolder(content)) {
@@ -74,14 +91,14 @@ const buildNode = (
 	const childNames = Object.keys(content);
 	if (childNames.length === 1 && isFolder(content[childNames[0]])) {
 		const childName = childNames[0];
-		return buildNode(
-			`${label} / ${childName}`,
-			childName,
-			content[childName],
-			path,
+		return buildNode({
+			label: `${label} / ${childName}`,
+			filename: childName,
+			content: content[childName],
+			pathPrefix: path,
 			depth,
 			parentPath,
-		);
+		});
 	}
 
 	return {
@@ -104,7 +121,6 @@ const flattenVisible = (
 			: [node],
 	);
 
-/** Returns the path of `element` when it is a tree item. */
 const getTreeItemPath = (element: EventTarget | null) => {
 	if (
 		!(element instanceof Element) ||
@@ -144,10 +160,7 @@ type TemplateFilesTreeProps = {
 	}>;
 };
 
-/**
- * WAI-ARIA treeview: one tab stop, arrow keys to move and expand, Enter or
- * Space to select, and F2, Delete, or Shift+F10 for the row actions.
- */
+/** WAI-ARIA treeview. F2, Delete, and Shift+F10 run the row actions on the focused item. */
 export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	ref,
 	fileTree,
@@ -462,7 +475,9 @@ const TreeItem: React.FC<TreeItemProps> = ({
 type MoreMenuProps = Required<
 	Pick<React.ComponentProps<typeof DropdownMenu>, "open" | "onOpenChange">
 > &
-	Pick<React.ComponentProps<typeof DropdownMenuContent>, "onCloseAutoFocus"> & {
+	Required<
+		Pick<React.ComponentProps<typeof DropdownMenuContent>, "onCloseAutoFocus">
+	> & {
 		onRename?: () => void;
 		onDelete?: () => void;
 	};

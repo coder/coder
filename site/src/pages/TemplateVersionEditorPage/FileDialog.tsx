@@ -92,7 +92,9 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 	);
 };
 
-type DeleteFileDialogProps = Pick<ConfirmDialogProps, "onCloseAutoFocus"> & {
+type DeleteFileDialogProps = Required<
+	Pick<ConfirmDialogProps, "onCloseAutoFocus">
+> & {
 	onClose: () => void;
 	onConfirm: () => void;
 	open: boolean;
@@ -124,7 +126,9 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 	);
 };
 
-type RenameFileDialogProps = Pick<ConfirmDialogProps, "onCloseAutoFocus"> & {
+type RenameFileDialogProps = Required<
+	Pick<ConfirmDialogProps, "onCloseAutoFocus">
+> & {
 	onClose: () => void;
 	onConfirm: (filename: string) => void;
 	checkExists: (path: string) => boolean;
