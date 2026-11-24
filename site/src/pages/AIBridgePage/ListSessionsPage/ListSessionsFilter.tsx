@@ -46,9 +46,10 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 
 	const categories: FilterCategory[] = [
 		{
-			key: "initiator",
-			optionsKey: "aiBridgeSessions.initiator",
+			key: "user",
+			optionsKey: "aiBridgeSessions.user",
 			label: "User",
+			aliases: ["initiator"],
 			icon: <UserIcon />,
 			getOptions: (query) => getUserFilterOptions(query, me, queryClient),
 		},

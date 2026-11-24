@@ -112,7 +112,7 @@ export const Default: Story = {
 
 export const WithFilters: Story = {
 	args: {
-		initialQuery: `initiator:me provider_name:anthropic-prod client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
+		initialQuery: `user:me provider_name:anthropic-prod client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
 	},
 };
 

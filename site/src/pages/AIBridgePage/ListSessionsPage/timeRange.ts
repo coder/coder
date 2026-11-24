@@ -3,6 +3,7 @@ import utc from "dayjs/plugin/utc";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { extractFreeText } from "#/components/Filter/FilterCombobox/filterQuery";
 import {
+	FILTER_TOKEN_RE,
 	parseFilterQuery,
 	stringifyFilter,
 } from "#/components/Filter/filterQuery";
@@ -57,6 +58,14 @@ export const withDefaultTimeRange = (
 	}
 	return joinQuery(query, rangeTokens(range));
 };
+
+/** Renames the page's `user` filter to the API's `initiator` key. */
+export const toSessionsAPIQuery = (query: string): string =>
+	query.replace(FILTER_TOKEN_RE, (match, quotedKey, _quoted, bareKey) =>
+		(quotedKey ?? bareKey) === "user"
+			? `initiator${match.slice("user".length)}`
+			: match,
+	);
 
 /** Removes the time bounds from a filter query. */
 export const withoutTimeRange = (query: string): string => {

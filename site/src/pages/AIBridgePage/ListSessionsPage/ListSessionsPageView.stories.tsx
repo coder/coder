@@ -30,8 +30,8 @@ const timeRange: DateTimeRangeValue = {
 
 const defaultFilterProps: FilterProps = {
 	...getDefaultFilterProps<FilterProps>({
-		query: "initiator:me",
-		values: { initiator: "me" },
+		query: "user:me",
+		values: { user: "me" },
 	}),
 	timeRange,
 	onTimeRangeChange: fn(),

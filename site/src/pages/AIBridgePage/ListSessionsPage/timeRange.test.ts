@@ -6,6 +6,7 @@ import {
 	queryWithSearch,
 	queryWithTimeRange,
 	toRFC3339,
+	toSessionsAPIQuery,
 	withDefaultTimeRange,
 	withoutTimeRange,
 } from "./timeRange";
@@ -78,6 +79,14 @@ describe("queryWithTimeRange", () => {
 		).toBe(
 			'initiator:me claude started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
 		);
+	});
+});
+
+describe("toSessionsAPIQuery", () => {
+	it("renames only the user key to initiator", () => {
+		expect(
+			toSessionsAPIQuery('user:me model:"user:x" username:bob user:"a b"'),
+		).toBe('initiator:me model:"user:x" username:bob initiator:"a b"');
 	});
 });
 
