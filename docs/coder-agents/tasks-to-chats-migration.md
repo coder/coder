@@ -210,6 +210,8 @@ To keep your client in sync with the chat:
 When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
 To detect a connection that stops delivering data without closing, start a 75-second timer when you open the WebSocket and restart it on every message.
 When it fires, close the connection and reconnect as for a closed connection.
+The timer allows 15&nbsp;seconds for the next message to start and 60&nbsp;seconds for it to download, because a WebSocket message arrives only after its last byte.
+A shorter timer can fire while a large message is downloading, and each reconnect sends that message again.
 
 On the next connection, the server again sends the `message_part` events of the response that the agent is writing.
 If a retry is pending, the server also sends the `retry` event again.
