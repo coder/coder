@@ -47,6 +47,8 @@ const meta = {
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		reportFilter: "",
+		onReportFilterChange: fn(),
 		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
@@ -126,6 +128,10 @@ export const DetailedReport: Story = {
 export const DetailedReportMobile: Story = {
 	args: { tab: "detailed-report" },
 	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const DetailedReportNoSessionAccess: Story = {
+	args: { tab: "detailed-report", canViewSessions: false },
 };
 
 export const Paywall: Story = {

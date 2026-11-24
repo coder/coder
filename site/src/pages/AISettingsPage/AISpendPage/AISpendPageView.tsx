@@ -39,6 +39,8 @@ type AISpendPageViewProps = {
 	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	reportFilter: string;
+	onReportFilterChange: (filter: string) => void;
 	onOpenDetailedReport: () => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
@@ -62,6 +64,8 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	organizationsError,
 	days,
 	onDaysChange,
+	reportFilter,
+	onReportFilterChange,
 	onOpenDetailedReport,
 	overview,
 	overviewError,
@@ -160,9 +164,13 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					</TabsContent>
 					<TabsContent value="detailed-report">
 						<DetailedReportTab
+							organizationId={organization.id}
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
+							filter={reportFilter}
+							onFilterChange={onReportFilterChange}
+							canFilter={canViewSessions}
 						/>
 					</TabsContent>
 				</Tabs>
