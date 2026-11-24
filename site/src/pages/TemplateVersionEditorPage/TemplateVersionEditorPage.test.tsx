@@ -421,12 +421,9 @@ test("Renaming a file does not throw and opens the new path", async () => {
 	}
 	const originalContent = editor.value;
 
-	// Open the file actions menu for the active file and click Rename.
-	const fileActions = await screen.findByRole("button", {
-		name: "File actions",
-	});
-	await user.click(fileActions);
-	await user.click(await screen.findByRole("menuitem", { name: /rename/i }));
+	const activeFile = await screen.findByRole("treeitem", { selected: true });
+	activeFile.focus();
+	await user.keyboard("{F2}");
 
 	const dialog = await screen.findByTestId("dialog");
 	const pathField = within(dialog).getByLabelText("File path");

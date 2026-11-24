@@ -6,13 +6,8 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -40,12 +35,93 @@ function compareFileTreeEntries(
 	return isFolder(contentA) ? -1 : 1;
 }
 
+type TreeNode = {
+	path: string;
+	label: string;
+	filename: string;
+	depth: number;
+	/** Path of the visible parent item, used for ArrowLeft navigation. */
+	parentPath?: string;
+	children?: TreeNode[];
+};
+
+const buildNodes = (
+	fileTree: FileTree,
+	parentPath?: string,
+	depth = 0,
+): TreeNode[] =>
+	Object.entries(fileTree)
+		.sort(compareFileTreeEntries)
+		.map(([filename, content]) =>
+			buildNode(filename, filename, content, parentPath, depth, parentPath),
+		);
+
+const buildNode = (
+	label: string,
+	filename: string,
+	content: FileTree | string,
+	pathPrefix: string | undefined,
+	depth: number,
+	parentPath: string | undefined,
+): TreeNode => {
+	const path = pathPrefix ? `${pathPrefix}/${filename}` : filename;
+
+	if (!isFolder(content)) {
+		return { path, label, filename, depth, parentPath };
+	}
+
+	// Folders whose only child is a folder are shown as one item, like VS Code.
+	const childNames = Object.keys(content);
+	if (childNames.length === 1 && isFolder(content[childNames[0]])) {
+		const childName = childNames[0];
+		return buildNode(
+			`${label} / ${childName}`,
+			childName,
+			content[childName],
+			path,
+			depth,
+			parentPath,
+		);
+	}
+
+	return {
+		path,
+		label,
+		filename,
+		depth,
+		parentPath,
+		children: buildNodes(content, path, depth + 1),
+	};
+};
+
+const flattenVisible = (
+	nodes: readonly TreeNode[],
+	collapsed: ReadonlySet<string>,
+): TreeNode[] =>
+	nodes.flatMap((node) =>
+		node.children && !collapsed.has(node.path)
+			? [node, ...flattenVisible(node.children, collapsed)]
+			: [node],
+	);
+
+const getTreeItemPath = (target: EventTarget, closest: boolean) => {
+	if (!(target instanceof Element)) {
+		return undefined;
+	}
+	const item = closest ? target.closest("[role='treeitem']") : target;
+	if (item?.getAttribute("role") !== "treeitem") {
+		return undefined;
+	}
+	return item.getAttribute("data-path") ?? undefined;
+};
+
 type TemplateFilesTreeProps = {
 	onSelect: (path: string) => void;
 	onDelete?: (path: string) => void;
 	onRename?: (path: string) => void;
 	fileTree: FileTree;
 	activePath?: string;
+	"aria-label"?: string;
 	Label?: React.FC<{
 		path: string;
 		filename: string;
@@ -54,6 +130,11 @@ type TemplateFilesTreeProps = {
 	}>;
 };
 
+/**
+ * File tree following the WAI-ARIA treeview pattern: one tab stop, arrow keys
+ * to move and expand, Enter or Space to select. F2, Delete, and Shift+F10
+ * trigger the row actions when they are available.
+ */
 export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	fileTree,
 	activePath,
@@ -61,228 +142,334 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	onRename,
 	onSelect,
 	Label,
+	"aria-label": ariaLabel = "Template files",
 }) => {
-	const buildTreeItems = (
-		label: string,
-		filename: string,
-		content?: FileTree | string,
-		parentPath?: string,
-		depth = 0,
-	): React.JSX.Element => {
-		const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-		// Used to group empty folders in one single label like VSCode does.
-		const shouldGroupFolder =
-			isFolder(content) &&
-			Object.keys(content).length === 1 &&
-			isFolder(Object.values(content)[0]);
-		const isHiddenFile = currentPath.startsWith(".");
+	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	const [focusedPath, setFocusedPath] = useState<string>();
+	const [menuPath, setMenuPath] = useState<string>();
+	const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
-		if (shouldGroupFolder) {
-			const firstChildFileName = Object.keys(content)[0];
-			const child = content[firstChildFileName];
-			return buildTreeItems(
-				`${label} / ${firstChildFileName}`,
-				firstChildFileName,
-				child,
-				currentPath,
-				depth,
-			);
-		}
+	const nodes = buildNodes(fileTree);
+	const visibleNodes = flattenVisible(nodes, collapsed);
+	const nodesByPath = new Map(visibleNodes.map((node) => [node.path, node]));
+	const hasActions = Boolean(onRename || onDelete);
 
-		const isActive = currentPath === activePath;
+	const tabStopPath =
+		[focusedPath, activePath].find(
+			(path) => path !== undefined && nodesByPath.has(path),
+		) ?? visibleNodes[0]?.path;
 
-		const labelContent = Label ? (
-			<Label
-				path={currentPath}
-				label={label}
-				filename={filename}
-				isFolder={isFolder(content)}
-			/>
-		) : (
-			label
-		);
-
-		if (isFolder(content)) {
-			return (
-				<FolderNode
-					key={currentPath}
-					label={labelContent}
-					isHidden={isHiddenFile}
-					isActive={isActive}
-					depth={depth}
-					onClick={() => onSelect(currentPath)}
-					onDelete={onDelete && (() => onDelete(currentPath))}
-					onRename={onRename && (() => onRename(currentPath))}
-				>
-					{Object.entries(content)
-						.sort(compareFileTreeEntries)
-						.map(([filename, child]) =>
-							buildTreeItems(filename, filename, child, currentPath, depth + 1),
-						)}
-				</FolderNode>
-			);
-		}
-
-		const Icon = getTemplateFileIcon(filename);
-
-		return (
-			<FileNode
-				key={currentPath}
-				label={labelContent}
-				icon={<Icon className="size-3 shrink-0 text-current" />}
-				isHidden={isHiddenFile}
-				isActive={isActive}
-				depth={depth}
-				onClick={() => onSelect(currentPath)}
-				onDelete={onDelete && (() => onDelete(currentPath))}
-				onRename={onRename && (() => onRename(currentPath))}
-			/>
-		);
+	const setExpanded = (path: string, expanded: boolean) => {
+		setCollapsed((prev) => {
+			const next = new Set(prev);
+			if (expanded) {
+				next.delete(path);
+			} else {
+				next.add(path);
+			}
+			return next;
+		});
 	};
 
-	return (
-		<div>
-			{Object.entries(fileTree)
-				.sort(compareFileTreeEntries)
-				.map(([filename, child]) => buildTreeItems(filename, filename, child))}
-		</div>
-	);
-};
+	const activate = (node: TreeNode) => {
+		if (node.children) {
+			setExpanded(node.path, collapsed.has(node.path));
+		}
+		onSelect(node.path);
+	};
 
-type TreeNodeProps = {
-	label: React.ReactNode;
-	icon: React.ReactNode;
-	isHidden: boolean;
-	isActive: boolean;
-	depth: number;
-	onClick: () => void;
-	onDelete?: () => void;
-	onRename?: () => void;
-};
+	const focusItem = (node: TreeNode | undefined) => {
+		if (node) {
+			itemRefs.current.get(node.path)?.focus();
+		}
+	};
 
-const nodeClasses =
-	"grow flex h-8 cursor-pointer select-none items-center gap-2 " +
-	"border-none bg-transparent px-4 text-sm text-left " +
-	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		const path = getTreeItemPath(event.target, false);
+		const node = path === undefined ? undefined : nodesByPath.get(path);
+		if (!node) {
+			return;
+		}
+		const index = visibleNodes.indexOf(node);
+		const isExpanded = node.children !== undefined && !collapsed.has(node.path);
 
-const FileNode: React.FC<TreeNodeProps> = ({
-	label,
-	icon,
-	isHidden,
-	isActive,
-	depth,
-	onClick,
-	onDelete,
-	onRename,
-}) => {
+		switch (event.key) {
+			case "ArrowDown":
+				focusItem(visibleNodes[index + 1]);
+				break;
+			case "ArrowUp":
+				focusItem(visibleNodes[index - 1]);
+				break;
+			case "Home":
+				focusItem(visibleNodes[0]);
+				break;
+			case "End":
+				focusItem(visibleNodes.at(-1));
+				break;
+			case "ArrowRight":
+				if (!node.children) {
+					break;
+				}
+				if (isExpanded) {
+					focusItem(node.children[0]);
+				} else {
+					setExpanded(node.path, true);
+				}
+				break;
+			case "ArrowLeft":
+				if (isExpanded) {
+					setExpanded(node.path, false);
+				} else if (node.parentPath !== undefined) {
+					focusItem(nodesByPath.get(node.parentPath));
+				}
+				break;
+			case "Enter":
+			case " ":
+				activate(node);
+				break;
+			case "F2":
+				if (!onRename) {
+					return;
+				}
+				onRename(node.path);
+				break;
+			case "Delete":
+				if (!onDelete) {
+					return;
+				}
+				onDelete(node.path);
+				break;
+			case "F10":
+			case "ContextMenu":
+				if (!hasActions || (event.key === "F10" && !event.shiftKey)) {
+					return;
+				}
+				setMenuPath(node.path);
+				break;
+			default:
+				return;
+		}
+		event.preventDefault();
+	};
+
+	const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		const path = getTreeItemPath(event.target, true);
+		const node = path === undefined ? undefined : nodesByPath.get(path);
+		if (node) {
+			activate(node);
+		}
+	};
+
+	const handleFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+		const path = getTreeItemPath(event.target, false);
+		if (path !== undefined) {
+			setFocusedPath(path);
+		}
+	};
+
+	const keyShortcuts = [
+		onRename && "F2",
+		onDelete && "Delete",
+		hasActions && "Shift+F10",
+	]
+		.filter(Boolean)
+		.join(" ");
+
+	const renderNodes = (nodes: readonly TreeNode[]): React.ReactNode =>
+		nodes.map((node) => {
+			const isExpanded =
+				node.children !== undefined && !collapsed.has(node.path);
+			const Icon = node.children
+				? isExpanded
+					? FolderOpenIcon
+					: FolderIcon
+				: getTemplateFileIcon(node.filename);
+			return (
+				<TreeItem
+					key={node.path}
+					node={node}
+					icon={<Icon aria-hidden className="size-3 shrink-0 text-current" />}
+					labelContent={
+						Label ? (
+							<Label
+								path={node.path}
+								label={node.label}
+								filename={node.filename}
+								isFolder={node.children !== undefined}
+							/>
+						) : (
+							node.label
+						)
+					}
+					isExpanded={isExpanded}
+					isSelected={
+						activePath === undefined ? undefined : node.path === activePath
+					}
+					isTabStop={node.path === tabStopPath}
+					keyShortcuts={keyShortcuts || undefined}
+					menuOpen={menuPath === node.path}
+					onMenuOpenChange={(open) => setMenuPath(open ? node.path : undefined)}
+					onRename={onRename && (() => onRename(node.path))}
+					onDelete={onDelete && (() => onDelete(node.path))}
+					itemRef={(element) => {
+						if (element) {
+							itemRefs.current.set(node.path, element);
+						} else {
+							itemRefs.current.delete(node.path);
+						}
+					}}
+				>
+					{node.children && renderNodes(node.children)}
+				</TreeItem>
+			);
+		});
+
 	return (
 		<div
-			className={cn(
-				"group/tree-item flex flex-row items-center justify-between",
-				"hover:bg-surface-secondary",
-				isActive && "bg-surface-sky",
-			)}
+			role="tree"
+			aria-label={ariaLabel}
+			onKeyDown={handleKeyDown}
+			onClick={handleClick}
+			onFocus={handleFocus}
 		>
-			<button
-				type="button"
-				className={cn(
-					nodeClasses,
-					isHidden ? "text-content-secondary" : "text-content-primary",
-					isActive && "text-content-link",
-				)}
-				style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
-				onClick={onClick}
-			>
-				{icon}
-				<span className="truncate">{label}</span>
-			</button>
-			<MoreMenu onRename={onRename} onDelete={onDelete} />
+			{renderNodes(nodes)}
 		</div>
 	);
 };
 
-type FolderNodeProps = Omit<TreeNodeProps, "icon"> & {
-	children: React.ReactNode;
+type TreeItemProps = {
+	node: TreeNode;
+	icon: React.ReactNode;
+	labelContent: React.ReactNode;
+	isExpanded: boolean;
+	isSelected?: boolean;
+	isTabStop: boolean;
+	keyShortcuts?: string;
+	menuOpen: boolean;
+	onMenuOpenChange: (open: boolean) => void;
+	onRename?: () => void;
+	onDelete?: () => void;
+	itemRef: React.RefCallback<HTMLDivElement>;
+	children?: React.ReactNode;
 };
 
-const FolderNode: React.FC<FolderNodeProps> = ({
-	label,
-	isHidden,
-	isActive,
-	depth,
-	onClick,
-	onDelete,
+const TreeItem: React.FC<TreeItemProps> = ({
+	node,
+	icon,
+	labelContent,
+	isExpanded,
+	isSelected,
+	isTabStop,
+	keyShortcuts,
+	menuOpen,
+	onMenuOpenChange,
 	onRename,
+	onDelete,
+	itemRef,
 	children,
 }) => {
-	const [open, setOpen] = useState(true);
+	const labelId = useId();
+	const itemElement = useRef<HTMLDivElement | null>(null);
+	const isFolderNode = node.children !== undefined;
+	const isHidden = node.path.startsWith(".");
 
 	return (
-		<Collapsible open={open} onOpenChange={setOpen}>
+		<div
+			ref={(element) => {
+				itemElement.current = element;
+				itemRef(element);
+			}}
+			role="treeitem"
+			data-path={node.path}
+			aria-labelledby={labelId}
+			aria-expanded={isFolderNode ? isExpanded : undefined}
+			aria-selected={isSelected}
+			aria-keyshortcuts={keyShortcuts}
+			tabIndex={isTabStop ? 0 : -1}
+			className="outline-hidden"
+		>
 			<div
 				className={cn(
 					"group/tree-item flex flex-row items-center justify-between",
 					"hover:bg-surface-secondary",
-					isActive && "bg-surface-sky",
+					"[[role=treeitem]:focus-visible>&]:ring-2 [[role=treeitem]:focus-visible>&]:ring-inset",
+					"[[role=treeitem]:focus-visible>&]:ring-content-link",
+					isSelected && "bg-surface-sky",
 				)}
 			>
-				<CollapsibleTrigger asChild>
-					<button
-						type="button"
-						className={cn(
-							nodeClasses,
-							isHidden ? "text-content-secondary" : "text-content-primary",
-							isActive && "text-content-link",
-						)}
-						aria-expanded={open}
-						style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
-						onClick={onClick}
-					>
-						{open ? (
-							<FolderOpenIcon className="size-3 shrink-0 text-current" />
-						) : (
-							<FolderIcon className="size-3 shrink-0 text-current" />
-						)}
-						<span className="truncate">{label}</span>
-					</button>
-				</CollapsibleTrigger>
-				<MoreMenu onRename={onRename} onDelete={onDelete} />
+				<div
+					className={cn(
+						"grow flex h-8 min-w-0 cursor-pointer select-none items-center gap-2 px-4 text-sm",
+						isHidden ? "text-content-secondary" : "text-content-primary",
+						isSelected && "text-content-link",
+					)}
+					style={{ paddingLeft: `${(node.depth + 1) * 8 + 8}px` }}
+				>
+					{icon}
+					<span id={labelId} className="truncate">
+						{labelContent}
+					</span>
+				</div>
+				<MoreMenu
+					open={menuOpen}
+					onOpenChange={onMenuOpenChange}
+					onRename={onRename}
+					onDelete={onDelete}
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						itemElement.current?.focus();
+					}}
+				/>
 			</div>
-			<CollapsibleContent>{children}</CollapsibleContent>
-		</Collapsible>
+			{isFolderNode && isExpanded && <div role="group">{children}</div>}
+		</div>
 	);
 };
 
 type MoreMenuProps = {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
 	onRename?: () => void;
 	onDelete?: () => void;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
-const MoreMenu: React.FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+const MoreMenu: React.FC<MoreMenuProps> = ({
+	open,
+	onOpenChange,
+	onRename,
+	onDelete,
+	onCloseAutoFocus,
+}) => {
 	if (!onRename && !onDelete) {
 		return null;
 	}
 
 	return (
-		<DropdownMenu>
+		<DropdownMenu open={open} onOpenChange={onOpenChange}>
+			{/* Pointer-only trigger. Keyboard users open the menu from the focused
+			    tree item with Shift+F10, so the button stays out of the tab order
+			    and the accessibility tree. */}
 			<DropdownMenuTrigger asChild>
 				<Button
 					size="icon"
 					variant="subtle"
+					tabIndex={-1}
+					aria-hidden
 					className={cn(
 						"size-6 shrink-0",
 						"opacity-0 transition-opacity",
 						"group-hover/tree-item:opacity-100",
-						"focus-visible:opacity-100",
 						"data-[state=open]:opacity-100",
 					)}
 					onClick={(e) => e.stopPropagation()}
 				>
 					<EllipsisIcon className="size-4" />
-					<span className="sr-only">File actions</span>
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>
 				{onRename && (
 					<DropdownMenuItem onClick={onRename}>
 						<PencilIcon />

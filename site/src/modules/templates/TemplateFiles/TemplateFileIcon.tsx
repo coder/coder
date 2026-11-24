@@ -6,9 +6,9 @@ const FileTypeTerraform: React.FC<React.ComponentProps<"svg">> = (props) => (
 		xmlns="http://www.w3.org/2000/svg"
 		viewBox="0 0 32 32"
 		fill="currentColor"
+		aria-hidden
 		{...props}
 	>
-		<title>file_type_terraform</title>
 		<polygon points="12.042 6.858 20.071 11.448 20.071 20.462 12.042 15.868 12.042 6.858 12.042 6.858" />
 		<polygon points="20.5 20.415 28.459 15.84 28.459 6.887 20.5 11.429 20.5 20.415 20.5 20.415" />
 		<polygon points="3.541 11.01 11.571 15.599 11.571 6.59 3.541 2 3.541 11.01 3.541 11.01" />
@@ -21,8 +21,7 @@ const FileTypeMarkdown: React.FC<React.ComponentProps<"svg">> = (props) => (
 		xmlns="http://www.w3.org/2000/svg"
 		viewBox="0 0 32 32"
 		fill="currentColor"
-		role="img"
-		aria-label="Markdown icon"
+		aria-hidden
 		{...props}
 	>
 		<rect
