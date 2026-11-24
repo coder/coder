@@ -563,7 +563,7 @@ func TestRewritePlan(t *testing.T) {
 
 			findings := make([]codersdk.GroupSyncFinding, 0, len(v.codes))
 			for i, code := range v.codes {
-				findings = append(findings, codersdk.GroupSyncFinding{Code: code, Path: "/finding/" + string(rune('a'+i))})
+				findings = append(findings, codersdk.GroupSyncFinding{Code: code, Path: codersdk.GroupSyncMappingElementPath("k", i)})
 			}
 
 			plan := idpsync.RewritePlan(fixtureActions(t, v.actions), v.route, findings)

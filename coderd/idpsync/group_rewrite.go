@@ -2,8 +2,6 @@ package idpsync
 
 import (
 	"encoding/json"
-	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -86,7 +84,7 @@ func RewriteResult(settings codersdk.GroupSyncSettings, plan GroupSyncRewritePla
 			if err != nil {
 				return GroupSyncRewriteResult{}, err
 			}
-			warnings = append(warnings, codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path, Received: received, Accepted: received})
+			warnings = append(warnings, codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path.String(), Received: received, Accepted: received})
 		}
 		return GroupSyncRewriteResult{
 			Outcome:  GroupSyncRewriteOutcomeNotRewritten,
@@ -120,8 +118,8 @@ func rewriteSettings(settings codersdk.GroupSyncSettings, findings []codersdk.Gr
 		if err != nil {
 			return GroupSyncRewriteResult{}, err
 		}
-		key, index, hasIndex, ok := parseMappingPath(f.Path)
-		warning := codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path, Received: received}
+		warning := codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path.String(), Received: received}
+		key := f.Path.Key()
 
 		switch f.Code {
 		case codersdk.GroupSyncFindingNilUUID, // R1
@@ -129,23 +127,23 @@ func rewriteSettings(settings codersdk.GroupSyncSettings, findings []codersdk.Gr
 			codersdk.GroupSyncFindingEveryoneGroup, // R5
 			codersdk.GroupSyncFindingMissingGroup,  // R6
 			codersdk.GroupSyncFindingOutsideGroup:  // R7
-			if !ok || !hasIndex {
+			if f.Path.Kind() != codersdk.GroupSyncPathMappingElement {
 				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping element", f.Code, f.Path)
 			}
 			if removedElements[key] == nil {
 				removedElements[key] = make(map[int]bool)
 			}
-			removedElements[key][index] = true
+			removedElements[key][f.Path.Index()] = true
 
 		case codersdk.GroupSyncFindingNullArray: // R3
-			if !ok || hasIndex {
+			if f.Path.Kind() != codersdk.GroupSyncPathMappingArray {
 				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping member", f.Code, f.Path)
 			}
 			// The member is kept, so its replacement is accepted.
 			warning.Accepted = json.RawMessage(`[]`)
 
 		case codersdk.GroupSyncFindingFilterExcludedKey: // R4
-			if !ok || hasIndex {
+			if f.Path.Kind() != codersdk.GroupSyncPathMappingArray {
 				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping member", f.Code, f.Path)
 			}
 			removedMembers[key] = true
@@ -187,53 +185,44 @@ func rewriteSettings(settings codersdk.GroupSyncSettings, findings []codersdk.Gr
 	}, nil
 }
 
-// parseMappingPath recovers the `mapping` key, and the array index when there
-// is one, from a finding's path. It reports ok as false for a path that is
-// not under `mapping`.
-func parseMappingPath(path string) (key string, index int, hasIndex bool, ok bool) {
-	tokens := strings.Split(path, "/")
-	// A path under `mapping` is "", "mapping", key, and maybe an index.
-	if len(tokens) < 3 || len(tokens) > 4 || tokens[0] != "" || tokens[1] != "mapping" {
-		return "", 0, false, false
-	}
-	key = codersdk.UnescapeJSONPointerToken(tokens[2])
-	if len(tokens) == 4 {
-		i, err := strconv.Atoi(tokens[3])
-		if err != nil || i < 0 {
-			return "", 0, false, false
-		}
-		return key, i, true, true
-	}
-	return key, 0, false, true
-}
-
-// elementJSON returns the JSON text of the element of settings that a
-// finding's path refers to. The empty path refers to the whole settings.
-func elementJSON(settings codersdk.GroupSyncSettings, path string) (json.RawMessage, error) {
+// elementJSON returns the JSON text of the element of settings that path
+// refers to. The path's shape is fixed by its kind, so the only failures are a
+// `mapping` key that is not present and an index past the end of its array,
+// which mean the path was made for different settings.
+func elementJSON(settings codersdk.GroupSyncSettings, path codersdk.GroupSyncPath) (json.RawMessage, error) {
 	var element any
-	switch path {
-	case "":
+	switch path.Kind() {
+	case codersdk.GroupSyncPathWhole:
 		element = settings
-	case "/field":
-		element = settings.Field
-	case "/legacy_group_name_mapping":
-		element = settings.LegacyNameMapping
-	default:
-		key, index, hasIndex, ok := parseMappingPath(path)
-		if !ok {
-			return nil, xerrors.Errorf("finding path %q refers to no element of the settings", path)
+	case codersdk.GroupSyncPathMember:
+		switch path.Member() {
+		case codersdk.GroupSyncMemberField:
+			element = settings.Field
+		case codersdk.GroupSyncMemberMapping:
+			element = settings.Mapping
+		case codersdk.GroupSyncMemberRegexFilter:
+			element = settings.RegexFilter
+		case codersdk.GroupSyncMemberAutoCreateMissing:
+			element = settings.AutoCreateMissing
+		case codersdk.GroupSyncMemberLegacyMapping:
+			element = settings.LegacyNameMapping
+		default:
+			return nil, xerrors.Errorf("path %q names an unknown member", path)
 		}
-		ids, present := settings.Mapping[key]
+	case codersdk.GroupSyncPathMappingArray, codersdk.GroupSyncPathMappingElement:
+		ids, present := settings.Mapping[path.Key()]
 		switch {
 		case !present:
-			return nil, xerrors.Errorf("finding path %q names a mapping key that is not present", path)
-		case !hasIndex:
+			return nil, xerrors.Errorf("path %q names a mapping key that is not present", path)
+		case path.Kind() == codersdk.GroupSyncPathMappingArray:
 			element = ids
-		case index >= len(ids):
-			return nil, xerrors.Errorf("finding path %q indexes past the end of its array", path)
+		case path.Index() >= len(ids):
+			return nil, xerrors.Errorf("path %q indexes past the end of its array", path)
 		default:
-			element = ids[index]
+			element = ids[path.Index()]
 		}
+	default:
+		return nil, xerrors.Errorf("path has unknown kind %d", path.Kind())
 	}
 	b, err := json.Marshal(element)
 	if err != nil {

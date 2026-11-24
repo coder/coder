@@ -690,7 +690,7 @@ func decodeSyntaxInput(input string) (codersdk.GroupSyncSettings, error) {
 func asSyntaxFindings(got []codersdk.GroupSyncFinding) findings {
 	out := findings{}
 	for _, f := range got {
-		out = append(out, syntaxFinding{code: f.Code, path: f.Path})
+		out = append(out, syntaxFinding{code: f.Code, path: f.Path.String()})
 	}
 	return out
 }

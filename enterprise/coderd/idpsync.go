@@ -359,7 +359,7 @@ func (r groupSyncReview) rejection() codersdk.Response {
 			continue
 		}
 		resp.Validations = append(resp.Validations, codersdk.ValidationError{
-			Field:  planned.Finding.Path,
+			Field:  planned.Finding.Path.String(),
 			Detail: "rejected: " + string(planned.Finding.Code),
 		})
 	}

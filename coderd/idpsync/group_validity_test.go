@@ -639,7 +639,7 @@ func buildSnapshot(v fullVector) idpsync.GroupSnapshot {
 func asFullFindings(got []codersdk.GroupSyncFinding) fullFindings {
 	out := fullFindings{}
 	for _, f := range got {
-		out = append(out, fullFinding{code: f.Code, path: f.Path})
+		out = append(out, fullFinding{code: f.Code, path: f.Path.String()})
 	}
 	return out
 }

@@ -6309,23 +6309,6 @@ export type GroupSource = "oidc" | "user";
 
 export const GroupSources: GroupSource[] = ["oidc", "user"];
 
-// From codersdk/idpsync_wellformed.go
-/**
- * GroupSyncFinding is one violation found in group sync settings.
- */
-export interface GroupSyncFinding {
-	/**
-	 * Code names the condition violated.
-	 */
-	readonly code: GroupSyncFindingCode;
-	/**
-	 * Path is a JSON Pointer (RFC 6901) to the offending element of the
-	 * settings text. Array indexes refer to positions in the settings as
-	 * given. The empty path refers to the whole text.
-	 */
-	readonly path: string;
-}
-
 // From codersdk/idpsync_warning.go
 export type GroupSyncFindingCode =
 	| "empty_mapping_key"

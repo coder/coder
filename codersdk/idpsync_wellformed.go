@@ -11,14 +11,121 @@ import (
 	"github.com/google/uuid"
 )
 
-// GroupSyncFinding is one violation found in group sync settings.
+// GroupSyncFinding is one violation found in group sync settings. The
+// validators produce findings and the server's rewriter consumes them. API
+// responses carry a finding's path rendered as a JSON Pointer, in warnings and
+// in rejections, never the finding itself.
+//
+// @typescript-ignore GroupSyncFinding
 type GroupSyncFinding struct {
 	// Code names the condition violated.
-	Code GroupSyncFindingCode `json:"code"`
-	// Path is a JSON Pointer (RFC 6901) to the offending element of the
-	// settings text. Array indexes refer to positions in the settings as
-	// given. The empty path refers to the whole text.
-	Path string `json:"path"`
+	Code GroupSyncFindingCode
+	// Path locates the offending element of the settings text. Array indexes
+	// refer to positions in the settings as given.
+	Path GroupSyncPath
+}
+
+// GroupSyncPath locates an element of a group sync settings text that a
+// finding can refer to. It holds the parts of a JSON Pointer (RFC 6901), so
+// code that acts on a finding reads the parts and never parses a pointer;
+// String renders the pointer for API output. The zero value refers to the
+// whole text. A path is made only by the constructors below, so it always has
+// one of the shapes GroupSyncPathKind lists.
+//
+// @typescript-ignore GroupSyncPath
+type GroupSyncPath struct {
+	kind GroupSyncPathKind
+	// member is set for GroupSyncPathMember, and is `mapping` for the two
+	// mapping kinds.
+	member GroupSyncMember
+	// key is set for GroupSyncPathMappingArray and GroupSyncPathMappingElement.
+	key string
+	// index is set for GroupSyncPathMappingElement.
+	index int
+}
+
+// GroupSyncPathKind says which shape a GroupSyncPath has.
+//
+// @typescript-ignore GroupSyncPathKind
+type GroupSyncPathKind int
+
+const (
+	// GroupSyncPathWhole refers to the whole text. It renders as "".
+	GroupSyncPathWhole GroupSyncPathKind = iota
+	// GroupSyncPathMember refers to a top-level member. It renders as
+	// "/<member>".
+	GroupSyncPathMember
+	// GroupSyncPathMappingArray refers to the array under one key of
+	// `mapping`. It renders as "/mapping/<key>", with the key escaped.
+	GroupSyncPathMappingArray
+	// GroupSyncPathMappingElement refers to one element of such an array. It
+	// renders as "/mapping/<key>/<index>".
+	GroupSyncPathMappingElement
+)
+
+// GroupSyncMember names a top-level member of group sync settings, from the
+// list in W3.
+//
+// @typescript-ignore GroupSyncMember
+type GroupSyncMember string
+
+const (
+	GroupSyncMemberField             GroupSyncMember = "field"
+	GroupSyncMemberMapping           GroupSyncMember = "mapping"
+	GroupSyncMemberRegexFilter       GroupSyncMember = "regex_filter"
+	GroupSyncMemberAutoCreateMissing GroupSyncMember = "auto_create_missing_groups"
+	GroupSyncMemberLegacyMapping     GroupSyncMember = "legacy_group_name_mapping"
+)
+
+// GroupSyncWholePath returns the path to the whole text.
+func GroupSyncWholePath() GroupSyncPath {
+	return GroupSyncPath{kind: GroupSyncPathWhole}
+}
+
+// GroupSyncMemberPath returns the path to top-level member m.
+func GroupSyncMemberPath(m GroupSyncMember) GroupSyncPath {
+	return GroupSyncPath{kind: GroupSyncPathMember, member: m}
+}
+
+// GroupSyncMappingArrayPath returns the path to the array under key in
+// `mapping`.
+func GroupSyncMappingArrayPath(key string) GroupSyncPath {
+	return GroupSyncPath{kind: GroupSyncPathMappingArray, member: GroupSyncMemberMapping, key: key}
+}
+
+// GroupSyncMappingElementPath returns the path to element index of the array
+// under key in `mapping`.
+func GroupSyncMappingElementPath(key string, index int) GroupSyncPath {
+	return GroupSyncPath{kind: GroupSyncPathMappingElement, member: GroupSyncMemberMapping, key: key, index: index}
+}
+
+// Kind returns the shape of p.
+func (p GroupSyncPath) Kind() GroupSyncPathKind { return p.kind }
+
+// Member returns the top-level member p is within: the member itself for
+// GroupSyncPathMember, `mapping` for the mapping kinds, and "" for the whole
+// text.
+func (p GroupSyncPath) Member() GroupSyncMember { return p.member }
+
+// Key returns the `mapping` key of a mapping kind, and "" otherwise.
+func (p GroupSyncPath) Key() string { return p.key }
+
+// Index returns the array index of GroupSyncPathMappingElement, and 0
+// otherwise.
+func (p GroupSyncPath) Index() int { return p.index }
+
+// String renders p as a JSON Pointer (RFC 6901).
+func (p GroupSyncPath) String() string {
+	switch p.kind {
+	case GroupSyncPathMember:
+		return "/" + EscapeJSONPointerToken(string(p.member))
+	case GroupSyncPathMappingArray:
+		return "/mapping/" + EscapeJSONPointerToken(p.key)
+	case GroupSyncPathMappingElement:
+		return "/mapping/" + EscapeJSONPointerToken(p.key) + "/" + strconv.Itoa(p.index)
+	default:
+		return ""
+	}
 }
 
 // WellFormedFindings reports every violation of the well-formedness
@@ -34,7 +141,7 @@ type GroupSyncFinding struct {
 // a top-level `null`, data after the JSON value, and UUIDs spelled in a
 // form other than canonical text.
 func (s GroupSyncSettings) WellFormedFindings() []GroupSyncFinding {
-	var found []syntaxFinding
+	var found []GroupSyncFinding
 
 	regexSet := s.RegexFilter != nil && s.RegexFilter.String() != ""
 
@@ -42,12 +149,12 @@ func (s GroupSyncSettings) WellFormedFindings() []GroupSyncFinding {
 	// `regex_filter` as the empty string is an empty form.
 	if s.Field == "" &&
 		(len(s.Mapping) > 0 || regexSet || s.AutoCreateMissing || len(s.LegacyNameMapping) > 0) {
-		found = append(found, syntaxFinding{member: "field", code: GroupSyncFindingFieldEmpty})
+		found = append(found, GroupSyncFinding{Code: GroupSyncFindingFieldEmpty, Path: GroupSyncMemberPath(GroupSyncMemberField)})
 	}
 
 	// W8: the legacy mapping must be empty.
 	if len(s.LegacyNameMapping) > 0 {
-		found = append(found, syntaxFinding{member: "legacy_group_name_mapping", code: GroupSyncFindingLegacyMapping})
+		found = append(found, GroupSyncFinding{Code: GroupSyncFindingLegacyMapping, Path: GroupSyncMemberPath(GroupSyncMemberLegacyMapping)})
 	}
 
 	// W5 and W6, member by member. Keys are visited in sorted order so the
@@ -55,48 +162,41 @@ func (s GroupSyncSettings) WellFormedFindings() []GroupSyncFinding {
 	// again below.
 	for _, key := range slices.Sorted(maps.Keys(s.Mapping)) {
 		ids := s.Mapping[key]
-		member := syntaxFinding{member: "mapping", key: key, hasKey: true}
+		array := GroupSyncMappingArrayPath(key)
 
 		if key == "" {
-			member.code = GroupSyncFindingEmptyMappingKey
-			found = append(found, member)
+			found = append(found, GroupSyncFinding{Code: GroupSyncFindingEmptyMappingKey, Path: array})
 		}
 		// The filter matches by unanchored search, as sync applies it.
 		if regexSet && !s.RegexFilter.MatchString(key) {
-			member.code = GroupSyncFindingFilterExcludedKey
-			found = append(found, member)
+			found = append(found, GroupSyncFinding{Code: GroupSyncFindingFilterExcludedKey, Path: array})
 		}
 		// JSON `null` decodes to a nil slice, and `[]` to an empty one.
 		if ids == nil {
-			member.code = GroupSyncFindingNullArray
-			found = append(found, member)
+			found = append(found, GroupSyncFinding{Code: GroupSyncFindingNullArray, Path: array})
 		}
 
 		seen := make(map[uuid.UUID]bool, len(ids))
 		for i, id := range ids {
-			element := syntaxFinding{member: "mapping", key: key, hasKey: true, index: i, hasIndex: true}
+			element := GroupSyncMappingElementPath(key, i)
 			switch {
 			case id == uuid.Nil:
 				// The nil UUID is reported at every position and never as
 				// a repeat.
-				element.code = GroupSyncFindingNilUUID
-				found = append(found, element)
+				found = append(found, GroupSyncFinding{Code: GroupSyncFindingNilUUID, Path: element})
 			case seen[id]:
-				element.code = GroupSyncFindingRepeatedUUID
-				found = append(found, element)
+				found = append(found, GroupSyncFinding{Code: GroupSyncFindingRepeatedUUID, Path: element})
 			default:
 				seen[id] = true
 			}
 		}
 	}
 
-	slices.SortFunc(found, compareSyntaxFinding)
-
-	out := make([]GroupSyncFinding, 0, len(found))
-	for _, f := range found {
-		out = append(out, GroupSyncFinding{Code: f.code, Path: f.path()})
+	slices.SortFunc(found, CompareGroupSyncFindings)
+	if found == nil {
+		found = []GroupSyncFinding{}
 	}
-	return out
+	return found
 }
 
 // CanonicalMappingUUIDs returns the UUIDs that appear in the arrays of
@@ -138,71 +238,25 @@ func (s GroupSyncSettings) CanonicalMappingUUIDs() []uuid.UUID {
 // orders its own. A comparison written out again at the point of use could
 // drift from this one, and the two validators would then disagree on order.
 func CompareGroupSyncFindings(a, b GroupSyncFinding) int {
-	return compareSyntaxFinding(parseFindingPath(a), parseFindingPath(b))
-}
-
-// parseFindingPath recovers the parts of a finding's path. The paths a
-// validator produces are the empty path, `/member`, `/mapping/key`, and
-// `/mapping/key/index`, with the key escaped as in a JSON Pointer.
-func parseFindingPath(f GroupSyncFinding) syntaxFinding {
-	parsed := syntaxFinding{code: f.Code}
-	if f.Path == "" {
-		return parsed
-	}
-	tokens := strings.Split(strings.TrimPrefix(f.Path, "/"), "/")
-	parsed.member = UnescapeJSONPointerToken(tokens[0])
-	if len(tokens) > 1 {
-		parsed.key, parsed.hasKey = UnescapeJSONPointerToken(tokens[1]), true
-	}
-	if len(tokens) > 2 {
-		// A path a validator produced always has a numeric index here. A
-		// path with any other token sorts as if it had no index, so the
-		// order stays deterministic for any input.
-		if index, err := strconv.Atoi(tokens[2]); err == nil {
-			parsed.index, parsed.hasIndex = index, true
-		}
-	}
-	return parsed
-}
-
-// syntaxFinding is a finding before its path is rendered. It keeps the parts
-// of the path separately, so findings sort by the documented order without
-// parsing JSON Pointers back apart.
-type syntaxFinding struct {
-	// member is the top-level member the finding is about.
-	member string
-	// key is the `mapping` member name, when hasKey is true.
-	key    string
-	hasKey bool
-	// index is the position in the `mapping` array, when hasIndex is true.
-	index    int
-	hasIndex bool
-	code     GroupSyncFindingCode
-}
-
-// path renders the finding's location as a JSON Pointer (RFC 6901).
-func (f syntaxFinding) path() string {
-	p := "/" + f.member
-	if f.hasKey {
-		p += "/" + EscapeJSONPointerToken(f.key)
-	}
-	if f.hasIndex {
-		p += "/" + strconv.Itoa(f.index)
-	}
-	return p
-}
-
-// compareSyntaxFinding orders findings by path, then by code. Member names
-// compare by code point and array indexes as numbers. A finding about a
-// `mapping` member comes before the findings about its array elements.
-func compareSyntaxFinding(a, b syntaxFinding) int {
 	return cmp.Or(
-		strings.Compare(a.member, b.member),
-		compareBool(a.hasKey, b.hasKey),
+		CompareGroupSyncPaths(a.Path, b.Path),
+		strings.Compare(string(a.Code), string(b.Code)),
+	)
+}
+
+// CompareGroupSyncPaths orders paths token by token: member names by code
+// point, then `mapping` keys by code point, then array indexes as numbers. A
+// path with fewer tokens comes before a longer path that extends it, so the
+// whole text comes first and a `mapping` key comes before its elements.
+func CompareGroupSyncPaths(a, b GroupSyncPath) int {
+	aHasKey := a.kind == GroupSyncPathMappingArray || a.kind == GroupSyncPathMappingElement
+	bHasKey := b.kind == GroupSyncPathMappingArray || b.kind == GroupSyncPathMappingElement
+	return cmp.Or(
+		strings.Compare(string(a.member), string(b.member)),
+		compareBool(aHasKey, bHasKey),
 		strings.Compare(a.key, b.key),
-		compareBool(a.hasIndex, b.hasIndex),
+		compareBool(a.kind == GroupSyncPathMappingElement, b.kind == GroupSyncPathMappingElement),
 		cmp.Compare(a.index, b.index),
-		strings.Compare(string(a.code), string(b.code)),
 	)
 }
 

@@ -698,12 +698,42 @@ func normalizedJSON(t *testing.T, text string) string {
 }
 
 // rewriteFindings converts a vector's findings to the validators' type.
-func rewriteFindings(v rewriteVector) []codersdk.GroupSyncFinding {
+func rewriteFindings(t *testing.T, v rewriteVector) []codersdk.GroupSyncFinding {
+	t.Helper()
 	out := make([]codersdk.GroupSyncFinding, 0, len(v.findings))
 	for _, f := range v.findings {
-		out = append(out, codersdk.GroupSyncFinding{Code: f.code, Path: f.path})
+		out = append(out, codersdk.GroupSyncFinding{Code: f.code, Path: pathFromPointer(t, f.path)})
 	}
 	return out
+}
+
+// pathFromPointer builds the GroupSyncPath that renders as pointer. Vectors
+// state paths as pointers, the form they take in warnings; the server itself
+// never parses one.
+func pathFromPointer(t *testing.T, pointer string) codersdk.GroupSyncPath {
+	t.Helper()
+	if pointer == "" {
+		return codersdk.GroupSyncWholePath()
+	}
+	tokens := strings.Split(strings.TrimPrefix(pointer, "/"), "/")
+	for i := range tokens {
+		tokens[i] = codersdk.UnescapeJSONPointerToken(tokens[i])
+	}
+	var path codersdk.GroupSyncPath
+	switch {
+	case len(tokens) == 1:
+		path = codersdk.GroupSyncMemberPath(codersdk.GroupSyncMember(tokens[0]))
+	case len(tokens) == 2 && tokens[0] == "mapping":
+		path = codersdk.GroupSyncMappingArrayPath(tokens[1])
+	case len(tokens) == 3 && tokens[0] == "mapping":
+		index, err := strconv.Atoi(tokens[2])
+		require.NoError(t, err, "pointer %q has a non-numeric index", pointer)
+		path = codersdk.GroupSyncMappingElementPath(tokens[1], index)
+	default:
+		require.FailNow(t, "pointer names no element a finding can refer to", pointer)
+	}
+	require.Equal(t, pointer, path.String(), "pointer must round-trip")
+	return path
 }
 
 // snapshotForTypical builds a snapshot of the typical deployment described in
@@ -787,7 +817,7 @@ func TestRewriteResult(t *testing.T) {
 
 			settings, err := decodeFullInput(v.input)
 			require.NoError(t, err)
-			findings := rewriteFindings(v)
+			findings := rewriteFindings(t, v)
 			plan := idpsync.RewritePlan(fixtureActions(t, actionsNeverReject), idpsync.GroupSyncRouteFetch, findings)
 
 			result, err := idpsync.RewriteResult(settings, plan)
@@ -836,7 +866,7 @@ func TestRewriteResultCallerErrors(t *testing.T) {
 
 	settings, err := decodeFullInput(`{"field":"groups","mapping":{"eng":["00000000-0000-0000-0000-000000000000"]}}`)
 	require.NoError(t, err)
-	finding := codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingNilUUID, Path: "/mapping/eng/0"}
+	finding := codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingNilUUID, Path: codersdk.GroupSyncMappingElementPath("eng", 0)}
 
 	cases := []struct {
 		name string

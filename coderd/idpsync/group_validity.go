@@ -3,7 +3,6 @@ package idpsync
 import (
 	"maps"
 	"slices"
-	"strconv"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -80,9 +79,9 @@ func ValidityFindings(settings codersdk.GroupSyncSettings, snapshot GroupSnapsho
 	switch snapshot.Organization {
 	case OrganizationActive:
 	case OrganizationDeleted:
-		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationDeleted, Path: ""})
+		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationDeleted, Path: codersdk.GroupSyncWholePath()})
 	case OrganizationAbsent:
-		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationAbsent, Path: ""})
+		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationAbsent, Path: codersdk.GroupSyncWholePath()})
 	default:
 		return nil, xerrors.Errorf("snapshot has unknown organization status %q", snapshot.Organization)
 	}
@@ -114,17 +113,11 @@ func ValidityFindings(settings codersdk.GroupSyncSettings, snapshot GroupSnapsho
 				return nil, xerrors.Errorf("snapshot has unknown status %q for group %s", status, id)
 			}
 			if code != "" {
-				found = append(found, codersdk.GroupSyncFinding{Code: code, Path: mappingElementPath(key, i)})
+				found = append(found, codersdk.GroupSyncFinding{Code: code, Path: codersdk.GroupSyncMappingElementPath(key, i)})
 			}
 		}
 	}
 
 	slices.SortFunc(found, codersdk.CompareGroupSyncFindings)
 	return found, nil
-}
-
-// mappingElementPath renders the JSON Pointer to element index of the
-// `mapping` array under key.
-func mappingElementPath(key string, index int) string {
-	return "/mapping/" + codersdk.EscapeJSONPointerToken(key) + "/" + strconv.Itoa(index)
 }
