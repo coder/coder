@@ -577,10 +577,11 @@ GROUP BY effective_group_id
 ORDER BY effective_group_id;
 
 -- name: ExportOrganizationAISpend :many
--- Returns per-user, per-group, per-model, per-provider aggregated AI spend for
--- @organization_id over the [period_start, period_end) window. Spend is
--- attributed through the token usage's effective group, and rows are bucketed
--- by the token usage created_at, matching how ai_user_daily_spend is derived.
+-- Returns per-user, per-group, per-model, per-provider, per-client aggregated
+-- AI spend for @organization_id over the [period_start, period_end) window.
+-- Spend is attributed through the token usage's effective group, and rows are
+-- bucketed by the token usage created_at, matching how ai_user_daily_spend is
+-- derived. Usage without a recorded client is reported as Unknown.
 SELECT
 	ai.initiator_id AS user_id,
 	users.username AS username,
@@ -591,6 +592,7 @@ SELECT
 	ai.model AS model,
 	ai.provider AS provider,
 	ai.provider_name AS provider_name,
+	COALESCE(ai.client, 'Unknown')::text AS client,
 	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
@@ -609,6 +611,7 @@ WHERE groups.organization_id = @organization_id
 	AND (@group_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = @group_id)
 	AND (@provider_name::text = '' OR ai.provider_name = @provider_name)
 	AND (@model::text = '' OR ai.model = @model)
+	AND (@client::text = '' OR COALESCE(ai.client, 'Unknown') = @client::text)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -618,8 +621,9 @@ GROUP BY
 	organizations.name,
 	ai.model,
 	ai.provider,
-	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+	ai.provider_name,
+	COALESCE(ai.client, 'Unknown')
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown')
 OFFSET @offset_opt
 LIMIT NULLIF(@limit_opt::int, 0);
 

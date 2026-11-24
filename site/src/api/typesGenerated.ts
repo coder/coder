@@ -8239,6 +8239,7 @@ export interface OrganizationAISpendDetailsFilter {
 	readonly group_id?: string;
 	readonly provider_name?: string;
 	readonly model?: string;
+	readonly client?: string;
 }
 
 // From codersdk/aibridge.go

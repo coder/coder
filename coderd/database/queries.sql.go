@@ -2945,6 +2945,7 @@ SELECT
 	ai.model AS model,
 	ai.provider AS provider,
 	ai.provider_name AS provider_name,
+	COALESCE(ai.client, 'Unknown')::text AS client,
 	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
@@ -2963,6 +2964,7 @@ WHERE groups.organization_id = $1
 	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = $5)
 	AND ($6::text = '' OR ai.provider_name = $6)
 	AND ($7::text = '' OR ai.model = $7)
+	AND ($8::text = '' OR COALESCE(ai.client, 'Unknown') = $8::text)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -2972,10 +2974,11 @@ GROUP BY
 	organizations.name,
 	ai.model,
 	ai.provider,
-	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
-OFFSET $8
-LIMIT NULLIF($9::int, 0)
+	ai.provider_name,
+	COALESCE(ai.client, 'Unknown')
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown')
+OFFSET $9
+LIMIT NULLIF($10::int, 0)
 `
 
 type ExportOrganizationAISpendParams struct {
@@ -2986,6 +2989,7 @@ type ExportOrganizationAISpendParams struct {
 	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -3000,6 +3004,7 @@ type ExportOrganizationAISpendRow struct {
 	Model            string        `db:"model" json:"model"`
 	Provider         string        `db:"provider" json:"provider"`
 	ProviderName     string        `db:"provider_name" json:"provider_name"`
+	Client           string        `db:"client" json:"client"`
 	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
@@ -3008,10 +3013,11 @@ type ExportOrganizationAISpendRow struct {
 	Count            int64         `db:"count" json:"count"`
 }
 
-// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
-// @organization_id over the [period_start, period_end) window. Spend is
-// attributed through the token usage's effective group, and rows are bucketed
-// by the token usage created_at, matching how ai_user_daily_spend is derived.
+// Returns per-user, per-group, per-model, per-provider, per-client aggregated
+// AI spend for @organization_id over the [period_start, period_end) window.
+// Spend is attributed through the token usage's effective group, and rows are
+// bucketed by the token usage created_at, matching how ai_user_daily_spend is
+// derived. Usage without a recorded client is reported as Unknown.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend,
 		arg.OrganizationID,
@@ -3021,6 +3027,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 		arg.GroupID,
 		arg.ProviderName,
 		arg.Model,
+		arg.Client,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -3041,6 +3048,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.Model,
 			&i.Provider,
 			&i.ProviderName,
+			&i.Client,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.CacheReadTokens,
