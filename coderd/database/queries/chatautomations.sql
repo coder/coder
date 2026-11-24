@@ -117,10 +117,16 @@ WHERE
     );
 
 -- name: UpdateChatAutomationEnabled :one
+-- Setting the current state keeps the schedule and updated_at, so the
+-- caller still needs update permission and a run in flight is not voided.
 UPDATE chat_automations
 SET
     enabled = @enabled::boolean,
-    schedule_next_run_at = sqlc.narg('schedule_next_run_at')::timestamptz,
-    updated_at = @updated_at::timestamptz
+    schedule_next_run_at = CASE WHEN enabled = @enabled::boolean
+        THEN schedule_next_run_at
+        ELSE sqlc.narg('schedule_next_run_at')::timestamptz END,
+    updated_at = CASE WHEN enabled = @enabled::boolean
+        THEN updated_at
+        ELSE @updated_at::timestamptz END
 WHERE id = @id::uuid
 RETURNING *;

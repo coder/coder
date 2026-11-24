@@ -295,10 +295,15 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	var req codersdk.UpdateChatAutomationRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// Decoding into the SDK type would read a missing or null enabled as
+	// false and turn the automation off.
+	var body struct {
+		Enabled *bool `json:"enabled" validate:"required"`
+	}
+	if !httpapi.Read(ctx, rw, r, &body) {
 		return
 	}
+	req := codersdk.UpdateChatAutomationRequest{Enabled: *body.Enabled}
 	before, after, err := chatautomation.Update(ctx, api.Database, organization.ID, id, req, dbtime.Now())
 	switch {
 	case errors.Is(err, chatautomation.ErrUpdateForbidden):

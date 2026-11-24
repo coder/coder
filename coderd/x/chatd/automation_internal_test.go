@@ -159,7 +159,7 @@ func TestAutomationSchedule(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, claimed, 2)
 		for _, a := range automations {
-			_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, a.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
+			_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, a.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now)
 			require.NoError(t, err)
 		}
 		for _, a := range claimed {
