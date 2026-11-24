@@ -29686,11 +29686,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "retention_start": {
-                    "description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "totals": {
                     "$ref": "#/definitions/codersdk.OrganizationAISpendTotals"
                 },

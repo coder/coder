@@ -8439,12 +8439,6 @@ export interface OrganizationAISpendProvider {
  */
 export interface OrganizationAISpendReport extends AISpendPeriodWindow {
 	/**
-	 * RetentionStart is the oldest instant for which token usage is still
-	 * retained. An explicit period must not start before it. Omitted when the
-	 * deployment does not purge AI Gateway data.
-	 */
-	readonly retention_start?: string;
-	/**
 	 * Count is the number of users with token usage matching the filter.
 	 */
 	readonly count: number;

@@ -6320,8 +6320,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 	inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
 	monthStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
 	monthEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
-	// setupAICostControlTest keeps the default 60d retention.
-	defaultRetentionStart := now.Add(-60 * 24 * time.Hour)
 
 	t.Run("PaginationValidation", func(t *testing.T) {
 		t.Parallel()
@@ -6498,7 +6496,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
 				AISpendPeriodWindow: window,
-				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
 				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
 				Users:               []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserSpend},
@@ -6527,7 +6524,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
 				AISpendPeriodWindow: window,
-				RetentionStart:      &defaultRetentionStart,
 				Count:               2,
 				Totals:              codersdk.OrganizationAISpendTotals{CostMicros: 4500, HasUnpricedUsage: true},
 				Users:               []codersdk.OrganizationAISpendUser{},
@@ -6545,7 +6541,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "UserIDs",
 					filter: codersdk.OrganizationAISpendFilter{UserIDs: []uuid.UUID{targetUser.ID}},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1500, HasUnpricedUsage: true},
+						AISpendPeriodWindow: window, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1500, HasUnpricedUsage: true},
 						Users: []codersdk.OrganizationAISpendUser{targetUserSpend},
 					},
 				},
@@ -6555,15 +6551,15 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "GroupID",
 					filter: codersdk.OrganizationAISpendFilter{GroupID: uuid.New()},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart,
-						Users: []codersdk.OrganizationAISpendUser{},
+						AISpendPeriodWindow: window,
+						Users:               []codersdk.OrganizationAISpendUser{},
 					},
 				},
 				{
 					name:   "ProviderName",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						AISpendPeriodWindow: window, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
 						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
@@ -6571,7 +6567,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "Model",
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
+						AISpendPeriodWindow: window, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
 						Users: []codersdk.OrganizationAISpendUser{otherUserSpend, targetUserClaudeSpend},
 					},
 				},
@@ -6579,7 +6575,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "Client",
 					filter: codersdk.OrganizationAISpendFilter{Client: "cursor"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 3000},
+						AISpendPeriodWindow: window, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 3000},
 						Users: []codersdk.OrganizationAISpendUser{otherUserSpend},
 					},
 				},
@@ -6587,7 +6583,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "UnknownClient",
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
+						AISpendPeriodWindow: window, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, HasUnpricedUsage: true},
 						Users: []codersdk.OrganizationAISpendUser{targetUserOpenAISpend},
 					},
 				},
@@ -6597,7 +6593,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					name:   "Combined",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
-						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
+						AISpendPeriodWindow: window, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
 						Users: []codersdk.OrganizationAISpendUser{targetUserClaudeSpend},
 					},
 				},
@@ -6608,7 +6604,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: inMonth.Add(time.Hour), PeriodEnd: inMonth.Add(2 * time.Hour)},
-						RetentionStart:      &defaultRetentionStart,
 						Users:               []codersdk.OrganizationAISpendUser{},
 					},
 				},
@@ -6667,8 +6662,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: retentionStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
-		require.NotNil(t, report.RetentionStart)
-		require.Equal(t, retentionStart, *report.RetentionStart)
 
 		// An explicit period before retention is rejected like the export.
 		_, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
@@ -6695,7 +6688,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
-		require.Nil(t, report.RetentionStart)
 	})
 }
 

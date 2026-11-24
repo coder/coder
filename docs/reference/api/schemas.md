@@ -13018,7 +13018,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "count": 0,
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "retention_start": "2019-08-24T14:15:22Z",
   "totals": {
     "cost_micros": 0,
     "has_unpriced_usage": true
@@ -13061,14 +13060,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
-|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
-| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                                          |
-| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                                        |
-| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
-| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
-| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+| Name           | Type                                                                          | Required | Restrictions | Description                                                        |
+|----------------|-------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
+| `count`        | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter. |
+| `period_end`   | string                                                                        | false    |              | Period end is the exclusive upper bound of the applied period.     |
+| `period_start` | string                                                                        | false    |              | Period start is the inclusive lower bound of the applied period.   |
+| `totals`       | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                    |
+| `users`        | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                 |
 
 ## codersdk.OrganizationAISpendTotals
 
