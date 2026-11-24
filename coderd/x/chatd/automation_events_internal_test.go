@@ -27,6 +27,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -540,7 +541,7 @@ func TestAutomationEvents(t *testing.T) {
 				f.server.tickWebhookRenewals(ctx, time.Now().Add(2*time.Hour))
 				subs, err := f.worker.db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{id})
 				if err == nil && subs[0].State != database.ChatAutomationSubscriptionStateTerminated {
-					err = errors.New("the renewal kept the subscription")
+					err = xerrors.New("the renewal kept the subscription")
 				}
 				return err
 			}},
