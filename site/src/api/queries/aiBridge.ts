@@ -114,12 +114,19 @@ export type AISpendReportFilter = Pick<
 	group_name?: string;
 };
 
+export const organizationAISpendReportsScopeKey = (organizationId: string) =>
+	["organizations", organizationId, "aiSpendReport"] as const;
+
 const organizationAISpendReportKey = (
 	organizationId: string,
 	period: AISpendPeriodWindow,
 	filter: AISpendReportFilter,
 ) =>
-	["organizations", organizationId, "aiSpendReport", period, filter] as const;
+	[
+		...organizationAISpendReportsScopeKey(organizationId),
+		period,
+		filter,
+	] as const;
 
 export const paginatedOrganizationAISpendReport = (
 	queryClient: QueryClient,
@@ -141,6 +148,7 @@ export const paginatedOrganizationAISpendReport = (
 			payload: { username, group_name, ...dimensions },
 			limit,
 			offset,
+			signal,
 		}) => {
 			const [resolvedUser, resolvedGroup] = await Promise.all([
 				username ? queryClient.fetchQuery(user(username)) : undefined,
@@ -150,14 +158,18 @@ export const paginatedOrganizationAISpendReport = (
 						)
 					: undefined,
 			]);
-			return API.experimental.getOrganizationAISpendUsers(organizationId, {
-				...period,
-				...dimensions,
-				user_ids: resolvedUser && [resolvedUser.id],
-				group_id: resolvedGroup?.id,
-				limit,
-				offset,
-			});
+			return API.experimental.getOrganizationAISpendUsers(
+				organizationId,
+				{
+					...period,
+					...dimensions,
+					user_ids: resolvedUser && [resolvedUser.id],
+					group_id: resolvedGroup?.id,
+					limit,
+					offset,
+				},
+				signal,
+			);
 		},
 		// Each page totals the whole period on the server, so skip loading the
 		// neighbouring pages in the background.
