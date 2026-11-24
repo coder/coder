@@ -179,6 +179,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	disableCallerSuppliedTools     bool
+	previewsUnavailable            error
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	internalMCPServers             []InternalMCPServer
@@ -1250,6 +1251,10 @@ type Config struct {
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
+	// PreviewsUnavailable is why the primary deployment serves no previews,
+	// or nil. open_preview then tells the model why.
+	PreviewsUnavailable error
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -1354,6 +1359,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
+		previewsUnavailable:            cfg.PreviewsUnavailable,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		internalMCPServers:             cfg.InternalMCPServers,

@@ -1195,7 +1195,8 @@ The generation goroutine supports:
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
-- workspace binding
+- workspace binding. `getWorkspaceConn` caches the agent row together with the connection. `getWorkspaceBinding` returns the connection, the agent row, and the workspace ID from one lock section.
+- workspace previews (`open_preview`), see [Workspace previews](#workspace-previews)
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
@@ -1228,6 +1229,16 @@ Only the owner and administrators with `chat_project` delete can delete a projec
 Memory tools, instruction loading and skill loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
 
 Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
+
+##### Workspace previews
+
+When the `open-preview` experiment is enabled, root chats outside plan mode get `open_preview`. `open_preview` reports that previews are unavailable when the primary deployment has no wildcard app hostname or when `--host-prefix-cookie` is off.
+
+A call takes a `title`, exactly one of `port` or `path`, and an optional `url_path`. The title cannot contain control, format, or line and paragraph separator characters. `open_preview` refuses these calls: a workspace owned by a user other than the chat's owner, a preview hostname label over 63 characters, and a port when the agent's template hides the port forwarding display app. Sign-in and the preview host still serve `preview--<port>` URLs for that agent. `open_preview` does not open ports there and suggests previewing static files by `path` instead. A single-file `path` takes only a query in `url_path`; any other path is refused, after the agent has published the file.
+
+For a `path`, the workspace agent publishes the path under an ID hashed from it. The publication lasts until the agent restarts. Each result stores the title, workspace ID, agent name, port, preview slug, path, and URL path. For a port, the slug is `preview--<port>`. The dashboard renders `open_preview` results as preview cards, and the user clicks a card to open the preview.
+
+The name `open_preview` is reserved, because chatd would treat a built-in `open_preview` call as a call the client runs if a dynamic tool shared the name. Creating a chat with a dynamic tool whose name, with surrounding whitespace trimmed, is `open_preview` fails with a 400 error. Turns drop a stored dynamic tool named exactly `open_preview`.
 
 ##### Reasoning effort
 

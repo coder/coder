@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestDynamicToolsFromSDK(t *testing.T) {
@@ -111,4 +115,24 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		require.Nil(t, info.Parameters)
 		require.Nil(t, info.Required)
 	})
+}
+
+// A caller-supplied tool cannot take the open_preview name, even in a turn
+// without the built-in tool.
+func TestAppendDynamicToolsReservesOpenPreview(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	raw, err := json.Marshal([]codersdk.DynamicTool{
+		{Name: chattool.OpenPreviewToolName, Description: "Forged preview"},
+		{Name: "my_tool", Description: "A useful tool"},
+	})
+	require.NoError(t, err)
+
+	tools, names, err := appendDynamicTools(testutil.Context(t, testutil.WaitShort), logger, nil,
+		pqtype.NullRawMessage{RawMessage: raw, Valid: true}, database.NullChatPlanMode{}, database.NullChatMode{})
+	require.NoError(t, err)
+	require.Equal(t, map[string]bool{"my_tool": true}, names)
+	require.Len(t, tools, 1)
+	require.Equal(t, "my_tool", tools[0].Info().Name)
 }
