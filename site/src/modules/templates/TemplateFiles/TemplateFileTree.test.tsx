@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { FileTree } from "#/utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
 
-const fileTree: FileTree = {
+const mockFileTree: FileTree = {
 	"main.tf": "resource {}",
 	modules: {
 		"vars.tf": "variable {}",
@@ -18,7 +18,7 @@ describe("TemplateFileTree", () => {
 		const onSelect = vi.fn();
 		render(
 			<TemplateFileTree
-				fileTree={fileTree}
+				fileTree={mockFileTree}
 				activePath="main.tf"
 				onSelect={onSelect}
 			/>,
@@ -41,7 +41,7 @@ describe("TemplateFileTree", () => {
 		render(
 			<>
 				<TemplateFileTree
-					fileTree={fileTree}
+					fileTree={mockFileTree}
 					activePath="README.md"
 					onSelect={vi.fn()}
 					onRename={vi.fn()}
@@ -63,7 +63,7 @@ describe("TemplateFileTree", () => {
 		const onDelete = vi.fn();
 		render(
 			<TemplateFileTree
-				fileTree={fileTree}
+				fileTree={mockFileTree}
 				activePath="main.tf"
 				onSelect={vi.fn()}
 				onRename={onRename}

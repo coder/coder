@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import type { FileTree } from "#/utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
 
@@ -93,5 +94,15 @@ export const GreyOutHiddenFiles: Story = {
 			"variables.tf": "variable my_var {}",
 			"outputs.tf": "output my_output {}",
 		},
+	},
+};
+
+export const KeyboardFocusCollapsedFolder: Story = {
+	// Moves keyboard focus to the "files" folder and collapses it, so the
+	// screenshot shows the focus ring and a collapsed folder.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("treeitem", { name: "main.tf" }).focus();
+		await userEvent.keyboard("{Home}{ArrowLeft}");
 	},
 };

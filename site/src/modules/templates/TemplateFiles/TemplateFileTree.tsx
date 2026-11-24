@@ -6,7 +6,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -104,18 +104,32 @@ const flattenVisible = (
 			: [node],
 	);
 
-const getTreeItemPath = (target: EventTarget, closest: boolean) => {
-	if (!(target instanceof Element)) {
+/** Returns the path of `element` when it is a tree item. */
+const getTreeItemPath = (element: EventTarget | null) => {
+	if (
+		!(element instanceof Element) ||
+		element.getAttribute("role") !== "treeitem"
+	) {
 		return undefined;
 	}
-	const item = closest ? target.closest("[role='treeitem']") : target;
-	if (item?.getAttribute("role") !== "treeitem") {
-		return undefined;
+	return element.getAttribute("data-path") ?? undefined;
+};
+
+const getNodeIcon = (node: TreeNode, isExpanded: boolean) => {
+	if (!node.children) {
+		return getTemplateFileIcon(node.filename);
 	}
-	return item.getAttribute("data-path") ?? undefined;
+	return isExpanded ? FolderOpenIcon : FolderIcon;
+};
+
+/** Imperative handle for moving focus back into the tree, such as after a dialog closes. */
+export type TemplateFileTreeHandle = {
+	/** Focuses the tree's tab stop: the last focused, selected, or first item. */
+	focus: () => void;
 };
 
 type TemplateFilesTreeProps = {
+	ref?: React.Ref<TemplateFileTreeHandle>;
 	onSelect: (path: string) => void;
 	onDelete?: (path: string) => void;
 	onRename?: (path: string) => void;
@@ -131,11 +145,11 @@ type TemplateFilesTreeProps = {
 };
 
 /**
- * File tree following the WAI-ARIA treeview pattern: one tab stop, arrow keys
- * to move and expand, Enter or Space to select. F2, Delete, and Shift+F10
- * trigger the row actions when they are available.
+ * WAI-ARIA treeview: one tab stop, arrow keys to move and expand, Enter or
+ * Space to select, and F2, Delete, or Shift+F10 for the row actions.
  */
 export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
+	ref,
 	fileTree,
 	activePath,
 	onDelete,
@@ -160,6 +174,14 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 		[focusedPath, activePath].find(
 			(path) => path !== undefined && nodesByPath.has(path),
 		) ?? visibleNodes[0]?.path;
+
+	useImperativeHandle(ref, () => ({
+		focus: () => {
+			if (tabStopPath !== undefined) {
+				itemRefs.current.get(tabStopPath)?.focus();
+			}
+		},
+	}));
 
 	const setExpanded = (path: string, expanded: boolean) => {
 		setCollapsed((prev) => {
@@ -187,7 +209,7 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	};
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-		const path = getTreeItemPath(event.target, false);
+		const path = getTreeItemPath(event.target);
 		const node = path === undefined ? undefined : nodesByPath.get(path);
 		if (!node) {
 			return;
@@ -255,7 +277,11 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	};
 
 	const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-		const path = getTreeItemPath(event.target, true);
+		const item =
+			event.target instanceof Element
+				? event.target.closest("[role='treeitem']")
+				: null;
+		const path = getTreeItemPath(item);
 		const node = path === undefined ? undefined : nodesByPath.get(path);
 		if (node) {
 			activate(node);
@@ -263,7 +289,7 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	};
 
 	const handleFocus = (event: React.FocusEvent<HTMLDivElement>) => {
-		const path = getTreeItemPath(event.target, false);
+		const path = getTreeItemPath(event.target);
 		if (path !== undefined) {
 			setFocusedPath(path);
 		}
@@ -277,54 +303,24 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 		.filter(Boolean)
 		.join(" ");
 
-	const renderNodes = (nodes: readonly TreeNode[]): React.ReactNode =>
-		nodes.map((node) => {
-			const isExpanded =
-				node.children !== undefined && !collapsed.has(node.path);
-			const Icon = node.children
-				? isExpanded
-					? FolderOpenIcon
-					: FolderIcon
-				: getTemplateFileIcon(node.filename);
-			return (
-				<TreeItem
-					key={node.path}
-					node={node}
-					icon={<Icon aria-hidden className="size-3 shrink-0 text-current" />}
-					labelContent={
-						Label ? (
-							<Label
-								path={node.path}
-								label={node.label}
-								filename={node.filename}
-								isFolder={node.children !== undefined}
-							/>
-						) : (
-							node.label
-						)
-					}
-					isExpanded={isExpanded}
-					isSelected={
-						activePath === undefined ? undefined : node.path === activePath
-					}
-					isTabStop={node.path === tabStopPath}
-					keyShortcuts={keyShortcuts || undefined}
-					menuOpen={menuPath === node.path}
-					onMenuOpenChange={(open) => setMenuPath(open ? node.path : undefined)}
-					onRename={onRename && (() => onRename(node.path))}
-					onDelete={onDelete && (() => onDelete(node.path))}
-					itemRef={(element) => {
-						if (element) {
-							itemRefs.current.set(node.path, element);
-						} else {
-							itemRefs.current.delete(node.path);
-						}
-					}}
-				>
-					{node.children && renderNodes(node.children)}
-				</TreeItem>
-			);
-		});
+	const tree: TreeState = {
+		collapsed,
+		activePath,
+		tabStopPath,
+		keyShortcuts: keyShortcuts || undefined,
+		menuPath,
+		onMenuPathChange: setMenuPath,
+		onRename,
+		onDelete,
+		Label,
+		registerItem: (path, element) => {
+			if (element) {
+				itemRefs.current.set(path, element);
+			} else {
+				itemRefs.current.delete(path);
+			}
+		},
+	};
 
 	return (
 		<div
@@ -334,60 +330,80 @@ export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 			onClick={handleClick}
 			onFocus={handleFocus}
 		>
-			{renderNodes(nodes)}
+			<TreeItems nodes={nodes} tree={tree} />
 		</div>
 	);
 };
 
+/** State and callbacks that every item in one tree shares. */
+type TreeState = Pick<
+	TemplateFilesTreeProps,
+	"activePath" | "onRename" | "onDelete" | "Label"
+> & {
+	collapsed: ReadonlySet<string>;
+	tabStopPath?: string;
+	keyShortcuts?: string;
+	menuPath?: string;
+	onMenuPathChange: (path: string | undefined) => void;
+	registerItem: (path: string, element: HTMLDivElement | null) => void;
+};
+
+type TreeItemsProps = {
+	nodes: readonly TreeNode[];
+	tree: TreeState;
+};
+
+const TreeItems: React.FC<TreeItemsProps> = ({ nodes, tree }) => {
+	return nodes.map((node) => {
+		const isExpanded =
+			node.children !== undefined && !tree.collapsed.has(node.path);
+		const Icon = getNodeIcon(node, isExpanded);
+		return (
+			<TreeItem
+				key={node.path}
+				node={node}
+				tree={tree}
+				isExpanded={isExpanded}
+				icon={<Icon aria-hidden className="size-3 shrink-0 text-current" />}
+			/>
+		);
+	});
+};
+
 type TreeItemProps = {
 	node: TreeNode;
-	icon: React.ReactNode;
-	labelContent: React.ReactNode;
+	tree: TreeState;
 	isExpanded: boolean;
-	isSelected?: boolean;
-	isTabStop: boolean;
-	keyShortcuts?: string;
-	menuOpen: boolean;
-	onMenuOpenChange: (open: boolean) => void;
-	onRename?: () => void;
-	onDelete?: () => void;
-	itemRef: React.RefCallback<HTMLDivElement>;
-	children?: React.ReactNode;
+	icon: React.ReactNode;
 };
 
 const TreeItem: React.FC<TreeItemProps> = ({
 	node,
-	icon,
-	labelContent,
+	tree,
 	isExpanded,
-	isSelected,
-	isTabStop,
-	keyShortcuts,
-	menuOpen,
-	onMenuOpenChange,
-	onRename,
-	onDelete,
-	itemRef,
-	children,
+	icon,
 }) => {
 	const labelId = useId();
 	const itemElement = useRef<HTMLDivElement | null>(null);
+	const { Label, activePath, onRename, onDelete } = tree;
 	const isFolderNode = node.children !== undefined;
 	const isHidden = node.path.startsWith(".");
+	const isSelected =
+		activePath === undefined ? undefined : node.path === activePath;
 
 	return (
 		<div
 			ref={(element) => {
 				itemElement.current = element;
-				itemRef(element);
+				tree.registerItem(node.path, element);
 			}}
 			role="treeitem"
 			data-path={node.path}
 			aria-labelledby={labelId}
 			aria-expanded={isFolderNode ? isExpanded : undefined}
 			aria-selected={isSelected}
-			aria-keyshortcuts={keyShortcuts}
-			tabIndex={isTabStop ? 0 : -1}
+			aria-keyshortcuts={tree.keyShortcuts}
+			tabIndex={node.path === tree.tabStopPath ? 0 : -1}
 			className="outline-hidden"
 		>
 			<div
@@ -409,32 +425,47 @@ const TreeItem: React.FC<TreeItemProps> = ({
 				>
 					{icon}
 					<span id={labelId} className="truncate">
-						{labelContent}
+						{Label ? (
+							<Label
+								path={node.path}
+								label={node.label}
+								filename={node.filename}
+								isFolder={isFolderNode}
+							/>
+						) : (
+							node.label
+						)}
 					</span>
 				</div>
 				<MoreMenu
-					open={menuOpen}
-					onOpenChange={onMenuOpenChange}
-					onRename={onRename}
-					onDelete={onDelete}
+					open={tree.menuPath === node.path}
+					onOpenChange={(open) =>
+						tree.onMenuPathChange(open ? node.path : undefined)
+					}
+					onRename={onRename && (() => onRename(node.path))}
+					onDelete={onDelete && (() => onDelete(node.path))}
 					onCloseAutoFocus={(event) => {
 						event.preventDefault();
 						itemElement.current?.focus();
 					}}
 				/>
 			</div>
-			{isFolderNode && isExpanded && <div role="group">{children}</div>}
+			{node.children && isExpanded && (
+				<div role="group">
+					<TreeItems nodes={node.children} tree={tree} />
+				</div>
+			)}
 		</div>
 	);
 };
 
-type MoreMenuProps = {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	onRename?: () => void;
-	onDelete?: () => void;
-	onCloseAutoFocus: (event: Event) => void;
-};
+type MoreMenuProps = Required<
+	Pick<React.ComponentProps<typeof DropdownMenu>, "open" | "onOpenChange">
+> &
+	Pick<React.ComponentProps<typeof DropdownMenuContent>, "onCloseAutoFocus"> & {
+		onRename?: () => void;
+		onDelete?: () => void;
+	};
 
 const MoreMenu: React.FC<MoreMenuProps> = ({
 	open,

@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import {
+	ConfirmDialog,
+	type ConfirmDialogProps,
+} from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormField } from "#/components/FormField/FormField";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
@@ -89,7 +92,7 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 	);
 };
 
-type DeleteFileDialogProps = {
+type DeleteFileDialogProps = Pick<ConfirmDialogProps, "onCloseAutoFocus"> & {
 	onClose: () => void;
 	onConfirm: () => void;
 	open: boolean;
@@ -98,6 +101,7 @@ type DeleteFileDialogProps = {
 
 export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 	onClose,
+	onCloseAutoFocus,
 	onConfirm,
 	open,
 	filename,
@@ -106,6 +110,7 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 		<ConfirmDialog
 			type="delete"
 			onClose={onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			open={open}
 			onConfirm={onConfirm}
 			title="Delete file"
@@ -119,7 +124,7 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 	);
 };
 
-type RenameFileDialogProps = {
+type RenameFileDialogProps = Pick<ConfirmDialogProps, "onCloseAutoFocus"> & {
 	onClose: () => void;
 	onConfirm: (filename: string) => void;
 	checkExists: (path: string) => boolean;
@@ -131,6 +136,7 @@ type RenameFileDialogProps = {
 export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 	checkExists,
 	onClose,
+	onCloseAutoFocus,
 	onConfirm,
 	open,
 	filename,
@@ -175,6 +181,7 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 				setError(undefined);
 				setPathValue("");
 			}}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onConfirm={handleConfirm}
 			hideCancel={false}
 			type="success"

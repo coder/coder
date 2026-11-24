@@ -439,6 +439,9 @@ test("Renaming a file does not throw and opens the new path", async () => {
 		expect(screen.getByTestId("monaco-editor")).toHaveValue(originalContent);
 	});
 	expect(router.state.location.search).toBe("?path=renamed.tf");
+	await waitFor(() => {
+		expect(screen.getByRole("treeitem", { name: "renamed.tf" })).toHaveFocus();
+	});
 });
 
 describe.each([

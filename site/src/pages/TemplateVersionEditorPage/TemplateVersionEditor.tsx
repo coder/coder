@@ -48,7 +48,10 @@ import {
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { WildcardHostnameWarning } from "#/modules/resources/WildcardHostnameWarning";
 import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
-import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
+import {
+	TemplateFileTree,
+	type TemplateFileTreeHandle,
+} from "#/modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
@@ -138,6 +141,13 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	const [createFileOpen, setCreateFileOpen] = useState(false);
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
+	const fileTreeRef = useRef<TemplateFileTreeHandle>(null);
+	// The dialog's trigger can be the tree item it renames or deletes, so
+	// return focus to the tree instead of to that removed element.
+	const focusFileTree = (event: Event) => {
+		event.preventDefault();
+		fileTreeRef.current?.focus();
+	};
 	const [dirty, setDirty] = useState(false);
 	const matchingProvisioners = templateVersion.matched_provisioners?.count;
 	const availableProvisioners = templateVersion.matched_provisioners?.available;
@@ -379,6 +389,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 								}}
 								open={Boolean(deleteFileOpen)}
 								onClose={() => setDeleteFileOpen(undefined)}
+								onCloseAutoFocus={focusFileTree}
 								filename={deleteFileOpen || ""}
 							/>
 							<RenameFileDialog
@@ -387,6 +398,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 								onClose={() => {
 									setRenameFileOpen(undefined);
 								}}
+								onCloseAutoFocus={focusFileTree}
 								filename={renameFileOpen || ""}
 								checkExists={(path) => existsFile(path, fileTree)}
 								onConfirm={(newPath) => {
@@ -403,6 +415,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							/>
 						</div>
 						<TemplateFileTree
+							ref={fileTreeRef}
 							fileTree={fileTree}
 							onDelete={(file) => setDeleteFileOpen(file)}
 							onSelect={(filePath) => {
