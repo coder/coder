@@ -546,11 +546,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
 	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The edit target also changes from queue updates and rollbacks, and hydration must follow useFileAttachments' post-commit organization adoption.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The edited message also changes when the queue updates or a send rolls back, not only on click. Filling the edit box must wait until useFileAttachments switches to the chat's organization, which it does in an effect.
 		if (!isEditing) {
 			return;
 		}
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above, hydration must follow the post-commit adoption.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above.
 		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
