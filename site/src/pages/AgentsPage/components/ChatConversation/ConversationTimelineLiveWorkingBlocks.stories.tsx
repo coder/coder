@@ -144,12 +144,12 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
-const mockSummaryReasoning: ChatMessagePart = {
+const MockSummaryReasoning: ChatMessagePart = {
 	type: "reasoning",
 	text: "Summarizing the inspection",
 	created_at: workingFixtureTime(13),
 };
-const mockAnswerText: ChatMessagePart = {
+const MockAnswerText: ChatMessagePart = {
 	type: "text",
 	text: "The workspace looks healthy.",
 };
@@ -161,7 +161,7 @@ export const AnswerStreamsAfterBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
 		),
-		...buildStreamRenderState([mockSummaryReasoning, mockAnswerText]),
+		...buildStreamRenderState([MockSummaryReasoning, MockAnswerText]),
 	},
 	play: expandBlock(/^Working for 12s/),
 };
@@ -318,16 +318,16 @@ export const PeekMarksRewrittenStep: Story = {
 };
 
 // A reply already in the timeline keeps a peek from starting.
-export const AnswerEndsPeek: Story = {
+export const AnswerKeepsPeekFromStarting: Story = {
 	args: AnswerStreamsAfterBlock.args,
 };
 
-export const TextAnswerEndsPeek: Story = {
+export const TextAnswerKeepsPeekFromStarting: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
 		),
-		...buildStreamRenderState([mockAnswerText]),
+		...buildStreamRenderState([MockAnswerText]),
 	},
 };
 
@@ -346,8 +346,8 @@ export const ReplyTextEndsShownPeek: Story = {
 					{...args}
 					{...buildStreamRenderState(
 						replied
-							? [mockSummaryReasoning, mockAnswerText]
-							: [mockSummaryReasoning],
+							? [MockSummaryReasoning, MockAnswerText]
+							: [MockSummaryReasoning],
 					)}
 				/>
 				<Button
