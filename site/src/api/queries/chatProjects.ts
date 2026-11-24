@@ -14,13 +14,16 @@ export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
  * Lists chat projects the current user owns or that are shared with them,
- * across all organizations.
+ * across all organizations. Summaries name their projects by ID and refetch
+ * on focus, so the list does too: a project created or shared since the
+ * list loaded would otherwise have a summary without a project.
  * @public
  */
 export const chatProjects = () =>
 	queryOptions({
 		queryKey: chatProjectsKey,
 		queryFn: () => API.experimental.getChatProjects(),
+		refetchOnWindowFocus: true,
 	});
 
 /**
