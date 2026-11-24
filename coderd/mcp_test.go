@@ -1829,6 +1829,8 @@ func TestMCPServerConfigsUpdateResetsEventSubscriptions(t *testing.T) {
 	}{
 		{"URLChange", []codersdk.UpdateMCPServerConfigRequest{{URL: ptr.Ref("https://mcp.example.com/moved")}}, true},
 		{"APIKeyChange", []codersdk.UpdateMCPServerConfigRequest{{APIKeyValue: ptr.Ref("key-2")}}, true},
+		{"APIKeyHeaderChange", []codersdk.UpdateMCPServerConfigRequest{{APIKeyHeader: ptr.Ref("X-Other-Key")}}, true},
+		{"CustomHeadersChange", []codersdk.UpdateMCPServerConfigRequest{{CustomHeaders: &map[string]string{"X-Team": "a"}}}, true},
 		{"ReEnable", []codersdk.UpdateMCPServerConfigRequest{{Enabled: &off}, {Enabled: &on}}, true},
 		{"Rename", []codersdk.UpdateMCPServerConfigRequest{{DisplayName: ptr.Ref("Renamed")}}, false},
 	} {

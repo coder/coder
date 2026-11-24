@@ -532,10 +532,20 @@ func TestAutomationEvents(t *testing.T) {
 		_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now(), nil)
 		require.NoError(t, err)
 		f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
+		// A re-enable that subscribes during the disable's unsubscribe, which
+		// ends that subscription, gets one more subscribe.
+		f.events.mu.Lock()
+		f.events.onRequest = func() {
+			_, _, _ = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now(), nil)
+			f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
+		}
+		f.events.mu.Unlock()
+		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID)).IsError)
+		f.server.tickWebhookRenewals(ctx, time.Now().Add(time.Second))
 		require.False(t, call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"delete","automation_id":%q}`, automation.ID)).IsError)
 		f.events.mu.Lock()
-		require.Len(t, f.events.subscribes, 3)
-		require.Equal(t, 2, f.events.unsubscribes)
+		require.Len(t, f.events.subscribes, 5)
+		require.Equal(t, 3, f.events.unsubscribes)
 		f.events.mu.Unlock()
 		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
 	})
@@ -612,6 +622,19 @@ func TestAutomationEvents(t *testing.T) {
 			}},
 			{"ReboundDuringUnsupportedRenewal", http.StatusServiceUnavailable, reboundDuringRefusal(func(e *fakeEventsServer) { e.noEvents = true })},
 			{"ReboundDuringForbiddenRenewal", http.StatusServiceUnavailable, reboundDuringRefusal(func(e *fakeEventsServer) { e.subscribeCode = -32024 })},
+			// A chat that takes no events holds deliveries at the pending
+			// limit, so the server retries.
+			{"InboxFull", http.StatusServiceUnavailable, func(ctx context.Context, f fixture, id uuid.UUID) error {
+				events := make([]mcpclient.EventOccurrence, maxPendingInboxRows)
+				for i := range events {
+					events[i] = mcpclient.EventOccurrence{EventID: fmt.Sprintf("evt_held_%d", i), Name: fakeEventName, Timestamp: time.Now()}
+				}
+				raw, err := json.Marshal(events)
+				if err == nil {
+					_, err = f.worker.db.InsertChatAutomationInboxEvents(ctx, database.InsertChatAutomationInboxEventsParams{AutomationID: id, Events: raw})
+				}
+				return err
+			}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -776,6 +799,10 @@ func TestAutomationEvents(t *testing.T) {
 		f.server.tickEventPolls(ctx, now)
 		f.events.emit("evt_1")
 		f.server.tickEventPolls(ctx, now.Add(time.Minute))
+		// A disabled automation gets no gap row: a re-enable resumes from now.
+		_, _, err := chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, time.Now(), nil)
+		require.NoError(t, err)
+		require.NoError(t, f.worker.db.ResetChatAutomationMCPSubscriptions(ctx, f.config.ID))
 		rows, err := f.worker.db.GetPendingChatAutomationInboxRows(ctx, database.GetPendingChatAutomationInboxRowsParams{AutomationID: automation.ID, LimitCount: 10})
 		require.NoError(t, err)
 		var got []string
