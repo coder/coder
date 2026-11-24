@@ -28,4 +28,15 @@ This section is for a Coder deployment administrator who installs and runs the C
 
 </div>
 
+## Common tasks
+
+<div class="cards">
+
+- [Air-gapped deployments](./prepare/airgap.md): Find what Coder and your templates download from the internet, and how to provide each download in a network with no internet access.
+- [Use an external database](./server/external-database.md): Create a PostgreSQL role and database for the control plane, connect Coder to it, and use a custom schema if you need one.
+- [TLS and reverse proxies](../admin/setup/index.md#tls--reverse-proxy): Serve Coder over HTTPS with its own TLS certificates, or behind Apache, Caddy, or NGINX.
+- [Image pull secrets](./operate/image-pull-secret.md): Pull workspace images from a private registry with a Kubernetes image pull secret that your template references.
+
+</div>
+
 <children></children>
