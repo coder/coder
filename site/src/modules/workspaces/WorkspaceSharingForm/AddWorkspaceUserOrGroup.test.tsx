@@ -25,7 +25,9 @@ const renderAndSelectMember = async (isLoading: boolean) => {
 
 	const user = userEvent.setup();
 	await user.click(
-		screen.getByRole("button", { name: "Search for user or group" }),
+		screen.getByRole("button", {
+			name: "User or group Search for user or group",
+		}),
 	);
 	await user.click(
 		await screen.findByRole("option", {
@@ -46,7 +48,7 @@ describe("AddWorkspaceUserOrGroup", () => {
 
 		// Form actions run in a transition, so the reset lands asynchronously.
 		const search = await screen.findByRole("button", {
-			name: "Search for user or group",
+			name: "User or group Search for user or group",
 		});
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ user_id: MockOrganizationMember.user_id }),
