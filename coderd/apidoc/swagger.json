@@ -132,7 +132,7 @@
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
-				"summary": "Receive MCP event webhook delivery",
+				"summary": "Receive chat automation MCP event webhook",
 				"operationId": "receive-chat-automation-mcp-event-webhook",
 				"parameters": [
 					{

@@ -17,7 +17,7 @@ import (
 // servers to stay under.
 const maxMCPEventWebhookBody = 256 << 10
 
-// @Summary Receive MCP event webhook delivery
+// @Summary Receive chat automation MCP event webhook
 // @ID receive-chat-automation-mcp-event-webhook
 // @Tags Chats
 // @Accept json

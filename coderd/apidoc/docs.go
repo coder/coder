@@ -165,7 +165,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Receive MCP event webhook delivery",
+                "summary": "Receive chat automation MCP event webhook",
                 "operationId": "receive-chat-automation-mcp-event-webhook",
                 "parameters": [
                     {
