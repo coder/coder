@@ -25,7 +25,7 @@ export const AISettingsIndexRedirect = () => {
 			!permissions.editDeploymentConfig,
 	});
 
-	if (permissions.viewAnyAIProvider) {
+	if (permissions.viewAnyAIProviderConfig) {
 		return <Navigate to="/ai/settings/providers" replace />;
 	}
 
