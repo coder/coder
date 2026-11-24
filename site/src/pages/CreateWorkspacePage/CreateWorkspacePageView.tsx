@@ -1,13 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -221,19 +214,15 @@ export const CreateWorkspacePageView: React.FC<
 		}
 	}, [form.submitCount, form.errors]);
 
-	// Kept stable because the preset parameter effect depends on it.
-	const presetOptions = useMemo(
-		() => [
-			{ label: "None", value: "undefined", icon: "", description: "" },
-			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
-				value: preset.ID,
-				icon: preset.Icon,
-				description: preset.Description,
-			})),
-		],
-		[presets],
-	);
+	const presetOptions = [
+		{ label: "None", value: "undefined", icon: "", description: "" },
+		...presets.map((preset) => ({
+			label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+			value: preset.ID,
+			icon: preset.Icon,
+			description: preset.Description,
+		})),
+	];
 
 	// Falls back to "None" when the form's preset is unset or not listed.
 	const selectedPresetIndex = Math.max(
@@ -243,7 +232,7 @@ export const CreateWorkspacePageView: React.FC<
 		),
 	);
 	const selectedPreset = presets.find(
-		(preset) => preset.ID === presetOptions[selectedPresetIndex].value,
+		(preset) => preset.ID === form.values.template_version_preset_id,
 	);
 	const presetParameterNames =
 		selectedPreset?.Parameters?.map((p) => p.Name) ?? [];
