@@ -14,6 +14,23 @@ const mockFilter: UseFilterResult = {
 	cancelDebounce: () => {},
 };
 
+const FilterWithSearchParams: React.FC = () => {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+	});
+
+	return (
+		<Filter
+			filter={filter}
+			isLoading={false}
+			optionsSkeleton={null}
+			presets={[{ name: "Running", query: "status:running" }]}
+		/>
+	);
+};
+
 describe(Filter.name, () => {
 	it("announces that the preset menu docs links open in a new tab", async () => {
 		const user = userEvent.setup();
@@ -60,25 +77,8 @@ describe(Filter.name, () => {
 	});
 
 	it("shows a preset picked after clearing the search", async () => {
-		const Harness = () => {
-			const [searchParams, setSearchParams] = useSearchParams();
-			const filter = useFilter({
-				searchParams,
-				onSearchParamsChange: setSearchParams,
-			});
-
-			return (
-				<Filter
-					filter={filter}
-					isLoading={false}
-					optionsSkeleton={null}
-					presets={[{ name: "Running", query: "status:running" }]}
-				/>
-			);
-		};
-
 		const user = userEvent.setup();
-		renderWithAuth(<Harness />, { route: "/?filter=owner:me" });
+		renderWithAuth(<FilterWithSearchParams />, { route: "/?filter=owner:me" });
 		const search = await screen.findByRole("textbox", { name: "Search" });
 
 		await user.click(screen.getByRole("button", { name: "Clear search" }));
@@ -93,25 +93,8 @@ describe(Filter.name, () => {
 	});
 
 	it("applies the typed search when the box loses focus", async () => {
-		const Harness = () => {
-			const [searchParams, setSearchParams] = useSearchParams();
-			const filter = useFilter({
-				searchParams,
-				onSearchParamsChange: setSearchParams,
-			});
-
-			return (
-				<Filter
-					filter={filter}
-					isLoading={false}
-					optionsSkeleton={null}
-					presets={[]}
-				/>
-			);
-		};
-
 		const user = userEvent.setup();
-		renderWithAuth(<Harness />);
+		renderWithAuth(<FilterWithSearchParams />);
 		const search = await screen.findByRole("textbox", { name: "Search" });
 
 		await user.type(search, "owner:me");
