@@ -450,6 +450,7 @@ func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, er
 		NextPollAt:   sql.NullTime{Time: now.Add(action.backoff), Valid: true},
 		LastError:    sql.NullString{String: message, Valid: true},
 		Now:          now,
+		LeaseUntil:   sql.NullTime{},
 	}); uerr != nil {
 		p.logger.Warn(ctx, "record chat automation poll error", slog.F("automation_id", automationID), slog.Error(uerr))
 	}

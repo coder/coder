@@ -1,12 +1,14 @@
 package chatd
 
 import (
+	"bufio"
 	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -154,7 +156,14 @@ func (w *paddedSSE) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func (w *paddedSSE) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *paddedSSE) Flush() {
+	w.WriteHeader(http.StatusOK)
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
+}
+
+func (w *paddedSSE) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return http.NewResponseController(w.ResponseWriter).Hijack()
+}
 
 func (f *fakeEventsServer) emit(ids ...string) {
 	f.mu.Lock()
@@ -408,7 +417,8 @@ func TestAutomationEvents(t *testing.T) {
 		f := setup(t)
 		automation := subscribe(ctx, t, f)
 		due := time.Now().Add(time.Minute)
-		// The second text moves the cut by one byte.
+		// One of the two texts puts a rune across the cut, whatever the
+		// length of the error's prefix.
 		for _, message := range []string{"\x00" + strings.Repeat("é", maxLastErrorBytes), "\x00x" + strings.Repeat("é", maxLastErrorBytes)} {
 			f.events.mu.Lock()
 			f.events.failCode, f.events.failMessage = jsonrpc.CodeInternalError, message
