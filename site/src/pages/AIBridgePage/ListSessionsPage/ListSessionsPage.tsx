@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { paginatedSessions } from "#/api/queries/aiBridge";
+import { aiGatewayRetention, paginatedSessions } from "#/api/queries/aiBridge";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -37,7 +38,8 @@ const AISessionListPage: React.FC = () => {
 	// The default time range lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount
 	// so query cache keys stay stable.
-	const [defaultRange] = useState(() => defaultTimeRange(new Date()));
+	const [now] = useState(() => new Date());
+	const [defaultRange] = useState(() => defaultTimeRange(now));
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const sessionsQuery = usePaginatedQuery({
@@ -60,6 +62,16 @@ const AISessionListPage: React.FC = () => {
 
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
+
+	const retentionQuery = useQuery({
+		...aiGatewayRetention(),
+		enabled: canViewSessions,
+	});
+	const retentionMs = retentionQuery.data?.retention_ms;
+	const minDate =
+		retentionMs !== undefined && retentionMs > 0
+			? new Date(now.getTime() - retentionMs)
+			: undefined;
 
 	// The preset is display-only; the URL stores resolved timestamps. With no
 	// range in the URL (e.g. after clearing the search) the default window
@@ -158,6 +170,7 @@ const AISessionListPage: React.FC = () => {
 						setLastPicked(value);
 						filter.update(queryWithTimeRange(filter.values, value));
 					},
+					minDate,
 				}}
 			/>
 		</RequirePermission>

@@ -55,6 +55,13 @@ export const aiBridgeClients = (options: Pagination & { q?: string }) => ({
 	queryFn: () => API.getAIBridgeClients(options),
 });
 
+// The retention only changes when the deployment restarts.
+export const aiGatewayRetention = () => ({
+	queryKey: ["aiGatewayRetention"],
+	queryFn: () => API.experimental.getAIGatewayRetention(),
+	staleTime: Number.POSITIVE_INFINITY,
+});
+
 // The spend endpoints authorize on reading the organization's group members,
 // so this lists exactly the organizations they would serve.
 export const aiSpendOrganizations = () =>
