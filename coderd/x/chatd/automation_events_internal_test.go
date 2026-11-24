@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -377,7 +378,7 @@ func TestAutomationEvents(t *testing.T) {
 		f.server.tickWebhookRenewals(ctx, sub.RenewAt.Time)
 		f.events.mu.Lock()
 		require.Len(t, f.events.subscribes, 2)
-		require.Equal(t, "seq:7", *f.events.subscribes[1].Cursor)
+		require.Equal(t, "seq:7", ptr.NilToEmpty(f.events.subscribes[1].Cursor))
 		f.events.mu.Unlock()
 		require.True(t, subscription(ctx, t, f, automation.ID).RenewAt.Time.After(sub.RenewAt.Time))
 
