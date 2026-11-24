@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"mime"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,6 +95,10 @@ type inboxAppend struct {
 	LeaseUntil   sql.NullTime
 }
 
+// urlInText finds the URLs in an error's text. The transport quotes the
+// request URL, and wrapping can turn its *url.Error into plain text.
+var urlInText = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"]+`)
+
 // errSubscriptionInactive means that the subscription was deleted or
 // terminated, or that a re-enable voided the poll, so the delivery is
 // dropped.
@@ -165,11 +170,12 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 }
 
 // storableEvent returns the fields of e that the inbox keeps, in a form that
-// PostgreSQL takes, or false when it cannot store them: text and jsonb hold
-// no NUL, and timestamptz has no year 0. Data that PostgreSQL would print
-// longer than maxEventDataBytes becomes a notice.
+// PostgreSQL takes, or false when it cannot store them: the inbox tells
+// events apart by ID, text and jsonb hold no NUL, and timestamptz has no
+// year 0. Data that PostgreSQL would print longer than maxEventDataBytes
+// becomes a notice.
 func storableEvent(e mcpclient.EventOccurrence) (mcpclient.EventOccurrence, bool) {
-	if len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes ||
+	if e.EventID == "" || len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes ||
 		strings.ContainsRune(e.EventID+e.Name, 0) || e.Timestamp.Year() < 1 {
 		return mcpclient.EventOccurrence{}, false
 	}
@@ -233,10 +239,12 @@ func jsonbGrowth(value any) (int64, bool) {
 	return total, true
 }
 
-// terminateSubscription ends a subscription for good, tells the chat in its
-// inbox and records the reason as a refused run. Terminating an inactive
-// subscription changes nothing.
-func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UUID, reason runReason) {
+// terminateSubscription ends the subscription of a claimed poll for good,
+// tells the chat in its inbox and records the reason as a refused run.
+// Terminating an inactive subscription, or one whose poll a re-enable voided,
+// changes nothing.
+func (p *Server) terminateSubscription(ctx context.Context, sub database.ClaimDueChatAutomationMCPPollsRow, reason runReason) {
+	automationID := sub.AutomationID
 	err := p.db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(automationID)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -245,6 +253,7 @@ func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UU
 			AutomationID: automationID,
 			Reason:       string(reason),
 			Now:          p.clock.Now("chatd", "automation-events"),
+			LeaseUntil:   sub.NextPollAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("terminate subscription: %w", err)
@@ -301,7 +310,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 	groups := make(map[group][]database.ClaimDueChatAutomationMCPPollsRow)
 	for _, sub := range claimed {
 		if !sub.MCPServerConfigID.Valid {
-			p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPServerUnavailable)
+			p.terminateSubscription(ctx, sub, runReasonMCPServerUnavailable)
 			continue
 		}
 		key := group{owner: sub.OwnerID, config: sub.MCPServerConfigID.UUID}
@@ -349,14 +358,14 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 	}
 	if err != nil {
 		for _, sub := range subs {
-			p.handlePollError(ctx, sub.AutomationID, err, conn)
+			p.handlePollError(ctx, sub, err, conn)
 		}
 		return
 	}
 	defer conn.close()
 	for _, sub := range subs {
 		if !conn.session.Supported() {
-			p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPEventUnsupported)
+			p.terminateSubscription(ctx, sub, runReasonMCPEventUnsupported)
 			continue
 		}
 		p.pollSubscription(ctx, conn, sub)
@@ -368,7 +377,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow) {
 	var args map[string]any
 	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
-		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPInvalidArguments)
+		p.terminateSubscription(ctx, sub, runReasonMCPInvalidArguments)
 		return
 	}
 	var cursor *string
@@ -384,7 +393,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			MaxEvents: ptr.Ref(int64(maxEventsPerMessage)),
 		})
 		if err != nil {
-			p.handlePollError(ctx, sub.AutomationID, err, conn)
+			p.handlePollError(ctx, sub, err, conn)
 			return
 		}
 		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated, LeaseUntil: sub.NextPollAt}
@@ -397,7 +406,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			// subscription.
 			if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
 				p.logger.Warn(ctx, "append chat automation events", slog.F("automation_id", sub.AutomationID), slog.Error(err))
-				p.handlePollError(ctx, sub.AutomationID, xerrors.Errorf("store events: %w", err), nil)
+				p.handlePollError(ctx, sub, xerrors.Errorf("store events: %w", err), nil)
 			}
 			return
 		}
@@ -420,8 +429,9 @@ func nextPollAt(now time.Time, nextPollMs int64) time.Time {
 
 // handlePollError terminates the subscription or schedules a retry, as
 // eventErrorActions says. The backoff starts now, not at the tick, whose
-// polls can take up to eventPollBudget.
-func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn) {
+// polls can take up to eventPollBudget. Neither happens once a re-enable
+// voided the poll.
+func (p *Server) handlePollError(ctx context.Context, sub database.ClaimDueChatAutomationMCPPollsRow, err error, conn *eventsConn) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -438,24 +448,26 @@ func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, er
 		}
 	}
 	if action.terminate != "" {
-		p.terminateSubscription(ctx, automationID, action.terminate)
+		p.terminateSubscription(ctx, sub, action.terminate)
 		return
 	}
-	// The error can quote the server, and text takes no NUL or invalid UTF-8.
-	message := strings.ReplaceAll(err.Error(), "\x00", "")
+	// The error can quote the server and name its URL with credentials, and
+	// text takes no NUL or invalid UTF-8.
+	message := urlInText.ReplaceAllStringFunc(err.Error(), mcpclient.RedactURL)
+	message = strings.ReplaceAll(message, "\x00", "")
 	message = strings.ToValidUTF8(message[:min(len(message), maxLastErrorBytes)], "")
 	if _, uerr := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
-		AutomationID: automationID,
+		AutomationID: sub.AutomationID,
 		Cursor:       sql.NullString{},
 		NextPollAt:   sql.NullTime{Time: now.Add(action.backoff), Valid: true},
 		LastError:    sql.NullString{String: message, Valid: true},
 		Now:          now,
-		LeaseUntil:   sql.NullTime{},
+		LeaseUntil:   sub.NextPollAt,
 	}); uerr != nil {
-		p.logger.Warn(ctx, "record chat automation poll error", slog.F("automation_id", automationID), slog.Error(uerr))
+		p.logger.Warn(ctx, "record chat automation poll error", slog.F("automation_id", sub.AutomationID), slog.Error(uerr))
 	}
 	if authFailed {
-		p.recordEventRefusal(ctx, automationID, runReasonMCPAuthRequired)
+		p.recordEventRefusal(ctx, sub.AutomationID, runReasonMCPAuthRequired)
 	}
 }
 

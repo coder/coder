@@ -90,9 +90,14 @@ WHERE
     AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: TerminateChatAutomationMCPSubscription :execrows
+-- Ends an active subscription. A poll passes its lease, and ends nothing once
+-- the subscription no longer holds it.
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = @reason::text, updated_at = @now::timestamptz
-WHERE automation_id = @automation_id::uuid AND state = 'active';
+WHERE
+    automation_id = @automation_id::uuid
+    AND state = 'active'
+    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: InsertChatAutomationInboxEvents :execrows
 -- Appends @events, a JSON array of MCP event occurrences, in their order. An

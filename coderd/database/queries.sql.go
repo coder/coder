@@ -6554,17 +6554,28 @@ func (q *sqlQuerier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg Set
 const terminateChatAutomationMCPSubscription = `-- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
-WHERE automation_id = $3::uuid AND state = 'active'
+WHERE
+    automation_id = $3::uuid
+    AND state = 'active'
+    AND ($4::timestamptz IS NULL OR next_poll_at = $4::timestamptz)
 `
 
 type TerminateChatAutomationMCPSubscriptionParams struct {
-	Reason       string    `db:"reason" json:"reason"`
-	Now          time.Time `db:"now" json:"now"`
-	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	Reason       string       `db:"reason" json:"reason"`
+	Now          time.Time    `db:"now" json:"now"`
+	AutomationID uuid.UUID    `db:"automation_id" json:"automation_id"`
+	LeaseUntil   sql.NullTime `db:"lease_until" json:"lease_until"`
 }
 
+// Ends an active subscription. A poll passes its lease, and ends nothing once
+// the subscription no longer holds it.
 func (q *sqlQuerier) TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription, arg.Reason, arg.Now, arg.AutomationID)
+	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription,
+		arg.Reason,
+		arg.Now,
+		arg.AutomationID,
+		arg.LeaseUntil,
+	)
 	if err != nil {
 		return 0, err
 	}

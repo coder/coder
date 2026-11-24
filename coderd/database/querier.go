@@ -1643,6 +1643,8 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	// Ends an active subscription. A poll passes its lease, and ends nothing once
+	// the subscription no longer holds it.
 	TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//

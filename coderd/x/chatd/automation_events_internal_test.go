@@ -49,8 +49,10 @@ type fakeEventsServer struct {
 	failCode     int64
 	failMessage  string
 	unauthorized bool
-	cursor       string
-	nullCursor   bool
+	// dropConn closes each connection without an answer.
+	dropConn   bool
+	cursor     string
+	nullCursor bool
 	// jsonResponse answers with JSON bodies instead of SSE streams.
 	jsonResponse bool
 	// ssePad, when set, spells the SSE media type in another case and
@@ -86,11 +88,15 @@ func newFakeEventsServer(t *testing.T) (*fakeEventsServer, string) {
 	jsonBodies := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
-		unauthorized, jsonResponse, ssePad := fake.unauthorized, fake.jsonResponse, fake.ssePad
+		unauthorized, dropConn, jsonResponse, ssePad := fake.unauthorized, fake.dropConn, fake.jsonResponse, fake.ssePad
 		fake.mu.Unlock()
 		switch {
 		case unauthorized:
 			w.WriteHeader(http.StatusUnauthorized)
+		case dropConn:
+			if conn, _, err := http.NewResponseController(w).Hijack(); err == nil {
+				_ = conn.Close()
+			}
 		case jsonResponse:
 			jsonBodies.ServeHTTP(w, r)
 		case ssePad > 0:
@@ -208,7 +214,7 @@ func TestAutomationEvents(t *testing.T) {
 		f := fixture{worker: &workerTestFixture{db: db, pubsub: newRecordingPubsub(ps), user: user, org: org}}
 		var url string
 		f.events, url = newFakeEventsServer(t)
-		f.config = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{OrganizationID: org.ID, Slug: "events", Url: url, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
+		f.config = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{OrganizationID: org.ID, Slug: "events", Url: url + "?token=secret", CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		f.chat = dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID, MCPServerIDs: []uuid.UUID{f.config.ID}})
 		f.server = newServer(t, f)
 		return f
@@ -384,19 +390,32 @@ func TestAutomationEvents(t *testing.T) {
 		f.events.emit("evt_new")
 		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
 
-		// A poll that a disable and an enable overtake stores nothing, so
-		// its cursor cannot bring back the events from while it was off.
-		raced := make(chan error, 1)
-		f.events.mu.Lock()
-		f.events.onPoll = func(context.Context) {
-			err := setEnabled(false)
-			f.events.emit("evt_raced")
-			raced <- errors.Join(err, setEnabled(true))
+		// A poll that a disable and an enable overtake changes nothing: its
+		// retry does not delay the next poll, its refusal does not end the
+		// subscription, and its cursor does not bring back the events from
+		// while it was off.
+		due := time.Now().Add(time.Minute)
+		for i, code := range []int64{jsonrpc.CodeInternalError, -32024, 0} {
+			raced := make(chan error, 1)
+			f.events.mu.Lock()
+			f.events.failCode = code
+			f.events.onPoll = func(context.Context) {
+				err := setEnabled(false)
+				f.events.emit(fmt.Sprintf("evt_raced_%d", i))
+				raced <- errors.Join(err, setEnabled(true))
+			}
+			f.events.mu.Unlock()
+			f.server.tickEventPolls(ctx, due)
+			select {
+			case err := <-raced:
+				require.NoError(t, err)
+			default:
+				t.Fatalf("race %d: the re-enabled subscription was not polled", i)
+			}
+			due = time.Now()
 		}
-		f.events.mu.Unlock()
 		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
-		require.NoError(t, testutil.TryReceive(ctx, t, raced))
-		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
+		require.Equal(t, database.ChatAutomationSubscriptionStateActive, subscription(ctx, t, f, automation.ID).State)
 
 		f.server.tickEventDrains(ctx, time.Now().Add(time.Minute))
 		texts := sent(ctx, t, f, automation.ID)
@@ -405,7 +424,7 @@ func TestAutomationEvents(t *testing.T) {
 			require.Contains(t, texts[0], fmt.Sprintf(`"event_id":%q`, id))
 		}
 		for _, id := range []string{"evt_missed", "evt_raced"} {
-			require.NotContains(t, texts[0], fmt.Sprintf(`"event_id":%q`, id))
+			require.NotContains(t, texts[0], `"event_id":"`+id)
 		}
 	})
 
@@ -441,6 +460,15 @@ func TestAutomationEvents(t *testing.T) {
 		texts := sent(ctx, t, f, automation.ID)
 		require.Len(t, texts, 1)
 		require.Contains(t, texts[0], `"event_id":"evt_1"`)
+
+		// A transport error keeps the credentials of the server's URL out.
+		f.events.mu.Lock()
+		f.events.dropConn = true
+		f.events.mu.Unlock()
+		f.server.tickEventPolls(ctx, time.Now().Add(time.Minute))
+		lastError := subscription(ctx, t, f, automation.ID).LastError.String
+		require.NotEmpty(t, lastError)
+		require.NotContains(t, lastError, "secret")
 	})
 
 	// A server that does not answer holds a tick's polls for the budget only.
@@ -530,7 +558,8 @@ func TestAutomationEvents(t *testing.T) {
 			{name: "UnstorableData", page: []mcpclient.EventOccurrence{
 				occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_surrogate", `{"note":"\ud800"}`), occurrence("evt_ok", `{}`),
 				occurrence("evt_nul_\x00", `{}`), yearZero, occurrence("evt_nul_key", `{"a\u0000":1}`), occurrence(longID, `{}`),
-			}, want: []string{`"kind":"gap"`, `"event_id":"evt_surrogate"`, `"event_id":"evt_ok"`}, notWant: []string{longID}},
+				occurrence("", `{"note":"no ID"}`),
+			}, want: []string{`"kind":"gap"`, `"event_id":"evt_surrogate"`, `"event_id":"evt_ok"`}, notWant: []string{longID, "no ID"}},
 			{name: "LargeData", page: []mcpclient.EventOccurrence{
 				occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`), occurrence("evt_exponent", `{"n":1e131072}`),
 			}, want: []string{`"event_id":"evt_big"`, `"event_id":"evt_exponent"`, "larger than 16 KiB"}},
