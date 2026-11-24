@@ -90,7 +90,7 @@ describe("groupChatsByProject", () => {
 				MockChatProjectSummary,
 				{
 					...MockChatProjectSummary,
-					project: mockOtherProject,
+					project_id: mockOtherProject.id,
 					pinned: false,
 					pin_order: 0,
 				},

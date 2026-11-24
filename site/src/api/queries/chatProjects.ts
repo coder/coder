@@ -39,8 +39,9 @@ export const chatProjectSummariesKey = [
 ] as const;
 
 /**
- * The user's projects with their pins and counts over the user's own chats.
- * Pins send no watch events, so other tabs catch up on focus.
+ * The user's pin and counts over the user's own chats for each project in
+ * chatProjects(), by project ID. Pins send no watch events, so other tabs
+ * catch up on focus.
  */
 export const chatProjectSummaries = () =>
 	queryOptions({
@@ -49,10 +50,34 @@ export const chatProjectSummaries = () =>
 		refetchOnWindowFocus: true,
 	});
 
-/** The pinned summaries, in pin order. */
-export const getPinnedProjectSummaries = (
+/** A summary with its project from chatProjects(). */
+export type ChatProjectWithSummary = TypesGen.ChatProjectSummary & {
+	readonly project: TypesGen.ChatProject;
+};
+
+/**
+ * Pairs each summary with its project, in the summaries' order. A summary
+ * whose project the list lacks is left out until the list refetches.
+ */
+export const joinChatProjectSummaries = (
+	projects: readonly TypesGen.ChatProject[],
 	summaries: readonly TypesGen.ChatProjectSummary[],
-): TypesGen.ChatProjectSummary[] =>
+): ChatProjectWithSummary[] => {
+	const projectsById = new Map(
+		projects.map((project) => [project.id, project]),
+	);
+	return summaries.flatMap((summary) => {
+		const project = projectsById.get(summary.project_id);
+		return project ? [{ ...summary, project }] : [];
+	});
+};
+
+/** The pinned summaries, in pin order. */
+export const getPinnedProjectSummaries = <
+	T extends TypesGen.ChatProjectSummary,
+>(
+	summaries: readonly T[],
+): T[] =>
 	summaries
 		.filter((summary) => summary.pinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
@@ -104,7 +129,7 @@ export const pinChatProject = (queryClient: QueryClient) =>
 			>(chatProjectSummariesKey);
 			const previousPinnedIds = getPinnedProjectSummaries(
 				previousSummaries ?? [],
-			).map((s) => s.project.id);
+			).map((s) => s.project_id);
 			const pinnedIds = previousPinnedIds
 				.filter((id) => id !== project.id)
 				.toSpliced(pinOrder - 1, 0, project.id);
@@ -113,7 +138,7 @@ export const pinChatProject = (queryClient: QueryClient) =>
 				chatProjectSummariesKey,
 				(summaries) =>
 					summaries?.map((s) => {
-						const order = pinOrderById.get(s.project.id);
+						const order = pinOrderById.get(s.project_id);
 						return order === undefined
 							? s
 							: { ...s, pinned: true, pin_order: order };
@@ -149,7 +174,7 @@ export const unpinChatProject = (queryClient: QueryClient) =>
 				chatProjectSummariesKey,
 				(summaries) =>
 					summaries?.map((s) =>
-						s.project.id === project.id
+						s.project_id === project.id
 							? { ...s, pinned: false, pin_order: 0 }
 							: s,
 					),
@@ -276,8 +301,6 @@ export const setChatProjectRole = (queryClient: QueryClient) =>
 					queryKey: chatProjectACLKey(project.id),
 					exact: true,
 				}),
-				// Summaries carry the project's permissions and member count.
-				queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
 			]),
 	});
 

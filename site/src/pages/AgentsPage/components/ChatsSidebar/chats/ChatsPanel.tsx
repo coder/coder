@@ -20,13 +20,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
 import { cachedChat, reorderPinnedChat } from "#/api/queries/chats";
-import type {
-	Chat,
-	ChatModel,
-	ChatProjectSummary,
-	Organization,
-} from "#/api/typesGenerated";
+import type { Chat, ChatModel, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
@@ -118,9 +114,9 @@ const dragSensors = [
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	/** The user's pinned projects, in pin order. */
-	readonly pinnedProjects: readonly ChatProjectSummary[];
+	readonly pinnedProjects: readonly ChatProjectWithSummary[];
 	/** Every project's summary, pinned or not. */
-	readonly projectSummaries: readonly ChatProjectSummary[];
+	readonly projectSummaries: readonly ChatProjectWithSummary[];
 	readonly organizations: readonly Organization[];
 	readonly isPinnedProjectsLoading: boolean;
 	readonly pinnedProjectsError: unknown;

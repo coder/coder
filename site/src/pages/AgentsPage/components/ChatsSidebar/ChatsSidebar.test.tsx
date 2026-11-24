@@ -177,7 +177,7 @@ beforeEach(() => {
 				return HttpResponse.json(
 					projects.map((project, index) => ({
 						...MockChatProjectSummary,
-						project,
+						project_id: project.id,
 						pin_order: index + 1,
 					})),
 				);
@@ -490,6 +490,9 @@ describe("ChatsSidebar projects", () => {
 	it("counts a collapsed folder's unread chats and hides the count while open", async () => {
 		const user = userEvent.setup();
 		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
 			http.get("/api/experimental/chats/projects/summaries", () =>
 				HttpResponse.json([{ ...MockChatProjectSummary, own_unread_count: 3 }]),
 			),
@@ -705,7 +708,7 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
-	it("names a pinned chat's project from the summaries, with its organization when its name is shared", async () => {
+	it("names a pinned chat's project, with its organization when its name is shared", async () => {
 		const mockOtherProject = {
 			...MockChatProject,
 			id: "other-project",
@@ -713,15 +716,7 @@ describe("ChatsSidebar projects", () => {
 		};
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json({ message: "boom" }, { status: 500 }),
-			),
-			http.get("/api/experimental/chats/projects/summaries", () =>
-				HttpResponse.json(
-					[MockChatProject, mockOtherProject].map((project) => ({
-						...MockChatProjectSummary,
-						project,
-					})),
-				),
+				HttpResponse.json([MockChatProject, mockOtherProject]),
 			),
 		);
 		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
@@ -859,7 +854,7 @@ describe("ChatsSidebar unpin focus", () => {
 				HttpResponse.json(
 					pinnedProjects.map((project, index) => ({
 						...MockChatProjectSummary,
-						project,
+						project_id: project.id,
 						pin_order: index + 1,
 					})),
 				),

@@ -7,6 +7,7 @@ import {
 	chatProjects,
 	deleteChatProject,
 	getPinnedProjectSummaries,
+	joinChatProjectSummaries,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -122,7 +123,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		...chatProjectSummaries(),
 		enabled: chatProjectsEnabled,
 	});
-	const pinnedProjects = getPinnedProjectSummaries(summariesQuery.data ?? []);
+	const projectSummaries = joinChatProjectSummaries(
+		projectsQuery.data ?? [],
+		summariesQuery.data ?? [],
+	);
+	const pinnedProjects = getPinnedProjectSummaries(projectSummaries);
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation({
 		...deleteChatProject(queryClient),
@@ -240,11 +245,16 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				pinnedProjects={pinnedProjects}
-				projectSummaries={summariesQuery.data ?? []}
+				projectSummaries={projectSummaries}
 				organizations={organizations}
-				isPinnedProjectsLoading={summariesQuery.isLoading}
-				pinnedProjectsError={summariesQuery.error}
-				onRetryPinnedProjects={() => void summariesQuery.refetch()}
+				isPinnedProjectsLoading={
+					projectsQuery.isLoading || summariesQuery.isLoading
+				}
+				pinnedProjectsError={projectsQuery.error ?? summariesQuery.error}
+				onRetryPinnedProjects={() => {
+					void projectsQuery.refetch();
+					void summariesQuery.refetch();
+				}}
 				onEditProject={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}

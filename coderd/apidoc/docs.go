@@ -185,6 +185,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects/member-counts": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project member counts",
+                "operationId": "list-chat-project-member-counts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMemberCount"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects/summaries": {
             "get": {
                 "produces": [
@@ -24242,6 +24273,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProjectMemberCount": {
+            "type": "object",
+            "properties": {
+                "member_count": {
+                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatProjectMemory": {
             "type": "object",
             "properties": {
@@ -24314,10 +24358,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "member_count": {
-                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
-                    "type": "integer"
-                },
                 "own_chat_count": {
                     "type": "integer"
                 },
@@ -24338,8 +24378,9 @@ const docTemplate = `{
                 "pinned": {
                     "type": "boolean"
                 },
-                "project": {
-                    "$ref": "#/definitions/codersdk.ChatProject"
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

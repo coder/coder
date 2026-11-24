@@ -16,6 +16,7 @@ import {
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	joinChatProjectSummaries,
 	pinChatProject,
 	setChatProjectRole,
 	unpinChatProject,
@@ -96,9 +97,10 @@ describe("chat project mutations", () => {
 	});
 
 	it("moves a pinned project in the cached order and restores it when the move fails", async () => {
+		const mockBillingProject = { ...MockChatProject, id: "billing-project" };
 		const mockBillingSummary = {
 			...MockChatProjectSummary,
-			project: { ...MockChatProject, id: "billing-project" },
+			project_id: mockBillingProject.id,
 			pin_order: 2,
 		};
 		const queryClient = createTestQueryClient();
@@ -116,7 +118,7 @@ describe("chat project mutations", () => {
 					queryClient.getQueryData<ChatProjectSummary[]>(
 						chatProjectSummariesKey,
 					) ?? []
-				).map((s) => [s.project.id, s.pin_order]),
+				).map((s) => [s.project_id, s.pin_order]),
 			);
 		let rejectPin: (error: unknown) => void = () => {};
 		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
@@ -131,10 +133,10 @@ describe("chat project mutations", () => {
 		const move = new MutationObserver(
 			queryClient,
 			pinChatProject(queryClient),
-		).mutate({ project: mockBillingSummary.project, pinOrder: 1 });
+		).mutate({ project: mockBillingProject, pinOrder: 1 });
 		await vi.waitFor(() =>
 			expect(pinOrderById()).toEqual({
-				[mockBillingSummary.project.id]: 1,
+				[mockBillingProject.id]: 1,
 				[MockChatProject.id]: 2,
 			}),
 		);
@@ -143,7 +145,7 @@ describe("chat project mutations", () => {
 		await expect(move).rejects.toBeDefined();
 		expect(pinOrderById()).toEqual({
 			[MockChatProject.id]: 1,
-			[mockBillingSummary.project.id]: 2,
+			[mockBillingProject.id]: 2,
 		});
 	});
 });
@@ -152,7 +154,7 @@ describe("pinChatProject ordering", () => {
 	const [mockLaunch, mockBilling, mockOps] = ["launch", "billing", "ops"].map(
 		(id, index) => ({
 			...MockChatProjectSummary,
-			project: { ...MockChatProject, id },
+			project_id: id,
 			pin_order: index + 1,
 		}),
 	);
@@ -182,7 +184,7 @@ describe("pinChatProject ordering", () => {
 		});
 		const move = (summary: ChatProjectSummary, pinOrder: number) =>
 			new MutationObserver(queryClient, pinChatProject(queryClient)).mutate({
-				project: summary.project,
+				project: { ...MockChatProject, id: summary.project_id },
 				pinOrder,
 			});
 		const pinnedIds = () =>
@@ -192,7 +194,7 @@ describe("pinChatProject ordering", () => {
 				) ?? []
 			)
 				.toSorted((a, b) => a.pin_order - b.pin_order)
-				.map((s) => s.project.id);
+				.map((s) => s.project_id);
 		return { queryClient, requests, pin, move, pinnedIds };
 	};
 
@@ -202,12 +204,12 @@ describe("pinChatProject ordering", () => {
 		const second = move(mockBilling, 1);
 		await vi.waitFor(() => expect(requests).toHaveLength(1));
 		expect(pin).toHaveBeenCalledTimes(1);
-		expect(requests[0].id).toBe(mockOps.project.id);
+		expect(requests[0].id).toBe(mockOps.project_id);
 
 		requests[0].settle();
 		await first;
 		await vi.waitFor(() => expect(requests).toHaveLength(2));
-		expect(requests[1].id).toBe(mockBilling.project.id);
+		expect(requests[1].id).toBe(mockBilling.project_id);
 		requests[1].settle();
 		await second;
 	});
@@ -227,6 +229,26 @@ describe("pinChatProject ordering", () => {
 		await vi.waitFor(() => expect(requests).toHaveLength(2));
 		requests[1].settle();
 		await second;
+	});
+});
+
+describe("joinChatProjectSummaries", () => {
+	it("pairs summaries with their projects in summary order and leaves out a summary whose project is not listed", () => {
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+
+		const joined = joinChatProjectSummaries(
+			[MockChatProject, mockOtherProject],
+			[
+				{ ...MockChatProjectSummary, project_id: mockOtherProject.id },
+				{ ...MockChatProjectSummary, project_id: "unlisted-project" },
+				MockChatProjectSummary,
+			],
+		);
+
+		expect(joined.map((summary) => summary.project)).toEqual([
+			mockOtherProject,
+			MockChatProject,
+		]);
 	});
 });
 
@@ -270,8 +292,6 @@ describe("setChatProjectRole", () => {
 	const refreshedKeys = [
 		chatProjectsKey,
 		chatProjectACLKey(MockChatProject.id),
-		// Summaries carry the viewer's permissions on the project.
-		chatProjectSummariesKey,
 	];
 	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),
