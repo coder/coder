@@ -1875,7 +1875,7 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 
 	t.Run("FailureReasonSet", func(t *testing.T) {
 		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
+		headers, _ := mcpclient.BuildAuthHeadersForTest(
 			context.Background(), logger, cfg,
 			map[uuid.UUID]database.MCPServerUserToken{
 				cfg.ID: {
@@ -1891,7 +1891,7 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 
 	t.Run("HealthyToken", func(t *testing.T) {
 		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
+		headers, _ := mcpclient.BuildAuthHeadersForTest(
 			context.Background(), logger, cfg,
 			map[uuid.UUID]database.MCPServerUserToken{
 				cfg.ID: {

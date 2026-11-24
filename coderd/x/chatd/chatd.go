@@ -180,6 +180,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	mcpReconnectClock              quartz.Clock
 	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
@@ -1253,6 +1254,10 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// MCPReconnectClock times the wait before chatd sends an MCP server
+	// an OAuth2 token that the server just rejected. Tests only. Nil
+	// uses Clock.
+	MCPReconnectClock quartz.Clock
 	// InternalMCPServers are MCP servers that coderd code serves to chats
 	// in process. Slugs must be unique and not empty.
 	InternalMCPServers []InternalMCPServer
@@ -1300,6 +1305,10 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	clk := cfg.Clock
 	if clk == nil {
 		clk = quartz.NewReal()
+	}
+	mcpReconnectClock := cfg.MCPReconnectClock
+	if mcpReconnectClock == nil {
+		mcpReconnectClock = clk
 	}
 
 	notificationsEnqueuer := cfg.NotificationsEnqueuer
@@ -1353,6 +1362,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		mcpReconnectClock:              mcpReconnectClock,
 		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
 			return chatdebug.NewService(

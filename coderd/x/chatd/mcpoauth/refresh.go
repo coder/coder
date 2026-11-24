@@ -91,11 +91,11 @@ func oauth2TokenFromRow(tok database.MCPServerUserToken) *oauth2.Token {
 	return oauthToken
 }
 
-// refreshOAuth2Token refreshes an expired MCP user token using the
-// OAuth2 credentials from the server config, sending the config's RFC
-// 8707 resource indicator when set. A token without a refresh token
-// fails without a network call. RefreshOAuth2TokenWithLease calls it
-// under the token's refresh lease and persists the result.
+// refreshOAuth2Token refreshes an MCP user token using the OAuth2
+// credentials from the server config, sending the config's RFC 8707
+// resource indicator when set. A token without a refresh token fails
+// without a network call. RefreshOAuth2TokenWithLease calls it under the
+// token's refresh lease and persists the result.
 func refreshOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -103,7 +103,7 @@ func refreshOAuth2Token(
 	tok database.MCPServerUserToken,
 ) (refreshResult, error) {
 	if tok.RefreshToken == "" {
-		return refreshResult{}, xerrors.New("refresh oauth2 token: token expired and refresh token is not set")
+		return refreshResult{}, xerrors.New("refresh oauth2 token: refresh token is not set")
 	}
 	return requestOAuth2Refresh(ctx, httpClient, cfg, tok)
 }

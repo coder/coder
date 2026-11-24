@@ -212,6 +212,11 @@ type Options struct {
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 	WorkspaceBuilderMetrics   *wsbuilder.Metrics
 	UsageInserter             usage.Inserter
+
+	// ChatMCPReconnectClock times the chat daemon's wait before it sends
+	// an MCP server an OAuth2 token that the server just rejected. Tests
+	// only, like coderd.Options.ChatMCPReconnectClock.
+	ChatMCPReconnectClock quartz.Clock
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -703,6 +708,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
+			ChatMCPReconnectClock:              options.ChatMCPReconnectClock,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}

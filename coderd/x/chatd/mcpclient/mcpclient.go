@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -23,6 +24,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
+	"github.com/coder/quartz"
 )
 
 // toolNameSep separates the server slug from the original tool
@@ -63,6 +66,16 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// rejectedTokenGrace is how long ConnectAllWithRefresh waits before it
+// sends a server a stored OAuth2 token that the server just rejected.
+// It covers a short lag in an authorization server's token store, where
+// a token issued seconds earlier has not reached every reader yet. It
+// does not cover Cloudflare Workers KV's negative cache: KV caches a
+// missed lookup at a location until its cache TTL ends, 60 seconds by
+// default, so a lookup through the same location can keep missing for
+// that long.
+const rejectedTokenGrace = 2 * time.Second
+
 // slowConnectThreshold is the successful-connect duration above
 // which a warning is logged. Connects happen on every generation
 // step, so a consistently slow server taxes the whole chat even
@@ -86,6 +99,11 @@ const (
 	// ConnectOutcomeNoTools means the server connected but no tools
 	// survived allow/deny filtering, so the session was closed.
 	ConnectOutcomeNoTools ConnectOutcome = "no_tools"
+	// ConnectOutcomeUnauthorized means the connect failed, without
+	// timing out, because the MCP server answered the attached stored
+	// OAuth2 token with HTTP 401 and a Bearer challenge. A refreshed
+	// token may succeed.
+	ConnectOutcomeUnauthorized ConnectOutcome = "unauthorized"
 )
 
 // ConnectSummary describes one MCP server connect attempt. It is
@@ -236,12 +254,72 @@ func ConnectAll(
 	coderHeaders map[string]string,
 	httpClient *http.Client,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	return ConnectAllWithRefresh(ctx, logger, ConnectAllOptions{
+		Servers:         servers,
+		Tokens:          tokens,
+		UserID:          userID,
+		OIDCTokenSource: oidcSrc,
+		CoderHeaders:    coderHeaders,
+		HTTPClient:      httpClient,
+	})
+}
+
+// TokenRefresher gives a server that rejected the stored OAuth2 token
+// more connects. Its methods run concurrently for different servers.
+type TokenRefresher interface {
+	// RefreshRejected runs after a connect with tok ended with
+	// ConnectOutcomeUnauthorized. It returns the token for the next
+	// connect, which may be tok itself, or false to keep the unauthorized
+	// outcome.
+	RefreshRejected(ctx context.Context, srv Server, tok database.MCPServerUserToken) (database.MCPServerUserToken, bool)
+	// RejectedAgain runs when the token RefreshRejected returned also
+	// ended with ConnectOutcomeUnauthorized on its connect after the
+	// grace.
+	RejectedAgain(ctx context.Context, srv Server, tok database.MCPServerUserToken)
+}
+
+// ConnectAllOptions are the inputs of ConnectAllWithRefresh. All but
+// Refresher and Clock are ConnectAll's arguments.
+type ConnectAllOptions struct {
+	Servers         []Server
+	Tokens          []database.MCPServerUserToken
+	UserID          uuid.UUID
+	OIDCTokenSource UserOIDCTokenSource
+	CoderHeaders    map[string]string
+	HTTPClient      *http.Client
+	// Refresher, when set, gives a server that rejected the stored OAuth2
+	// token more connects. Nil makes ConnectAllWithRefresh ConnectAll.
+	Refresher TokenRefresher
+	// Clock times the grace before a rejected token is sent again. Nil
+	// uses the real clock.
+	Clock quartz.Clock
+}
+
+// ConnectAllWithRefresh is ConnectAll, except that a server that rejects
+// the stored OAuth2 token gets more connects with the token that
+// opts.Refresher returns: one at once when that is another token, and,
+// while the server still rejects the token, one more after a short
+// grace, because an authorization server can reject a token it issued
+// seconds earlier. Only a rejection after the grace reaches
+// RejectedAgain. The server's summary and tools come from its last
+// connect.
+func ConnectAllWithRefresh(
+	ctx context.Context,
+	logger slog.Logger,
+	opts ConnectAllOptions,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	clock := opts.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
 	return connectAllWithHooks(
-		ctx, logger, servers, tokens, userID, oidcSrc, coderHeaders,
+		ctx, logger, opts.Servers, opts.Tokens, opts.UserID, opts.OIDCTokenSource, opts.CoderHeaders,
 		connectOptions{
-			httpClient: httpClient,
+			httpClient: opts.HTTPClient,
 			timeout:    connectTimeout,
 			kind:       connectionKindOrg,
+			refresher:  opts.Refresher,
+			clock:      clock,
 		},
 	)
 }
@@ -321,6 +399,10 @@ type connectOptions struct {
 	timeout    time.Duration
 	hooks      connectHooks
 	kind       connectionKind
+	// refresher, when set, gives a server that rejected its OAuth2
+	// token more connects, and clock times the grace between them.
+	refresher TokenRefresher
+	clock     quartz.Clock
 
 	inProcessServers map[uuid.UUID]*mcp.Server
 }
@@ -377,25 +459,44 @@ func connectAllWithHooks(
 				ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders,
 				opts, redactor,
 			)
+			if tok, ok := tokensByConfigID[srv.ID]; ok && opts.refresher != nil &&
+				connectOutcome(connectErr, 0) == ConnectOutcomeUnauthorized {
+				logger.Debug(ctx, "mcp server rejected the oauth2 token",
+					slog.F("server_slug", redactor.redactString(srv.Slug)),
+					slog.F("error", summaryError(opts.kind, redactor, connectErr)),
+				)
+				if next, retry := opts.refresher.RefreshRejected(ctx, srv, tok); retry {
+					reconnect := func() {
+						serverTools, session, connectErr = connectOne(
+							ctx, logger, srv, map[uuid.UUID]database.MCPServerUserToken{srv.ID: next},
+							userID, oidcSrc, coderHeaders, opts, redactor,
+						)
+					}
+					// The server just rejected tok, so the same access token is
+					// sent again only after the grace.
+					rejected := next.AccessToken == tok.AccessToken
+					if !rejected {
+						reconnect()
+						rejected = connectOutcome(connectErr, 0) == ConnectOutcomeUnauthorized
+					}
+					if rejected && waitRejectedTokenGrace(ctx, opts.clock) {
+						reconnect()
+						if connectOutcome(connectErr, 0) == ConnectOutcomeUnauthorized {
+							opts.refresher.RejectedAgain(ctx, srv, next)
+						}
+					}
+				}
+			}
 			duration := time.Since(start)
 			summary := ConnectSummary{
 				ConfigID:   srv.ID,
 				Slug:       redactor.redactString(srv.Slug),
+				Outcome:    connectOutcome(connectErr, len(serverTools)),
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
 			}
 			if connectErr != nil {
 				summary.Error = summaryError(opts.kind, redactor, connectErr)
-			}
-			switch {
-			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
-				summary.Outcome = ConnectOutcomeTimeout
-			case connectErr != nil:
-				summary.Outcome = ConnectOutcomeError
-			case len(serverTools) == 0:
-				summary.Outcome = ConnectOutcomeNoTools
-			default:
-				summary.Outcome = ConnectOutcomeConnected
 			}
 
 			if connectErr != nil {
@@ -494,6 +595,37 @@ func connectAllWithHooks(
 	return tools, summaries, cleanup
 }
 
+// waitRejectedTokenGrace waits rejectedTokenGrace on clock and reports
+// whether the wait ended before ctx did.
+func waitRejectedTokenGrace(ctx context.Context, clock quartz.Clock) bool {
+	timer := clock.NewTimer(rejectedTokenGrace, "mcpclient", "rejected_token_grace")
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// connectOutcome classifies a connect by its error and tool count. A
+// timeout wins over a rejected token.
+func connectOutcome(connectErr error, toolCount int) ConnectOutcome {
+	var rejected *rejectedTokenError
+	switch {
+	case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
+		return ConnectOutcomeTimeout
+	case errors.As(connectErr, &rejected):
+		return ConnectOutcomeUnauthorized
+	case connectErr != nil:
+		return ConnectOutcomeError
+	case toolCount == 0:
+		return ConnectOutcomeNoTools
+	default:
+		return ConnectOutcomeConnected
+	}
+}
+
 // connectOne establishes a connection to a single MCP server,
 // discovers its tools, and wraps each one as an AgentTool with
 // the server slug prefix applied.
@@ -512,11 +644,13 @@ func connectOne(
 	var (
 		tr  mcp.Transport
 		err error
+		// statuses is set when a stored OAuth2 token is attached.
+		statuses *lastStatusRoundTripper
 	)
 	if opts.kind == connectionKindInProcess {
 		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
 	} else {
-		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
+		headers, oauth2Attached := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
 		// When opted-in, merge Coder identity headers BEFORE the
 		// transport is created so any auth header already set above
@@ -543,7 +677,11 @@ func connectOne(
 		if opts.kind == connectionKindInline {
 			maxEventSize = maxInlineHTTPResponseBytes
 		}
-		tr, err = createTransport(srv, headers, opts.httpClient, maxEventSize)
+		httpClient := opts.httpClient
+		if oauth2Attached {
+			httpClient, statuses = withLastStatus(httpClient)
+		}
+		tr, err = createTransport(srv, headers, httpClient, maxEventSize)
 	}
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
@@ -609,6 +747,9 @@ func connectOne(
 		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
 	}
 	if res.err != nil {
+		if statuses != nil && statuses.tokenRejected() {
+			return nil, nil, &rejectedTokenError{err: res.err}
+		}
 		return nil, nil, res.err
 	}
 	session, toolsResult := res.session, res.tools
@@ -651,6 +792,82 @@ func connectOne(
 	}
 
 	return tools, session, nil
+}
+
+// rejectedTokenError marks a connect that failed because the MCP server
+// answered the stored OAuth2 token with HTTP 401 and a Bearer challenge.
+// Its message is the connect error's.
+type rejectedTokenError struct {
+	err error
+}
+
+func (e *rejectedTokenError) Error() string { return e.err.Error() }
+
+func (e *rejectedTokenError) Unwrap() error { return e.err }
+
+// lastStatusRoundTripper records the HTTP status and the
+// WWW-Authenticate challenges of the latest response to a request other
+// than DELETE, and status 0 for a request that got no response. The
+// go-sdk client sends connect requests one at a time, so after a failed
+// connect it holds the answer to the request that ended the connect. A
+// DELETE closes the session after the outcome is known.
+type lastStatusRoundTripper struct {
+	base http.RoundTripper
+	last atomic.Pointer[connectResponse]
+}
+
+// connectResponse is what lastStatusRoundTripper keeps of one response.
+type connectResponse struct {
+	status int
+	// challenges are the WWW-Authenticate header values.
+	challenges []string
+}
+
+func (rt *lastStatusRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := rt.base.RoundTrip(req)
+	if req.Method != http.MethodDelete {
+		last := &connectResponse{}
+		if err == nil {
+			last.status = resp.StatusCode
+			last.challenges = resp.Header.Values("WWW-Authenticate")
+		}
+		rt.last.Store(last)
+	}
+	return resp, err
+}
+
+// tokenRejected reports whether the latest response rejected the bearer
+// token: HTTP 401 with a Bearer challenge whose error does not ask for
+// more scope (RFC 6750 section 3). Another 401, such as a rejected
+// forwarded Coder header signature, says nothing about the token.
+func (rt *lastStatusRoundTripper) tokenRejected() bool {
+	last := rt.last.Load()
+	if last == nil || last.status != http.StatusUnauthorized {
+		return false
+	}
+	challenges, err := oauthex.ParseWWWAuthenticate(last.challenges)
+	if err != nil {
+		return false
+	}
+	for _, challenge := range challenges {
+		// The parser lowercases schemes and parameter names.
+		if challenge.Scheme == "bearer" && challenge.Params["error"] != "insufficient_scope" {
+			return true
+		}
+	}
+	return false
+}
+
+// withLastStatus returns a copy of base whose transport records response
+// statuses for one connection.
+func withLastStatus(base *http.Client) (*http.Client, *lastStatusRoundTripper) {
+	if base == nil || base.Transport == nil {
+		base = NewHTTPClient(base)
+	}
+	statuses := &lastStatusRoundTripper{base: base.Transport}
+	client := *base
+	client.Transport = statuses
+	return &client, statuses
 }
 
 // Caps for inline servers. Tool definitions are sent to the model
@@ -789,7 +1006,8 @@ func TokenAttachable(tok database.MCPServerUserToken) bool {
 
 // buildAuthHeaders constructs HTTP headers for authenticating with the
 // MCP server: the static headers on the Server plus any per-user
-// credential selected by UserAuth.
+// credential selected by UserAuth. oauth2Attached reports whether the
+// headers carry the user's stored OAuth2 token.
 func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
@@ -797,8 +1015,8 @@ func buildAuthHeaders(
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
-) map[string]string {
-	headers := maps.Clone(srv.Headers)
+) (headers map[string]string, oauth2Attached bool) {
+	headers = maps.Clone(srv.Headers)
 	if headers == nil {
 		headers = make(map[string]string)
 	}
@@ -842,6 +1060,7 @@ func buildAuthHeaders(
 			tokenType = "Bearer"
 		}
 		headers["Authorization"] = tokenType + " " + tok.AccessToken
+		oauth2Attached = true
 	case UserAuthOIDC:
 		// Forward the calling user's OIDC access token from
 		// user_links as Authorization: Bearer <token>. The token
@@ -880,7 +1099,7 @@ func buildAuthHeaders(
 		// Only the static headers apply.
 	}
 
-	return headers
+	return headers, oauth2Attached
 }
 
 // isToolAllowed checks a tool name against the allow and deny

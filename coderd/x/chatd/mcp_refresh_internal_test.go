@@ -26,15 +26,18 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
 // loopbackMCPServer permits local httptest token endpoints through
-// the SSRF guard.
+// the SSRF guard. Its clock is the real clock, as New defaults it.
 func loopbackMCPServer(db database.Store) *Server {
 	return &Server{
-		db: db,
+		db:    db,
+		clock: quartz.NewReal(),
 		mcpHTTPClient: safedial.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
 			netip.MustParsePrefix("127.0.0.0/8"),
 			netip.MustParsePrefix("::1/128"),
@@ -124,7 +127,7 @@ func TestRefreshMCPTokenPermanentFailure(t *testing.T) {
 			Return(winner, nil)
 
 		server := loopbackMCPServer(db)
-		result, err := server.refreshMCPTokenIfNeeded(
+		result, _, err := server.refreshMCPTokenIfNeeded(
 			context.Background(), slogtest.Make(t, nil), cfg, tok,
 		)
 		require.NoError(t, err)
@@ -226,7 +229,7 @@ func TestRefreshMCPTokenDatabaseError(t *testing.T) {
 			tc.expect(t, db, tok)
 
 			server := loopbackMCPServer(db)
-			_, err := server.refreshExpiredMCPTokens(
+			_, _, err := server.refreshExpiredMCPTokens(
 				context.Background(), slogtest.Make(t, nil),
 				[]database.MCPServerConfig{cfg},
 				[]database.MCPServerUserToken{tok},
@@ -256,7 +259,7 @@ func TestRefreshExpiredMCPTokensSkipsFailedTokens(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	server := loopbackMCPServer(db)
-	result, err := server.refreshExpiredMCPTokens(
+	result, _, err := server.refreshExpiredMCPTokens(
 		context.Background(), slogtest.Make(t, nil),
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{tok},
@@ -437,7 +440,7 @@ func TestRefreshMCPTokenConcurrentRefreshesShareOneCall(t *testing.T) {
 			for i := range results {
 				wg.Go(func() {
 					var err error
-					results[i], err = server.refreshMCPTokenIfNeeded(ctx, logger, cfg, tok)
+					results[i], _, err = server.refreshMCPTokenIfNeeded(ctx, logger, cfg, tok)
 					assert.NoError(t, err)
 				})
 			}
@@ -489,7 +492,7 @@ func TestRefreshMCPTokenConcurrentRefreshesShareOneCall(t *testing.T) {
 				require.NoError(t, err)
 				expired, err := rawDB.GetMCPServerUserTokenByID(ctx, tok.ID)
 				require.NoError(t, err)
-				next, err := server.refreshMCPTokenIfNeeded(ctx, logger, cfg, expired)
+				next, _, err := server.refreshMCPTokenIfNeeded(ctx, logger, cfg, expired)
 				require.NoError(t, err)
 				calls, lastIssued = endpoint.stats()
 				require.Equal(t, 2, calls, "token endpoint calls")
@@ -522,7 +525,7 @@ func TestRefreshMCPTokenDisconnectDuringLease(t *testing.T) {
 	// Under dbauthz, releasing the lease on the deleted row fails its
 	// authorization fetch.
 	server := loopbackMCPServer(newAuthzStore(t, rawDB))
-	result, err := server.refreshMCPTokenIfNeeded(ctx, slogtest.Make(t, nil), cfg, tok)
+	result, _, err := server.refreshMCPTokenIfNeeded(ctx, slogtest.Make(t, nil), cfg, tok)
 	require.NoError(t, err)
 	require.Equal(t, tok.ID, result.ID)
 	require.Empty(t, result.AccessToken)
@@ -549,8 +552,59 @@ func TestRefreshMCPTokenValidTokenTakesNoLease(t *testing.T) {
 	// The strict mock fails the test on any query, the lease included.
 	db := dbmock.NewMockStore(gomock.NewController(t))
 	server := loopbackMCPServer(db)
-	result, err := server.refreshMCPTokenIfNeeded(context.Background(), slogtest.Make(t, nil), cfg, tok)
+	result, _, err := server.refreshMCPTokenIfNeeded(context.Background(), slogtest.Make(t, nil), cfg, tok)
 	require.NoError(t, err)
 	require.Equal(t, tok, result)
 	require.EqualValues(t, 0, hits.Load())
+}
+
+func TestMCPTokenRefresherRejectedAgain(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		holdLease  bool
+		wantMarked bool
+	}{
+		{name: "LeaseHeldSkipsMark", holdLease: true},
+		{name: "MarksUnderLease", wantMarked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+			rawDB, _ := dbtestutil.NewDB(t)
+			cfg, tok := seedExpiredMCPToken(t, rawDB, "http://127.0.0.1:1/token", "refreshed-access", "refreshed-refresh")
+			var held database.MCPServerUserToken
+			if tc.holdLease {
+				// Another caller is refreshing the token. Acquiring the
+				// lease does not write updated_at, so tok still matches it.
+				var err error
+				held, err = rawDB.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+					ID:        tok.ID,
+					TimeoutMs: time.Minute.Milliseconds(),
+				})
+				require.NoError(t, err)
+			}
+
+			refresher := &mcpTokenRefresher{
+				server: loopbackMCPServer(newAuthzStore(t, rawDB)),
+				logger: slogtest.Make(t, nil),
+			}
+			refresher.RejectedAgain(ctx, mcpclient.Server{ID: cfg.ID, Slug: cfg.Slug}, tok)
+
+			row, err := rawDB.GetMCPServerUserTokenByID(ctx, tok.ID)
+			require.NoError(t, err)
+			if tc.wantMarked {
+				require.Equal(t, "mcp server rejected the refreshed access token (HTTP 401)", row.OauthRefreshFailureReason)
+				require.Empty(t, row.AccessToken)
+				require.False(t, row.RefreshLeaseExpiresAt.Valid, "lease released")
+				return
+			}
+			require.Empty(t, row.OauthRefreshFailureReason)
+			require.Equal(t, tok.AccessToken, row.AccessToken)
+			require.Equal(t, tok.RefreshToken, row.RefreshToken)
+			require.True(t, held.RefreshLeaseExpiresAt.Time.Equal(row.RefreshLeaseExpiresAt.Time), "the other caller keeps its lease")
+		})
+	}
 }
