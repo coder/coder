@@ -2,7 +2,7 @@ title: Agent Relay
 description: Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.
 path: ./agent-relay/index.md
 icon_path: ./images/icons/link.svg
-state: [premium]
+state: [premium, beta]
 children:
   - title: Set up
     description: Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.
@@ -21,5 +21,5 @@ children:
     description: Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.
     path: ./agent-relay/troubleshooting.md
   - title: Configuration reference
-    description: Every Agent Relay option, pool field, and Helm chart value.
+    description: Every Agent Relay option, pool field, and Helm chart value for the beta.
     path: ./agent-relay/configuration.md

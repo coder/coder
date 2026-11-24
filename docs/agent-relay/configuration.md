@@ -2,7 +2,7 @@
 title: Agent Relay configuration reference
 ---
 
-This page lists the Agent Relay options, pool fields, and Helm chart values.
+This page lists the Agent Relay options, pool fields, and Helm chart values that the beta supports.
 For a guided installation, refer to [Set up Agent Relay](./setup.md).
 
 ## Configuration sources
@@ -303,7 +303,7 @@ Must be positive.
 
 - If a build is still pending or starting after the longer of this grace and the pool's `dispatch_deadline`, the reaper deletes the workspace.
 - A workspace where the build succeeded but the worker still reports no status, or `pending`, fails after this grace.
-  A workspace whose agent reports that startup scripts failed or timed out fails sooner, about a minute after the agent reports it.
+  In Agent Relay v0.16.0 or later, a workspace whose agent reports that startup scripts failed or timed out fails sooner, about a minute after the agent reports it.
   Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 - A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
   Unless you run an isolated test deployment, keep the default.
@@ -335,7 +335,6 @@ A pool's `reap_delay` overrides this option.
 - If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
 - A worker that never starts fails after the startup grace, so its delay might already have passed.
 - If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.
-  Agent Relay doesn't rebuild a Claude Code workspace that still has a start build or a delete in progress, and fails the session instead.
 - While the reaper keeps a workspace, each sweep counts a `delayed` verdict instead of `delete` or `failed`.
   When the delay passes, the next sweep counts `delete` or `failed` and acts.
   With `--log-level` set to `debug`, each kept workspace logs `workspace awaiting reap` with `reap_at`, the time when the delay ends.
