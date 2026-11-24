@@ -14,7 +14,8 @@ it("selects an option with the keyboard alone", async () => {
 	const onSelect = vi.fn();
 	renderComponent(
 		<SelectFilter
-			label="Status"
+			label="Select a status"
+			placeholder="All statuses"
 			options={[
 				{ label: "Active", value: "active" },
 				{ label: "Dormant", value: "dormant" },
@@ -38,14 +39,15 @@ it("marks the chosen option as selected", async () => {
 	];
 	renderComponent(
 		<SelectFilter
-			label="Status"
+			label="Select a status"
+			placeholder="All statuses"
 			options={options}
 			selectedOption={options[1]}
 			onSelect={vi.fn()}
 		/>,
 	);
 
-	await user.click(screen.getByRole("button", { name: "Status: Dormant" }));
+	await user.click(screen.getByRole("button", { name: "Select a status" }));
 	await screen.findByRole("option", { name: "Active" });
 	expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
 		"Dormant",
@@ -57,7 +59,8 @@ it("names the search input with the search label", async () => {
 	const onValueChange = vi.fn();
 	renderComponent(
 		<SelectFilter
-			label="Status"
+			label="Select a status"
+			placeholder="All statuses"
 			options={[{ label: "Active", value: "active" }]}
 			onSelect={vi.fn()}
 			searchLabel="Search status"
@@ -70,7 +73,7 @@ it("names the search input with the search label", async () => {
 		/>,
 	);
 
-	await user.click(screen.getByRole("button", { name: "Status: All" }));
+	await user.click(screen.getByRole("button", { name: "Select a status" }));
 	await user.type(
 		await screen.findByRole("combobox", { name: "Search status" }),
 		"a",
@@ -87,15 +90,14 @@ const renderLongLabelFilter = (scrollWidth: number) => {
 	vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
 	renderComponent(
 		<SelectFilter
-			label="Organization"
+			label="Select an organization"
+			placeholder="All organizations"
 			options={[longOption]}
 			selectedOption={longOption}
 			onSelect={vi.fn()}
 		/>,
 	);
-	return screen.getByRole("button", {
-		name: `Organization: ${longOption.label}`,
-	});
+	return screen.getByRole("button", { name: "Select an organization" });
 };
 
 it("describes the focused trigger with its full label when truncated", async () => {

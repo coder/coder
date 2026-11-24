@@ -22,8 +22,10 @@ export type SelectFilterOption = {
 type SelectFilterProps = {
 	options: SelectFilterOption[] | undefined;
 	selectedOption?: SelectFilterOption;
-	// Visible label shown before the value. It is also part of the name.
+	// Used to add a accessibility label to the select
 	label: string;
+	// Used when there is no option selected
+	placeholder: string;
 	// Used to customize the empty state message
 	emptyText?: string;
 	onSelect: (option: SelectFilterOption | undefined) => void;
@@ -39,6 +41,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 	options,
 	selectedOption,
 	onSelect,
+	placeholder,
 	emptyText = "No options found",
 	width = BASE_WIDTH,
 	selectFilterSearch,
@@ -54,10 +57,10 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 			<ComboboxTrigger asChild>
 				<ComboboxButton
 					selectedOption={selectedOption}
-					placeholder="All"
+					placeholder={placeholder}
 					className="shrink-0 grow"
 					style={{ flexBasis: width }}
-					label={label}
+					aria-label={label}
 				/>
 			</ComboboxTrigger>
 			<ComboboxContent

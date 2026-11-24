@@ -81,12 +81,6 @@ type ComboboxButtonProps = Omit<React.ComponentProps<"button">, "children"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
-	/**
-	 * Visible label rendered before the value. It also sets the accessible name
-	 * to `${label}: ${value}`, so don't pass `aria-label` with it: a caller's
-	 * `aria-label` overrides that name and drops the visible label from it.
-	 */
-	label?: string;
 };
 
 export const ComboboxButton = ({
@@ -94,14 +88,13 @@ export const ComboboxButton = ({
 	width,
 	selectedOption,
 	placeholder,
-	label,
 	ref,
 	...props
 }: ComboboxButtonProps) => {
 	const { open: isPopoverOpen } = useCombobox();
-	const valueRef = useRef<HTMLSpanElement>(null);
+	const labelRef = useRef<HTMLSpanElement>(null);
 	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-	const value = selectedOption?.label ?? placeholder;
+	const label = selectedOption?.label ?? placeholder;
 
 	return (
 		<Tooltip
@@ -110,7 +103,7 @@ export const ComboboxButton = ({
 			// applied after mount still reveals the full label. Stays closed while
 			// the popover is open so it never covers the list.
 			onOpenChange={(open) => {
-				const span = valueRef.current;
+				const span = labelRef.current;
 				setIsTooltipOpen(
 					open &&
 						!isPopoverOpen &&
@@ -128,33 +121,20 @@ export const ComboboxButton = ({
 					style={{ flexBasis: width }}
 					variant="outline"
 					ref={ref}
-					aria-label={label && (value ? `${label}: ${value}` : label)}
 					{...props}
 				>
-					{label && (
-						<>
-							<span className="shrink-0 text-content-secondary">
-								{label}:
-							</span>{" "}
-						</>
-					)}
-					{selectedOption?.startIcon && (
-						// The value text already names the selection.
-						<span aria-hidden="true" className="contents">
-							{selectedOption.startIcon}
-						</span>
-					)}
+					{selectedOption?.startIcon}
 					<span
-						ref={valueRef}
+						ref={labelRef}
 						className="text-left block overflow-hidden text-ellipsis grow"
 					>
-						{value}
+						{label}
 					</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" align="start" className="max-w-65">
-				{value}
+				{label}
 			</TooltipContent>
 		</Tooltip>
 	);

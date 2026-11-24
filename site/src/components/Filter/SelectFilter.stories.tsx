@@ -17,7 +17,7 @@ const meta: Meta<typeof SelectFilter> = {
 	component: SelectFilter,
 	args: {
 		options,
-		label: "Option",
+		placeholder: "All options",
 	},
 	decorators: [withDesktopViewport],
 	render: function SelectFilterWithState(args) {
@@ -158,7 +158,7 @@ export const UnselectingOption: Story = {
 		// Click the already-selected option to unselect it (toggle behavior)
 		const option = screen.getByRole("option", { name: /Option 26/ });
 		await userEvent.click(option);
-		await expect(button).toHaveAccessibleName("Option: All");
+		await expect(button).toHaveTextContent("All options");
 	},
 };
 
