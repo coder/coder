@@ -2,7 +2,7 @@
  * This component is based on multiple-selector
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
-import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Command,
+	CommandEmpty,
 	CommandGroup,
 	CommandItem,
 	CommandList,
@@ -152,29 +153,6 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
 		value.some((option) => targetOption.some((o) => o.value === option.value)),
 	);
 }
-
-/**
- * The `CommandEmpty` of shadcn/ui will cause the cmdk-empty to not render correctly.
- * Here a new CommandEmpty is created using the `Empty` implementation from `cmdk`.
- *
- * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
- **/
-const CommandEmpty: React.FC<
-	React.ComponentProps<typeof CommandPrimitive.Empty>
-> = ({ className, ...props }) => {
-	const render = useCommandState((state) => state.filtered.count === 0);
-
-	if (!render) return null;
-
-	return (
-		<div
-			className={cn("py-6 text-center text-sm", className)}
-			cmdk-empty=""
-			role="presentation"
-			{...props}
-		/>
-	);
-};
 
 export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	value,
