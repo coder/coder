@@ -29863,11 +29863,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current_spend_micros": {
-                    "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+                    "description": "CurrentSpendMicros is the user's spend on EffectiveGroupID over the\ncurrent budget period, the same value the budget check compares.",
                     "type": "integer"
                 },
                 "effective_budget": {
-                    "description": "EffectiveBudget is the spend limit that applies to the user in this\norganization. Null when no budget applies, leaving the user's spend\nunlimited.",
+                    "description": "EffectiveBudget is the spend limit that applies to the user in the\norganization. Null when no budget applies in the organization.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBudgetLimit"
@@ -29875,7 +29875,7 @@ const docTemplate = `{
                     ]
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the group inside this organization that the spend\nis attributed to, falling back to the organization's Everyone group\nwhen no budget applies.",
+                    "description": "EffectiveGroupID is the group inside the organization that the user's\nspend is attributed to, falling back to the organization's Everyone\ngroup when no budget applies.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -35021,11 +35021,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current_spend_micros": {
-                    "description": "CurrentSpendMicros is the spend on EffectiveGroupID over the current\nbudget period, the same value the budget check compares.",
+                    "description": "CurrentSpendMicros is the user's spend on EffectiveGroupID over the\ncurrent budget period, the same value the budget check compares.",
                     "type": "integer"
                 },
                 "effective_budget": {
-                    "description": "EffectiveBudget is null when no budget applies in Organization.",
+                    "description": "EffectiveBudget is the spend limit that applies to the user in the\norganization. Null when no budget applies in the organization.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBudgetLimit"
@@ -35033,7 +35033,7 @@ const docTemplate = `{
                     ]
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the user's effective group inside Organization,\nfalling back to its Everyone group.",
+                    "description": "EffectiveGroupID is the group inside the organization that the user's\nspend is attributed to, falling back to the organization's Everyone\ngroup when no budget applies.",
                     "type": "string",
                     "format": "uuid"
                 },

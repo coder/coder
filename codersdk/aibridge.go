@@ -94,13 +94,22 @@ type UserOrganizationsAISpendStatus struct {
 // the active budget period.
 type UserOrganizationAISpend struct {
 	Organization MinimalOrganization `json:"organization"`
-	// EffectiveGroupID is the user's effective group inside Organization,
-	// falling back to its Everyone group.
+	AISpendBudgetStatus
+}
+
+// AISpendBudgetStatus is a user's effective budget and spend inside one
+// organization, resolved the same way AI Gateway resolves a request made in
+// that organization.
+type AISpendBudgetStatus struct {
+	// EffectiveGroupID is the group inside the organization that the user's
+	// spend is attributed to, falling back to the organization's Everyone
+	// group when no budget applies.
 	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// EffectiveBudget is null when no budget applies in Organization.
+	// EffectiveBudget is the spend limit that applies to the user in the
+	// organization. Null when no budget applies in the organization.
 	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
-	// CurrentSpendMicros is the spend on EffectiveGroupID over the current
-	// budget period, the same value the budget check compares.
+	// CurrentSpendMicros is the user's spend on EffectiveGroupID over the
+	// current budget period, the same value the budget check compares.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
@@ -140,18 +149,8 @@ type GroupAISpend struct {
 type OrganizationMemberAISpendStatus struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	UserID         uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the group inside this organization that the spend
-	// is attributed to, falling back to the organization's Everyone group
-	// when no budget applies.
-	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// EffectiveBudget is the spend limit that applies to the user in this
-	// organization. Null when no budget applies, leaving the user's spend
-	// unlimited.
-	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+	AISpendBudgetStatus
 	AISpendPeriodWindow
-	// CurrentSpendMicros is the user's spend on their effective group over
-	// the current budget period.
-	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
 // GroupMembersAISpend reports per-member AI spend attributed to a specific

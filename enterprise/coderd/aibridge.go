@@ -1210,9 +1210,11 @@ func (api *API) userOrganizationsAISpend(ctx context.Context, userID uuid.UUID, 
 			continue
 		}
 		entries = append(entries, codersdk.UserOrganizationAISpend{
-			Organization:     db2sdk.Organization(org).MinimalOrganization,
-			EffectiveGroupID: group.GroupID,
-			EffectiveBudget:  aiBudgetLimitToSDK(group.Limit),
+			Organization: db2sdk.Organization(org).MinimalOrganization,
+			AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+				EffectiveGroupID: group.GroupID,
+				EffectiveBudget:  aiBudgetLimitToSDK(group.Limit),
+			},
 		})
 		groupIDs = append(groupIDs, group.GroupID)
 	}
@@ -1386,20 +1388,17 @@ func (api *API) organizationMemberAISpendStatus(rw http.ResponseWriter, r *http.
 	}
 
 	resp := codersdk.OrganizationMemberAISpendStatus{
-		OrganizationID:   org.ID,
-		UserID:           member.UserID,
-		EffectiveGroupID: effectiveGroup.GroupID,
+		OrganizationID: org.ID,
+		UserID:         member.UserID,
+		AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+			EffectiveGroupID:   effectiveGroup.GroupID,
+			EffectiveBudget:    aiBudgetLimitToSDK(effectiveGroup.Limit),
+			CurrentSpendMicros: spend.SpendMicros,
+		},
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
 			PeriodStart: periodWindow.Start,
 			PeriodEnd:   periodWindow.End,
 		},
-		CurrentSpendMicros: spend.SpendMicros,
-	}
-	if effectiveGroup.Limit != nil {
-		resp.EffectiveBudget = &codersdk.AIBudgetLimit{
-			SpendLimitMicros: effectiveGroup.Limit.SpendLimitMicros,
-			LimitSource:      effectiveGroup.Limit.Source,
-		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
