@@ -3,7 +3,7 @@ title: Disaster recovery
 ---
 
 This page is for Coder deployment administrators and database administrators who plan how a self-hosted deployment recovers from an outage or data loss.
-It explains what to back up, what high availability does and doesn't protect against, what users experience during a control plane outage, and what a database restore leaves behind.
+It explains what to back up, what high availability does and doesn't protect against, how to recover from a region outage, what users experience during a control plane outage, and what a database restore leaves behind.
 
 ## Back up the database often
 
@@ -49,8 +49,49 @@ HA gives you horizontal scale and automatic failover inside a single region.
 | Maintenance that restarts one replica | The loss or corruption of the database              |
 | Load that exceeds a single replica    | Replicating the database to another region          |
 
+## Plan for a region outage
+
 Coder doesn't provide a built-in mechanism for cross-region failover.
-To survive a region outage, use your database provider's cross-region replication or backup copies, and plan how you bring up a control plane in the recovery region against the recovered database.
+The control plane connects to a single PostgreSQL endpoint and needs a low-latency connection to it, because one API request can take several database round trips.
+Run the database and the control plane in the same region.
+Coder doesn't support a database that's active in more than one region.
+
+[Workspace proxies](../../admin/networking/workspace-proxies.md) and [external provisioners](./provisioners/index.md) can serve users and build workspaces in other regions.
+They connect to the control plane and don't replace it when its region is down.
+
+### Fail over to a cold standby
+
+To recover from a region outage, keep a cold standby of the database in a recovery region.
+A cold standby is a copy of the database that no control plane uses until you fail over to it.
+Create it with your database provider's cross-region replication, or copy your backups to the recovery region on a schedule.
+
+To fail over to the recovery region:
+
+1. Promote the standby database, or restore the latest backup copy, in the recovery region.
+
+1. In the recovery region, configure a control plane with the original settings and the recovered database's connection URL.
+
+   The original settings include the access URL and, if you use database encryption, the [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys).
+
+1. Start the control plane on the same Coder version as the original.
+
+1. Point the DNS records for the access URL and any wildcard access URL at the new control plane.
+
+   Workspace agents reach the control plane through the access URL that they received when the workspace was built.
+   With the same access URL, agents in regions that are still up reconnect without a workspace rebuild.
+
+Changes made after the last replicated write or backup are lost.
+The cleanup in [Orphaned workspaces after a database restore](#orphaned-workspaces-after-a-database-restore) applies to the recovered database.
+
+### Workspaces in the failed region
+
+A cold standby recovers the Coder database, not the workspaces that ran in the failed region.
+Their compute and disks stay unavailable until that region recovers, and their data is lost if the region doesn't recover.
+Coder does not copy workspace data between regions.
+
+If workspace data must survive a region outage, replicate the workspace disks or volumes to the recovery region with your cloud provider's tools, such as scheduled snapshot copies.
+For users to create workspaces after a failover, your templates must be able to provision in the recovery region.
+To reuse replicated disks or volumes, the templates must also attach them in the recovery region.
 
 ## What users experience during a control plane outage
 
