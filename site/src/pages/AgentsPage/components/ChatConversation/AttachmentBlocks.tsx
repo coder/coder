@@ -303,7 +303,7 @@ const InlineTextAttachmentButton: React.FC<{
 	);
 };
 
-const RemoteTextAttachmentButton: React.FC<{
+type RemoteTextAttachmentButtonProps = {
 	fileId: string;
 	fileName: string;
 	mediaType: string;
@@ -313,17 +313,14 @@ const RemoteTextAttachmentButton: React.FC<{
 		attachment: PreviewTextAttachment,
 		trigger: HTMLButtonElement,
 	) => void | Promise<void>;
-}> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
-	const { hasExpired, markExpired } = useFileProbes();
-	const isKnownExpired = hasExpired(fileId);
-	const [content, setContent] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
-	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
-	);
-	const request = useLatestAbortController(isKnownExpired);
+};
 
-	if (isKnownExpired) {
+// The live button unmounts when the file expires, which aborts its request.
+const RemoteTextAttachmentButton: React.FC<RemoteTextAttachmentButtonProps> = (
+	props,
+) => {
+	const { hasExpired } = useFileProbes();
+	if (hasExpired(props.fileId)) {
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
@@ -332,6 +329,20 @@ const RemoteTextAttachmentButton: React.FC<{
 			/>
 		);
 	}
+	return <LiveRemoteTextAttachmentButton {...props} />;
+};
+
+const LiveRemoteTextAttachmentButton: React.FC<
+	RemoteTextAttachmentButtonProps
+> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
+	const { markExpired } = useFileProbes();
+	const [content, setContent] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(false);
+	const [failureState, setFailureState] = useState<AttachmentFailureState>({
+		kind: "idle",
+	});
+	const request = useLatestAbortController();
+
 	if (failureState.kind !== "idle") {
 		return (
 			<AttachmentFallbackTile
@@ -433,12 +444,33 @@ const RemoteTextAttachmentButton: React.FC<{
 	);
 };
 
-const RemoteImageBlock: React.FC<{
+type RemoteImageBlockProps = {
 	fileId?: string;
 	href: string;
 	displayName: string;
 	onImageClick: (src: string, trigger: HTMLButtonElement) => void;
-}> = ({ fileId, href, displayName, onImageClick }) => {
+};
+
+// The live block unmounts when the file expires, which aborts its probe.
+const RemoteImageBlock: React.FC<RemoteImageBlockProps> = (props) => {
+	const { hasExpired } = useFileProbes();
+	if (props.fileId !== undefined && hasExpired(props.fileId)) {
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={imageAttachmentFailureLabels}
+			/>
+		);
+	}
+	return <LiveRemoteImageBlock {...props} />;
+};
+
+const LiveRemoteImageBlock: React.FC<RemoteImageBlockProps> = ({
+	fileId,
+	href,
+	displayName,
+	onImageClick,
+}) => {
 	const {
 		hasExpired,
 		markExpired,
@@ -448,20 +480,11 @@ const RemoteImageBlock: React.FC<{
 		getProbeResult,
 		setProbeResult,
 	} = useFileProbes();
-	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
-	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
-	);
-	const probeRequest = useLatestAbortController(isKnownExpired);
+	const [failureState, setFailureState] = useState<AttachmentFailureState>({
+		kind: "idle",
+	});
+	const probeRequest = useLatestAbortController();
 
-	if (isKnownExpired) {
-		return (
-			<AttachmentFallbackTile
-				state={{ kind: "expired" }}
-				labels={imageAttachmentFailureLabels}
-			/>
-		);
-	}
 	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
 	const effectiveFailure = sharedResult ?? failureState;
 	if (effectiveFailure.kind !== "idle") {

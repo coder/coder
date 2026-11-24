@@ -6,9 +6,7 @@ type LatestAbortController = {
 	abort: () => void;
 };
 
-export const useLatestAbortController = (
-	shouldAbortCurrentRequest = false,
-): LatestAbortController => {
+export const useLatestAbortController = (): LatestAbortController => {
 	const controllerRef = useRef<AbortController | null>(null);
 
 	const abort = () => {
@@ -22,14 +20,6 @@ export const useLatestAbortController = (
 			controllerRef.current = null;
 		};
 	}, []);
-
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The file can be marked expired from outside this component while its request is in flight.
-		if (shouldAbortCurrentRequest) {
-			controllerRef.current?.abort();
-			controllerRef.current = null;
-		}
-	}, [shouldAbortCurrentRequest]);
 
 	return {
 		start: () => {
