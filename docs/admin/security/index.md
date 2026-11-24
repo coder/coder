@@ -5,7 +5,6 @@ title: Security
 <children></children>
 
 For other security tips, visit our guide to [security best practices](security-best-practices.md).
-To review the server settings that strengthen or weaken security, refer to the [Security configuration reference](hardening.md).
 
 ## Security Advisories
 

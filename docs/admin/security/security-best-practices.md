@@ -12,14 +12,15 @@ Each section briefly introduces each threat model, then suggests steps or concep
 
 As with any security guide, the steps and suggestions outlined in this document are not meant to be exhaustive and do not offer any guarantee.
 
+Where a `coder server` setting applies a section's guidance, the section names it, and [Settings that weaken defaults](#settings-that-weaken-defaults) lists the settings to review when you audit a deployment.
+For each setting's default value, environment variable, and YAML key, refer to the [Configuration reference](../setup/configuration-reference.md).
+
 ## Control plane
 
 The control plane is the core of a Coder deployment.
 
 If the control plane is compromised in a security incident, it can affect every other part of your deployment.
 Even a successful read-only attack against the control plane could result in a complete compromise of the Coder deployment if credentials are stolen.
-
-For the server settings that apply this guidance, and the settings that weaken Coder's defaults, refer to the [Security configuration reference](hardening.md).
 
 ### User authentication
 
@@ -33,11 +34,46 @@ This allows you to manage user credentials according to your company’s central
 
 Using IdP sync and SCIM means that the central Identity Provider is the source of truth, so that when users change roles or leave, their permissions in Coder are automatically up to date.
 
+After you confirm that at least one owner can sign in through your identity provider, set [`--disable-password-auth`](../../reference/cli/server/index.md#--disable-password-auth) to `true` to turn off password sign-in for all users, including owners.
+
+To stop new users from signing up through OIDC, set [`--oidc-allow-signups`](../../reference/cli/server/index.md#--oidc-allow-signups) to `false`.
+To limit OIDC sign-in to listed email domains or groups, set [`--oidc-email-domain`](../../reference/cli/server/index.md#--oidc-email-domain) or [`--oidc-allowed-groups`](../../reference/cli/server/index.md#--oidc-allowed-groups).
+If you use GitHub sign-in, limit it to members of listed organizations or teams with [`--oauth2-github-allowed-orgs`](../../reference/cli/server/index.md#--oauth2-github-allowed-orgs) or [`--oauth2-github-allowed-teams`](../../reference/cli/server/index.md#--oauth2-github-allowed-teams).
+If you don't use the GitHub sign-in and external authentication providers that Coder manages, set [`--oauth2-github-default-provider-enable`](../../reference/cli/server/index.md#--oauth2-github-default-provider-enable) and [`--external-auth-github-default-provider-enable`](../../reference/cli/server/index.md#--external-auth-github-default-provider-enable) to `false`.
+
+#### Sessions and API tokens
+
+Coder extends a browser session's expiry by [`--session-duration`](../../reference/cli/server/index.md#--session-duration) while the session is in use.
+To end every browser session when that duration elapses, even while the user is active, set [`--disable-session-expiry-refresh`](../../reference/cli/server/index.md#--disable-session-expiry-refresh) to `true`.
+To make sure only the Coder domain can set Coder's cookies, set [`--host-prefix-cookie`](../../reference/cli/server/index.md#--host-prefix-cookie) to `true`, then restart workspaces built before release 2.31.
+
+API tokens keep a fixed lifetime and aren't extended by use.
+The default [`--max-token-lifetime`](../../reference/cli/server/index.md#--max-token-lifetime) lets users create tokens that effectively never expire, so lower it to match your token rotation policy.
+[`--max-admin-token-lifetime`](../../reference/cli/server/index.md#--max-admin-token-lifetime) caps the lifetime of administrators' tokens, and [`--default-token-lifetime`](../../reference/cli/server/index.md#--default-token-lifetime) sets the lifetime of tokens created without an explicit duration, such as when you run `coder login`.
+To limit what a token can do and which resources it can reach, create it with [scopes and allow lists](../users/sessions-tokens.md#api-key-scopes).
+
+#### Sign-in notices
+
+To show a consent or acceptable-use notice before users sign in, set [`--terms-of-service-url`](../../reference/cli/server/index.md#--terms-of-service-url) to the notice's URL.
+The web sign-in page then shows a link to the notice and an **I agree** button that users select before they can sign in.
+Coder doesn't enforce the notice on the server, so API, CLI, and token-based access don't show it.
+
+To show a persistent notice after users sign in, such as the classification of the network the deployment runs on, add an [announcement banner](../setup/appearance.md#announcement-banners).
+Announcement banners are a Premium feature, and they appear at the top of dashboard pages, not on the sign-in page.
+
 ### Encryption in transit
 
 Place Coder behind a TLS-capable reverse-proxy/load balancer and enable [Strict Transport Security](../../reference/cli/server/index.md#--strict-transport-security) so that connections from end users are always encrypted.
 
 Enable [TLS](../../reference/cli/server/index.md#--tls-address) on the control plane and encrypt traffic from the reverse-proxy/load balancer to the control plane, so that even if an attacker gains access to your network, they will not be able to snoop on control plane traffic.
+
+Set the client-facing TLS version and ciphers on the reverse proxy or load balancer.
+Coder's own TLS settings apply only when [`--tls-enable`](../../reference/cli/server/index.md#--tls-enable) is `true`.
+Set [`--tls-min-version`](../../reference/cli/server/index.md#--tls-min-version) to `tls12` or `tls13`, and leave [`--tls-ciphers`](../../reference/cli/server/index.md#--tls-ciphers) empty so Coder uses only the cipher suites Go marks as secure.
+To require every client to present a certificate, set [`--tls-client-auth`](../../reference/cli/server/index.md#--tls-client-auth) to `require-and-verify` and [`--tls-client-ca-file`](../../reference/cli/server/index.md#--tls-client-ca-file) to the certificate authority (CA) that signs the client certificates.
+
+`--strict-transport-security` takes a max age in seconds.
+Its default, `0`, sends no `Strict-Transport-Security` header.
 
 ### Encryption at rest
 
@@ -52,6 +88,12 @@ Retain all logs for a minimum of thirty days, ideally ninety days.
 Filter audit logs (which have `msg: audit_log`) and retain them for a minimum of two years (ideally five years) in a secure system that resists tampering.
 
 If a security incident with Coder does occur, audit logs are invaluable in determining the nature and scope of the impact.
+
+[Audit logs](audit-logs.md) are a Premium feature.
+Coder keeps audit log entries in its database indefinitely unless you set [`--audit-logs-retention`](../../reference/cli/server/index.md#--audit-logs-retention).
+If you set it, keep entries for at least a year, or longer if your organization's audit requirements call for it.
+This database retention period is separate from the retention period for the copy you export from the server logs.
+Refer to [Data retention](../setup/data-retention.md) for how purging works.
 
 ### Disable path-based apps
 
@@ -77,6 +119,16 @@ If you do keep path-based apps enabled:
 - Path-based apps cannot be shared with other users unless you start `coder server` with `--dangerous-allow-path-app-sharing`.
 - Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspaces unless `coder server` is started with `--dangerous-allow-path-app-site-owner-access`.
 
+### Diagnostics, telemetry, and update checks
+
+Keep [`--pprof-address`](../../reference/cli/server/index.md#--pprof-address) and [`--prometheus-address`](../../reference/cli/server/index.md#--prometheus-address) bound to localhost when you turn on [`--pprof-enable`](../../reference/cli/server/index.md#--pprof-enable) or [`--prometheus-enable`](../../reference/cli/server/index.md#--prometheus-enable).
+In production, leave [`--swagger-enable`](../../reference/cli/server/index.md#--swagger-enable) off and [`--experiments`](../../reference/cli/server/index.md#--experiments) empty, because experiments aren't ready for production.
+
+By default, a deployment sends usage data to Coder, and release builds also check GitHub once a day for new Coder releases.
+To turn these off, set [`--telemetry`](../../reference/cli/server/index.md#--telemetry) or [`--update-check`](../../reference/cli/server/index.md#--update-check) to `false`.
+The [Configuration reference](../setup/configuration-reference.md#update-check) lists `false` as the default for `--update-check` because it's generated from a development build, where the check is off.
+Refer to [Telemetry](../setup/telemetry.md) for what Coder collects.
+
 ## PostgreSQL
 
 PostgreSQL is the persistent datastore underlying the entire Coder deployment.
@@ -100,11 +152,16 @@ A successful attack that modifies database state could be escalated to a full ta
 Enable TLS on PostgreSQL and set `sslmode=verify-full` in your [postgres URL](../../reference/cli/server/index.md#--postgres-url) on the control plane.
 This configures the control plane to only establish TLS connections to PostgreSQL and check that the PostgreSQL server’s certificate is valid and matches the expected hostname.
 
+With `sslmode=require`, or with no `sslmode`, Coder encrypts the connection but doesn't check the server's certificate.
+If `--postgres-url` is empty, Coder runs a built-in PostgreSQL database on the same host and connects to it over `localhost` without TLS.
+
 ### Encryption at rest
 
 Run PostgreSQL on servers with full disk encryption enabled and configured.
 
 Coder supports [encrypting some particularly sensitive data](database-encryption.md) including OIDC tokens using an encryption key managed independently of the database, so even a user with full administrative privileges on the PostgreSQL server(s) cannot read the data without the separate key.
+This is a Premium feature that you turn on with [`--external-token-encryption-keys`](../../reference/cli/server/index.md#--external-token-encryption-keys).
+Without it, Coder stores these values in the database in plaintext.
 
 If you use this feature:
 
@@ -300,6 +357,12 @@ Example constraints include:
 - Limiting privileges of the account or role assigned to the workspace such as a service account on Kubernetes, or IAM role on public clouds
 - Monitoring and/or auditing for suspicious activity such as cryptomining or exfiltration
 
+### Owner access and workspace sharing
+
+To stop users from sharing their workspaces with other users, set [`--disable-workspace-sharing`](../../reference/cli/server/index.md#--disable-workspace-sharing) to `true`.
+Users with the `owner` role can use SSH, apps, and the terminal in every workspace, whether or not sharing is turned off.
+To limit them to their own workspaces, set [`--disable-owner-workspace-access`](../../reference/cli/server/index.md#--disable-owner-workspace-access) to `true`.
+
 ### Outbound network access
 
 Identify network assets like production systems or highly confidential datastores and configure the network to limit access from Coder workspaces.
@@ -331,6 +394,11 @@ A non-exclusive list of network assets to consider:
 Coder manages inbound network access to your workspaces via a set of Wireguard encrypted tunnels.
 These tunnels are established by sending outbound packets, so on stateful firewalls, disable inbound connections to workspaces to make sure inbound connections are handled exclusively by the encrypted tunnels.
 
+To relay every CLI workspace connection through Coder or your configured relay servers, never peer to peer, set [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) to `true`.
+Workspaces that are already running might still contact STUN servers until they restart, but new connections are relayed regardless.
+To allow workspace connections only through the browser, set [`--browser-only`](../../reference/cli/server/index.md#--browser-only) to `true`.
+This is a Premium setting.
+
 #### DERP
 
 [Designated Encrypted Relay for Packets (DERP)](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed by Tailscale.
@@ -357,7 +425,7 @@ Unlike DERP, it doesn’t definitively learn about communicating pairs of IPs.
 
 If you consider the public IP and port information to be sensitive, do not use public STUN servers.
 
-You can choose not to configure any STUN servers, in which case most workspace traffic will need to be relayed via DERP.
+You can choose not to use any STUN servers by setting [`--derp-server-stun-addresses`](../../reference/cli/server/index.md#--derp-server-stun-addresses) to `disable`, in which case most workspace traffic will need to be relayed via DERP.
 You can choose to deploy your own STUN servers, either on the public Internet, or on your corporate network and [configure Coder to use it](../../reference/cli/server/index.md#--derp-server-stun-addresses).
 
 If you do not consider the addresses and ports to be sensitive, we recommend using the default set of STUN servers operated by Google.
@@ -383,3 +451,25 @@ Consider restricting the maximum sharing level for workspaces, located in the te
 Deploy Coder workspaces using full disk encryption for all volumes.
 
 This mitigates attempts to recover sensitive data in the workspace by attackers who gain physical access to the disk(s).
+
+## Settings that weaken defaults
+
+Each setting in the following table loosens a protection that Coder applies by default.
+
+> [!CAUTION]
+> Change these settings only when you need to.
+> Each one can expose user sessions, sign-in, network traffic, or internal services to attack.
+
+| Setting                                                                                                                            | Environment variable                               | Effect of changing it                                                                                                                                                                                                                              |
+|------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`--tls-min-version`](../../reference/cli/server/index.md#--tls-min-version)                                                       | `CODER_TLS_MIN_VERSION`                            | `tls10` or `tls11` accepts clients that use TLS versions with known weaknesses.                                                                                                                                                                    |
+| [`--tls-allow-insecure-ciphers`](../../reference/cli/server/index.md#--tls-allow-insecure-ciphers)                                 | `CODER_TLS_ALLOW_INSECURE_CIPHERS`                 | Lets `--tls-ciphers` include cipher suites that Go marks as insecure. Coder logs a warning for each one at startup.                                                                                                                                |
+| [`--dangerous-allow-path-app-sharing`](../../reference/cli/server/index.md#--dangerous-allow-path-app-sharing)                     | `CODER_DANGEROUS_ALLOW_PATH_APP_SHARING`           | Lets users share path-based apps with other users.                                                                                                                                                                                                 |
+| [`--dangerous-allow-path-app-site-owner-access`](../../reference/cli/server/index.md#--dangerous-allow-path-app-site-owner-access) | `CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS` | Lets owners open path-based apps in workspaces they don't own.                                                                                                                                                                                     |
+| [`--dangerous-oidc-skip-issuer-checks`](../../reference/cli/server/index.md#--dangerous-oidc-skip-issuer-checks)                   | `CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS`          | Stops Coder from requiring the OIDC issuer URL to match the ID token and provider configuration.                                                                                                                                                   |
+| [`--oidc-ignore-email-verified`](../../reference/cli/server/index.md#--oidc-ignore-email-verified)                                 | `CODER_OIDC_IGNORE_EMAIL_VERIFIED`                 | Coder accepts email addresses that the identity provider hasn't verified.                                                                                                                                                                          |
+| [`--oauth2-github-allow-everyone`](../../reference/cli/server/index.md#--oauth2-github-allow-everyone)                             | `CODER_OAUTH2_GITHUB_ALLOW_EVERYONE`               | Any GitHub account can sign in.                                                                                                                                                                                                                    |
+| [`--email-tls-skip-verify`](../../reference/cli/server/index.md#--email-tls-skip-verify)                                           | `CODER_EMAIL_TLS_SKIPVERIFY`                       | Coder doesn't check the mail server's certificate. The deprecated [`--notifications-email-tls-skip-verify`](../../reference/cli/server/index.md#--notifications-email-tls-skip-verify) (`CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY`) does the same. |
+| [`--additional-csp-policy`](../../reference/cli/server/index.md#--additional-csp-policy)                                           | `CODER_ADDITIONAL_CSP_POLICY`                      | Adds values to the Content Security Policy (CSP) that Coder sends to protect against XSS, which can widen what browsers let Coder pages load.                                                                                                      |
+| [`--mcp-allowed-private-cidrs`](../../reference/cli/server/index.md#--mcp-allowed-private-cidrs)                                   | `CODER_MCP_ALLOWED_PRIVATE_CIDRS`                  | Lets Coder connect to Model Context Protocol (MCP) servers in the listed private or reserved IP ranges, which it otherwise blocks to prevent server-side request forgery (SSRF).                                                                   |
+| [`--ai-gateway-proxy-allowed-private-cidrs`](../../reference/cli/server/index.md#--ai-gateway-proxy-allowed-private-cidrs)         | `CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`     | Lets AI Gateway Proxy connect to the listed private or reserved IP ranges, which it otherwise blocks to prevent SSRF. This is a Premium setting.                                                                                                   |

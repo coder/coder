@@ -1573,11 +1573,6 @@
 							"path": "./admin/security/security-best-practices.md"
 						},
 						{
-							"title": "Security configuration reference",
-							"description": "Review the security-relevant server settings and the values that weaken or strengthen them.",
-							"path": "./admin/security/hardening.md"
-						},
-						{
 							"title": "Verify releases",
 							"description": "Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.",
 							"path": "./admin/security/verify-releases.md"
