@@ -232,14 +232,23 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const chatById = chatTree.chatById;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes, not on every parentById
-	// recalculation, so user-initiated collapse is preserved.
+	// Only runs when the active chat or its parent changes, so a collapse by
+	// the user is kept. The parent is unknown until the chat list loads.
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>(
 		() => expandAncestors({}, chatTree.parentById, activeChatId),
 	);
-	const [prevActiveChatId, setPrevActiveChatId] = useState(activeChatId);
-	if (activeChatId !== prevActiveChatId) {
-		setPrevActiveChatId(activeChatId);
+	const activeParentId = activeChatId
+		? chatTree.parentById.get(activeChatId)
+		: undefined;
+	const [expandedFor, setExpandedFor] = useState({
+		chatId: activeChatId,
+		parentId: activeParentId,
+	});
+	if (
+		activeChatId !== expandedFor.chatId ||
+		activeParentId !== expandedFor.parentId
+	) {
+		setExpandedFor({ chatId: activeChatId, parentId: activeParentId });
 		setExpandedById((prev) =>
 			expandAncestors(prev, chatTree.parentById, activeChatId),
 		);
