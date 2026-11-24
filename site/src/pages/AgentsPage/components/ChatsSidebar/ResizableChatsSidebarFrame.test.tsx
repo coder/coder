@@ -124,10 +124,13 @@ describe("ResizableChatsSidebarFrame", () => {
 			fireEvent.pointerDown(handle, { ...PRIMARY, pointerType, clientX: 0 });
 			vi.advanceTimersByTime(1000);
 			vi.useRealTimers();
-			fireEvent.pointerUp(handle, { ...PRIMARY, pointerType, clientX: 0 });
-			await userEvent.click(
-				await screen.findByRole("menuitem", { name: "Increase width" }),
-			);
+			const increase = await screen.findByRole("menuitem", {
+				name: "Increase width",
+			});
+			// Moving after the menu opens must not resize under it.
+			fireEvent.pointerMove(handle, { ...PRIMARY, pointerType, clientX: 200 });
+			fireEvent.pointerUp(handle, { ...PRIMARY, pointerType, clientX: 200 });
+			await userEvent.click(increase);
 
 			expect(persistedWidth()).toBe(400 + LEFT_SIDEBAR_MENU_RESIZE_STEP);
 		},

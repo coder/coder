@@ -133,7 +133,15 @@ export const ResizableChatsSidebarFrame = ({
 		>
 			{children}
 			{/* The menu is the single-pointer alternative to dragging (WCAG 2.5.7). */}
-			<ContextMenu>
+			<ContextMenu
+				onOpenChange={(open) => {
+					// A held touch opens the menu mid-drag; stop resizing under it.
+					if (open) {
+						isDragging.current = false;
+						activePointerId.current = null;
+					}
+				}}
+			>
 				<ContextMenuTrigger asChild>
 					<div
 						role="separator"
