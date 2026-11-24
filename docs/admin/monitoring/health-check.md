@@ -205,26 +205,42 @@ Engage with your network administrator.
 
 ## Network interfaces
 
-The network interface check inspects the network interfaces of the machine it runs on, not the Coder server.
-Its results don't appear on the deployment health page.
-[`coder ping`](../../reference/cli/ping.md) reports them for both the client and the workspace agent, [`coder netcheck`](../../reference/cli/netcheck.md) reports them for the client, and support bundles include them.
+The network interface check runs at the two ends of a workspace connection: on the client, such as a developer's laptop, and in the workspace.
+It doesn't run on the control plane, and its results don't appear on the deployment health page.
+
+The check reads the maximum transmission unit (MTU) of each network interface on its own machine.
+It doesn't detect a low MTU on other devices along the network path, such as routers, load balancers, or firewalls.
+
+[`coder ping`](../../reference/cli/ping.md) checks both the client and the workspace.
+[`coder netcheck`](../../reference/cli/netcheck.md) and [`coder support bundle`](../../reference/cli/support/bundle.md) check only the machine that runs the command.
 
 ### EIF01
 
 #### Network interface has a low MTU
 
 **Problem:**
-A network interface that is up and has a non-link-local address has a maximum transmission unit (MTU) smaller than 1378.
+A network interface on the client or in the workspace has an MTU smaller than 1378.
+The check ignores interfaces that are down or that have only link-local addresses.
 Direct connections over this interface might have degraded quality or might hang entirely.
 This is a warning.
 Connections relayed through DERP are not affected.
 
+In `coder ping` output, a warning under `Possible client-side issues with direct connection` is about the client.
+A warning under `Possible agent-side issues with direct connections` is about the workspace.
+
 **Solution:**
 Increase the MTU of the affected interface to 1378 or higher, or use a different network interface.
-Virtual private network (VPN) tunnel interfaces often have a low MTU.
+Who makes the change depends on where the interface is:
 
-If you can't change the MTU or use another interface, you can block direct connections so that all traffic is relayed through DERP.
-To do this, set the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
+- **Client**: The developer who uses that machine makes the change.
+  Virtual private network (VPN) clients often create tunnel interfaces with a low MTU.
+  If your organization manages the VPN, its network administrator might need to increase the MTU of the tunnel.
+- **Workspace**: The administrator who manages the workspace infrastructure makes the change in the network configuration of the workspace, such as its virtual machine or container network settings.
+
+If you can't change the MTU or use another interface, you can block direct connections so that traffic is relayed through DERP:
+
+- **For one client**: The developer sets the [`--disable-direct-connections`](../../reference/cli/index.md#--disable-direct-connections) flag or `CODER_DISABLE_DIRECT_CONNECTIONS` environment variable for the Coder CLI.
+- **For the whole deployment**: A Coder administrator sets the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
 
 For more information, refer to [Low MTU](../networking/troubleshooting.md#low-mtu) in the networking troubleshooting guide.
 
