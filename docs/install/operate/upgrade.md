@@ -74,4 +74,10 @@ Download the latest Windows installer or binary from the [Coder downloads page](
 winget install Coder.Coder
 ```
 
+If you installed the stable release with the `Coder.Coder.Stable` package, upgrade with that package instead, so you stay on stable:
+
+```ps1
+winget install Coder.Coder.Stable
+```
+
 </div>

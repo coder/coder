@@ -154,6 +154,15 @@ You can also use the `install.sh` script with the `--stable` flag to install the
 curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 
+On Windows, use the `Coder.Coder.Stable` [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package to install the latest stable release:
+
+```ps1
+winget install Coder.Coder.Stable
+```
+
+`Coder.Coder.Stable` gets only stable releases.
+The `Coder.Coder` package gets every release except release candidates, so it installs the latest mainline release.
+
 You can find best practices for installing Coder in the [Install](../install/index.md) section.
 
 ## Release schedule

@@ -1121,6 +1121,7 @@ jobs:
           WINGETCREATE_SHA256: 63D980BA79E97042395BD6EB5992C2DB9E01E9E7A8A22958A95C288F27310413
 
       - name: Submit updated manifest to winget-pkgs
+        id: winget_coder
         run: |
           # The package version is the same as the tag minus the leading "v".
           # The version in this output already has the leading "v" removed but
@@ -1145,6 +1146,11 @@ jobs:
           echo "arm64 zip URL: ${arm64_zip_url}"
           echo "Package version: ${version}"
 
+          # The Coder.Coder.Stable step reuses these.
+          "amd64_installer_url=${amd64_installer_url}" >> $env:GITHUB_OUTPUT
+          "amd64_zip_url=${amd64_zip_url}" >> $env:GITHUB_OUTPUT
+          "arm64_zip_url=${arm64_zip_url}" >> $env:GITHUB_OUTPUT
+
           .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${version}" `
@@ -1167,6 +1173,54 @@ jobs:
           # Find the PR that wingetcreate just made.
           $version = $env:VERSION.Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
+            ConvertFrom-Json
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
+
+        env:
+          # For gh CLI. We need a real token since we're commenting on a PR in a
+          # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+
+      # winget has no release channels, and `winget install Coder.Coder`
+      # installs the highest version, which is always mainline. Stable releases
+      # also go to Coder.Coder.Stable, so stable can be installed and upgraded
+      # by name instead of by pinning an exact version. This runs after the
+      # Coder.Coder comment step so that step's PR search finds only the
+      # Coder.Coder PR, and it still runs if that comment step fails.
+      # `wingetcreate update` can't create a package, so Coder.Coder.Stable
+      # must already exist in winget-pkgs.
+      - name: Submit updated stable manifest to winget-pkgs
+        id: winget_stable
+        if: ${{ !cancelled() && inputs.release_channel == 'stable' && steps.winget_coder.outcome == 'success' }}
+        run: |
+          $version = $env:VERSION.Trim('v')
+          echo "Package version: ${version}"
+
+          .\wingetcreate.exe update Coder.Coder.Stable `
+            --submit `
+            --version "${version}" `
+            --urls "${env:AMD64_INSTALLER_URL}" "${env:AMD64_ZIP_URL}" "${env:ARM64_ZIP_URL}"
+
+        env:
+          # wingetcreate reads the token from this variable. See the
+          # Coder.Coder step above.
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+          AMD64_INSTALLER_URL: ${{ steps.winget_coder.outputs.amd64_installer_url }}
+          AMD64_ZIP_URL: ${{ steps.winget_coder.outputs.amd64_zip_url }}
+          ARM64_ZIP_URL: ${{ steps.winget_coder.outputs.arm64_zip_url }}
+
+      - name: Comment on stable PR
+        if: ${{ !cancelled() && steps.winget_stable.outcome == 'success' }}
+        run: |
+          # wait 30 seconds
+          Start-Sleep -Seconds 30.0
+          # Find the PR that wingetcreate just made.
+          $version = $env:VERSION.Trim('v')
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder.Stable version ${version}" --limit 1 --json number | `
             ConvertFrom-Json
           $pr_number = $pr_list[0].number
 
