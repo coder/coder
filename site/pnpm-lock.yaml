@@ -173,7 +173,7 @@ overrides:
   minimatch@>=10: 11.0.1
 
 patchedDependencies:
-  cmdk@1.1.1: 97afb93519779634775c0dd2cfd96a8dce4a02a9cfb93a8a97704345769e00a6
+  cmdk@1.1.1: 10218bf6c9d4cc4753c6fbda3b6dc3467b38bea7eea63da713e45b745ae2f484
 
 importers:
 
@@ -259,7 +259,7 @@ importers:
         version: 0.7.1
       cmdk:
         specifier: 1.1.1
-        version: 1.1.1(patch_hash=97afb93519779634775c0dd2cfd96a8dce4a02a9cfb93a8a97704345769e00a6)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.1.1(patch_hash=10218bf6c9d4cc4753c6fbda3b6dc3467b38bea7eea63da713e45b745ae2f484)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       cn:
         specifier: 0.3.2
         version: 0.3.2
@@ -10249,7 +10249,7 @@ snapshots:
 
   clsx@2.1.1: {}
 
-  cmdk@1.1.1(patch_hash=97afb93519779634775c0dd2cfd96a8dce4a02a9cfb93a8a97704345769e00a6)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  cmdk@1.1.1(patch_hash=10218bf6c9d4cc4753c6fbda3b6dc3467b38bea7eea63da713e45b745ae2f484)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.3.0)(react@19.3.1)
       '@radix-ui/react-dialog': 1.1.15(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Autocomplete } from "./Autocomplete";
 
@@ -134,3 +135,42 @@ it("points the inline search input at the highlighted option", async () => {
 		screen.getByRole("option", { name: "Papaya" }).id,
 	);
 });
+
+it.each([
+	["the highlighted option", "{ArrowUp}", "man", "Mango"],
+	["options before the highlighted one", "", "pe", "Pear"],
+])(
+	"keeps a match highlighted after typing filters out %s",
+	async (_, keys, query, expected) => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		const FilteredAutocomplete = () => {
+			const [inputValue, setInputValue] = useState("");
+			return (
+				<Autocomplete
+					value={null}
+					onChange={onChange}
+					options={["Mango", "Papaya", "Pear"].filter((option) =>
+						option.toLowerCase().includes(inputValue.toLowerCase()),
+					)}
+					getOptionValue={(option) => option}
+					getOptionLabel={(option) => option}
+					inputValue={inputValue}
+					onInputChange={setInputValue}
+					placeholder="Select a fruit"
+					inlineSearch
+				/>
+			);
+		};
+		render(<FilteredAutocomplete />);
+
+		await user.click(screen.getByRole("combobox"));
+		if (keys) {
+			await user.keyboard(keys);
+		}
+		await user.type(screen.getByRole("combobox"), query);
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenCalledWith(expected);
+	},
+);
