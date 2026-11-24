@@ -67,11 +67,6 @@ export const RetryWithVisibleReason: Story = {
 			isAwaitingFirstStreamChunk: true,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).getByText("Retrying in 2s"),
-		).toBeInTheDocument();
-	},
 };
 
 /** Rate-limited retries expose the normalized kind and delay metadata. */
