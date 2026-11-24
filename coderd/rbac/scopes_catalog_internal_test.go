@@ -64,6 +64,12 @@ func TestIsExternalScope(t *testing.T) {
 	require.True(t, IsExternalScope("coder:workspaces.create"))
 	require.True(t, IsExternalScope("user:read"))
 	require.True(t, IsExternalScope("chat_model_config:share"))
+	require.True(t, IsExternalScope("chat:create"))
+	require.True(t, IsExternalScope("ai_provider:*"))
+	require.True(t, IsExternalScope("mcp_server_config:*"))
+	require.True(t, IsExternalScope("deployment_config:update"))
+	require.True(t, IsExternalScope("organization_member:read"))
+	require.True(t, IsExternalScope("assign_role:read"))
 	require.True(t, IsExternalScope("inbox_notification:read"))
 	require.False(t, IsExternalScope("inbox_notification:create")) // internal-only
 	require.False(t, IsExternalScope("debug_info:read"))           // internal-only

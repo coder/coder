@@ -97,6 +97,13 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			wantACLStatus: http.StatusNotFound,
 		},
 		{
+			name: "ModelWildcardWithOrganizationRead",
+			scopes: []codersdk.APIKeyScope{
+				codersdk.APIKeyScopeOrganizationRead,
+				codersdk.APIKeyScopeChatModelConfigAll,
+			},
+		},
+		{
 			name:                 "WorkspaceRead",
 			scopes:               []codersdk.APIKeyScope{codersdk.APIKeyScopeOrganizationRead, codersdk.APIKeyScopeWorkspaceRead},
 			wantCollectionStatus: http.StatusForbidden,
@@ -135,7 +142,11 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 				require.NoError(t, itemErr)
 				require.Equal(t, ownEnabled.ID, model.ID)
 			}
-			requireSDKError(t, aclErr, testCase.wantACLStatus)
+			if testCase.wantACLStatus != 0 {
+				requireSDKError(t, aclErr, testCase.wantACLStatus)
+			} else {
+				require.NoError(t, aclErr)
+			}
 		})
 	}
 
