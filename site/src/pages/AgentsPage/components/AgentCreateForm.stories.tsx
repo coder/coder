@@ -37,11 +37,9 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
-	MockFailedWorkspace,
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
-	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { MockSkills } from "#/testHelpers/skills";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
@@ -50,11 +48,6 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import {
-	debugWorkspaceBuildLogsFileName,
-	debugWorkspaceBuildPrompt,
-	formatWorkspaceBuildLogsForDebug,
-} from "../utils/workspaceBuildDebug";
 import {
 	AgentCreateForm,
 	emptyInputStorageKey,
@@ -2301,29 +2294,6 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		await capturedQueryClient.refetchQueries({
 			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
 			exact: true,
-		});
-	},
-};
-
-const workspaceBuildDebugPrefill = {
-	message: debugWorkspaceBuildPrompt(MockFailedWorkspace.latest_build),
-	attachment: {
-		name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
-		text: formatWorkspaceBuildLogsForDebug(
-			MockFailedWorkspace.latest_build,
-			MockWorkspaceBuildLogs,
-		),
-	},
-};
-
-export const PrefilledWorkspaceBuildDebug: Story = {
-	args: {
-		...defaultArgs,
-		prefill: workspaceBuildDebugPrefill,
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
-			id: "workspace-build-logs-file",
 		});
 	},
 };

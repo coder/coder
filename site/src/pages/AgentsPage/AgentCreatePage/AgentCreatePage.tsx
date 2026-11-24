@@ -15,10 +15,6 @@ import {
 	createChat,
 	createChatMessageByChatId,
 } from "#/api/queries/chats";
-import {
-	workspaceBuildById,
-	workspaceBuildLogs,
-} from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -30,9 +26,6 @@ import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
-import { isUUID } from "#/utils/uuid";
 import {
 	AgentCreateForm,
 	type AgentCreatePrefill,
@@ -50,46 +43,10 @@ import {
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 import { hasHighlightComposerState } from "../utils/composerHighlight";
-import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
+import { readDeepLinkPrompt } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
-import {
-	debugWorkspaceBuildLogsFileName,
-	debugWorkspaceBuildPrompt,
-	formatWorkspaceBuildLogsForDebug,
-} from "../utils/workspaceBuildDebug";
 
 const promptSearchParam = "prompt";
-
-type DebugWorkspaceBuildAlertProps = {
-	error: unknown;
-	build: TypesGen.WorkspaceBuild | undefined;
-};
-
-const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
-	error,
-	build,
-}) => {
-	const alert =
-		error != null ? (
-			<Alert severity="error" prominent>
-				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
-				<AlertDescription>
-					{getErrorMessage(error, "The request failed.")}
-				</AlertDescription>
-			</Alert>
-		) : build && build.job.status !== "failed" ? (
-			<Alert severity="info">
-				<AlertTitle>Nothing to debug</AlertTitle>
-				<AlertDescription>
-					Build #{build.build_number} of workspace {build.workspace_owner_name}/
-					{build.workspace_name} has not failed (status: {build.job.status}).
-				</AlertDescription>
-			</Alert>
-		) : null;
-	return alert ? (
-		<div className="mx-auto w-full max-w-3xl px-4 pt-4">{alert}</div>
-	) : null;
-};
 
 const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
@@ -115,7 +72,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
 	const projectQuery = useQuery({
 		...chatProject(projectId),
 		enabled: projectId !== undefined,
@@ -181,96 +137,34 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			? location.key
 			: undefined;
 
-	const linkState = readDeepLinkState(location.state);
-	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugLinkValue = debugLinkParam ?? linkState.debugWorkspaceBuildId;
-	const debugBuildId =
-		debugLinkValue !== undefined &&
-		isUUID(debugLinkValue) &&
-		experiments.includes("enable-ai-workspace-debug")
-			? debugLinkValue
-			: null;
 	const promptParam = searchParams.get(promptSearchParam);
-	const promptValue = promptParam ?? linkState.prompt;
-	// The debug link wins when both are present.
-	const linkPrompt =
-		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	const promptValue = promptParam ?? readDeepLinkPrompt(location.state);
+	const linkPrompt = promptValue?.trim() ? promptValue : undefined;
 	// Navigations from this page forward this, not location.search: the
 	// router commits the replace below in a transition, so the user can act
-	// while location.search still holds the link parameters.
+	// while location.search still holds the link parameter.
 	const forwardedSearchParams = new URLSearchParams(searchParams);
-	forwardedSearchParams.delete(debugWorkspaceBuildSearchParam);
 	forwardedSearchParams.delete(promptSearchParam);
 	const forwardedSearch = forwardedSearchParams.toString();
-	// One navigation removes both parameters: separate navigations would each
-	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
-		if (debugLinkParam === null && promptParam === null) {
+		if (promptParam === null) {
 			return;
 		}
-		const state: DeepLinkState | undefined =
-			debugBuildId !== null
-				? { debugWorkspaceBuildId: debugBuildId }
-				: linkPrompt !== undefined
-					? { prompt: linkPrompt }
-					: undefined;
 		navigate(
 			{ pathname: location.pathname, search: forwardedSearch },
-			{ replace: true, state },
+			{
+				replace: true,
+				state: linkPrompt !== undefined ? { prompt: linkPrompt } : undefined,
+			},
 		);
-	}, [
-		debugLinkParam,
-		promptParam,
-		debugBuildId,
-		linkPrompt,
-		location.pathname,
-		navigate,
-		forwardedSearch,
-	]);
-	const debugBuildQuery = useQuery({
-		...workspaceBuildById(debugBuildId ?? ""),
-		enabled: debugBuildId !== null,
-		// A reconnect refetch after a load error would replace the composer the
-		// user may already be using with the prefilled form.
-		refetchOnReconnect: false,
-	});
-	const debugBuild = debugBuildQuery.data;
-	const debugBuildFailed = debugBuild?.job.status === "failed";
-	const debugBuildLogsQuery = useQuery({
-		...workspaceBuildLogs(debugBuildId ?? ""),
-		// The logs query never refetches, so fetch only once the build has failed.
-		enabled: debugBuildFailed,
-	});
-	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
-	const debugPrefill: AgentCreatePrefill | undefined =
-		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
-			? {
-					message: debugWorkspaceBuildPrompt(debugBuild),
-					attachment: {
-						name: debugWorkspaceBuildLogsFileName(debugBuild),
-						text: formatWorkspaceBuildLogsForDebug(
-							debugBuild,
-							debugBuildLogsQuery.data,
-						),
-					},
-				}
-			: undefined;
-	const prefill: AgentCreatePrefill | undefined =
-		debugPrefill ??
-		(linkPrompt
-			? {
-					message: linkPrompt,
-					warning:
-						"Use caution before running this prompt. Malicious content could trick Coder Agents into attempting harmful actions or sharing your data.",
-				}
-			: undefined);
-	// Hold the form until the prefill is ready: AgentCreateForm reads message
-	// and attachment only on mount.
-	const isPrefillLoading =
-		debugBuildId !== null &&
-		prefillError == null &&
-		(debugBuild === undefined ||
-			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
+	}, [promptParam, linkPrompt, location.pathname, navigate, forwardedSearch]);
+	const prefill: AgentCreatePrefill | undefined = linkPrompt
+		? {
+				message: linkPrompt,
+				warning:
+					"Use caution before running this prompt. Malicious content could trick Coder Agents into attempting harmful actions or sharing your data.",
+			}
+		: undefined;
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		try {
@@ -426,13 +320,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const form = (
 		<AgentCreateForm
 			fillWidth={project !== undefined}
-			key={
-				debugPrefill
-					? debugBuildId
-					: linkPrompt
-						? `prompt:${linkPrompt}`
-						: "draft"
-			}
+			key={linkPrompt ? `prompt:${linkPrompt}` : "draft"}
 			project={project}
 			onCreateChat={handleCreateChat}
 			isCreating={createMutation.isPending}
@@ -461,7 +349,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
 			{isProjectMissing ? (
 				<div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-content-secondary">
 					<p className="m-0">Project not found</p>
@@ -498,8 +385,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				// Without the project, the form would show the plain composer and
 				// the user's own organization.
 				<Loader className="flex-1" label="Loading project" />
-			) : isPrefillLoading ? (
-				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (
 				<ProjectPage project={project}>{form}</ProjectPage>
 			) : (

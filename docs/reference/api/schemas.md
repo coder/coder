@@ -10241,9 +10241,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                   |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agent-plugins`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -21137,20 +21137,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
 | `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
 | `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
-
-## codersdk.WorkspaceBuildDebugEventRequest
-
-```json
-{
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-}
-```
-
-### Properties
-
-| Name | Type   | Required | Restrictions | Description                                                                     |
-|------|--------|----------|--------------|---------------------------------------------------------------------------------|
-| `id` | string | true     |              | ID identifies this click so a later step of the funnel can be attributed to it. |
 
 ## codersdk.WorkspaceBuildParameter
 

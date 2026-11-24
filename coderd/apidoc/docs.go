@@ -17323,49 +17323,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/workspacebuilds/{workspacebuild}/debug-events": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Builds"
-                ],
-                "summary": "Report a workspace build debug click",
-                "operationId": "report-a-workspace-build-debug-click",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Workspace build ID",
-                        "name": "workspacebuild",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Debug event",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceBuildDebugEventRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/workspacebuilds/{workspacebuild}/logs": {
             "get": {
                 "produces": [
@@ -26978,7 +26935,6 @@ const docTemplate = `{
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
-                "enable-ai-workspace-debug",
                 "chat-stage-metrics",
                 "chat-acp-subagents",
                 "chat-automations",
@@ -26995,7 +26951,6 @@ const docTemplate = `{
                 "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
-                "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
@@ -27018,7 +26973,6 @@ const docTemplate = `{
                 "Enables virtual desktop and computer use for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
-                "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables workspace-local ACP subagent tools in root chats.",
                 "Enables webhook and scheduled automations that deliver prompts to agent chats.",
@@ -27038,7 +26992,6 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
-                "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
                 "ExperimentChatACPSubagents",
                 "ExperimentChatAutomations",
@@ -36427,19 +36380,6 @@ const docTemplate = `{
                 "workspace_owner_name": {
                     "description": "WorkspaceOwnerName is the username of the owner of the workspace.",
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkspaceBuildDebugEventRequest": {
-            "type": "object",
-            "required": [
-                "id"
-            ],
-            "properties": {
-                "id": {
-                    "description": "ID identifies this click so a later step of the funnel can be\nattributed to it.",
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },

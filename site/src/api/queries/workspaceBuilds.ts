@@ -8,7 +8,6 @@ import { API } from "#/api/api";
 import type {
 	ProvisionerJobLog,
 	WorkspaceBuild,
-	WorkspaceBuildDebugEventRequest,
 	WorkspaceBuildParameter,
 	WorkspaceBuildsRequest,
 } from "#/api/typesGenerated";
@@ -45,16 +44,6 @@ export const workspaceBuildById = (workspaceBuildId: string) =>
 		queryKey: workspaceBuildByIdKey(workspaceBuildId),
 		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),
 	});
-
-type ReportWorkspaceBuildDebugClickArgs = {
-	workspaceBuildId: string;
-	req: WorkspaceBuildDebugEventRequest;
-};
-
-export const reportWorkspaceBuildDebugClick = () => ({
-	mutationFn: ({ workspaceBuildId, req }: ReportWorkspaceBuildDebugClickArgs) =>
-		API.reportWorkspaceBuildDebugClick(workspaceBuildId, req),
-});
 
 export const workspaceBuildsKey = (workspaceId: string) => [
 	"workspaceBuilds",

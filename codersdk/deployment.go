@@ -5555,7 +5555,6 @@ const (
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
-	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
@@ -5590,8 +5589,6 @@ func (e Experiment) DisplayName() string {
 		return "Agent Lifecycle Hooks"
 	case ExperimentChatInlineMCPServers:
 		return "Chat Inline MCP Servers"
-	case ExperimentEnableAIWorkspaceDebug:
-		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
 	case ExperimentChatAutomations:
@@ -5621,7 +5618,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
-	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
 	ExperimentChatAutomations,
