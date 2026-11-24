@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
-const path = "/ai/settings/spend/experimental";
+const path = "/ai/settings/spend";
 const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 	(user) => user.user_id,
 );
