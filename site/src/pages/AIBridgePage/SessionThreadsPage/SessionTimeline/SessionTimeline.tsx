@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -110,6 +110,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
 						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
+						aria-expanded={isExpanded}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
 						{toggleLabel}
@@ -122,6 +123,9 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 type CollapseButtonProps = {
 	isOpen: boolean;
+	/** Heading level tells screen readers how deep the toggle is nested. */
+	heading: "h3" | "h4";
+	panelId: string;
 	accessibleNameSuffix?: string;
 	onClick: () => void;
 	children: React.ReactNode;
@@ -130,29 +134,34 @@ type CollapseButtonProps = {
 
 const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
+	heading: Heading,
+	panelId,
 	accessibleNameSuffix,
 	onClick,
 	children,
 }) => (
-	<Button
-		type="button"
-		variant="subtle"
-		onClick={onClick}
-		className="border-none bg-transparent text-content-secondary flex items-center"
-		size="sm"
-	>
-		<ChevronRightIcon
-			className={cn(
-				"mr-4 transition-transform size-3.5",
-				isOpen && "rotate-90",
+	<Heading className="m-0">
+		<Button
+			type="button"
+			variant="subtle"
+			onClick={onClick}
+			aria-expanded={isOpen}
+			aria-controls={isOpen ? panelId : undefined}
+			className="border-none bg-transparent text-content-secondary flex items-center"
+			size="sm"
+		>
+			<ChevronRightIcon
+				className={cn(
+					"mr-4 transition-transform size-3.5",
+					isOpen && "rotate-90",
+				)}
+			/>
+			{children}
+			{accessibleNameSuffix && (
+				<span className="sr-only">{accessibleNameSuffix}</span>
 			)}
-		/>
-		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-		{children}
-		{accessibleNameSuffix && (
-			<span className="sr-only">{accessibleNameSuffix}</span>
-		)}
-	</Button>
+		</Button>
+	</Heading>
 );
 
 // Wraps content with a visual left-bracket connector: two rounded corner lines
@@ -218,6 +227,8 @@ type ToolCallBlockProps = {
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
+	/** 1-based number among the loop's tool calls, which names the toggle. */
+	number: number;
 };
 
 const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
@@ -227,16 +238,21 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	timestamp,
 	expandedByDefault = false,
 	highlight,
+	number,
 }) => {
 	// Only user toggles are stored, so a later search match still reveals it.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isOpen = userToggled ?? expandedByDefault;
+	const panelId = useId();
 
 	return (
 		<BracketConnector contentClassName="mt-2 mr-4 border border-border-control rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
+					heading="h4"
+					panelId={panelId}
+					accessibleNameSuffix={String(number)}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
@@ -246,7 +262,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 				</CollapseButton>
 			</div>
 			{isOpen && (
-				<>
+				<div id={panelId}>
 					<ToolCallTable
 						className="mt-2 ml-5 mr-4 lg:w-1/2 overflow-x-auto"
 						timestamp={timestamp}
@@ -266,7 +282,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 							<JsonPrettyPrinter input={input} />
 						</span>
 					</pre>
-				</>
+				</div>
 			)}
 		</BracketConnector>
 	);
@@ -283,12 +299,15 @@ type AgenticActionItemProps = {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
 	highlight: string;
+	/** Each tool call's 1-based number in the whole loop, by ID. */
+	toolCallNumbers: Map<string, number>;
 };
 
 const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
+	toolCallNumbers,
 }) => {
 	const visibleToolCalls = matchedToolCallIds?.size
 		? action.tool_calls.filter((tool_call) =>
@@ -313,6 +332,7 @@ const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
+					number={toolCallNumbers.get(tool_call.id) ?? 0}
 				/>
 			))}
 		</>
@@ -350,6 +370,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 	// Only user toggles are stored, so the loop follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const agenticLoopOpen = userToggled ?? searchToolMatch;
+	const agenticLoopPanelId = useId();
 
 	const toggleAgenticLoop = () =>
 		setUserToggled((prev) => !(prev ?? searchToolMatch));
@@ -363,6 +384,11 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 	const toolCalls = thread.agentic_actions.reduce(
 		(count, action) => count + action.tool_calls.length,
 		0,
+	);
+	const toolCallNumbers = new Map(
+		thread.agentic_actions
+			.flatMap((action) => action.tool_calls)
+			.map((toolCall, i) => [toolCall.id, i + 1] as const),
 	);
 
 	return (
@@ -445,6 +471,8 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 						<div>
 							<CollapseButton
 								isOpen={agenticLoopOpen}
+								heading="h3"
+								panelId={agenticLoopPanelId}
 								accessibleNameSuffix={
 									thread.prompt &&
 									`for prompt: ${clampContent(thread.prompt, TOGGLE_CONTEXT_MAX_CHARS)}`
@@ -465,7 +493,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					</div>
 
 					{agenticLoopOpen && (
-						<>
+						<div id={agenticLoopPanelId}>
 							{/* the little top rounded line above the thinking block */}
 							<div className="border-t border-r border-border-control rounded-tr-lg w-4.25 h-5">
 								{/* we need the 1px extra to line up with the left border on the other lines */}
@@ -478,6 +506,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 									action={action}
 									matchedToolCallIds={matchedToolCallIds}
 									highlight={highlight}
+									toolCallNumbers={toolCallNumbers}
 								/>
 							))}
 
@@ -490,7 +519,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 									</span>
 								</div>
 							</BracketConnector>
-						</>
+						</div>
 					)}
 				</BracketConnector>
 			) : (
@@ -532,6 +561,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const threadsHeadingId = useId();
 
 	const isSearching = searchQuery.trim() !== "";
 
@@ -669,9 +699,13 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 							/>
 						</div>
 					)}
-					{/* threads */}
+					{/* Gives the loop and tool call headings a parent section in the
+					    page outline. */}
+					<h2 id={threadsHeadingId} className="sr-only">
+						Threads
+					</h2>
 					<ol
-						aria-label="Threads"
+						aria-labelledby={threadsHeadingId}
 						className="list-none m-0 p-0 [&>li:last-child>.thread-gap]:hidden"
 					>
 						{threadItems.map(({ thread, classification }) => (

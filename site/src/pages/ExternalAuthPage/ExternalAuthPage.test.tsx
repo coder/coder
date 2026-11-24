@@ -1,9 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { ExternalAuth, ExternalAuthDevice } from "#/api/typesGenerated";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { render, renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import ExternalAuthPage from "./ExternalAuthPage";
+import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const provider = "github";
 
@@ -24,6 +26,11 @@ const baseProvider: ExternalAuth = {
 	app_installable: false,
 	installations: [],
 	app_install_url: "",
+};
+
+const mockAuthenticatedProvider: ExternalAuth = {
+	...baseProvider,
+	authenticated: true,
 };
 
 const renderPage = () =>
@@ -77,5 +84,26 @@ describe("ExternalAuthPage", () => {
 		// The provider endpoint is hit more than once: the initial load plus the
 		// refetch triggered by the post-exchange invalidation.
 		expect(providerRequests).toBeGreaterThan(1);
+	});
+});
+
+describe("ExternalAuthPageView", () => {
+	it("reauthenticates from a button without changing the URL", async () => {
+		const onReauthenticate = vi.fn();
+		render(
+			<ExternalAuthPageView
+				externalAuth={mockAuthenticatedProvider}
+				viewExternalAuthConfig={false}
+				onReauthenticate={onReauthenticate}
+			/>,
+		);
+		const initialHref = location.href;
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Reauthenticate" }),
+		);
+
+		expect(onReauthenticate).toHaveBeenCalledTimes(1);
+		expect(location.href).toBe(initialHref);
 	});
 });

@@ -512,7 +512,9 @@ const AgentsPageLayout: React.FC = () => {
 	return (
 		<div
 			data-testid="agents-page-layout"
-			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+			// On short mobile viewports (such as 400% zoom) the page scrolls so
+			// the chat list keeps a usable height next to the composer.
+			className="flex h-full min-h-0 flex-col overflow-y-auto bg-surface-primary sm:flex-row sm:overflow-hidden"
 		>
 			<title>{pageTitle("Agents")}</title>
 			<ResizableChatsSidebarFrame
@@ -522,7 +524,7 @@ const AgentsPageLayout: React.FC = () => {
 						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b"
 						: isSettingsDetail
 							? "hidden sm:block shrink-0"
-							: "order-2 sm:order-0 flex-1 min-h-0 border-b sm:flex-none sm:border-t-0 sm:border-b-0",
+							: "order-2 sm:order-0 flex-1 min-h-60 border-b sm:flex-none sm:border-t-0 sm:border-b-0",
 					isSidebarCollapsed && "sm:hidden",
 				)}
 			>
