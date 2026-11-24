@@ -12,8 +12,8 @@ type UseDesktopConnectionOptions = {
 	chatId: string | undefined;
 	/** When false the hook stays dormant, no WebSocket, no RFB. */
 	activated: boolean;
-	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
-	scaleViewport?: boolean;
+	/** Whether the viewport starts scaled to fit the container. Default: false (native 100%). */
+	initialScaleViewport?: boolean;
 };
 
 export type UseDesktopConnectionResult = {
@@ -21,6 +21,10 @@ export type UseDesktopConnectionResult = {
 	status: DesktopConnectionStatus;
 	/** Whether the connection has ever been established. */
 	hasConnected: boolean;
+	/** Whether the viewport is scaled to fit the container. */
+	scaleViewport: boolean;
+	/** Scales the viewport to fit the container, or shows it at 100%. */
+	setScaleViewport: (scaleViewport: boolean) => void;
 	/**
 	 * Tear down the current connection and start a fresh one.
 	 * Used by the "Reconnect" button after an error.
@@ -38,10 +42,12 @@ export type UseDesktopConnectionResult = {
 export function useDesktopConnection({
 	chatId,
 	activated,
-	scaleViewport = false,
+	initialScaleViewport = false,
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
-	const [connection] = useState(() => new DesktopConnection());
-	const { status, hasConnected } = useSyncExternalStore(
+	const [connection] = useState(
+		() => new DesktopConnection(initialScaleViewport),
+	);
+	const { status, hasConnected, scaleViewport } = useSyncExternalStore(
 		connection.subscribe,
 		connection.getSnapshot,
 	);
@@ -52,12 +58,6 @@ export function useDesktopConnection({
 			);
 		},
 	});
-
-	// Declared before the connection effect, so the first session
-	// starts at the current scale.
-	useEffect(() => {
-		connection.setScaleViewport(scaleViewport);
-	}, [connection, scaleViewport]);
 
 	useEffect(() => {
 		if (!activated || !chatId) {
@@ -71,6 +71,8 @@ export function useDesktopConnection({
 	return {
 		status,
 		hasConnected,
+		scaleViewport,
+		setScaleViewport: connection.setScaleViewport,
 		reconnect: connection.reconnect,
 		attach: connection.attach,
 	};

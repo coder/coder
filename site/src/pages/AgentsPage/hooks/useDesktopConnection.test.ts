@@ -147,7 +147,7 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({
 				chatId: "chat-1",
 				activated: true,
-				scaleViewport: true,
+				initialScaleViewport: true,
 			}),
 		);
 		const rfb = getLastRFBInstance();
@@ -157,22 +157,20 @@ describe("useDesktopConnection", () => {
 	});
 
 	it("syncs scaleViewport changes to the RFB instance", () => {
-		const { rerender } = renderHook(
-			({ scaleViewport }) =>
-				useDesktopConnection({
-					chatId: "chat-1",
-					activated: true,
-					scaleViewport,
-				}),
-			{ initialProps: { scaleViewport: true } },
+		const { result } = renderHook(() =>
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				initialScaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 		expect(rfb.scaleViewport).toBe(true);
 
-		rerender({ scaleViewport: false });
+		act(() => result.current.setScaleViewport(false));
 		expect(rfb.scaleViewport).toBe(false);
 
-		rerender({ scaleViewport: true });
+		act(() => result.current.setScaleViewport(true));
 		expect(rfb.scaleViewport).toBe(true);
 	});
 
@@ -728,14 +726,8 @@ describe("useDesktopConnection", () => {
 		vi.useFakeTimers();
 
 		try {
-			const { result, rerender } = renderHook(
-				({ scaleViewport }) =>
-					useDesktopConnection({
-						chatId: "chat-1",
-						activated: true,
-						scaleViewport,
-					}),
-				{ initialProps: { scaleViewport: false } },
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb = getLastRFBInstance();
@@ -745,7 +737,7 @@ describe("useDesktopConnection", () => {
 			expect(result.current.status).toBe("error");
 
 			// User switches to fit mode, then clicks Reconnect.
-			rerender({ scaleViewport: true });
+			act(() => result.current.setScaleViewport(true));
 			mockWatchChatDesktop.mockClear();
 			act(() => result.current.reconnect());
 
@@ -898,7 +890,7 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({
 				chatId: "chat-1",
 				activated: true,
-				scaleViewport: true,
+				initialScaleViewport: true,
 			}),
 		);
 		const rfb = getLastRFBInstance();

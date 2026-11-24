@@ -13,11 +13,8 @@ type DesktopConnectionSnapshot = {
 	readonly status: DesktopConnectionStatus;
 	/** Whether a session of the current chat has ever connected. */
 	readonly hasConnected: boolean;
-};
-
-const idleSnapshot: DesktopConnectionSnapshot = {
-	status: "idle",
-	hasConnected: false,
+	/** Whether the remote screen is scaled to fit its container. */
+	readonly scaleViewport: boolean;
 };
 
 const MAX_BACKOFF_MS = 30_000;
@@ -66,13 +63,12 @@ const isMacCutShortcut = (event: KeyboardEvent): boolean => {
  * subscribers, in the shape `useSyncExternalStore` reads.
  */
 export class DesktopConnection {
-	private snapshot = idleSnapshot;
+	private snapshot: DesktopConnectionSnapshot;
 	private readonly listeners = new Set<() => void>();
 
 	private chatId: string | undefined;
 	private onRemoteClipboard: (text: string) => Promise<unknown> = () =>
 		Promise.resolve();
-	private scaleViewport = false;
 
 	private rfb: RFB | null = null;
 	// Offscreen container for the RFB canvas; moved into the visible
@@ -91,6 +87,10 @@ export class DesktopConnection {
 	// session (e.g. a phantom "disconnect" event fired after cleanupRfb)
 	// from scheduling unwanted reconnect timers.
 	private generation = 0;
+
+	constructor(scaleViewport: boolean) {
+		this.snapshot = { status: "idle", hasConnected: false, scaleViewport };
+	}
 
 	subscribe = (listener: () => void): (() => void) => {
 		this.listeners.add(listener);
@@ -116,7 +116,7 @@ export class DesktopConnection {
 	close = () => {
 		this.teardown();
 		this.chatId = undefined;
-		this.setSnapshot(idleSnapshot);
+		this.setSnapshot({ status: "idle", hasConnected: false });
 	};
 
 	/** Starts a fresh session with a reset retry budget. */
@@ -130,7 +130,7 @@ export class DesktopConnection {
 
 	/** Scales the remote screen to fit its container, or shows it at 100%. */
 	setScaleViewport = (scaleViewport: boolean) => {
-		this.scaleViewport = scaleViewport;
+		this.setSnapshot({ scaleViewport });
 		if (this.rfb) {
 			this.rfb.scaleViewport = scaleViewport;
 		}
@@ -227,7 +227,7 @@ export class DesktopConnection {
 				shared: true,
 			});
 
-			rfb.scaleViewport = this.scaleViewport;
+			rfb.scaleViewport = this.snapshot.scaleViewport;
 			rfb.resizeSession = false;
 			rfb.focusOnClick = true;
 
