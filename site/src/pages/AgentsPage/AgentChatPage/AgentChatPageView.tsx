@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -309,26 +309,26 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 	};
 
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
+	const setUserRightPanelTabs = (tabs: UserRightPanelTab[]) => {
+		setUserRightPanelTabsState(tabs);
 		if (!isArchived) {
-			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
+			savePersistedRightPanelTabs(agentId, tabs);
 		}
-	}, [agentId, isArchived, userRightPanelTabs]);
+	};
 
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
+	const setDefaultTerminalHidden = (hidden: boolean) => {
+		setDefaultTerminalHiddenState(hidden);
 		if (!isArchived) {
-			savePersistedDefaultTerminalHidden(agentId, defaultTerminalHidden);
+			savePersistedDefaultTerminalHidden(agentId, hidden);
 		}
-	}, [agentId, defaultTerminalHidden, isArchived]);
+	};
 
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Unarchiving arrives as chat data, and panel changes made while archived are saved then.
+	const setVisibleSingletonTabs = (tabIds: SingletonRightPanelTabId[]) => {
+		setVisibleSingletonTabsState(tabIds);
 		if (!isArchived) {
-			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
+			savePersistedVisibleSingletonTabs(agentId, tabIds);
 		}
-	}, [agentId, isArchived, visibleSingletonTabs]);
+	};
 
 	// Prefer the git repository root over the agent's expanded directory
 	// for VS Code folder resolution (important for monorepos).
@@ -422,9 +422,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
-		setVisibleSingletonTabsState((currentTabIds) =>
-			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
-		);
+		if (!visibleSingletonTabs.includes(tabId)) {
+			setVisibleSingletonTabs([...visibleSingletonTabs, tabId]);
+		}
 		activateRightPanelTab(tabId);
 	};
 
@@ -469,14 +469,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
-			setDefaultTerminalHiddenState(false);
+			setDefaultTerminalHidden(false);
 			startPendingTab("terminal");
 			return;
 		}
 
 		const tabId = createUserRightPanelTabId("terminal");
-		setUserRightPanelTabsState((currentTabs) => [
-			...currentTabs,
+		setUserRightPanelTabs([
+			...userRightPanelTabs,
 			{
 				id: tabId,
 				kind: "terminal",
@@ -510,7 +510,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			appId: app.id,
 		};
 
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -536,7 +536,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			sourceAppId: app.id,
 		};
 
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		startPendingTab(tab.id);
 	};
 
@@ -566,7 +566,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			protocol: selection.protocol,
 		};
 
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -579,14 +579,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		);
 
 		if (tabId === "terminal") {
-			setDefaultTerminalHiddenState(true);
+			setDefaultTerminalHidden(true);
 		} else if (isSingletonRightPanelTabId(tabId)) {
-			setVisibleSingletonTabsState((currentTabIds) =>
-				currentTabIds.filter((id) => id !== tabId),
+			setVisibleSingletonTabs(
+				visibleSingletonTabs.filter((id) => id !== tabId),
 			);
 		} else {
-			setUserRightPanelTabsState((currentTabs) =>
-				currentTabs.filter((tab) => tab.id !== tabId),
+			setUserRightPanelTabs(
+				userRightPanelTabs.filter((tab) => tab.id !== tabId),
 			);
 		}
 

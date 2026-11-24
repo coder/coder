@@ -42,6 +42,7 @@ import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parseStoredDraft } from "../utils/draftStorage";
 import { overviewCardOpenStorageKey } from "../utils/overviewCardStorage";
+import { rightPanelTabStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -306,6 +307,10 @@ describe("AgentChatPage", () => {
 		const user = userEvent.setup();
 		const firstPage = renderChatPage(MockChat);
 		await waitForLoadedChat();
+		// Opening a chat doesn't save its panel layout.
+		expect(
+			localStorage.getItem(`${rightPanelTabStorageKeyPrefix}${MockChat.id}`),
+		).toBeNull();
 
 		await user.click(
 			await screen.findByRole("button", {
