@@ -56,6 +56,29 @@ describe(Autocomplete.name, () => {
 		expect(onInputChange).toHaveBeenCalledWith("m");
 	});
 
+	it("names the popup the trigger opens and announces its type", async () => {
+		const user = userEvent.setup();
+		render(
+			<Autocomplete
+				value={null}
+				onChange={vi.fn()}
+				options={["Mango"]}
+				getOptionValue={(option) => option}
+				getOptionLabel={(option) => option}
+				placeholder="Select a fruit"
+			/>,
+		);
+
+		const trigger = screen.getByRole("button", { name: "Select a fruit" });
+		await user.click(trigger);
+		const popup = await screen.findByRole("dialog", { name: "Select a fruit" });
+
+		expect(trigger).toHaveAttribute(
+			"aria-haspopup",
+			popup.getAttribute("role"),
+		);
+	});
+
 	it("announces while options are loading", async () => {
 		const user = userEvent.setup();
 		render(
