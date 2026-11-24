@@ -974,7 +974,14 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			// one we want to use.
 			if dc.ConfigPath == "" && configFile != "" {
 				dc.ConfigPath = configFile
-				if err := api.watcher.Add(configFile); err != nil {
+			}
+			// Devcontainers from Terraform or project discovery are
+			// registered with a config path before their container is
+			// found, so watch it here. Watching is idempotent, and
+			// retrying each update covers config directories that did
+			// not exist yet when the devcontainer was registered.
+			if dc.ConfigPath != "" {
+				if err := api.watcher.Add(dc.ConfigPath); err != nil {
 					logger.With(dcFields(dc)...).Error(ctx, "watch devcontainer config file failed", slog.Error(err))
 				}
 			}
