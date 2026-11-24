@@ -8,7 +8,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { type QueryClient, QueryClientProvider } from "react-query";
+import {
+	focusManager,
+	type QueryClient,
+	QueryClientProvider,
+} from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import {
 	afterEach,
@@ -177,7 +181,7 @@ beforeEach(() => {
 				return HttpResponse.json(
 					projects.map((project, index) => ({
 						...MockChatProjectSummary,
-						project,
+						project_id: project.id,
 						pin_order: index + 1,
 					})),
 				);
@@ -490,6 +494,9 @@ describe("ChatsSidebar projects", () => {
 	it("counts a collapsed folder's unread chats and hides the count while open", async () => {
 		const user = userEvent.setup();
 		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
 			http.get("/api/experimental/chats/projects/summaries", () =>
 				HttpResponse.json([{ ...MockChatProjectSummary, own_unread_count: 3 }]),
 			),
@@ -534,6 +541,29 @@ describe("ChatsSidebar projects", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("refetches the project list when the window regains focus", async () => {
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValue([]);
+		onTestFinished(() => {
+			focusManager.setFocused(undefined);
+			vi.restoreAllMocks();
+		});
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
 	});
 
 	it("moves focus to the folder toggle when a folder retry succeeds", async () => {
@@ -705,7 +735,7 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
-	it("names a pinned chat's project from the summaries, with its organization when its name is shared", async () => {
+	it("names a pinned chat's project, with its organization when its name is shared", async () => {
 		const mockOtherProject = {
 			...MockChatProject,
 			id: "other-project",
@@ -713,15 +743,7 @@ describe("ChatsSidebar projects", () => {
 		};
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json({ message: "boom" }, { status: 500 }),
-			),
-			http.get("/api/experimental/chats/projects/summaries", () =>
-				HttpResponse.json(
-					[MockChatProject, mockOtherProject].map((project) => ({
-						...MockChatProjectSummary,
-						project,
-					})),
-				),
+				HttpResponse.json([MockChatProject, mockOtherProject]),
 			),
 		);
 		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
@@ -859,7 +881,7 @@ describe("ChatsSidebar unpin focus", () => {
 				HttpResponse.json(
 					pinnedProjects.map((project, index) => ({
 						...MockChatProjectSummary,
-						project,
+						project_id: project.id,
 						pin_order: index + 1,
 					})),
 				),
