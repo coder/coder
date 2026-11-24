@@ -3187,7 +3187,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name      | Type                                                                   | Required | Restrictions | Description                                                            |
 |-----------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------|
-| `chat_id` | string                                                                 | false    |              | Chat ID is the chat that received the message.                         |
+| `chat_id` | string                                                                 | false    |              | Chat ID is the target chat, or the chat a new_chat run created.        |
 | `outcome` | [codersdk.ChatAutomationRunOutcome](#codersdkchatautomationrunoutcome) | false    |              |                                                                        |
 | `reason`  | string                                                                 | false    |              | Reason says why the run was skipped or refused. It is empty otherwise. |
 
@@ -17676,7 +17676,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name      | Type    | Required | Restrictions | Description |
 |-----------|---------|----------|--------------|-------------|
-| `enabled` | boolean | true     |              |             |
+| `enabled` | boolean | false    |              |             |
 
 ## codersdk.UpdateChatDebugLoggingAllowUsersRequest
 
