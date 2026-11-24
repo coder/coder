@@ -23,6 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -165,7 +168,7 @@ func TestAutomationSchedule(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, claimed, 2)
 		for _, a := range automations {
-			_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, a.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
+			_, _, err = chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, a.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now)
 			require.NoError(t, err)
 		}
 		for _, a := range claimed {
@@ -297,24 +300,48 @@ func TestAutomationSchedule(t *testing.T) {
 	})
 }
 
-func TestManageAutomationsAvailable(t *testing.T) {
+func TestBuildTurnEnvironmentManageAutomations(t *testing.T) {
 	t.Parallel()
-	enabled := &Server{automationsEnabled: func(context.Context, uuid.UUID) bool { return true }}
-	root := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	fromAutomation, archived := root, root
-	fromAutomation.AutomationID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
-	archived.Archived = true
 	for _, tc := range []struct {
-		name   string
-		server *Server
-		chat   database.Chat
-		want   bool
+		name                           string
+		experiment, archived, fromAuto bool
+		want                           bool
 	}{
-		{"RootChat", enabled, root, true},
-		{"CreatedByAutomation", enabled, fromAutomation, false},
-		{"Archived", enabled, archived, false},
-		{"ExperimentOff", &Server{}, root, false},
+		{name: "RootChat", experiment: true, want: true},
+		{name: "CreatedByAutomation", experiment: true, fromAuto: true},
+		{name: "Archived", experiment: true, archived: true},
+		{name: "ExperimentOff"},
 	} {
-		require.Equal(t, tc.want, tc.server.manageAutomationsAvailable(context.Background(), tc.chat), tc.name)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID, Title: "heartbeat", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "hi"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+			server.automationsEnabled = func(_ context.Context, ownerID uuid.UUID) bool { return tc.experiment && ownerID == user.ID }
+			chat := created.Chat
+			chat.Archived = tc.archived
+			if tc.fromAuto {
+				chat.AutomationID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+			}
+
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: chat, Messages: created.InitialMessages})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Close)
+			offered := false
+			for _, tool := range prepared.Tools {
+				offered = offered || tool.Info().Name == chatautomation.ToolName
+			}
+			require.Equal(t, tc.want, offered)
+		})
 	}
 }

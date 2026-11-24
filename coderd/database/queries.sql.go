@@ -6931,8 +6931,12 @@ const updateChatAutomationEnabled = `-- name: UpdateChatAutomationEnabled :one
 UPDATE chat_automations
 SET
     enabled = $1::boolean,
-    schedule_next_run_at = $2::timestamptz,
-    updated_at = $3::timestamptz
+    schedule_next_run_at = CASE WHEN enabled = $1::boolean
+        THEN schedule_next_run_at
+        ELSE $2::timestamptz END,
+    updated_at = CASE WHEN enabled = $1::boolean
+        THEN updated_at
+        ELSE $3::timestamptz END
 WHERE id = $4::uuid
 RETURNING id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, new_chat_model_config_id, project_id, schedule_cron, schedule_time_zone, schedule_next_run_at, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, created_at, updated_at, last_run_unaccepted_count
 `
@@ -6944,6 +6948,8 @@ type UpdateChatAutomationEnabledParams struct {
 	ID                uuid.UUID    `db:"id" json:"id"`
 }
 
+// Setting the current state keeps the schedule and updated_at, so the
+// caller still needs update permission and a run in flight is not voided.
 func (q *sqlQuerier) UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error) {
 	row := q.db.QueryRowContext(ctx, updateChatAutomationEnabled,
 		arg.Enabled,

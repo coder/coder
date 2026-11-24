@@ -22874,7 +22874,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "chat_id": {
-                    "description": "ChatID is the chat that received the message.",
+                    "description": "ChatID is the target chat, or the chat a new_chat run created.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -34128,9 +34128,6 @@ const docTemplate = `{
         },
         "codersdk.UpdateChatAutomationRequest": {
             "type": "object",
-            "required": [
-                "enabled"
-            ],
             "properties": {
                 "enabled": {
                     "type": "boolean"

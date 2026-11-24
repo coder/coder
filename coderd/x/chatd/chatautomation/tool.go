@@ -141,9 +141,9 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: new(false)}, now)
+		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now)
 		if err != nil {
-			return nil, err
+			return nil, notInThisChatIfGone(err)
 		}
 		if before.Enabled {
 			options.Audit(ctx, database.AuditActionWrite, before, after)
@@ -156,7 +156,7 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		}
 		deleted, err := Delete(ctx, options.DB, options.Chat.OrganizationID, automation.ID)
 		if err != nil {
-			return nil, err
+			return nil, notInThisChatIfGone(err)
 		}
 		options.Audit(ctx, database.AuditActionDelete, deleted, database.ChatAutomation{})
 		return map[string]uuid.UUID{"deleted_automation_id": deleted.ID}, nil
@@ -242,6 +242,15 @@ func automationOfChat(ctx context.Context, options ToolOptions, rawID string) (d
 		return database.ChatAutomation{}, errNotInThisChat
 	}
 	return automation, nil
+}
+
+// notInThisChatIfGone maps the error of an automation that someone deleted
+// after automationOfChat read it to the refusal that a missing ID gets.
+func notInThisChatIfGone(err error) error {
+	if httpapi.Is404Error(err) {
+		return errNotInThisChat
+	}
+	return err
 }
 
 func toToolAutomation(a database.ChatAutomation, refs db2sdk.ChatAutomationRefs, now time.Time) toolAutomation {
