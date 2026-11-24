@@ -1,7 +1,9 @@
+import dayjs from "dayjs";
 import { useQuery } from "react-query";
 import { useLocation } from "react-router";
 import { health } from "#/api/queries/debug";
 import { deploymentStats } from "#/api/queries/deployment";
+import type { DeploymentStats } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
@@ -17,9 +19,15 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 
 export const DeploymentBanner: React.FC = () => {
 	const { permissions } = useAuthenticated();
+	// Refetches stop while the tab is hidden, and stale stats refresh when
+	// the tab is focused again.
 	const deploymentStatsQuery = useQuery({
 		...deploymentStats(),
 		enabled: permissions.viewDeploymentStats,
+		refetchInterval: ({ state }) =>
+			state.data ? getRefreshInterval(state.data) : false,
+		staleTime: ({ state }) => (state.data ? getRefreshInterval(state.data) : 0),
+		refetchOnWindowFocus: true,
 	});
 	const healthQuery = useQuery({
 		...health(),
@@ -43,6 +51,18 @@ export const DeploymentBanner: React.FC = () => {
 			health={healthQuery.data}
 			stats={deploymentStatsQuery.data}
 			fetchStats={() => deploymentStatsQuery.refetch()}
+			refreshAt={
+				deploymentStatsQuery.dataUpdatedAt +
+				getRefreshInterval(deploymentStatsQuery.data)
+			}
 		/>
 	);
+};
+
+const getRefreshInterval = (stats: DeploymentStats): number => {
+	const seconds = dayjs(stats.next_update_at).diff(
+		stats.collected_at,
+		"seconds",
+	);
+	return Math.max(seconds, 1) * 1000;
 };
