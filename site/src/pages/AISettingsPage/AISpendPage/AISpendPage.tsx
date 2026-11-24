@@ -18,6 +18,7 @@ import { pageTitle } from "#/utils/page";
 import { AISpendPageView } from "./AISpendPageView";
 import { defaultSpendDays, parseSpendDays, toSpendPeriod } from "./spendDays";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
+import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -80,7 +81,11 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	// The unpriced models are slower to compute, so the total renders first and
 	// the "Models not set up" warning follows.
 	const unpricedModelsQuery = useQuery({
-		...organizationUnpricedAIModels(organization?.id ?? "", period),
+		...organizationUnpricedAIModels(
+			organization?.id ?? "",
+			period,
+			UNPRICED_MODELS_COUNT,
+		),
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
@@ -116,7 +121,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 				}
 				overview={overviewQuery.data}
 				overviewError={overviewQuery.error}
-				unpricedModels={unpricedModelsQuery.data?.models}
+				unpricedModels={unpricedModelsQuery.data}
 				isUnpricedModelsLoading={unpricedModelsQuery.isLoading}
 				topSpenderDetails={topSpenderDetailsQuery.data?.users}
 				topSpenderDetailsError={topSpenderDetailsQuery.error}

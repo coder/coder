@@ -47,7 +47,7 @@ const meta = {
 		onDaysChange: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
-		unpricedModels: MockUnpricedAIModels.models,
+		unpricedModels: MockUnpricedAIModels,
 		isUnpricedModelsLoading: false,
 		topSpenderDetails: mockTopSpenderDetails,
 		topSpenderDetailsError: null,
@@ -85,7 +85,7 @@ export const NoSpend: Story = {
 			})),
 			users: [],
 		},
-		unpricedModels: [],
+		unpricedModels: { ...MockUnpricedAIModels, count: 0, models: [] },
 	},
 };
 

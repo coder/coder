@@ -3548,9 +3548,9 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
 
 ### Parameters
 
-| Name             | In   | Type   | Required | Description     |
-|------------------|------|--------|----------|-----------------|
-| `provisionerkey` | path | string | true     | Provisioner Key |
+| Name             | In   | Type   | Required | Description                                                                                         |
+|------------------|------|--------|----------|-----------------------------------------------------------------------------------------------------|
+| `provisionerkey` | path | string | true     | Provisioner key placeholder (ignored; the key is read from the Coder-Provisioner-Daemon-Key header) |
 
 ### Example responses
 
