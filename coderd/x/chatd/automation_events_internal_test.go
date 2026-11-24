@@ -324,7 +324,9 @@ func TestAutomationEvents(t *testing.T) {
 			{"UnstorableData", []mcpclient.EventOccurrence{
 				occurrence("evt_nul", `{"note":"a\u0000b"}`), occurrence("evt_surrogate", `{"note":"\ud800"}`), occurrence("evt_ok", `{}`),
 			}, "", []string{`"kind":"gap"`, `"event_id":"evt_surrogate"`, `"event_id":"evt_ok"`}},
-			{"LargeData", []mcpclient.EventOccurrence{occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`)}, "", []string{`"event_id":"evt_big"`, "larger than 16 KiB"}},
+			{"LargeData", []mcpclient.EventOccurrence{
+				occurrence("evt_big", `{"note":"`+strings.Repeat("x", maxEventDataBytes)+`"}`), occurrence("evt_exponent", `{"n":1e131072}`),
+			}, "", []string{`"event_id":"evt_big"`, `"event_id":"evt_exponent"`, "larger than 16 KiB"}},
 			{"LongPage", long, "", []string{`"kind":"gap"`, `"event_id":"evt_48"`}},
 			{"NULInCursor", []mcpclient.EventOccurrence{occurrence("evt_ok", `{}`)}, "seq:\x00", nil},
 		} {

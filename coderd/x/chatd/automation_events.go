@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"mime"
 	"net/http"
-	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -160,8 +161,8 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 
 // storableEvent returns the fields of e that the inbox keeps, in a form that
 // PostgreSQL takes, or false when it cannot store them: text and jsonb hold
-// no NUL, and timestamptz has no year 0. Data over maxEventDataBytes becomes
-// a notice.
+// no NUL, and timestamptz has no year 0. Data that PostgreSQL would print
+// longer than maxEventDataBytes becomes a notice.
 func storableEvent(e mcpclient.EventOccurrence) (mcpclient.EventOccurrence, bool) {
 	if len(e.EventID) > maxEventKeyBytes || len(e.Name) > maxEventKeyBytes ||
 		strings.ContainsRune(e.EventID+e.Name, 0) || e.Timestamp.Year() < 1 {
@@ -174,33 +175,57 @@ func storableEvent(e mcpclient.EventOccurrence) (mcpclient.EventOccurrence, bool
 		var value any
 		dec := json.NewDecoder(bytes.NewReader(e.Data))
 		dec.UseNumber()
-		if (len(e.Data) > 0 && dec.Decode(&value) != nil) || hasNUL(value) {
+		if len(e.Data) > 0 && dec.Decode(&value) != nil {
 			return mcpclient.EventOccurrence{}, false
 		}
-		var err error
-		if data, err = json.Marshal(value); err != nil {
+		growth, ok := jsonbGrowth(value)
+		encoded, err := json.Marshal(value)
+		if !ok || err != nil {
 			return mcpclient.EventOccurrence{}, false
+		}
+		if int64(len(encoded))+growth <= maxEventDataBytes {
+			data = encoded
 		}
 	}
 	return mcpclient.EventOccurrence{EventID: e.EventID, Name: e.Name, Timestamp: e.Timestamp, Data: data}, true
 }
 
-// hasNUL reports whether a decoded JSON value holds a NUL in a key or a
-// string.
-func hasNUL(value any) bool {
+// jsonbGrowth returns how many bytes more PostgreSQL prints for the numbers
+// of a decoded JSON value than the JSON holds, as numeric writes out every
+// digit of an exponent. It reports false for what jsonb refuses: a NUL in a
+// key or a string, or an exponent past 32 bits.
+func jsonbGrowth(value any) (int64, bool) {
+	var total int64
 	switch v := value.(type) {
 	case string:
-		return strings.ContainsRune(v, 0)
+		return 0, !strings.ContainsRune(v, 0)
+	case json.Number:
+		mantissa, exp, _ := strings.Cut(strings.ToLower(string(v)), "e")
+		if exp == "" {
+			return 0, true
+		}
+		e, err := strconv.ParseInt(exp, 10, 32)
+		whole, frac, _ := strings.Cut(strings.TrimPrefix(mantissa, "-"), ".")
+		digits := max(int64(len(whole))+e, 1) + max(int64(len(frac))-e, 0)
+		return max(digits-int64(len(v)), 0), err == nil
 	case []any:
-		return slices.ContainsFunc(v, hasNUL)
+		for _, elem := range v {
+			n, ok := jsonbGrowth(elem)
+			if !ok {
+				return 0, false
+			}
+			total += n
+		}
 	case map[string]any:
 		for key, elem := range v {
-			if strings.ContainsRune(key, 0) || hasNUL(elem) {
-				return true
+			n, ok := jsonbGrowth(elem)
+			if !ok || strings.ContainsRune(key, 0) {
+				return 0, false
 			}
+			total += n
 		}
 	}
-	return false
+	return total, true
 }
 
 // terminateSubscription ends a subscription for good, tells the chat in its
@@ -497,7 +522,7 @@ func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	// A longer JSON body fails to decode, which retries after a backoff.
 	// ConnectEvents bounds each event of an SSE stream instead.
-	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+	if mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mediaType != "text/event-stream" {
 		resp.Body = struct {
 			io.Reader
 			io.Closer
