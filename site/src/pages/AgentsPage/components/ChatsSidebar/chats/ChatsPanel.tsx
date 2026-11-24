@@ -714,23 +714,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																				key={chat.id}
 																				chat={chat}
 																				index={index}
-																				onMovePinUp={
-																					index > 0
-																						? () =>
-																								movePinnedChat(
-																									chat.id,
-																									index - 1,
-																								)
-																						: undefined
-																				}
-																				onMovePinDown={
-																					index < sortedPinnedChats.length - 1
-																						? () =>
-																								movePinnedChat(
-																									chat.id,
-																									index + 1,
-																								)
-																						: undefined
+																				pinCount={sortedPinnedChats.length}
+																				onMovePin={(to) =>
+																					movePinnedChat(chat.id, to)
 																				}
 																			/>
 																		))}

@@ -156,13 +156,13 @@ export const ResizableChatsSidebarFrame = ({
 						disabled={width <= LEFT_SIDEBAR_MIN_WIDTH}
 						onSelect={() => setUserWidth(width - MENU_RESIZE_STEP)}
 					>
-						Narrower
+						Decrease width
 					</ContextMenuItem>
 					<ContextMenuItem
 						disabled={width >= maxWidth}
 						onSelect={() => setUserWidth(width + MENU_RESIZE_STEP)}
 					>
-						Wider
+						Increase width
 					</ContextMenuItem>
 					<ContextMenuItem
 						onSelect={() => setUserWidth(LEFT_SIDEBAR_DEFAULT_WIDTH)}

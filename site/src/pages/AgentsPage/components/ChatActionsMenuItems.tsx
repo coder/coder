@@ -138,9 +138,9 @@ type ChatActionsMenuItemsProps = {
 	readonly onToggleSubagents?: () => void;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
-	/** Omit to hide "Move up", for example on the first pinned chat. */
+	/** When omitted, the "Move up" item is hidden. */
 	readonly onMovePinUp?: () => void;
-	/** Omit to hide "Move down", for example on the last pinned chat. */
+	/** When omitted, the "Move down" item is hidden. */
 	readonly onMovePinDown?: () => void;
 	/** Omit either read handler to hide the read-state toggle. */
 	readonly onMarkRead?: () => void;

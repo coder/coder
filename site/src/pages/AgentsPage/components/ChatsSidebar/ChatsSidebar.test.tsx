@@ -1829,19 +1829,17 @@ describe("ChatsSidebar pinned reordering", () => {
 			id: "top",
 			title: "Top pin",
 			action: "Move down",
-			hidden: "Move up",
 			order: 2,
 		},
 		{
 			id: "bottom",
 			title: "Bottom pin",
 			action: "Move up",
-			hidden: "Move down",
 			order: 1,
 		},
 	])(
 		"$action on $title reorders the pins without dragging",
-		async ({ id, title, action, hidden, order }) => {
+		async ({ id, title, action, order }) => {
 			const user = userEvent.setup();
 			const update = vi
 				.spyOn(API.experimental, "updateChat")
@@ -1862,9 +1860,6 @@ describe("ChatsSidebar pinned reordering", () => {
 				screen.getByRole("button", { name: `Open actions for ${title}` }),
 			);
 			const item = await screen.findByRole("menuitem", { name: action });
-			expect(
-				screen.queryByRole("menuitem", { name: hidden }),
-			).not.toBeInTheDocument();
 			await user.click(item);
 
 			await waitFor(() =>

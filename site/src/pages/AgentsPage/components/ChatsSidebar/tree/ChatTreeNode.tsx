@@ -48,9 +48,7 @@ type ChatTreeNodeProps = {
 	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
-	/** Moves a pinned chat one place up; omitted when it cannot move up. */
 	readonly onMovePinUp?: () => void;
-	/** Moves a pinned chat one place down; omitted when it cannot move down. */
 	readonly onMovePinDown?: () => void;
 };
 
