@@ -453,6 +453,19 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGatewayRetention is how long AI Gateway data, such as interceptions and
+ * token usage, is kept before it is purged.
+ */
+export interface AIGatewayRetention {
+	/**
+	 * RetentionMillis is the retention duration in milliseconds. Zero means
+	 * data is never purged.
+	 */
+	readonly retention_ms: number;
+}
+
 // From codersdk/aimodelprices.go
 /**
  * AIModelPrice is a per-model token price used by AI Gateway to compute the

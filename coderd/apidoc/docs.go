@@ -64,6 +64,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/ai-gateway/retention": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Get AI Gateway data retention",
+                "operationId": "get-ai-gateway-data-retention",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayRetention"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/ai/model-prices": {
             "get": {
                 "produces": [
@@ -20624,6 +20652,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIGatewayRetention": {
+            "type": "object",
+            "properties": {
+                "retention_ms": {
+                    "description": "RetentionMillis is the retention duration in milliseconds. Zero means\ndata is never purged.",
+                    "type": "integer"
                 }
             }
         },
