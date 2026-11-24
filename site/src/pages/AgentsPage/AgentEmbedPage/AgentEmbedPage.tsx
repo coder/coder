@@ -208,7 +208,7 @@ const AgentEmbedPage: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		navigateAfterArchive: () => {},
+		navigateOnArchive: () => {},
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,

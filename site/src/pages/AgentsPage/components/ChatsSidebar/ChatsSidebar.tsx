@@ -39,7 +39,7 @@ type ChatsSidebarProps = {
 	modelConfigs: readonly ChatModel[];
 	isLoadingModelConfigs?: boolean;
 	onArchiveSuccess?: (chatId: string) => void;
-	navigateAfterArchive: (chatId: string) => void;
+	navigateOnArchive: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	/**
@@ -81,7 +81,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		modelConfigs,
 		isLoadingModelConfigs = false,
 		onArchiveSuccess,
-		navigateAfterArchive,
+		navigateOnArchive,
 		onRenameTitle,
 		onProposeTitle,
 		chatPendingRename: chatPendingRenameProp,
@@ -270,7 +270,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				modelConfigs={modelConfigs}
 				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveSuccess={onArchiveSuccess}
-				navigateAfterArchive={navigateAfterArchive}
+				navigateOnArchive={navigateOnArchive}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}

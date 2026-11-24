@@ -151,7 +151,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		clearChatErrorReason,
-		navigateAfterArchive,
+		navigateOnArchive,
 		onOpenRenameDialog,
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
@@ -296,7 +296,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						key={chat.id}
 						align="start"
 						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
-						onArchived={navigateAfterArchive}
+						onArchive={navigateOnArchive}
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={hasWorkspace}

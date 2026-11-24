@@ -65,7 +65,7 @@ const RightPanelWithSidebarHarness: React.FC<SidebarHarnessProps> = ({
 		chatErrorReasons: {},
 		setChatErrorReason: () => {},
 		clearChatErrorReason: () => {},
-		navigateAfterArchive: () => {},
+		navigateOnArchive: () => {},
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: () => setIsSidebarCollapsed(!isSidebarCollapsed),
