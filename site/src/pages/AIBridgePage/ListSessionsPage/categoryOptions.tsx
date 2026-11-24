@@ -15,7 +15,7 @@ const SUGGESTIONS_LIMIT = 25;
 export const getProviderFilterOptions = async (
 	query: string,
 	queryClient: OptionsQueryClient,
-): Promise<FilterOption[]> => {
+): Promise<readonly FilterOption[]> => {
 	// The providers endpoint has no search, so filter here.
 	const providers = await queryClient.fetchQuery(aiBridgeProviders());
 	const options = providers.map((provider) => ({
@@ -23,7 +23,7 @@ export const getProviderFilterOptions = async (
 		value: provider.name,
 		startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
 	}));
-	return [...filterOptionsByText(options, query)];
+	return filterOptionsByText(options, query);
 };
 
 export const getClientFilterOptions = async (
