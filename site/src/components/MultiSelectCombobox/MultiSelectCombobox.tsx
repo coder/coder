@@ -157,6 +157,12 @@ const CommandEmpty: React.FC<
 	);
 };
 
+// The list mounts when the dropdown opens. The ref is defined outside the
+// component so it only runs when the list mounts, not on every render.
+const scrollIntoViewOnOpen = (list: HTMLDivElement | null) => {
+	list?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+};
+
 export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	value,
 	onChange,
@@ -183,7 +189,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const listRef = useRef<HTMLDivElement>(null);
 
 	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
 	const options = transitionToGroupOption(
@@ -263,16 +268,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			document.removeEventListener("mousedown", handleClickOutside);
 			document.removeEventListener("touchend", handleClickOutside);
 		};
-	}, [open]);
-
-	// Scroll dropdown into view on open
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The list only exists after the open render commits, so it can only be scrolled into view here.
-		if (!open || !listRef.current) {
-			return;
-		}
-
-		listRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}, [open]);
 
 	const CreatableItem = () => {
@@ -495,7 +490,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			<div className="relative">
 				{open && (
 					<CommandList
-						ref={listRef}
+						ref={scrollIntoViewOnOpen}
 						className={cn(
 							"absolute top-1 z-10 w-full rounded-md",
 							"border",
