@@ -244,19 +244,20 @@ func TestAutomationEvents(t *testing.T) {
 					now = now.Add(10 * time.Minute)
 				}
 				require.Equal(t, database.ChatAutomationSubscriptionStateTerminated, subscription(ctx, t, f, automation.ID).State)
+				f.events.mu.Lock()
+				require.LessOrEqual(t, f.events.polls, 2, "polled a terminated subscription")
+				f.events.mu.Unlock()
+
+				// The chat learns of the end, and the refusal stays the last run.
+				f.server.tickEventDrains(ctx, now)
+				texts := sent(ctx, t, f, automation.ID)
+				require.Len(t, texts, 1)
+				require.Contains(t, texts[0], `"kind":"terminated"`)
 				automation, err := f.worker.db.GetChatAutomationByID(ctx, automation.ID)
 				require.NoError(t, err)
 				require.Equal(t, database.ChatAutomationRunOutcomeRefused, automation.LastRunOutcome.ChatAutomationRunOutcome)
 				require.Equal(t, string(tc.reason), automation.LastRunReason.String)
 				require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
-				f.events.mu.Lock()
-				require.LessOrEqual(t, f.events.polls, 2, "polled a terminated subscription")
-				f.events.mu.Unlock()
-
-				f.server.tickEventDrains(ctx, now)
-				texts := sent(ctx, t, f, automation.ID)
-				require.Len(t, texts, 1)
-				require.Contains(t, texts[0], `"kind":"terminated"`)
 			})
 		}
 	})
