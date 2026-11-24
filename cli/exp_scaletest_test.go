@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -178,6 +179,45 @@ func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
+// TestScaleTestAIGateway_LegacyBridgeAliases verifies that the hidden legacy
+// "bridge" command and "--mode=bridge" value still resolve to AI Gateway mode.
+func TestScaleTestAIGateway_LegacyBridgeAliases(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	helpInv, _ := clitest.New(t, "exp", "scaletest", "--help")
+	helpOut := new(bytes.Buffer)
+	helpInv.Stdout = helpOut
+	require.NoError(t, helpInv.WithContext(ctx).Run())
+	require.Contains(t, helpOut.String(), "ai-gateway")
+	require.NotContains(t, helpOut.String(), "bridge")
+
+	inv, root := clitest.New(t, "exp", "scaletest", "bridge",
+		"--mode", "bridge",
+		"--provider", "completions",
+		"--concurrent-users", "1",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+	)
+	clitest.SetupConfig(t, member, root)
+	stderr := new(bytes.Buffer)
+	inv.Stderr = stderr
+	// Only AI Gateway mode requires a site owner, so this error shows that
+	// "--mode=bridge" resolved to AI Gateway mode.
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "Scale testing is only available to site owners")
+	require.Contains(t, stderr.String(), "use 'coder exp scaletest ai-gateway' instead")
 }
 
 // This test just validates that the CLI command accepts its known arguments.

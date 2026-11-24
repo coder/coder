@@ -72,7 +72,7 @@ func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (
 	case "completions":
 		requestURL = fmt.Sprintf("%s/api/v2/ai-gateway/openai/v1/chat/completions", s.client.URL)
 	}
-	logger.Info(ctx, "bridge runner in bridge mode",
+	logger.Info(ctx, "bridge runner in ai-gateway mode",
 		slog.F("url", requestURL),
 		slog.F("provider", s.provider),
 	)

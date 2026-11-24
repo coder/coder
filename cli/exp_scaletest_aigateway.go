@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/signal"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -21,7 +22,28 @@ import (
 	"github.com/coder/serpent"
 )
 
+// aiGatewayModeValue accepts the legacy "bridge" mode as a hidden alias for
+// "ai-gateway" so it does not appear in the flag's listed choices.
+type aiGatewayModeValue struct{ *serpent.Enum }
+
+func (v aiGatewayModeValue) Set(s string) error {
+	if strings.EqualFold(s, "bridge") {
+		s = string(bridge.RequestModeAIGateway)
+	}
+	return v.Enum.Set(s)
+}
+
+// scaletestBridge keeps the legacy "bridge" command name working for existing
+// scale-test automation without showing it in help.
 func (r *RootCmd) scaletestBridge() *serpent.Command {
+	cmd := r.scaletestAIGateway()
+	cmd.Use = "bridge"
+	cmd.Hidden = true
+	cmd.Deprecated = "use 'coder exp scaletest ai-gateway' instead"
+	return cmd
+}
+
+func (r *RootCmd) scaletestAIGateway() *serpent.Command {
 	var (
 		concurrentUsers    int64
 		noCleanup          bool
@@ -41,22 +63,22 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:   "bridge",
+		Use:   "ai-gateway",
 		Short: "Generate load on the AI Gateway service.",
-		Long: `Generate load for AI Gateway testing. Supports two modes: 'bridge' mode routes requests through the Coder AI Gateway, 'direct' mode makes requests directly to an upstream URL (useful for baseline comparisons).
+		Long: `Generate load for AI Gateway testing. Supports two modes: 'ai-gateway' mode routes requests through the Coder AI Gateway, 'direct' mode makes requests directly to an upstream URL (useful for baseline comparisons).
 
 Examples:
-  # Test OpenAI API through bridge
-  coder scaletest bridge --mode bridge --provider openai --concurrent-users 10 --request-count 5 --num-messages 10
+  # Test OpenAI Chat Completions API through AI Gateway
+  coder exp scaletest ai-gateway --mode ai-gateway --provider completions --concurrent-users 10 --request-count 5 --num-messages 10
 
-  # Test OpenAI Responses API through bridge
-  coder scaletest bridge --mode bridge --provider responses --concurrent-users 10 --request-count 5 --num-messages 10
+  # Test OpenAI Responses API through AI Gateway
+  coder exp scaletest ai-gateway --mode ai-gateway --provider responses --concurrent-users 10 --request-count 5 --num-messages 10
 
-  # Test Anthropic API through bridge
-  coder scaletest bridge --mode bridge --provider anthropic --concurrent-users 10 --request-count 5 --num-messages 10
+  # Test Anthropic Messages API through AI Gateway
+  coder exp scaletest ai-gateway --mode ai-gateway --provider messages --concurrent-users 10 --request-count 5 --num-messages 10
 
   # Test directly against mock server
-  coder scaletest bridge --mode direct --provider openai --upstream-url http://localhost:8080/v1/chat/completions
+  coder exp scaletest ai-gateway --mode direct --provider completions --upstream-url http://localhost:8080/v1/chat/completions
 `,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -89,7 +111,7 @@ Examples:
 			ctx = notifyCtx
 
 			var userConfig createusers.Config
-			if bridge.RequestMode(mode) == bridge.RequestModeBridge {
+			if bridge.RequestMode(mode) == bridge.RequestModeAIGateway {
 				me, err := RequireAdmin(ctx, client)
 				if err != nil {
 					return err
@@ -100,7 +122,7 @@ Examples:
 				userConfig = createusers.Config{
 					OrganizationID: me.OrganizationIDs[0],
 				}
-				_, _ = fmt.Fprintln(inv.Stderr, "Bridge mode: creating users and making requests through AI Gateway...")
+				_, _ = fmt.Fprintln(inv.Stderr, "AI Gateway mode: creating users and making requests through AI Gateway...")
 			} else {
 				_, _ = fmt.Fprintf(inv.Stderr, "Direct mode: making requests directly to %s\n", upstreamURL)
 			}
@@ -133,12 +155,12 @@ Examples:
 
 			for i := range concurrentUsers {
 				id := strconv.Itoa(int(i))
-				name := fmt.Sprintf("bridge-%s", id)
+				name := fmt.Sprintf("ai-gateway-%s", id)
 				var runner harness.Runnable = bridge.NewRunner(client, config)
 				th.AddRun(name, id, runner)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Bridge scaletest configuration:")
+			_, _ = fmt.Fprintln(inv.Stderr, "AI Gateway scaletest configuration:")
 			tw := tabwriter.NewWriter(inv.Stderr, 0, 0, 2, ' ', 0)
 			for _, opt := range inv.Command.Options {
 				if opt.Hidden || opt.ValueSource == serpent.ValueSourceNone {
@@ -152,7 +174,7 @@ Examples:
 			}
 			_ = tw.Flush()
 
-			_, _ = fmt.Fprintln(inv.Stderr, "\nRunning bridge scaletest...")
+			_, _ = fmt.Fprintln(inv.Stderr, "\nRunning AI Gateway scaletest...")
 			testCtx, testCancel := timeoutStrategy.toContext(ctx)
 			defer testCancel()
 			err = th.Run(testCtx)
@@ -210,8 +232,9 @@ Examples:
 			Flag:        "mode",
 			Env:         "CODER_SCALETEST_BRIDGE_MODE",
 			Default:     "direct",
-			Description: "Request mode: 'bridge' (create users and use AI Gateway) or 'direct' (make requests directly to upstream-url).",
-			Value:       serpent.EnumOf(&mode, string(bridge.RequestModeBridge), string(bridge.RequestModeDirect)),
+			Description: "Request mode: 'ai-gateway' (create users and use AI Gateway) or 'direct' (make requests directly to upstream-url).",
+			Value: aiGatewayModeValue{serpent.EnumOf(&mode,
+				string(bridge.RequestModeAIGateway), string(bridge.RequestModeDirect))},
 		},
 		{
 			Flag:        "upstream-url",

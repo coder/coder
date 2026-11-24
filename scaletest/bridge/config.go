@@ -14,18 +14,18 @@ import (
 type RequestMode string
 
 const (
-	RequestModeBridge RequestMode = "bridge"
-	RequestModeDirect RequestMode = "direct"
+	RequestModeAIGateway RequestMode = "ai-gateway"
+	RequestModeDirect    RequestMode = "direct"
 )
 
 type Config struct {
 	// Mode determines how requests are made.
-	// "bridge": Create users in Coder and use their session tokens to make requests through AI Gateway.
+	// "ai-gateway": Create users in Coder and use their session tokens to make requests through AI Gateway.
 	// "direct": Make requests directly to UpstreamURL without user creation.
 	Mode RequestMode `json:"mode"`
 
 	// User is the configuration for the user to create.
-	// Required in bridge mode.
+	// Required in ai-gateway mode.
 	User createusers.Config `json:"user"`
 
 	// UpstreamURL is the URL to make requests to directly.
@@ -68,8 +68,8 @@ func (c Config) Validate() error {
 	}
 
 	// Validate mode
-	if c.Mode != RequestModeBridge && c.Mode != RequestModeDirect {
-		return xerrors.New("mode must be either 'bridge' or 'direct'")
+	if c.Mode != RequestModeAIGateway && c.Mode != RequestModeDirect {
+		return xerrors.New("mode must be either 'ai-gateway' or 'direct'")
 	}
 
 	if c.RequestCount <= 0 {
@@ -89,9 +89,9 @@ func (c Config) Validate() error {
 		return nil
 	}
 
-	// In bridge mode, User config is required.
+	// In ai-gateway mode, User config is required.
 	if c.User.OrganizationID == uuid.Nil {
-		return xerrors.New("user organization_id must be set in bridge mode")
+		return xerrors.New("user organization_id must be set in ai-gateway mode")
 	}
 
 	if err := c.User.Validate(); err != nil {
