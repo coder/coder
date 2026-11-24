@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -19,9 +20,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// firstPollDelay is when the poll loop first polls a new subscription. The
-// subscribe call already polled once to validate the arguments.
-const firstPollDelay = 30 * time.Second
+// firstPollFloor and firstPollCeiling bound when the poll loop first polls a
+// new subscription, after the poll that subscribe makes.
+const (
+	firstPollFloor   = 30 * time.Second
+	firstPollCeiling = time.Hour
+)
 
 // ErrMCPAuthRequired means that the chat owner has no usable credentials for
 // an MCP server and must connect to it again.
@@ -111,14 +115,18 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 			return errUnknownEvent
 		}
 		poll, err = session.Poll(ctx, mcpclient.PollParams{Name: args.Event, Arguments: arguments})
-		// The server checks the arguments; its answer helps the agent fix them.
+		// The server checks the arguments; its answer helps the agent.
 		var eventsErr *mcpclient.EventsError
-		if errors.As(err, &eventsErr) {
-			return &InvalidRequestError{Validations: []codersdk.ValidationError{{
-				Field: "arguments", Detail: fmt.Sprintf("The MCP server rejected them: %d %.300s", eventsErr.Code, eventsErr.Message),
-			}}}
+		if !errors.As(err, &eventsErr) {
+			return err
 		}
-		return err
+		field := "event"
+		if eventsErr.Code == jsonrpc.CodeInvalidParams {
+			field = "arguments"
+		}
+		return &InvalidRequestError{Validations: []codersdk.ValidationError{{
+			Field: field, Detail: fmt.Sprintf("The MCP server refused the subscription: %d %.300s", eventsErr.Code, eventsErr.Message),
+		}}}
 	})
 	switch {
 	case errors.Is(err, mcpclient.ErrEventsUnsupported):
@@ -143,7 +151,7 @@ func subscribe(ctx context.Context, options ToolOptions, args toolArgs, now time
 			Arguments:         encoded,
 			Delivery:          database.ChatAutomationEventDeliveryPoll,
 			Cursor:            cursor,
-			NextPollAt:        sql.NullTime{Time: now.Add(firstPollDelay), Valid: true},
+			NextPollAt:        sql.NullTime{Time: now.Add(min(max(time.Duration(poll.NextPollMs)*time.Millisecond, firstPollFloor), firstPollCeiling)), Valid: true},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert subscription: %w", err)

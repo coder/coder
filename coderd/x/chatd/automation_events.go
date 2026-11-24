@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"sync"
@@ -45,9 +46,10 @@ const (
 	eventRefusedBackoff  = 10 * time.Minute
 	eventPollConcurrency = 8
 	maxLastErrorBytes    = 1024
-	// maxEventDataBytes bounds what one event of an untrusted server adds
-	// to the chat.
-	maxEventDataBytes = 64 << 10
+	// maxEventDataBytes and maxEventsResponseBytes bound what an untrusted
+	// server adds to the database and to the chat.
+	maxEventDataBytes      = 16 << 10
+	maxEventsResponseBytes = 1 << 20
 )
 
 // eventErrorAction ends the subscription with a reason, or retries after a
@@ -90,7 +92,7 @@ var errSubscriptionInactive = xerrors.New("the MCP event subscription is not act
 func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 	for i, e := range in.Events {
 		if len(e.Data) > maxEventDataBytes {
-			in.Events[i].Data = json.RawMessage(`{"omitted":"The event data is larger than 64 KiB."}`)
+			in.Events[i].Data = json.RawMessage(`{"omitted":"The event data is larger than 16 KiB."}`)
 		}
 	}
 	// The query reads the occurrences in their wire shape.
@@ -276,6 +278,10 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			p.handlePollError(ctx, sub.AutomationID, err, conn, now)
 			return
 		}
+		// maxEvents is only a request; the rest of an oversized page is a gap.
+		if len(res.Events) > maxEventsPerMessage {
+			res.Events, res.Truncated = res.Events[:maxEventsPerMessage], true
+		}
 		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated}
 		more := res.HasMore && page < maxPendingInboxRows/maxEventsPerMessage
 		if !more {
@@ -360,13 +366,13 @@ func (p *Server) tickEventDrains(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, sub := range claimed {
-		p.drainInbox(ctx, sub.AutomationID, now)
+		p.drainInbox(ctx, sub.AutomationID, sub.State == database.ChatAutomationSubscriptionStateTerminated, now)
 	}
 }
 
 // drainInbox sends up to maxEventsPerMessage pending rows in one message. A
 // busy chat keeps them for the next tick.
-func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, now time.Time) {
+func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, ended bool, now time.Time) {
 	retry := now.Add(automationTickInterval)
 	automation, err := p.db.GetChatAutomationByID(ctx, automationID)
 	var rows []database.ChatAutomationEventInbox
@@ -378,7 +384,7 @@ func (p *Server) drainInbox(ctx context.Context, automationID uuid.UUID, now tim
 	}
 	if err == nil && len(rows) > 0 {
 		var result AutomationRunResult
-		result, err = p.runAutomation(ctx, automation, automationRun{trigger: automationTriggerMCPEvent, inbox: rows})
+		result, err = p.runAutomation(ctx, automation, automationRun{trigger: automationTriggerMCPEvent, inbox: rows, ended: ended})
 		if result.Outcome == database.ChatAutomationRunOutcomeRefused {
 			retry = now.Add(eventRefusedBackoff)
 		}
@@ -408,10 +414,18 @@ func (c *eventsConn) close() {
 
 func (c *eventsConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := c.base.RoundTrip(req)
-	if err == nil && resp.StatusCode == http.StatusUnauthorized {
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
 		c.unauthorized.Store(true)
 	}
-	return resp, err
+	// A longer body fails to decode, which retries after a backoff.
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.LimitReader(resp.Body, maxEventsResponseBytes), resp.Body}
+	return resp, nil
 }
 
 // openEvents opens an events session to cfg as owner, with the owner's

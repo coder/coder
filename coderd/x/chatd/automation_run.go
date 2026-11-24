@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,14 +39,9 @@ type automationRun struct {
 	// inbox holds the event inbox rows that an mcp_event run sends. The
 	// send marks them delivered.
 	inbox []database.ChatAutomationEventInbox
-}
-
-// ends reports whether the run sends the notice that ended its
-// subscription. The refusal recorded at the end stays the last run.
-func (r automationRun) ends() bool {
-	return slices.ContainsFunc(r.inbox, func(row database.ChatAutomationEventInbox) bool {
-		return row.Kind == database.ChatAutomationInboxKindTerminated
-	})
+	// ended is set for the inbox of a terminated subscription, whose
+	// refusal stays the last run after the rest of its rows are sent.
+	ended bool
 }
 
 // runReason says why a run was not accepted. It is stored as the reason of
@@ -149,7 +143,7 @@ func (p *Server) runAutomation(ctx context.Context, automation database.ChatAuto
 			return result, nil
 		}
 	}
-	if result.Outcome == database.ChatAutomationRunOutcomeAccepted && run.ends() {
+	if result.Outcome == database.ChatAutomationRunOutcomeAccepted && run.ended {
 		return result, nil
 	}
 	if !p.recordAutomationRun(ctx, automation, result) {

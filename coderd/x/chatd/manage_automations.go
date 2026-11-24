@@ -47,6 +47,9 @@ func (s chatEventSource) Servers(ctx context.Context) ([]database.MCPServerConfi
 func (s chatEventSource) Open(ctx context.Context, cfg database.MCPServerConfig) (*mcpclient.EventsSession, error) {
 	//nolint:gocritic // Opening a session reads and refreshes the owner's token as chatd.
 	conn, err := s.server.openEvents(dbauthz.AsChatd(ctx), cfg, s.chat.OwnerID)
+	if conn != nil && conn.unauthorized.Load() {
+		return nil, chatautomation.ErrMCPAuthRequired
+	}
 	if err != nil {
 		return nil, err
 	}
