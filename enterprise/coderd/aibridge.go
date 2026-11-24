@@ -1091,12 +1091,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 
 	if ok {
 		resp.EffectiveGroupID = &effectiveGroup.GroupID
-		if effectiveGroup.Limit != nil {
-			resp.EffectiveBudget = &codersdk.AIBudgetLimit{
-				SpendLimitMicros: effectiveGroup.Limit.SpendLimitMicros,
-				LimitSource:      effectiveGroup.Limit.Source,
-			}
-		}
+		resp.EffectiveBudget = aiBudgetLimitToSDK(effectiveGroup.Limit)
 		logger = logger.With(slog.F("effective_group_id", effectiveGroup.GroupID))
 
 		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{

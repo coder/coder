@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type {
 	MinimalOrganization,
 	UserOrganizationAISpend,
@@ -39,6 +39,7 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const triggerRef = useRef<HTMLDivElement>(null);
+	const listId = useId();
 
 	return (
 		<>
@@ -47,6 +48,7 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 				// The avatar fallback initials would otherwise prefix typeahead.
 				textValue={orgName(selected)}
 				aria-expanded={open}
+				aria-controls={open ? listId : undefined}
 				aria-label={`Organization: ${orgName(selected)}`}
 				onSelect={(event) => {
 					event.preventDefault();
@@ -63,6 +65,7 @@ export const UserDropdownOrgSelect: React.FC<UserDropdownOrgSelectProps> = ({
 			</DropdownMenuItem>
 			{open && (
 				<DropdownMenuRadioGroup
+					id={listId}
 					aria-label="Organization"
 					className="max-h-64 overflow-y-auto"
 					value={selected.id}

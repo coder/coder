@@ -5,7 +5,16 @@ import {
 	MockUserAISpendStatus,
 	MockUserOrganizationsAISpendStatus,
 } from "#/testHelpers/entities";
-import { getUserMenuSpend } from "./viewedSpend";
+import { getSpendSeverity, getUserMenuSpend } from "./viewedSpend";
+
+describe("getSpendSeverity", () => {
+	it.each([
+		["an unlimited budget", { currentSpend: 5, spendLimit: null }, "normal"],
+		["missing spend", null, "normal"],
+	] as const)("classifies %s as %s", (_name, spend, expected) => {
+		expect(getSpendSeverity(spend)).toBe(expected);
+	});
+});
 
 describe("getUserMenuSpend", () => {
 	const multiOrg = MockMultiOrgExceededUserOrganizationsAISpendStatus;

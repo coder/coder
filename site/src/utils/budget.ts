@@ -28,14 +28,12 @@ export function formatSpendPeriodEnd(periodEnd: string): string {
 /**
  * Classifies usage against a budget. Returns "warning" once usage reaches 85%
  * of the budget and "exceeded" once it meets or passes the budget. A budget of
- * 0 is treated as exceeded as soon as anything is used.
+ * 0 is exceeded even with no usage, because AI Gateway blocks requests once
+ * spend reaches the limit.
  */
 export function getSeverity(used: number, budget: number): UsageSeverity {
 	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
 		return "normal";
-	}
-	if (budget === 0) {
-		return used > 0 ? "exceeded" : "normal";
 	}
 	if (used >= budget) {
 		return "exceeded";
@@ -43,12 +41,16 @@ export function getSeverity(used: number, budget: number): UsageSeverity {
 	return used / budget >= 0.85 ? "warning" : "normal";
 }
 
+/**
+ * Returns usage as a percentage of the budget, clamped from 0 to 100. A budget
+ * of 0 is full, matching getSeverity.
+ */
 export function usageProgressPercentage(used: number, budget: number): number {
 	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
 		return 0;
 	}
 	if (budget === 0) {
-		return used > 0 ? 100 : 0;
+		return 100;
 	}
 	return clampPercentage((used / budget) * 100);
 }

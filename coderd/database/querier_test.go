@@ -14537,6 +14537,48 @@ func TestGetUserAISpendSince(t *testing.T) {
 	})
 }
 
+func TestGetUserAISpendByEffectiveGroupsSince(t *testing.T) {
+	t.Parallel()
+
+	monthStart := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	today := monthStart.AddDate(0, 0, 14)
+	prevMonthLastDay := monthStart.AddDate(0, 0, -1)
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user := dbgen.User(t, db, database.User{})
+	otherUser := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	spentGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	idleGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	unrequestedGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+	for _, row := range []database.IncrementUserAIDailySpendParams{
+		{UserID: user.ID, EffectiveGroupID: spentGroup.ID, Day: prevMonthLastDay, CostMicros: 999},
+		{UserID: user.ID, EffectiveGroupID: spentGroup.ID, Day: monthStart, CostMicros: 50},
+		{UserID: user.ID, EffectiveGroupID: spentGroup.ID, Day: today, CostMicros: 100},
+		{UserID: otherUser.ID, EffectiveGroupID: spentGroup.ID, Day: today, CostMicros: 7},
+		{UserID: otherUser.ID, EffectiveGroupID: idleGroup.ID, Day: today, CostMicros: 7},
+		{UserID: user.ID, EffectiveGroupID: unrequestedGroup.ID, Day: today, CostMicros: 3},
+	} {
+		_, err := db.IncrementUserAIDailySpend(ctx, row)
+		require.NoError(t, err)
+	}
+
+	// Spend before the period, other users' spend and unrequested groups are
+	// excluded. A requested group without spend still returns a row.
+	got, err := db.GetUserAISpendByEffectiveGroupsSince(ctx, database.GetUserAISpendByEffectiveGroupsSinceParams{
+		UserID:            user.ID,
+		EffectiveGroupIds: []uuid.UUID{spentGroup.ID, idleGroup.ID},
+		PeriodStart:       monthStart,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []database.GetUserAISpendByEffectiveGroupsSinceRow{
+		{EffectiveGroupID: spentGroup.ID, SpendMicros: 150},
+		{EffectiveGroupID: idleGroup.ID, SpendMicros: 0},
+	}, got)
+}
+
 func TestGetOrganizationGroupsAISpend(t *testing.T) {
 	t.Parallel()
 
