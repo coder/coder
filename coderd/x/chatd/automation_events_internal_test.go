@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -263,7 +264,16 @@ func TestAutomationEvents(t *testing.T) {
 				require.LessOrEqual(t, f.events.polls, 2, "polled a terminated subscription")
 				f.events.mu.Unlock()
 
-				// The chat learns of the end, and the refusal stays the last run.
+				// The chat learns of the end once the owner is active again,
+				// and the refusal stays the last run.
+				setOwnerStatus := func(status database.UserStatus) {
+					_, err := f.worker.db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: f.worker.user.ID, Status: status, UpdatedAt: time.Now()})
+					require.NoError(t, err)
+				}
+				setOwnerStatus(database.UserStatusSuspended)
+				f.server.tickEventDrains(ctx, now)
+				setOwnerStatus(database.UserStatusActive)
+				now = now.Add(eventRefusedBackoff + time.Minute)
 				f.server.tickEventDrains(ctx, now)
 				texts := sent(ctx, t, f, automation.ID)
 				require.Len(t, texts, 1)
@@ -275,6 +285,31 @@ func TestAutomationEvents(t *testing.T) {
 				require.EqualValues(t, 1, automation.LastRunUnacceptedCount)
 			})
 		}
+	})
+
+	t.Run("ReEnable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t)
+		automation := subscribe(ctx, t, f)
+		resp := call(ctx, t, f, f.chat, fmt.Sprintf(`{"action":"disable","automation_id":%q}`, automation.ID))
+		require.False(t, resp.IsError, resp.Content)
+		require.Contains(t, resp.Content, `"event_name":"repo.push"`)
+
+		// An event from while it was off does not run once it is on again.
+		f.events.emit("evt_missed")
+		_, _, err := chatautomation.Update(ctx, f.worker.db, f.worker.org.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: true}, time.Now())
+		require.NoError(t, err)
+		now := time.Now().Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		f.events.emit("evt_new")
+		now = now.Add(time.Minute)
+		f.server.tickEventPolls(ctx, now)
+		f.server.tickEventDrains(ctx, now)
+		texts := sent(ctx, t, f, automation.ID)
+		require.Len(t, texts, 1)
+		require.Contains(t, texts[0], `"event_id":"evt_new"`)
+		require.NotContains(t, texts[0], `"event_id":"evt_missed"`)
 	})
 
 	t.Run("AuthRequired", func(t *testing.T) {

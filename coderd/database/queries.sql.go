@@ -6928,6 +6928,12 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 }
 
 const updateChatAutomationEnabled = `-- name: UpdateChatAutomationEnabled :one
+WITH resumed AS (
+    UPDATE chat_automation_mcp_subscriptions s
+    SET cursor = NULL
+    FROM chat_automations a
+    WHERE s.automation_id = $4::uuid AND a.id = s.automation_id AND NOT a.enabled AND $1::boolean
+)
 UPDATE chat_automations
 SET
     enabled = $1::boolean,
@@ -6950,6 +6956,8 @@ type UpdateChatAutomationEnabledParams struct {
 
 // Setting the current state keeps the schedule and updated_at, so the
 // caller still needs update permission and a run in flight is not voided.
+// Turning an automation on clears the cursor of its MCP event subscription,
+// so that polls resume from now and events missed meanwhile do not run.
 func (q *sqlQuerier) UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error) {
 	row := q.db.QueryRowContext(ctx, updateChatAutomationEnabled,
 		arg.Enabled,

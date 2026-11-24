@@ -148,7 +148,11 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if before.Enabled {
 			options.Audit(ctx, database.AuditActionWrite, before, after)
 		}
-		return toToolAutomation(after, db2sdk.ChatAutomationRefs{}, now), nil
+		refs, err := subscriptionRefs(ctx, options, []uuid.UUID{after.ID})
+		if err != nil {
+			return nil, err
+		}
+		return toToolAutomation(after, refs, now), nil
 	case toolActionDelete, toolActionUnsubscribe:
 		automation, err := automationOfChat(ctx, options, args.AutomationID)
 		if err != nil {
@@ -202,16 +206,9 @@ func listAutomations(ctx context.Context, options ToolOptions, now time.Time) (m
 			}
 		}
 	}
-	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{}}
-	if len(events) > 0 {
-		//nolint:gocritic // The chat owner read these automations above.
-		subs, err := options.DB.GetChatAutomationMCPSubscriptionsByAutomationIDs(dbauthz.AsSystemRestricted(ctx), events)
-		if err != nil {
-			return nil, xerrors.Errorf("list subscriptions: %w", err)
-		}
-		for _, sub := range subs {
-			refs.Subscriptions[sub.AutomationID] = sub
-		}
+	refs, err := subscriptionRefs(ctx, options, events)
+	if err != nil {
+		return nil, err
 	}
 	automations := []toolAutomation{}
 	for _, row := range rows {
@@ -220,6 +217,24 @@ func listAutomations(ctx context.Context, options ToolOptions, now time.Time) (m
 		}
 	}
 	return map[string][]toolAutomation{"automations": automations}, nil
+}
+
+// subscriptionRefs reads the MCP event subscriptions of automations that the
+// chat owner already read.
+func subscriptionRefs(ctx context.Context, options ToolOptions, ids []uuid.UUID) (db2sdk.ChatAutomationRefs, error) {
+	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{}}
+	if len(ids) == 0 {
+		return refs, nil
+	}
+	//nolint:gocritic // The chat owner read these automations.
+	subs, err := options.DB.GetChatAutomationMCPSubscriptionsByAutomationIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return refs, xerrors.Errorf("get subscriptions: %w", err)
+	}
+	for _, sub := range subs {
+		refs.Subscriptions[sub.AutomationID] = sub
+	}
+	return refs, nil
 }
 
 // automationOfChat reads an automation as the chat owner and returns it only

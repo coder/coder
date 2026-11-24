@@ -318,7 +318,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 		}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			p.pollEventGroup(ctx, key.owner, key.config, subs, now)
+			p.pollEventGroup(ctx, key.owner, key.config, subs)
 		})
 	}
 	wg.Wait()
@@ -326,7 +326,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 
 // pollEventGroup polls the subscriptions of one owner on one MCP server. It
 // polls nothing for an owner whose runs are refused; the lease retries.
-func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
+func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow) {
 	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
 	if err != nil || status != database.UserStatusActive || p.automationsEnabled == nil || !p.automationsEnabled(ctx, owner) {
 		return
@@ -342,7 +342,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 	}
 	if err != nil {
 		for _, sub := range subs {
-			p.handlePollError(ctx, sub.AutomationID, err, conn, now)
+			p.handlePollError(ctx, sub.AutomationID, err, conn)
 		}
 		return
 	}
@@ -352,13 +352,13 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 			p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPEventUnsupported)
 			continue
 		}
-		p.pollSubscription(ctx, conn, sub, now)
+		p.pollSubscription(ctx, conn, sub)
 	}
 }
 
 // pollSubscription polls one subscription and appends what it returns. It
 // polls again at once while the server has more, up to the pending limit.
-func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow, now time.Time) {
+func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow) {
 	var args map[string]any
 	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
 		p.terminateSubscription(ctx, sub.AutomationID, runReasonMCPInvalidArguments)
@@ -377,7 +377,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			MaxEvents: ptr.Ref(int64(maxEventsPerMessage)),
 		})
 		if err != nil {
-			p.handlePollError(ctx, sub.AutomationID, err, conn, now)
+			p.handlePollError(ctx, sub.AutomationID, err, conn)
 			return
 		}
 		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated}
@@ -390,7 +390,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			// subscription.
 			if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
 				p.logger.Warn(ctx, "append chat automation events", slog.F("automation_id", sub.AutomationID), slog.Error(err))
-				p.handlePollError(ctx, sub.AutomationID, xerrors.Errorf("store events: %w", err), nil, now)
+				p.handlePollError(ctx, sub.AutomationID, xerrors.Errorf("store events: %w", err), nil)
 			}
 			return
 		}
@@ -412,11 +412,13 @@ func nextPollAt(now time.Time, nextPollMs int64) time.Time {
 }
 
 // handlePollError terminates the subscription or schedules a retry, as
-// eventErrorActions says.
-func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn, now time.Time) {
+// eventErrorActions says. The backoff starts now, not at the tick, whose
+// polls can take up to eventPollBudget.
+func (p *Server) handlePollError(ctx context.Context, automationID uuid.UUID, err error, conn *eventsConn) {
 	if ctx.Err() != nil {
 		return
 	}
+	now := p.clock.Now("chatd", "automation-events")
 	action := eventErrorAction{backoff: eventErrorBackoff}
 	var eventsErr *mcpclient.EventsError
 	authFailed := errors.Is(err, chatautomation.ErrMCPAuthRequired) || (conn != nil && conn.unauthorized.Load())
