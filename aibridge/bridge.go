@@ -153,9 +153,11 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			case maxBytesErr != nil:
 				routing.WriteRequestBodyTooLarge(ctx, w)
 			case errors.Is(err, routing.ErrUnsupportedContentEncoding):
+				// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
 				http.Error(w, "unsupported content encoding", http.StatusUnsupportedMediaType)
 			default:
 				logger.Warn(ctx, "failed to decode request body", slog.Error(err))
+				// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
 				http.Error(w, "invalid compressed request body", http.StatusBadRequest)
 			}
 			return
