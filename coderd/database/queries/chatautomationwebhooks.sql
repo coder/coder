@@ -53,6 +53,21 @@ SET
     updated_at = @now::timestamptz
 WHERE automation_id = @automation_id::uuid AND delivery = 'webhook' AND state <> 'terminated';
 
+-- name: ExpireChatAutomationWebhookGrants :exec
+-- Ends the grants of the webhook subscriptions to an MCP server config whose
+-- server changed: the receiver refuses the old server, and the next tick
+-- subscribes the new one. Rows lock in automation_id order.
+UPDATE chat_automation_mcp_subscriptions s
+SET refresh_before = now(), renew_at = now(), updated_at = now()
+FROM (
+    SELECT automation_id
+    FROM chat_automation_mcp_subscriptions
+    WHERE mcp_server_config_id = @mcp_server_config_id::uuid AND delivery = 'webhook' AND state = 'active'
+    ORDER BY automation_id
+    FOR UPDATE
+) due
+WHERE s.automation_id = due.automation_id;
+
 -- name: SetChatAutomationWebhookRenewAt :exec
 -- Schedules the next subscribe of a webhook subscription, after an error or
 -- to subscribe again at once. A NULL error clears it.

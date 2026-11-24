@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -12,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatwebhook"
@@ -89,9 +90,10 @@ func WebhookSubscribeParams(accessURL *url.URL, sub database.ChatAutomationMCPSu
 // WebhookGrant returns the update that stores a subscribe result. The
 // subscription renews when a quarter of the grant is left.
 func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now time.Time) database.UpdateChatAutomationWebhookGrantParams {
-	// A null grant means no expiry, which only a ttlMs of null may ask for.
+	// A null grant means no expiry, which only a ttlMs of null may ask for,
+	// and no grant outlives the TTL that Coder asked for.
 	refreshBefore := now.Add(webhookTTL)
-	if res.RefreshBefore != nil {
+	if res.RefreshBefore != nil && res.RefreshBefore.Before(refreshBefore) {
 		refreshBefore = *res.RefreshBefore
 	}
 	renewAt := refreshBefore.Add(-max(refreshBefore.Sub(now), 0) / 4)
@@ -115,7 +117,8 @@ func WebhookGrant(automationID uuid.UUID, res mcpclient.SubscribeResult, now tim
 
 // subscribeWebhook creates the automation with a pending subscription and
 // its secret before it subscribes, so that the receiver can answer the
-// verification during the call. A failed subscribe deletes the automation.
+// verification during the call. A failed subscribe deletes the automation,
+// unless someone disabled or deleted it meanwhile.
 func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclient.EventsSession, cfg database.MCPServerConfig, args toolArgs, arguments json.RawMessage) (database.ChatAutomation, database.ChatAutomationMCPSubscription, error) {
 	secret, err := chatwebhook.GenerateSecret()
 	if err != nil {
@@ -151,14 +154,36 @@ func subscribeWebhook(ctx context.Context, options ToolOptions, session *mcpclie
 		}
 	}
 	if err != nil {
-		// The receiver refuses deliveries to the deleted automation.
-		if _, derr := Delete(ctx, options.DB, created.OrganizationID, created.ID, nil); derr != nil {
-			options.Logger.Warn(ctx, "delete chat automation after a failed webhook subscribe", slog.F("automation_id", created.ID), slog.Error(derr))
+		if derr := discardPending(ctx, options.DB, created.ID); derr != nil {
+			return database.ChatAutomation{}, sub, derr
 		}
 		return database.ChatAutomation{}, sub, err
 	}
 	sub.State = database.ChatAutomationSubscriptionStateActive
 	return created, sub, nil
+}
+
+// discardPending deletes the automation of a failed webhook subscribe, whose
+// deliveries the receiver then refuses. A disable or delete that committed
+// meanwhile stands, and errSubscribeInterrupted stops a poll fallback.
+func discardPending(ctx context.Context, db database.Store, id uuid.UUID) error {
+	err := db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, LockID(id)); err != nil {
+			return xerrors.Errorf("lock chat automation: %w", err)
+		}
+		automation, err := tx.GetChatAutomationByID(ctx, id)
+		if httpapi.Is404Error(err) || (err == nil && !automation.Enabled) {
+			return errSubscribeInterrupted
+		}
+		if err != nil {
+			return err
+		}
+		return tx.DeleteChatAutomationByID(ctx, id)
+	}, nil)
+	if errors.Is(err, errSubscribeInterrupted) {
+		return errSubscribeInterrupted
+	}
+	return err
 }
 
 // webhookSubscription returns automation's webhook subscription when it has

@@ -326,6 +326,10 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
+	// Ends the grants of the webhook subscriptions to an MCP server config whose
+	// server changed: the receiver refuses the old server, and the next tick
+	// subscribes the new one. Rows lock in automation_id order.
+	ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
@@ -1689,9 +1693,9 @@ type sqlcQuerier interface {
 	// unchanged since the run read it, so a disable or change that commits first
 	// wins. An accepted run sent its message, so it is always recorded.
 	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
-	// Records a delivery or a failed poll of an active subscription: the cursor
-	// to resume from, the next poll and the error. A NULL cursor or next poll
-	// keeps the stored one; a NULL error clears it.
+	// Records a delivery or a failed poll of an active subscription of an enabled
+	// automation: the cursor to resume from, the next poll and the error. A NULL
+	// cursor or next poll keeps the stored one; a NULL error clears it.
 	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
 	// Stores what an events/subscribe call returned and activates the
 	// subscription. A NULL cursor keeps the stored one.

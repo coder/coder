@@ -75,16 +75,17 @@ SET drain_after = @drain_after::timestamptz
 WHERE automation_id = @automation_id::uuid;
 
 -- name: UpdateChatAutomationMCPCursor :execrows
--- Records a delivery or a failed poll of an active subscription: the cursor
--- to resume from, the next poll and the error. A NULL cursor or next poll
--- keeps the stored one; a NULL error clears it.
-UPDATE chat_automation_mcp_subscriptions
+-- Records a delivery or a failed poll of an active subscription of an enabled
+-- automation: the cursor to resume from, the next poll and the error. A NULL
+-- cursor or next poll keeps the stored one; a NULL error clears it.
+UPDATE chat_automation_mcp_subscriptions s
 SET
-    cursor = COALESCE(sqlc.narg('cursor')::text, cursor),
-    next_poll_at = COALESCE(sqlc.narg('next_poll_at')::timestamptz, next_poll_at),
+    cursor = COALESCE(sqlc.narg('cursor')::text, s.cursor),
+    next_poll_at = COALESCE(sqlc.narg('next_poll_at')::timestamptz, s.next_poll_at),
     last_error = sqlc.narg('last_error')::text,
     updated_at = @now::timestamptz
-WHERE automation_id = @automation_id::uuid AND state = 'active';
+FROM chat_automations a
+WHERE s.automation_id = @automation_id::uuid AND s.state = 'active' AND a.id = s.automation_id AND a.enabled;
 
 -- name: TerminateChatAutomationMCPSubscription :execrows
 UPDATE chat_automation_mcp_subscriptions

@@ -2065,6 +2065,20 @@ func (mr *MockStoreMockRecorder) EnqueueNotificationMessage(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueNotificationMessage", reflect.TypeOf((*MockStore)(nil).EnqueueNotificationMessage), ctx, arg)
 }
 
+// ExpireChatAutomationWebhookGrants mocks base method.
+func (m *MockStore) ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireChatAutomationWebhookGrants", ctx, mcpServerConfigID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExpireChatAutomationWebhookGrants indicates an expected call of ExpireChatAutomationWebhookGrants.
+func (mr *MockStoreMockRecorder) ExpireChatAutomationWebhookGrants(ctx, mcpServerConfigID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireChatAutomationWebhookGrants", reflect.TypeOf((*MockStore)(nil).ExpireChatAutomationWebhookGrants), ctx, mcpServerConfigID)
+}
+
 // ExpirePrebuildsAPIKeys mocks base method.
 func (m *MockStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	m.ctrl.T.Helper()

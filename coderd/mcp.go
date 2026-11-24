@@ -660,7 +660,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var updated database.MCPServerConfig
+	var (
+		updated database.MCPServerConfig
+		rebound bool
+	)
 	err = api.Database.InTx(func(tx database.Store) error {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
@@ -686,7 +689,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		if mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing) {
+		rebound = mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing)
+		if rebound {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}
@@ -773,6 +777,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = updated
+	// The old server keeps the secrets of its webhook subscriptions, so their
+	// grants end and the automation loop subscribes the new server.
+	if rebound {
+		if err := api.Database.ExpireChatAutomationWebhookGrants(ctx, updated.ID); err != nil {
+			api.Logger.Warn(ctx, "expire chat automation webhook grants", slog.F("mcp_server_config_id", updated.ID), slog.Error(err))
+		}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }

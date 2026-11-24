@@ -32,9 +32,10 @@ const (
 var ErrMCPAuthRequired = xerrors.New("the chat owner must connect to the MCP server again")
 
 var (
-	errNoEvents         = xerrors.New("MCP events are not available in this chat")
-	errUnknownMCPServer = xerrors.New("this chat has no MCP server with that slug that supports events")
-	errUnknownEvent     = xerrors.New("the MCP server offers no event with that name in a delivery mode that this deployment receives; run list_event_types")
+	errNoEvents             = xerrors.New("MCP events are not available in this chat")
+	errUnknownMCPServer     = xerrors.New("this chat has no MCP server with that slug that supports events")
+	errUnknownEvent         = xerrors.New("the MCP server offers no event with that name in a delivery mode that this deployment receives; run list_event_types")
+	errSubscribeInterrupted = xerrors.New("the automation was disabled or deleted while it subscribed")
 )
 
 // EventSource reaches the MCP servers of the tool's chat as the chat owner.

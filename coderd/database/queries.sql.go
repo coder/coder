@@ -6600,13 +6600,14 @@ func (q *sqlQuerier) TerminateChatAutomationMCPSubscription(ctx context.Context,
 }
 
 const updateChatAutomationMCPCursor = `-- name: UpdateChatAutomationMCPCursor :execrows
-UPDATE chat_automation_mcp_subscriptions
+UPDATE chat_automation_mcp_subscriptions s
 SET
-    cursor = COALESCE($1::text, cursor),
-    next_poll_at = COALESCE($2::timestamptz, next_poll_at),
+    cursor = COALESCE($1::text, s.cursor),
+    next_poll_at = COALESCE($2::timestamptz, s.next_poll_at),
     last_error = $3::text,
     updated_at = $4::timestamptz
-WHERE automation_id = $5::uuid AND state = 'active'
+FROM chat_automations a
+WHERE s.automation_id = $5::uuid AND s.state = 'active' AND a.id = s.automation_id AND a.enabled
 `
 
 type UpdateChatAutomationMCPCursorParams struct {
@@ -6617,9 +6618,9 @@ type UpdateChatAutomationMCPCursorParams struct {
 	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
 }
 
-// Records a delivery or a failed poll of an active subscription: the cursor
-// to resume from, the next poll and the error. A NULL cursor or next poll
-// keeps the stored one; a NULL error clears it.
+// Records a delivery or a failed poll of an active subscription of an enabled
+// automation: the cursor to resume from, the next poll and the error. A NULL
+// cursor or next poll keeps the stored one; a NULL error clears it.
 func (q *sqlQuerier) UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatAutomationMCPCursor,
 		arg.Cursor,
@@ -7157,6 +7158,27 @@ func (q *sqlQuerier) CountPendingChatAutomationInboxRows(ctx context.Context, ar
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const expireChatAutomationWebhookGrants = `-- name: ExpireChatAutomationWebhookGrants :exec
+UPDATE chat_automation_mcp_subscriptions s
+SET refresh_before = now(), renew_at = now(), updated_at = now()
+FROM (
+    SELECT automation_id
+    FROM chat_automation_mcp_subscriptions
+    WHERE mcp_server_config_id = $1::uuid AND delivery = 'webhook' AND state = 'active'
+    ORDER BY automation_id
+    FOR UPDATE
+) due
+WHERE s.automation_id = due.automation_id
+`
+
+// Ends the grants of the webhook subscriptions to an MCP server config whose
+// server changed: the receiver refuses the old server, and the next tick
+// subscribes the new one. Rows lock in automation_id order.
+func (q *sqlQuerier) ExpireChatAutomationWebhookGrants(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, expireChatAutomationWebhookGrants, mcpServerConfigID)
+	return err
 }
 
 const getChatAutomationWebhookSecret = `-- name: GetChatAutomationWebhookSecret :one

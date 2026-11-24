@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,10 +69,10 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	if sub.State == database.ChatAutomationSubscriptionStatePending {
 		return http.StatusServiceUnavailable, ""
 	}
-	// A grant that renewal could not extend, for example after the owner
-	// disconnected, has ended; a renewal may still verify again above.
+	// The grant has ended. A renewal may be in flight, so the server retries;
+	// one that cannot renew, as after the owner disconnected, stays refused.
 	if sub.RefreshBefore.Valid && now.After(sub.RefreshBefore.Time) {
-		return http.StatusGone, ""
+		return http.StatusServiceUnavailable, ""
 	}
 	switch envelope.Type {
 	case "gap":
@@ -164,12 +165,22 @@ func (p *Server) tickWebhookRenewals(ctx context.Context, now time.Time) {
 	// Subscriptions that do not start within the budget keep their lease.
 	ctx, cancel := context.WithTimeout(ctx, eventPollBudget)
 	defer cancel()
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, eventPollConcurrency)
 	for _, sub := range claimed {
-		if ctx.Err() != nil {
-			return
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
 		}
-		p.renewWebhook(ctx, sub)
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			p.renewWebhook(ctx, sub)
+		})
 	}
+	wg.Wait()
 }
 
 // renewWebhook subscribes sub with its stored cursor and secret and stores
@@ -200,7 +211,8 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 		// The gap goes first: appendInbox clears the error that the grant
 		// records. A pending subscription has no cursor to fall behind.
 		if res.Truncated {
-			if err := p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Cursor: res.Cursor, Truncated: true}); err != nil && !errors.Is(err, errSubscriptionInactive) {
+			err := p.appendInbox(ctx, inboxAppend{AutomationID: sub.AutomationID, Cursor: res.Cursor, Truncated: true, MaxPending: maxPendingInboxRows})
+			if err != nil && !errors.Is(err, errSubscriptionInactive) && !errors.Is(err, errInboxFull) {
 				return err
 			}
 		}
@@ -226,20 +238,23 @@ func (p *Server) renewWebhook(ctx context.Context, sub database.ChatAutomationMC
 // best effort: the server's grant ends the rest.
 func (p *Server) UnsubscribeWebhook(ctx context.Context, owner uuid.UUID, sub database.ChatAutomationMCPSubscription) {
 	//nolint:gocritic // Reaching the MCP server reads and refreshes the owner's token as chatd.
-	ctx, cancel := context.WithTimeout(dbauthz.AsChatd(ctx), webhookUnsubscribeTimeout)
+	ctx, cancel := context.WithTimeout(dbauthz.AsChatd(context.WithoutCancel(ctx)), 2*webhookUnsubscribeTimeout)
 	defer cancel()
-	_, err := p.withEvents(ctx, sub, owner, func(session *mcpclient.EventsSession) error {
+	callCtx, cancelCall := context.WithTimeout(ctx, webhookUnsubscribeTimeout)
+	defer cancelCall()
+	_, err := p.withEvents(callCtx, sub, owner, func(session *mcpclient.EventsSession) error {
 		var args map[string]any
 		if err := json.Unmarshal(sub.Arguments, &args); err != nil {
 			return xerrors.Errorf("decode arguments: %w", err)
 		}
-		return session.Unsubscribe(ctx, sub.EventName, args, chatautomation.WebhookURL(p.accessURL, sub.AutomationID))
+		return session.Unsubscribe(callCtx, sub.EventName, args, chatautomation.WebhookURL(p.accessURL, sub.AutomationID))
 	})
 	if err != nil {
 		p.logger.Warn(ctx, "unsubscribe chat automation webhook", slog.F("automation_id", sub.AutomationID), slog.Error(err))
 	}
 	// A re-enable during the call may have subscribed again, which this
-	// unsubscribe then ended, so the loop subscribes once more.
+	// unsubscribe then ended, so the loop subscribes once more. This runs
+	// even after the call used up its time.
 	if automation, err := p.db.GetChatAutomationByID(ctx, sub.AutomationID); err == nil && automation.Enabled {
 		now := p.clock.Now("chatd", "automation-webhooks")
 		if err := p.db.SetChatAutomationWebhookRenewAt(ctx, database.SetChatAutomationWebhookRenewAtParams{AutomationID: sub.AutomationID, RenewAt: now, LastError: sql.NullString{}, Now: now}); err != nil {

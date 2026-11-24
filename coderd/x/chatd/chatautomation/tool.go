@@ -300,7 +300,8 @@ func toolErrorText(err error) (string, bool) {
 	var invalid *InvalidRequestError
 	switch {
 	case errors.Is(err, errUnknownAction), errors.Is(err, errNotInThisChat),
-		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent):
+		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent),
+		errors.Is(err, errSubscribeInterrupted):
 		return err.Error(), true
 	case errors.Is(err, ErrMCPAuthRequired):
 		return "The chat owner must connect to this MCP server first.", true
