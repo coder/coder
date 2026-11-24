@@ -3,7 +3,7 @@ title: Troubleshoot Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
+> Agent Relay requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
 
 This page is for Coder administrators who diagnose Agent Relay problems for Claude Code, Cursor, and Slack.
@@ -102,7 +102,7 @@ Fix the error in Coder, then delete the workspace.
 
 Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
 Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
-With the rule in place, Agent Relay v0.16.0 or later notices a failed setup about a minute after the agent reports `start_error`, or `start_timeout` when a setup script reaches its `timeout`.
+With the rule in place, Agent Relay notices a failed setup about a minute after the agent reports `start_error`, or `start_timeout` when a setup script reaches its `timeout`.
 Cursor fails the request then, and Claude Code retries once on a new workspace before failing the session.
 Claude Code skips the retry when the failure comes later than the pool's `dispatch_deadline` after the build was created.
 In the relay logs, the reaper's `session did not finish cleanly, reporting and deleting` line carries `agent_lifecycle=start_error` with `reason="the workspace agent's startup scripts failed"`, or `agent_lifecycle=start_timeout` with `reason="the workspace agent's startup scripts timed out"`.
@@ -121,6 +121,17 @@ Find the attested email in the logs and confirm an active member of the pool's o
 
 Dispatch failed and Agent Relay returned the session for redelivery.
 Read the Agent Relay logs for the session's nack reason.
+
+### A redelivered session fails instead of getting a new workspace
+
+Anthropic sent the session again while its previous workspace still had a start build or a delete in progress.
+Agent Relay fails the session instead of building a second workspace.
+If the previous workspace has a start build still running, Agent Relay cancels it and then deletes the workspace.
+If a delete is already running, Agent Relay lets it finish.
+The relay logs show `redelivery found a predecessor build or delete in progress, failing current work order`.
+The developer can send a new message in the session to try again.
+If this happens often, builds or deletes take too long.
+Check provisioner capacity and compare the template's build time with the pool's [build budget](./claude-code.md#build-budget).
 
 ### Anthropic authentication fails
 

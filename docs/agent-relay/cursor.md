@@ -3,7 +3,7 @@ title: Agent Relay for Cursor
 ---
 
 > [!NOTE]
-> Agent Relay for Cursor is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
+> Agent Relay for Cursor requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
 
 [Agent Relay](./index.md) connects [Cursor Cloud Agents](https://cursor.com/cloud) to self-hosted Coder workspaces.
@@ -87,7 +87,7 @@ Add the [`coder/agent-relay-cursor`](https://registry.coder.com/modules/coder/ag
 ```tf
 module "cursor_worker" {
   source   = "registry.coder.com/coder/agent-relay-cursor/coder"
-  version  = "1.0.0"
+  version  = "1.0.1"
   agent_id = coder_agent.main.id
   # Set to false and bake the CLI into your image for faster starts.
   install_cli = true
@@ -108,7 +108,8 @@ resource "coder_agent" "main" {
 Use the latest module version from the registry.
 
 > [!NOTE]
-> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.16.0 or later, and receive the credential as a workspace build secret.
+> Module version 1.0.0 and later receive the credential as a workspace build secret, which needs Coder 2.39 or later.
+> For the other components, refer to [Version requirements](./setup.md#version-requirements).
 > Do not set `AGENT_RELAY_CURSOR_TOKEN` in the template yourself.
 > To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
