@@ -397,13 +397,31 @@ func TestAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
 	})
 
-	t.Run("WebhookConfigDeleted", func(t *testing.T) {
+	t.Run("WebhookRevoked", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		f := setupWith(t, "https://coder.example.com", mcpclient.DeliveryWebhook)
-		automation := subscribe(ctx, t, f)
-		require.NoError(t, f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID))
-		require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
+		for _, tc := range []struct {
+			name   string
+			revoke func(ctx context.Context, f fixture, id uuid.UUID) error
+		}{
+			{"ConfigDeleted", func(ctx context.Context, f fixture, _ uuid.UUID) error {
+				return f.worker.db.DeleteMCPServerConfigByID(ctx, f.config.ID)
+			}},
+			{"GrantExpired", func(ctx context.Context, f fixture, id uuid.UUID) error {
+				_, err := f.worker.db.UpdateChatAutomationWebhookGrant(ctx, database.UpdateChatAutomationWebhookGrantParams{
+					AutomationID: id, WebhookSubscriptionID: fakeSubscriptionID, RefreshBefore: time.Now().Add(-time.Minute), RenewAt: time.Now(), Now: time.Now(),
+				})
+				return err
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				f := setupWith(t, "https://coder.example.com", mcpclient.DeliveryWebhook)
+				automation := subscribe(ctx, t, f)
+				require.NoError(t, tc.revoke(ctx, f, automation.ID))
+				require.Equal(t, http.StatusGone, deliver(ctx, f, automation.ID, webhookEvent, nil))
+			})
+		}
 	})
 
 	t.Run("WebhookTerminated", func(t *testing.T) {

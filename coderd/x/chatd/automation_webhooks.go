@@ -52,7 +52,8 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 		p.logger.Warn(ctx, "load chat automation webhook target", slog.F("automation_id", automationID), slog.Error(err))
 		return http.StatusServiceUnavailable, ""
 	}
-	if chatwebhook.Verify(header, body, secret, p.clock.Now("chatd", "automation-webhooks")) != nil {
+	now := p.clock.Now("chatd", "automation-webhooks")
+	if chatwebhook.Verify(header, body, secret, now) != nil {
 		return http.StatusUnauthorized, ""
 	}
 	if sub.WebhookSubscriptionID.Valid && header.Get("X-MCP-Subscription-Id") != sub.WebhookSubscriptionID.String {
@@ -68,6 +69,11 @@ func (p *Server) ReceiveMCPEventWebhook(ctx context.Context, automationID uuid.U
 	}
 	if sub.State == database.ChatAutomationSubscriptionStatePending {
 		return http.StatusServiceUnavailable, ""
+	}
+	// A grant that renewal could not extend, for example after the owner
+	// disconnected, has ended; a renewal may still verify again above.
+	if sub.RefreshBefore.Valid && now.After(sub.RefreshBefore.Time) {
+		return http.StatusGone, ""
 	}
 	switch envelope.Type {
 	case "gap":
