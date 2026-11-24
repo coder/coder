@@ -11,6 +11,7 @@ import type {
 	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
+	Pagination,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -39,6 +40,16 @@ export const paginatedSessions = (
 export const aiBridgeProviders = () => ({
 	queryKey: ["aiBridgeProviders"],
 	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
+});
+
+export const aiBridgeModels = (options: Pagination & { model?: string }) => ({
+	queryKey: ["aiBridgeModels", options],
+	queryFn: () => API.getAIBridgeModels(options),
+});
+
+export const aiBridgeClients = (options: Pagination & { q?: string }) => ({
+	queryKey: ["aiBridgeClients", options],
+	queryFn: () => API.getAIBridgeClients(options),
 });
 
 // The spend endpoints authorize on reading the organization's group members,

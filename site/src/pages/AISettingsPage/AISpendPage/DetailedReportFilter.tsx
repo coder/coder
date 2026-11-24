@@ -7,8 +7,11 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { useQueryClient } from "react-query";
-import { API } from "#/api/api";
-import { aiBridgeProviders } from "#/api/queries/aiBridge";
+import {
+	aiBridgeClients,
+	aiBridgeModels,
+	aiBridgeProviders,
+} from "#/api/queries/aiBridge";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -92,11 +95,13 @@ const getProviderOptions = async (
 		}));
 };
 
-const getModelOptions = async (query: string): Promise<FilterOption[]> => {
-	const models = await API.getAIBridgeModels({
-		model: query,
-		limit: SEARCH_SUGGESTIONS_LIMIT,
-	});
+const getModelOptions = async (
+	query: string,
+	queryClient: OptionsQueryClient,
+): Promise<FilterOption[]> => {
+	const models = await queryClient.fetchQuery(
+		aiBridgeModels({ model: query, limit: SEARCH_SUGGESTIONS_LIMIT }),
+	);
 	return models.map((model) => ({
 		label: model,
 		value: model,
@@ -104,11 +109,13 @@ const getModelOptions = async (query: string): Promise<FilterOption[]> => {
 	}));
 };
 
-const getClientOptions = async (query: string): Promise<FilterOption[]> => {
-	const clients = await API.getAIBridgeClients({
-		q: query,
-		limit: SEARCH_SUGGESTIONS_LIMIT,
-	});
+const getClientOptions = async (
+	query: string,
+	queryClient: OptionsQueryClient,
+): Promise<FilterOption[]> => {
+	const clients = await queryClient.fetchQuery(
+		aiBridgeClients({ q: query, limit: SEARCH_SUGGESTIONS_LIMIT }),
+	);
 	return clients.map((client) => ({
 		label: client,
 		value: client,
@@ -162,7 +169,7 @@ export const DetailedReportFilter: React.FC<DetailedReportFilterProps> = ({
 				label: "Client",
 				icon: <SquareTerminalIcon />,
 				singleSelect: true,
-				getOptions: getClientOptions,
+				getOptions: (query) => getClientOptions(query, queryClient),
 			},
 			{
 				key: "model",
@@ -170,7 +177,7 @@ export const DetailedReportFilter: React.FC<DetailedReportFilterProps> = ({
 				label: "Model",
 				icon: <BoxIcon />,
 				singleSelect: true,
-				getOptions: getModelOptions,
+				getOptions: (query) => getModelOptions(query, queryClient),
 			},
 		],
 		[organizationId, queryClient],
