@@ -1,5 +1,21 @@
 [
   {
+    "source": "templates",
+    "destination": "admin/templates"
+  },
+  {
+    "source": "templates/open-in-coder",
+    "destination": "admin/templates/open-in-coder"
+  },
+  {
+    "source": "templates/troubleshooting",
+    "destination": "admin/templates/troubleshooting"
+  },
+  {
+    "source": "workspaces",
+    "destination": "user-guides/workspace-management"
+  },
+  {
     "source": "about/architecture",
     "destination": "/"
   },
