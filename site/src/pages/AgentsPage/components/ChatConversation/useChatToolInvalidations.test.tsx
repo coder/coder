@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,23 +8,10 @@ import {
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
-import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore } from "./chatStore";
 import { useChatToolInvalidations } from "./useChatToolInvalidations";
 
 const ORGANIZATION_NAME = "coder";
 const USERNAME = "alice";
-
-const toolResult = (
-	name: string,
-	overrides: Partial<TypesGen.ChatToolResultPart> = {},
-): TypesGen.ChatToolResultPart => ({
-	type: "tool-result",
-	tool_call_id: "tool-1",
-	tool_name: name,
-	result: {},
-	...overrides,
-});
 
 const createWrapper = (
 	queryClient: QueryClient,
@@ -49,41 +35,28 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	const renderInvalidations = ({
-		chatID = "chat-1",
 		organizationName = ORGANIZATION_NAME,
-		username = USERNAME,
 	}: {
-		chatID?: string;
 		organizationName?: string;
-		username?: string;
 	} = {}) => {
-		const store = createChatStore();
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-		const result = renderHook(
-			(props: { chatID: string; organizationName: string; username: string }) =>
+		const { result } = renderHook(
+			() =>
 				useChatToolInvalidations({
-					store,
-					...props,
+					chatID: "chat-1",
+					organizationName,
+					username: USERNAME,
 				}),
-			{
-				initialProps: { chatID, organizationName, username },
-				wrapper: createWrapper(queryClient),
-			},
+			{ wrapper: createWrapper(queryClient) },
 		);
 
-		return {
-			...result,
-			invalidateSpy,
-			applyMessagePart: store.applyMessagePart,
-		};
+		return { invalidateSpy, invalidate: result.current };
 	};
 
 	it("dispatches chat binding and workspace mutation invalidations on create_workspace completion", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
+		const { invalidateSpy, invalidate } = renderInvalidations();
 
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
+		invalidate(["create_workspace"]);
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
@@ -110,11 +83,9 @@ describe("useChatToolInvalidations", () => {
 		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
 			"ws-1": "chat-1",
 		});
-		const { applyMessagePart } = renderInvalidations();
+		const { invalidate } = renderInvalidations();
 
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
+		invalidate(["create_workspace"]);
 
 		await waitFor(() => {
 			expect(
@@ -134,11 +105,9 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("dispatches workspace mutation invalidations on start_workspace completion", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
+		const { invalidateSpy, invalidate } = renderInvalidations();
 
-		await act(async () => {
-			applyMessagePart(toolResult("start_workspace"));
-		});
+		invalidate(["start_workspace"]);
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith(
@@ -160,36 +129,12 @@ describe("useChatToolInvalidations", () => {
 		});
 	});
 
-	it("dispatches workspace mutation invalidations for errored workspace tools", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
-
-		await act(async () => {
-			applyMessagePart(toolResult("stop_workspace", { is_error: true }));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledWith(
-				expect.objectContaining({
-					queryKey: workspacesQueryKeyPrefix,
-					predicate: expect.any(Function),
-				}),
-			);
-			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: getWorkspaceQuotaQueryKey(ORGANIZATION_NAME, USERNAME),
-				exact: true,
-			});
-			expect(invalidateSpy).toHaveBeenCalledTimes(2);
-		});
-	});
-
 	it("invalidates workspace queries without quota when the quota key is incomplete", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations({
+		const { invalidateSpy, invalidate } = renderInvalidations({
 			organizationName: "",
 		});
 
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
+		invalidate(["create_workspace"]);
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
@@ -207,102 +152,9 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("does not invalidate queries for tools without invalidation signals", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
+		const { invalidateSpy, invalidate } = renderInvalidations();
 
-		await act(async () => {
-			applyMessagePart(toolResult("read_file"));
-		});
-
-		expect(invalidateSpy).not.toHaveBeenCalled();
-	});
-
-	it("does not process the same tool call ID twice", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
-
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(4);
-		});
-
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(4);
-		});
-	});
-
-	it("resets processed tool call IDs when chatID changes", async () => {
-		const { invalidateSpy, rerender, applyMessagePart } = renderInvalidations();
-
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(4);
-		});
-
-		rerender({
-			chatID: "chat-2",
-			organizationName: ORGANIZATION_NAME,
-			username: USERNAME,
-		});
-
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(8);
-			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: chatEntityKey("chat-2"),
-				exact: true,
-			});
-		});
-	});
-
-	it("waits for completed tool results before invalidating", async () => {
-		const { invalidateSpy, applyMessagePart } = renderInvalidations();
-
-		await act(async () => {
-			applyMessagePart(
-				toolResult("create_workspace", {
-					result: undefined,
-					result_delta: "{",
-				}),
-			);
-		});
-
-		expect(invalidateSpy).not.toHaveBeenCalled();
-
-		await act(async () => {
-			applyMessagePart(toolResult("create_workspace"));
-		});
-
-		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(4);
-		});
-	});
-
-	it("does nothing when streamState is null", () => {
-		const store = createChatStore();
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-		renderHook(
-			() =>
-				useChatToolInvalidations({
-					store,
-					chatID: "chat-1",
-					organizationName: ORGANIZATION_NAME,
-					username: USERNAME,
-				}),
-			{ wrapper: createWrapper(queryClient) },
-		);
+		invalidate(["read_file"]);
 
 		expect(invalidateSpy).not.toHaveBeenCalled();
 	});

@@ -303,6 +303,65 @@ afterEach(() => {
 });
 
 describe("useChatStore", () => {
+	it("reports tools once their results finish streaming", async () => {
+		const chatID = "chat-1";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		mockNewestPage(chatID, {
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+		});
+		const onToolResultsCompleted = vi.fn();
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+					onToolResultsCompleted,
+				}),
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+		const emitToolResult = (part: Partial<TypesGen.ChatToolResultPart>) => {
+			act(() => {
+				mockSocket.emitData({
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "tool",
+						part: { type: "tool-result", tool_call_id: "tool-1", ...part },
+					},
+				});
+			});
+		};
+
+		emitToolResult({ tool_name: "create_workspace", result_delta: "{" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(onToolResultsCompleted).not.toHaveBeenCalled();
+
+		// The final part has no tool name, so it comes from the delta.
+		emitToolResult({ result: {} });
+		await waitFor(() => {
+			expect(onToolResultsCompleted).toHaveBeenCalledWith(["create_workspace"]);
+		});
+		expect(onToolResultsCompleted).toHaveBeenCalledTimes(1);
+
+		emitToolResult({
+			tool_call_id: "tool-2",
+			tool_name: "stop_workspace",
+			is_error: true,
+		});
+		await waitFor(() => {
+			expect(onToolResultsCompleted).toHaveBeenLastCalledWith([
+				"stop_workspace",
+			]);
+		});
+	});
+
 	it("does not clear in-progress stream parts for duplicate snapshot messages", async () => {
 		immediateAnimationFrame();
 
