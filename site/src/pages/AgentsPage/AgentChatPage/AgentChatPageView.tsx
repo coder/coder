@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -16,6 +16,7 @@ import {
 } from "../components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
+	ChatOverviewCardSkeleton,
 	RightPanelSkeleton,
 } from "../components/AgentsSkeletons";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
@@ -28,6 +29,15 @@ import {
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import {
+	ChatOverviewCard,
+	type ChatOverviewToggleProps,
+} from "../components/ChatOverviewCard";
+import {
+	chatOverviewContainerClassName,
+	chatOverviewReserveClassName,
+} from "../components/ChatOverviewCardShell";
+import type { OverviewTarget } from "../components/ChatOverviewCardView";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -36,6 +46,7 @@ import {
 	SidebarTabView,
 } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
+import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { AppPanel } from "../components/RightPanel/AppPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
@@ -47,6 +58,10 @@ import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	getPersistedOverviewCardOpen,
+	savePersistedOverviewCardOpen,
+} from "../utils/overviewCardStorage";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -95,8 +110,6 @@ type AgentChatPageViewProps = {
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Messages as first loaded; read once at mount for the initial anchor. */
-	initialMessages: readonly TypesGen.ChatMessage[];
 
 	// Editing state.
 	editing: EditingState;
@@ -155,9 +168,8 @@ type AgentChatPageViewProps = {
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 
 	urlTransform: UrlTransform;
 
@@ -176,7 +188,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	store,
-	initialMessages,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -215,7 +226,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	urlTransform,
@@ -232,6 +242,28 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	const overviewCardId = useId();
+	const [isOverviewOpen, setIsOverviewOpen] = useState(
+		getPersistedOverviewCardOpen,
+	);
+	const canShowOverview = !showSidebarPanel && !chatFullWidth && !isEmbedded;
+	const isOverviewCardShown = canShowOverview && isOverviewOpen;
+	const overviewToggle: ChatOverviewToggleProps | undefined = canShowOverview
+		? {
+				isOpen: isOverviewOpen,
+				cardId: overviewCardId,
+				onToggle: () => {
+					savePersistedOverviewCardOpen(!isOverviewOpen);
+					setIsOverviewOpen(!isOverviewOpen);
+				},
+			}
+		: undefined;
+	// A row opens the right panel and unmounts the focused row, so the panel
+	// focuses its active tab once per id, and clears it so a remount does not
+	// move focus again.
+	const [panelFocusRequestId, setPanelFocusRequestId] = useState<number>();
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -243,7 +275,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// promotions, edit re-sends) has an id above the initial maximum.
 	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
 		chat.status === "running" || chat.status === "interrupting"
-			? (initialMessages.at(-1)?.id ?? -1)
+			? (store.getSnapshot().orderedMessageIDs.at(-1) ?? -1)
 			: undefined,
 	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
@@ -376,6 +408,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		onSetShowSidebarPanel(true);
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
+	};
+
+	const openOverviewTarget = (target: OverviewTarget) => {
+		setPanelFocusRequestId((id) => (id ?? 0) + 1);
+		activateRightPanelTab(target.tabId);
 	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
@@ -552,24 +589,25 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 	};
 
-	const chatOwnerUsername = chat.owner_username?.trim();
-	const chatOwnerLabel =
-		chat.owner_name?.trim() ||
-		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const readOnlyNotice = isOtherUserReadOnly
-		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
-		: undefined;
+	// A request's rollback would overwrite an edit opened during the request.
+	const canBeginEdit = !isOtherUserReadOnly && !isSubmissionPending;
 
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<DesktopPanelContext value={desktopPanelCtx}>
-				<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
+				<div
+					className={cn(
+						"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+						chatOverviewContainerClassName,
+					)}
+				>
 					<div
 						className={cn(
 							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 							visualExpanded && "hidden",
 							showSidebarPanel && "max-lg:hidden",
+							isOverviewCardShown && chatOverviewReserveClassName,
 						)}
 					>
 						<div className="relative z-10 shrink-0 overflow-visible">
@@ -581,6 +619,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () =>
 										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
+								overviewToggle={overviewToggle}
 							/>
 							{modelCatalogError != null && (
 								<ErrorAlert error={modelCatalogError} />
@@ -592,12 +631,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									aria-live="polite"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
-									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									<TriangleAlertIcon className="size-4 shrink-0 text-border-warning" />
 									{unavailableModelNotice}
 								</div>
 							)}
 							{isArchived && (
-								<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+								<div className="flex shrink-0 items-center gap-2 border-b bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="size-4 shrink-0" />
 									This agent has been archived and is read-only.
 								</div>
@@ -612,6 +651,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 								}}
 							/>
+							{isOverviewCardShown && (
+								<ChatOverviewCard
+									id={overviewCardId}
+									chat={chat}
+									store={store}
+									repositories={gitWatcher.repositories}
+									hasMoreMessages={hasMoreMessages}
+									onOpenTarget={openOverviewTarget}
+								/>
+							)}
 						</div>
 						<ChatWorkspaceContext
 							value={{
@@ -623,18 +672,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							<ChatPageTimeline
 								organizationId={organizationId}
 								store={store}
+								recordStatus={chat.status}
 								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
 								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleBeginHistoryEdit
+									canBeginEdit ? editing.handleBeginHistoryEdit : undefined
 								}
 								editingMessageId={
 									editing.editingTarget?.kind === "history"
@@ -657,7 +704,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 						</ChatWorkspaceContext>
 						{!isArchived && (
-							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+							<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}
 									store={store}
@@ -666,7 +713,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
 									onEditQueuedMessage={
-										isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+										canBeginEdit ? handleEditQueuedMessage : undefined
 									}
 									onEndQueuedMessageEdit={
 										isOtherUserReadOnly ? undefined : handleEndQueuedMessageEdit
@@ -674,7 +721,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onInterrupt={handleInterrupt}
 									isInputDisabled={isInputDisabled}
 									isReadOnly={isOtherUserReadOnly}
-									readOnlyNotice={readOnlyNotice}
 									isSendPending={isSubmissionPending}
 									isInterruptPending={isInterruptPending}
 									hasModelOptions={hasModelOptions}
@@ -729,6 +775,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
 							chatTitle={chat.title}
+							focusRequestId={panelFocusRequestId}
+							onFocusRequestApplied={(id) =>
+								setPanelFocusRequestId((current) =>
+									current === id ? undefined : current,
+								)
+							}
 							addTabControl={(closeTab) => (
 								<RightPanelAddTabControl
 									workspace={workspace}
@@ -754,7 +806,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									chatId={agentId}
 									store={store}
 									hasMoreMessages={hasMoreMessages}
-									isHydratingMessages={isHydratingMessages}
 								/>
 							</SidebarTab>
 
@@ -910,16 +961,49 @@ export const AgentChatPageLoadingView: React.FC<
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	const overviewCardId = useId();
+	const [isOverviewOpen, setIsOverviewOpen] = useState(
+		getPersistedOverviewCardOpen,
+	);
+	const canShowOverview = !showRightPanel && !chatFullWidth && !isEmbedded;
+	const isOverviewCardShown = canShowOverview && isOverviewOpen;
+	const overviewToggle: ChatOverviewToggleProps | undefined = canShowOverview
+		? {
+				isOpen: isOverviewOpen,
+				cardId: overviewCardId,
+				onToggle: () => {
+					savePersistedOverviewCardOpen(!isOverviewOpen);
+					setIsOverviewOpen(!isOverviewOpen);
+				},
+			}
+		: undefined;
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
-				<ChatTopBar
-					panel={{
-						showSidebarPanel: false,
-						onToggleSidebar: () => {},
-					}}
-				/>
-				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin">
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+				chatOverviewContainerClassName,
+			)}
+		>
+			<div
+				className={cn(
+					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)",
+					isOverviewCardShown && chatOverviewReserveClassName,
+				)}
+			>
+				<div className="relative z-10 shrink-0">
+					<ChatTopBar
+						panel={{
+							showSidebarPanel: false,
+							onToggleSidebar: () => {},
+						}}
+						overviewToggle={overviewToggle}
+					/>
+					{isOverviewCardShown && (
+						<ChatOverviewCardSkeleton id={overviewCardId} />
+					)}
+				</div>
+				<div className="min-h-0 flex-1 overflow-y-auto pr-[var(--chat-overview-reserve,0px)] scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(
@@ -931,7 +1015,7 @@ export const AgentChatPageLoadingView: React.FC<
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+				<div className="shrink-0 overflow-y-auto pb-3 pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
 						inputRef={inputRef}

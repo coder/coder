@@ -15,6 +15,41 @@ import {
 	systemBuildReasons,
 } from "#/utils/workspace";
 
+/**
+ * Returns the label for a user-initiated start build's reason, or undefined
+ * when the reason is not shown.
+ */
+export const getDisplayBuildReason = (build: WorkspaceBuild) =>
+	!systemBuildReasons.includes(build.reason) && build.transition === "start"
+		? getBuildReasonLabel(build.reason)
+		: undefined;
+
+type WithBuildReasonTooltipProps = {
+	build: WorkspaceBuild;
+	children: React.ReactElement;
+};
+
+/**
+ * Shows the build reason when its trigger, the build's link, is hovered or
+ * focused. Renders the trigger alone for builds without a displayed reason.
+ */
+export const WithBuildReasonTooltip: React.FC<WithBuildReasonTooltipProps> = ({
+	build,
+	children,
+}) => {
+	const buildReason = getDisplayBuildReason(build);
+	if (!buildReason) {
+		return children;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent side="right">{buildReason}</TooltipContent>
+		</Tooltip>
+	);
+};
+
 type WorkspaceBuildDataProps = {
 	build: WorkspaceBuild;
 };
@@ -22,13 +57,10 @@ type WorkspaceBuildDataProps = {
 export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 	build,
 }) => {
-	const buildReason =
-		!systemBuildReasons.includes(build.reason) && build.transition === "start"
-			? getBuildReasonLabel(build.reason)
-			: undefined;
+	const buildReason = getDisplayBuildReason(build);
 
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<BuildIcon transition={build.transition} jobStatus={build.job.status} />
 			<div className="overflow-hidden flex flex-col">
 				<div
@@ -42,19 +74,14 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
 					{buildReason && (
-						// This renders inside the build's sidebar link, so the reason
-						// joins the link's accessible name instead of becoming a nested
-						// focusable trigger.
+						// This renders inside the build's link, so the reason joins the
+						// link's name and the link triggers the tooltip, avoiding a
+						// nested focusable control.
 						<>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<InfoIcon
-										aria-hidden
-										className="text-content-secondary size-icon-xs -mt-px"
-									/>
-								</TooltipTrigger>
-								<TooltipContent side="bottom">{buildReason}</TooltipContent>
-							</Tooltip>
+							<InfoIcon
+								aria-hidden
+								className="text-content-secondary size-icon-xs -mt-px"
+							/>
 							<span className="sr-only">, build reason: {buildReason}</span>
 						</>
 					)}
@@ -69,7 +96,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 
 export const WorkspaceBuildDataSkeleton = () => {
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<Skeleton variant="circular" width={16} height={16} />
 			<div className="flex flex-col">
 				<Skeleton variant="text" width={94} height={10} />

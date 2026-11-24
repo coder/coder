@@ -135,11 +135,11 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table className="table-fixed min-w-[640px]" aria-label="MCP servers">
+			<Table className="table-fixed min-w-160" aria-label="MCP servers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/2">Name</TableHead>
-						<TableHead className="w-1/5">Auth Method</TableHead>
+						<TableHead className="w-1/5">Auth method</TableHead>
 						<TableHead className="w-1/5">Availability</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open server</span>

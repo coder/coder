@@ -39,8 +39,6 @@ type IconFieldProps = Omit<React.ComponentProps<"input">, "type"> & {
 	error?: boolean;
 	helperText?: React.ReactNode;
 	onPickEmoji: (value: string) => void;
-	/** Accepted for call-site compatibility with former MUI TextField usage. */
-	fullWidth?: boolean;
 };
 
 export const IconField: React.FC<IconFieldProps> = ({
@@ -52,7 +50,6 @@ export const IconField: React.FC<IconFieldProps> = ({
 	disabled,
 	className,
 	onPickEmoji,
-	fullWidth: _fullWidth,
 	...inputProps
 }) => {
 	if (typeof value !== "string" && typeof value !== "undefined") {

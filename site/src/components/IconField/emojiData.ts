@@ -1,7 +1,7 @@
+import type { EmojiData } from "@coder/frimousse";
 import type { Emoji as EmojibaseEmoji, SkinTone } from "emojibase";
 import emojibaseEmojis from "emojibase-data/en/data.json";
 import emojibaseMessages from "emojibase-data/en/messages.json";
-import type { EmojiData } from "frimousse";
 import capitalize from "lodash/capitalize";
 import icons from "#/theme/builtinIcons.json";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";

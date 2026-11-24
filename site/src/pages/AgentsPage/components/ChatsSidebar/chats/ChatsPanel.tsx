@@ -38,7 +38,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getOSKey } from "#/utils/platform";
+import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -558,6 +558,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						label="Search"
 						active={false}
 						ariaLabel="Search chats"
+						ariaKeyShortcuts={isMac() ? "Meta+K" : "Control+K"}
 						onClick={onOpenSearchDialog}
 						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
 						trailing={
@@ -668,7 +669,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									<ChatTreeContext value={chatTreeCtx}>
 										<div className="pb-2">
 											{isShowingEmptyState ? (
-												<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+												<div className="rounded-lg border border-dashed bg-surface-primary p-4 text-center text-xs text-content-secondary">
 													<p className="m-0">{emptyStateMessage}</p>
 													{hasAppliedResultFilters && (
 														<button

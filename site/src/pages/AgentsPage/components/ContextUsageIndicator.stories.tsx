@@ -6,6 +6,7 @@ import {
 	MockChatContextACPHarnessIssue,
 	MockChatContextClean,
 	MockChatContextDirty,
+	MockChatContextMCPServerFailures,
 	MockChatContextResourceFailures,
 } from "#/testHelpers/chatEntities";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
@@ -15,6 +16,7 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 	component: ContextUsageIndicator,
 	args: {
 		onRefreshContext: fn(),
+		onManageServers: fn(),
 	},
 };
 
@@ -286,6 +288,13 @@ export const ACPHarnessesWithOtherContext: Story = {
 	},
 };
 
+export const ACPHarnessesCollapsed: Story = {
+	...ACPHarnessesWithOtherContext,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
 export const ACPHarnessIssue: Story = {
 	...ACPHarnesses,
 	args: {
@@ -416,6 +425,45 @@ export const MultipleMcpConfigs: Story = {
 	},
 };
 
+export const McpToolBranches: Story = {
+	args: {
+		usage: {
+			context: {
+				...MockChatContextClean,
+				resources: (MockChatContextClean.resources ?? []).map((resource) =>
+					resource.kind === "mcp_server"
+						? {
+								...resource,
+								source: "go-language-server",
+								tools: [
+									{
+										name: "definition",
+										description: "Find a symbol's definition.",
+									},
+									{
+										name: "diagnostics",
+										description: "Read file diagnostics.",
+									},
+									{ name: "edit_file", description: "Edit a file." },
+									{ name: "hover", description: "Read symbol documentation." },
+									{
+										name: "references",
+										description: "Find symbol references.",
+									},
+									{ name: "rename_symbol", description: "Rename a symbol." },
+								],
+							}
+						: resource,
+				),
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		await userEvent.click(screen.getByRole("button", { name: /MCP/ }));
+	},
+};
+
 // Drifted pin: the indicator announces a change, and the popover surfaces a refresh
 // affordance to re-pin the chat to the latest snapshot.
 export const Dirty: Story = {
@@ -424,6 +472,11 @@ export const Dirty: Story = {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
 			context: MockChatContextDirty,
+			compactionThreshold: {
+				percent: 70,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -503,6 +556,56 @@ export const ExpandedResources: Story = {
 	},
 };
 
+export const McpServerFailures: Story = {
+	args: {
+		usage: {
+			usedTokens: 20_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextMCPServerFailures,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		await userEvent.click(screen.getByRole("button", { name: /MCP/ }));
+	},
+};
+
+export const McpPartiallyConnected: Story = {
+	args: {
+		usage: {
+			usedTokens: 20_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMCPServerFailures,
+				resources: (MockChatContextMCPServerFailures.resources ?? []).map(
+					(resource) =>
+						resource.source === "github"
+							? resource
+							: {
+									...resource,
+									status: "ok",
+									error: undefined,
+									tools: [
+										{
+											name: "list_resources",
+											description: "List available resources.",
+										},
+									],
+								},
+				),
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const McpPartiallyConnectedExpanded: Story = {
+	...McpPartiallyConnected,
+	play: McpServerFailures.play,
+};
+
 export const ResourceFailuresOnly: Story = {
 	args: { usage: { context: MockChatContextResourceFailures } },
 	play: async ({ canvasElement }) => {
@@ -514,7 +617,7 @@ export const ResourceFailuresOnlyExpanded: Story = {
 	...ResourceFailuresOnly,
 	play: async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByRole("button"));
-		for (const name of [/Context files/, /Skills/, /MCP Servers/, /^ACP/]) {
+		for (const name of [/Context files/, /Skills/, /MCP servers/, /^ACP/]) {
 			await userEvent.click(screen.getByRole("button", { name }));
 		}
 	},

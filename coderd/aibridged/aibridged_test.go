@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -263,6 +264,26 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "unauthorized",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("not authorized"))
+			},
+			expectedErr:    aibridged.ErrUnauthorized,
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			// coderd marks its own failures, such as a database error, so they
+			// are not reported to the client as a rejected request.
+			name: "authorization check failed internally",
+			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, drpcerr.WithCode(xerrors.New("database is down"), proto.ErrCodeInternal))
+			},
+			expectedErr:    aibridged.ErrAuthorizationCheck,
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			// Only the internal code changes the status. Any other code is a
+			// rejection.
+			name: "unauthorized with another error code",
+			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, drpcerr.WithCode(xerrors.New("not authorized"), drpcerr.Unimplemented))
 			},
 			expectedErr:    aibridged.ErrUnauthorized,
 			expectedStatus: http.StatusForbidden,

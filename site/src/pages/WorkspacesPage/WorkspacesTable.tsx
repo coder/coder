@@ -14,7 +14,7 @@ import {
 import type React from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link, useNavigate } from "react-router";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { API } from "#/api/api";
 import { templateVersion } from "#/api/queries/templates";
 import {
@@ -38,6 +38,7 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -55,7 +56,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -121,40 +121,41 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className="w-1/3">
-						{isLoading ? (
-							<Skeleton className="h-4 w-40" />
-						) : (
-							<div
-								className={cn(
-									"flex items-center gap-5",
-									isEmpty && "invisible",
-								)}
-							>
-								<Checkbox
-									disabled={
-										checkableWorkspaces.length === 0 &&
-										checkedWorkspaces.length === 0
-									}
-									checked={
-										checkedWorkspaces.length > 0 &&
-										checkableWorkspaces.every((workspace) =>
-											checkedWorkspaces.some((w) => w.id === workspace.id),
-										)
-									}
-									onCheckedChange={(checked) => {
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(checkableWorkspaces);
-										}
-									}}
-									aria-label="Select all workspaces"
-									className="my-0"
-								/>
-								Name
-							</div>
+					{/* A td, not a th: the select-all control does not label the column. */}
+					<TableCell className={cn("w-0", hideHeaders && "invisible")}>
+						{!isLoading && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="flex">
+										<Checkbox
+											disabled={
+												checkableWorkspaces.length === 0 &&
+												checkedWorkspaces.length === 0
+											}
+											checked={
+												checkedWorkspaces.length > 0 &&
+												checkableWorkspaces.every((workspace) =>
+													checkedWorkspaces.some((w) => w.id === workspace.id),
+												)
+											}
+											onCheckedChange={(checked) => {
+												if (!checked) {
+													onCheckChange([]);
+												} else {
+													onCheckChange(checkableWorkspaces);
+												}
+											}}
+											aria-label="Select all workspaces"
+											className="my-0"
+										/>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>Select all workspaces</TooltipContent>
+							</Tooltip>
 						)}
+					</TableCell>
+					<TableHead className={cn("w-1/3", isEmpty && "invisible")}>
+						{isLoading ? <Skeleton className="h-4 w-40" /> : "Name"}
 					</TableHead>
 					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
 						Template
@@ -167,7 +168,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody className="[&_td]:h-[72px]">
+			<TableBody className="[&_td]:h-18">
 				{isLoading && <TableLoader />}
 				{isEmpty && (
 					<TableRow>
@@ -196,8 +197,8 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							key={workspace.id}
 							checked={checked}
 						>
-							<TableHead scope="row">
-								<div className="flex items-center gap-5">
+							<TableCell>
+								<div className="flex">
 									<Checkbox
 										data-testid={`checkbox-${workspace.id}`}
 										disabled={cantBeChecked(workspace)}
@@ -218,64 +219,73 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										}}
 										aria-label={`Select workspace ${workspace.name}`}
 									/>
-									<AvatarData
-										title={
-											<div className="flex items-center gap-1">
-												<Link
+								</div>
+							</TableCell>
+							<TableHead scope="row">
+								<AvatarData
+									title={
+										<div className="flex items-center gap-1">
+											<Link
+												asChild
+												showExternalIcon={false}
+												className="my-0 py-0 pl-0 font-semibold text-inherit visited:text-inherit whitespace-nowrap select-none"
+											>
+												<RouterLink
 													to={workspacePageLink}
-													className="whitespace-nowrap select-none"
+													onClick={(e) => e.stopPropagation()}
+													onAuxClick={(e) => e.stopPropagation()}
 												>
 													{workspace.name}
-												</Link>
-												{workspace.favorite && (
-													<StarIcon className="size-icon-xs" />
-												)}
-												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="sm" variant="info" hover asChild>
-														<Link
-															to={`/agents/${chatsByWorkspace[workspace.id]}`}
-															onClick={(e) => e.stopPropagation()}
-															aria-label={`View agent conversation for ${workspace.name}`}
-														>
-															Agent
-														</Link>
-													</Badge>
-												)}
+												</RouterLink>
+											</Link>
+											{workspace.favorite && (
+												<StarIcon className="size-icon-xs" />
+											)}
+											{workspace.outdated && (
+												<WorkspaceOutdatedTooltip workspace={workspace} />
+											)}
+											{chatsByWorkspace?.[workspace.id] && (
+												<Badge size="sm" variant="info" hover asChild>
+													<RouterLink
+														to={`/agents/${chatsByWorkspace[workspace.id]}`}
+														onClick={(e) => e.stopPropagation()}
+														aria-label={`View agent conversation for ${workspace.name}`}
+													>
+														Agent
+													</RouterLink>
+												</Badge>
+											)}
+										</div>
+									}
+									subtitle={
+										<div className="flex items-center gap-1">
+											<span className="sr-only">Owner: </span>
+											<div className="flex gap-2">
+												{workspace.owner_name}
+												{workspace.shared_with &&
+													workspace.shared_with.length > 0 && (
+														<WorkspaceSharingIndicator
+															sharedWith={workspace.shared_with}
+															settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+														/>
+													)}
 											</div>
-										}
-										subtitle={
-											<div className="flex items-center gap-1">
-												<span className="sr-only">Owner: </span>
-												<div className="flex gap-2">
-													{workspace.owner_name}
-													{workspace.shared_with &&
-														workspace.shared_with.length > 0 && (
-															<WorkspaceSharingIndicator
-																sharedWith={workspace.shared_with}
-																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-															/>
-														)}
-												</div>
-											</div>
-										}
-										avatar={
-											<Avatar
-												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
-												size="lg"
-											/>
-										}
-									/>
-								</div>
+										</div>
+									}
+									avatar={
+										<Avatar
+											src={workspace.owner_avatar_url}
+											fallback={workspace.owner_name}
+											size="lg"
+										/>
+									}
+								/>
 							</TableHead>
 
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+										<span className="truncate block max-w-52">
 											{getDisplayWorkspaceTemplateName(workspace)}
 										</span>
 									}
@@ -331,7 +341,9 @@ const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	const navigate = useNavigate();
 
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-	const { role, hover, ...clickableProps } = useClickableTableRow({
+	// Mouse-only shortcut; keyboard and screen reader users open the workspace
+	// from the name link.
+	const { onClick, onAuxClick, className } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
 		onClick: (event) => {
 			// Order of booleans actually matters here for Windows-Mac compatibility;
@@ -350,11 +362,12 @@ const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 
 	return (
 		<TableRow
-			{...clickableProps}
+			onClick={onClick}
+			onAuxClick={onAuxClick}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
 				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
-				clickableProps.className,
+				className,
 			])}
 		>
 			{children}
@@ -366,11 +379,13 @@ const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
-				<TableCell className="w-2/6">
-					<div className="flex items-center gap-5">
+				<TableCell>
+					<div className="flex">
 						<Checkbox disabled />
-						<AvatarDataSkeleton />
 					</div>
+				</TableCell>
+				<TableCell className="w-2/6">
+					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell className="w-2/6">
 					<AvatarDataSkeleton />
@@ -685,22 +700,20 @@ const PrimaryAction: React.FC<PrimaryActionProps> = ({
 	children,
 }) => {
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={onClick}
-						disabled={isLoading}
-					>
-						<Spinner loading={isLoading}>{children}</Spinner>
-						<span className="sr-only">{label}</span>
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="outline"
+					size="icon-lg"
+					onClick={onClick}
+					disabled={isLoading}
+				>
+					<Spinner loading={isLoading}>{children}</Spinner>
+					<span className="sr-only">{label}</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -802,7 +815,7 @@ const WorkspaceApps: React.FC<WorkspaceAppsProps> = ({ workspace }) => {
 					e.preventDefault();
 					openAppInNewWindow(href);
 				}}
-				label="Open Terminal"
+				label="Open terminal"
 			>
 				<SquareTerminalIcon className="size-7!" />
 			</BaseIconLink>,
@@ -880,7 +893,7 @@ const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 				) : (
 					<CircleAlertIcon
 						aria-hidden="true"
-						className="size-icon-sm text-content-warning"
+						className="size-icon-sm text-border-warning"
 					/>
 				)}
 			</BaseIconLink>
@@ -981,47 +994,40 @@ const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 	const loadingClass = isLoading ? "animate-pulse" : "";
 
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					{rest.href !== undefined ? (
-						<Button
-							variant="outline"
-							size="icon-lg"
-							asChild
-							disabled={isLoading}
-						>
-							<a
-								target={rest.target}
-								className={loadingClass}
-								href={rest.href}
-								onClick={(e) => {
-									e.stopPropagation();
-									rest.onClick?.(e);
-								}}
-							>
-								{children}
-								<span className="sr-only">{label}</span>
-							</a>
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="icon-lg"
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{rest.href !== undefined ? (
+					<Button variant="outline" size="icon-lg" asChild disabled={isLoading}>
+						<a
+							target={rest.target}
 							className={loadingClass}
+							href={rest.href}
 							onClick={(e) => {
 								e.stopPropagation();
-								rest.onClick(e);
+								rest.onClick?.(e);
 							}}
-							disabled={isLoading}
 						>
 							{children}
 							<span className="sr-only">{label}</span>
-						</Button>
-					)}
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+						</a>
+					</Button>
+				) : (
+					<Button
+						variant="outline"
+						size="icon-lg"
+						className={loadingClass}
+						onClick={(e) => {
+							e.stopPropagation();
+							rest.onClick(e);
+						}}
+						disabled={isLoading}
+					>
+						{children}
+						<span className="sr-only">{label}</span>
+					</Button>
+				)}
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };

@@ -1746,6 +1746,47 @@ export const EditFilesSingleSuccess: Story = {
 	},
 };
 
+export const EditFilesSingleSuccessLight: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "light" },
+};
+
+export const EditFilesSingleSuccessProtanDeuter: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-protan-deuter" },
+};
+
+export const EditFilesSingleSuccessTritan: Story = {
+	args: EditFilesSingleSuccess.args,
+	globals: { theme: "dark-tritan" },
+};
+
+export const EditFilesLongPath: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-80 max-w-full">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...EditFilesSingleSuccess.args,
+		args: {
+			files: [
+				{
+					path: "site/src/pages/AgentsPage/components/ChatElements/charts/ConversationChart.tsx",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
 export const EditFilesAlwaysCollapsed: Story = {
 	args: {
 		name: "edit_files",

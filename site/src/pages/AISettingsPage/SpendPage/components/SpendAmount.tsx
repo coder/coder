@@ -46,7 +46,7 @@ const CostSetupWarning: React.FC<{ scope: SpendScope }> = ({ scope }) => {
 				<button
 					type="button"
 					aria-label={`Cost setup for ${scope.user}`}
-					className="flex cursor-default items-center border-0 bg-transparent p-0 text-content-warning opacity-75 transition-opacity hover:opacity-100 [&_svg]:size-3"
+					className="flex cursor-default items-center bg-transparent p-0 text-border-warning [&_svg]:size-3"
 				>
 					<TriangleAlertIcon />
 				</button>
@@ -62,7 +62,7 @@ const CostSetupWarning: React.FC<{ scope: SpendScope }> = ({ scope }) => {
 
 type SpendAmountProps = {
 	costMicros: number;
-	unpricedUsageCount: number;
+	hasUnpricedUsage: boolean;
 	scope: SpendScope;
 };
 
@@ -73,10 +73,10 @@ type SpendAmountProps = {
  */
 export const SpendAmount: React.FC<SpendAmountProps> = ({
 	costMicros,
-	unpricedUsageCount,
+	hasUnpricedUsage,
 	scope,
 }) => {
-	const warning = unpricedUsageCount > 0 && <CostSetupWarning scope={scope} />;
+	const warning = hasUnpricedUsage && <CostSetupWarning scope={scope} />;
 	return (
 		<span className="inline-flex items-center gap-2 tabular-nums">
 			{scope !== "organization" && warning}

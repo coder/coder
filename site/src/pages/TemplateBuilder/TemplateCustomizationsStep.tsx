@@ -1,20 +1,22 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
+import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 import {
 	permittedOrganizations,
 	provisionerDaemons,
 } from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	TemplateBuilderSubtitle,
@@ -57,11 +59,25 @@ type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
 	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
+	/**
+	 * Replaces the defaults derived from `state`. Formik reads it only on
+	 * mount, which works because the wizard remounts this step after a failed
+	 * create.
+	 */
+	initialValues?: CustomizationsFormValues;
+	/** The last create failure, shown on the field it belongs to. */
+	createError?: Error | null;
 };
 
 export const TemplateCustomizationsStep: React.FC<
 	TemplateCustomizationsStepProps
-> = ({ state, onCreate, onProvisionerStatusChange }) => {
+> = ({
+	state,
+	onCreate,
+	onProvisionerStatusChange,
+	initialValues,
+	createError,
+}) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -69,29 +85,46 @@ export const TemplateCustomizationsStep: React.FC<
 		}),
 	);
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
+	const showOrgsError = permittedOrgsQuery.isError && !permittedOrgsQuery.data;
 
+	const createValidations = isApiValidationError(createError)
+		? mapApiErrorToFieldErrors(createError.response.data)
+		: {};
 	const form = useFormik<CustomizationsFormValues>({
-		initialValues: {
+		initialValues: initialValues ?? {
 			organization_id: "",
 			name: state.name,
 			display_name: state.displayName,
 			description: state.description,
 			icon: state.icon,
 		},
+		// The step remounts after a failed create, so the fields it names start
+		// touched for getFormHelpers to show their errors.
+		initialTouched: Object.fromEntries(
+			Object.keys(createValidations).map((field) => [field, true]),
+		),
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
-	const getFieldHelpers = getFormHelpers(form);
+	const getFieldHelpers = getFormHelpers(form, createError);
+	const displayNameField = getFieldHelpers("display_name");
+	const nameField = getFieldHelpers("name", {
+		helperText: "Used to identify the template in URLs and the API.",
+	});
 	const descriptionField = getFieldHelpers("description");
 	const iconField = getFieldHelpers("icon");
-	const organizationField = getFieldHelpers("organization_id");
+	const organizationField = getFieldHelpers("organization_id", {
+		helperText: permittedOrgsQuery.isPending
+			? "Loading organizations…"
+			: undefined,
+	});
 
-	// Display object for the autocomplete; the Formik field only stores the id.
-	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+	const organizationId = form.values.organization_id;
+	const selectedOrg = orgOptions.find((o) => o.id === organizationId) ?? null;
 
 	const { data: provisioners } = useQuery({
-		...provisionerDaemons(selectedOrg?.id ?? ""),
-		enabled: Boolean(selectedOrg),
+		...provisionerDaemons(organizationId),
+		enabled: Boolean(organizationId),
 	});
 	const hasProvisioners = provisioners ? provisioners.length > 0 : undefined;
 	const showProvisionerWarning = hasProvisioners === false;
@@ -102,16 +135,25 @@ export const TemplateCustomizationsStep: React.FC<
 		onProvisionerStatusChange(hasProvisioners);
 	}, [hasProvisioners, onProvisionerStatusChange]);
 
+	const { setFieldValue } = form;
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
-		if (orgOptions.length === 1 && !selectedOrg) {
-			setSelectedOrg(orgOptions[0]);
-			void form.setFieldValue("organization_id", orgOptions[0].id);
+		if (orgOptions.length === 1 && !organizationId) {
+			void setFieldValue("organization_id", orgOptions[0].id);
 		}
-	}, [orgOptions, selectedOrg, form]);
+	}, [orgOptions, organizationId, setFieldValue]);
+
+	// The Organization field is not rendered while organizations fail to load,
+	// so its error moves to the alert above the form.
+	const fieldsShowingCreateError = Object.keys(createValidations).filter(
+		(field) =>
+			Object.hasOwn(form.initialValues, field) &&
+			!(field === "organization_id" && showOrgsError),
+	);
+	const showCreateErrorAlert =
+		Boolean(createError) && fieldsShowingCreateError.length === 0;
 
 	const handleOrgChange = (org: Organization | null) => {
-		setSelectedOrg(org);
 		void form.setFieldValue("organization_id", org?.id ?? "");
 	};
 
@@ -120,8 +162,11 @@ export const TemplateCustomizationsStep: React.FC<
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 			onSubmit={form.handleSubmit}
 			noValidate
-			className="min-w-[654px]"
+			className="min-w-163.5"
 		>
+			{showCreateErrorAlert && (
+				<ErrorAlert error={createError} className="mb-6" />
+			)}
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
@@ -137,55 +182,68 @@ export const TemplateCustomizationsStep: React.FC<
 				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
 					{/* Left column */}
 					<FormField
-						field={getFieldHelpers("display_name")}
+						field={displayNameField}
 						label="Display name"
 						id="template-display-name"
-						placeholder="My Template"
+						placeholder="My template"
 					/>
 
 					{/* Right column */}
-					{orgOptions.length > 0 && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">
-								Organization
-								<span className="text-xs font-bold text-content-destructive ml-1">
-									*
-								</span>
-							</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								onChange={handleOrgChange}
-								options={orgOptions}
-							/>
-							{organizationField.error && (
-								<span className="text-xs text-content-destructive">
-									{organizationField.helperText}
-								</span>
+					{showOrgsError ? (
+						<ErrorAlert
+							error={permittedOrgsQuery.error}
+							showDebugDetail={false}
+							actions={
+								<RetryButton
+									size="sm"
+									variant="outline"
+									isRetrying={permittedOrgsQuery.isFetching}
+									onRetry={() => void permittedOrgsQuery.refetch()}
+								/>
+							}
+						/>
+					) : (
+						<FormField
+							field={organizationField}
+							label="Organization"
+							required
+							id="organization"
+							control={(props) => (
+								<OrganizationAutocomplete
+									{...props}
+									required
+									autoFocus={fieldsShowingCreateError.includes(
+										"organization_id",
+									)}
+									disabled={permittedOrgsQuery.isPending}
+									value={selectedOrg}
+									onChange={handleOrgChange}
+									options={orgOptions}
+								/>
 							)}
-						</div>
+						/>
 					)}
 
 					{/* Left column */}
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-description">Description</Label>
-						<Textarea
-							{...form.getFieldProps("description")}
+						<FormField
+							field={descriptionField}
+							label="Description"
 							id="template-description"
-							placeholder="Describe what this template is for"
-							rows={3}
-							aria-invalid={descriptionField.error}
-							className={cn(
-								descriptionField.error && "border-border-destructive",
+							control={(props) => (
+								<Textarea
+									{...props}
+									{...form.getFieldProps("description")}
+									placeholder="Describe what this template is for"
+									rows={3}
+									className={cn(
+										descriptionField.error && "border-border-destructive",
+									)}
+								/>
 							)}
 						/>
-						{descriptionField.error && (
-							<span className="text-xs text-content-destructive">
-								{descriptionField.helperText}
-							</span>
-						)}
 						<p className="text-xs text-content-secondary">
+							{/* sentence-case-expect: Agents is the product name. */}
 							Used by both humans and Agents to identify templates.
 						</p>
 
@@ -205,11 +263,10 @@ export const TemplateCustomizationsStep: React.FC<
 
 					{/* Right column */}
 					<FormField
-						field={getFieldHelpers("name", {
-							helperText: "Used to identify the template in URLs and the API.",
-						})}
+						field={nameField}
 						label="ID"
 						required
+						autoFocus={fieldsShowingCreateError.includes("name")}
 						id="template-name"
 						placeholder="my-template"
 					/>

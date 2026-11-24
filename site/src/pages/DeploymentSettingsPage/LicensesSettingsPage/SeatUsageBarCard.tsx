@@ -18,7 +18,7 @@ export const SeatUsageBarCard: React.FC<SeatUsageBarCardProps> = ({
 
 	if (!isUnlimited && (limit === undefined || limit < 0)) {
 		return (
-			<section className="border border-solid rounded">
+			<section className="border rounded">
 				<div className="p-4">
 					<ErrorAlert error="Invalid license usage limits" />
 				</div>
@@ -43,7 +43,7 @@ export const SeatUsageBarCard: React.FC<SeatUsageBarCardProps> = ({
 		: meteredLimit.toLocaleString("en-US");
 
 	return (
-		<section className={cn("border border-solid rounded")}>
+		<section className={cn("border rounded")}>
 			<div className="p-4">
 				<div className="flex flex-col gap-2">
 					<h3 className="text-md m-0 font-medium">{title}</h3>
@@ -61,7 +61,7 @@ export const SeatUsageBarCard: React.FC<SeatUsageBarCardProps> = ({
 						/>
 					</div>
 
-					<div className="flex items-start justify-between text-sm font-medium whitespace-nowrap">
+					<div className="flex items-start justify-between text-sm whitespace-nowrap">
 						<p className="m-0 text-content-primary">
 							<span className="text-content-secondary">Active: </span>
 							<span

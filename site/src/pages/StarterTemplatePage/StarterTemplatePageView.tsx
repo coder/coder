@@ -14,13 +14,14 @@ import {
 } from "#/components/PageHeader/PageHeader";
 
 type StarterTemplatePageViewProps = {
+	canCreateTemplates: boolean;
 	starterTemplate?: TemplateExample;
 	error?: unknown;
 };
 
 export const StarterTemplatePageView: React.FC<
 	StarterTemplatePageViewProps
-> = ({ starterTemplate, error }) => {
+> = ({ starterTemplate, canCreateTemplates, error }) => {
 	if (error) {
 		return (
 			<Margins>
@@ -44,16 +45,18 @@ export const StarterTemplatePageView: React.FC<
 								View source code
 							</a>
 						</Button>
-						<Button asChild size="sm">
-							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
-								<PlusIcon />
-								Use template
-							</Link>
-						</Button>
+						{canCreateTemplates && (
+							<Button asChild size="sm">
+								<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+									<PlusIcon />
+									Use template
+								</Link>
+							</Button>
+						)}
 					</>
 				}
 			>
-				<div className="flex flex-row gap-6 items-center">
+				<div className="flex gap-6 items-center">
 					<div className="size-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
@@ -66,11 +69,8 @@ export const StarterTemplatePageView: React.FC<
 				</div>
 			</PageHeader>
 
-			<div
-				className="bg-surface-secondary border border-solid border-border rounded-lg"
-				id="readme"
-			>
-				<div className="px-8 pt-2 pb-12 max-w-[860px]">
+			<div className="bg-surface-secondary border rounded-lg" id="readme">
+				<div className="px-8 pt-2 pb-12 max-w-215">
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

@@ -30,7 +30,7 @@ const OrganizationProvisionerKeysPage: React.FC = () => {
 	const title = (
 		<title>
 			{pageTitle(
-				"Provisioner Keys",
+				"Provisioner keys",
 				organization.display_name || organization.name,
 			)}
 		</title>

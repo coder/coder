@@ -266,6 +266,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					}
 				}
 			}
+			s.logger.Flush(ctx)
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
@@ -363,7 +364,15 @@ func (s *Server) SessionCounts() map[string]int64 {
 	return maps.Clone(s.sessionCounts)
 }
 
-func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
+// isZedProxyCommand reports whether rawCommand starts Zed's remote server
+// proxy, the long-lived session Zed keeps open for a remote project. Zed sets
+// no app name, so its command line is the only signal.
+func isZedProxyCommand(rawCommand string) bool {
+	return strings.Contains(rawCommand, "zed-remote-server") &&
+		strings.Contains(rawCommand, " proxy --identifier ")
+}
+
+func extractAppName(env []string, rawCommand string) (appName, rawAppName string, filteredEnv []string) {
 	// Match the full assignment so a longer variable such as
 	// CODER_SSH_SESSION_TYPE_FOO=bar is not mistaken for this one.
 	prefix := AppNameEnvironmentVariable + "="
@@ -372,6 +381,10 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 			// The last instance of the variable wins.
 			rawAppName = value
 		}
+	}
+	// An explicit app name wins over detection.
+	if rawAppName == "" && isZedProxyCommand(rawCommand) {
+		rawAppName = "zed"
 	}
 
 	if rawAppName == "" {
@@ -502,7 +515,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	logger.Info(ctx, "handling ssh session")
 
 	env := session.Environ()
-	appName, rawAppName, env := extractAppName(env)
+	appName, rawAppName, env := extractAppName(env, session.RawCommand())
 	family := codersdk.AppNameFamily(appName)
 	if family == codersdk.AppFamilyUnknown {
 		logger.Debug(ctx, "unrecognized ssh session type",
@@ -576,26 +589,39 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
-		defer func() {
-			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
-			if s.isClosing() {
-				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
-					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+		var reportOnce sync.Once
+		report := func(reason codersdk.DisconnectReason) {
+			reportOnce.Do(func() {
+				fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+				if s.isClosing() {
+					if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+						fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+					}
+					reason = codersdk.DisconnectReasonServerShutdown
+					fields = append(fields, serverShutdownFields()...)
+				} else {
+					fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 				}
-				reason = codersdk.DisconnectReasonServerShutdown
-				fields = append(fields, serverShutdownFields()...)
-			} else {
-				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
-			}
-			logger.Info(ctx, "ssh session closed",
-				fields...,
-			)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:    st.exitCode(),
-				Reason:  string(reason),
-				RxBytes: st.RxBytes(),
-				TxBytes: st.TxBytes(),
+				if !reason.Expected() {
+					logger.Flush(ctx)
+				}
+				logger.Info(ctx, "ssh session closed",
+					fields...,
+				)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:    st.exitCode(),
+					Reason:  string(reason),
+					RxBytes: st.RxBytes(),
+					TxBytes: st.TxBytes(),
+				})
 			})
+		}
+		// Non-PTY processes outlive the client like OpenSSH, so report the
+		// disconnect when the connection closes, not when the process exits.
+		stop := context.AfterFunc(ctx, func() { report(codersdk.DisconnectReasonClientClosed) })
+		defer func() {
+			stop()
+			report(reason)
 		}()
 	}
 
@@ -631,6 +657,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
+		} else {
+			closeCause(string(codersdk.DisconnectReasonGraceful))
 		}
 		return
 	default:

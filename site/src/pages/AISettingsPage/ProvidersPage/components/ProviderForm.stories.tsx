@@ -119,6 +119,15 @@ export const AddOpenAI: Story = {
 	},
 };
 
+export const AddOpenRouter: Story = {
+	args: {
+		initialValues: {
+			type: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+		},
+	},
+};
+
 export const AddBedrock: Story = {
 	args: {
 		initialValues: { type: "bedrock" },

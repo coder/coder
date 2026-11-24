@@ -5,6 +5,7 @@ import {
 	ComboboxContent,
 	ComboboxEmpty,
 	ComboboxItem,
+	ComboboxItemLabel,
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
@@ -31,6 +32,8 @@ type SelectFilterProps = {
 	width?: number;
 	// SelectFilterSearch element
 	selectFilterSearch?: React.ReactNode;
+	// Accessible name for selectFilterSearch
+	searchLabel?: string;
 };
 
 export const SelectFilter: React.FC<SelectFilterProps> = ({
@@ -42,6 +45,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 	emptyText = "No options found",
 	width = BASE_WIDTH,
 	selectFilterSearch,
+	searchLabel,
 }) => {
 	return (
 		<Combobox
@@ -64,12 +68,13 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 					// When including selectFilterSearch, we aim for the width to be as
 					// wide as possible.
 					selectFilterSearch && "w-full",
-					"max-w-[260px]",
+					"max-w-65",
 				])}
 				style={{
 					minWidth: width,
 				}}
 				align="end"
+				label={searchLabel}
 				// We want the backend to handle the filtering, not the client.
 				shouldFilter={false}
 			>
@@ -84,7 +89,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 								keywords={[option.label]}
 							>
 								{option.startIcon}
-								<span className="flex-1 truncate">{option.label}</span>
+								<ComboboxItemLabel>{option.label}</ComboboxItemLabel>
 							</ComboboxItem>
 						))
 					) : (

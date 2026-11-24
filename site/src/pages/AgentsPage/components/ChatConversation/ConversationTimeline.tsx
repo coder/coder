@@ -11,13 +11,14 @@ import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import { ImageLightbox } from "../ImageLightbox";
 import { LightboxHost, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { isActiveChatStatus } from "./chatStore";
+import { isActiveChatStatus, isPendingRowID } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -46,15 +47,17 @@ import type {
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
+	SourceLink,
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getBlockSources,
 	getBlockTurnAttachments,
 	getExpansionKeys,
 	getSliceContent,
-	getTurnAttachmentsByRow,
+	getTurnPillsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
@@ -85,10 +88,10 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 }) => (
 	<div
 		role="note"
-		className="relative my-1 w-full rounded-lg border border-solid border-border bg-surface-secondary p-4 text-left"
+		className="relative my-1 w-full rounded-lg border bg-surface-secondary p-4 text-left"
 	>
-		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
-			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+		<div className="flex min-w-0 flex-1 items-start gap-3 text-sm">
+			<InfoIcon className="size-icon-sm mt-0.75 text-highlight-sky" />
 			<div className="min-w-0 flex-1">{children}</div>
 		</div>
 	</div>
@@ -129,6 +132,7 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	turnAttachments?: readonly MessageAttachment[];
+	turnSources?: SourceLink[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 	isLastMessage?: boolean;
@@ -164,6 +168,7 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		turnAttachments,
+		turnSources,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		isLastMessage = false,
@@ -350,7 +355,9 @@ const ChatMessageItem = memo<{
 					<UserMessageActions
 						message={message}
 						copyText={copyText}
-						onEditUserMessage={onEditUserMessage}
+						onEditUserMessage={
+							isPendingRowID(message.id) ? undefined : onEditUserMessage
+						}
 						prevUserMessageKey={prevUserMessageKey}
 						nextUserMessageKey={nextUserMessageKey}
 						onJumpToUserMessage={onJumpToUserMessage}
@@ -359,6 +366,7 @@ const ChatMessageItem = memo<{
 					<AssistantMessageActions
 						copyText={copyText}
 						turnAttachments={sliceTurnAttachments}
+						sources={hideSliceActions ? undefined : turnSources}
 						keepsSpacing={
 							Boolean(displayState?.needsAssistantBottomSpacer) &&
 							!isLastMessage
@@ -451,7 +459,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveTools = showsStreamOutput ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
+		const {
+			attachmentsByRow: turnAttachmentsByRow,
+			sourcesByRow: turnSourcesByRow,
+		} = getTurnPillsByRow(renderRows, {
 			hidesAttachmentRows: collapseSteps,
 			// requires_action counts, since the submitted tool result resumes the
 			// turn. The status can also settle before the streamed answer
@@ -512,18 +523,20 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prev/next arrow buttons that jump the transcript to the neighbouring
 		// user prompt. The row key doubles as the scroller's message ID.
 		const userRowKeys: string[] = [];
+		let latestUserRowIsPending = false;
 		for (const row of renderRows) {
 			if (row.type === "message" && row.entry.message.role === "user") {
 				userRowKeys.push(row.key);
+				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
 		// Only the latest user row anchors the scroller, and only while its turn
-		// is active. The scroller never marks initially rendered anchors as
-		// handled, and its fallback for mutations that are neither clean appends
-		// nor clean prepends jumps to the oldest unhandled anchor, so historical
-		// rows must not be anchors at all.
+		// is active or the row is pending. The scroller never marks initially
+		// rendered anchors as handled, and its fallback for mutations that are
+		// neither clean appends nor clean prepends jumps to the oldest unhandled
+		// anchor, so historical rows must not be anchors at all.
 		const anchorUserRowKey =
-			hasLiveAssistant || isAwaitingFirstStreamChunk
+			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
 		const userNeighborsByKey = new Map<
@@ -633,6 +646,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					turnAttachments={
 						inWorkingBlock ? undefined : turnAttachmentsByRow.get(row.key)
 					}
+					turnSources={
+						inWorkingBlock ? undefined : turnSourcesByRow.get(row.key)
+					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					isLastMessage={row.isLastMessage}
@@ -674,6 +690,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								turnAttachmentsByRow,
 							);
 
+							const blockSources = getBlockSources(
+								block,
+								renderRows,
+								turnSourcesByRow,
+							);
+
 							return (
 								<MessageScroller.Item
 									key={itemKey}
@@ -704,9 +726,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 												renderSlice(slice, { inWorkingBlock: true }),
 											)}
 									</WorkingBlockDisclosure>
-									{blockAttachments && (
+									{(blockAttachments || blockSources.length > 0) && (
 										<MessageActionBar>
-											<TurnAttachments attachments={blockAttachments} />
+											{blockAttachments && (
+												<TurnAttachments attachments={blockAttachments} />
+											)}
+											{blockSources.length > 0 && (
+												<WebSearchSources sources={blockSources} />
+											)}
 										</MessageActionBar>
 									)}
 								</MessageScroller.Item>

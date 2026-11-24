@@ -13,6 +13,7 @@ type SettingsNavItemProps = {
 	active: boolean;
 	adminOnly?: boolean;
 	ariaLabel?: string;
+	ariaKeyShortcuts?: string;
 	className?: string;
 	disabled?: boolean;
 	trailing?: React.ReactNode;
@@ -33,7 +34,7 @@ const navItemClassName = (
 	className: string | undefined,
 ) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-1.5 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -82,6 +83,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	active,
 	adminOnly,
 	ariaLabel,
+	ariaKeyShortcuts,
 	className,
 	disabled,
 	trailing,
@@ -98,6 +100,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 				className={navItemClassName(active, disabled, className)}
 				aria-current={active ? "page" : undefined}
 				aria-label={ariaLabel}
+				aria-keyshortcuts={ariaKeyShortcuts}
 				tabIndex={disabled ? -1 : undefined}
 			>
 				<NavItemContent
@@ -119,6 +122,7 @@ export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 			className={navItemClassName(active, disabled, className)}
 			aria-current={active ? "page" : undefined}
 			aria-label={ariaLabel}
+			aria-keyshortcuts={ariaKeyShortcuts}
 		>
 			<NavItemContent
 				icon={icon}

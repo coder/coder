@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { Avatar } from "#/components/Avatar/Avatar";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
+import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 
 type FilterProps = React.ComponentProps<typeof ListSessionsFilter>;
@@ -57,13 +59,10 @@ export const Default: Story = {
 		// The preset queries were removed, so the Filters button is gone
 		// while the search field and dropdown menus remain.
 		expect(canvas.queryByRole("button", { name: /filters/i })).toBeNull();
-		expect(canvas.getByLabelText("Filter")).toBeVisible();
+		expect(canvas.getByLabelText("Search")).toBeVisible();
 
-		// The picker trigger renders the committed preset label and opens
-		// to the quick-pick list with that preset selected.
-		await userEvent.click(
-			canvas.getByRole("button", { name: /Last 24 hours/ }),
-		);
+		// The picker opens with the committed preset selected.
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
 		await waitFor(() => {
 			expect(
 				screen.getByRole("radio", { name: "Custom range" }),
@@ -112,5 +111,47 @@ export const Loading: Story = {
 			client: MockMenu,
 			model: MockMenu,
 		},
+	},
+};
+
+export const WithOrganizations: Story = {
+	args: {
+		...defaultFilterProps,
+		menus: {
+			...defaultFilterProps.menus,
+			organization: {
+				...MockMenu,
+				searchOptions: [
+					{
+						label: MockOrganization.display_name,
+						value: MockOrganization.name,
+						startIcon: (
+							<Avatar
+								size="sm"
+								fallback={MockOrganization.display_name}
+								src={MockOrganization.icon}
+							/>
+						),
+					},
+					{
+						label: MockOrganization2.display_name,
+						value: MockOrganization2.name,
+						startIcon: (
+							<Avatar
+								size="sm"
+								fallback={MockOrganization2.display_name}
+								src={MockOrganization2.icon}
+							/>
+						),
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Select an organization" }),
+		);
 	},
 };
