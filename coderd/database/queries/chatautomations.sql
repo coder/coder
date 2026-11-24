@@ -119,11 +119,14 @@ WHERE
 -- name: UpdateChatAutomationEnabled :one
 -- Setting the current state keeps the schedule and updated_at, so the
 -- caller still needs update permission and a run in flight is not voided.
--- Turning an automation on clears the cursor of its MCP event subscription,
--- so that polls resume from now and events missed meanwhile do not run.
+-- Turning an automation on clears the cursor of its MCP event subscription
+-- and makes its poll due, so that polls resume from now, events missed
+-- meanwhile do not run, and a poll still in flight is voided.
 WITH resumed AS (
     UPDATE chat_automation_mcp_subscriptions s
-    SET cursor = NULL
+    SET
+        cursor = NULL,
+        next_poll_at = CASE WHEN s.delivery = 'poll' THEN @updated_at::timestamptz END
     FROM chat_automations a
     WHERE s.automation_id = @id::uuid AND a.id = s.automation_id AND NOT a.enabled AND @enabled::boolean
 )

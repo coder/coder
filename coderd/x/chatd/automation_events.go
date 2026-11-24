@@ -82,17 +82,21 @@ var eventErrorActions = map[int64]eventErrorAction{
 
 // inboxAppend is what one delivery adds to a subscription's inbox. A nil
 // Cursor and an invalid NextPollAt keep the stored ones. Truncated with a
-// Cursor adds a gap row: the server dropped events before these.
+// Cursor adds a gap row: the server dropped events before these. A poll
+// passes its lease as LeaseUntil, so that a re-enable during the poll, which
+// replaces the lease, drops the append.
 type inboxAppend struct {
 	AutomationID uuid.UUID
 	Events       []mcpclient.EventOccurrence
 	Cursor       *string
 	Truncated    bool
 	NextPollAt   sql.NullTime
+	LeaseUntil   sql.NullTime
 }
 
 // errSubscriptionInactive means that the subscription was deleted or
-// terminated, so the delivery is dropped.
+// terminated, or that a re-enable voided the poll, so the delivery is
+// dropped.
 var errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
 
 // appendInbox is the only writer of the event inbox. Every delivery mode
@@ -133,6 +137,7 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 			NextPollAt:   in.NextPollAt,
 			LastError:    sql.NullString{},
 			Now:          p.clock.Now("chatd", "automation-events"),
+			LeaseUntil:   in.LeaseUntil,
 		})
 		if err != nil {
 			return xerrors.Errorf("update subscription: %w", err)
@@ -304,8 +309,10 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 	}
 	// Groups that do not start within the budget keep their lease and are
 	// polled again when it ends.
-	ctx, cancel := context.WithTimeout(ctx, eventPollBudget)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	budget := p.clock.AfterFunc(eventPollBudget, cancel, "chatd", "automation-events")
+	defer budget.Stop()
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, eventPollConcurrency)
 	for key, subs := range groups {
@@ -380,7 +387,7 @@ func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub dat
 			p.handlePollError(ctx, sub.AutomationID, err, conn)
 			return
 		}
-		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated}
+		in := inboxAppend{AutomationID: sub.AutomationID, Events: res.Events, Cursor: res.Cursor, Truncated: res.Truncated, LeaseUntil: sub.NextPollAt}
 		more := res.HasMore && page < maxPendingInboxRows/maxEventsPerMessage
 		if !more {
 			in.NextPollAt = sql.NullTime{Time: nextPollAt(p.clock.Now("chatd", "automation-events"), res.NextPollMs), Valid: true}

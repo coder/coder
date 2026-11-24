@@ -1669,8 +1669,9 @@ type sqlcQuerier interface {
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	// Setting the current state keeps the schedule and updated_at, so the
 	// caller still needs update permission and a run in flight is not voided.
-	// Turning an automation on clears the cursor of its MCP event subscription,
-	// so that polls resume from now and events missed meanwhile do not run.
+	// Turning an automation on clears the cursor of its MCP event subscription
+	// and makes its poll due, so that polls resume from now, events missed
+	// meanwhile do not run, and a poll still in flight is voided.
 	UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error)
 	// updated_at tracks changes by people, so a run leaves it alone. A run that
 	// was not accepted is recorded only while the automation is still enabled and
@@ -1679,7 +1680,8 @@ type sqlcQuerier interface {
 	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
 	// Records a delivery or a failed poll of an active subscription: the cursor
 	// to resume from, the next poll and the error. A NULL cursor or next poll
-	// keeps the stored one; a NULL error clears it.
+	// keeps the stored one; a NULL error clears it. A poll's delivery passes its
+	// lease, and updates nothing once the subscription no longer holds it.
 	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
