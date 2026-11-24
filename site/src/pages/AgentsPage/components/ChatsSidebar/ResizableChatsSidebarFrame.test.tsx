@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_MENU_RESIZE_STEP,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
 
@@ -98,8 +99,8 @@ describe("ResizableChatsSidebarFrame", () => {
 	});
 
 	it.each([
-		{ item: "Decrease width", expected: 400 - 64 },
-		{ item: "Increase width", expected: 400 + 64 },
+		{ item: "Decrease width", expected: 400 - LEFT_SIDEBAR_MENU_RESIZE_STEP },
+		{ item: "Increase width", expected: 400 + LEFT_SIDEBAR_MENU_RESIZE_STEP },
 		{ item: "Reset width", expected: LEFT_SIDEBAR_DEFAULT_WIDTH },
 	])(
 		"resizes with a click on $item, without dragging",
@@ -110,6 +111,25 @@ describe("ResizableChatsSidebarFrame", () => {
 			await user.click(await screen.findByRole("menuitem", { name: item }));
 
 			expect(persistedWidth()).toBe(expected);
+		},
+	);
+
+	it.each(["touch", "pen"])(
+		"resizes from a %s long-press menu, without dragging",
+		async (pointerType) => {
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+			const handle = renderHandle();
+
+			vi.useFakeTimers();
+			fireEvent.pointerDown(handle, { ...PRIMARY, pointerType, clientX: 0 });
+			vi.advanceTimersByTime(1000);
+			vi.useRealTimers();
+			fireEvent.pointerUp(handle, { ...PRIMARY, pointerType, clientX: 0 });
+			await userEvent.click(
+				await screen.findByRole("menuitem", { name: "Increase width" }),
+			);
+
+			expect(persistedWidth()).toBe(400 + LEFT_SIDEBAR_MENU_RESIZE_STEP);
 		},
 	);
 });

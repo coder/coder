@@ -11,13 +11,11 @@ import {
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+	LEFT_SIDEBAR_MENU_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	loadPersistedLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
-
-// Coarse enough that the menu crosses the width range in a few clicks.
-const MENU_RESIZE_STEP = 64;
 
 type ResizableChatsSidebarFrameProps = {
 	children: React.ReactNode;
@@ -62,7 +60,11 @@ export const ResizableChatsSidebarFrame = ({
 		if (isDragging.current || e.button !== 0 || !e.isPrimary) {
 			return;
 		}
-		e.preventDefault();
+		// Touch and pen need no preventDefault (the handle is touch-none), and
+		// it would cancel the long-press that opens the width menu.
+		if (e.pointerType === "mouse") {
+			e.preventDefault();
+		}
 		isDragging.current = true;
 		activePointerId.current = e.pointerId;
 		startX.current = e.clientX;
@@ -154,13 +156,13 @@ export const ResizableChatsSidebarFrame = ({
 				<ContextMenuContent aria-label="Sidebar width">
 					<ContextMenuItem
 						disabled={width <= LEFT_SIDEBAR_MIN_WIDTH}
-						onSelect={() => setUserWidth(width - MENU_RESIZE_STEP)}
+						onSelect={() => setUserWidth(width - LEFT_SIDEBAR_MENU_RESIZE_STEP)}
 					>
 						Decrease width
 					</ContextMenuItem>
 					<ContextMenuItem
 						disabled={width >= maxWidth}
-						onSelect={() => setUserWidth(width + MENU_RESIZE_STEP)}
+						onSelect={() => setUserWidth(width + LEFT_SIDEBAR_MENU_RESIZE_STEP)}
 					>
 						Increase width
 					</ContextMenuItem>

@@ -48,7 +48,9 @@ type ChatTreeNodeProps = {
 	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
+	/** When omitted, the "Move up" item is hidden. */
 	readonly onMovePinUp?: () => void;
+	/** When omitted, the "Move down" item is hidden. */
 	readonly onMovePinDown?: () => void;
 };
 

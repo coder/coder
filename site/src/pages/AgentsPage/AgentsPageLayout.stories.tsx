@@ -765,7 +765,7 @@ export const ResizableSidebarContextMenu: Story = {
 			clientX: handle.getBoundingClientRect().left,
 			clientY: 120,
 		});
-		await within(document.body).findByText("Reset width");
+		await screen.findByRole("menuitem", { name: "Reset width" });
 	},
 };
 
