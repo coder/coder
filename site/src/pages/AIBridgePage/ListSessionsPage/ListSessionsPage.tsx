@@ -131,6 +131,7 @@ const AISessionListPage: React.FC = () => {
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
+				isPlaceholderData={sessionsQuery.isPlaceholderData}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}
