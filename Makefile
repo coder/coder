@@ -468,6 +468,12 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 
 		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
 			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+			# Cloud KMS signature, only present when CODER_GPG_KMS_KEY is set.
+			if [[ -f "$@.v2.asc" ]]; then
+				cp "$@.v2.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			else
+				rm -f "./site/out/bin/coder-$$os-$$arch$$dot_ext.v2.asc"
+			fi
 		fi
 	fi
 
@@ -848,17 +854,19 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags. Also fails on table header cells with no text.
+# and unclosed container tags. Also fails on table header cells with no text,
+# and on ARIA, role, tabindex, and lang attributes and iframe, object, area,
+# form control, and meta elements.
 lint/docs-html:
-	echo "--- check for invalid inline HTML and empty table headers in docs"
+	echo "--- check for invalid inline HTML, empty table headers, and disallowed elements in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, source files that nothing references, or a page description
+# generated route, source files that nothing references, a page description
 # (in the sources, a generated fragment, or page front matter) that doesn't end
-# with a period.
+# with a period, or a route state that repeats a state set on an ancestor.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
@@ -867,9 +875,10 @@ lint/docs-manifest: _gen/bin/docsmanifestgen
 # Fails when docs/redirects.json, the redirects the docs site applies for pages
 # that moved or were removed, is malformed, points at a page that is not in
 # docs/manifest.json, hides a live page, or has duplicate, chained, or looping
-# rules. Also warns, without failing, when a pull request removes docs routes
-# and leaves the file alone. Passes when the file does not exist. See
-# scripts/docsredirectscheck/README.md.
+# rules. Also fails when a route that worked on the base branch or on the live
+# site for the target branch no longer resolves. The live page list needs
+# network access; pass -offline to skip it. Passes when the file does not
+# exist. See scripts/docsredirectscheck/README.md.
 lint/docs-redirects:
 	echo "--- check docs/redirects.json"
 	go run ./scripts/docsredirectscheck
@@ -1190,6 +1199,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/database/migrations/testdata/.gen-golden \
 	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
@@ -1628,6 +1638,10 @@ coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/database/migrations/testdata/.gen-golden: $(wildcard coderd/database/migrations/testdata/reporter/*.golden) $(GO_SRC_FILES) $(wildcard coderd/database/migrations/*_test.go)
+	TZ=UTC go test ./coderd/database/migrations -run="^(TestReporter|TestOutcome|TestFinish)$$" -update
 	touch "$@"
 
 # Wait for fixture generation before reading its outputs under make -j.

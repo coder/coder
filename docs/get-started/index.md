@@ -116,7 +116,7 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 [Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
@@ -167,7 +167,7 @@ Install the `coder` CLI to get started:
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 1. Use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
@@ -192,17 +192,22 @@ If your control plane is on a network or cloud device, or you are having trouble
 It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find it.
 
+The setup page asks for a setup token, whichever URL you use.
+Copy it from the line that starts with `Setup token:` in the same output.
+
 This section includes some of the quicker ways to install Coder.
 For more detailed options, visit the [Install](../install/index.md) page.
 
 ## Step 3: Initial setup
 
 1. Create your admin account:
+   - Setup token: Copy it from the line that starts with `Setup token:` in the `coder server` output.
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin account.
-   Coder automatically grants admin permissions to the first user that signs in.
+   Coder automatically grants admin permissions to the first user.
+   To sign in with GitHub later, create the account with your GitHub account's primary email.
+   After setup, switch the account to GitHub sign-in under **Account** > **Security**.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -232,7 +237,7 @@ The template builder guides you through creating one without writing any Terrafo
      `my-docker-template`
    - **Display name** and **Description**: fill in as you like.
 
-1. Select **Create Template**.
+1. Select **Create template**.
    Coder composes and validates the Terraform configuration, then creates your template.
 
    ![Template builder base selection step](../images/templatebuilder_01_bases.png)
@@ -257,7 +262,7 @@ Now it's time to launch a workspace.
 
 ## Step 5: Launch your workspace
 
-1. After the template is ready, select **+ Create Workspace**.
+1. After the template is ready, select **+ Create workspace**.
 
 1. Give the workspace a name.
 
@@ -330,7 +335,7 @@ If you don't have a project in mind, ask the agent to generate something small y
 
 The Quickstart template is a starting point.
 [Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10 minutes.
+Each task takes about 10&nbsp;minutes.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 
@@ -355,7 +360,7 @@ When you're ready for other people to use it:
 
 ### Cannot connect to the Docker daemon
 
-When creating a workspace from a Docker template, you may see an error like:
+When creating a workspace from a Docker template, you might see an error like:
 
 ```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
@@ -364,7 +369,7 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 This usually means a container runtime is either not installed or not running on the machine where Coder is running.
 A runtime must be running before you create a workspace from a Docker-based template.
 
-If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+If the runtime is running but Coder still cannot connect, the daemon might expose its socket at a path other than `/var/run/docker.sock`.
 This is common with Colima on macOS and with rootless Docker on Linux.
 In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the control plane.
 

@@ -87,7 +87,7 @@ For intercepted requests, AI Gateway always removes client headers whose names s
 Configured actor headers are still re-injected from authenticated account values, and passthrough requests are unaffected.
 AI Gateway omits the email header when the authenticated account has no email address.
 Actor header settings apply to every configured provider.
-Email is personal information, so set the email option only if every upstream may receive it.
+Email is personal information, so set the email option only if every upstream can receive it.
 Gateway does not inject actor headers on passthrough routes.
 
 ### Header name restrictions
@@ -142,8 +142,6 @@ The legacy [`/v1/completions`](https://platform.openai.com/docs/api-reference/co
 
 ### Anthropic
 
-The Anthropic provider also serves the AWS Bedrock provider type.
-
 #### Intercepted
 
 - [`/v1/messages`](https://docs.claude.com/en/api/messages)
@@ -153,6 +151,13 @@ The Anthropic provider also serves the AWS Bedrock provider type.
 - [`/v1/messages/count_tokens`](https://docs.claude.com/en/api/messages-count-tokens)
 - [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
 - `/api/event_logging/*`
+
+### Amazon Bedrock
+
+#### Intercepted
+
+- [`/v1/messages`](https://docs.claude.com/en/api/messages), for both InvokeModel and Mantle
+- `/v1/chat/completions` and `/v1/responses`, for Mantle only
 
 ### GitHub Copilot
 

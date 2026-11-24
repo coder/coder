@@ -43,22 +43,7 @@ If you run your terminal in Emacs via `ansi-term` then you might run into a prob
 
 To fix this:
 
-1. In your workspace Terraform template be sure to add the following:
-
-   ```tf
-   data "coder_workspace" "me" {
-   }
-
-   resource "coder_agent" "main" {
-     # ...
-     env = {
-       name = "CODER_WORKSPACE_NAME"
-       value = data.coder_workspace.me.name
-     }
-   }
-   ```
-
-2. Next in the shell profile file on the workspace (ex., `~/.bashrc` for Bash and `~/.zshrc` for Zsh) add the following:
+1. In the shell profile file on the workspace (ex., `~/.bashrc` for Bash and `~/.zshrc` for Zsh) add the following:
 
    ```sh
    ansi_term_announce_host() {
@@ -115,7 +100,7 @@ Be sure to replace the values between angle brackets:
 - `<LANGUAGE MODE>`: The name of the Emacs major mode for which the language server should be used.
   For example to enable the language server for Javascript development use the value `web-mode`.
 - `<LANGUAGE SERVER ID>`: This is just the name that `lsp-mode` will use to refer to this language server.
-  If you are ever looking for output buffers or files they may have this name in them.
+  If you are ever looking for output buffers or files they might have this name in them.
 
 Calling the `lsp-register-client` function will tell `lsp-mode` the name of the LSP server binary.
 However this binary must be accessible via the path.

@@ -151,6 +151,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -161,6 +162,19 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>updated_at</code></td><td>No</td></tr>
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### AuditableChatProjectTemplates
+
+Actions: `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>project_id</code></td><td>No</td></tr>
+<tr><td><code>project_name</code></td><td>No</td></tr>
+<tr><td><code>template_ids</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -224,6 +238,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -398,10 +413,14 @@ Actions: `create`, `write`, `delete`
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
 <tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>default_parameters</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_id</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_version_preset_id</code></td><td>Yes</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>limit_templates</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
@@ -712,6 +731,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -742,6 +762,7 @@ Actions: `write`, `delete`
 <tr><td><code>autostart_block_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_weeks</code></td><td>Yes</td></tr>
+<tr><td><code>browser_only</code></td><td>Yes</td></tr>
 <tr><td><code>cors_behavior</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>created_by</code></td><td>Yes</td></tr>
@@ -1025,7 +1046,7 @@ log entry:
 ## Purge old audit logs
 
 > [!WARNING]
-> Audit Logs provide critical security and compliance information. Purging Audit Logs may impact your organization's ability
+> Audit Logs provide critical security and compliance information. Purging Audit Logs might impact your organization's ability
 > to investigate security incidents or meet compliance requirements. Consult your security and compliance teams before purging any audit data.
 
 ### Data Retention
@@ -1065,16 +1086,16 @@ and in accordance with your compliance requirements.
 > [!NOTE]
 > `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes. For more information, see the [PostgreSQL VACUUM documentation](https://www.postgresql.org/docs/current/sql-vacuum.html).
 
-You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
+You can choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
 
-- **Run during a planned maintenance window** to ensure ample time for the operation to complete and minimize impact to users
+- **Run during a planned maintenance window** to allow ample time for the operation to complete and minimize impact to users
 - **Stop all running instances of `coderd`** to prevent connection errors while the table is locked. The actual steps for this will depend on your particular deployment setup. For example, if your `coderd` deployment is running on Kubernetes:
 
   ```sh
   kubectl scale deployment coder --replicas=0 -n coder
   ```
 
-- **Terminate lingering connections** before running the `VACUUM` operation to ensure it starts immediately
+- **Terminate lingering connections** before running the `VACUUM` operation to make sure it starts immediately
 
   ```sql
   SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -1107,7 +1128,7 @@ SELECT * FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year';
 ### Permanent Deletion
 
 > [!NOTE]
-> For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it may impact
+> For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it might impact
 > database performance. You can also batch the deletions to reduce lock time.
 
 ```sql

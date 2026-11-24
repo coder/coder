@@ -29,7 +29,7 @@ If your template uses modules that exceed this limit, some modules will be unava
 
 **Symptoms:**
 
-Warnings may exist in the provisioner logs:
+Warnings might exist in the provisioner logs:
 
 ```txt
 [API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git

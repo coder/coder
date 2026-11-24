@@ -2,6 +2,7 @@ import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { ChatCostTooltip } from "./ChatCostTooltip";
 
 const EMPTY_VALUE = "-";
 
@@ -34,8 +35,6 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 	const trimmedSummary = summary?.trim();
 	const hasCost =
 		showCost && !isCostLoading && !costError && costMicros != null;
-	const hasUnpricedRequests =
-		hasCost && unpricedRequestCount != null && unpricedRequestCount > 0;
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -61,7 +60,12 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 						) : costError ? (
 							<span className="text-content-secondary">Unavailable</span>
 						) : costMicros != null ? (
-							formatCostMicros(costMicros)
+							<span className="inline-flex items-center gap-1.5">
+								{formatCostMicros(costMicros)}
+								<ChatCostTooltip
+									unpricedRequestCount={unpricedRequestCount ?? 0}
+								/>
+							</span>
 						) : (
 							EMPTY_VALUE
 						)}
@@ -75,13 +79,6 @@ export const ChatSummary: React.FC<ChatSummaryProps> = ({
 					it and any other subagents.
 				</p>
 			)}
-
-			{hasUnpricedRequests && (
-				<p className="m-0 text-xs italic text-content-secondary">
-					Excludes unpriced usage from {unpricedRequestCount} request
-					{unpricedRequestCount === 1 ? "" : "s"}.
-				</p>
-			)}
 		</div>
 	);
 };
@@ -91,7 +88,7 @@ type ChatSummaryBodyProps = {
 };
 
 const ChatSummaryBody: React.FC<ChatSummaryBodyProps> = ({ summary }) => (
-	<div className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary wrap-anywhere">
+	<div className="w-full wrap-break-word font-sans text-sm font-normal leading-6 text-content-primary">
 		<InlineMarkdown
 			allowedElements={["ul", "ol", "li"]}
 			components={{

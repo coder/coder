@@ -158,6 +158,10 @@ var expDERPOnce = sync.Once{}
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
+	// SetupToken, when not empty, must be sent to create the first user.
+	// The server command sets it only when it opened a tunnel and no user
+	// exists.
+	SetupToken string
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
 	// It will use the same scheme and port number as the access URL.
@@ -169,7 +173,8 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.Pubsub
+	// Note that a _reporting_ pubsub here is just one that can generate a health check of itself.
+	Pubsub pubsub.ReportingPubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -834,6 +839,9 @@ func New(options *Options) *API {
 					Store:                  options.Database,
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
+				},
+				Pubsub: healthcheck.PubsubReportOptions{
+					Pubsub: options.Pubsub,
 				},
 				Progress: progress,
 			})

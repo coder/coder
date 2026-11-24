@@ -206,6 +206,9 @@ type Server struct {
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -350,6 +353,8 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		Stages:               p.stages,
+		StageModel:           advisor.stageModel(),
 		PriorUses:            priorUses,
 	})
 	if err != nil {
@@ -445,10 +450,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
+	// SendMessageBusyBehaviorSteer delivers the message before the next
+	// assistant model call. It is the default.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 )
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
@@ -471,8 +475,11 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	// InsertedMessages holds every message the send inserted, in
-	// insertion order. A queued send on an errored chat can still
-	// insert messages by promoting the previous queue head.
+	// insertion order. A send to an errored or paused chat can also
+	// insert queued messages: a steer send inserts the queued steer
+	// messages before the new message, and a queue send to an errored
+	// chat inserts the steer lane, or the first queue message when that
+	// lane is empty.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
 	// FirstUserTurn reports that the send inserted the first
@@ -516,14 +523,6 @@ type EditMessageResult struct {
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
-}
-
-// PromoteQueuedResult contains post-promotion message metadata.
-type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message. For a chat that
-	// was running at promote time, the insertion is deferred to the
-	// worker's auto-promote and PromotedMessage is the zero value.
-	PromotedMessage database.ChatMessage
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
@@ -1491,21 +1490,6 @@ func (p *Server) Start() *Server {
 	return p
 }
 
-func subscribeWithInitialError(chatID uuid.UUID, message string) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	events := make(chan codersdk.ChatStreamEvent)
-	close(events)
-	return []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error:  &codersdk.ChatError{Message: message},
-	}}, events, func() {}, true
-}
-
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
 func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
@@ -1630,14 +1614,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
@@ -2729,7 +2713,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chat)
 	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
 		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
@@ -2738,7 +2722,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chat), stop
 }
 
 func chatKind(chat database.Chat) chatloop.ChatKind {
@@ -2748,8 +2732,24 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+func chatIdentity(chat database.Chat) chatloop.ChatIdentity {
+	return chatloop.ChatIdentity{
+		ChatID:         chat.ID,
+		OwnerID:        chat.OwnerID,
+		OrganizationID: chat.OrganizationID,
+		WorkspaceID:    chat.WorkspaceID,
+		ParentChatID:   chat.ParentChatID,
+		RootChatID:     chat.RootChatID,
+	}
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, chat database.Chat) context.Context {
+	return stageIdentityContext(ctx, scope, chatKind(chat), chatIdentity(chat))
+}
+
+func stageIdentityContext(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, identity chatloop.ChatIdentity) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
+	ctx = chatloop.ContextWithChatIdentity(ctx, identity)
 	return chatloop.ContextWithChatKind(ctx, kind)
 }
 

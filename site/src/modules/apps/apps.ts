@@ -4,6 +4,7 @@ import type {
 	WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { parseURL } from "#/utils/uri";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -18,7 +19,8 @@ type SessionTokenHandler = {
 	path: string;
 };
 
-// The only deep-link handlers that may receive the session token.
+// The only deep-link handlers that may receive the session token. Keep in
+// sync with sessionTokenHandlers in cli/open.go.
 const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
 	...[
 		"vscode",
@@ -203,6 +205,9 @@ export const isSessionTokenLinkBlocked = (
  * True when the link opens a known Coder handler, its only `url` param is this
  * deployment (the current origin or `accessUrl`), and the placeholder is its
  * only `token`.
+ *
+ * `coder open app` mirrors this check in cli/open.go. Add cases to
+ * sessionTokenDestinationCases.json, which both test suites run.
  */
 export const isSessionTokenDestinationTrusted = (
 	appUrl: string,
@@ -280,9 +285,7 @@ const isThisDeployment = (
 	const { origin } = new URL(url);
 	return (
 		origin === location.origin ||
-		(accessUrl !== undefined &&
-			URL.canParse(accessUrl) &&
-			origin === new URL(accessUrl).origin)
+		(accessUrl !== undefined && parseURL(accessUrl)?.origin === origin)
 	);
 };
 
@@ -293,7 +296,8 @@ const isThisDeployment = (
  * since parsing normalizes `/.` and drops an empty `?`.
  */
 export const isBareOrigin = (url: string): boolean =>
-	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) && URL.canParse(url);
+	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) &&
+	parseURL(url) !== undefined;
 
 /**
  * True for apps that can be rendered inside a dashboard iframe. Command apps
@@ -332,7 +336,7 @@ export const isAppUrlValid = (app: WorkspaceApp): boolean => {
 	if (!isExternalApp(app)) {
 		return true;
 	}
-	return URL.canParse(app.url);
+	return parseURL(app.url) !== undefined;
 };
 
 /**

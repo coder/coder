@@ -31,7 +31,7 @@ See the [troubleshooting section](#troubleshooting-grouproleorganization-sync) f
 ## Group Sync
 
 If your OpenID Connect provider supports group claims, you can configure Coder to synchronize groups in your auth provider to groups within Coder.
-To enable group sync, ensure that the `groups` claim is being sent by your OpenID provider.
+To enable group sync, make sure that the `groups` claim is being sent by your OpenID provider.
 You might need to request an additional [scope](../../reference/cli/server/index.md#--oidc-scopes) or additional configuration on the OpenID provider side.
 
 If group sync is enabled, the user's groups will be controlled by the OIDC provider.
@@ -49,9 +49,9 @@ For deployments with multiple [organizations](./organizations.md), configure gro
    https://[coder.example.com]/api/v2/groups
    ```
 
-1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP Sync**:
+1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP sync**:
 
-   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select **Save**.
 
@@ -123,7 +123,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IdP Sync](../../images/admin/users/organizations/group-sync.png)
+![IdP sync](../../images/admin/users/organizations/group-sync.png)
 
 ### Server Flags
 
@@ -194,11 +194,11 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 ### Dashboard
 
-1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP Sync**.
+1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP sync**.
 
 1. Select the **Role sync settings** tab:
 
-   ![IdP Sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
+   ![IdP sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
 
 1. Enter the **Role sync field**, then select **Save**.
 
@@ -255,7 +255,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IdP Sync](../../images/admin/users/organizations/role-sync.png)
+![IdP sync](../../images/admin/users/organizations/role-sync.png)
 
 ### Server Flags
 
@@ -303,13 +303,13 @@ You can initiate an organization sync through the Coder dashboard or CLI:
    https://[coder.example.com]/api/v2/organizations
    ```
 
-1. As a Coder organization user admin or site-wide user admin, go to **Admin settings** > **Deployment** and select **IdP organization sync**.
+1. As an Owner or site-wide User Admin, go to **Admin settings** > **Deployment** and select **IdP organization sync**.
 
 1. In the **Organization sync field** text box, enter the organization claim, then select **Save**.
 
    Users are automatically added to the default organization.
 
-   Do not disable **Assign Default Organization**.
+   Do not disable **Assign default organization**.
    If you disable the default organization, the system will remove users who are already assigned to it.
 
 1. Enter an IdP organization name and Coder organization(s), then select **Add IdP organization**:
@@ -379,26 +379,24 @@ If you are running into issues with a sync:
 1. To reduce noise, you can filter for only logs related to group/role sync:
 
    ```sh
-   CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
+   CODER_LOG_FILTER=".*userauth.*|.*idp-sync.*"
    ```
 
 1. Restart the control plane after changing these configuration values.
 
 1. Attempt to log in, preferably with a user who has the `Owner` role.
 
-The logs for a successful sync look like this (human-readable):
+The following debug and warning messages show how Coder processed the OIDC claims and group sync for a login.
 
-```sh
-[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=id_token  claim_fields="[aio aud email exp groups iat idp iss name nbf oid preferred_username rh sub tid uti ver]"  blank=[]
+- `got oidc claims` (debug): Logged when Coder reads claims from a source.
+  The `source` field is `id_token` or `userinfo`, and `claim_fields` lists the claim names that were present.
+- `failed to parse claims for groups` (debug): Logged when Coder cannot parse the group claims.
+- `user not assigned to expected number of groups` and `user not removed from expected number of groups` (debug): Logged when the number of group changes differs from the expected number.
+- `group sync settings name groups that were not synced` (warning): Logged when group sync settings refer to groups that Coder did not sync.
+  The `CODER_LOG_FILTER` setting applies only to debug messages, so this warning appears even when the filter is set.
 
-[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=userinfo  claim_fields="[email family_name given_name name picture sub]"  blank=[]
-
-[debu]  coderd.userauth: got oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  source=merged  claim_fields="[aio aud email exp family_name given_name groups iat idp iss name nbf oid picture preferred_username rh sub tid uti ver]"  blank=[]
-
-[debu]  coderd: groups returned in oidc claims  request_id=49e86507-6842-4b0b-94d4-f245e62e49f3  email=ben@coder.com  username=ben  len=3  groups="[c8048e91-f5c3-47e5-9693-834de84034ad 66ad2cc3-a42f-4574-a281-40d1922e5b65 70b48175-107b-4ad8-b405-4d888a1c466f]"
-```
-
-To view the full claim, the Owner role can visit this endpoint on their Coder deployment after logging in:
+To view your own claims, run `coder users oidc-claims` with the Coder CLI.
+To view the full claims for another user, an Owner can visit this endpoint on their Coder deployment after logging in:
 
 ```sh
 https://[coder.example.com]/api/v2/debug/[username]/debug-link
@@ -438,7 +436,7 @@ CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 
 ### Invalid Scope
 
-If you see an error like the following, you may have an invalid scope.
+If you see an error like the following, you might have an invalid scope.
 
 ```console
 The application '<oidc_application>' asked for scope 'groups' that doesn't exist on the resource...
@@ -455,7 +453,7 @@ The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value 
 
 Steps to troubleshoot.
 
-1. Ensure the user is a part of a group in the IdP.
+1. Make sure the user is a part of a group in the IdP.
 
    If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.

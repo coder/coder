@@ -5,7 +5,7 @@ title: Customize your template
 In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the control plane, and built a workspace from the Quickstart template.
 That template is a good starting point, but it has gaps:
 
-- It may not include every language in which you write code.
+- It might not include every language in which you write code.
 - It comes with a base toolset, but not the personal command-line tools you install on every machine.
 - It clones public repositories, but it can't reach your private repositories without manual authentication.
 
@@ -65,7 +65,7 @@ Open it for editing now, either in the Coder web editor or in your local editor 
 
 1. Log in to Coder and select **Templates**.
 2. Find the **Coder Quickstart** template you created and open it.
-3. Select the three-dots menu next to **Create Workspace**, then select **Edit files**.
+3. Select the three-dots menu next to **Create workspace**, then select **Edit files**.
 
 The template web editor opens:
 

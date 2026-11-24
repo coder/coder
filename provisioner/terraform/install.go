@@ -25,7 +25,7 @@ var (
 	// checks this). scripts/Dockerfile.base and install.sh read the version and
 	// checksums from it. scripts/update_terraform_version.sh bumps this
 	// version, the checksum file and the other pins together.
-	TerraformVersion = version.Must(version.NewVersion("1.17.1"))
+	TerraformVersion = version.Must(version.NewVersion("1.17.2"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.17.9")) // use .9 to automatically allow patch releases

@@ -20,6 +20,9 @@ The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
 A page doesn't jump from H2 to H4.
+Raw HTML headings, such as the `<h3>` headings in the generated API reference, sit in the same outline and follow the same rule.
+Every heading has text.
+An empty heading still appears in the outline a screen reader offers, as an entry with no name.
 
 Each heading is followed by at least one paragraph (or other content block) before the next heading.
 A bare H2 followed immediately by an H3 with no prose in between reads as a broken document outline, and SEO crawlers flag the pattern as a potential site error.
@@ -71,7 +74,7 @@ The second H1 creates two competing page titles.
 The H1 to H4 jump skips H2 and H3.
 Even if the levels were correct, the first H1 has no paragraph before the next heading, which also fails the rule.
 
-*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1).
+*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1), and by `Coder.HeadingOrder` and `Coder.EmptyHeading`.
 The "content between headings" rule is documentation-only.*
 
 ## Inclusive pronouns
@@ -145,6 +148,9 @@ Link text describes what the reader gets at the destination.
 Generic phrases like "click here" and "this link" tell the reader nothing if they scan the link out of context.
 Screen readers announce link text out of context too, which is the [WCAG 2.1 Level A](https://www.w3.org/TR/WCAG21/#link-purpose-in-context) requirement the rule supports.
 
+Every link has text.
+A link with none, such as `[](url)`, an empty `<a href>`, or a link whose only content is an image with empty alt text, is announced as its URL or not at all.
+
 **Do**:
 
 > Refer to the [Coder CLI reference](../../reference/cli/index.md) for the full command list.
@@ -155,7 +161,7 @@ Screen readers announce link text out of context too, which is the [WCAG 2.1 Lev
 >
 > [Click here](../../reference/cli/index.md) for the full command list.
 
-*Enforced by `Coder.LinkText` (planned).*
+*Enforced by `Coder.LinkName` for links with no text, and by `Coder.LinkText` (planned) for generic phrases.*
 
 ## Alt text for images
 
@@ -183,8 +189,12 @@ Mark images that carry no information beyond visual decoration with empty alt te
 Empty alt text tells the screen reader to skip the image rather than announce a meaningless filename.
 
 ```md
-![](../../images/decorative/divider.png)
+<img src="../../images/decorative/divider.png" alt="">
 ```
+
+Use a raw `<img>` with `alt=""` for a decorative image, not the Markdown `![](…)` form.
+The docs HTML check rejects `role`, `tabindex`, `lang`, and `aria-*` attributes, so `alt=""` is the only way to mark an image as decorative.
+markdownlint rejects a Markdown image with empty alt text, because it can't tell a decorative image from one whose alt text is missing.
 
 Decorative images are rare in the Coder docs.
 Most images shown to a reader are screenshots or diagrams that convey information, and those images need descriptive alt text.
@@ -432,9 +442,10 @@ When the first use is a UI label in bold, keep the label exactly as the UI shows
 
 > Paste the path to the certificate in **certificate authority (CA) Path**.
 
-A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, and JSON.
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, JSON, and UUID.
 The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
 Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+A Coder networking or identity term that the [glossary](../../reference/glossary.md) defines, such as DERP or OIDC, can also join the list, because the glossary gives readers one place to look it up.
 
 The rule skips headings, code, link URLs, and pages generated from source code.
 An abbreviation in a page title still needs its expansion in the body of the page.

@@ -92,6 +92,15 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	// The captured lock file only speeds up init, so failing to restore it
+	// isn't fatal.
+	restored, err := restoreImportedLockFile(sess.Files, request.ModuleArchive)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to restore lock file captured during template import", slog.Error(err))
+	} else if restored {
+		s.logger.Debug(ctx, "using lock file captured during template import", slog.F("platform", terraformPlatform()))
+	}
+
 	err = CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
@@ -100,6 +109,9 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
+	if err != nil && restored && ctx.Err() == nil {
+		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	}
 	endStage(err)
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
@@ -120,6 +132,7 @@ func (s *server) Init(
 			stacktrace := tryGettingCoderProviderStacktrace(sess)
 			s.logger.Critical(ctx, "init: text file busy",
 				slog.Error(errTFB),
+				slog.F("stdout", errTFB.stdout),
 				slog.F("stderr", errTFB.stderr),
 				slog.F("provider_coder_stacktrace", stacktrace),
 			)
@@ -168,6 +181,28 @@ func (s *server) Init(
 	}
 }
 
+// initWithTemplateLockFile retries a failed init with the template's own lock
+// file, or none, as builds did before the captured lock file was reused. This
+// covers provisioners that can't install the captured versions, for example
+// after an air-gapped image upgrade.
+func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
+	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
+		slog.Error(initErr))
+	sess.ProvisionLog(proto.LogLevel_WARN,
+		"Retrying terraform init without the provider versions selected when this template version was imported.")
+
+	if err := restoreTemplateLockFile(sess.Files); err != nil {
+		return errors.Join(initErr, err)
+	}
+	err := e.init(ctx, killCtx, sess)
+	if err == nil {
+		sess.ProvisionLog(proto.LogLevel_WARN,
+			"If this warning appears on every build, push a new template version and update workspaces to it "+
+				"so builds reuse provider versions again.")
+	}
+	return err
+}
+
 func (s *server) Plan(
 	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
 ) *proto.PlanComplete {
@@ -207,13 +242,13 @@ func (s *server) Plan(
 	}
 	env = otelEnvInject(ctx, env)
 
-	vars, err := planVars(request)
+	vars, sensitiveVars, err := planVars(request)
 	if err != nil {
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sensitiveVars, sess, request)
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
@@ -466,12 +501,18 @@ func (s *server) Apply(
 	return resp
 }
 
-func planVars(plan *proto.PlanRequest) ([]string, error) {
+// planVars returns the `name=value` template variables for the plan, and the
+// names of those flagged sensitive, whose values are redacted from logs.
+func planVars(plan *proto.PlanRequest) ([]string, map[string]bool, error) {
 	vars := []string{}
+	sensitive := map[string]bool{}
 	for _, variable := range plan.VariableValues {
 		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
+		if variable.Sensitive {
+			sensitive[variable.Name] = true
+		}
 	}
-	return vars, nil
+	return vars, sensitive, nil
 }
 
 func provisionEnv(

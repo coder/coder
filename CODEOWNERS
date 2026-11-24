@@ -57,10 +57,7 @@ site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @j
 .markdownlint.jsonc @nickvigilante
 .markdownlint-cli2.jsonc @nickvigilante
 .github/workflows/audit-docs-paths.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/deploy-docs.yaml @nickvigilante @jdomeracki-coder
 .github/workflows/doc-check.yaml @nickvigilante @jdomeracki-coder
 .github/workflows/docs-preview.yaml @nickvigilante @jdomeracki-coder
 .github/workflows/weekly-docs.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/test-deploy-docs-diff.sh @nickvigilante @jdomeracki-coder
-.github/workflows/test-deploy-docs-release.sh @nickvigilante @jdomeracki-coder
 .github/workflows/test-docs-preview-mapper.sh @nickvigilante @jdomeracki-coder

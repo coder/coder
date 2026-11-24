@@ -285,11 +285,12 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 }
 
 // @Summary Watch chat events for a user via WebSockets
+// @Description Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.
 // @ID watch-chat-events-for-a-user-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Success 200 {object} codersdk.ChatWatchEvent
+// @Success 101 {object} codersdk.ChatWatchEvent
 // @Router /api/v2/chats/watch [get]
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -832,15 +833,15 @@ func validateChatModelOverride(
 	return validateChatModelOverrideEffort(modelConfig, effort)
 }
 
-// validateComputerUseModelProvider rejects models whose AI provider has no
-// computer use tool. Chatd derives the tool flavor from the provider type.
+// validateComputerUseModelProvider rejects models that cannot run computer
+// use. Chatd derives the tool flavor from the provider type and the model.
 func validateComputerUseModelProvider(
 	ctx context.Context,
 	db database.Store,
 	modelConfig database.ChatModelConfig,
 ) (int, *codersdk.Response) {
 	unsupported := &codersdk.Response{
-		Message: "Computer use requires a model from an Anthropic or OpenAI AI provider.",
+		Message: "Computer use requires " + chatprovider.ComputerUseModelRequirement + ".",
 	}
 	if !modelConfig.AIProviderID.Valid {
 		unsupported.Detail = fmt.Sprintf("Model %q has no AI provider.", modelConfig.Model)
@@ -853,16 +854,14 @@ func validateComputerUseModelProvider(
 			Detail:  err.Error(),
 		}
 	}
-	switch chatprovider.NormalizeProvider(string(provider.Type)) {
-	case string(codersdk.ChatComputerUseProviderAnthropic), string(codersdk.ChatComputerUseProviderOpenAI):
+	if _, ok := chatprovider.ComputerUseProvider(provider.Type, modelConfig.Model); ok {
 		return 0, nil
-	default:
-		unsupported.Detail = fmt.Sprintf(
-			"Model %q uses AI provider %q of type %q.",
-			modelConfig.Model, provider.Name, provider.Type,
-		)
-		return http.StatusBadRequest, unsupported
 	}
+	unsupported.Detail = fmt.Sprintf(
+		"Model %q uses AI provider %q of type %q.",
+		modelConfig.Model, provider.Name, provider.Type,
+	)
+	return http.StatusBadRequest, unsupported
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -2044,7 +2043,13 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
+	var snapshotVersion int64
 	if beforeID == 0 && afterID == 0 {
+		// A cursored page can leave out newer messages, so only the newest
+		// page reports a snapshot version. chat was read before the messages
+		// and the queue, so a stream opened at this version can resend a
+		// change committed between those reads.
+		snapshotVersion = chat.SnapshotVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2056,10 +2061,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       slice.List(messages, db2sdk.ChatMessage),
-		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
-		HasMore:        hasMore,
-		TurnStartID:    turnStartID,
+		Messages:        slice.List(messages, db2sdk.ChatMessage),
+		QueuedMessages:  db2sdk.ChatQueuedMessages(queuedMessages),
+		HasMore:         hasMore,
+		TurnStartID:     turnStartID,
+		SnapshotVersion: snapshotVersion,
 	})
 }
 
@@ -2340,12 +2346,13 @@ func (api *API) authorizeChatWorkspaceExecWithStatus(
 }
 
 // @Summary Watch chat workspace git state via WebSockets
+// @Description Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes after the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
+// @Success 101 {object} codersdk.WorkspaceAgentGitServerMessage
 // @Router /api/v2/chats/{chat}/stream/git [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -3263,16 +3270,16 @@ func (api *API) sendChatMessage(
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	var busyBehavior chatd.SendMessageBusyBehavior
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorSteer:
+		busyBehavior = chatd.SendMessageBusyBehaviorSteer
+	case codersdk.ChatBusyBehaviorQueue:
+		busyBehavior = chatd.SendMessageBusyBehaviorQueue
 	default:
 		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "steer" or "queue".`,
 		})
 	}
 
@@ -3343,8 +3350,9 @@ func (api *API) sendChatMessage(
 	} else {
 		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
-	// Return the full user-visible inserted batch. A queued send on an errored
-	// chat can promote the previous queue head, which clients must cache.
+	// Return the full user-visible inserted batch, which clients must cache.
+	// A send to an errored or paused chat can also insert queued messages
+	// (see chatd.SendMessageResult.InsertedMessages).
 	for _, inserted := range sendResult.InsertedMessages {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
@@ -3610,6 +3618,10 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot delete queued messages in an archived chat.",
+			})
 		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
@@ -3622,7 +3634,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			// response already written
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to delete.",
+				Message: "Cannot delete this queued message in the chat's current state.",
 				Detail:  err.Error(),
 			})
 		default:
@@ -3689,7 +3701,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3712,7 +3724,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			// response already written
 		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to promote.",
+				Message: "Cannot promote this queued message in the chat's current state.",
 				Detail:  txErr.Error(),
 			})
 		default:
@@ -3846,9 +3858,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit queued messages in an archived chat.",
 			})
-		case errors.Is(err, chatstate.ErrQueuedMessageNotFound), errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses EditQueuedMessage
-			// has an empty queue, so the row no longer exists.
+		case errors.Is(err, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3862,6 +3872,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot edit this queued message in the chat's current state.",
+				Detail:  err.Error(),
+			})
 		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
@@ -3928,14 +3943,60 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
+// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
+// @Param snapshot_version query int false "Send what changed at this snapshot version or later"
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
+// @Description
+// @Description Each WebSocket message is a JSON array of events.
+// @Description
+// @Description The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+// @Description A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
+// @Description Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+// @Description The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+// @Description The stream can send changes that are already in the page.
+// @Description
+// @Description The server reads the chat when the stream opens and each time the chat changes.
+// @Description Each read sends the changes since the previous read.
+// @Description When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
+// @Description
+// @Description - A `message` event for each message that isn't deleted.
+// @Description - A `history_reset` event for each edit.
+// @Description - A `queue_update` event, if the queue changed.
+// @Description
+// @Description The server ignores `after_id` when you set `snapshot_version`.
+// @Description The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+// @Description
+// @Description On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+// @Description Each read sends these events in order of `snapshot_version`.
+// @Description Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+// @Description The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+// @Description The server sends `message_part` events between reads.
+// @Description
+// @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+// @Description The edit deleted that message and every message after it.
+// @Description When managing history state, delete every message with that ID or higher.
+// @Description After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
+// @Description
+// @Description A messages page that you request with `before_id` includes no `snapshot_version`.
+// @Description If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+// @Description
+// @Description On each new connection, the server sends the chat's current status again.
+// @Description When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+// @Description The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
+// @Description
+// @Description When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+// @Description After a `history_reset` event, the server sends every message in the chat as `message` events.
+// @Description On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+// @Description When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
+// @Description
+// @Description When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3958,15 +4019,35 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var snapshotVersion int64
+	if v := r.URL.Query().Get("snapshot_version"); v != "" {
+		var err error
+		snapshotVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || snapshotVersion < 1 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid snapshot_version parameter.",
+				Detail:  "snapshot_version must be a positive integer.",
+			})
+			return
+		}
+	}
+	// A chat's snapshot version decreases only when the database is restored,
+	// so a cursor above it is from before a restore or was never issued.
+	if snapshotVersion > chat.SnapshotVersion {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid snapshot_version parameter.",
+			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d. Request the chat's newest messages page again and open the stream with its snapshot_version.", snapshotVersion, chat.SnapshotVersion),
+		})
+		return
+	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
-	// Defensive against future SubscribeAuthorized failure modes.
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID, snapshotVersion)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat streaming is not available.",
-			Detail:  "Chat stream state is not configured.",
+			Message: "Failed to open the chat stream.",
+			Detail:  "Retry the request, or check the coderd logs for this chat.",
 		})
 		return
 	}
@@ -4074,6 +4155,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
+// @Description Interrupts the active turn of a chat.
+// @Description If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
 func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat, err := api.interruptChat(ctx, httpmw.ChatParam(r))
@@ -4094,7 +4177,7 @@ func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk
 		return codersdk.Chat{}, httperror.ErrResourceNotFound
 	}
 
-	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
+	updated, _, err := api.chatDaemon.InterruptChat(ctx, chat)
 	if err != nil {
 		if mutationErr := commonChatMutationError(err, "Cannot interrupt an archived chat."); mutationErr != nil {
 			return codersdk.Chat{}, mutationErr
@@ -4959,6 +5042,12 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 	return gp
 }
 
+// resolveChatGitAccessToken returns userID's external-auth access token,
+// preferring the config matching origin and falling back to any config.
+// It skips provider validation for tokens passing OAuthToken().Valid(),
+// because provider validation would not change which token is returned.
+// When RefreshToken returns an error, the resolver returns the access token
+// read before that call.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -4985,11 +5074,14 @@ func (api *API) resolveChatGitAccessToken(
 			if err != nil {
 				continue
 			}
-			//nolint:gocritic // System context carried through for token refresh.
-			refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
-			if refreshErr == nil {
-				link = refreshed
+			if !link.OAuthToken().Valid() {
+				//nolint:gocritic // System context carried through for token refresh.
+				refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
+				if refreshErr == nil {
+					link = refreshed
+				}
 			}
+
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
 				return new(token), nil
@@ -5027,10 +5119,8 @@ func (api *API) resolveChatGitAccessToken(
 			continue
 		}
 
-		// Refresh the token if there is a matching config, mirroring
-		// the same code path used by provisionerdserver when handing
-		// tokens to provisioners.
-		if cfg, ok := configs[providerID]; ok {
+		cfg, hasConfig := configs[providerID]
+		if hasConfig && !link.OAuthToken().Valid() {
 			//nolint:gocritic // System context carried through for token refresh.
 			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
 			if refreshErr != nil {
@@ -5039,8 +5129,6 @@ func (api *API) resolveChatGitAccessToken(
 					slog.F("user_id", userID),
 					slog.Error(refreshErr),
 				)
-				// Fall through because the existing token may still work.
-				// (e.g. GitHub tokens with no expiry).
 			} else {
 				link = refreshed
 			}
@@ -7044,7 +7132,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param Content-Disposition header string true "Attachment disposition carrying the filename as a quoted string." extensions(x-example=attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
@@ -8436,8 +8524,12 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		Providers:            providers,
 		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
+	providerTypes := make(map[uuid.UUID]database.AIProviderType, len(providers))
+	for _, provider := range providers {
+		providerTypes[provider.ID] = database.AIProviderType(provider.Type)
+	}
 	for _, config := range configs {
-		resp.Models = append(resp.Models, convertChatModelConfig(config))
+		resp.Models = append(resp.Models, convertChatModelConfig(config, providerTypes[config.AIProviderID.UUID]))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -8568,7 +8660,27 @@ func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config, api.chatModelConfigProviderType(ctx, config)))
+}
+
+// chatModelConfigProviderType returns the type of the model's AI provider, or
+// an empty type when the provider cannot be read.
+func (api *API) chatModelConfigProviderType(ctx context.Context, config database.ChatModelConfig) database.AIProviderType {
+	if !config.AIProviderID.Valid {
+		return ""
+	}
+	//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
+	provider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), config.AIProviderID.UUID)
+	if err != nil {
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(ctx, "get AI provider of chat model",
+				slog.F("model_config_id", config.ID),
+				slog.Error(err),
+			)
+		}
+		return ""
+	}
+	return provider.Type
 }
 
 type chatModelConfigProviderModelError struct {
@@ -8775,6 +8887,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var (
 		inserted         database.ChatModelConfig
+		providerType     database.AIProviderType
 		auditTransitions []chatModelConfigAuditTransition
 	)
 	err := api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
@@ -8821,6 +8934,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model, req.ModelConfig); err != nil {
 			return err
 		}
+		providerType = lockedAIProvider.Type
 
 		transition, err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID)
 		if err != nil {
@@ -8846,7 +8960,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusCreated, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, providerType))
 }
 
 // @Summary Update an AI model
@@ -9075,7 +9189,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusOK, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, api.chatModelConfigProviderType(ctx, updated)))
 }
 
 // @Summary Delete an AI model
@@ -9255,12 +9369,13 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel {
+func convertChatModelConfig(config database.ChatModelConfig, providerType database.AIProviderType) codersdk.ChatModel {
 	modelConfig := unmarshalChatModelCallConfig(config.Options)
 	var reasoningEffortConfig *codersdk.ChatModelReasoningEffortConfig
 	if modelConfig != nil {
 		reasoningEffortConfig = modelConfig.ReasoningEffort
 	}
+	computerUseProvider, _ := chatprovider.ComputerUseProvider(providerType, config.Model)
 
 	// Active configs always carry a non-null ai_provider_id (CHECK
 	// chat_model_configs_ai_provider_required_when_active).
@@ -9276,6 +9391,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel 
 		CompressionThreshold: config.CompressionThreshold,
 		ModelConfig:          modelConfig,
 		ReasoningEfforts:     chatprovider.SelectableReasoningEfforts(reasoningEffortConfig),
+		ComputerUseProvider:  computerUseProvider,
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}
@@ -9689,12 +9805,13 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Stream chat parts via WebSockets
+// @Description Upgrades to a WebSocket. The server sends no events until you send a control message with `history_version` and `generation_attempt`, and then each message is a JSON array holding a batch of one or more events.
 // @ID stream-chat-parts-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream/parts [get]
 // @x-apidocgen {"skip": true}
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {

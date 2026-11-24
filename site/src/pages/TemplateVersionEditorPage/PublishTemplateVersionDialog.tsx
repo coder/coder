@@ -109,7 +109,7 @@ export const PublishTemplateVersionDialog: React.FC<
 								)}
 							</div>
 
-							<div className="flex flex-row items-center gap-4">
+							<div className="flex items-center gap-4">
 								<div className="flex items-center gap-2">
 									<Checkbox
 										id="isActiveVersion"

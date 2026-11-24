@@ -56,6 +56,8 @@ extend-exclude = [
 	"**/*_test.go",
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
+	# pnpm patches of minified bundles contain short identifiers that look like typos
+	"site/patches/**",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
@@ -63,6 +65,8 @@ extend-exclude = [
 	"coderd/azureidentity/azureidentity.go",
 	# notifications' golden files confuse the detector because of quoted-printable encoding
 	"coderd/notifications/testdata/**",
+	# migration reporter golden files contain sloghuman's [erro] level label
+	"coderd/database/migrations/testdata/reporter/**",
 	"agent/agentcontainers/testdata/devcontainercli/**",
 	# aibridge fixtures contain truncated streaming chunks that look like typos
 	"aibridge/fixtures/**",

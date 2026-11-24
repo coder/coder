@@ -28,7 +28,8 @@ A single-server deployment fits an evaluation, a proof of concept, or a small te
 The Quickstart is quick because it skips most of the planning and prerequisites that a team deployment needs.
 Coder runs on one machine, so there's nothing to size.
 When `CODER_ACCESS_URL` isn't set, `coder server` opens a tunnel and gives you a `try.coder.app` URL, so you don't need DNS records or TLS certificates.
-You sign in with a password or with GitHub, so you don't set up an identity provider application, and you don't need a license.
+Because anyone can reach that URL, the server prints a setup token in its output, and the setup page asks for the token before it creates the first account.
+You create the first account with a password and can switch it to GitHub sign-in afterward under **Account** > **Security**, so you don't set up an identity provider application, and you don't need a license.
 
 Coder also uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
 The built-in database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.
@@ -124,6 +125,6 @@ The following actors appear throughout this section, so you can anticipate which
 | Template author                  | The workspace templates developers use once the deployment is running        | 4, 5             |
 
 These are roles, not people.
-One person may serve as several actors, which is common for a proof of concept run by a single platform engineer.
-Several people may also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
+One person can serve as several actors, which is common for a proof of concept run by a single platform engineer.
+Several people can also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
 Use the table to identify who has to agree, not to count headcount.

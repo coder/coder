@@ -45,7 +45,7 @@ Admins have access to administrative functions such as user management, template
 
 ### Coder control plane
 
-Coder's control plane, run by the `coderd` process, is the main component recommended for deployment with multiple replicas to ensure high availability.
+Coder's control plane, run by the `coderd` process, is the main component recommended for deployment with multiple replicas to provide high availability.
 It provides an API for managing workspaces and templates, and serves the dashboard UI.
 In addition, each `coderd` replica hosts 3 Terraform [provisioners](#provisioner) by default.
 
@@ -237,13 +237,14 @@ Not that Coder's control plane filesystem is ephemeral, so no persistent storage
 ## PostgreSQL database
 
 Coder requires access to an external PostgreSQL database to store user data, workspace state, template files, and more.
-Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database may differ.
+Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database can differ.
 
 ### Disaster recovery
 
 Prepare internal scripts for dumping and restoring your database.
 We recommend scheduling regular database backups, especially before upgrading Coder to a new release.
 Coder does not support downgrades without initially restoring the database to the prior version.
+For backup, restore, and outage planning, refer to [Disaster recovery](../../operate/disaster-recovery.md).
 
 ### Performance efficiency
 
@@ -324,7 +325,7 @@ Below are general recommendations for sizing your PostgreSQL instance:
 
 ## Operational readiness
 
-Operational readiness in Coder is about ensuring that everything is set up correctly before launching a platform into production.
+Operational readiness in Coder is about making sure that everything is set up correctly before launching a platform into production.
 It involves making sure that the service is reliable, secure, and easily scales accordingly to user-base needs.
 Operational readiness is crucial because it helps prevent issues that could affect workspace users experience once the platform is live.
 
@@ -357,5 +358,5 @@ Operational readiness is crucial because it helps prevent issues that could affe
 
 1. Incorporate [support links](../../../admin/setup/appearance.md#support-links) into internal documentation accessible from the user context menu.
 
-   Ensure that hyperlinks are valid and lead to up-to-date materials.
+   Make sure that hyperlinks are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to generate and provide network-related diagnostic data.

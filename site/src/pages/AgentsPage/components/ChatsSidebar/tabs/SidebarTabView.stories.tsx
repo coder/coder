@@ -12,7 +12,7 @@ const makePanelContent = (label: string) => (
 );
 
 const makeBadge = (additions: number, deletions: number) => (
-	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
+	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs">
 		{additions > 0 && (
 			<span className="flex h-full items-center bg-surface-git-added px-1.5 text-git-added-bright">
 				+{additions}

@@ -16,6 +16,20 @@ export function isWindows(): boolean {
 	return navigator.platform.startsWith("Win");
 }
 
+type IOSNavigator = Navigator & { standalone?: boolean };
+
+/**
+ * Returns true when the page runs as an installed app (standalone display
+ * mode) instead of in a browser tab. `navigator.standalone` is the iOS flag
+ * for Home Screen web apps.
+ */
+export function isStandaloneDisplayMode(): boolean {
+	const nav: IOSNavigator = navigator;
+	return (
+		matchMedia("(display-mode: standalone)").matches || nav.standalone === true
+	);
+}
+
 /**
  * Returns true if Coder Desktop is available for the current platform.
  * Coder Desktop currently ships for macOS and Windows only, so we hide the

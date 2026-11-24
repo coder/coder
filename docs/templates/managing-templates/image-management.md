@@ -18,10 +18,13 @@ Each image reference below can be dropped directly into a template's image varia
 
 ## Create a minimal base image
 
-While you may not use this directly in Coder templates, it's useful to have a minimal base image as a small image that contains only the necessary dependencies to work in your network and work with Coder.
+While you might not use this directly in Coder templates, it's useful to have a minimal base image as a small image that contains only the necessary dependencies to work in your network and work with Coder.
 Here are some things to consider:
 
 - `curl`, `wget`, or `busybox` is required to download and run [the agent](../../../provisionersdk/scripts/bootstrap_linux.sh)
+- The agent's init script downloads the agent binary from your control plane every time a workspace starts, so the agent matches your control plane version.
+  The init script does not use an agent binary that's already in the image, so adding the agent to your image does not skip this download.
+  To skip it, start the agent directly, as described in [Build tools into the image](../../workspaces/speed-up-templates.md#build-tools-into-the-image).
 - `git` is recommended so developers can clone repositories
 - If the control plane is using a certificate from an internal certificate authority (CA), you'll need to add or mount these into your image
 - Other generic utilities that will be required by all users, such as `ssh`, `docker`, `bash`, `jq`, and/or internal tooling
@@ -39,7 +42,7 @@ These images should contain a number of languages (for example, Python, Java, Ty
 Unlike project-specific images (which are also important), general purpose images are great for:
 
 - **Scripting:**
-  Developers may just want to hop in a Coder workspace to run basic scripts or queries.
+  Developers might just want to hop in a Coder workspace to run basic scripts or queries.
 - **Day 1 Onboarding:**
   New developers can quickly get started with a familiar environment without having to browse through (or create) an image
 - **Basic Projects:**
@@ -80,3 +83,7 @@ Instead of maintaining an image for every combination, developers can layer thei
   Template administrators can also replace the base image itself with a NixOS flake.
 - [mise](https://mise.jdx.dev/): developers install and pin language runtimes and CLI tools at workspace startup without rebuilding the image.
   Visit the [install command-line tools guide](../../get-started/customize-your-template/install-command-line-tools.md).
+
+## Roll out a patched image
+
+To get a security fix in a rebuilt image into every new and existing workspace, refer to [Roll out a security update to every workspace](./roll-out-security-updates.md).
