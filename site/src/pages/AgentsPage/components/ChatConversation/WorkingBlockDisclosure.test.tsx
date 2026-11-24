@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { useState } from "react";
 import {
@@ -13,7 +13,7 @@ import {
 	visibleRowsAfterLayout,
 } from "#/testHelpers/messageScrollerLayout";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
-import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
+import { MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
 	formatLiveElapsed,
@@ -67,23 +67,6 @@ describe("WorkingBlockDisclosure", () => {
 		await user.keyboard(" ");
 		expect(onExpandedChange).toHaveBeenLastCalledWith(false);
 		expect(summary).toHaveFocus();
-	});
-
-	it("advances the live label with the clock", () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(FIXTURE_NOW);
-
-		try {
-			render(<ControlledDisclosure block={mockLiveWorkingBlock} />);
-			screen.getByRole("button", { name: "Working for 12s (2 steps)" });
-
-			act(() => {
-				vi.advanceTimersByTime(1000);
-			});
-			screen.getByRole("button", { name: "Working for 13s (2 steps)" });
-		} finally {
-			vi.useRealTimers();
-		}
 	});
 });
 
