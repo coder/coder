@@ -48,10 +48,12 @@ const ListSessionsFilterHarness = ({
 	initialQuery = "",
 	error,
 	range = timeRange,
+	minDate,
 }: {
 	initialQuery?: string;
 	error?: unknown;
 	range?: DateTimeRangeValue;
+	minDate?: Date;
 }) => {
 	const [query, setQuery] = useState(initialQuery);
 	const filter: UseFilterResult = {
@@ -69,6 +71,7 @@ const ListSessionsFilterHarness = ({
 			error={error}
 			timeRange={range}
 			onTimeRangeChange={fn()}
+			minDate={minDate}
 		/>
 	);
 };
@@ -124,6 +127,22 @@ export const ExplicitTimeRange: Story = {
 			start: new Date("2026-08-01T09:30:00"),
 			end: new Date("2026-08-02T17:45:00"),
 		},
+	},
+};
+
+/** Times before the retention can't be picked. */
+export const DatePickerOpenWithRetention: Story = {
+	args: {
+		initialQuery: rangeQuery,
+		minDate: new Date("2026-08-10T15:00:00Z"),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: "Active" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Custom range" }),
+		);
 	},
 };
 

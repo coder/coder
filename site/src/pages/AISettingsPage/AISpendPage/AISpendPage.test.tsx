@@ -41,12 +41,15 @@ afterEach(() => {
 });
 
 const now = new Date("2026-03-12T15:30:00Z");
-const path = "/ai/settings/spend/experimental";
+const path = "/ai/settings/spend";
 const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 	(user) => user.user_id,
 );
 
-function renderAISpendPage(search = "", { canViewSessions = false } = {}) {
+function renderAISpendPage(
+	search = "",
+	{ canViewSessions = false, retentionMs = 0 } = {},
+) {
 	vi.spyOn(authModule, "useAuthenticated").mockReturnValue({
 		user: MockUserMember,
 		permissions: {
@@ -73,6 +76,9 @@ function renderAISpendPage(search = "", { canViewSessions = false } = {}) {
 	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 	);
+	vi.spyOn(API.experimental, "getAIGatewayRetention").mockResolvedValue({
+		retention_ms: retentionMs,
+	});
 	const overviewSpy = vi
 		.spyOn(API.experimental, "getOrganizationAISpendOverview")
 		.mockResolvedValue(MockOrganizationAISpendOverview);
@@ -118,6 +124,24 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 	});
 	expect(searchParam("startDate")).toBeNull();
 	expect(searchParam("endDate")).toBeNull();
+});
+
+it("ignores URL days outside the retention", async () => {
+	const { overviewSpy } = renderAISpendPage(
+		"startDate=2026-03-01&endDate=2026-03-03",
+		{ retentionMs: 3 * 24 * 60 * 60 * 1000 },
+	);
+	await waitFor(() =>
+		expect(overviewSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-10T00:00:00.000Z",
+				period_end: "2026-03-13T00:00:00.000Z",
+			},
+			TOP_SPENDERS_COUNT,
+		),
+	);
+	expect(overviewSpy).toHaveBeenCalledTimes(1);
 });
 
 it("writes a picked range to the URL as days and requests it", async () => {

@@ -32,6 +32,7 @@ type ListSessionsFilterProps = {
 	error?: unknown;
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
+	minDate?: Date;
 };
 
 export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
@@ -39,6 +40,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	error,
 	timeRange,
 	onTimeRangeChange,
+	minDate,
 }) => {
 	const { user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
@@ -113,6 +115,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 			<DateTimeRangePicker
 				value={timeRange}
 				onChange={onTimeRangeChange}
+				minDate={minDate}
 				label="Active"
 				valuePrefix="Active:"
 				align="start"

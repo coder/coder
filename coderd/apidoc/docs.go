@@ -64,6 +64,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/ai-gateway/retention": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Get AI Gateway data retention",
+                "operationId": "get-ai-gateway-data-retention",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayRetention"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/ai/model-prices": {
             "get": {
                 "produces": [
@@ -20627,6 +20655,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewayRetention": {
+            "type": "object",
+            "properties": {
+                "retention_ms": {
+                    "description": "RetentionMillis is the retention duration in milliseconds. Zero means\ndata is never purged.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIModelPrice": {
             "type": "object",
             "properties": {
@@ -29683,11 +29720,6 @@ const docTemplate = `{
                 },
                 "period_start": {
                     "description": "PeriodStart is the inclusive lower bound of the applied period.",
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "retention_start": {
-                    "description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
                     "type": "string",
                     "format": "date-time"
                 },
