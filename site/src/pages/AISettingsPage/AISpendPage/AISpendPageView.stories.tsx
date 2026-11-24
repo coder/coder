@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
+import {
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendOverview,
@@ -9,6 +13,24 @@ import {
 	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
+import type { DetailedReportQuery } from "./DetailedReportTable";
+
+const mockReportQuery = {
+	...mockSuccessResult,
+	totalRecords: MockOrganizationAISpendReport.count,
+	data: MockOrganizationAISpendReport,
+	isFetching: false,
+	error: null,
+	refetch: fn(),
+} satisfies DetailedReportQuery;
+
+const mockPendingReportQuery = {
+	...mockInitialRenderResult,
+	data: undefined,
+	isFetching: true,
+	error: null,
+	refetch: fn(),
+} satisfies DetailedReportQuery;
 
 // The first user used both unpriced models, so their row warns like the total.
 const [mockSpender, ...mockOtherSpenders] = MockOrganizationAISpendReport.users;
@@ -49,6 +71,10 @@ const meta = {
 		onDaysChange: fn(),
 		reportFilter: "",
 		onReportFilterChange: fn(),
+		reportQuery: mockPendingReportQuery,
+		hasRunReport: false,
+		isReportOutdated: false,
+		onRunReport: fn(),
 		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
@@ -123,6 +149,83 @@ export const OverviewMobile: Story = {
 
 export const DetailedReport: Story = {
 	args: { tab: "detailed-report" },
+};
+
+export const DetailedReportBuilding: Story = {
+	args: { tab: "detailed-report", hasRunReport: true },
+};
+
+export const DetailedReportResults: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: mockReportQuery,
+	},
+};
+
+export const DetailedReportUnpricedModels: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockReportQuery,
+			data: {
+				...MockOrganizationAISpendReport,
+				totals: {
+					...MockOrganizationAISpendReport.totals,
+					has_unpriced_usage: true,
+				},
+				users: mockTopSpenderDetails,
+			},
+		},
+	},
+};
+
+export const DetailedReportNoSpend: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockReportQuery,
+			totalRecords: 0,
+			data: {
+				...MockOrganizationAISpendReport,
+				count: 0,
+				totals: { cost_micros: 0, has_unpriced_usage: false },
+				users: [],
+			},
+		},
+	},
+};
+
+/** The previous results stay visible while the report runs again. */
+export const DetailedReportRefreshing: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: { ...mockReportQuery, isFetching: true },
+	},
+};
+
+export const DetailedReportOutdated: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		isReportOutdated: true,
+		reportQuery: mockReportQuery,
+	},
+};
+
+export const DetailedReportError: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockPendingReportQuery,
+			isFetching: false,
+			error: mockApiQueryError({ message: "Failed to build the report." }),
+		},
+	},
 };
 
 export const DetailedReportMobile: Story = {

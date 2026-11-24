@@ -8,6 +8,7 @@ import {
 import { useMemo } from "react";
 import { useQueryClient } from "react-query";
 import {
+	type AISpendReportFilter,
 	aiBridgeClients,
 	aiBridgeModels,
 	aiBridgeProviders,
@@ -20,6 +21,7 @@ import type {
 	FilterCategory,
 	FilterOption,
 } from "#/components/Filter/FilterCombobox/types";
+import { parseFilterQuery } from "#/components/Filter/filterQuery";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
@@ -27,6 +29,18 @@ import type { OptionsQueryClient } from "#/utils/filters";
 
 // The limit of options a filter category search loads.
 const SEARCH_SUGGESTIONS_LIMIT = 25;
+
+/** Parses a filter query into the report filter. Free text is ignored. */
+export const toReportFilter = (query: string): AISpendReportFilter => {
+	const values = parseFilterQuery(query);
+	return {
+		username: values.user,
+		group_name: values.group,
+		provider_name: values.provider,
+		model: values.model,
+		client: values.client,
+	};
+};
 
 const getUserOptions = async (
 	query: string,

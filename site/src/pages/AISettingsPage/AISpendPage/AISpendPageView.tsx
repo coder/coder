@@ -21,6 +21,7 @@ import {
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
 import { DetailedReportTab } from "./DetailedReportTab";
+import type { DetailedReportQuery } from "./DetailedReportTable";
 import { OverviewTab } from "./OverviewTab";
 import type { SpendDays } from "./spendDays";
 
@@ -41,6 +42,10 @@ type AISpendPageViewProps = {
 	onDaysChange: (days: SpendDays) => void;
 	reportFilter: string;
 	onReportFilterChange: (filter: string) => void;
+	reportQuery: DetailedReportQuery;
+	hasRunReport: boolean;
+	isReportOutdated: boolean;
+	onRunReport: () => void;
 	onOpenDetailedReport: () => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
@@ -66,6 +71,10 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	onDaysChange,
 	reportFilter,
 	onReportFilterChange,
+	reportQuery,
+	hasRunReport,
+	isReportOutdated,
+	onRunReport,
 	onOpenDetailedReport,
 	overview,
 	overviewError,
@@ -171,6 +180,10 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							filter={reportFilter}
 							onFilterChange={onReportFilterChange}
 							canFilter={canViewSessions}
+							reportQuery={reportQuery}
+							hasRunReport={hasRunReport}
+							isReportOutdated={isReportOutdated}
+							onRunReport={onRunReport}
 						/>
 					</TabsContent>
 				</Tabs>

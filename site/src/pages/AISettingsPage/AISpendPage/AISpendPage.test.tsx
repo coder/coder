@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import * as authModule from "#/hooks/useAuthenticated";
 import {
 	MockEntitlements,
+	MockGroup,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
@@ -12,18 +14,13 @@ import {
 	MockOrganizationAISpendReport,
 	MockUnpricedAIModels,
 	MockUserMember,
+	MockUserOwner,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import AISpendPage from "./AISpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
-vi.mock("#/hooks/useAuthenticated", () => ({
-	useAuthenticated: () => ({
-		user: MockUserMember,
-		permissions: MockNoPermissions,
-	}),
-}));
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: {
@@ -45,7 +42,26 @@ const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 	(user) => user.user_id,
 );
 
-function renderAISpendPage(search = "") {
+function renderAISpendPage(search = "", { canViewSessions = false } = {}) {
+	vi.spyOn(authModule, "useAuthenticated").mockReturnValue({
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			viewAnyAIBridgeInterception: canViewSessions,
+		},
+		isLoading: false,
+		isSignedOut: false,
+		isSigningOut: false,
+		isConfiguringTheFirstUser: false,
+		isSignedIn: true,
+		isSigningIn: false,
+		isUpdatingProfile: false,
+		signInError: undefined,
+		updateProfileError: undefined,
+		signOut: vi.fn(),
+		signIn: vi.fn(),
+		updateProfile: vi.fn(),
+	});
 	vi.spyOn(API, "getOrganizations").mockResolvedValue([
 		MockOrganization,
 		MockOrganization2,
@@ -213,4 +229,55 @@ it("opens the Detailed report from the Top spenders card", async () => {
 		await screen.findByRole("button", { name: "Detailed report" }),
 	);
 	expect(searchParam("tab")).toBe("detailed-report");
+});
+
+it("runs the report for the picked days and filter, resolving the user and group to IDs", async () => {
+	const user = userEvent.setup();
+	const getUserSpy = vi.spyOn(API, "getUser").mockResolvedValue(MockUserOwner);
+	const getGroupSpy = vi.spyOn(API, "getGroup").mockResolvedValue(MockGroup);
+	const filter =
+		'user:admin group:Front-End provider:openai model:gpt-5.4 client:"Claude Code"';
+	const { usersSpy } = renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent(filter)}`,
+		{ canViewSessions: true },
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await waitFor(() =>
+		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
+			period_start: "2026-03-01T00:00:00.000Z",
+			period_end: "2026-03-04T00:00:00.000Z",
+			provider_name: "openai",
+			model: "gpt-5.4",
+			client: "Claude Code",
+			user_ids: [MockUserOwner.id],
+			group_id: MockGroup.id,
+			limit: 10,
+			offset: 0,
+		}),
+	);
+	expect(getUserSpy).toHaveBeenCalledWith("admin");
+	expect(getGroupSpy).toHaveBeenCalledWith(
+		MockOrganization.id,
+		"Front-End",
+		{ exclude_members: true },
+		expect.any(AbortSignal),
+	);
+});
+
+it("ignores the URL filter when the viewer can't use it", async () => {
+	const user = userEvent.setup();
+	const getUserSpy = vi.spyOn(API, "getUser");
+	const { usersSpy } = renderAISpendPage(
+		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin provider:openai")}`,
+	);
+	await user.click(await screen.findByRole("button", { name: "Run report" }));
+	await waitFor(() =>
+		expect(usersSpy).toHaveBeenCalledWith(MockOrganization.id, {
+			period_start: "2026-03-01T00:00:00.000Z",
+			period_end: "2026-03-04T00:00:00.000Z",
+			limit: 10,
+			offset: 0,
+		}),
+	);
+	expect(getUserSpy).not.toHaveBeenCalled();
 });
