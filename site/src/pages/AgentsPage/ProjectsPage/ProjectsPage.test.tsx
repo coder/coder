@@ -194,8 +194,8 @@ describe("ProjectsPage", () => {
 
 	it("unarchives once from the Archived tab, then leaves the emptied tab", async () => {
 		const user = userEvent.setup();
-		const kilo = summary("Kilo");
-		mockProjects([kilo]);
+		const mockKilo = summary("Kilo");
+		mockProjectsApi([mockKilo]);
 		const mockArchivedLima = {
 			...MockArchivedChatProject,
 			id: "Lima",
@@ -203,7 +203,7 @@ describe("ProjectsPage", () => {
 		};
 		let archived = [mockArchivedLima];
 		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(
-			async (params) => (params?.archived ? archived : [kilo.project]),
+			async (params) => (params?.archived ? archived : [mockKilo.project]),
 		);
 		const unarchived = createDeferred<ChatProject>();
 		const unarchive = vi
