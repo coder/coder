@@ -107,8 +107,8 @@ func (f *streamRelayForwarder) loop() {
 		// After a failed connection, backoffWorker is not dialed again before
 		// backoffUntil. Configurations arrive at the chat's snapshot rate, so
 		// they must not shorten the wait. backoffTimed is false after an
-		// unrecoverable dial error: no timer is armed, and a configuration
-		// before backoffUntil only records the target.
+		// unrecoverable dial error: no timer is armed, and a same-worker
+		// configuration before backoffUntil only records the target.
 		backoffWorker uuid.NullUUID
 		backoffUntil  time.Time
 		backoffTimed  bool
@@ -207,7 +207,8 @@ func (f *streamRelayForwarder) loop() {
 			)
 			// Unrecoverable dial errors (e.g. auth failures) will not
 			// succeed on retry with the same inputs, so back off without a
-			// timer. Only a configuration at or after backoffUntil dials.
+			// timer. A configuration for the same worker dials only at or after
+			// backoffUntil.
 			scheduleRetry(!streamPartsDialUnrecoverable(err))
 			return
 		}

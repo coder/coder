@@ -311,7 +311,9 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 		// fails all.
 		succeedDial   int
 		unrecoverable bool
-		// closeSessionAt closes the connected session's parts channel.
+		// closeSessionAt is the time since start at which the test closes the
+		// connected session's parts channel. Zero never closes; a nonzero
+		// value needs succeedDial to have connected by then.
 		closeSessionAt time.Duration
 		wantDials      []dial
 		// connects expects the last target's parts on relay.Parts().
