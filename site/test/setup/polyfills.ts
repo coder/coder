@@ -1,5 +1,9 @@
 import { Blob as NativeBlob } from "node:buffer";
+import cssEscape from "css.escape";
 import ResizeObserver from "resize-observer-polyfill";
+
+// JSDOM does not provide CSS.escape, which the injected overlay uses for selectors.
+vi.stubGlobal("CSS", { ...globalThis.CSS, escape: cssEscape });
 
 // JSDom `Blob` is missing important methods[1] that have been standardized for
 // years. MDN categorizes this API as baseline[2].

@@ -6,7 +6,8 @@
 	"license": "AGPL-3.0",
 	"packageManager": "pnpm@12.16.1+sha512.091d1dee7927575661b25dab3c2ae31cafc1c54d6b71ed6a6600cf0c1cb10434a447eae14015f1b23e2e6bedeed79df94a932e2164d2832280dce3fb32f656d1",
 	"scripts": {
-		"build": "NODE_ENV=production pnpm vite build",
+		"build": "NODE_ENV=production pnpm vite build && pnpm build:annotator",
+		"build:annotator": "NODE_ENV=production pnpm vite build --config vite.annotator.config.mts",
 		"check": "biome check --error-on-warnings .",
 		"check:fix": "biome check --error-on-warnings --fix .",
 		"check:all": "pnpm check && pnpm test",
@@ -156,6 +157,7 @@
 		"@vitejs/plugin-react": "6.1.2",
 		"@vitest/browser-playwright": "4.1.10",
 		"babel-plugin-react-compiler": "1.0.0",
+		"css.escape": "1.5.1",
 		"dpdm": "3.15.1",
 		"emojibase": "17.0.0",
 		"express": "4.22.3",
