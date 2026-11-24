@@ -1,6 +1,7 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
+import { createContext, useCallback, useContext, useState } from "react";
 import {
 	keyboardHighlightRingClassName,
 	useHighlightSource,
@@ -21,10 +22,13 @@ const composeEventHandlers =
 		externalHandler?.(event);
 	};
 
+const CommandStatusContext = createContext<HTMLElement | null>(null);
+
 export const Command: React.FC<
 	React.ComponentProps<typeof CommandPrimitive>
-> = ({ className, onFocus, onPointerMove, ...props }) => {
+> = ({ className, onFocus, onPointerMove, children, ...props }) => {
 	const highlightSource = useHighlightSource();
+	const [statusNode, setStatusNode] = useState<HTMLElement | null>(null);
 	return (
 		<CommandPrimitive
 			className={cn(
@@ -41,7 +45,14 @@ export const Command: React.FC<
 				onPointerMove,
 			)}
 			{...props}
-		/>
+		>
+			<CommandStatusContext.Provider value={statusNode}>
+				{children}
+			</CommandStatusContext.Provider>
+			{/* Screen readers only announce live regions that exist before their
+			    text changes, and a status is not allowed inside the listbox. */}
+			<span ref={setStatusNode} role="status" className="sr-only" />
+		</CommandPrimitive>
 	);
 };
 
@@ -76,12 +87,38 @@ export const CommandList: React.FC<
 };
 
 export const CommandEmpty: React.FC<
-	React.ComponentProps<typeof CommandPrimitive.Empty>
+	Omit<React.ComponentProps<typeof CommandPrimitive.Empty>, "ref">
 > = ({ className, ...props }) => {
+	const statusNode = useContext(CommandStatusContext);
+	// Copies text only, so links in the message never get a hidden duplicate.
+	// Stable so re-renders do not clear and rewrite the live region.
+	const mirrorToStatus = useCallback(
+		(node: HTMLDivElement | null) => {
+			if (!node || !statusNode) {
+				return;
+			}
+			const sync = () => {
+				statusNode.textContent = node.textContent;
+			};
+			sync();
+			const observer = new MutationObserver(sync);
+			observer.observe(node, {
+				childList: true,
+				characterData: true,
+				subtree: true,
+			});
+			return () => {
+				observer.disconnect();
+				statusNode.textContent = "";
+			};
+		},
+		[statusNode],
+	);
 	return (
 		<CommandPrimitive.Empty
 			className={cn("py-6 text-center text-sm", className)}
 			{...props}
+			ref={mirrorToStatus}
 		/>
 	);
 };

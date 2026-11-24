@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Command, CommandInput, CommandItem, CommandList } from "./Command";
+import {
+	Command,
+	CommandEmpty,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "./Command";
 
 const renderCommand = () => {
 	render(
@@ -95,5 +101,32 @@ describe("CommandItem", () => {
 		expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
 			"Copy",
 		);
+	});
+});
+
+describe("CommandEmpty", () => {
+	it("announces the empty message through a status that was already mounted", async () => {
+		const user = userEvent.setup();
+		render(
+			<Command label="Fruits">
+				<CommandInput aria-label="Search fruits" />
+				<CommandList>
+					<CommandEmpty>
+						No fruits found. <a href="/fruits">Add one</a>
+					</CommandEmpty>
+					<CommandItem>Apple</CommandItem>
+				</CommandList>
+			</Command>,
+		);
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+
+		await user.type(screen.getByRole("combobox"), "kiwi");
+		expect(screen.getByRole("status")).toBe(status);
+		expect(status).toHaveTextContent("No fruits found. Add one");
+		expect(screen.getAllByRole("link")).toHaveLength(1);
+
+		await user.clear(screen.getByRole("combobox"));
+		expect(status).toBeEmptyDOMElement();
 	});
 });
