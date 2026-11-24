@@ -210,7 +210,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"deployment_config": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read deployment config",
-			ActionUpdate: "updating health information",
+			ActionUpdate: "update deployment config",
 		},
 	},
 	"deployment_stats": {

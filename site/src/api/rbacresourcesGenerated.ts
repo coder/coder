@@ -108,7 +108,7 @@ export const RBACResourceActions: Partial<
 	},
 	deployment_config: {
 		read: "read deployment config",
-		update: "updating health information",
+		update: "update deployment config",
 	},
 	deployment_stats: {
 		read: "read deployment stats",

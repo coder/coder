@@ -99,6 +99,16 @@ Combine low-level scopes when no composite scope matches the task.
 
 The `resource:*` form grants every action on that resource, including actions not listed on this page.
 
+### `ai_provider`
+
+| Scope                | Description                                                               |
+|----------------------|---------------------------------------------------------------------------|
+| `ai_provider:*`      | Every action on `ai_provider`, including actions not listed on this page. |
+| `ai_provider:create` | Create an AI provider.                                                    |
+| `ai_provider:delete` | Delete an AI provider.                                                    |
+| `ai_provider:read`   | Read AI provider configuration.                                           |
+| `ai_provider:update` | Update an AI provider.                                                    |
+
 ### `api_key`
 
 | Scope            | Description                                                           |
@@ -109,12 +119,41 @@ The `resource:*` form grants every action on that resource, including actions no
 | `api_key:read`   | Read API key details (secrets are not stored).                        |
 | `api_key:update` | Update an API key, for example its expiry.                            |
 
+### `assign_role`
+
+| Scope              | Description                     |
+|--------------------|---------------------------------|
+| `assign_role:read` | View what roles are assignable. |
+
+### `chat`
+
+| Scope         | Description                                                        |
+|---------------|--------------------------------------------------------------------|
+| `chat:*`      | Every action on `chat`, including actions not listed on this page. |
+| `chat:create` | Create a new chat.                                                 |
+| `chat:delete` | Delete a chat.                                                     |
+| `chat:read`   | Read chat messages and metadata.                                   |
+| `chat:share`  | Share a chat with other users or groups.                           |
+| `chat:update` | Update chat title or settings.                                     |
+
 ### `chat_model_config`
 
-| Scope                     | Description                                           |
-|---------------------------|-------------------------------------------------------|
-| `chat_model_config:read`  | Read chat model configs.                              |
-| `chat_model_config:share` | Share a chat model config with other users or groups. |
+| Scope                      | Description                                                                     |
+|----------------------------|---------------------------------------------------------------------------------|
+| `chat_model_config:*`      | Every action on `chat_model_config`, including actions not listed on this page. |
+| `chat_model_config:create` | Create a new chat model config.                                                 |
+| `chat_model_config:delete` | Delete a chat model config.                                                     |
+| `chat_model_config:read`   | Read chat model configs.                                                        |
+| `chat_model_config:share`  | Share a chat model config with other users or groups.                           |
+| `chat_model_config:update` | Update a chat model config.                                                     |
+
+### `deployment_config`
+
+| Scope                      | Description                                                                     |
+|----------------------------|---------------------------------------------------------------------------------|
+| `deployment_config:*`      | Every action on `deployment_config`, including actions not listed on this page. |
+| `deployment_config:read`   | Read deployment config.                                                         |
+| `deployment_config:update` | Update deployment config.                                                       |
 
 ### `file`
 
@@ -131,6 +170,17 @@ The `resource:*` form grants every action on that resource, including actions no
 | `inbox_notification:read`   | Read inbox notifications.   |
 | `inbox_notification:update` | Update inbox notifications. |
 
+### `mcp_server_config`
+
+| Scope                      | Description                                                                     |
+|----------------------------|---------------------------------------------------------------------------------|
+| `mcp_server_config:*`      | Every action on `mcp_server_config`, including actions not listed on this page. |
+| `mcp_server_config:create` | Create a new MCP server config.                                                 |
+| `mcp_server_config:delete` | Delete MCP server config.                                                       |
+| `mcp_server_config:read`   | Read MCP server config.                                                         |
+| `mcp_server_config:share`  | Share MCP server config with other users or groups.                             |
+| `mcp_server_config:update` | Update MCP server config.                                                       |
+
 ### `organization`
 
 | Scope                 | Description                                                                |
@@ -139,6 +189,12 @@ The `resource:*` form grants every action on that resource, including actions no
 | `organization:delete` | Delete an organization.                                                    |
 | `organization:read`   | Read organizations.                                                        |
 | `organization:update` | Update an organization.                                                    |
+
+### `organization_member`
+
+| Scope                      | Description  |
+|----------------------------|--------------|
+| `organization_member:read` | Read member. |
 
 ### `organization_skill`
 

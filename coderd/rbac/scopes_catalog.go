@@ -38,9 +38,41 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"api_key:delete": {},
 	"api_key:*":      {},
 
+	// Chats
+	"chat:read":   {},
+	"chat:create": {},
+	"chat:update": {},
+	"chat:delete": {},
+	"chat:share":  {},
+	"chat:*":      {},
+
 	// Chat model configs
-	"chat_model_config:read":  {},
-	"chat_model_config:share": {},
+	"chat_model_config:read":   {},
+	"chat_model_config:create": {},
+	"chat_model_config:update": {},
+	"chat_model_config:delete": {},
+	"chat_model_config:share":  {},
+	"chat_model_config:*":      {},
+
+	// AI providers
+	"ai_provider:read":   {},
+	"ai_provider:create": {},
+	"ai_provider:update": {},
+	"ai_provider:delete": {},
+	"ai_provider:*":      {},
+
+	// MCP server configs
+	"mcp_server_config:read":   {},
+	"mcp_server_config:create": {},
+	"mcp_server_config:update": {},
+	"mcp_server_config:delete": {},
+	"mcp_server_config:share":  {},
+	"mcp_server_config:*":      {},
+
+	// Deployment config
+	"deployment_config:read":   {},
+	"deployment_config:update": {},
+	"deployment_config:*":      {},
 
 	// Files
 	"file:read":   {},
@@ -84,6 +116,12 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"organization:update": {},
 	"organization:delete": {},
 	"organization:*":      {},
+
+	// Organization members
+	"organization_member:read": {},
+
+	// Assignable roles
+	"assign_role:read": {},
 }
 
 // Public composite coder:* scopes exposed to users.

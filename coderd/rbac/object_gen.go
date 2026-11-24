@@ -188,7 +188,7 @@ var (
 	// ResourceDeploymentConfig
 	// Valid Actions
 	//  - "ActionRead" :: read deployment config
-	//  - "ActionUpdate" :: updating health information
+	//  - "ActionUpdate" :: update deployment config
 	ResourceDeploymentConfig = Object{
 		Type: "deployment_config",
 	}
