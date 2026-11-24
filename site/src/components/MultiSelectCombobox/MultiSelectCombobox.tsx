@@ -157,12 +157,6 @@ const CommandEmpty: React.FC<
 	);
 };
 
-// The list mounts when the dropdown opens. The ref is defined outside the
-// component so it only runs when the list mounts, not on every render.
-const scrollIntoViewOnOpen = (list: HTMLDivElement | null) => {
-	list?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-};
-
 export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	value,
 	onChange,
@@ -189,6 +183,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
+	// Set when focus opens the dropdown. cmdk reattaches the list's ref on
+	// every render, so the list scrolls only on the first attach after opening.
+	const scrollOnOpenRef = useRef(false);
 
 	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
 	const options = transitionToGroupOption(
@@ -434,6 +431,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 								inputProps?.onBlur?.(event);
 							}}
 							onFocus={(event) => {
+								if (!open) {
+									scrollOnOpenRef.current = true;
+								}
 								setOpen(true);
 								inputProps?.onFocus?.(event);
 							}}
@@ -490,7 +490,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			<div className="relative">
 				{open && (
 					<CommandList
-						ref={scrollIntoViewOnOpen}
+						ref={(list) => {
+							if (!list || !scrollOnOpenRef.current) {
+								return;
+							}
+							scrollOnOpenRef.current = false;
+							list.scrollIntoView({ block: "nearest", behavior: "smooth" });
+						}}
 						className={cn(
 							"absolute top-1 z-10 w-full rounded-md",
 							"border",
