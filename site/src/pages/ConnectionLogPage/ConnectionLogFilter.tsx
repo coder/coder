@@ -84,18 +84,14 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 				optionsKey: "connectionLogs.status",
 				label: "Status",
 				icon: <CircleDotIcon />,
-				getOptions: async (query) => [
-					...filterOptionsByText(statusOptions, query),
-				],
+				getOptions: async (query) => filterOptionsByText(statusOptions, query),
 			},
 			{
 				key: "method",
 				optionsKey: "connectionLogs.method",
 				label: "Method",
 				icon: <PlugIcon />,
-				getOptions: async (query) => [
-					...filterOptionsByText(methodOptions, query),
-				],
+				getOptions: async (query) => filterOptionsByText(methodOptions, query),
 			},
 		];
 		if (showOrganizations) {
@@ -119,7 +115,7 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 			inlineOptions: true,
 			inlineOptionsLabel: "Show…",
 			inlineOptionsIcons: true,
-			getOptions: async (query) => [...filterOptionsByText(presets, query)],
+			getOptions: async (query) => filterOptionsByText(presets, query),
 		});
 		return next.map((category) => ({ ...category, singleSelect: true }));
 	}, [me, permissions.viewAllUsers, queryClient, showOrganizations]);

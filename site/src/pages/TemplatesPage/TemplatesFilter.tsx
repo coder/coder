@@ -77,8 +77,8 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 				inlineOptions: true,
 				inlineOptionsLabel: "Template is…",
 				chipLabelOnly: true,
-				getOptions: async (query) => [
-					...filterOptionsByText(
+				getOptions: async (query) =>
+					filterOptionsByText(
 						[
 							{
 								label: "Deprecated",
@@ -93,7 +93,6 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 						],
 						query,
 					),
-				],
 			},
 		],
 		[organizations, permissions.viewAllUsers, me, queryClient],
