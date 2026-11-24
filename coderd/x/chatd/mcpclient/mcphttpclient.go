@@ -188,6 +188,29 @@ func (s *signingRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	return s.base.RoundTrip(clone)
 }
 
+// eventsHeadersKey carries the routing headers of one events/* request
+// from the call to eventsHeaderRoundTripper.
+type eventsHeadersKey struct{}
+
+// eventsHeaderRoundTripper sets the Mcp-Name and Mcp-Param-* headers
+// that the events extension requires. go-sdk derives Mcp-Name only for
+// tools, prompts and resources.
+type eventsHeaderRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (t *eventsHeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	headers, _ := req.Context().Value(eventsHeadersKey{}).(map[string]string)
+	if len(headers) == 0 {
+		return t.base.RoundTrip(req)
+	}
+	clone := req.Clone(req.Context())
+	for k, v := range headers {
+		clone.Header.Set(k, v)
+	}
+	return t.base.RoundTrip(clone)
+}
+
 func bufferRequestBody(req, clone *http.Request) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return nil, nil
