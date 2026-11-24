@@ -135,6 +135,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 			err = sess.Wait()
 			require.NoError(t, err)
+			require.Eventually(t, func() bool { return len(s.SessionCounts()) == 0 }, testutil.WaitShort, testutil.IntervalFast)
 
 			require.Equal(t, "hello", strings.TrimSpace(b.String()))
 
@@ -652,10 +653,12 @@ func TestSSHShutdownReason(t *testing.T) {
 					sessionLogs := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
 					return len(connectionLogs()) == 1 && len(sessionLogs) == 1
 				}, testutil.WaitLong, testutil.IntervalFast)
+				require.Empty(t, s.SessionCounts())
 			}
 			require.NoError(t, s.Close())
 			require.Error(t, testutil.RequireReceive(ctx, t, serveDone))
 			require.Eventually(t, func() bool { return len(connectionLogs()) == 1 }, testutil.WaitLong, testutil.IntervalFast)
+			require.Empty(t, s.SessionCounts())
 			entries := connectionLogs()
 			if !tc.forwardOnly {
 				sessionLogs := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
