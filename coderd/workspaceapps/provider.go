@@ -37,6 +37,9 @@ type ResolveRequestOptions struct {
 	AppPath string
 	// AppQuery is the raw query of the request.
 	AppQuery string
+	// PreviewSessionCookie is the name of the only cookie a preview accepts
+	// a session from.
+	PreviewSessionCookie string
 }
 
 func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
@@ -61,7 +64,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		// A preview accepts only the cookie its own sign-in set, never the
 		// app wildcard cookie, a header, or a query parameter.
 		sessionToken = ""
-		if cookie, err := r.Cookie(codersdk.PreviewSessionTokenCookie); err == nil {
+		if cookie, err := r.Cookie(opts.PreviewSessionCookie); err == nil {
 			sessionToken = cookie.Value
 		}
 	}

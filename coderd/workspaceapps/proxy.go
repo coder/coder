@@ -38,10 +38,9 @@ import (
 )
 
 const (
-	// This needs to be a super unique query parameter because we don't want to
-	// conflict with query parameters that users may use.
-	//nolint:gosec
-	SubdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
+	// SubdomainProxyAPIKeyParam is defined in appurl, so previewhost can
+	// reserve it without importing this package.
+	SubdomainProxyAPIKeyParam = appurl.SubdomainProxyAPIKeyParam
 	// appLogoutHostname is the hostname to use for the logout redirect. When
 	// the dashboard logs out, it will redirect to this subdomain of the app
 	// hostname, and the server will remove the cookie and redirect to the main

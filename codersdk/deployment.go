@@ -1153,8 +1153,7 @@ type HTTPCookieConfig struct {
 // cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
 // This is a constant, do not ever mutate it.
 var cookiesToPrefix = map[string]struct{}{
-	SessionTokenCookie:        {},
-	PreviewSessionTokenCookie: {},
+	SessionTokenCookie: {},
 }
 
 // Middleware handles some cookie mutation the requests.
