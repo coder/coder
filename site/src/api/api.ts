@@ -531,6 +531,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserOrganizationsAISpend =
+		async (): Promise<TypesGen.UserOrganizationsAISpendStatus> => {
+			const response =
+				await this.axios.get<TypesGen.UserOrganizationsAISpendStatus>(
+					"/api/v2/users/me/ai/spend/organizations",
+				);
+			return response.data;
+		};
+
 	getUser = async (usernameOrId: string) => {
 		const response = await this.axios.get<TypesGen.User>(
 			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
@@ -3671,6 +3680,30 @@ class ExperimentalApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		return response.data;
+	};
+
+	getOrganizationAISpendOverview = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.OrganizationAISpendOverview> => {
+		const response = await this.axios.get<TypesGen.OrganizationAISpendOverview>(
+			`/api/experimental/organizations/${organizationId}/ai/spend`,
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getOrganizationUnpricedAIModels = async (
+		organizationId: string,
+		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
+	): Promise<TypesGen.UnpricedAIModels> => {
+		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
+			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
+			{ params: { ...period, limit } },
+		);
 		return response.data;
 	};
 

@@ -40,6 +40,10 @@ import {
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
 import {
+	StepHeadingRefProvider,
+	useStepHeadingFocus,
+} from "./TemplateBuilderHeader";
+import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
 	TemplateCustomizationsStep,
 } from "./TemplateCustomizationsStep";
@@ -132,6 +136,7 @@ export const TemplateBuilderPageView: React.FC<
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
+	const stepHeadingRef = useStepHeadingFocus(currentStep.id);
 
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
@@ -201,7 +206,13 @@ export const TemplateBuilderPageView: React.FC<
 		navigateToStep(nearestVisible(target, state));
 	};
 
+	// The customizations step remounts after a failed create, so it restores
+	// the submitted values from here while the error is shown.
+	const [submittedCustomizations, setSubmittedCustomizations] =
+		useState<CustomizationsFormValues>();
+
 	const handleCreate = (values: CustomizationsFormValues) => {
+		setSubmittedCustomizations(values);
 		onCreateTemplate(state, values);
 	};
 
@@ -314,18 +325,23 @@ export const TemplateBuilderPageView: React.FC<
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
 					<div className="p-6 border rounded-lg overflow-x-auto">
-						<StepContent
-							stepId={currentStep.id}
-							state={state}
-							dispatch={dispatch}
-							moduleVarMap={moduleVarMap}
-							createError={createError}
-							onProvisionerStatusChange={handleProvisionerStatusChange}
-							onRemoveModule={handleDeselectModule}
-							registerModuleRef={registerModuleRef}
-							onCreate={handleCreate}
-							showValidationErrors={showContinueError}
-						/>
+						<StepHeadingRefProvider value={stepHeadingRef}>
+							<StepContent
+								stepId={currentStep.id}
+								state={state}
+								dispatch={dispatch}
+								moduleVarMap={moduleVarMap}
+								createError={createError}
+								submittedCustomizations={
+									createError ? submittedCustomizations : undefined
+								}
+								onProvisionerStatusChange={handleProvisionerStatusChange}
+								onRemoveModule={handleDeselectModule}
+								registerModuleRef={registerModuleRef}
+								onCreate={handleCreate}
+								showValidationErrors={showContinueError}
+							/>
+						</StepHeadingRefProvider>
 					</div>
 
 					{/* Navigation controls */}
@@ -392,6 +408,7 @@ type StepContentProps = {
 	dispatch: (action: WizardAction) => void;
 	moduleVarMap: Record<string, Record<string, string>>;
 	createError: Error | null;
+	submittedCustomizations: CustomizationsFormValues | undefined;
 	onProvisionerStatusChange: (value: boolean | undefined) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
@@ -405,6 +422,7 @@ const StepContent: React.FC<StepContentProps> = ({
 	dispatch,
 	moduleVarMap,
 	createError,
+	submittedCustomizations,
 	onProvisionerStatusChange,
 	onRemoveModule,
 	registerModuleRef,
@@ -463,14 +481,13 @@ const StepContent: React.FC<StepContentProps> = ({
 			);
 		case "customizations":
 			return (
-				<>
-					{createError != null && <ErrorAlert error={createError} />}
-					<TemplateCustomizationsStep
-						state={state}
-						onCreate={onCreate}
-						onProvisionerStatusChange={onProvisionerStatusChange}
-					/>
-				</>
+				<TemplateCustomizationsStep
+					state={state}
+					onCreate={onCreate}
+					onProvisionerStatusChange={onProvisionerStatusChange}
+					initialValues={submittedCustomizations}
+					createError={createError}
+				/>
 			);
 		default:
 			return null;

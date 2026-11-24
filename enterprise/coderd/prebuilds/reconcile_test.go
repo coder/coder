@@ -390,12 +390,12 @@ func (tc testCase) run(t *testing.T) {
 			}
 		})
 		clock := quartz.NewMock(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
 		cfg := codersdk.PrebuildsConfig{}
 		logger := slogtest.Make(
 			t, &slogtest.Options{IgnoreErrors: true},
 		).Leveled(slog.LevelDebug)
 		db, pubSub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		ownerID := uuid.New()
 		dbgen.User(t, db, database.User{

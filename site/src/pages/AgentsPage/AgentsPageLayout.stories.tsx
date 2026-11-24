@@ -521,6 +521,23 @@ export const WithChatList: Story = {
 	},
 };
 
+// 320x256 matches a 1280px window at 400% zoom, where the chat list must keep
+// a usable height next to the composer.
+export const ShortMobileViewport: Story = {
+	beforeEach: WithChatList.beforeEach,
+	decorators: [
+		(Story) => (
+			<div style={{ height: 256, width: 320 }}>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const ResizableSidebar: Story = {
 	beforeEach: () => {
 		mockChats([
