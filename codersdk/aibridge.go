@@ -77,6 +77,33 @@ type UserAISpendStatus struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// UserOrganizationsAISpendStatus is a user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+type UserOrganizationsAISpendStatus struct {
+	AISpendPeriodWindow
+	// OrganizationID is the organization of the user's site-wide effective
+	// group, as reported by UserAISpendStatus. Null when no group resolves or
+	// when that organization is not in Organizations.
+	OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
+	// Organizations is the spend per organization the user is a current
+	// member of and the caller can read, ordered by organization name.
+	Organizations []UserOrganizationAISpend `json:"organizations"`
+}
+
+// UserOrganizationAISpend is a user's AI spend inside one organization in
+// the active budget period.
+type UserOrganizationAISpend struct {
+	Organization MinimalOrganization `json:"organization"`
+	// EffectiveGroupID is the user's effective group inside Organization,
+	// falling back to its Everyone group.
+	EffectiveGroupID uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// EffectiveBudget is null when no budget applies in Organization.
+	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
+	// CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	// budget period, the same value the budget check compares.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+}
+
 // OrganizationGroupsAISpend reports AI spend for a set of groups in the
 // active budget period.
 type OrganizationGroupsAISpend struct {
@@ -1048,6 +1075,25 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 		return UserAISpendStatus{}, ReadBodyAsError(res)
 	}
 	var resp UserAISpendStatus
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UserOrganizationsAISpendStatus returns the user's AI spend in each of their
+// organizations that the caller can read, within the active budget period.
+func (c *Client) UserOrganizationsAISpendStatus(ctx context.Context, user string) (UserOrganizationsAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/spend/organizations", user),
+		nil,
+	)
+	if err != nil {
+		return UserOrganizationsAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserOrganizationsAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp UserOrganizationsAISpendStatus
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

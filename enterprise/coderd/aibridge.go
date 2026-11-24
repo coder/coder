@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1043,6 +1044,10 @@ func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
 }
 
 // @Summary Get user AI spend
+// @Description Returns the user's site-wide effective AI budget and spend in the current budget period.
+// @Description The effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.
+// @Description The response does not depend on which organizations the caller can read.
+// @Description To see spend per organization, use GET /users/{user}/ai/spend/organizations.
 // @ID get-user-ai-spend
 // @Security CoderSessionToken
 // @Produce json
@@ -1108,6 +1113,138 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Get user AI spend by organization
+// @Description Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.
+// @Description Organizations the caller cannot read are omitted, so the response for a given user can differ between callers.
+// @Description Each organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.
+// @Description organization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.
+// @Description Access requires permission to read the user, as for GET /users/{user}/ai/spend.
+// @ID get-user-ai-spend-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.UserOrganizationsAISpendStatus
+// @Router /api/v2/users/{user}/ai/spend/organizations [get]
+func (api *API) userOrganizationsAISpendStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+	logger := api.Logger.With(slog.F("user_id", user.ID))
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	organizations, err := api.userOrganizationsAISpend(ctx, user.ID, periodWindow.Start, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to get user AI spend per organization", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.UserOrganizationsAISpendStatus{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		Organizations: organizations,
+	}
+
+	// The site-wide group tells the client which organization to show first.
+	// It can land in an organization the caller cannot read, so report it only
+	// when that organization is in the caller-visible list.
+	siteWideGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
+	if err != nil {
+		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if ok && slices.ContainsFunc(organizations, func(entry codersdk.UserOrganizationAISpend) bool {
+		return entry.Organization.ID == siteWideGroup.OrganizationID
+	}) {
+		resp.OrganizationID = &siteWideGroup.OrganizationID
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// userOrganizationsAISpend returns the user's effective group, budget and
+// spend since periodStart in each live organization they are a member of,
+// ordered by organization name. Organizations where no effective group
+// resolves are omitted. The result is never nil.
+func (api *API) userOrganizationsAISpend(ctx context.Context, userID uuid.UUID, periodStart time.Time, budgetPolicy codersdk.AIBudgetPolicy) ([]codersdk.UserOrganizationAISpend, error) {
+	// The budget and spend queries below only check that the caller can read
+	// the user. dbauthz filters this list to organizations the caller can
+	// read, which keeps an organization-scoped admin from seeing the budget
+	// and spend of the user's other organizations. Spend is only queried for
+	// the organizations that remain.
+	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  userID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user organizations: %w", err)
+	}
+	slices.SortFunc(orgs, func(a, b database.Organization) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	entries := make([]codersdk.UserOrganizationAISpend, 0, len(orgs))
+	groupIDs := make([]uuid.UUID, 0, len(orgs))
+	for _, org := range orgs {
+		group, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, userID, uuid.NullUUID{UUID: org.ID, Valid: true}, budgetPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve effective group in organization %s: %w", org.ID, err)
+		}
+		if !ok {
+			continue
+		}
+		entries = append(entries, codersdk.UserOrganizationAISpend{
+			Organization:     db2sdk.Organization(org).MinimalOrganization,
+			EffectiveGroupID: group.GroupID,
+			EffectiveBudget:  aiBudgetLimitToSDK(group.Limit),
+		})
+		groupIDs = append(groupIDs, group.GroupID)
+	}
+
+	spends, err := api.Database.GetUserAISpendByEffectiveGroupsSince(ctx, database.GetUserAISpendByEffectiveGroupsSinceParams{
+		UserID:            userID,
+		EffectiveGroupIds: groupIDs,
+		PeriodStart:       periodStart,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user AI spend by effective groups: %w", err)
+	}
+	spendByGroup := make(map[uuid.UUID]int64, len(spends))
+	for _, spend := range spends {
+		spendByGroup[spend.EffectiveGroupID] = spend.SpendMicros
+	}
+	for i := range entries {
+		entries[i].CurrentSpendMicros = spendByGroup[entries[i].EffectiveGroupID]
+	}
+	return entries, nil
+}
+
+// aiBudgetLimitToSDK converts a resolved budget limit, returning nil when no
+// limit applies.
+func aiBudgetLimitToSDK(limit *budget.Limit) *codersdk.AIBudgetLimit {
+	if limit == nil {
+		return nil
+	}
+	return &codersdk.AIBudgetLimit{
+		SpendLimitMicros: limit.SpendLimitMicros,
+		LimitSource:      limit.Source,
+	}
 }
 
 // @Summary Get organization groups AI spend

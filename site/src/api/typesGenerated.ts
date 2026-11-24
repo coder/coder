@@ -12560,6 +12560,48 @@ export interface UserLoginType {
 	readonly login_type: LoginType;
 }
 
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationAISpend is a user's AI spend inside one organization in
+ * the active budget period.
+ */
+export interface UserOrganizationAISpend {
+	readonly organization: MinimalOrganization;
+	/**
+	 * EffectiveGroupID is the user's effective group inside Organization,
+	 * falling back to its Everyone group.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is null when no budget applies in Organization.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	 * budget period, the same value the budget check compares.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationsAISpendStatus is a user's AI spend in each of their
+ * organizations that the caller can read, within the active budget period.
+ */
+export interface UserOrganizationsAISpendStatus extends AISpendPeriodWindow {
+	/**
+	 * OrganizationID is the organization of the user's site-wide effective
+	 * group, as reported by UserAISpendStatus. Null when no group resolves or
+	 * when that organization is not in Organizations.
+	 */
+	readonly organization_id: string | null;
+	/**
+	 * Organizations is the spend per organization the user is a current
+	 * member of and the caller can read, ordered by organization name.
+	 */
+	readonly organizations: readonly UserOrganizationAISpend[];
+}
+
 // From codersdk/users.go
 export interface UserPreferenceSettings {
 	readonly thinking_display_mode: ThinkingDisplayMode;
