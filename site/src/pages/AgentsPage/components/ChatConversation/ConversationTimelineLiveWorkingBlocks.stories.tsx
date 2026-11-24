@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -142,6 +144,16 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
+const mockSummaryReasoning: ChatMessagePart = {
+	type: "reasoning",
+	text: "Summarizing the inspection",
+	created_at: workingFixtureTime(13),
+};
+const mockAnswerText: ChatMessagePart = {
+	type: "text",
+	text: "The workspace looks healthy.",
+};
+
 // Once the final step starts its answer, its reasoning stays in the live
 // block and the text streams after it.
 export const AnswerStreamsAfterBlock: Story = {
@@ -149,14 +161,7 @@ export const AnswerStreamsAfterBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
 		),
-		...buildStreamRenderState([
-			{
-				type: "reasoning",
-				text: "Summarizing the inspection",
-				created_at: workingFixtureTime(13),
-			},
-			{ type: "text", text: "The workspace looks healthy." },
-		]),
+		...buildStreamRenderState([mockSummaryReasoning, mockAnswerText]),
 	},
 	play: expandBlock(/^Working for 12s/),
 };
@@ -312,7 +317,7 @@ export const PeekMarksRewrittenStep: Story = {
 	},
 };
 
-// The answer replaces the peek as soon as its text renders.
+// A reply already in the timeline keeps a peek from starting.
 export const AnswerEndsPeek: Story = {
 	args: AnswerStreamsAfterBlock.args,
 };
@@ -322,8 +327,42 @@ export const TextAnswerEndsPeek: Story = {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
 		),
-		...buildStreamRenderState([
-			{ type: "text", text: "The workspace looks healthy." },
-		]),
+		...buildStreamRenderState([mockAnswerText]),
+	},
+};
+
+// The reply starts while the peek shows, and its text replaces the peek.
+export const ReplyTextEndsShownPeek: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+	},
+	render: function Render(args) {
+		const [replied, setReplied] = useState(false);
+		return (
+			<>
+				<ConversationTimeline
+					{...args}
+					{...buildStreamRenderState(
+						replied
+							? [mockSummaryReasoning, mockAnswerText]
+							: [mockSummaryReasoning],
+					)}
+				/>
+				<Button
+					className="fixed top-2 right-2 z-20"
+					onClick={() => setReplied(true)}
+					disabled={replied}
+				>
+					Stream the reply
+				</Button>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Stream the reply" }),
+		);
 	},
 };

@@ -34,4 +34,20 @@ describe("ResponseBlock", () => {
 
 		expect(onTextShownChange).toHaveBeenLastCalledWith("live-assistant", true);
 	});
+
+	it("reports that its text stopped showing when it unmounts", () => {
+		const onTextShownChange = vi.fn();
+		const { unmount } = renderComponent(
+			<ResponseBlock
+				text="The workspace looks healthy."
+				isStreaming={false}
+				streamKey="live-assistant"
+				onTextShownChange={onTextShownChange}
+			/>,
+		);
+
+		unmount();
+
+		expect(onTextShownChange).toHaveBeenLastCalledWith("live-assistant", false);
+	});
 });
