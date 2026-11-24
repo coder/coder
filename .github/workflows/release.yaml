@@ -47,35 +47,8 @@ env:
   CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
-  # Only allow maintainers/admins to release.
-  check-perms:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    steps:
-      - name: Allow only maintainers/admins
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: context.actor
-            });
-            const role = data.role_name || data.user?.role_name || data.permission;
-            const perms = data.user?.permissions || {};
-            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
-
-            const allowed =
-              role === 'admin' ||
-              role === 'maintain' ||
-              perms.admin === true ||
-              perms.maintain === true;
-
-            if (!allowed) core.setFailed('Denied: requires maintain or admin');
-
   release:
     name: Build and publish
-    needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     # Gates access to the release signing identity: the GCP workload identity
     # provider for release-signer only exchanges tokens for this workflow when
