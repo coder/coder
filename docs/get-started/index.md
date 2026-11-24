@@ -319,7 +319,17 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Pick the goal that matches what you want to do next.
+To keep learning, take a hands-on course on coder.com.
+Start with Template Fundamentals, which teaches you how to customize a template.
+
+<div class="cards">
+
+- [Template Fundamentals](https://coder.com/learn/coder-quickstart): Make a template your own by adding languages and tools, and learn Terraform basics along the way.
+- [All Coder courses](https://coder.com/learn): Browse hands-on courses for everyone, from your first workspace to running Coder in production.
+
+</div>
+
+You can also pick the goal that matches what you want to do next.
 Each path starts from the deployment you just built.
 
 ### Hand a task to a coding agent
@@ -333,29 +343,44 @@ If you don't have a project in mind, ask the agent to generate something small y
 
 ### Make the workspace fit how you work
 
-The Quickstart template is a starting point.
-To customize it, take the [Template Fundamentals course](https://coder.com/learn/coder-quickstart) on coder.com.
-It walks you through adding a language and installing your own command-line tools.
+The template you built is a starting point.
+To add a language or install your own command-line tools, take the [Template Fundamentals](https://coder.com/learn/coder-quickstart) course.
 
-To open the template for editing, go to **Templates**, select your template, select the menu next to **Create Workspace**, and then select **Edit files**.
-With the CLI, run `coder templates pull <template-name> <directory>`, edit the files, then run `coder templates push -d <directory> <template-name>`.
+To clone a private repository into your workspace, add GitHub authentication to the template:
 
-To clone a private repository into your workspace, add a `coder_external_auth` data source to the template:
+1. Open the template for editing.
 
-```tf
-data "coder_external_auth" "github" {
-  id = "github"
-}
-```
+   In the dashboard, go to **Templates**, select your template, select the menu next to **Create workspace**, and then select **Edit files**.
+   With the CLI, run `coder templates pull <template-name> <directory>`.
 
-Publish the template.
-When you create a workspace from this template, select **Login with GitHub** to authorize Coder.
-If your template has a **Git Repository (Optional)** parameter, set it to your private repository URL when you create a workspace.
-Workspaces clone the repository with no manual login.
-On a new Coder deployment, `id = "github"` works without extra setup.
-Adding this block makes GitHub authentication required to start a workspace.
-To let users skip it, set `optional = true`.
-For other providers, refer to [External authentication](../admin/external-auth.md).
+1. Add a `coder_external_auth` data source to `main.tf`:
+
+   ```tf
+   data "coder_external_auth" "github" {
+     id = "github"
+   }
+   ```
+
+   On a new Coder deployment, `id = "github"` works without extra setup.
+   For other providers, refer to [External authentication](../admin/external-auth.md).
+
+1. Publish a new version of the template.
+
+   In the web editor, select **Build**, wait for the build to finish, and then select **Publish**.
+   With the CLI, run `coder templates push -d <directory> <template-name>`.
+
+1. On the template page, select **Create workspace**.
+
+1. Under **External authentication**, select **Login with GitHub** to authorize Coder.
+
+   Coder requires this authentication to create a workspace from the template.
+   To let users skip it, add `optional = true` to the data source.
+
+1. Finish creating the workspace, as in [Step 5](#step-5-launch-your-workspace).
+
+1. In the workspace, clone your private repository with its HTTPS URL.
+
+   Git doesn't prompt you to sign in, because Coder supplies your GitHub token.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 
