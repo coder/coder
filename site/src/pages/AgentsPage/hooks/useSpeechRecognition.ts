@@ -45,6 +45,8 @@ type SpeechRecognitionInstance = EventTarget & {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
+type OnTranscript = (transcript: string) => void;
+
 /**
  * Returns the SpeechRecognition constructor if the browser supports it,
  * or undefined otherwise.
@@ -72,14 +74,13 @@ export function isSpeechRecognitionSupported(): boolean {
 export function useSpeechRecognition(): {
 	isSupported: boolean;
 	isRecording: boolean;
-	transcript: string;
 	error: string | null;
-	start: () => void;
+	/** Starts recording. `onTranscript` receives the full transcript so far after each result. */
+	start: (onTranscript: OnTranscript) => void;
 	stop: () => void;
 	cancel: () => void;
 } {
 	const [isRecording, setIsRecording] = useState(false);
-	const [transcript, setTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
@@ -88,60 +89,63 @@ export function useSpeechRecognition(): {
 	const [ctorSnapshot] = useState(getSpeechRecognitionCtor);
 	const isSupported = ctorSnapshot !== undefined;
 
-	const start = useCallback(() => {
-		if (!ctorSnapshot) {
-			return;
-		}
-
-		// Tear down any lingering instance before creating a new one.
-		if (recognitionRef.current) {
-			recognitionRef.current.abort();
-			recognitionRef.current = null;
-		}
-
-		setError(null);
-
-		const recognition = new ctorSnapshot();
-		recognition.lang = navigator.language;
-		recognition.continuous = true;
-		recognition.interimResults = true;
-
-		// We accumulate finalized text in a local variable so that the
-		// onresult handler can build the full transcript from both final
-		// and interim segments without depending on React state timing.
-		let finalizedText = "";
-
-		recognition.onresult = (event: SpeechRecognitionEvent) => {
-			let interim = "";
-			for (let i = event.resultIndex; i < event.results.length; i++) {
-				const result = event.results[i];
-				if (result.isFinal) {
-					finalizedText += result[0].transcript;
-				} else {
-					interim += result[0].transcript;
-				}
+	const start = useCallback(
+		(onTranscript: OnTranscript) => {
+			if (!ctorSnapshot) {
+				return;
 			}
-			setTranscript(finalizedText + interim);
-		};
 
-		recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-			if (recognitionRef.current !== recognition) return;
-			setError(event.error);
-			setIsRecording(false);
-			recognitionRef.current = null;
-		};
+			// Tear down any lingering instance before creating a new one.
+			if (recognitionRef.current) {
+				recognitionRef.current.abort();
+				recognitionRef.current = null;
+			}
 
-		recognition.onend = () => {
-			if (recognitionRef.current !== recognition) return;
-			setIsRecording(false);
-			recognitionRef.current = null;
-		};
+			setError(null);
 
-		recognitionRef.current = recognition;
-		setTranscript("");
-		setIsRecording(true);
-		recognition.start();
-	}, [ctorSnapshot]);
+			const recognition = new ctorSnapshot();
+			recognition.lang = navigator.language;
+			recognition.continuous = true;
+			recognition.interimResults = true;
+
+			// We accumulate finalized text in a local variable so that the
+			// onresult handler can build the full transcript from both final
+			// and interim segments without depending on React state timing.
+			let finalizedText = "";
+
+			recognition.onresult = (event: SpeechRecognitionEvent) => {
+				if (recognitionRef.current !== recognition) return;
+				let interim = "";
+				for (let i = event.resultIndex; i < event.results.length; i++) {
+					const result = event.results[i];
+					if (result.isFinal) {
+						finalizedText += result[0].transcript;
+					} else {
+						interim += result[0].transcript;
+					}
+				}
+				onTranscript(finalizedText + interim);
+			};
+
+			recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+				if (recognitionRef.current !== recognition) return;
+				setError(event.error);
+				setIsRecording(false);
+				recognitionRef.current = null;
+			};
+
+			recognition.onend = () => {
+				if (recognitionRef.current !== recognition) return;
+				setIsRecording(false);
+				recognitionRef.current = null;
+			};
+
+			recognitionRef.current = recognition;
+			setIsRecording(true);
+			recognition.start();
+		},
+		[ctorSnapshot],
+	);
 
 	const stop = useCallback(() => {
 		// stop() lets the browser deliver any remaining final results
@@ -160,7 +164,6 @@ export function useSpeechRecognition(): {
 			recognitionRef.current = null;
 		}
 		setIsRecording(false);
-		setTranscript("");
 		setError(null);
 	}, []);
 
@@ -173,5 +176,5 @@ export function useSpeechRecognition(): {
 		};
 	}, []);
 
-	return { isSupported, isRecording, transcript, error, start, stop, cancel };
+	return { isSupported, isRecording, error, start, stop, cancel };
 }

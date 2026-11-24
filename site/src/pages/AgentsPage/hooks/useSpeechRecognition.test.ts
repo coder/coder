@@ -101,11 +101,10 @@ describe("useSpeechRecognition", () => {
 		const { result } = renderHook(() => useSpeechRecognition());
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		expect(result.current.isRecording).toBe(true);
-		expect(result.current.transcript).toBe("");
 		expect(lastInstance?.start).toHaveBeenCalled();
 		expect(lastInstance?.continuous).toBe(true);
 		expect(lastInstance?.interimResults).toBe(true);
@@ -114,9 +113,10 @@ describe("useSpeechRecognition", () => {
 	it("accumulates transcript from result events", () => {
 		installMock();
 		const { result } = renderHook(() => useSpeechRecognition());
+		const onTranscript = vi.fn();
 
 		act(() => {
-			result.current.start();
+			result.current.start(onTranscript);
 		});
 
 		// Simulate an interim result.
@@ -129,7 +129,7 @@ describe("useSpeechRecognition", () => {
 				},
 			});
 		});
-		expect(result.current.transcript).toBe("hello");
+		expect(onTranscript).toHaveBeenLastCalledWith("hello");
 
 		// Simulate it becoming final + a new interim.
 		act(() => {
@@ -142,64 +142,50 @@ describe("useSpeechRecognition", () => {
 				},
 			});
 		});
-		expect(result.current.transcript).toBe("hello world");
+		expect(onTranscript).toHaveBeenLastCalledWith("hello world");
 	});
 
-	it("stop() keeps transcript and sets isRecording=false", () => {
+	it("stop() sets isRecording=false and ignores later results", () => {
 		installMock();
 		const { result } = renderHook(() => useSpeechRecognition());
+		const onTranscript = vi.fn();
 
 		act(() => {
-			result.current.start();
-		});
-
-		act(() => {
-			lastInstance?.onresult?.({
-				resultIndex: 0,
-				results: {
-					length: 1,
-					0: { isFinal: true, 0: { transcript: "kept", confidence: 1 } },
-				},
-			});
+			result.current.start(onTranscript);
 		});
 
 		act(() => {
 			result.current.stop();
 		});
 
-		expect(result.current.isRecording).toBe(false);
-		expect(result.current.transcript).toBe("kept");
-		expect(lastInstance?.stop).toHaveBeenCalled();
-	});
-
-	it("cancel() clears transcript and sets isRecording=false", () => {
-		installMock();
-		const { result } = renderHook(() => useSpeechRecognition());
-
-		act(() => {
-			result.current.start();
-		});
-
 		act(() => {
 			lastInstance?.onresult?.({
 				resultIndex: 0,
 				results: {
 					length: 1,
-					0: {
-						isFinal: false,
-						0: { transcript: "discard me", confidence: 0.5 },
-					},
+					0: { isFinal: true, 0: { transcript: "late", confidence: 1 } },
 				},
 			});
 		});
-		expect(result.current.transcript).toBe("discard me");
+
+		expect(result.current.isRecording).toBe(false);
+		expect(onTranscript).not.toHaveBeenCalled();
+		expect(lastInstance?.stop).toHaveBeenCalled();
+	});
+
+	it("cancel() aborts and sets isRecording=false", () => {
+		installMock();
+		const { result } = renderHook(() => useSpeechRecognition());
+
+		act(() => {
+			result.current.start(vi.fn());
+		});
 
 		act(() => {
 			result.current.cancel();
 		});
 
 		expect(result.current.isRecording).toBe(false);
-		expect(result.current.transcript).toBe("");
 		expect(lastInstance?.abort).toHaveBeenCalled();
 	});
 
@@ -208,7 +194,7 @@ describe("useSpeechRecognition", () => {
 		const { result } = renderHook(() => useSpeechRecognition());
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 		expect(result.current.isRecording).toBe(true);
 
@@ -223,12 +209,12 @@ describe("useSpeechRecognition", () => {
 		const { result } = renderHook(() => useSpeechRecognition());
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 		const first = lastInstance;
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		expect(first?.abort).toHaveBeenCalled();
@@ -241,7 +227,7 @@ describe("useSpeechRecognition", () => {
 
 		// Start recording — creates the first instance.
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 		const first = lastInstance!;
 
@@ -252,7 +238,7 @@ describe("useSpeechRecognition", () => {
 		// Start recording again — creates a second instance and aborts
 		// the first.
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 		const second = lastInstance!;
 
@@ -276,7 +262,7 @@ describe("useSpeechRecognition", () => {
 		expect(result.current.error).toBeNull();
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		act(() => {
@@ -295,7 +281,7 @@ describe("useSpeechRecognition", () => {
 		const { result } = renderHook(() => useSpeechRecognition());
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		act(() => {
@@ -307,7 +293,7 @@ describe("useSpeechRecognition", () => {
 		expect(result.current.error).toBe("not-allowed");
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		expect(result.current.error).toBeNull();
@@ -319,7 +305,7 @@ describe("useSpeechRecognition", () => {
 		const { result } = renderHook(() => useSpeechRecognition());
 
 		act(() => {
-			result.current.start();
+			result.current.start(vi.fn());
 		});
 
 		act(() => {

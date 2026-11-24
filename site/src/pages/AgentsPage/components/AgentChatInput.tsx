@@ -454,18 +454,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 
 	const speech = useSpeechRecognition();
 	// The draft, including skill chips, as it was when recording started.
-	const [preRecordingState, setPreRecordingState] = useState<string | null>(
-		null,
-	);
-
-	useEffect(() => {
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The transcript arrives from the browser's speech recognition, so it is written into the editor as it changes.
-		if (!speech.isRecording || preRecordingState === null) return;
-		internalRef.current?.restoreEditorState(
-			preRecordingState,
-			speech.transcript,
-		);
-	}, [speech.transcript, speech.isRecording, preRecordingState]);
+	const preRecordingStateRef = useRef<string | null>(null);
 
 	// Forward a stable delegating handle to the parent-supplied inputRef.
 	// Delegates lazily to internalRef.current so methods see the current
@@ -820,8 +809,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
-		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
-		speech.start();
+		const preRecordingState = internalRef.current?.getEditorState() ?? null;
+		preRecordingStateRef.current = preRecordingState;
+		speech.start((transcript) => {
+			if (preRecordingState !== null) {
+				internalRef.current?.restoreEditorState(preRecordingState, transcript);
+			}
+		});
 	};
 
 	const handleAcceptRecording = () => {
@@ -835,14 +829,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		speech.cancel();
 		const editor = internalRef.current;
 		if (editor) {
-			if (preRecordingState !== null) {
-				editor.restoreEditorState(preRecordingState);
+			if (preRecordingStateRef.current !== null) {
+				editor.restoreEditorState(preRecordingStateRef.current);
 			}
 			if (!isMobileViewport()) {
 				editor.focus();
 			}
 		}
-		setPreRecordingState(null);
+		preRecordingStateRef.current = null;
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
