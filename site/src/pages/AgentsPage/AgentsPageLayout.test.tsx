@@ -1167,6 +1167,9 @@ describe("AgentsPageLayout project chats", () => {
 						? [{ ...mockProjectChat, children: [mockRunningSubagent] }]
 						: [],
 				);
+			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+				MockChatProject,
+			]);
 			vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
 				{
 					...MockChatProjectSummary,

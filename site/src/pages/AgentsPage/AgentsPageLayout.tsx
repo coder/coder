@@ -161,7 +161,7 @@ const isOwnProjectChat = (
 	chat.pin_order === 0 &&
 	queryClient
 		.getQueryData<TypesGen.ChatProjectSummary[]>(chatProjectSummariesKey)
-		?.some((summary) => summary.project.id === chat.project_id) === true;
+		?.some((summary) => summary.project_id === chat.project_id) === true;
 
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (

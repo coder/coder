@@ -296,6 +296,7 @@ func TestChatProjectSummaries(t *testing.T) {
 		return latest
 	}
 	summaries := chatProjectSummariesByID(ctx, t, client)
+	memberCounts := chatProjectMemberCountsByID(ctx, t, client)
 	for project, want := range map[uuid.UUID]summary{
 		// The owner plus alice, who is granted directly and through the group.
 		busy.ID: {3, 1, 2, true, true, latestUpdate(unread, running, paused)},
@@ -308,29 +309,26 @@ func TestChatProjectSummaries(t *testing.T) {
 	} {
 		got := summaries[project]
 		require.True(t, got.Pinned)
-		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, got.Project.Permissions)
 		lastActivity := ptr.NilToDefault(got.LastActivityAt, time.Time{}).UTC()
-		gotSummary := summary{got.OwnChatCount, got.OwnUnreadCount, got.MemberCount, got.OwnRunning, got.OwnNeedsAttention, lastActivity}
-		require.Equal(t, want, gotSummary, got.Project.Name)
+		gotSummary := summary{got.OwnChatCount, got.OwnUnreadCount, memberCounts[project], got.OwnRunning, got.OwnNeedsAttention, lastActivity}
+		require.Equal(t, want, gotSummary, project)
 	}
 	requireSummariesMatchList(ctx, t, aliceClient)
 
 	// Without project sharing, as with its experiment off in a release
 	// build, grants still decide which projects are visible, as in the
 	// project list, but only owners are counted.
-	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{}))
-	rows, err := db.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: alice.ID})
+	rows, err := db.GetChatProjectMemberCountsByUserID(ctx, database.GetChatProjectMemberCountsByUserIDParams{UserID: alice.ID})
 	require.NoError(t, err)
-	aliceSummaries := make(map[uuid.UUID]database.GetChatProjectSummariesByUserIDRow, len(rows))
+	ownerOnly := make(map[uuid.UUID]int64, len(rows))
 	for _, row := range rows {
-		aliceSummaries[row.ChatProject.ID] = row
+		ownerOnly[row.ProjectID] = row.MemberCount
 	}
-	require.Contains(t, aliceSummaries, busy.ID)
-	require.EqualValues(t, 1, aliceSummaries[busy.ID].PinOrder)
-	require.EqualValues(t, 1, aliceSummaries[busy.ID].MemberCount)
+	require.EqualValues(t, 1, ownerOnly[busy.ID])
 
 	// Alice keeps a pin on stopping, whose grant lacks read, so it is not
 	// returned and leaves no gap in the pin orders she sees.
+	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{}))
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: alice.ID, ProjectID: stopping.ID})
 	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, everyone.ID, codersdk.PinChatProjectRequest{}))
 	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{busy.ID: 1, everyone.ID: 2})
@@ -366,8 +364,7 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 		GroupACL: database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 	}))
 
-	summaries := chatProjectSummariesByID(ctx, t, client)
-	require.EqualValues(t, 1, summaries[project.ID].MemberCount)
+	require.EqualValues(t, 1, chatProjectMemberCountsByID(ctx, t, client)[project.ID])
 
 	// The member cannot open the project, so no project list reaches their
 	// chat in it and the main list keeps it.
@@ -541,21 +538,31 @@ func chatProjectSummariesByID(ctx context.Context, t testing.TB, client *codersd
 	require.NoError(t, err)
 	byID := make(map[uuid.UUID]codersdk.ChatProjectSummary, len(summaries))
 	for _, summary := range summaries {
-		byID[summary.Project.ID] = summary
+		byID[summary.ProjectID] = summary
 	}
 	return byID
 }
 
-// requireSummariesMatchList checks that the summaries cover exactly the
-// projects in the project list.
+func chatProjectMemberCountsByID(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient) map[uuid.UUID]int64 {
+	t.Helper()
+	counts, err := client.ListChatProjectMemberCounts(ctx)
+	require.NoError(t, err)
+	byID := make(map[uuid.UUID]int64, len(counts))
+	for _, count := range counts {
+		byID[count.ProjectID] = count.MemberCount
+	}
+	return byID
+}
+
+// requireSummariesMatchList checks that the summaries and the member counts,
+// which clients join to the project list by ID, cover exactly its projects.
 func requireSummariesMatchList(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient) {
 	t.Helper()
 	projects, err := client.ListChatProjects(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t,
-		slice.List(projects, func(project codersdk.ChatProject) uuid.UUID { return project.ID }),
-		slices.Collect(maps.Keys(chatProjectSummariesByID(ctx, t, client))),
-	)
+	projectIDs := slice.List(projects, func(project codersdk.ChatProject) uuid.UUID { return project.ID })
+	require.ElementsMatch(t, projectIDs, slices.Collect(maps.Keys(chatProjectSummariesByID(ctx, t, client))))
+	require.ElementsMatch(t, projectIDs, slices.Collect(maps.Keys(chatProjectMemberCountsByID(ctx, t, client))))
 }
 
 // requirePinOrders checks each project's pin order; 0 means not pinned.

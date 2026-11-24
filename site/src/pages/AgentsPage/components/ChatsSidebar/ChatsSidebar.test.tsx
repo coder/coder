@@ -177,7 +177,7 @@ beforeEach(() => {
 				return HttpResponse.json(
 					projects.map((project, index) => ({
 						...MockChatProjectSummary,
-						project,
+						project_id: project.id,
 						pin_order: index + 1,
 					})),
 				);
@@ -490,6 +490,9 @@ describe("ChatsSidebar projects", () => {
 	it("counts a collapsed folder's unread chats and hides the count while open", async () => {
 		const user = userEvent.setup();
 		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
 			http.get("/api/experimental/chats/projects/summaries", () =>
 				HttpResponse.json([{ ...MockChatProjectSummary, own_unread_count: 3 }]),
 			),

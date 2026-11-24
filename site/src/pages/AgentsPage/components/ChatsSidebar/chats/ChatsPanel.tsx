@@ -20,6 +20,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
 import { cachedChat, reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -115,7 +116,7 @@ const dragSensors = [
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	/** The user's pinned projects, in pin order. */
-	readonly pinnedProjects: readonly ChatProjectSummary[];
+	readonly pinnedProjects: readonly ChatProjectWithSummary[];
 	/** Every project's summary, pinned or not. */
 	readonly projectSummaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
