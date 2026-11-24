@@ -55,8 +55,7 @@ export const OrganizationFilter: React.FC<OrganizationFilterProps> = ({
 }) => {
 	return (
 		<SelectFilter
-			label="Select an organization"
-			placeholder="All organizations"
+			label="Organization"
 			emptyText="No organizations found"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}

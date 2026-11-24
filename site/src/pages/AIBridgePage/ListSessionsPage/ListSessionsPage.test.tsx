@@ -89,9 +89,7 @@ describe("ListSessionsPage", () => {
 		await waitForLoaderToBeRemoved();
 
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", { name: "Select an organization" }),
-		);
+		await user.click(screen.getByRole("button", { name: "Organization: All" }));
 		await user.click(
 			// The option name includes the avatar initials, so match by substring.
 			await screen.findByRole("option", { name: /My Organization 2/ }),
