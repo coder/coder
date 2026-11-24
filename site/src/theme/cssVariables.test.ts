@@ -269,12 +269,12 @@ describe("theme CSS variables", () => {
 		},
 	);
 
-	// --content-warning is text (WCAG 1.4.3, 4.5:1); --border-warning is icons
-	// and graphics (WCAG 1.4.11, 3:1).
-	describe("warning contrast", () => {
+	// Text tokens need 4.5:1 (WCAG 1.4.3) and --border-warning, used for icons
+	// and graphics, needs 3:1 (WCAG 1.4.11), on each surface they render on.
+	describe("semantic color contrast", () => {
 		it.each(
-			CONCRETE_THEMES.flatMap((themeName) =>
-				[
+			CONCRETE_THEMES.flatMap((themeName) => [
+				...[
 					"--surface-primary",
 					"--surface-secondary",
 					"--surface-orange",
@@ -282,15 +282,19 @@ describe("theme CSS variables", () => {
 					[themeName, "--content-warning", surface, 4.5] as const,
 					[themeName, "--border-warning", surface, 3] as const,
 				]),
-			),
+				...["--surface-primary", "--surface-secondary", "--surface-red"].map(
+					(surface) =>
+						[themeName, "--content-destructive", surface, 4.5] as const,
+				),
+			]),
 		)("%s keeps %s on %s at %d:1", (themeName, token, surface, minimum) => {
 			const block = extractEffectiveBlock(css, `.${themeName}`) ?? "";
-			const warning = extractVariable(block, token);
+			const color = extractVariable(block, token);
 			const background = extractVariable(block, surface);
-			expect(warning).not.toBeNull();
+			expect(color).not.toBeNull();
 			expect(background).not.toBeNull();
 			expect(
-				contrastRatio(warning ?? "", background ?? ""),
+				contrastRatio(color ?? "", background ?? ""),
 			).toBeGreaterThanOrEqual(minimum);
 		});
 	});
