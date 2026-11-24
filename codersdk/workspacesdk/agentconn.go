@@ -26,6 +26,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -115,6 +116,7 @@ type AgentConn interface {
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
+	OpenPreview(ctx context.Context, request OpenPreviewRequest) (OpenPreviewResponse, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
 	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
@@ -1495,6 +1497,46 @@ type MCPToolContent struct {
 	Text      string `json:"text,omitempty"`
 	Data      string `json:"data,omitempty"` // base64 for binary
 	MediaType string `json:"media_type,omitempty"`
+}
+
+// OpenPreviewRequest publishes an absolute path to an .html file, or
+// to a directory that contains index.html. Publishing a path again keeps its
+// preview ID. Hidden paths and symlinks inside a preview are not served.
+type OpenPreviewRequest struct {
+	Path string `json:"path"`
+}
+
+// OpenPreviewResponse describes a published preview. The agent serves it
+// under /api/v0/previews/{id}/ on AgentHTTPAPIServerPort until it restarts.
+// Path is the path it serves, with symlinks in its parent directories
+// resolved. A File preview serves only that file, at the preview's root.
+type OpenPreviewResponse struct {
+	ID   appurl.PreviewID `json:"id"`
+	Path string           `json:"path"`
+	File bool             `json:"file"`
+}
+
+// ErrPreviewsUnsupported is returned by OpenPreview when the workspace agent
+// predates file previews.
+var ErrPreviewsUnsupported = xerrors.New("workspace agent does not support file previews")
+
+// OpenPreview publishes a workspace file or directory as a preview.
+func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (OpenPreviewResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/previews", req)
+	if err != nil {
+		return OpenPreviewResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return OpenPreviewResponse{}, ErrPreviewsUnsupported
+	}
+	if res.StatusCode != http.StatusOK {
+		return OpenPreviewResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp OpenPreviewResponse
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // StartProcess starts a new process on the workspace agent.
