@@ -3,7 +3,7 @@ title: Configure Slack for Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay requires a Premium license.
+> Agent Relay is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
 > To try it, [request a Premium trial](https://coder.com/trial).
 
 This page is for Coder administrators who configure the Claude Code and Cursor Slack integrations to run agent sessions on Agent Relay pools.
