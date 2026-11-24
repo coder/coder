@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,19 +60,37 @@ func encodeDeflate(t *testing.T, src []byte) []byte {
 	return dst.Bytes()
 }
 
-// Status mapping, the decoded size cap and corrupt data are covered at the
-// bridge boundary by TestCompressedRequestBodyRejected.
+// The HTTP status for each error is covered at the bridge boundary by
+// TestCompressedRequestBodyRejected.
 func TestDecodeRequestBody(t *testing.T) {
 	t.Parallel()
 
 	plain := []byte("hello, encoded world")
+
+	wantUnsupported := func(t *testing.T, err error) {
+		t.Helper()
+		require.ErrorIs(t, err, routing.ErrUnsupportedContentEncoding)
+	}
+	wantTooLarge := func(t *testing.T, err error) {
+		t.Helper()
+		maxBytesErr, _ := errors.AsType[*http.MaxBytesError](err)
+		require.NotNil(t, maxBytesErr, "got %v, want *http.MaxBytesError", err)
+	}
+	wantCorrupt := func(t *testing.T, err error) {
+		t.Helper()
+		require.Error(t, err)
+		require.NotErrorIs(t, err, routing.ErrUnsupportedContentEncoding)
+		maxBytesErr, _ := errors.AsType[*http.MaxBytesError](err)
+		require.Nil(t, maxBytesErr)
+	}
 
 	tests := []struct {
 		name string
 		// encodings holds one value per Content-Encoding header line.
 		encodings []string
 		body      []byte
-		wantErr   error
+		// checkErr, when set, asserts the returned error and ends the case.
+		checkErr func(t *testing.T, err error)
 	}{
 		{name: "no header", body: plain},
 		{name: "zstd", encodings: []string{"zstd"}, body: encodeZstd(t, plain)},
@@ -79,9 +98,11 @@ func TestDecodeRequestBody(t *testing.T) {
 		{name: "br", encodings: []string{"br"}, body: encodeBrotli(t, plain)},
 		{name: "deflate", encodings: []string{"deflate"}, body: encodeDeflate(t, plain)},
 		{name: "uppercase zstd", encodings: []string{"ZSTD"}, body: encodeZstd(t, plain)},
-		{name: "compress unsupported", encodings: []string{"compress"}, body: plain, wantErr: routing.ErrUnsupportedContentEncoding},
-		{name: "comma separated unsupported", encodings: []string{"gzip, zstd"}, body: plain, wantErr: routing.ErrUnsupportedContentEncoding},
-		{name: "repeated header lines unsupported", encodings: []string{"gzip", "zstd"}, body: encodeZstd(t, encodeGzip(t, plain)), wantErr: routing.ErrUnsupportedContentEncoding},
+		{name: "compress unsupported", encodings: []string{"compress"}, body: plain, checkErr: wantUnsupported},
+		{name: "comma separated unsupported", encodings: []string{"gzip, zstd"}, body: plain, checkErr: wantUnsupported},
+		{name: "repeated header lines unsupported", encodings: []string{"gzip", "zstd"}, body: encodeZstd(t, encodeGzip(t, plain)), checkErr: wantUnsupported},
+		{name: "decoded size over limit", encodings: []string{"gzip"}, body: encodeGzip(t, bytes.Repeat([]byte("A"), routing.MaxRequestBodyBytes+1)), checkErr: wantTooLarge},
+		{name: "corrupt zstd", encodings: []string{"zstd"}, body: []byte("definitely not zstd"), checkErr: wantCorrupt},
 	}
 
 	for _, tt := range tests {
@@ -100,8 +121,8 @@ func TestDecodeRequestBody(t *testing.T) {
 			headerBefore := req.Header.Clone()
 
 			err := routing.DecodeRequestBody(req)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			if tt.checkErr != nil {
+				tt.checkErr(t, err)
 				return
 			}
 			require.NoError(t, err)
