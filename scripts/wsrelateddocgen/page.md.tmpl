@@ -29,6 +29,11 @@ The parameter follows these rules:
 
 An unknown path, an empty entry such as `template,,latest_build`, or a `*` before the end of a path returns `400 Bad Request`.
 
+Coder checks that you can read the related data you select.
+If you can't read part of it, the whole request fails.
+`GET /api/v2/workspaces/{workspace}` returns `403 Forbidden`, and `GET /api/v2/users/{user}/workspace/{workspacename}` returns `404 Not Found`.
+You might avoid the error by selecting less related data.
+
 The following request returns the workspace with its template data and its latest build, including the build's resources and agents:
 
 ```shell
