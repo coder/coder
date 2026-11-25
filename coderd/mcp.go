@@ -1633,7 +1633,7 @@ func (api *API) refreshMCPUserToken(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) bool {
-	tok, err := mcpclient.RefreshUserToken(ctx, api.Logger, api.Database, api.mcpHTTPClient, cfg, tok)
+	tok, err := mcpclient.RefreshUserToken(ctx, api.Logger, api.Clock, api.Database, api.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to refresh MCP oauth2 token",
 			slog.F("server_slug", cfg.Slug),

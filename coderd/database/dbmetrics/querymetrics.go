@@ -5480,6 +5480,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseMCPServerUserTokenRefresh(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseMCPServerUserTokenRefresh").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseMCPServerUserTokenRefresh").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)

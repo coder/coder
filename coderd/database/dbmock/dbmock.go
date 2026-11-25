@@ -10413,6 +10413,20 @@ func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
 }
 
+// ReleaseMCPServerUserTokenRefresh mocks base method.
+func (m *MockStore) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseMCPServerUserTokenRefresh", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseMCPServerUserTokenRefresh indicates an expected call of ReleaseMCPServerUserTokenRefresh.
+func (mr *MockStoreMockRecorder) ReleaseMCPServerUserTokenRefresh(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseMCPServerUserTokenRefresh", reflect.TypeOf((*MockStore)(nil).ReleaseMCPServerUserTokenRefresh), ctx, arg)
+}
+
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

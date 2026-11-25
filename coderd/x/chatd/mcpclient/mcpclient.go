@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
@@ -1706,11 +1707,11 @@ func RefreshOAuth2Token(
 // response.
 const refreshSaveTimeout = 5 * time.Second
 
-// refreshLease is how long a refresh claim keeps other refreshers of the
-// token waiting. It covers the provider call that RefreshOAuth2Token
-// bounds with connectTimeout and the save that refreshSaveTimeout bounds,
-// with a margin for the round trips around them, so a claim does not
-// lapse before its result lands.
+// refreshLease is when a refresh claim lapses if its claimant never ends
+// it, for example because it crashed. It covers the provider call that
+// RefreshOAuth2Token bounds with connectTimeout and the save that
+// refreshSaveTimeout bounds, with a margin for the round trips around
+// them, so a claim does not lapse before its result lands.
 const refreshLease = connectTimeout + refreshSaveTimeout + 5*time.Second
 
 // refreshPollInterval is how often a refresher that lost the claim
@@ -1723,8 +1724,9 @@ const refreshPollInterval = 250 * time.Millisecond
 // back, so concurrent callers must spend each refresh token once. A
 // caller first claims the row (ClaimMCPServerUserTokenRefresh), calls the
 // provider with no transaction open, and persists against its claim.
-// A caller that loses the claim re-reads the row until the claimant's
-// result lands or the claim lapses.
+// A caller that loses the claim re-reads the row until the claim ends and
+// then uses the row as it is, so it makes or waits for at most one
+// provider call.
 //
 // ctx must allow reading the token; writes run as the token owner. A
 // transient provider failure is logged and returns the current row with
@@ -1733,6 +1735,7 @@ const refreshPollInterval = 250 * time.Millisecond
 func RefreshUserToken(
 	ctx context.Context,
 	logger slog.Logger,
+	clock quartz.Clock,
 	store database.Store,
 	httpClient *http.Client,
 	cfg database.MCPServerConfig,
@@ -1743,6 +1746,7 @@ func RefreshUserToken(
 	}
 	logger = logger.With(slog.F("server_slug", cfg.Slug), slog.F("user_id", tok.UserID))
 	ownerCtx := dbauthz.AsChatdTokenOwner(ctx, tok.UserID)
+	waited := false
 	for {
 		if tok.RefreshToken == "" || tok.OauthRefreshFailureReason != "" || oauth2Token(tok).Valid() {
 			return tok, nil
@@ -1763,12 +1767,24 @@ func RefreshUserToken(
 		if err != nil {
 			return cur, err
 		}
-		if cur.UpdatedAt.Equal(tok.UpdatedAt) {
+		sameVersion := cur.UpdatedAt.Equal(tok.UpdatedAt)
+		if waited && !sameVersion {
+			// The claim this caller waited on ended. A claimant that got no
+			// token leaves the stored one, which this call uses rather than
+			// claiming again.
+			return cur, nil
+		}
+		// A deleted row also comes back with tok's version, but without
+		// credentials.
+		if sameVersion && cur.RefreshToken != "" {
 			// Another refresher holds a live claim on this version.
+			waited = true
+			timer := clock.NewTimer(refreshPollInterval, "RefreshUserToken", "poll")
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return cur, ctx.Err()
-			case <-time.After(refreshPollInterval):
+			case <-timer.C:
 			}
 		}
 		tok = cur
@@ -1791,8 +1807,16 @@ func refreshClaimedUserToken(
 	var out database.MCPServerUserToken
 	switch {
 	case err != nil && !IsPermanentRefreshError(err):
-		// The claim lapses after refreshLease, which spaces out retries.
 		logger.Warn(ctx, "failed to refresh MCP oauth2 token", slog.Error(err))
+		// End the claim now: the next call may retry at once, and callers
+		// waiting on it go on with the stored token.
+		err = store.ReleaseMCPServerUserTokenRefresh(saveCtx, database.ReleaseMCPServerUserTokenRefreshParams{
+			ID:        tok.ID,
+			UpdatedAt: tok.UpdatedAt,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to release MCP oauth2 token refresh claim", slog.Error(err))
+		}
 		return tok, nil
 	case err != nil:
 		logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect", slog.Error(err))
