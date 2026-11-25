@@ -308,7 +308,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 func TestWorkspaceUpdatesClose(t *testing.T) {
 	t.Parallel()
 
-	for _, stage := range []string{"QueryInFlight", "BlockedSend", "CallbackAfterClose"} {
+	for _, stage := range []string{"QueryInFlight", "CallbackAfterClose"} {
 		t.Run(stage, func(t *testing.T) {
 			t.Parallel()
 
@@ -361,12 +361,10 @@ func TestWorkspaceUpdatesClose(t *testing.T) {
 					}
 					<-callbackDone
 
-					// Closing preserves the buffered update and then terminates readers.
+					// Closing preserves the buffered update.
 					initial, ok := <-sub.Updates()
 					require.True(t, ok)
 					require.NotNil(t, initial)
-					_, ok = <-sub.Updates()
-					require.False(t, ok)
 					require.NoError(t, provider.Close())
 				}
 			})

@@ -61,11 +61,6 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Unsubscribing does not wait for callbacks already dispatched by pubsub.
-	if s.ctx.Err() != nil {
-		return
-	}
-
 	switch event.Kind {
 	case wspubsub.WorkspaceEventKindStateChange:
 	case wspubsub.WorkspaceEventKindAgentConnectionUpdate:
@@ -127,10 +122,8 @@ func (s *sub) Close() error {
 		s.psCancelFn()
 	}
 
-	// Cancel before locking so an in-flight send can stop holding the mutex.
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	close(s.ch)
+	// Do not close ch: pubsub may still be running a callback that sends on
+	// it. Readers stop on their own context.
 	return nil
 }
 
