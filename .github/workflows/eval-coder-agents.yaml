@@ -148,10 +148,15 @@ jobs:
       - run: rm -rf scripts/harbor-coder && cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
 
       - uses: ./.github/actions/setup-go-paths
+      # Depot caches are shared across branches, so this job, which holds
+      # the eval secret, must not restore anything a pull request wrote.
       - uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
+          use-cache: "false"
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
       - name: Install Harbor from the hash-pinned lock
         run: |
           ./scripts/harbor-coder/install.sh "${RUNNER_TEMP}/harbor-venv"

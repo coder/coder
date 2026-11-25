@@ -371,6 +371,9 @@ jobs:
         id: golangci-lint-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
+          # Depot caches are shared across branches, so trusted runs only
+          # look the key up and never restore what a pull request wrote.
+          lookup-only: ${{ github.event_name != 'pull_request' }}
           path: |
             ${{ env.LINT_CACHE_DIR }}
           key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
@@ -1100,6 +1103,9 @@ jobs:
         id: coder-e2e-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
+          # Depot caches are shared across branches, so trusted runs only
+          # look the key up and never run binaries a pull request wrote.
+          lookup-only: ${{ github.event_name != 'pull_request' }}
           path: /tmp/coder-e2e-cache
           key: coder-e2e-cache-${{ runner.os }}-${{ hashFiles('site/e2e/constants.ts') }}
           restore-keys: |
@@ -1189,7 +1195,9 @@ jobs:
         name: Install dependencies
         with:
           run_install: true
-          cache: true
+          # Depot caches are shared across branches, so trusted runs, which
+          # hold PIXEL_KEY, must not restore a store a pull request wrote.
+          cache: ${{ github.event_name == 'pull_request' }}
 
       - run: pnpm exec playwright install chromium
         working-directory: site/
