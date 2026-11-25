@@ -106,12 +106,10 @@ func (f *streamRelayForwarder) loop() {
 		retryBackoff = streamRelayRetryInitialBackoff
 		// After a failed connection, backoffWorker is not dialed again before
 		// backoffUntil. Configurations arrive at the chat's snapshot rate, so
-		// they must not shorten the wait. backoffTimed is false after an
-		// unrecoverable dial error: no timer is armed, and a same-worker
-		// configuration before backoffUntil only records the target.
+		// one before backoffUntil only re-arms the retry timer for the rest of
+		// the wait.
 		backoffWorker uuid.NullUUID
 		backoffUntil  time.Time
-		backoffTimed  bool
 	)
 	startRetry := func(d time.Duration) {
 		retryTimer = f.clock.NewTimer(d, "chatd", "stream-relay-retry")
@@ -144,7 +142,6 @@ func (f *streamRelayForwarder) loop() {
 		}
 		backoffWorker = target.workerID
 		backoffUntil = f.clock.Now().Add(retryBackoff)
-		backoffTimed = timed
 		if timed {
 			startRetry(retryBackoff)
 		}
@@ -188,9 +185,7 @@ func (f *streamRelayForwarder) loop() {
 		if !sameNullUUID(backoffWorker, target.workerID) {
 			resetBackoff()
 		} else if wait := f.clock.Until(backoffUntil); wait > 0 {
-			if backoffTimed {
-				startRetry(wait)
-			}
+			startRetry(wait)
 			return
 		}
 		closeSession()
@@ -206,9 +201,9 @@ func (f *streamRelayForwarder) loop() {
 				slog.Error(err),
 			)
 			// Unrecoverable dial errors (e.g. auth failures) will not
-			// succeed on retry with the same inputs, so back off without a
-			// timer. A configuration for the same worker dials only at or after
-			// backoffUntil.
+			// succeed on retry with the same inputs, so arm no timer. A
+			// later configuration for the same worker arms one for the rest
+			// of the backoff.
 			scheduleRetry(!streamPartsDialUnrecoverable(err))
 			return
 		}
