@@ -305,12 +305,14 @@ export const TemplateBuilderPageView: React.FC<
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
-				<PageHeaderSubtitle>
-					A Terraform blueprint for reproducible workspaces.
+				{/* A flex row keeps the link out of the sentence's text block, so it
+				    reads as a separate action marked by its external-link icon. */}
+				<PageHeaderSubtitle className="flex flex-wrap items-baseline gap-x-2">
+					<span>A Terraform blueprint for reproducible workspaces.</span>
 					<Link
 						href={docs("/templates")}
 						target="_blank"
-						className="ml-1 font-normal"
+						className="font-normal"
 					>
 						View docs
 					</Link>

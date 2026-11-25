@@ -522,6 +522,23 @@ export const WithChatList: Story = {
 	},
 };
 
+// 320x256 matches a 1280px window at 400% zoom, where the chat list must keep
+// a usable height next to the composer.
+export const ShortMobileViewport: Story = {
+	beforeEach: WithChatList.beforeEach,
+	decorators: [
+		(Story) => (
+			<div style={{ height: 256, width: 320 }}>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const ResizableSidebar: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -720,6 +737,36 @@ export const ResizableSidebarKeyboard: Story = {
 				String(maxWidth),
 			);
 		});
+	},
+};
+
+// At the minimum width, so the menu also shows "Decrease width" disabled.
+export const ResizableSidebarContextMenu: Story = {
+	beforeEach: () => {
+		mockChats([
+			buildChat({
+				id: "chat-resize-menu",
+				title: "Resize menu agent",
+				updated_at: todayTimestamp,
+			}),
+		]);
+		localStorage.setItem(
+			LEFT_SIDEBAR_STORAGE_KEY,
+			String(LEFT_SIDEBAR_MIN_WIDTH),
+		);
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const handle = within(canvasElement).getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		fireEvent.contextMenu(handle, {
+			clientX: handle.getBoundingClientRect().left,
+			clientY: 120,
+		});
+		await screen.findByRole("menuitem", { name: "Reset width" });
 	},
 };
 
