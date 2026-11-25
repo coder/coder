@@ -287,6 +287,37 @@ export type SendChatMessageOptions = {
 	busyBehavior?: TypesGen.ChatBusyBehavior;
 };
 
+// Converts the edited message's workspace file references uploaded to
+// the bound workspace into already-uploaded entries.
+const getPreservedWorkspaceUploads = (
+	blocks: readonly TypesGen.ChatMessagePart[],
+	workspaceId: string | null,
+): readonly WorkspaceFileUpload[] =>
+	blocks
+		.filter(isWorkspaceFileReferencePart)
+		.filter(
+			(part) =>
+				workspaceId !== null &&
+				part.workspace_file_workspace_id === workspaceId,
+		)
+		.map(
+			(part, i): WorkspaceFileUpload => ({
+				id: `preserved-${i}-${part.workspace_file_path}`,
+				file: new File([], part.workspace_file_name, {
+					type: part.workspace_file_media_type || "application/octet-stream",
+				}),
+				status: "uploaded",
+				response: {
+					path: part.workspace_file_path,
+					name: part.workspace_file_name,
+					size: part.workspace_file_size,
+					media_type:
+						part.workspace_file_media_type || "application/octet-stream",
+					workspace_id: part.workspace_file_workspace_id,
+				},
+			}),
+		);
+
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
@@ -482,12 +513,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		chatId,
 		selectedWorkspaceId ?? undefined,
 	);
-	// Workspace file references preserved from the message being
-	// edited. They are already uploaded; editing only re-references
-	// them (or drops them when the chip is removed).
-	const [preservedWorkspaceUploads, setPreservedWorkspaceUploads] = useState<
-		readonly WorkspaceFileUpload[]
-	>([]);
+	// Preserved references the user removed, for the edited blocks and
+	// workspace binding they were removed from.
+	const [removedPreservedUploads, setRemovedPreservedUploads] = useState<{
+		blocks: readonly TypesGen.ChatMessagePart[];
+		workspaceId: string | null;
+		ids: readonly string[];
+	} | null>(null);
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -522,24 +554,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		editScopeRef.current = { organizationId, chatId };
 		if (scopeChanged) {
 			resetEditAttachments();
-			setPreservedWorkspaceUploads([]);
 		}
 	}, [organizationId, chatId, resetEditAttachments]);
-
-	// Preserved references point at files inside the bound workspace's
-	// filesystem. Rebinding or clearing the workspace mid-edit makes
-	// them unreadable for the agent, so drop them (regular attachments
-	// are chat files and survive workspace changes). Scope tracks the
-	// chat's bound workspace ID, not the async-loaded workspace
-	// object, which resolves after mount without a rebind.
-	const editWorkspaceScopeRef = useRef(selectedWorkspaceId);
-	useEffect(() => {
-		if (editWorkspaceScopeRef.current === selectedWorkspaceId) {
-			return;
-		}
-		editWorkspaceScopeRef.current = selectedWorkspaceId;
-		setPreservedWorkspaceUploads([]);
-	}, [selectedWorkspaceId]);
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
@@ -588,76 +604,35 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setEditUploadStates,
 	]);
 
-	// Workspace file references from the edited message become
-	// preserved (already-uploaded) entries so they survive the
-	// edit unless explicitly removed. Only references uploaded to
-	// the currently bound workspace qualify: after a rebind the
-	// old paths are unreadable for the agent and the server
-	// rejects them. Compare against the chat's bound workspace ID
-	// (available with the chat record) rather than the
-	// async-loaded workspace object, whose late resolution would
-	// otherwise drop references hydrated before it arrived.
-	// Kept separate from the attachment hydration above and keyed on
-	// the blocks reference plus the workspace binding: a rebind mid-edit
-	// only recomputes the references (ordinary attachments added during
-	// the edit survive), a failed edit submission restores the same
-	// array on rollback (same key, no re-run, so uploads added mid-edit
-	// survive), and rebinding the workspace away and back re-runs
-	// preservation so references valid for the restored binding
-	// reappear. Editing a different message passes a fresh array.
-	const hydratedEditBlocksRef = useRef<{
-		blocks: readonly TypesGen.ChatMessagePart[] | null;
-		workspaceId: string | null;
-	} | null>(null);
+	// Workspace file references from the edited message, already
+	// uploaded, so editing only re-references them unless their chip is
+	// removed. Only references uploaded to the chat's bound workspace
+	// qualify: other paths are unreadable for the agent and the server
+	// rejects them.
+	const removedPreservedIds =
+		removedPreservedUploads?.blocks === editingFileBlocks &&
+		removedPreservedUploads.workspaceId === selectedWorkspaceId
+			? removedPreservedUploads.ids
+			: [];
+	const preservedWorkspaceUploads = isEditing
+		? getPreservedWorkspaceUploads(
+				editingFileBlocks,
+				selectedWorkspaceId,
+			).filter((upload) => !removedPreservedIds.includes(upload.id))
+		: [];
+
+	// Uploads added while editing one message are dropped when another
+	// message is edited. A failed edit restores the same blocks, so its
+	// uploads survive for retry.
+	const editUploadsBlocksRef = useRef(editingFileBlocks);
 	useEffect(() => {
-		if (!isEditing) {
+		if (!isEditing || editUploadsBlocksRef.current === editingFileBlocks) {
 			return;
 		}
-		if (
-			hydratedEditBlocksRef.current !== null &&
-			hydratedEditBlocksRef.current.blocks === (editingFileBlocks ?? null) &&
-			hydratedEditBlocksRef.current.workspaceId === selectedWorkspaceId
-		) {
-			return;
-		}
-		hydratedEditBlocksRef.current = {
-			blocks: editingFileBlocks ?? null,
-			workspaceId: selectedWorkspaceId,
-		};
+
+		editUploadsBlocksRef.current = editingFileBlocks;
 		resetEditWorkspaceUploads();
-		setPreservedWorkspaceUploads(
-			(editingFileBlocks ?? [])
-				.filter(isWorkspaceFileReferencePart)
-				.filter(
-					(part) =>
-						selectedWorkspaceId !== null &&
-						part.workspace_file_workspace_id === selectedWorkspaceId,
-				)
-				.map(
-					(part, i): WorkspaceFileUpload => ({
-						id: `preserved-${i}-${part.workspace_file_path}`,
-						file: new File([], part.workspace_file_name, {
-							type:
-								part.workspace_file_media_type || "application/octet-stream",
-						}),
-						status: "uploaded",
-						response: {
-							path: part.workspace_file_path,
-							name: part.workspace_file_name,
-							size: part.workspace_file_size,
-							media_type:
-								part.workspace_file_media_type || "application/octet-stream",
-							workspace_id: part.workspace_file_workspace_id,
-						},
-					}),
-				),
-		);
-	}, [
-		isEditing,
-		editingFileBlocks,
-		selectedWorkspaceId,
-		resetEditWorkspaceUploads,
-	]);
+	}, [isEditing, editingFileBlocks, resetEditWorkspaceUploads]);
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
@@ -677,10 +652,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			return;
 		}
 		wasEditingRef.current = false;
-		hydratedEditBlocksRef.current = null;
 		resetEditAttachments();
 		resetEditWorkspaceUploads();
-		setPreservedWorkspaceUploads([]);
 	}, [
 		isEditing,
 		isSendPending,
@@ -722,9 +695,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			isEditing &&
 			preservedWorkspaceUploads.some((upload) => upload.id === id)
 		) {
-			setPreservedWorkspaceUploads((current) =>
-				current.filter((upload) => upload.id !== id),
-			);
+			setRemovedPreservedUploads({
+				blocks: editingFileBlocks,
+				workspaceId: selectedWorkspaceId,
+				ids: [...removedPreservedIds, id],
+			});
 			return;
 		}
 		modeWorkspaceUploads.remove(id);
@@ -837,7 +812,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
 					} else {
 						for (const file of attachments) {
 							composeAttachments.handleRemoveAttachment(file);

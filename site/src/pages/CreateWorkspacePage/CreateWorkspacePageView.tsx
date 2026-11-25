@@ -213,45 +213,41 @@ export const CreateWorkspacePageView: React.FC<
 		}
 	}, [form.submitCount, form.errors]);
 
-	const [presetOptions, setPresetOptions] = useState([
+	const presetOptions = [
 		{ label: "None", value: "undefined", icon: "", description: "" },
-	]);
-	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
-	// Build options and keep default label/value in sync
-	useEffect(() => {
-		const options = [
-			{ label: "None", value: "undefined", icon: "", description: "" },
-			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
-				value: preset.ID,
-				icon: preset.Icon,
-				description: preset.Description,
-			})),
-		];
-		setPresetOptions(options);
+		...presets.map((preset) => ({
+			label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+			value: preset.ID,
+			icon: preset.Icon,
+			description: preset.Description,
+		})),
+	];
 
+	// Falls back to "None" when the form's preset is unset or not listed.
+	const selectedPresetIndex = Math.max(
+		0,
+		presetOptions.findIndex(
+			(option) => option.value === form.values.template_version_preset_id,
+		),
+	);
+	const selectedPreset = presets.find(
+		(preset) => preset.ID === form.values.template_version_preset_id,
+	);
+	const presetParameterNames =
+		selectedPreset?.Parameters?.map((p) => p.Name) ?? [];
+
+	// Apply the URL or default preset whenever the presets or the URL preset
+	// change.
+	useEffect(() => {
 		// URL preset takes precedence over default preset.
 		if (urlPreset) {
-			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
-			setSelectedPresetIndex(idx);
 			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
 		}
 
 		const defaultPreset = presets.find((p) => p.Default);
-		if (defaultPreset) {
-			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
-			setSelectedPresetIndex(idx);
-			setFieldValue("template_version_preset_id", defaultPreset.ID);
-		} else {
-			setSelectedPresetIndex(0); // Explicitly set to "None"
-			setFieldValue("template_version_preset_id", undefined);
-		}
+		setFieldValue("template_version_preset_id", defaultPreset?.ID);
 	}, [presets, setFieldValue, urlPreset]);
-
-	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
-		[],
-	);
 
 	// include any modified parameters and all edited parameters to the websocket request
 	const { debounced: debouncedSendDynamicParamsRequest } = useDebouncedFunction(
@@ -307,21 +303,9 @@ export const CreateWorkspacePageView: React.FC<
 	);
 
 	useEffect(() => {
-		const selectedPresetOption = presetOptions[selectedPresetIndex];
-		let selectedPreset: TypesGen.Preset | undefined;
-		for (const preset of presets) {
-			if (preset.ID === selectedPresetOption.value) {
-				selectedPreset = preset;
-				break;
-			}
-		}
-
 		if (!selectedPreset?.Parameters) {
-			setPresetParameterNames([]);
 			return;
 		}
-
-		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
 		const currentValues = form.values.rich_parameter_values ?? [];
 
@@ -371,8 +355,7 @@ export const CreateWorkspacePageView: React.FC<
 			);
 		}
 	}, [
-		presetOptions,
-		selectedPresetIndex,
+		selectedPreset,
 		presets,
 		setFieldValue,
 		markParameterEdited,
@@ -720,7 +703,6 @@ export const CreateWorkspacePageView: React.FC<
 													if (index === -1) {
 														return;
 													}
-													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
 														// "undefined" string is equivalent to using None option.
