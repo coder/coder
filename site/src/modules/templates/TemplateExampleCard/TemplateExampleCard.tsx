@@ -26,7 +26,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex w-[320px] flex-col rounded-md border border-solid border-border p-6 text-left text-inherit",
+				"flex w-[320px] flex-col rounded-md border p-6 text-left text-inherit",
 				className,
 			)}
 			{...divProps}
@@ -35,7 +35,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
-						className="w-full h-full object-contain"
+						className="size-full object-contain"
 					/>
 				</div>
 
@@ -64,7 +64,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 					{example.description}{" "}
 					<Link
 						size="sm"
-						className="inline-block mt-1 p-0"
+						className="inline-block mt-0 pl-0"
 						asChild
 						showExternalIcon={false}
 					>

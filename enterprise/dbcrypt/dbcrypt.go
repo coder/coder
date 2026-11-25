@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -193,6 +195,18 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	return link, nil
 }
 
+// decryptExternalAuthLink decrypts the OAuth tokens and extra payload of a
+// link in place.
+func (db *dbCrypt) decryptExternalAuthLink(link *database.ExternalAuthLink) error {
+	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+		return err
+	}
+	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+		return err
+	}
+	return db.decryptExtra(&link.OAuthExtra, link.OAuthExtraKeyID)
+}
+
 func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -200,14 +214,14 @@ func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.I
 	if err := db.encryptField(&params.OAuthRefreshToken, &params.OAuthRefreshTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
+	if err := db.encryptExtra(&params.OAuthExtra, &params.OAuthExtraKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
 	link, err := db.Store.InsertExternalAuthLink(ctx, params)
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -218,10 +232,7 @@ func (db *dbCrypt) GetExternalAuthLink(ctx context.Context, params database.GetE
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -233,10 +244,7 @@ func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid
 		return nil, err
 	}
 	for idx := range links {
-		if err := db.decryptField(&links[idx].OAuthAccessToken, links[idx].OAuthAccessTokenKeyID); err != nil {
-			return nil, err
-		}
-		if err := db.decryptField(&links[idx].OAuthRefreshToken, links[idx].OAuthRefreshTokenKeyID); err != nil {
+		if err := db.decryptExternalAuthLink(&links[idx]); err != nil {
 			return nil, err
 		}
 	}
@@ -248,10 +256,7 @@ func (db *dbCrypt) AcquireExternalAuthLinkRefreshLease(ctx context.Context, para
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -264,14 +269,14 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	if err := db.encryptField(&params.OAuthRefreshToken, &params.OAuthRefreshTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
+	if err := db.encryptExtra(&params.OAuthExtra, &params.OAuthExtraKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
 	link, err := db.Store.UpdateExternalAuthLink(ctx, params)
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -1203,7 +1208,7 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	if err != nil {
 		// If it's not valid base64, we should complain loudly.
 		return &DecryptFailedError{
-			Inner: xerrors.Errorf("malformed encrypted field %q: %w", *field, err),
+			Inner: xerrors.Errorf("malformed encrypted field: %w", err),
 		}
 	}
 	decrypted, err := key.Decrypt(data)
@@ -1211,6 +1216,68 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 		return &DecryptFailedError{Inner: err}
 	}
 	*field = string(decrypted)
+	return nil
+}
+
+// extraHasContent reports whether a jsonb payload is anything other than a
+// JSON null or an empty object.
+func extraHasContent(extra pqtype.NullRawMessage) bool {
+	if !extra.Valid || len(extra.RawMessage) == 0 {
+		return false
+	}
+	payload := string(extra.RawMessage)
+	return payload != "null" && payload != "{}"
+}
+
+// encryptExtra encrypts a jsonb payload in place. The ciphertext is stored as
+// a JSON-encoded string so the column keeps its jsonb type; the digest column
+// marks the value as encrypted. JSON nulls and empty objects are stored
+// as-is.
+func (db *dbCrypt) encryptExtra(extra *pqtype.NullRawMessage, digest *sql.NullString) error {
+	if db.ciphers == nil || db.primaryCipherDigest == "" {
+		return nil
+	}
+	if extra == nil || digest == nil {
+		return xerrors.Errorf("developer error: encryptExtra called with nil argument")
+	}
+	if !extraHasContent(*extra) {
+		return nil
+	}
+	payload := string(extra.RawMessage)
+	if err := db.encryptField(&payload, digest); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return xerrors.Errorf("marshal encrypted extra: %w", err)
+	}
+	extra.RawMessage = encoded
+	return nil
+}
+
+// decryptExtra reverses encryptExtra. A NULL digest means the value was
+// stored in plaintext and is returned as-is.
+func (db *dbCrypt) decryptExtra(extra *pqtype.NullRawMessage, digest sql.NullString) error {
+	if extra == nil {
+		return xerrors.Errorf("developer error: decryptExtra called with nil extra")
+	}
+	if !digest.Valid || digest.String == "" {
+		// This field is not encrypted.
+		return nil
+	}
+	if !extra.Valid {
+		return nil
+	}
+	var payload string
+	if err := json.Unmarshal(extra.RawMessage, &payload); err != nil {
+		return &DecryptFailedError{
+			Inner: xerrors.Errorf("malformed encrypted extra: %w", err),
+		}
+	}
+	if err := db.decryptField(&payload, digest); err != nil {
+		return err
+	}
+	extra.RawMessage = json.RawMessage(payload)
 	return nil
 }
 

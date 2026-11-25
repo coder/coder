@@ -203,7 +203,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 					<ErrorAlert error={secretsQuery.error} />
 				) : undefined}
 
-				<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
+				<div className="border p-6 rounded-lg flex flex-col gap-4">
 					<h2 className="m-0 text-xl font-semibold">Settings</h2>
 					<OAuth2AppForm
 						key={app.id}
@@ -236,7 +236,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 				</div>
 
 				{canViewAppSecrets && (
-					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
+					<div className="border p-6 rounded-lg flex flex-col gap-4">
 						<div className="flex gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
 							{!isPublicClient && (

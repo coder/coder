@@ -41,7 +41,7 @@ export const WildcardHostnameWarning: React.FC<
 			prominent
 			className={
 				hasResources
-					? "rounded-none border-0 border-l-2 border-l-warning border-b-divider"
+					? "rounded-none border-0 border-l-2 border-l-border-warning border-b-border"
 					: undefined
 			}
 		>
@@ -64,7 +64,7 @@ export const WildcardHostnameWarning: React.FC<
 							flag when starting the Coder server.
 						</>
 					) : (
-						", which requires a Coder deployment with a Wildcard Access URL configured. Please contact your administrator."
+						", which requires a Coder deployment with a wildcard access URL configured. Please contact your administrator."
 					)}
 				</div>
 				<div className="pt-2">

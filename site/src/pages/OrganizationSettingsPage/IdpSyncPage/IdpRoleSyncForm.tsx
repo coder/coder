@@ -30,6 +30,8 @@ import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
 
+const ROLE_COMBOBOX_LABEL = "Coder role";
+
 const roleSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
 	regex_filter: Yup.string().trim(),
@@ -196,7 +198,7 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 											placeholder="Select IdP role"
 										/>
 									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
+									<ComboboxContent className="w-72" label="Search IdP roles">
 										<ComboboxInput
 											value={comboInputValue}
 											onValueChange={setComboInputValue}
@@ -234,13 +236,9 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 							)}
 						</div>
 						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor={`${id}-coder-role`}>
-								Coder role
-							</Label>
+							<Label className="text-sm">{ROLE_COMBOBOX_LABEL}</Label>
 							<MultiSelectCombobox
-								inputProps={{
-									id: `${id}-coder-role`,
-								}}
+								commandProps={{ label: ROLE_COMBOBOX_LABEL }}
 								className="min-w-60 max-w-3xl"
 								value={coderRoles}
 								onChange={setCoderRoles}

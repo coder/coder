@@ -82,7 +82,7 @@ To correctly route the traffic backwards, the corporate router must correctly ro
 
 This behavior is known as "hairpinning", and might not be supported in all network configurations.
 
-If hairpinning is not supported, deploying an internal STUN server can aid establishing direct connections between client and agent.
+If hairpinning is not supported, [deploying an internal STUN server](./self-hosted-stun.md) can aid establishing direct connections between client and agent.
 When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate.
 Using these internal addresses is much more likely to result in a successful direct connection.
 

@@ -7,15 +7,20 @@ import { cn } from "cn";
 
 type TableProps = React.ComponentProps<"table"> & {
 	wrapperClassName?: string;
+	wrapperProps?: Omit<React.ComponentProps<"div">, "children" | "className">;
 };
 
 export const Table: React.FC<TableProps> = ({
 	className,
 	wrapperClassName,
+	wrapperProps,
 	...props
 }) => {
 	return (
-		<div className={cn("relative w-full overflow-auto", wrapperClassName)}>
+		<div
+			{...wrapperProps}
+			className={cn("relative w-full overflow-auto", wrapperClassName)}
+		>
 			<table
 				className={cn(
 					"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",
@@ -37,7 +42,7 @@ export const TableHeader: React.FC<React.ComponentProps<"thead">> = ({
 const tableBodyVariants = cva(null, {
 	variants: {
 		size: {
-			lg: "[&>tr>*]:box-border [&>tr>*]:h-[72px]",
+			lg: "[&>tr>*]:box-border [&>tr>*]:h-18",
 		},
 	},
 });
@@ -53,7 +58,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
-				"[&>tr>th]:border-0 [&>tr>th]:border-t [&>tr>th]:border-solid [&>tr>th]:border-border",
+				"[&>tr>th]:border-t",
 				// Select the outline by child position: a body row can start with a
 				// scope="row" th, and td:first-of-type would skip it and treat the
 				// second cell as the first.
@@ -70,10 +75,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 };
 
 const tableRowVariants = cva(
-	[
-		"border-0 border-b border-solid border-border transition-colors",
-		"data-[state=selected]:bg-surface-secondary",
-	],
+	["border-b transition-colors", "data-[state=selected]:bg-surface-secondary"],
 	{
 		variants: {
 			hover: {
@@ -119,7 +121,7 @@ export const TableHead: React.FC<React.ComponentProps<"th">> = ({
 		<th
 			className={cn(
 				"p-3 text-left align-middle font-semibold",
-				"has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
+				"has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
 				className,
 			)}
 			scope={scope}
@@ -136,8 +138,8 @@ export const TableCell: React.FC<React.ComponentProps<"td">> = ({
 		<td
 			{...props}
 			className={cn(
-				"border-0 border-t border-border border-solid",
-				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
+				"border-t",
+				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
 				className,
 			)}
 		/>

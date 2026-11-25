@@ -1,0 +1,1 @@
+[erro]  database migration failed before it started  status=failure  count=0  total_duration_ms=0  error="begin tx: driver: bad connection"

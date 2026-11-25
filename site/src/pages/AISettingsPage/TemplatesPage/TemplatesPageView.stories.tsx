@@ -1,10 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
-import type { TemplateFilterState } from "#/pages/TemplatesPage/TemplatesFilter";
-import { MockTemplate, mockApiError } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	MockTemplate,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const templates = [
@@ -47,17 +54,17 @@ const templates = [
 	}),
 );
 
-const filterState = getDefaultFilterProps<TemplateFilterState>({
-	menus: {},
+const { filter } = getDefaultFilterProps<{ filter: UseFilterResult }>({
 	values: {},
 });
 
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
-	decorators: [withDashboardProvider],
+	parameters: { user: MockUserOwner },
+	decorators: [withDashboardProvider, withAuthProvider],
 	args: {
-		filterState,
+		filter,
 		templates,
 		isLoading: false,
 		error: undefined,
@@ -201,13 +208,10 @@ export const Empty: Story = {
 export const FilteredEmpty: Story = {
 	args: {
 		templates: [],
-		filterState: {
-			...filterState,
-			filter: {
-				...filterState.filter,
-				query: "missing",
-				used: true,
-			},
+		filter: {
+			...filter,
+			query: "missing",
+			used: true,
 		},
 	},
 	play: async ({ canvasElement }) => {

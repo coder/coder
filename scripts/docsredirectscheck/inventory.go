@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -201,6 +202,19 @@ func (inv inventory) add(route, origin string) {
 	if !slices.Contains(inv[route], origin) {
 		inv[route] = append(inv[route], origin)
 	}
+}
+
+// apiReferenceRoute is the section that holds the REST API reference.
+const apiReferenceRoute = "reference/api"
+
+// isAPIEndpointRoute reports whether route is the page of one REST API
+// endpoint, "reference/api/<section>/<endpoint>", below a section page that is
+// live. The docs site generates these pages from coderd/apidoc/swagger.json,
+// and the manifest lists only their section pages, so the manifest cannot say
+// which of them exist.
+func isAPIEndpointRoute(route string, live routeSet) bool {
+	section := path.Dir(route)
+	return path.Dir(section) == apiReferenceRoute && live.has(section)
 }
 
 // baseRuleSources returns the route each rule of a base branch's
