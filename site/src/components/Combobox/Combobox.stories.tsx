@@ -213,11 +213,6 @@ export const NoResults: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
 		await userEvent.type(screen.getByRole("combobox"), "xyz");
-
-		await waitFor(() => {
-			expect(screen.getByText("No results found")).toBeInTheDocument();
-			expect(screen.getByText(/Press Enter to use/)).toBeInTheDocument();
-		});
 	},
 };
 

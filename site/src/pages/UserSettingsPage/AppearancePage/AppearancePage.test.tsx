@@ -1,6 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import type { UpdateUserAppearanceSettingsRequest } from "#/api/typesGenerated";
-import { useQueuedAppearanceSubmit } from "./AppearancePage";
+import {
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import AppearancePage, { useQueuedAppearanceSubmit } from "./AppearancePage";
 
 const updateRequest = (
 	overrides: Partial<UpdateUserAppearanceSettingsRequest> = {},
@@ -11,6 +15,12 @@ const updateRequest = (
 	theme_dark: "dark",
 	terminal_font: "geist-mono",
 	...overrides,
+});
+
+test("sets a page title that identifies the page", async () => {
+	renderWithAuth(<AppearancePage />);
+	await waitForLoaderToBeRemoved();
+	expect(document.title).toBe("Theme - Settings - Coder");
 });
 
 describe("useQueuedAppearanceSubmit", () => {

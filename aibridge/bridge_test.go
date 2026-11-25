@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil/mockprovider"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/routing"
@@ -442,7 +443,7 @@ func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {
 	t.Cleanup(upstream.Close)
 
 	// Given: a provider with a bridged route and a passthrough catch-all.
-	prov := &testutil.MockProvider{
+	prov := &mockprovider.MockProvider{
 		NameStr:     "test",
 		URL:         upstream.URL,
 		Bridged:     []string{"/responses"},
@@ -474,7 +475,7 @@ func TestWebSocketUpgradeRejected(t *testing.T) {
 	t.Parallel()
 
 	interceptorCalled := false
-	prov := &testutil.MockProvider{
+	prov := &mockprovider.MockProvider{
 		NameStr: "test",
 		Bridged: []string{"/responses"},
 		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {

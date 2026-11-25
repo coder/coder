@@ -27,6 +27,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -455,7 +456,8 @@ func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat dat
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
-	titleCtx, stopTitleCtx := p.inflightChatContext(ctx, chat)
+	//nolint:gocritic // Chat owners cannot read AI providers; model config reads still use the owner's ACL.
+	titleCtx, stopTitleCtx := p.inflightChatContext(dbauthz.AsChatd(ctx), chat)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
