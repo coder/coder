@@ -2,6 +2,7 @@ import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -543,20 +544,6 @@ const ValueSyncPlugin: React.FC<{
 			{ discrete: true },
 		);
 	}, [editor, initialValue, initialEditorState]);
-
-	return null;
-};
-
-// Exposes the LexicalEditor instance to the parent via a callback
-// so it can be stored in a ref for imperative access.
-const InsertTextPlugin: React.FC<{
-	onEditorReady: (editor: LexicalEditor) => void;
-}> = function InsertTextPlugin({ onEditorReady }) {
-	const [editor] = useLexicalComposerContext();
-
-	useEffect(() => {
-		onEditorReady(editor);
-	}, [editor, onEditorReady]);
 
 	return null;
 };
@@ -1386,7 +1373,7 @@ const ChatMessageInput = ({
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
 				/>
-				<InsertTextPlugin onEditorReady={handleEditorReady} />
+				<EditorRefPlugin editorRef={handleEditorReady} />
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}

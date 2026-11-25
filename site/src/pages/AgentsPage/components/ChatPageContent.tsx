@@ -569,9 +569,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			setEditPreviewUrls(new Map());
 			return;
 		}
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		const fileBlocks = editingFileBlocks.filter(
 			(b): b is TypesGen.ChatFilePart => b.type === "file",
 		);
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type;
 			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
@@ -586,6 +588,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
 			if (block.file_id) {
