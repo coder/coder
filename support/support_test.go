@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,6 +112,54 @@ func TestRun(t *testing.T) {
 					assertSanitizedEnv(t, a.EnvironmentVariables)
 				}
 			}
+		}
+	})
+
+	t.Run("AgentUnreachable", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name         string
+			collectPprof bool
+		}{
+			{name: "NoPprof"},
+			{name: "Pprof", collectPprof: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					Logger: new(slog.Make(sloghuman.Sink(io.Discard))),
+				})
+				admin := coderdtest.CreateFirstUser(t, client)
+				ws, agt, _ := seedWorkspaceWithAgent(ctx, t, client, db, admin)
+
+				bun, err := support.Run(ctx, &support.Deps{
+					Client:           client,
+					Log:              slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
+					WorkspaceID:      ws.ID,
+					AgentID:          agt.ID,
+					AgentDialTimeout: testutil.WaitShort,
+					CollectPprof:     tc.collectPprof,
+				})
+				require.NoError(t, err)
+				require.NoError(t, ctx.Err(), "Run must finish before the test deadline")
+				assertNotNilNotEmpty(t, bun.Deployment.BuildInfo, "deployment build info should be present")
+				assertNotNilNotEmpty(t, bun.Deployment.HealthReport, "deployment health report should be present")
+				assertNotNilNotEmpty(t, bun.Network.Netcheck, "network netcheck should be present")
+				assertNotNilNotEmpty(t, bun.Workspace.Workspace, "workspace should be present")
+				assertNotNilNotEmpty(t, bun.Agent.Agent, "agent should be present")
+				assertNotNilNotEmpty(t, bun.Agent.StartupLogs, "agent startup logs should be present")
+				assert.Nil(t, bun.Agent.PingResult, "agent ping result should be absent")
+				assert.Nil(t, bun.Agent.PeerDiagnostics, "agent peer diagnostics should be absent")
+				assert.Nil(t, bun.Agent.ListeningPorts, "agent listening ports should be absent")
+				assert.Empty(t, bun.Agent.Manifest, "agent manifest should be absent")
+				logs := strings.Join(bun.Logs, "\n")
+				assert.Contains(t, logs, "agent unreachable, skipping agent-connected sections")
+				if tc.collectPprof {
+					assert.Contains(t, logs, "skipping agent pprof: agent unreachable")
+					assert.Nil(t, bun.Pprof.Agent, "agent pprof should not be collected")
+				}
+			})
 		}
 	})
 
@@ -256,6 +305,23 @@ func assertSanitizedEnv(t *testing.T, env map[string]string) {
 }
 
 func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, db database.Store, user codersdk.CreateFirstUserResponse) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+	ws, agt, agentToken := seedWorkspaceWithAgent(ctx, t, client, db, user)
+
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "coder-agent.log")
+	require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
+	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.LogDir = tempDir
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).Wait()
+
+	return ws, agt
+}
+
+// seedWorkspaceWithAgent creates a workspace whose build has an agent row and
+// logs, without starting an agent process.
+func seedWorkspaceWithAgent(ctx context.Context, t *testing.T, client *codersdk.Client, db database.Store, user codersdk.CreateFirstUserResponse) (codersdk.Workspace, codersdk.WorkspaceAgent, string) {
+	t.Helper()
 	// This is a valid zip file
 	zipBytes := make([]byte, 22)
 	zipBytes[0] = 80
@@ -302,15 +368,7 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	})
 	require.NoError(t, err)
 
-	tempDir := t.TempDir()
-	logPath := filepath.Join(tempDir, "coder-agent.log")
-	require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
-	_ = agenttest.New(t, client.URL, wbr.AgentToken, func(o *agent.Options) {
-		o.LogDir = tempDir
-	})
-	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
-
-	return ws, agt
+	return ws, agt, wbr.AgentToken
 }
 
 func assertWorkspaceFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {

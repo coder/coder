@@ -1788,7 +1788,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -1801,11 +1801,13 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 			},
 		})
 		return err
-	}))
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	_, err = rawDB.ExecContext(ctx,
 		"UPDATE chats SET requires_action_deadline_at = $1 WHERE id = $2",
 		time.Now().Add(-time.Hour), created.Chat.ID)
@@ -1872,10 +1874,11 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	deadWorkerID := uuid.New()
 	deadRunnerID := uuid.New()
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: deadWorkerID, RunnerID: deadRunnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	// Simulate a chat left running by a dead replica with a stale
 	// heartbeat (well beyond the stale threshold).
 	_, err = rawDB.ExecContext(ctx,
@@ -2025,7 +2028,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3806,7 +3809,7 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -3889,7 +3892,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	cancelAll()
 
@@ -3898,7 +3901,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Subscribe with afterMessageID set to the second message's ID.
 	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelPartial()
 
@@ -3912,7 +3915,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
 	require.True(t, ok)
 	cancelReset()
 
@@ -3982,7 +3985,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded after the edit gets neither a reset nor the
 	// messages it holds.
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -3990,7 +3993,7 @@ func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
 
 	// A client that loaded before the edit holds deleted messages, so it
 	// gets a reset with the live history.
-	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID)
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID, 0)
 	require.True(t, ok)
 	cancel()
 	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
@@ -5424,7 +5427,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5432,8 +5435,9 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -5664,7 +5668,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -5672,8 +5676,9 @@ func TestActiveServer_ManualClear(t *testing.T) {
 				}),
 			})
 			return err
-		}))
-		chat, err := db.GetChatByID(ctx, chat.ID)
+		})
+		require.NoError(t, err)
+		chat, err = db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
@@ -9466,7 +9471,7 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 				// A worker acquires the chat, sees it interrupted, and
 				// abandons it before its runner starts.
 				machine := chatstate.NewChatMachine(db, ps, chat.ID)
-				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
 						return err
 					}
@@ -9475,7 +9480,8 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 					}
 					_, err := tx.Abandon(chatstate.AbandonInput{})
 					return err
-				}))
+				})
+				require.NoError(t, err)
 			}
 			chat, err = db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
@@ -10793,7 +10799,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -11359,7 +11365,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		// A pre_tool_use dispatch failure errors admission before the
 		// step commits, so the call never reaches executeLocalTools.
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			if request.Type != agenthooks.EventPreToolUse {
@@ -11368,8 +11374,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: org.ID,
@@ -13614,9 +13619,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, firstRunStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		close(allowFirstRunFinish)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
@@ -13667,9 +13677,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, streamStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		current, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -13708,7 +13723,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve explicit queued promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13734,7 +13749,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve error send promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13783,6 +13798,22 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, messages)
 	})
+}
+
+func disableChatModelConfig(t *testing.T, db database.Store, model database.ChatModelConfig) {
+	t.Helper()
+	_, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
+		ID:                   model.ID,
+		DisplayName:          model.DisplayName,
+		Model:                model.Model,
+		Enabled:              false,
+		IsDefault:            model.IsDefault,
+		ContextLimit:         model.ContextLimit,
+		CompressionThreshold: model.CompressionThreshold,
+		Options:              model.Options,
+		AIProviderID:         model.AIProviderID,
+	})
+	require.NoError(t, err)
 }
 
 func insertQueuedMessage(
@@ -14005,7 +14036,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0, 0)
 	require.True(t, ok)
 	liveCollectorDone := make(chan struct{})
 	go func() {
@@ -14585,7 +14616,8 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			index = spanIndex{}
 			for _, span := range recorder.Ended() {
-				index[span.Name()] = append(index[span.Name()], span)
+				stage := chatd.SpanAttr(t, span, chatloop.AttrStage)
+				index[stage] = append(index[stage], span)
 			}
 			return len(index[string(chatloop.StageChatTurn)]) >= n
 		}, testutil.IntervalFast)
@@ -14702,6 +14734,11 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, turn, chatloop.AttrChatKind))
 		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, chatloop.AttrChatID))
 		require.False(t, turn.Parent().IsValid(), "chat_turn is a trace root")
+		require.Equal(t, "invoke_agent coder", turn.Name())
+		require.Equal(t, "invoke_agent", chatd.SpanAttr(t, turn, "gen_ai.operation.name"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, turn, "user.id"))
+		require.Equal(t, h.org.ID.String(), chatd.SpanAttr(t, turn, chatloop.AttrOrganizationID))
 
 		requireChild(t, single(t, index, chatloop.StageAcquisition), turn)
 		steps := index[string(chatloop.StageGenerationStep)]
@@ -14719,6 +14756,27 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		requireChild(t, single(t, index, chatloop.StageCommit), generate)
 		require.NotEmpty(t, chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
+		require.Equal(t, "chat "+h.model.Model, stream.Name())
+		require.Equal(t, chatd.SpanAttr(t, stream, "gen_ai.provider.name"), chatd.SpanAttr(t, turn, "gen_ai.provider.name"))
+		// Title generation is a non-streaming model call that runs outside
+		// the turn, so it must still be attributed to the chat owner.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		var modelCall sdktrace.ReadOnlySpan
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			for _, span := range h.recorder.Ended() {
+				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageModelCall) {
+					modelCall = span
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalFast)
+		require.Equal(t, "chat "+h.model.Model, modelCall.Name())
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, modelCall, "user.id"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, modelCall, "gen_ai.conversation.id"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, stream, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, stream, "user.id"))
+		require.Equal(t, h.model.Model, chatd.SpanAttr(t, stream, "gen_ai.request.model"))
 		require.Empty(t, index[string(chatloop.StageQueueWait)])
 		require.Empty(t, index[string(chatloop.StageRetryBackoff)])
 		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
@@ -14839,7 +14897,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			turns = nil
 			for _, span := range h.recorder.Ended() {
-				if span.Name() == string(chatloop.StageChatTurn) {
+				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageChatTurn) {
 					turns = append(turns, span)
 				}
 			}
@@ -14862,15 +14920,14 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 	t.Run("PostToolUseHookFailureFailsTurn", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			if err := json.NewDecoder(r.Body).Decode(&request); err == nil && request.Type == agenthooks.EventPostToolUse {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			_, _ = w.Write([]byte(`{}`))
-		}))
-		t.Cleanup(consumer.Close)
+		})
 		var calls atomic.Int32
 		h := newHarness(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if !req.Stream {

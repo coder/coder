@@ -84,7 +84,7 @@ Deleting an application is a separate operation from revoking a single user's to
 It removes the registration itself, so the client cannot authorize again without being registered anew, and it revokes every token issued under it, for every user.
 Deleting one of an application's client secrets has the same effect on every token issued under that secret.
 
-In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
+In the web UI, navigate to **Deployment Settings** > **OAuth2 applications**, select the application on the **Applications** tab, then select **Delete**.
 This requires permission to delete OAuth2 applications.
 
 Or with the management API:

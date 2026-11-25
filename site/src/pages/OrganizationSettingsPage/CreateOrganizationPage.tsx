@@ -10,7 +10,7 @@ const CreateOrganizationPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.createOrganization}>
-			<title>{pageTitle("New Organization")}</title>
+			<title>{pageTitle("New organization")}</title>
 			<CreateOrganizationPageView
 				isEntitled={feats.multiple_organizations}
 				permissions={permissions}

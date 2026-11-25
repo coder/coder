@@ -58,7 +58,7 @@ const TokensPage: React.FC = () => {
 			</SettingsHeader>
 			<TokensPageView
 				tokens={tokens}
-				isLoading={isFetching}
+				isFetching={isFetching}
 				hasLoaded={isFetched}
 				getTokensError={getTokensError}
 				onDelete={(token) => {

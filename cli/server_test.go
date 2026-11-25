@@ -41,6 +41,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
@@ -1927,6 +1928,16 @@ func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
 			wantErr: "workspace hostname prefix",
 		},
 		{
+			name:    "HostnamePrefixGlob",
+			flag:    "--ssh-hostname-prefix=*",
+			wantErr: `workspace hostname prefix "*" must not contain glob characters`,
+		},
+		{
+			name:    "HostnamePrefixQuestionMark",
+			flag:    "--ssh-hostname-prefix=coder?.",
+			wantErr: `workspace hostname prefix "coder?." must not contain glob characters`,
+		},
+		{
 			name:    "SSHOptionUnparseable",
 			flag:    "--ssh-config-options=NoSeparatorOption",
 			wantErr: "parse ssh config options",
@@ -2326,6 +2337,55 @@ func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
 			"likely not being closed before coderAPICloser.Close()")
 }
 
+// TestServer_AIGatewayEmbedded verifies that the in-memory AI Gateway starts
+// only when both --ai-gateway-enabled and --ai-gateway-embedded-enabled are
+// true.
+func TestServer_AIGatewayEmbedded(t *testing.T) {
+	t.Parallel()
+
+	const embeddedStartLog = "starting in-memory aibridge daemon"
+
+	for _, tc := range []struct {
+		name          string
+		enabled       string
+		embedded      string
+		expectStarted bool
+	}{
+		{name: "BothEnabled", enabled: "true", embedded: "true", expectStarted: true},
+		{name: "EmbeddedDisabled", enabled: "true", embedded: "false", expectStarted: false},
+		{name: "GatewayDisabled", enabled: "false", embedded: "true", expectStarted: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			inv, cfg := clitest.New(t,
+				"server",
+				dbArg(t),
+				"--http-address", "127.0.0.1:0",
+				"--access-url", "http://example.com",
+				"--cache-dir", t.TempDir(),
+				"--verbose",
+				"--ai-gateway-enabled="+tc.enabled,
+				"--ai-gateway-embedded-enabled="+tc.embedded,
+			)
+			out := testutil.NewWaitBuffer()
+			inv.Stdout = out
+			inv.Stderr = out
+			clitest.Start(t, inv)
+
+			// The embedded daemon is created synchronously before the access
+			// URL is written, so its startup log is present by then if it
+			// started at all.
+			_ = waitAccessURL(t, cfg)
+			if tc.expectStarted {
+				require.Contains(t, out.String(), embeddedStartLog)
+			} else {
+				require.NotContains(t, out.String(), embeddedStartLog)
+			}
+		})
+	}
+}
+
 func TestServer_GracefulShutdown(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -2472,17 +2532,25 @@ func TestConnectToPostgres(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 
-		log := testutil.Logger(t)
+		sink := testutil.NewFakeSink(t)
 
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		sqlDB, err := cli.ConnectToPostgres(ctx, sink.Logger(), "postgres", dbURL, migrations.Up)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
 		require.NoError(t, sqlDB.PingContext(ctx))
+
+		// The test database is already migrated, so the migrations report
+		// that, under the "migrations" logger name operators filter on.
+		upToDate := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "database schema is up to date"
+		})
+		require.Len(t, upToDate, 1)
+		require.Equal(t, []string{"migrations"}, upToDate[0].LoggerNames)
 	})
 
 	t.Run("NoMigrate", func(t *testing.T) {

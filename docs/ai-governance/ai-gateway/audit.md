@@ -48,6 +48,8 @@ The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions
 By default it shows sessions with activity in the last 24&nbsp;hours.
 Use the time range filter in the filter bar to widen or narrow the window, for example to see older sessions.
 
+If your deployment has more than one organization, use the organization filter to show only sessions with at least one request attributed to that organization.
+
 Each row shows the last prompt, initiator, provider, client, token usage, network requests, thread count, and timestamp.
 
 The **Network** column reports the total and blocked [Agent Firewall](../agent-firewall/index.md) requests for the session.
@@ -75,6 +77,8 @@ The agentic loop shows its duration and number of tool calls, and each step show
 The **Session summary** card beside the timeline shows the session's total token usage, with the same breakdown, and its total cost.
 A warning next to a cost means some usage was unpriced, so the actual cost might be higher.
 To learn how Coder prices usage and how to add missing prices, refer to [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
+
+If your deployment has more than one organization, the card also lists the organizations the session's requests were attributed to, or shows `Not recorded` for older sessions.
 
 The card also reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
 

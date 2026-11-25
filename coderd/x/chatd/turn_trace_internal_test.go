@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -35,11 +36,15 @@ func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace
 	return stageSpansByStart(t, recorder, chatloop.StageChatTurn)
 }
 
+func spanStage(span sdktrace.ReadOnlySpan) chatloop.Stage {
+	return chatloop.Stage(chattest.SpanStage(span))
+}
+
 func stageSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder, stage chatloop.Stage) []sdktrace.ReadOnlySpan {
 	t.Helper()
 	var spans []sdktrace.ReadOnlySpan
 	for _, span := range recorder.Ended() {
-		if chatloop.Stage(span.Name()) == stage {
+		if spanStage(span) == stage {
 			spans = append(spans, span)
 		}
 	}
@@ -63,7 +68,7 @@ func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	require.Len(t, ended, 2)
 	acquisition, chatTurn := ended[0], ended[1]
 	require.Equal(t, string(chatloop.StageAcquisition), acquisition.Name())
-	require.Equal(t, string(chatloop.StageChatTurn), chatTurn.Name())
+	require.Equal(t, "invoke_agent coder", chatTurn.Name())
 	require.Equal(t, triggerAt.UTC(), chatTurn.StartTime().UTC())
 	require.Equal(t, triggerAt.UTC(), acquisition.StartTime().UTC())
 	require.False(t, acquisition.StartTime().Before(chatTurn.StartTime()))
@@ -94,6 +99,20 @@ func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 		require.Contains(t, span.Attributes(),
 			attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)), span.Name())
 	}
+}
+
+func TestRunnerTurnSpanRecordsProvider(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, false)
+
+	_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Time{})
+	turn.SetProvider(token, chatloop.StageModel{ProviderType: "anthropic", Bedrock: true})
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 1)
+	require.Contains(t, turns[0].Attributes(), attribute.String("gen_ai.provider.name", "aws.bedrock"))
 }
 
 func TestRunnerTurnSpanEnsureReusesTurnForSameTrigger(t *testing.T) {

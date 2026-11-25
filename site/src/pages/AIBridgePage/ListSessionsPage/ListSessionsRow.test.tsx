@@ -64,6 +64,18 @@ describe("count badge inside the clickable session row", () => {
 	});
 });
 
+describe("network requests badge inside the clickable session row", () => {
+	it("opens the row when the badge named by its counts is clicked", async () => {
+		const user = userEvent.setup();
+		const onClick = renderMultiProviderRow();
+
+		await user.click(
+			screen.getByRole("button", { name: "Network requests: 23, blocked: 2" }),
+		);
+		expect(onClick).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("last prompt tooltip inside the clickable session row", () => {
 	it("keeps clicks inside the tooltip from opening the row", async () => {
 		const user = userEvent.setup();

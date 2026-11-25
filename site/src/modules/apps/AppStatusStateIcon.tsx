@@ -48,7 +48,7 @@ export const AppStatusStateIcon: React.FC<AppStatusStateIconProps> = ({
 			);
 		case "failure":
 			return (
-				<CircleAlertIcon className={cn(["text-content-warning", className])} />
+				<CircleAlertIcon className={cn(["text-border-warning", className])} />
 			);
 		case "working":
 			return disabled ? (

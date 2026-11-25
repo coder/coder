@@ -769,6 +769,7 @@ type DeploymentValues struct {
 	ExternalAuthGithubDefaultProviderEnable serpent.Bool                         `json:"external_auth_github_default_provider_enable,omitempty" typescript:",notnull"`
 	SSHConfig                               SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	SetupToken                              serpent.String                       `json:"setup_token,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
@@ -870,11 +871,16 @@ func ValidateWorkspaceHostnameSuffix(suffix string) error {
 
 // ValidateWorkspaceHostnamePrefix validates a deployment-provided SSH hostname
 // prefix before it is made available to clients. Unlike the suffix, a prefix
-// may legitimately contain a trailing dot (the default is "coder."), so only
-// the single-token requirement is enforced.
+// may legitimately contain a trailing dot (the default is "coder."), so the
+// leading-dot rule does not apply. Glob characters are rejected because the
+// prefix is written as "Host <prefix>*": a prefix of "*" would produce
+// "Host **" and apply Coder's SSH options to every host the user connects to.
 func ValidateWorkspaceHostnamePrefix(prefix string) error {
 	if !isSingleHostPatternToken(prefix) {
 		return xerrors.Errorf("workspace hostname prefix %q must not contain whitespace or control characters", prefix)
+	}
+	if strings.ContainsAny(prefix, "*?") {
+		return xerrors.Errorf("workspace hostname prefix %q must not contain glob characters", prefix)
 	}
 	return nil
 }
@@ -1008,6 +1014,7 @@ type PrometheusConfig struct {
 	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	CollectWorkspaceStats serpent.Bool        `json:"collect_workspace_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -1979,13 +1986,23 @@ communicating directly.`,
 	// AI Gateway options
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
-		Description: "Whether to start an in-memory AI Gateway instance.",
+		Description: "Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.",
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
 		Default:     "true",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
+	}
+	aiGatewayEmbeddedEnabled := serpent.Option{
+		Name:        "AI Gateway Embedded Enabled",
+		Description: "Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.",
+		Flag:        "ai-gateway-embedded-enabled",
+		Env:         "CODER_AI_GATEWAY_EMBEDDED_ENABLED",
+		Value:       &c.AI.BridgeConfig.EmbeddedEnabled,
+		Default:     "true",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "embedded_enabled",
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
@@ -2699,6 +2716,16 @@ communicating directly.`,
 			Group:   &deploymentGroupIntrospectionPrometheus,
 			YAML:    "collect_db_metrics",
 			Default: "false",
+		},
+		{
+			Name:        "Prometheus Collect Workspace Stats",
+			Description: "Collect per-workspace stats (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-workspace-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS",
+			Value:       &c.Prometheus.CollectWorkspaceStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_workspace_stats",
+			Default:     "false",
 		},
 		// Pprof settings
 		{
@@ -3491,7 +3518,7 @@ communicating directly.`,
 		// Misc. settings
 		{
 			Name:        "Experiments",
-			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.",
 			Flag:        "experiments",
 			Env:         "CODER_EXPERIMENTS",
 			Value:       &c.Experiments,
@@ -3994,6 +4021,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
+			Name: "Setup Token",
+			Description: "The token that must be supplied to create the first user when the " +
+				"deployment is published through a try.coder.app tunnel. When empty, the " +
+				"server generates one and prints it at startup. It must be at least 24 characters.",
+			Flag:        "setup-token",
+			Env:         "CODER_SETUP_TOKEN",
+			Value:       &c.SetupToken,
+			Group:       &deploymentGroupNetworking,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
 			Name:        "Proxy Health Check Interval",
 			Description: "The interval in which coderd should be checking the status of workspace proxies.",
 			Flag:        "proxy-health-interval",
@@ -4008,7 +4046,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
-			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
 			Flag:        "default-quiet-hours-schedule",
 			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
 			Default:     "CRON_TZ=UTC 0 0 * * *",
@@ -4580,6 +4618,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
 		aiGatewayEnabled,
+		aiGatewayEmbeddedEnabled,
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
@@ -5009,6 +5048,9 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	// EmbeddedEnabled controls whether coderd starts the in-memory AI
+	// Gateway. It only takes effect when Enabled is true.
+	EmbeddedEnabled serpent.Bool `json:"embedded_enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -5517,6 +5559,8 @@ const (
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
+	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
+	ExperimentAgentPlugins              Experiment = "agent-plugins"               // Enables skills and MCP servers from Agent Plugins (agent-plugins.org) in workspaces.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5553,6 +5597,10 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
+	case ExperimentChatAutomations:
+		return "Chat Automations"
+	case ExperimentAgentPlugins:
+		return "Agent Plugins"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5580,6 +5628,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
+	ExperimentChatAutomations,
+	ExperimentAgentPlugins,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5596,6 +5646,7 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
+	ExperimentChatAutomations,
 }
 
 // Experiments is a list of experiments.

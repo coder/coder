@@ -1,0 +1,137 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { Autocomplete } from "./Autocomplete";
+
+const options = [
+	{ id: "apple", name: "Apple" },
+	{ id: "mango", name: "Mango" },
+];
+
+describe(Autocomplete.name, () => {
+	it("clears the selection from the keyboard and refocuses the trigger", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		const triggerRef = createRef<HTMLButtonElement>();
+		render(
+			<Autocomplete
+				value={options[1]}
+				onChange={onChange}
+				options={options}
+				getOptionValue={(option) => option.id}
+				getOptionLabel={(option) => option.name}
+				triggerRef={triggerRef}
+			/>,
+		);
+
+		const trigger = screen.getByRole("button", { name: "Mango" });
+		expect(triggerRef.current).toBe(trigger);
+		await user.tab();
+		expect(trigger).toHaveFocus();
+		await user.tab();
+		expect(
+			screen.getByRole("button", { name: "Clear selection" }),
+		).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenCalledWith(null);
+		expect(trigger).toHaveFocus();
+	});
+
+	it("names the search input with the placeholder", async () => {
+		const user = userEvent.setup();
+		const onInputChange = vi.fn();
+		render(
+			<Autocomplete
+				value={null}
+				onChange={vi.fn()}
+				options={["Mango"]}
+				getOptionValue={(option) => option}
+				getOptionLabel={(option) => option}
+				placeholder="Select a fruit"
+				onInputChange={onInputChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Select a fruit" }));
+		await user.type(
+			await screen.findByRole("combobox", { name: "Select a fruit" }),
+			"m",
+		);
+		expect(onInputChange).toHaveBeenCalledWith("m");
+	});
+
+	it("names the popup the trigger opens and announces its type", async () => {
+		const user = userEvent.setup();
+		render(
+			<Autocomplete
+				value={null}
+				onChange={vi.fn()}
+				options={["Mango"]}
+				getOptionValue={(option) => option}
+				getOptionLabel={(option) => option}
+				placeholder="Select a fruit"
+			/>,
+		);
+
+		const trigger = screen.getByRole("button", { name: "Select a fruit" });
+		await user.click(trigger);
+		const popup = await screen.findByRole("dialog", { name: "Select a fruit" });
+
+		expect(trigger).toHaveAttribute(
+			"aria-haspopup",
+			popup.getAttribute("role"),
+		);
+	});
+
+	it("announces while options are loading", async () => {
+		const user = userEvent.setup();
+		render(
+			<Autocomplete
+				value={null}
+				onChange={vi.fn()}
+				options={[]}
+				getOptionValue={(option: string) => option}
+				getOptionLabel={(option: string) => option}
+				placeholder="Search for user or group"
+				loading
+			/>,
+		);
+
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+		await user.click(
+			screen.getByRole("button", { name: /^Search for user or group/ }),
+		);
+		expect(status).toHaveTextContent("Loading");
+	});
+});
+
+it.each([false, true])(
+	"marks the chosen option as selected (inlineSearch: %s)",
+	async (inlineSearch) => {
+		const user = userEvent.setup();
+		render(
+			<Autocomplete
+				value="Papaya"
+				onChange={vi.fn()}
+				options={["Mango", "Papaya"]}
+				getOptionValue={(option) => option}
+				getOptionLabel={(option) => option}
+				placeholder="Select a fruit"
+				inlineSearch={inlineSearch}
+			/>,
+		);
+
+		if (inlineSearch) {
+			await user.click(screen.getByRole("combobox"));
+		} else {
+			await user.click(screen.getByRole("button", { name: /Papaya/ }));
+		}
+		await screen.findByRole("option", { name: "Mango" });
+		expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
+			"Papaya",
+		);
+	},
+);

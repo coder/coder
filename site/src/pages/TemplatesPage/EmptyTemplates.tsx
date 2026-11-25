@@ -64,7 +64,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 							target="_blank"
 							rel="noreferrer"
 							showExternalIcon={false}
-							className="p-0 text-xs"
+							className="pl-0 text-xs"
 						>
 							create your own
 						</Link>
@@ -101,7 +101,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			message="Create a Template"
+			message="Create a template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
 		/>

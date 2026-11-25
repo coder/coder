@@ -94,6 +94,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 									variant="info"
 									onClick={stopPropagation}
 								>
+									{/* sentence-case-expect: Agents is the product name. */}
 									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>
@@ -122,7 +123,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
 								{provider.status.warnings.map((warning) => (
-									<p key={warning} className="break-words">
+									<p key={warning} className="wrap-break-word">
 										{warning}
 									</p>
 								))}

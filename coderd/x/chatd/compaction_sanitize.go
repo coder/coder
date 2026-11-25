@@ -29,7 +29,6 @@ func sanitizeCompactionPrompt(
 	logger slog.Logger,
 	prompt []fantasy.Message,
 	compactionModel chatprovider.Model,
-	configuredProvider string,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
 	reasoningModel string,
@@ -42,8 +41,7 @@ func sanitizeCompactionPrompt(
 	if !sameProvider || compactionModel.ModelID() != reasoningModel {
 		messages = dropOpenAIReasoningParts(ctx, logger, messages)
 	}
-	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
-	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, configuredProvider)
+	messages = replaceUnsupportedMedia(ctx, logger, messages, compactionModel)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,
@@ -180,44 +178,4 @@ func stringifyToolResultOutput(output fantasy.ToolResultOutputContent) string {
 	default:
 		return "[unserializable tool output]"
 	}
-}
-
-// replaceUnsupportedFileParts swaps file parts the compaction model does
-// not accept for text placeholders in a copy of messages, so the summary
-// notes the attachment existed instead of silently losing it.
-func replaceUnsupportedFileParts(
-	ctx context.Context,
-	logger slog.Logger,
-	messages []fantasy.Message,
-	acceptsFilePart func(mediaType string) bool,
-) []fantasy.Message {
-	replaced := 0
-	out := make([]fantasy.Message, 0, len(messages))
-	for _, msg := range messages {
-		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
-		for _, part := range msg.Content {
-			filePart, ok := part.(fantasy.FilePart)
-			if !ok || acceptsFilePart(filePart.MediaType) {
-				parts = append(parts, part)
-				continue
-			}
-			replaced++
-			parts = append(parts, fantasy.TextPart{
-				Text: fmt.Sprintf(
-					"[Attachment %q (%s) omitted: not supported by the compaction model]",
-					filePart.Filename,
-					filePart.MediaType,
-				),
-				ProviderOptions: filePart.ProviderOptions,
-			})
-		}
-		msg.Content = parts
-		out = append(out, msg)
-	}
-	if replaced > 0 {
-		logger.Debug(ctx, "replaced unsupported file parts in compaction prompt",
-			slog.F("replaced_parts", replaced),
-		)
-	}
-	return out
 }

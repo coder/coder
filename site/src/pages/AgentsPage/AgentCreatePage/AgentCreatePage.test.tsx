@@ -16,7 +16,6 @@ import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildSearchParam,
@@ -140,21 +139,15 @@ const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	);
 };
 
-// The project page header shows tooltips, which need a provider.
 const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
-	renderWithAuth(
-		<TooltipProvider>
-			<AgentCreatePage />
-		</TooltipProvider>,
-		{
-			path: "/agents/projects/:projectId",
-			route,
-			extraRoutes: [
-				{ path: "/agents", element: <AgentCreatePage /> },
-				{ path: "/agents/:agentId", element: null },
-			],
-		},
-	);
+	renderWithAuth(<AgentCreatePage />, {
+		path: "/agents/projects/:projectId",
+		route,
+		extraRoutes: [
+			{ path: "/agents", element: <AgentCreatePage /> },
+			{ path: "/agents/:agentId", element: null },
+		],
+	});
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,

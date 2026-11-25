@@ -101,7 +101,7 @@ export const PersonalInstructionsSettings: React.FC<
 			<TextareaAutosize
 				aria-labelledby={headingId}
 				className={cn(
-					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link",
+					"max-h-60 w-full resize-none rounded-lg border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link",
 					isUserPromptOverflowing && "overflow-y-auto scrollbar-thin",
 				)}
 				name="custom_prompt"
