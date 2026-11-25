@@ -65,23 +65,19 @@ export function createCommentPopup(
 		type: "button",
 		disabled: "",
 		"aria-describedby": "comment-limit",
-		"data-tip": atLimit
-			? limitMessage
-			: "Shift+click to hold this comment and pick more",
 	});
+	if (!atLimit) {
+		send.dataset.tip = "Shift+click to hold this comment and pick more";
+	}
 	const setSendLabel = (shift: boolean) => {
 		const hold = shift && !atLimit;
 		send.innerHTML = hold ? plusIcon : sendIcon;
+		if (shift) {
+			send.append(atLimit ? "Release Shift" : "Add");
+			return;
+		}
 		const count = options.heldCount;
-		send.append(
-			shift
-				? atLimit
-					? "Release Shift"
-					: "Add"
-				: count > 0
-					? `Send ${count + 1}`
-					: "Send",
-		);
+		send.append(count > 0 ? `Send ${count + 1}` : "Send");
 	};
 	setSendLabel(false);
 
