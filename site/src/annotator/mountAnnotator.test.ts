@@ -45,12 +45,11 @@ async function submitComment(comment: string, hold = false) {
 		controls.getByRole("textbox", { name: "Annotation comment" }),
 		comment,
 	);
+	const send = controls.getByRole("button", { name: /^Send(?: \d+)?$/ });
 	if (hold) {
 		await user.keyboard("{Shift>}");
 	}
-	await user.click(
-		controls.getByRole("button", { name: /^(Send(?: \d+)?|Add)$/ }),
-	);
+	await user.click(send);
 	if (hold) {
 		await user.keyboard("{/Shift}");
 	}
