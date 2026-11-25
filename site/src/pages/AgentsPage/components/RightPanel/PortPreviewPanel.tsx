@@ -284,6 +284,7 @@ export const PortPreviewPanel: React.FC<{
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
+	const { highlight, clearHighlights, setPicking } = bridge;
 	const canSendMessage = onSendToolMessage !== undefined;
 	const stopAnnotating = useEffectEvent(() => {
 		if (bridge.requested) {
@@ -386,9 +387,9 @@ export const PortPreviewPanel: React.FC<{
 	// Opened to annotate in: ask for picking as soon as the overlay loads.
 	useEffect(() => {
 		if (isPopoutWindow) {
-			bridge.setPicking(true);
+			setPicking(true);
 		}
-	}, [isPopoutWindow, bridge.setPicking]);
+	}, [isPopoutWindow, setPicking]);
 
 	// The overlay is requested at most once per attempt: while it is still
 	// loading, further clicks only toggle the desired picking state instead
@@ -425,7 +426,7 @@ export const PortPreviewPanel: React.FC<{
 		if (changed.length > 0) {
 			bridge.resolveHighlights(changed);
 		} else {
-			bridge.clearHighlights();
+			clearHighlights();
 		}
 	});
 
@@ -436,7 +437,7 @@ export const PortPreviewPanel: React.FC<{
 			return;
 		}
 		if (isAgentWorking) {
-			bridge.highlight(workingOn.items);
+			highlight(workingOn.items);
 			if (!workingOn.started) {
 				setWorkingOn({ ...workingOn, started: true });
 			}
@@ -451,7 +452,7 @@ export const PortPreviewPanel: React.FC<{
 		// no-op, or the turn ended before the status reached us), drop it.
 		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
 		return () => clearTimeout(timer);
-	}, [workingOn, isAgentWorking, bridge.ready, bridge.highlight]);
+	}, [workingOn, isAgentWorking, bridge.ready, highlight]);
 
 	// Everything the control shows about annotate mode comes from what the
 	// dashboard asked for, never from what the overlay reports: the page
@@ -459,7 +460,7 @@ export const PortPreviewPanel: React.FC<{
 	// accepted while the request stands, so the button reads "on" whenever
 	// they might be. Escape leaves annotate mode from either side, listened
 	// for here in case focus is outside the preview.
-	const { requested: pickingRequested, setPicking } = bridge;
+	const { requested: pickingRequested } = bridge;
 	useEffect(() => {
 		if (!pickingRequested) {
 			return;
