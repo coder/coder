@@ -1,5 +1,6 @@
 ---
 title: Caddy
+description: Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.
 ---
 
 This is an example configuration of how to use Coder with [caddy](https://caddyserver.com/docs).

@@ -1,5 +1,6 @@
 ---
 title: Audit AI sessions
+description: Audit AI coding sessions and threads captured by AI Gateway for governance and review.
 ---
 
 > [!NOTE]

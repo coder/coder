@@ -1,5 +1,6 @@
 ---
 title: GitHub
+description: Set up authentication through GitHub OAuth to enable secure user login and sign-up.
 ---
 
 By default, new Coder deployments use a Coder-managed GitHub app to authenticate users.

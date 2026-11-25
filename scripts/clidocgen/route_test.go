@@ -118,29 +118,19 @@ func TestCLIManifestChildren(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
-// TestCLIIndexRouteMirrorsManifest pins the CLI index page's route: it copies
-// the whole "Command Line" manifest route (minus nav children) so curated,
-// index-only fields (icon_path, state) still reach the shared front-matter
-// emitter. No Command Line route carries icon_path or state today, so neither
-// the golden regen nor the per-command test above exercises this arm.
-func TestCLIIndexRouteMirrorsManifest(t *testing.T) {
+// TestCLIIndexRouteFromOverlay pins the CLI index page's route: the title comes
+// from the "Command Line" sidebar route and the metadata from the overlay, so
+// the index front matter carries the overlay's icon_path.
+func TestCLIIndexRouteFromOverlay(t *testing.T) {
 	t.Parallel()
 
-	src := docgenenv.Route{
-		Title:       "Command Line",
-		Description: "Learn how to use Coder CLI",
-		IconPath:    "./images/icons/terminal.svg",
-		State:       []string{"beta"},
-		Children:    []docgenenv.Route{{Title: "ping", Path: "reference/cli/ping.md"}},
-	}
-	got := cliIndexRouteFrom(src)
-	require.Equal(t, src.Title, got.Title)
-	require.Equal(t, src.Description, got.Description)
-	require.Equal(t, src.IconPath, got.IconPath)
-	require.Equal(t, src.State, got.State)
-	require.Nil(t, got.Children, "nav children must not leak into index front matter")
+	checkedIn, err := docgenenv.LoadOverlays("overlays.yml")
+	require.NoError(t, err)
+	got := checkedIn.Index.Route("Command Line")
+	require.Equal(t, "Command Line", got.Title)
+	require.Equal(t, "./images/icons/terminal.svg", got.IconPath)
+	require.Empty(t, got.Children)
 
 	fm := docgenenv.FrontMatter(got)
 	require.Contains(t, fm, `icon_path: "./images/icons/terminal.svg"`)
-	require.Contains(t, fm, "state:\n  - beta")
 }

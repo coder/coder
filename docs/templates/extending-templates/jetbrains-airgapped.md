@@ -1,5 +1,6 @@
 ---
 title: JetBrains IDEs in an air-gapped environment
+description: Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.
 ---
 
 In networks that restrict access to the internet, you will need to leverage the JetBrains Client Installer to download and save the IDE clients locally.

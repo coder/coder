@@ -1,5 +1,6 @@
 ---
 title: Claude Code
+description: Configure Claude Code to route requests through AI Gateway using environment variables.
 ---
 
 > [!NOTE]

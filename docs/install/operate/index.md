@@ -1,5 +1,7 @@
 ---
 title: Operate and maintain
+description: Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.
+icon_path: ./images/icons/wrench.svg
 ---
 
 Day-two operations cover the work that keeps a deployment healthy after it's installed: upgrades, provisioning capacity, and eventual removal.

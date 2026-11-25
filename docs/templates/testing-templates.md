@@ -1,5 +1,6 @@
 ---
 title: Test and publish Coder templates through CI/CD
+description: Test and publish your Coder templates automatically through a CI/CD pipeline.
 ---
 
 <div>

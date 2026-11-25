@@ -1,5 +1,6 @@
 ---
 title: Set up Agent Relay
+description: Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.
 ---
 
 > [!NOTE]

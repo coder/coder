@@ -863,10 +863,11 @@ lint/docs-html:
 .PHONY: lint/docs-html
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
-# invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, source files that nothing references, a page description
-# (in the sources, a generated fragment, or page front matter) that doesn't end
-# with a period, or a route state that repeats a state set on an ancestor.
+# invalid: unknown or misordered keys, missing pages, description, icon_path,
+# or state set in a sidebar source (they belong in the page's front matter),
+# source files that nothing references, a page description (in a generated
+# fragment or page front matter) that doesn't end with a period, or a route
+# state that repeats a state set on an ancestor.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
@@ -1472,7 +1473,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json scripts/clidocgen/overlays.yml _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
@@ -1498,7 +1499,7 @@ docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard 
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
+docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) scripts/scopesdocgen/overlays.yml $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/scopesdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
@@ -1545,7 +1546,7 @@ docs/manifest/generated/rest-api.json: coderd/apidoc/.gen
 
 # clidocgen writes the "Command Line" sidebar fragment named by children_from
 # in docs/manifest, built from the command tree.
-docs/manifest/generated/cli.json: site/node_modules/.installed _gen/bin/clidocgen | _gen
+docs/manifest/generated/cli.json: site/node_modules/.installed scripts/clidocgen/overlays.yml _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpdir=$$(realpath "$$tmpdir") && \
 		cp -R docs/manifest "$$tmpdir/manifest" && \
 		CI=true DOCS_DIR="$$tmpdir" _gen/bin/clidocgen -manifest-only && \
@@ -1560,7 +1561,7 @@ define build-docs-manifest
 		mv "$$tmpfile" docs/manifest.json && rm -rf "$$tmpdir"
 endef
 
-docs/manifest.json: $(DOCS_MANIFEST_SOURCES) docs/manifest/generated/cli.json docs/manifest/generated/rest-api.json site/node_modules/.installed _gen/bin/docsmanifestgen docs/reference/cli/index.md | _gen
+docs/manifest.json: $(DOCS_MANIFEST_SOURCES) $(shell find docs -type f -name '*.md') docs/manifest/generated/cli.json docs/manifest/generated/rest-api.json site/node_modules/.installed _gen/bin/docsmanifestgen docs/reference/cli/index.md | _gen
 	$(build-docs-manifest)
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen

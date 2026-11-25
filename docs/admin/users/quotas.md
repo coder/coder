@@ -1,5 +1,7 @@
 ---
 title: Quotas
+description: Control resource usage by implementing workspace budgets and credit-based cost management.
+state: [premium]
 ---
 
 Quotas are a mechanism for controlling spend by associating costs with workspace templates and assigning budgets to users.

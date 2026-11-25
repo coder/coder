@@ -1,5 +1,6 @@
 ---
 title: Cloning Git repositories
+description: Learn how to automatically clone Git repositories into your Coder workspaces on startup.
 ---
 
 <div style="padding: 0px; margin: 0px;">

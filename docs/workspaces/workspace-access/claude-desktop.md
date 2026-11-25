@@ -1,5 +1,6 @@
 ---
 title: Claude Desktop
+description: Let Claude Desktop access your Coder workspaces.
 ---
 
 [Claude Desktop](https://claude.com/download) is Anthropic's desktop app for Claude.

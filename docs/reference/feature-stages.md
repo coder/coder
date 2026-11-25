@@ -1,5 +1,6 @@
 ---
 title: Feature stages
+description: Understand Coder's feature stages, including early access, beta, and general availability.
 ---
 
 

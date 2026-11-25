@@ -1,5 +1,6 @@
 ---
 title: Architecture
+description: Learn about Coder's architecture and the components that make up a deployment.
 ---
 
 The Coder deployment model is flexible and offers various components that platform administrators can deploy and scale depending on their use case.

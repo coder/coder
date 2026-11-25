@@ -1,5 +1,6 @@
 ---
 title: Envbuilder releases and known issues
+description: Learn about Envbuilder's release channels and current known issues before you deploy it.
 ---
 
 > [!WARNING]

@@ -1,5 +1,6 @@
 ---
 title: Federate Coder's control plane to Azure
+description: Federate Coder's control plane to Azure so it can authenticate to Azure services.
 ---
 
 <div>

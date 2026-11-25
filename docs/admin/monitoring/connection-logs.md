@@ -1,5 +1,7 @@
 ---
 title: Connection logs
+description: Monitor SSH, app, and agent connections to your workspaces with the connection log.
+state: [premium]
 ---
 
 > [!NOTE]

@@ -1,5 +1,6 @@
 ---
 title: Reuse template code
+description: Reuse Terraform code across your Coder templates with shared, versioned modules.
 ---
 
 To reuse code across different Coder templates, such as common scripts or resource definitions, we suggest using [Terraform Modules](https://developer.hashicorp.com/terraform/language/modules).

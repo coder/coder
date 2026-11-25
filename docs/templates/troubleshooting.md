@@ -1,5 +1,6 @@
 ---
 title: Troubleshoot templates
+description: Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.
 ---
 
 Occasionally, you might run into scenarios where a workspace is created, but the agent is either not connected or the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) has failed or timed out.

@@ -1,5 +1,6 @@
 ---
 title: nsjail on ECS
+description: Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.
 ---
 
 > [!NOTE]

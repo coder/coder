@@ -1,5 +1,6 @@
 ---
 title: Install your own command-line tools
+description: Install your own command-line tools in a workspace and make them persist across rebuilds.
 ---
 
 Now that you [launched your first workspace](../index.md), you can add your favorite command-line tools to every workspace.

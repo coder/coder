@@ -1,5 +1,6 @@
 ---
 title: Configure OIDC refresh tokens
+description: Configure OIDC refresh tokens so Coder can keep user sessions active beyond token expiration.
 ---
 
 OpenID Connect (OIDC) refresh tokens allow your Coder deployment to maintain user sessions beyond the initial access token expiration.

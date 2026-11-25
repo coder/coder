@@ -1,5 +1,6 @@
 ---
 title: Troubleshoot Agent Relay
+description: Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.
 ---
 
 > [!NOTE]

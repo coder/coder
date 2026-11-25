@@ -10,10 +10,11 @@
 # and the parent lists it as "- include: admin/users.yml". Include paths are
 # relative to this directory, and an include entry sets no other key.
 #
-# Keys appear in this order: title, description, path, icon_path, state,
-# children_from, include, children. A route with children_from gets its
-# children from a generated file under generated/; its children list may only
-# add description, icon_path, or state to generated routes, matched by title.
+# Keys appear in this order: title, path, children_from, include, children.
+# Descriptions, icon_path, and state do not go here. A page sets them in its
+# own front matter, and a generated route takes them from its generator's
+# overlays.yml. A route with children_from gets its children from a generated
+# file under generated/, so it sets no children list of its own.
 
 versions: [main]
 sections:

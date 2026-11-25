@@ -1,5 +1,6 @@
 ---
 title: Kilo Code
+description: Configure Kilo Code to route its model requests through AI Gateway from the UI.
 ---
 
 > [!NOTE]

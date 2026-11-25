@@ -1,5 +1,6 @@
 ---
 title: Template optimization
+description: Best practices for creating templates that are discoverable and useful to Coder Agents.
 ---
 
 Not every chat with Coder Agents requires a workspace.

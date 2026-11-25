@@ -1,5 +1,6 @@
 ---
 title: Deployment metrics
+description: Learn about the deployment metrics Coder exposes and how to use them to monitor health.
 ---
 
 Coder exposes Prometheus metrics that show the current state of a live Coder deployment.

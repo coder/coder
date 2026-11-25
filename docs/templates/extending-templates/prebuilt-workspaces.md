@@ -1,5 +1,7 @@
 ---
 title: Prebuilt workspaces
+description: Pre-provision a ready-to-deploy workspace with a defined set of parameters.
+state: [premium]
 ---
 
 Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of ready-to-use workspaces for specific parameter presets.

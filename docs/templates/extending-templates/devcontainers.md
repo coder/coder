@@ -1,5 +1,6 @@
 ---
 title: Dev Containers
+description: Extend your Coder templates with containerized dev container development environments.
 ---
 
 Dev containers extend your template with containerized development environments, allowing developers to work in consistent, reproducible setups defined by `devcontainer.json` files.

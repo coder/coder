@@ -1,5 +1,6 @@
 ---
 title: Remote desktops
+description: Connect to a GUI-based desktop in your Coder workspace using RDP, including Windows workspaces.
 ---
 
 ## RDP

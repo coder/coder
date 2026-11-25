@@ -1,5 +1,7 @@
 ---
 title: Order startup and shutdown scripts
+description: Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.
+state: [beta]
 ---
 
 As a template author, you can use the `coder_script_order` data source to declare dependencies between startup or shutdown scripts.

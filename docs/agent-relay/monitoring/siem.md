@@ -1,5 +1,6 @@
 ---
 title: Send Agent Relay logs to a SIEM
+description: Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.
 ---
 
 > [!NOTE]

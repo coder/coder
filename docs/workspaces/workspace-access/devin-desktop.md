@@ -1,5 +1,6 @@
 ---
 title: Devin Desktop
+description: Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.
 ---
 
 [Devin Desktop](https://devin.ai/desktop) is Cognition's AI-powered code editor designed for AI-assisted development.

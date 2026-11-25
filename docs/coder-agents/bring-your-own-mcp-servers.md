@@ -1,5 +1,6 @@
 ---
 title: Bring your own MCP servers
+description: Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.
 ---
 
 This page is for developers who want their own Model Context Protocol (MCP) servers in Coder Agents chats without asking an administrator to register each one.

@@ -1,7 +1,5 @@
 title: Agent API
-description: Reference for the Coder Agent API used by workspace agents to communicate with the control plane.
 path: ./reference/agent-api/index.md
-icon_path: ./images/icons/api.svg
 children:
   - title: Debug
     path: ./reference/agent-api/debug.md

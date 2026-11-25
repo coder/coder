@@ -1,5 +1,6 @@
 ---
 title: JFrog Artifactory integration
+description: Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.
 ---
 
 Use Coder and JFrog Artifactory together to secure your development environments without disturbing your developers' existing workflows.

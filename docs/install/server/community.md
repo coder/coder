@@ -1,5 +1,7 @@
 ---
 title: Community install methods
+description: Community-contributed methods for installing Coder on platforms Coder doesn't package itself.
+icon_path: ./images/icons/generic.svg
 ---
 
 The methods on this page are contributed and maintained by the Coder community, not by Coder.

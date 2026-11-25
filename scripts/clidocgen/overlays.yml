@@ -1,0 +1,3 @@
+index:
+  description: Reference for the Coder command-line interface, with usage and flags for every command.
+  icon_path: ./images/icons/terminal.svg

@@ -1,5 +1,7 @@
 ---
 title: Workspace process logging
+description: Log all system-level process activity inside workspaces for security and auditing.
+state: [premium]
 ---
 
 The workspace process logging feature allows you to log all system-level processes executing in the workspace.

@@ -1,5 +1,6 @@
 ---
 title: Conversation data retention
+description: Configure automatic cleanup of old Coder Agents conversation data to manage database size.
 ---
 
 Coder Agents automatically cleans up old conversation data to manage database growth.

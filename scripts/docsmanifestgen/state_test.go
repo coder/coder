@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,96 +11,133 @@ import (
 	"github.com/coder/coder/v2/scripts/docgenenv"
 )
 
+// statePage returns a Markdown page whose front matter sets states.
+func statePage(title string, states ...string) string {
+	fm := "---\ntitle: " + title + "\n"
+	if len(states) > 0 {
+		fm += "state: [" + strings.Join(states, ", ") + "]\n"
+	}
+	return fm + "---\n\n# " + title + "\n"
+}
+
+// writeStateSite writes files (docs-relative name to content) under a new docs
+// directory and returns it.
+func writeStateSite(t *testing.T, files map[string]string) string {
+	t.Helper()
+	docsDir := t.TempDir()
+	for name, body := range files {
+		p := filepath.Join(docsDir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
+	}
+	return docsDir
+}
+
 func TestRepeatedStates(t *testing.T) {
 	t.Parallel()
 
-	const index = "versions: [main]\nsections:\n  - home.yml\n"
+	const (
+		index   = "versions: [main]\nsections:\n  - home.yml\n"
+		home    = "title: Home\npath: ./index.md\nchildren:\n  - title: A\n    path: ./a.md\n"
+		homeSub = "title: Home\npath: ./index.md\nchildren:\n  - include: home/sub.yml\n"
+	)
+	sub := "title: Sub\npath: ./sub/index.md\nchildren:\n  - include: home/sub/x.yml\n"
+	x := "title: X\npath: ./sub/x.md\n"
 	for _, tc := range []struct {
 		name  string
-		files map[string]string
-		want  []string // Error substrings, one per expected error.
+		files map[string]string // Docs-relative name to content; sources live under manifest/.
+		want  []string          // Error substrings, one per expected error.
 	}{
 		{
 			name: "NoStates",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nchildren:\n  - title: A\n    path: ./a.md\n",
+				"manifest/home.yml": home,
+				"index.md":          statePage("Home"),
+				"a.md":              statePage("A"),
 			},
 		},
 		{
 			name: "DifferentStateOnDescendant",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - title: A\n    path: ./a.md\n    state: [early access]\n",
+				"manifest/home.yml": home,
+				"index.md":          statePage("Home", "premium"),
+				"a.md":              statePage("A", "early access"),
 			},
 		},
 		{
 			name: "SameStateOnSiblings",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nchildren:\n  - title: A\n    path: ./a.md\n    state: [beta]\n  - title: B\n    path: ./b.md\n    state: [beta]\n",
+				"manifest/home.yml": "title: Home\npath: ./index.md\nchildren:\n  - title: A\n    path: ./a.md\n  - title: B\n    path: ./b.md\n",
+				"index.md":          statePage("Home"),
+				"a.md":              statePage("A", "beta"),
+				"b.md":              statePage("B", "beta"),
 			},
 		},
 		{
 			name: "ChildRepeatsParent",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - title: A\n    path: ./a.md\n    state: [premium]\n",
+				"manifest/home.yml": home,
+				"index.md":          statePage("Home", "premium"),
+				"a.md":              statePage("A", "premium"),
 			},
-			want: []string{`home.yml: Home > A: state "premium" is already set on ancestor "Home" in home.yml`},
+			want: []string{`./a.md: Home > A: state "premium" is already set on ancestor "Home" in ./index.md`},
 		},
 		{
 			name: "OnlyRepeatedValueReported",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - title: A\n    path: ./a.md\n    state: [premium, beta]\n",
+				"manifest/home.yml": home,
+				"index.md":          statePage("Home", "premium"),
+				"a.md":              statePage("A", "premium", "beta"),
 			},
-			want: []string{`home.yml: Home > A: state "premium"`},
+			want: []string{`./a.md: Home > A: state "premium"`},
 		},
 		{
 			name: "StateListedTwiceOnOneRoute",
 			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nstate: [beta, beta]\n",
+				"manifest/home.yml": "title: Home\npath: ./index.md\n",
+				"index.md":          statePage("Home", "beta", "beta"),
 			},
-			want: []string{`home.yml: Home: state "beta" is listed more than once`},
+			want: []string{`./index.md: Home: state "beta" is listed more than once`},
 		},
 		{
 			name: "IncludedFileRepeatsAncestor",
 			files: map[string]string{
-				"home.yml":       "title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - include: home/sub.yml\n",
-				"home/sub.yml":   "title: Sub\npath: ./sub/index.md\nchildren:\n  - include: home/sub/x.yml\n",
-				"home/sub/x.yml": "title: X\npath: ./sub/x.md\nstate: [premium]\n",
+				"manifest/home.yml":       homeSub,
+				"manifest/home/sub.yml":   sub,
+				"manifest/home/sub/x.yml": x,
+				"index.md":                statePage("Home", "premium"),
+				"sub/index.md":            statePage("Sub"),
+				"sub/x.md":                statePage("X", "premium"),
 			},
-			want: []string{`home/sub/x.yml: Home > Sub > X: state "premium" is already set on ancestor "Home" in home.yml`},
+			want: []string{`./sub/x.md: Home > Sub > X: state "premium" is already set on ancestor "Home" in ./index.md`},
 		},
 		{
 			name: "EachRepeatReportedAgainstFirstAncestor",
 			files: map[string]string{
-				"home.yml":     "title: Home\npath: ./index.md\nstate: [beta]\nchildren:\n  - include: home/sub.yml\n",
-				"home/sub.yml": "title: Sub\npath: ./sub/index.md\nstate: [beta]\nchildren:\n  - title: X\n    path: ./sub/x.md\n    state: [beta]\n",
+				"manifest/home.yml":       homeSub,
+				"manifest/home/sub.yml":   sub,
+				"manifest/home/sub/x.yml": x,
+				"index.md":                statePage("Home", "beta"),
+				"sub/index.md":            statePage("Sub", "beta"),
+				"sub/x.md":                statePage("X", "beta"),
 			},
 			want: []string{
-				`home/sub.yml: Home > Sub: state "beta" is already set on ancestor "Home" in home.yml`,
-				`home/sub.yml: Home > Sub > X: state "beta" is already set on ancestor "Home" in home.yml`,
+				`./sub/index.md: Home > Sub: state "beta" is already set on ancestor "Home" in ./index.md`,
+				`./sub/x.md: Home > Sub > X: state "beta" is already set on ancestor "Home" in ./index.md`,
 			},
-		},
-		{
-			name: "OverlayRepeatsAncestor",
-			files: map[string]string{
-				"home.yml": "title: Home\npath: ./index.md\nstate: [premium]\nchildren_from: generated/home.yml\nchildren:\n  - title: A\n    state: [premium]\n",
-			},
-			want: []string{`home.yml: Home > A: state "premium" is already set on ancestor "Home" in home.yml`},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			dir := t.TempDir()
-			files := map[string]string{docgenenv.ManifestIndexFile: index}
+			files := map[string]string{"manifest/index.yml": index}
 			for name, body := range tc.files {
 				files[name] = body
 			}
-			for name, body := range files {
-				p := filepath.Join(dir, filepath.FromSlash(name))
-				require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
-				require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
-			}
+			docsDir := writeStateSite(t, files)
+			m, err := docgenenv.BuildManifest(filepath.Join(docsDir, docgenenv.ManifestSourcesDir), docsDir)
+			require.NoError(t, err)
 
-			errs := repeatedStates(dir)
+			errs := repeatedStates(m)
 			require.Len(t, errs, len(tc.want), "errors: %v", errs)
 			for i, want := range tc.want {
 				require.ErrorContains(t, errs[i], want)
@@ -111,15 +149,13 @@ func TestRepeatedStates(t *testing.T) {
 func TestCheckReportsRepeatedStates(t *testing.T) {
 	t.Parallel()
 
-	docsDir := t.TempDir()
-	sources := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
-	require.NoError(t, os.MkdirAll(sources, 0o755))
-	for _, page := range []string{"index.md", "a.md"} {
-		require.NoError(t, os.WriteFile(filepath.Join(docsDir, page), []byte("# page\n"), 0o600))
-	}
-	require.NoError(t, os.WriteFile(filepath.Join(sources, docgenenv.ManifestIndexFile), []byte("versions: [main]\nsections:\n  - home.yml\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(sources, "home.yml"), []byte("title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - title: A\n    path: ./a.md\n    state: [premium]\n"), 0o600))
+	docsDir := writeStateSite(t, map[string]string{
+		"manifest/index.yml": "versions: [main]\nsections:\n  - home.yml\n",
+		"manifest/home.yml":  "title: Home\npath: ./index.md\nchildren:\n  - title: A\n    path: ./a.md\n",
+		"index.md":           statePage("Home", "premium"),
+		"a.md":               statePage("A", "premium"),
+	})
 
 	err := run([]string{"check", "-docs", docsDir})
-	require.ErrorContains(t, err, `home.yml: Home > A: state "premium" is already set on ancestor "Home" in home.yml`)
+	require.ErrorContains(t, err, `./a.md: Home > A: state "premium" is already set on ancestor "Home" in ./index.md`)
 }

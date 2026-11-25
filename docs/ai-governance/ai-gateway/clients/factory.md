@@ -1,5 +1,6 @@
 ---
 title: Factory
+description: Configure Factory's Droid agent to route its model requests through AI Gateway.
 ---
 
 > [!NOTE]

@@ -1,5 +1,7 @@
 ---
 title: Shared workspaces
+description: Let multiple users securely connect to a single Coder workspace to program and debug together.
+icon_path: ./images/icons/generic.svg
 ---
 
 Multiple users can securely connect to a single Coder workspace for programming and debugging.

@@ -1,5 +1,7 @@
 ---
 title: Integrations
+description: Extend Coder with integrations for observability, secrets, source control, and other platforms.
+icon_path: ./images/icons/puzzle.svg
 ---
 
 Coder is highly extensible and is not limited to the platforms outlined in these docs.

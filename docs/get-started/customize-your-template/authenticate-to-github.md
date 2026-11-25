@@ -1,5 +1,6 @@
 ---
 title: Clone private repositories
+description: Clone private GitHub repositories in your workspace using a Coder external-auth data source.
 ---
 
 Now that you've finished [Launch your first workspace](../index.md), you can let your workspaces clone private GitHub repositories without a manual login each time.

@@ -1,5 +1,6 @@
 ---
 title: API & session tokens
+description: Manage authentication tokens for API access and configure session duration policies.
 ---
 
 Users can generate tokens to make API requests on behalf of themselves.

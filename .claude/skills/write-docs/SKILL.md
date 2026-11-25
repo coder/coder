@@ -225,8 +225,8 @@ the whole series as a single review.
       never fails a build. The count lives in
       [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 - [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
-- [ ] Premium and other staged pages carry the `state:` on their
-      `docs/manifest/` route, with no suffix in the title.
+- [ ] Premium and other staged pages carry `state:` in their front matter,
+      with no suffix in the title.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into
       focused PRs (aim for under ~1,000 lines changed; one page per PR for a

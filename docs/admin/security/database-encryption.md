@@ -1,5 +1,7 @@
 ---
 title: Database encryption
+description: Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.
+state: [premium]
 ---
 
 By default, Coder stores external user tokens and other sensitive values in plaintext in the database.

@@ -1,5 +1,6 @@
 ---
 title: Generate a support bundle
+description: Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.
 ---
 
 To troubleshoot a deployment or workspace issue with Coder support, you can collect a support bundle from the CLI, VS Code, or JetBrains Toolbox.

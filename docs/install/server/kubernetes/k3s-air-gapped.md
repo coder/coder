@@ -1,5 +1,6 @@
 ---
 title: Install Coder on K3s in an air-gapped environment
+description: Install Coder on a single-node K3s cluster with no internet access, using artifacts staged on a connected workstation.
 ---
 
 This tutorial helps a Coder deployment administrator install Coder on a single-node K3s cluster with no internet access.

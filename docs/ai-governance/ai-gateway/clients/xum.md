@@ -1,5 +1,6 @@
 ---
 title: Xum
+description: Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.
 ---
 
 > [!NOTE]

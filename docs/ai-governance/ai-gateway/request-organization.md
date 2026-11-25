@@ -1,5 +1,6 @@
 ---
 title: Request organization
+description: How AI Gateway assigns each request to an organization, and how that affects budgets and spend.
 ---
 
 > [!NOTE]

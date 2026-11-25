@@ -1,5 +1,6 @@
 ---
 title: DX PlatformX
+description: Forward Coder notifications to DX PlatformX to measure and improve developer experience.
 ---
 
 [DX](https://getdx.com) is a developer intelligence platform used by engineering leaders and platform engineers.

@@ -1,5 +1,6 @@
 ---
 title: Workspace tags
+description: Route workspace builds to specific provisioners using workspace tags and parameters.
 ---
 
 Template administrators can leverage static template tags to limit workspace provisioning to designated provisioner groups that have locally deployed credentials for creating workspace resources.

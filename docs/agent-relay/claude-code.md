@@ -1,5 +1,6 @@
 ---
 title: Agent Relay for Claude Code
+description: Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.
 ---
 
 > [!NOTE]

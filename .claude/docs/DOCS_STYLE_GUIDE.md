@@ -56,7 +56,7 @@ Template Insights provides detailed analytics and usage metrics for your Coder t
 
 ### Premium Feature Callout
 
-For Premium-only features, add `(Premium)` suffix to the H1 heading. The documentation system automatically links these to premium pricing information. You should also add a premium badge in the `docs/manifest.json` file with `"state": ["premium"]`.
+For Premium-only features, add `(Premium)` suffix to the H1 heading. The documentation system automatically links these to premium pricing information. You should also add `state: ["premium"]` to the page's front matter; the manifest build copies it into `docs/manifest.json`.
 
 ```markdown
 # Template Insights (Premium)
@@ -278,6 +278,10 @@ Document exact values from code:
 ## Documentation Manifest
 
 Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
+
+The sidebar source sets only a route's title, path, children, `children_from`, and `include`.
+A page sets its own `description`, `icon_path`, and `state` in its front matter.
+A generated reference page takes these from its `overlays.yml` file in the generator's `scripts/` directory.
 
 ## Documentation lands with the change
 

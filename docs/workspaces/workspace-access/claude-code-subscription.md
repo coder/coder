@@ -1,5 +1,6 @@
 ---
 title: Sign in to Claude Code with a Claude subscription
+description: Sign in to Claude Code in your Coder workspace with your Claude subscription instead of an API key.
 ---
 
 Use your Claude subscription to authenticate [Claude Code](https://code.claude.com/docs/en/overview) in a Coder workspace, instead of an Anthropic API key.

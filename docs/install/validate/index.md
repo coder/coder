@@ -1,5 +1,7 @@
 ---
 title: Validate your deployment
+description: Harden the deployment, then prove it works and holds up under load.
+icon_path: ./images/icons/health.svg
 ---
 
 Validation proves the deployment works and holds up under load.

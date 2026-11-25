@@ -59,10 +59,10 @@ func run(args []string) error {
 		return formatSources(sourcesDir)
 	case "check":
 		var errs []error
-		if _, err := docgenenv.BuildManifest(sourcesDir, *docsDir); err != nil {
+		if m, err := docgenenv.BuildManifest(sourcesDir, *docsDir); err != nil {
 			errs = append(errs, err)
 		} else {
-			errs = append(errs, repeatedStates(sourcesDir)...)
+			errs = append(errs, repeatedStates(m)...)
 		}
 		unformatted, err := unformattedSources(sourcesDir)
 		if err != nil {

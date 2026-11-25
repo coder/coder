@@ -1,5 +1,7 @@
 ---
 title: Air-gapped Deployments
+description: Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.
+icon_path: ./images/icons/lan.svg
 ---
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline.

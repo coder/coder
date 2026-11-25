@@ -1,5 +1,6 @@
 ---
 title: Architecture
+description: Learn how the Coder Agents control-plane agent communicates with your workspaces.
 ---
 
 Coder's AI agent interacts with workspaces over the same connection path as a developer's IDE, web terminal, and SSH session already use.

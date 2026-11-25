@@ -1,5 +1,7 @@
 ---
 title: Upgrade
+description: Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.
+icon_path: ./images/icons/upgrade.svg
 ---
 
 This article describes how to upgrade your Coder deployment.

@@ -1,5 +1,6 @@
 ---
 title: Upgrade best practices
+description: Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.
 ---
 
 This guide provides best practices for upgrading Coder, along with troubleshooting steps for common issues encountered during upgrades, particularly with database migrations in high availability (HA) deployments.

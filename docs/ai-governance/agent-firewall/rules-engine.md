@@ -1,5 +1,6 @@
 ---
 title: Rules engine documentation
+description: Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.
 ---
 
 > [!NOTE]

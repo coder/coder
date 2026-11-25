@@ -1,5 +1,7 @@
 ---
 title: Organizations
+description: Segment and isolate resources by creating separate organizations for different teams or projects.
+state: [premium]
 ---
 
 > [!NOTE]

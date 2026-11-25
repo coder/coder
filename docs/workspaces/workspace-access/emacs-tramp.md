@@ -1,5 +1,6 @@
 ---
 title: Emacs TRAMP
+description: Use Emacs TRAMP to edit files and run commands in your Coder workspace over SSH.
 ---
 
 [Emacs TRAMP](https://www.emacswiki.org/emacs/TrampMode) is a method of running editing operations on a remote server.

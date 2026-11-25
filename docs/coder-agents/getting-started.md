@@ -1,5 +1,6 @@
 ---
 title: Getting started
+description: Enable Coder Agents, prepare your deployment, and run your first Coder Agent.
 ---
 
 This guide walks platform teams and administrators through setting up Coder Agents, preparing your deployment, and running your first Coder Agent.

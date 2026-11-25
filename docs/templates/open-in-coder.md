@@ -1,5 +1,6 @@
 ---
 title: Open in Coder
+description: Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.
 ---
 
 You can embed an "Open in Coder" button into your git repos or internal wikis to let developers quickly launch a new workspace.

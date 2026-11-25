@@ -1,5 +1,7 @@
 ---
 title: Workspace proxies
+description: Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.
+state: [premium]
 ---
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.

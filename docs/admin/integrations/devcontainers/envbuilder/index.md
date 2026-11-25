@@ -1,5 +1,6 @@
 ---
 title: Envbuilder
+description: Use Envbuilder to build dev containers from a repository without requiring Docker.
 ---
 
 > [!WARNING]

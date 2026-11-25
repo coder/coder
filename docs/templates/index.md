@@ -1,5 +1,7 @@
 ---
 title: Templates
+description: Learn how to author, publish, and maintain the Coder templates that define your workspaces.
+icon_path: ./images/icons/picture.svg
 ---
 
 Templates are written in [Terraform](https://developer.hashicorp.com/terraform/intro) and define the underlying infrastructure that all Coder workspaces run on.

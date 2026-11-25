@@ -1,5 +1,6 @@
 ---
 title: Zed
+description: Configure the Zed editor's language models to route requests through AI Gateway.
 ---
 
 > [!NOTE]

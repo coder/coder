@@ -1,5 +1,7 @@
 ---
 title: Support
+description: Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.
+icon_path: ./images/icons/info.svg
 ---
 
 How you get help depends on whether your deployment uses the [Community](../reference/glossary.md#community) license tier or has a Premium license.

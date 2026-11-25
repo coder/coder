@@ -1,5 +1,6 @@
 ---
 title: Organizations - best practices
+description: Best practices for structuring and using Coder organizations effectively.
 ---
 
 ---

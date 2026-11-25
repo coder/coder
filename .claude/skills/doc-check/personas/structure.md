@@ -18,7 +18,7 @@ Each page has the right shape for its job, sits in the right place, and renders.
    - each step holds one action;
    - each step that produces a result says what the reader sees.
 3. Check the heading outline: one H1, no skipped levels, sentence case, no gerund leads.
-4. Check placement: the page is under the section its persona reads, a new page has a `docs/manifest/` entry, a staged feature has its `state:`, and a moved page has a redirect.
+4. Check placement: the page is under the section its persona reads, a new page has a `docs/manifest/` entry, a staged feature's highest page has `state:` in its front matter, and a moved page has a redirect.
 5. Check rendering: every HTML element and class the page uses matches what the docs renderer supports, every alert uses GitHub-Flavored Markdown syntax, and every table, list, and code block has the blank lines it needs to render.
    A wrong component class, such as `tab` where the component needs `tabs`, is `broken`.
 6. Check that every link resolves and every anchor exists at the head of the change.

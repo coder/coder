@@ -1,5 +1,7 @@
 ---
 title: Administration
+description: Guides for the template and deployment administrators who configure, secure, and operate Coder.
+icon_path: ./images/icons/wrench.svg
 ---
 
 ![Admin settings general page](../images/admin/admin-settings-general.png)

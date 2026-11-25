@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider scopes
+description: How access tokens are bounded by scope, and how to set an application's scope allowlist.
 ---
 
 An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions.

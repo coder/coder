@@ -1,5 +1,6 @@
 ---
 title: Image management
+description: Learn how to build and manage the container images that back your Coder templates.
 ---
 
 While Coder provides example [container images](https://github.com/coder/images) for workspaces, it's often best to create custom images that match the needs of your users.

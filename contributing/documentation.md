@@ -51,12 +51,13 @@ voice or product names:
 ## Feature states
 
 A feature state, such as `premium`, `beta`, or `early access`, marks a page in the sidebar and under the page title.
-Set it with the `state` key on the page's route in the YAML sidebar sources under [`docs/manifest/`](../docs/manifest/), not in the page title or H1.
+Set it with the `state` key in the page's front matter, not in the page title or H1.
+Pages whose state comes from a generator set it in that generator's `overlays.yml` under [`scripts/`](../scripts/) instead.
 
 A state on a route applies to that route and to every route beneath it.
 Follow these rules:
 
-1. Put the state on the highest route it applies to.
+1. Put the state on the page for the highest route it applies to.
    For a Premium feature with several pages, set `state: [premium]` on the feature's top-level route only.
 2. Do not repeat an ancestor's state on a descendant.
    The descendant inherits it.

@@ -1,5 +1,6 @@
 ---
 title: Add an Envbuilder template
+description: Add an Envbuilder-compatible template so users can build dev containers from a repository.
 ---
 
 > [!WARNING]

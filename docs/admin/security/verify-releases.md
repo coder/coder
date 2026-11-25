@@ -1,5 +1,6 @@
 ---
 title: Verify Coder releases
+description: Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.
 ---
 
 This guide is for Coder deployment administrators who download Coder release artifacts.

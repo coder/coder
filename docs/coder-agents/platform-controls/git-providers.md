@@ -1,5 +1,6 @@
 ---
 title: Git providers
+description: Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.
 ---
 
 Coder Agents leverages your existing [external authentication](../../admin/external-auth.md) configuration to power the in-chat diff viewer.

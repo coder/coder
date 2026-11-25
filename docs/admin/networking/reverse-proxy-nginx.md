@@ -1,5 +1,6 @@
 ---
 title: How to use NGINX as a reverse proxy with Let's Encrypt
+description: Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
 ---
 
 ## Requirements

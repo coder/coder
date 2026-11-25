@@ -1,5 +1,6 @@
 ---
 title: Logs
+description: Learn how Coder services write logs to standard error and how to collect them.
 ---
 
 All Coder services log to standard error, which can be critical for identifying errors and monitoring Coder's deployment health.

@@ -504,13 +504,15 @@ No Vale rule.*
 ## Page descriptions
 
 Each page declares a description that appears in search engine results, in social-media previews, and in screen-reader page summaries.
-The Coder docs site reads descriptions from `docs/manifest.json`, not from YAML front matter inside the Markdown file.
-That file is compiled from the sidebar sources under [`docs/manifest/`](../../manifest/index.yml), where each route maps a page to a `title` and a `description`:
+Each page declares its description in its YAML front matter, the block at the top of the Markdown file.
+The build copies that description into [`docs/manifest.json`](../../manifest.json), which the site reads.
+The sidebar source under [`docs/manifest/`](../../manifest/index.yml) maps the page to its `title` and `path`, and does not set a description:
 
-```yaml
-- title: Configure your workspace
-  description: Configure SSH access, environment variables, and autostart for a Coder workspace.
-  path: ./admin/workspaces/configure.md
+```markdown
+---
+title: Configure your workspace
+description: Configure SSH access, environment variables, and autostart for a Coder workspace.
+---
 ```
 
 A good description:
@@ -523,24 +525,30 @@ A good description:
 
 **Do**:
 
-```yaml
+```markdown
+---
 description: Configure SSH access, environment variables, and autostart for a Coder workspace.
+---
 ```
 
 **Don't**:
 
-```yaml
+```markdown
+---
 description: Workspace configuration
+---
 ```
 
-```yaml
+```markdown
+---
 description: The best, fastest, most reliable way to configure everything you need to know about Coder workspaces.
+---
 ```
 
 The short description tells the reader nothing.
 The marketing description doesn't survive truncation and adds no information.
 
-If a page doesn't yet have a description in the sidebar sources, add one in the same PR that touches the page.
+If a page doesn't yet have a description in its front matter, add one in the same PR that touches the page.
 
 *Enforced by `scripts/docsmanifestgen` (`make lint/docs-manifest`) for the trailing period only.
 No Vale rule.*

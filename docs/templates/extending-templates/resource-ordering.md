@@ -1,5 +1,6 @@
 ---
 title: UI resource ordering
+description: Control the order that resources and parameters appear in the workspace creation UI.
 ---
 
 In Coder templates, managing the order of UI elements is crucial for a seamless user experience.

@@ -1,5 +1,7 @@
 ---
 title: Configure ACP subagents
+description: Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.
+state: [early access]
 ---
 
 As a developer, you can use Agent Client Protocol (ACP) subagents to delegate parts of a Coder Agents task to external coding agents in your workspace.

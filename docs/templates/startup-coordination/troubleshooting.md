@@ -1,5 +1,6 @@
 ---
 title: Workspace startup coordination troubleshooting
+description: Diagnose and resolve common problems with workspace startup coordination and coder exp sync.
 ---
 
 For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.

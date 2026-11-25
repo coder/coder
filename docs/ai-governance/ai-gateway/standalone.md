@@ -1,5 +1,6 @@
 ---
 title: Deploy AI Gateway as a standalone service
+description: Deploy and operate AI Gateway as a standalone service.
 ---
 
 > [!NOTE]

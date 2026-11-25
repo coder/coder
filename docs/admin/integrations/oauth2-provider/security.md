@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider security and limitations
+description: Security considerations and current limitations of the OAuth2 provider.
 ---
 
 This page covers security guidance and current limitations.

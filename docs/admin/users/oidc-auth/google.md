@@ -1,5 +1,6 @@
 ---
 title: Google authentication (OIDC)
+description: Configure Coder to authenticate users with Google using OpenID Connect (OIDC).
 ---
 
 This guide shows how to configure Coder to authenticate users with Google using OpenID Connect (OIDC).

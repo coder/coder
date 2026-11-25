@@ -1,5 +1,6 @@
 ---
 title: Codex CLI
+description: Configure the Codex CLI to route requests through AI Gateway with a custom model provider.
 ---
 
 > [!NOTE]

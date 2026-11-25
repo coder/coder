@@ -1,5 +1,6 @@
 ---
 title: Conversation search syntax
+description: Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.
 ---
 
 The chat list endpoint accepts a `q` query parameter for filtering conversations.

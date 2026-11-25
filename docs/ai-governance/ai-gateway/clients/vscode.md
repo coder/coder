@@ -1,5 +1,6 @@
 ---
 title: VS Code
+description: Configure VS Code to route its AI model requests through Coder's AI Gateway.
 ---
 
 > [!NOTE]

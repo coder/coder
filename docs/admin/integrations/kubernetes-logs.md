@@ -1,5 +1,6 @@
 ---
 title: Kubernetes event logs
+description: Stream Kubernetes event logs into workspace startup logs to debug pod scheduling issues.
 ---
 
 To stream Kubernetes events into your workspace startup logs, you can use Coder's [`coder-logstream-kube`](https://github.com/coder/coder-logstream-kube) tool.

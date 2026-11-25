@@ -1,5 +1,7 @@
 ---
 title: Monitor Coder
+description: Monitor your Coder deployment with logs, metrics, health checks, and alerting best practices.
+icon_path: ./images/icons/speed.svg
 ---
 
 Learn about our the tools, techniques, and best practices to monitor your Coder deployment.

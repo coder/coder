@@ -1,6 +1,7 @@
 ---
 title: Identity-aware parameters
 description: Change parameters based on the roles and groups of the user creating the workspace.
+state: [premium]
 ---
 
 Identity-aware parameters change based on the roles and groups of the user filling in the workspace creation form.

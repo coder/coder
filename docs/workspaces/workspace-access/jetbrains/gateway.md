@@ -1,5 +1,6 @@
 ---
 title: JetBrains Gateway
+description: Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.
 ---
 
 ## JetBrains Gateway

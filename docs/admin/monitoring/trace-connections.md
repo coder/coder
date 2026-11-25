@@ -1,5 +1,6 @@
 ---
 title: Trace workspace connections
+description: Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.
 ---
 
 This guide is for Coder deployment administrators and platform teams who need to correlate workspace connection logs with client session IDs.

@@ -1,5 +1,6 @@
 ---
 title: Licensing & usage
+description: Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.
 ---
 
 Coder Agents licensing controls concurrent agent activity and Agent Time usage across your deployment.

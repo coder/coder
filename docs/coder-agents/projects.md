@@ -1,5 +1,7 @@
 ---
 title: Projects
+description: Group Coder Agents chats into projects with shared instructions, skills, and memory.
+state: [early access]
 ---
 
 > [!NOTE]

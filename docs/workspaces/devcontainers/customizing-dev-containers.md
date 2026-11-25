@@ -1,5 +1,6 @@
 ---
 title: Customizing dev containers
+description: Configure custom agent names, apps, and display options in devcontainer.json.
 ---
 
 Coder supports custom configuration in your `devcontainer.json` file through the `customizations.coder` block.

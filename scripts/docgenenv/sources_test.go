@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -43,13 +42,13 @@ children:
 	testRefAPI = `title: REST API
 path: ./ref/api/index.md
 children_from: generated/api.json
-children:
-  - title: Users
-    description: Manage users.
-    state: [beta]
 `
 	testAPI = `[{"title": "General", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
 )
+
+// usersPage is the front matter that gives the generated Users page its
+// metadata.
+const usersPage = "---\ndescription: Manage users.\nstate: [beta]\n---\n\n# Users\n"
 
 func validTree() map[string]string {
 	return map[string]string{
@@ -65,6 +64,7 @@ func TestBuildManifest(t *testing.T) {
 	t.Parallel()
 
 	docsDir, sourcesDir := writeTree(t, validTree())
+	require.NoError(t, os.WriteFile(filepath.Join(docsDir, "ref/api/users.md"), []byte(usersPage), 0o600))
 	m, err := docgenenv.BuildManifest(sourcesDir, docsDir)
 	require.NoError(t, err)
 
@@ -73,7 +73,8 @@ func TestBuildManifest(t *testing.T) {
 	api := m.FindRoute("Reference", "REST API")
 	require.NotNil(t, api)
 	require.Empty(t, api.ChildrenFrom)
-	// Generated routes keep their order; the overlay fills in metadata.
+	// Generated routes keep their order; each page's front matter fills in
+	// its metadata.
 	require.Equal(t, []docgenenv.Route{
 		{Title: "General", Path: "./ref/api/general.md"},
 		{Title: "Users", Description: "Manage users.", Path: "./ref/api/users.md", State: []string{"beta"}},
@@ -102,7 +103,21 @@ children_from: generated/api.yml
 	require.Equal(t, []docgenenv.Route{{Title: "General", Path: "./ref/api/general.md"}}, m.FindRoute("Reference", "REST API").Children)
 }
 
-func TestLoadManifestSourcesLeavesOverlaysUnresolved(t *testing.T) {
+func TestBuildManifestFillsMetadataFromCRLFFrontMatter(t *testing.T) {
+	t.Parallel()
+
+	docsDir, sourcesDir := writeTree(t, validTree())
+	page := "---\r\ndescription: The home page.\r\nicon_path: ./images/icons/home.svg\r\n---\r\n\r\n# Home\r\n"
+	require.NoError(t, os.WriteFile(filepath.Join(docsDir, "index.md"), []byte(page), 0o600))
+	m, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+	require.NoError(t, err)
+	home := m.FindRoute("Home")
+	require.NotNil(t, home)
+	require.Equal(t, "The home page.", home.Description)
+	require.Equal(t, "./images/icons/home.svg", home.IconPath)
+}
+
+func TestLoadManifestSourcesLeavesChildrenFromUnresolved(t *testing.T) {
 	t.Parallel()
 
 	_, sourcesDir := writeTree(t, validTree())
@@ -111,7 +126,7 @@ func TestLoadManifestSourcesLeavesOverlaysUnresolved(t *testing.T) {
 	api := m.FindRoute("Reference", "REST API")
 	require.NotNil(t, api)
 	require.Equal(t, "generated/api.json", api.ChildrenFrom)
-	require.Equal(t, []docgenenv.Route{{Title: "Users", Description: "Manage users.", State: []string{"beta"}}}, api.Children)
+	require.Empty(t, api.Children)
 }
 
 func TestBuildManifestErrors(t *testing.T) {
@@ -120,6 +135,7 @@ func TestBuildManifestErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		edit    func(files map[string]string)
+		pages   map[string]string
 		wantErr string
 		// Set for OS errors, whose text differs between platforms.
 		wantErrIs error
@@ -160,31 +176,32 @@ func TestBuildManifestErrors(t *testing.T) {
 			wantErr: "must be a relative path inside the sources directory",
 		},
 		{
-			name: "UnmatchedOverlay",
+			name: "ChildrenFromWithChildren",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "General", "path": "./ref/api/general.md"}]`
+				f["ref/api.yml"] = testRefAPI + "children:\n  - title: Users\n    path: ./ref/api/users.md\n"
 			},
-			wantErr: `overlay "Users" matches no route in generated/api.json`,
+			wantErr: "ref/api.yml: Reference > REST API: children_from supplies the children; remove the children list",
 		},
 		{
-			name: "ConflictingOverlay",
+			name: "SidebarDescription",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "Users", "description": "Generated.", "path": "./ref/api/users.md"}]`
+				f["home.yml"] = "title: Home\ndescription: The home page.\npath: ./index.md\n"
 			},
-			wantErr: `overlay description "Manage users." conflicts with generated "Generated."`,
+			wantErr: "home.yml: Home: description, icon_path, and state belong in the page's front matter",
 		},
 		{
-			name: "OverlayWithPath",
+			name: "SidebarState",
 			edit: func(f map[string]string) {
-				f["ref/api.yml"] = `title: REST API
-path: ./ref/api/index.md
-children_from: generated/api.json
-children:
-  - title: Users
-    path: ./ref/api/users.md
-`
+				f["home.yml"] = "title: Home\nstate: [beta]\npath: ./index.md\n"
 			},
-			wantErr: "overlays under children_from may set only",
+			wantErr: "home.yml: Home: description, icon_path, and state belong in the page's front matter",
+		},
+		{
+			name: "SidebarChildDescription",
+			edit: func(f map[string]string) {
+				f["ref.yml"] = testRef + "  - title: Home again\n    description: Same page.\n    path: ./index.md\n"
+			},
+			wantErr: "ref.yml: Reference > Home again: description, icon_path, and state belong in the page's front matter",
 		},
 		{
 			name: "GrandchildrenInOneFile",
@@ -286,39 +303,19 @@ children:
 			wantErr: "home.yml: line 2: description has a trailing comment",
 		},
 		{
-			name: "DescriptionWithoutPeriod",
-			edit: func(f map[string]string) {
-				f["home.yml"] = "title: Home\ndescription: The home page\npath: ./index.md\n"
-			},
-			wantErr: `home.yml: Home: description must end with a period: "The home page"`,
-		},
-		{
-			name: "DescriptionWithQuestionMark",
-			edit: func(f map[string]string) {
-				f["home.yml"] = "title: Home\ndescription: Where do I start?\npath: ./index.md\n"
-			},
-			wantErr: `home.yml: Home: description must end with a period: "Where do I start?"`,
-		},
-		{
-			name: "ChildDescriptionWithoutPeriod",
-			edit: func(f map[string]string) {
-				f["ref.yml"] = testRef + "  - title: Home again\n    description: Same page\n    path: ./index.md\n"
-			},
-			wantErr: `ref.yml: Reference > Home again: description must end with a period: "Same page"`,
-		},
-		{
-			name: "OverlayDescriptionWithoutPeriod",
-			edit: func(f map[string]string) {
-				f["ref/api.yml"] = strings.Replace(testRefAPI, "Manage users.", "Manage users", 1)
-			},
-			wantErr: `ref/api.yml: Reference > REST API > Users: description must end with a period: "Manage users"`,
-		},
-		{
 			name: "FragmentDescriptionWithoutPeriod",
 			edit: func(f map[string]string) {
-				f["generated/api.json"] = `[{"title": "General", "description": "General endpoints", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
+				f["generated/api.json"] = `[{"title": "General", "description": "General endpoints", "path": "./ref/api/general.md"}]`
 			},
 			wantErr: `generated/api.json: General: description must end with a period: "General endpoints"`,
+		},
+		{
+			name: "ConflictingFrontMatter",
+			edit: func(f map[string]string) {
+				f["generated/api.json"] = `[{"title": "General", "path": "./ref/api/general.md"}, {"title": "Users", "description": "Generated.", "path": "./ref/api/users.md"}]`
+			},
+			pages:   map[string]string{"ref/api/users.md": usersPage},
+			wantErr: `ref/api/users.md: Reference > REST API > Users: front matter description "Manage users." conflicts with "Generated." set on the route`,
 		},
 		{
 			name:    "MultipleDocuments",
@@ -331,6 +328,9 @@ children:
 			files := validTree()
 			tc.edit(files)
 			docsDir, sourcesDir := writeTree(t, files)
+			for page, content := range tc.pages {
+				require.NoError(t, os.WriteFile(filepath.Join(docsDir, page), []byte(content), 0o600))
+			}
 			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
 			require.ErrorContains(t, err, tc.wantErr)
 			if tc.wantErrIs != nil {

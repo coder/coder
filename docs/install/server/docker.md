@@ -1,5 +1,7 @@
 ---
 title: Install Coder via Docker
+description: Install and run Coder using the official Docker images for a quick single-machine deployment.
+icon_path: ./images/icons/docker.svg
 ---
 
 You can install and run Coder using the official Docker images published on [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).

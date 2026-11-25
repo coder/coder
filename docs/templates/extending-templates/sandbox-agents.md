@@ -1,5 +1,6 @@
 ---
 title: Sandbox agents
+description: Run AI agents in workspaces with fast startup and kernel, network, and secret isolation.
 ---
 
 The term "sandboxing" has become popular in the era of agentic coding to describe secure, isolated environments for AI agents.

@@ -1,5 +1,6 @@
 ---
 title: Scale Testing
+description: Plan and run scale tests to make sure your Coder deployment can handle your organization's load.
 ---
 
 Scaling Coder involves planning and testing to make sure it can handle more load without compromising service.

@@ -1,5 +1,6 @@
 ---
 title: Agent Relay for Cursor
+description: Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.
 ---
 
 > [!NOTE]

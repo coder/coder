@@ -1,5 +1,6 @@
 ---
 title: Coder Desktop Connect and Sync
+description: Use Coder Desktop to connect to workspaces and sync their code and files to your local machine.
 ---
 
 Use Coder Desktop to work on your workspaces and files as though they're on your local area network (LAN).

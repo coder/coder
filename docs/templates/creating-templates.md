@@ -1,5 +1,6 @@
 ---
 title: Creating templates
+description: Create a Coder template with Terraform to define the infrastructure for your workspaces.
 ---
 
 Users with the `Template Administrator` role or above can create templates within Coder.

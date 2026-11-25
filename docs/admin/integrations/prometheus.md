@@ -1,5 +1,6 @@
 ---
 title: Prometheus
+description: Collect and export Coder deployment metrics to a Prometheus server for monitoring.
 ---
 
 

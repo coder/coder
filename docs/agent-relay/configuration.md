@@ -1,5 +1,6 @@
 ---
 title: Agent Relay configuration reference
+description: Every Agent Relay option, pool field, and Helm chart value for the beta.
 ---
 
 This page lists the Agent Relay options, pool fields, and Helm chart values that the beta supports.

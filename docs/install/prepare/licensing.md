@@ -1,5 +1,7 @@
 ---
 title: Licensing
+description: Add and manage Coder licenses to unlock Premium and AI Governance features.
+icon_path: ./images/icons/licensing.svg
 ---
 
 Some features are only accessible with a Premium license, including [AI Governance](../../ai-governance/index.md).

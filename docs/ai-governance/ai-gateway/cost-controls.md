@@ -1,5 +1,6 @@
 ---
 title: AI Governance cost control
+description: Configure AI Gateway budgets, enforcement, notifications, and spend reporting.
 ---
 
 > [!NOTE]

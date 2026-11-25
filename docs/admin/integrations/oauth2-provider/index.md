@@ -1,5 +1,6 @@
 ---
 title: OAuth2 provider
+description: Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.
 ---
 
 > [!NOTE]

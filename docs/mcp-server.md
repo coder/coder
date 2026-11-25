@@ -1,5 +1,8 @@
 ---
 title: MCP server
+description: Connect external AI coding agents to Coder using its built-in Model Context Protocol server.
+icon_path: ./images/icons/plug.svg
+state: [beta]
 ---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that provides AI assistants with tools and context about your Coder deployment.

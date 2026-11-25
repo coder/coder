@@ -1,5 +1,7 @@
 ---
 title: Access your workspace
+description: Connect to your Coder workspace using SSH, your IDE, a web terminal, remote desktop, and more.
+icon_path: ./images/icons/access.svg
 ---
 
 There are many ways to connect to your workspace, the options are only limited by the template configuration.

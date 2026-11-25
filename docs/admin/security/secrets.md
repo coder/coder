@@ -1,5 +1,6 @@
 ---
 title: Secrets
+description: Learn the recommended ways to get secrets into your Coder workspaces securely.
 ---
 
 Coder is open-minded about how you get your secrets into your workspaces.

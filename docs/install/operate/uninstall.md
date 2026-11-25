@@ -1,5 +1,7 @@
 ---
 title: Uninstall
+description: Learn how to uninstall your Coder deployment and remove its associated resources.
+icon_path: ./images/icons/trash.svg
 ---
 
 <!-- markdownlint-disable MD024 -->

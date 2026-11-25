@@ -1,5 +1,6 @@
 ---
 title: Conversation auto-archive
+description: Automatically archive long-inactive Coder Agents conversations to keep chat lists tidy.
 ---
 
 Coder Agents automatically archives long-inactive conversations so they drop out of active chat lists without any user intervention.

@@ -55,10 +55,10 @@ func init() {
 			"subcommandLink": subcommandLink,
 			// frontMatter renders the page's YAML front matter through the
 			// shared docgenenv emitter, so the CLI and API generators cannot
-			// drift on field set, ordering, or escaping. The CLI index mirrors
-			// the "Command Line" manifest route (main populates cliIndexRoute
-			// before the template runs); every other page uses the command's
-			// own name and short description.
+			// drift on field set, ordering, or escaping. The CLI index uses
+			// its overlay (main populates cliIndexRoute before the template
+			// runs); every other page uses the command's own name and short
+			// description.
 			"frontMatter": func(cmd *serpent.Command) string {
 				if cmd.FullName() == "coder" {
 					return docgenenv.FrontMatter(cliIndexRoute)
@@ -160,17 +160,6 @@ func cliManifestChildren(cmd *serpent.Command) []docgenenv.Route {
 		children = append(children, cliManifestRoute(sub))
 	}
 	return children
-}
-
-// cliIndexRouteFrom returns the CLI index page's route: a copy of the "Command
-// Line" manifest route with its nav children dropped. Copying the whole route
-// instead of enumerating fields means the index front matter mirrors every
-// current and future per-page field (including curated icon_path and state)
-// automatically, so it can't drift from the shared docgenenv.FrontMatter
-// emitter the way a hand-written field list would.
-func cliIndexRouteFrom(cmdLine docgenenv.Route) docgenenv.Route {
-	cmdLine.Children = nil
-	return cmdLine
 }
 
 // fmtDocFilename returns the path of cmd's reference page relative to the CLI

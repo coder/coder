@@ -1,5 +1,6 @@
 ---
 title: Setup
+description: Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.
 ---
 
 AI Gateway Proxy runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale.

@@ -1,5 +1,6 @@
 ---
 title: MCP
+description: Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.
 ---
 
 > [!NOTE]

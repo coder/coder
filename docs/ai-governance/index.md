@@ -1,5 +1,8 @@
 ---
 title: AI Governance
+description: "Govern AI usage at scale with AI Governance: AI Gateway, Agent Firewall, and reporting."
+icon_path: ./images/icons/ai_intelligence.svg
+state: [premium]
 ---
 
 Coder Workspaces already lets teams run AI tools like [Cursor](https://registry.coder.com/modules/coder/cursor) and [Claude Code](https://registry.coder.com/modules/coder/claude-code) inside their development environments.

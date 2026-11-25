@@ -25,9 +25,9 @@ import (
 	"github.com/coder/flog"
 )
 
-// routeTitles is the sidebar breadcrumb to this page's route. The page
-// mirrors that route's metadata into its front matter, so the sidebar sources
-// stay the single source of the title and description.
+// routeTitles is the sidebar breadcrumb to this page's route. The sidebar
+// sources supply the title, and the overlays file supplies the description and
+// icon.
 var routeTitles = []string{"Reference", "API key scopes"}
 
 var exampleScopes = []rbac.ScopeName{
@@ -82,6 +82,7 @@ Use the canonical name.
 func main() {
 	sourcesDir := flag.String("manifest-sources", filepath.Join("docs", docgenenv.ManifestSourcesDir), "directory of the docs sidebar sources that supply the page metadata")
 	out := flag.String("out", "docs/reference/api-key-scopes.md", "path to write the generated reference page")
+	overlaysFile := flag.String("overlays", filepath.Join("scripts", "scopesdocgen", "overlays.yml"), "path to the overlays file with the page metadata")
 	flag.Parse()
 
 	manifest, err := docgenenv.LoadManifestSources(*sourcesDir)
@@ -93,7 +94,12 @@ func main() {
 		flog.Fatalf("sidebar sources %q have no route %q", *sourcesDir, strings.Join(routeTitles, " > "))
 	}
 
-	content, err := render(*route)
+	overlays, err := docgenenv.LoadOverlays(*overlaysFile)
+	if err != nil {
+		flog.Fatalf("%v", err)
+	}
+
+	content, err := render(overlays.Index.Route(route.Title))
 	if err != nil {
 		flog.Fatalf("render scopes reference: %v", err)
 	}

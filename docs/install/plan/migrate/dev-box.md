@@ -1,5 +1,6 @@
 ---
 title: Migrate from Microsoft Dev Box to Coder
+description: Move Microsoft Dev Box dev centers, projects, and pools to Coder templates, with Windows workspaces on Azure.
 ---
 
 This guide is for platform engineers who run Microsoft Dev Box and want to move their developer environments to a self-hosted Coder deployment.

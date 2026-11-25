@@ -93,3 +93,26 @@ func TestExtractSectionName(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "scanning section")
 }
+
+// TestCheckedInOverlays pins the REST API metadata the generator reads from
+// overlays.yml: the index page takes its icon from the overlay, and each
+// section's description is keyed by its title.
+func TestCheckedInOverlays(t *testing.T) {
+	t.Parallel()
+
+	overlays, err := docgenenv.LoadOverlays("overlays.yml")
+	require.NoError(t, err)
+
+	index := overlays.Index.Route("REST API")
+	require.Equal(t, "./images/icons/api.svg", index.IconPath)
+	require.Contains(t, docgenenv.FrontMatter(index), `icon_path: "./images/icons/api.svg"`)
+
+	sections := make(map[string]string, len(overlays.Sections))
+	for _, s := range overlays.Sections {
+		sections[s.Title] = s.Description
+	}
+	require.Equal(t, map[string]string{
+		"Agents": "REST endpoints for the workspace agent daemon (`coder_agent`).",
+		"Chats":  "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
+	}, sections)
+}

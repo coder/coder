@@ -1,5 +1,7 @@
 ---
 title: Cloud platforms
+description: Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.
+icon_path: ./images/icons/cloud.svg
 ---
 
 We provide install guides and example templates for deploying Coder to your cloud of choice.

@@ -1,5 +1,6 @@
 ---
 title: Configure a template for Dev Containers
+description: Configure a Coder template for native dev containers backed by Docker.
 ---
 
 > [!TIP]

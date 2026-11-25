@@ -1,5 +1,6 @@
 ---
 title: "Reference architecture: up to 1,000 users"
+description: Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users.
 ---
 
 The 1,000 users architecture is designed to cover a wide range of workflows.

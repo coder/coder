@@ -1,5 +1,6 @@
 ---
 title: JetBrains Toolbox
+description: Connect to and manage your Coder workspaces from the JetBrains Toolbox app.
 ---
 
 JetBrains Toolbox helps you manage JetBrains products and includes remote development capabilities for connecting to Coder workspaces.

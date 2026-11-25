@@ -1,5 +1,6 @@
 ---
 title: "Reference architecture: up to 3,000 users"
+description: Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users.
 ---
 
 The 3,000 users architecture targets large-scale enterprises, possibly with on-premises network and cloud deployments.

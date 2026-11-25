@@ -1,5 +1,6 @@
 ---
 title: GitHub Copilot
+description: Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.
 ---
 
 > [!NOTE]

@@ -1,5 +1,7 @@
 ---
 title: High availability
+description: Configure Coder in high availability (HA) mode for horizontal scalability and failover.
+state: [premium]
 ---
 
 High Availability (HA) mode solves for horizontal scalability and automatic failover within a single region.

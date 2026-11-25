@@ -11,10 +11,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-// cliIndexRoute holds the "Command Line" manifest route's metadata so the
-// generated index page can mirror it through the shared docgenenv.FrontMatter
-// emitter (see the frontMatter template func in gen.go). main populates it
-// before genTree runs.
+// cliIndexRoute holds the "Command Line" index page's metadata, read from
+// scripts/clidocgen/overlays.yml, so the generated index page can emit it
+// through the shared docgenenv.FrontMatter emitter (see the frontMatter
+// template func in gen.go). main populates it before genTree runs.
 var cliIndexRoute docgenenv.Route
 
 func deleteEmptyDirs(dir string) error {
@@ -62,9 +62,8 @@ func main() {
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	}
 
-	// Load the sidebar sources up front so the generated index page can mirror
-	// the "Command Line" route's curated metadata (title/description/icon_path)
-	// instead of the root command name.
+	// Load the sidebar sources up front for the "Command Line" route's title
+	// and children_from, and the overlay for the index page's metadata.
 	sourcesDir := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
 	man, err := docgenenv.LoadManifestSources(sourcesDir)
 	if err != nil {
@@ -77,10 +76,11 @@ func main() {
 	if cmdLine.ChildrenFrom == "" {
 		flog.Fatalf("Command Line route in sidebar sources %q must set children_from", sourcesDir)
 	}
-	// Mirror the whole "Command Line" route (minus its nav children) so the
-	// index page front matter carries every current and future per-page field
-	// automatically, the same way the API index mirrors its manifest route.
-	cliIndexRoute = cliIndexRouteFrom(*cmdLine)
+	overlays, err := docgenenv.LoadOverlays(filepath.Join(workdir, "scripts", "clidocgen", "overlays.yml"))
+	if err != nil {
+		flog.Fatalf("%v", err)
+	}
+	cliIndexRoute = overlays.Index.Route(cmdLine.Title)
 
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	if err != nil {

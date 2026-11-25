@@ -1,5 +1,7 @@
 ---
 title: Users
+description: Learn how to create, manage, and audit users and their access in your Coder deployment.
+icon_path: ./images/icons/users.svg
 ---
 
 By default, Coder is accessible via password authentication.

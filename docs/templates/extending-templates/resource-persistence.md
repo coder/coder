@@ -1,5 +1,6 @@
 ---
 title: Resource persistence
+description: Control which workspace resources persist across restarts and which are recreated on each build.
 ---
 
 By default, all Coder resources are persistent, but production templates **must** use the practices laid out in this document to prevent accidental deletion.

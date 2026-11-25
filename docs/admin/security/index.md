@@ -1,5 +1,7 @@
 ---
 title: Security
+description: Secure your Coder deployment with audit logs, secrets management, and database encryption.
+icon_path: ./images/icons/lock.svg
 ---
 
 <children></children>

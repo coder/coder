@@ -1,5 +1,6 @@
 ---
 title: Cursor
+description: Access your Coder workspace with Cursor, the AI-powered code editor, over SSH.
 ---
 
 [Cursor](https://cursor.sh/) is a modern IDE built on top of VS Code with enhanced AI capabilities.

@@ -1,5 +1,6 @@
 ---
 title: FAQs
+description: Answers to frequently asked questions about Coder OSS and licensed deployments.
 ---
 
 Frequently asked questions on Coder open source software (OSS) and licensed deployments.

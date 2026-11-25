@@ -1,5 +1,7 @@
 ---
 title: Coder Desktop
+description: Transform remote workspaces into seamless local development environments with no port forwarding required.
+icon_path: ./images/icons/computer-code.svg
 ---
 
 Coder Desktop provides seamless access to your remote workspaces through a native application.

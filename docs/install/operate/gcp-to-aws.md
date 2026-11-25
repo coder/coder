@@ -1,5 +1,6 @@
 ---
 title: Federate a Google Cloud service account to AWS
+description: Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.
 ---
 
 <div>

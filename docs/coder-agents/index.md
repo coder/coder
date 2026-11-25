@@ -1,5 +1,7 @@
 ---
 title: Coder Agents
+description: Delegate development work to coding agents in your deployment with Coder Agents, a chat interface and API.
+icon_path: ./images/icons/wand.svg
 ---
 
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment.

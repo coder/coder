@@ -1,5 +1,6 @@
 ---
 title: Google Cloud Platform
+description: Deploy the Coder control plane on a Google Cloud Compute Engine virtual machine.
 ---
 
 In this guide, you will learn how to deploy the Coder control plane instance and your first template.

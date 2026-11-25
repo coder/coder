@@ -1,5 +1,6 @@
 ---
 title: Provider configuration
+description: Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.
 ---
 
 > [!NOTE]

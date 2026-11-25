@@ -1,5 +1,6 @@
 ---
 title: Upgrade from ESR 2.29 to 2.34
+description: A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.
 ---
 
 ## Guide Overview

@@ -1,5 +1,6 @@
 ---
 title: Migrate to Coder
+description: Move developer environments from another platform to a self-hosted Coder deployment.
 ---
 
 These guides are for platform engineers who run developer environments on another platform and plan to move them to a self-hosted Coder deployment.
