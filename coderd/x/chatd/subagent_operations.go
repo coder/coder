@@ -51,7 +51,7 @@ func (p *Server) awaitSubagent(
 	// Recording a computer_use child is best-effort and never blocks the wait.
 	var recordingID string
 	var agentConn workspacesdk.AgentConn
-	if target := p.subagentTargetChatInfo(ctx, targetChatID, "recording"); target != nil && target.Mode.Valid && target.Mode.ChatMode == database.ChatModeComputerUse && target.AgentID.Valid && p.agentConnFn != nil {
+	if target := p.subagentTargetChatInfo(ctx, targetChatID, "recording"); target != nil && target.Mode.Valid && target.Mode.ChatMode == database.ChatModeComputerUse && target.AgentID.Valid && p.agentConnFn != nil && p.canRecordSubagentWorkspace(ctx, parent.OwnerID, *target) {
 		conn, closeFn, connErr := p.agentConnFn(ctx, target.AgentID.UUID)
 		if connErr == nil {
 			agentConn = conn
@@ -181,6 +181,29 @@ func (p *Server) listSubagents(ctx context.Context, parentChatID uuid.UUID) ([]d
 		return strings.Compare(b.ID.String(), a.ID.String())
 	})
 	return children, nil
+}
+
+// canRecordSubagentWorkspace reports whether ownerID may still use the
+// workspace of a computer_use subagent, so wait_agent dials its agent to
+// record the desktop only while the chat owner has access.
+func (p *Server) canRecordSubagentWorkspace(ctx context.Context, ownerID uuid.UUID, target database.Chat) bool {
+	if !target.WorkspaceID.Valid {
+		return false
+	}
+	logger := p.logger.With(slog.F("chat_id", target.ID), slog.F("workspace_id", target.WorkspaceID.UUID))
+	workspace, err := p.db.GetWorkspaceByID(ctx, target.WorkspaceID.UUID)
+	if err != nil {
+		logger.Warn(ctx, "skipping desktop recording: failed to load workspace", slog.Error(err))
+		return false
+	}
+	if workspace.Deleted {
+		return false
+	}
+	if err := p.authorizeChatWorkspace(ctx, ownerID, workspace); err != nil {
+		logger.Warn(ctx, "skipping desktop recording: chat owner cannot use workspace", slog.Error(err))
+		return false
+	}
+	return true
 }
 
 func (p *Server) subagentTargetChatInfo(ctx context.Context, chatID uuid.UUID, operation string) *database.Chat {
