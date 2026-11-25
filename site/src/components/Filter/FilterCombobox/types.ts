@@ -23,7 +23,7 @@ export type FilterCategory = {
 	label: string;
 	/** Picking a value replaces other values in this category. */
 	singleSelect?: boolean;
-	getOptions: (query: string) => Promise<FilterOption[]>;
+	getOptions: (query: string) => Promise<readonly FilterOption[]>;
 	icon?: React.ReactNode;
 	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];

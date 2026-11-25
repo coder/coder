@@ -1,5 +1,7 @@
 import { InfoIcon } from "lucide-react";
+import { hasError, isApiValidationError } from "#/api/errors";
 import type { AIBridgeSession } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -27,6 +29,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 type ListSessionsPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
+	isPlaceholderData: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -60,6 +63,7 @@ const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
 export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
+	isPlaceholderData,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -84,13 +88,19 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 
 	return (
 		<>
-			<ListSessionsFilter {...filterProps} />
+			<div className="mb-4 flex flex-col gap-4">
+				{hasError(filterProps.error) &&
+					!isApiValidationError(filterProps.error) && (
+						<ErrorAlert error={filterProps.error} />
+					)}
+				<ListSessionsFilter {...filterProps} />
+			</div>
 
 			<PaginationContainer
 				query={sessionsQuery}
 				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
 			>
-				<Table className="text-sm font-normal">
+				<Table className="text-sm font-normal" aria-busy={isFetching}>
 					<TableHeader>
 						<TableRow>
 							<TableHead className="text-nowrap">Last prompt</TableHead>
@@ -136,7 +146,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading || isFetching ? (
+						{isLoading || isPlaceholderData ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

@@ -67,7 +67,7 @@ const AppearancePage: React.FC = () => {
 		},
 	);
 
-	const title = <title>{pageTitle("Appearance", "Settings")}</title>;
+	const title = <title>{pageTitle("Theme", "Settings")}</title>;
 
 	if (appearanceSettingsQuery.isLoading) {
 		return (

@@ -182,6 +182,19 @@ const meta: Meta<typeof WorkspacesPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
 
+const StatefulWorkspacesPageView: Story["render"] = (args) => {
+	const [checkedWorkspaces, setCheckedWorkspaces] = useState(
+		args.checkedWorkspaces,
+	);
+	return (
+		<WorkspacesPageView
+			{...args}
+			checkedWorkspaces={checkedWorkspaces}
+			onCheckChange={setCheckedWorkspaces}
+		/>
+	);
+};
+
 export const SelectAllMixedEligibility: Story = {
 	args: {
 		workspaces: [
@@ -191,18 +204,7 @@ export const SelectAllMixedEligibility: Story = {
 		],
 		count: 3,
 	},
-	render: function Render(args) {
-		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
-			readonly Workspace[]
-		>([]);
-		return (
-			<WorkspacesPageView
-				{...args}
-				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={setCheckedWorkspaces}
-			/>
-		);
-	},
+	render: StatefulWorkspacesPageView,
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("checkbox", {
@@ -237,18 +239,7 @@ export const SelectedIneligibleWorkspaces: Story = {
 		...NoEligibleWorkspaces.args,
 		checkedWorkspaces: NoEligibleWorkspaces.args?.workspaces,
 	},
-	render: function Render(args) {
-		const [checkedWorkspaces, setCheckedWorkspaces] = useState(
-			args.checkedWorkspaces,
-		);
-		return (
-			<WorkspacesPageView
-				{...args}
-				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={setCheckedWorkspaces}
-			/>
-		);
-	},
+	render: StatefulWorkspacesPageView,
 };
 
 export const FilteredPaginationSummary: Story = {
@@ -785,6 +776,7 @@ export const WithCheckedWorkspaces: Story = {
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
 	},
+	render: StatefulWorkspacesPageView,
 };
 
 // An invalid filter query returns an API validation error. The page suppresses

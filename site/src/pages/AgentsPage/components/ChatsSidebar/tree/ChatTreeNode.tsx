@@ -50,6 +50,10 @@ type ChatTreeNodeProps = {
 	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
+	/** When omitted, the "Move up" item is hidden. */
+	readonly onMovePinUp?: () => void;
+	/** When omitted, the "Move down" item is hidden. */
+	readonly onMovePinDown?: () => void;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -58,6 +62,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
 	dragHandleProps,
+	onMovePinUp,
+	onMovePinDown,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -235,6 +241,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => pinMutation.mutate(chat.id),
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onMovePinUp,
+		onMovePinDown,
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
 		onMarkRead: isActiveChat

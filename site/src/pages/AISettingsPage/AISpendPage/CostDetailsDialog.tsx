@@ -23,21 +23,29 @@ import {
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
+import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT } from "#/utils/time";
 
 dayjs.extend(utc);
 
+export type CostDetailsUser = Pick<
+	OrganizationAISpendOverviewUser,
+	"username" | "name" | "avatar_url" | "spend_micros"
+>;
+
 type CostDetailsDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onCloseAutoFocus: (event: Event) => void;
-	user: OrganizationAISpendOverviewUser;
+	user: CostDetailsUser;
 	/** Undefined while the user's details load, null when they have none. */
 	details: OrganizationAISpendUser | null | undefined;
 	detailsError: Error | null;
 	period: AISpendPeriodWindow;
 	organizationName: string;
+	onOpenDetailedReport?: () => void;
 };
 
 export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
@@ -49,6 +57,7 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 	detailsError,
 	period,
 	organizationName,
+	onOpenDetailedReport,
 }) => {
 	const displayName = user.name || user.username;
 	const startDate = dayjs
@@ -114,8 +123,30 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 									),
 								}))}
 							/>
-							<SpendSection title="Models" items={details.model_spend} />
-							<SpendSection title="Clients" items={details.client_spend} />
+							<SpendSection
+								title="Models"
+								items={details.model_spend.map((model) => ({
+									...model,
+									icon: (
+										<AIBridgeModelIcon
+											model={model.name}
+											className="size-icon-sm"
+										/>
+									),
+								}))}
+							/>
+							<SpendSection
+								title="Clients"
+								items={details.client_spend.map((client) => ({
+									...client,
+									icon: (
+										<AIBridgeClientIcon
+											client={client.name}
+											className="size-icon-sm"
+										/>
+									),
+								}))}
+							/>
 						</div>
 					</ScrollArea>
 				)}
@@ -123,8 +154,9 @@ export const CostDetailsDialog: React.FC<CostDetailsDialogProps> = ({
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						Close
 					</Button>
-					{/* TODO(AIGOV-731): open the Detailed report tab once it is built. */}
-					<Button disabled>Run detailed report</Button>
+					{onOpenDetailedReport && (
+						<Button onClick={onOpenDetailedReport}>Run detailed report</Button>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

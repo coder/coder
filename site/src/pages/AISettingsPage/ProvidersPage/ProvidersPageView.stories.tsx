@@ -53,6 +53,11 @@ export const Loading: Story = {
 	},
 };
 
+export const Refetching: Story = {
+	args: { isFetching: true },
+	parameters: { pixel: { exclude: false } },
+};
+
 export const EmptyProviders: Story = {
 	args: {
 		providers: [],
