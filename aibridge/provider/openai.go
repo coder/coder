@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -154,6 +155,10 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
 }
+
+// CreateExtractor returns nil. The chat completions and responses routes have
+// no extractor yet.
+func (*OpenAI) CreateExtractor(string) extractors.Extractor { return nil }
 
 // ResolveCredential determines the upstream credential for a request.
 // Coder authentication credentials must already have been removed from it.

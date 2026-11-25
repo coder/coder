@@ -1,10 +1,4 @@
-import {
-	createEvent,
-	fireEvent,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { API } from "#/api/api";
@@ -87,7 +81,7 @@ describe("AuditPage", () => {
 		screen.getByTestId(`audit-log-row-${MockAuditLog2.id}`);
 	});
 
-	it("toggles an expandable audit row with Enter", async () => {
+	it("toggles an expandable audit row once per Enter, Space, or click", async () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
@@ -96,49 +90,19 @@ describe("AuditPage", () => {
 
 		await renderPage();
 
+		const user = userEvent.setup();
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
-		const expandableRowButton = within(row).getByRole("button");
+		const toggle = within(row).getByRole("button", { name: "View changes" });
 
-		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
+		toggle.focus();
+		await user.keyboard("{Enter}");
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+		await user.keyboard(" ");
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
-		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
-
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
-
-		await waitFor(() => {
-			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
-		});
-	});
-
-	it("toggles an expandable audit row with Space and prevents default", async () => {
-		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
-			audit_logs: [MockAuditLog],
-			count: 1,
-			count_cap: 0,
-		});
-
-		await renderPage();
-
-		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
-		const expandableRowButton = within(row).getByRole("button");
-		const spaceEvent = createEvent.keyDown(expandableRowButton, {
-			key: " ",
-			code: "Space",
-		});
-		const preventDefaultSpy = vi.spyOn(spaceEvent, "preventDefault");
-
-		fireEvent(expandableRowButton, spaceEvent);
-
-		expect(preventDefaultSpy).toHaveBeenCalled();
-		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
-
-		fireEvent.keyDown(expandableRowButton, { key: " " });
-
-		await waitFor(() => {
-			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
-		});
+		await user.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 	});
 
 	describe("Filtering", () => {
@@ -160,14 +124,36 @@ describe("AuditPage", () => {
 		});
 
 		it("resets page to 1 when filter is changed", async () => {
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog, MockAuditLog2],
+				count: DEFAULT_RECORDS_PER_PAGE + 1,
+				count_cap: 0,
+			});
 			await renderPage({ page: 2 });
+			expect(getAuditLogsSpy).toHaveBeenLastCalledWith({
+				limit: DEFAULT_RECORDS_PER_PAGE,
+				offset: DEFAULT_RECORDS_PER_PAGE,
+				q: "",
+			});
 
-			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
-			getAuditLogsSpy.mockClear();
-
-			const filterField = screen.getByLabelText("Filter");
+			const filterField = screen.getByRole("combobox", {
+				name: "Search and filter audit logs…",
+			});
 			const query = "resource_type:workspace action:create";
-			await userEvent.type(filterField, query);
+			const user = userEvent.setup();
+			await user.type(filterField, "resource_type:");
+			await user.click(
+				await screen.findByRole("option", { name: "Workspace" }),
+			);
+			await waitFor(() =>
+				expect(getAuditLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "resource_type:workspace",
+				}),
+			);
+			await user.type(filterField, "action:");
+			await user.click(await screen.findByRole("option", { name: "Create" }));
 
 			await waitFor(() =>
 				expect(getAuditLogsSpy).toHaveBeenCalledWith<[AuditLogsRequest]>({

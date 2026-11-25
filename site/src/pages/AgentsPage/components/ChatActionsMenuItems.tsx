@@ -1,6 +1,8 @@
 import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	ArrowDownIcon,
+	ArrowUpIcon,
 	BotIcon,
 	CopyIcon,
 	GitBranchIcon,
@@ -136,6 +138,10 @@ type ChatActionsMenuItemsProps = {
 	readonly onToggleSubagents?: () => void;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
+	/** When omitted, the "Move up" item is hidden. */
+	readonly onMovePinUp?: () => void;
+	/** When omitted, the "Move down" item is hidden. */
+	readonly onMovePinDown?: () => void;
 	/** Omit either read handler to hide the read-state toggle. */
 	readonly onMarkRead?: () => void;
 	readonly onMarkUnread?: () => void;
@@ -327,6 +333,8 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onToggleSubagents,
 	onPinAgent,
 	onUnpinAgent,
+	onMovePinUp,
+	onMovePinDown,
 	onMarkRead,
 	onMarkUnread,
 	onArchiveAgent,
@@ -477,6 +485,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Pin agent
 						</>
 					)}
+				</Item>
+			)}
+			{onMovePinUp && (
+				<Item onSelect={onMovePinUp}>
+					<ArrowUpIcon className="size-3.5" />
+					Move up
+				</Item>
+			)}
+			{onMovePinDown && (
+				<Item onSelect={onMovePinDown}>
+					<ArrowDownIcon className="size-3.5" />
+					Move down
 				</Item>
 			)}
 			{isArchived ? (

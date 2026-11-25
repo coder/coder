@@ -1,0 +1,332 @@
+name: Build Coder
+description: |
+  Install the build toolchain and run `make` for the given targets, optionally
+  signing every binary the same way for main builds and releases: darwin with
+  the Apple Developer ID key in Cloud KMS, Windows with the EV certificate, and
+  GPG with the release key plus the optional Cloud KMS key.
+
+  Composite actions cannot read secrets, so callers pass them as inputs. Only
+  jobs in the `ci-signing` or `release` environment have them, and the Google
+  Cloud identities used here only trust those environments. Unsigned callers
+  (pull requests) pass none.
+
+  The certificate files and Apple API key are written under
+  $RUNNER_TEMP/coder-signing and $RUNNER_TEMP/apple-signing and removed in the
+  last step, even if the build fails. The Google Cloud credentials are not: the
+  EV code signing account's credentials stay exported to the job's environment
+  (release.yaml uploads with them), and the release-signer credentials file is
+  kept for callers through the release-signer-credentials-file output. Any
+  later step in the calling job can use them, and any step with id-token: write
+  in the signing environment could mint them anyway, so treat the whole calling
+  job as trusted with the signing identities.
+inputs:
+  targets:
+    description: >-
+      Whitespace-separated make targets. @VERSION@ is replaced with the output
+      of scripts/version.sh.
+    required: true
+  sign:
+    description: Sign darwin, Windows and GPG artifacts. Requires the signing inputs below.
+    required: false
+    default: "false"
+  notarize:
+    description: Notarize darwin archives with Apple. Requires sign and the ac-apikey inputs.
+    required: false
+    default: "false"
+  frontend:
+    description: Install node, pnpm and the site dependencies.
+    required: false
+    default: "true"
+  react-profiling:
+    description: Build the site with React profiling and discoverable source maps.
+    required: false
+    default: "false"
+  extra-tools:
+    description: Additional mise tools to install, e.g. "helm cosign syft".
+    required: false
+    default: ""
+  apt-packages:
+    description: Additional apt packages to install.
+    required: false
+    default: ""
+  # Signing inputs. Leave empty when sign is false.
+  ev-workload-identity-provider:
+    description: Workload identity provider for the EV code signing account (vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER).
+    required: false
+    default: ""
+  ev-service-account:
+    description: EV code signing service account (vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT).
+    required: false
+    default: ""
+  ev-key:
+    description: secrets.EV_KEY
+    required: false
+    default: ""
+  ev-keystore:
+    description: secrets.EV_KEYSTORE
+    required: false
+    default: ""
+  ev-tsa-url:
+    description: secrets.EV_TSA_URL
+    required: false
+    default: ""
+  ev-signing-cert:
+    description: secrets.EV_SIGNING_CERT
+    required: false
+    default: ""
+  release-signer-workload-identity-provider:
+    description: Workload identity provider for release-signer (secrets.GPG_KMS_WORKLOAD_ID_PROVIDER).
+    required: false
+    default: ""
+  release-signer-service-account:
+    description: release-signer service account (secrets.GPG_KMS_SERVICE_ACCOUNT).
+    required: false
+    default: ""
+  gpg-release-key:
+    description: secrets.GPG_RELEASE_KEY_BASE64
+    required: false
+    default: ""
+  gpg-kms-key:
+    description: secrets.GPG_KMS_KEY. When empty, only the legacy GPG signature is made.
+    required: false
+    default: ""
+  ac-certificate-pem:
+    description: secrets.AC_CERTIFICATE_PEM (public certificate only).
+    required: false
+    default: ""
+  ac-kms-key-ring:
+    description: secrets.AC_KMS_KEY_RING
+    required: false
+    default: ""
+  ac-kms-key:
+    description: secrets.AC_KMS_KEY
+    required: false
+    default: ""
+  ac-apikey-issuer-id:
+    description: secrets.AC_APIKEY_ISSUER_ID (notarize only).
+    required: false
+    default: ""
+  ac-apikey-id:
+    description: secrets.AC_APIKEY_ID (notarize only).
+    required: false
+    default: ""
+  ac-apikey-p8-base64:
+    description: secrets.AC_APIKEY_P8_BASE64 (notarize only).
+    required: false
+    default: ""
+outputs:
+  version:
+    description: Output of scripts/version.sh.
+    value: ${{ steps.version.outputs.version }}
+  release-signer-credentials-file:
+    description: >-
+      Credentials file for release-signer, for later steps that sign with the
+      KMS GPG key (e.g. release checksums). Empty when sign is false.
+    value: ${{ steps.release_signer_auth.outputs.credentials_file_path }}
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "$INPUT_SIGN" != "true" && "$INPUT_SIGN" != "false" ]]; then
+          echo "::error::sign must be true or false"
+          exit 1
+        fi
+        if [[ "$INPUT_NOTARIZE" == "true" && "$INPUT_SIGN" != "true" ]]; then
+          echo "::error::notarize requires sign"
+          exit 1
+        fi
+      env:
+        INPUT_SIGN: ${{ inputs.sign }}
+        INPUT_NOTARIZE: ${{ inputs.notarize }}
+
+    - name: Compute mise tools
+      id: tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        tools="go"
+        if [[ "$INPUT_FRONTEND" == "true" ]]; then
+          tools+=" node pnpm"
+        fi
+        if [[ -n "$INPUT_EXTRA_TOOLS" ]]; then
+          tools+=" $INPUT_EXTRA_TOOLS"
+        fi
+        echo "tools=$tools" >> "$GITHUB_OUTPUT"
+      env:
+        INPUT_FRONTEND: ${{ inputs.frontend }}
+        INPUT_EXTRA_TOOLS: ${{ inputs.extra-tools }}
+
+    # Depot caches are shared across branches, so a signing build must not
+    # restore anything a pull request could have written.
+    - name: Set up mise tools
+      uses: ./.github/actions/setup-mise
+      with:
+        install-args: ${{ steps.tools.outputs.tools }}
+        use-cache: ${{ inputs.sign == 'true' && 'false' || 'true' }}
+
+    - name: Install pnpm dependencies
+      if: inputs.frontend == 'true'
+      uses: ./.github/actions/pnpm-install
+      with:
+        use-cache: ${{ inputs.sign == 'true' && 'false' || 'true' }}
+
+    - name: Install Go mise tools
+      shell: bash
+      run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
+
+    - name: Install apt packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086 # word splitting is intended
+        sudo apt-get install -y zstd $INPUT_APT_PACKAGES
+      env:
+        INPUT_APT_PACKAGES: ${{ inputs.apt-packages }}
+
+    - name: Install rcodesign
+      if: inputs.sign == 'true'
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+
+    # Necessary for signing Windows binaries.
+    - name: Setup Java
+      if: inputs.sign == 'true'
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: "zulu"
+        java-version: "11.0"
+
+    # The Apple Developer certificate's private key lives in Google Cloud KMS.
+    # rcodesign reaches it through the Cloud KMS PKCS#11 library, authenticated
+    # as release-signer.
+    - name: Set up Apple signing
+      id: apple_signing
+      if: inputs.sign == 'true'
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+      with:
+        certificate-pem: ${{ inputs.ac-certificate-pem }}
+        key-ring: ${{ inputs.ac-kms-key-ring }}
+
+    - name: Install signing tools and write signing material
+      if: inputs.sign == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        ./.github/scripts/retry.sh -- wget -O "$RUNNER_TEMP/jsign-6.0.jar" https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar
+        echo "05ca18d4ab7b8c2183289b5378d32860f0ea0f3bdab1f1b8cae5894fb225fa8a $RUNNER_TEMP/jsign-6.0.jar" | sha256sum -c
+
+        dir="$RUNNER_TEMP/coder-signing"
+        rm -rf "$dir"
+        mkdir -m 700 "$dir"
+        (
+          umask 077
+          printf '%s\n' "$EV_SIGNING_CERT" > "$dir/ev_cert.pem"
+          if [[ "$INPUT_NOTARIZE" == "true" ]]; then
+            printf '%s' "$AC_APIKEY_P8_BASE64" | base64 -d > "$dir/apple_apikey.p8"
+          fi
+        )
+      env:
+        INPUT_NOTARIZE: ${{ inputs.notarize }}
+        AC_APIKEY_P8_BASE64: ${{ inputs.ac-apikey-p8-base64 }}
+        EV_SIGNING_CERT: ${{ inputs.ev-signing-cert }}
+
+    # ev-code-signing@ for jsign (access token). Its exported Application
+    # Default Credentials stay the job default, which release.yaml uses to
+    # upload CLI binaries.
+    - name: Authenticate to Google Cloud (EV code signing)
+      id: ev_auth
+      if: inputs.sign == 'true'
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ inputs.ev-workload-identity-provider }}
+        service_account: ${{ inputs.ev-service-account }}
+        token_format: "access_token"
+
+    # release-signer@ for the KMS GPG key and the Apple key. Not exported, so
+    # only gpgkms and rcodesign receive these credentials, explicitly.
+    - name: Authenticate to Google Cloud (release signing)
+      id: release_signer_auth
+      if: inputs.sign == 'true'
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ inputs.release-signer-workload-identity-provider }}
+        service_account: ${{ inputs.release-signer-service-account }}
+        export_environment_variables: false
+
+    - name: Setup GCloud SDK
+      if: inputs.sign == 'true'
+      uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+    - name: Print version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        ./.github/scripts/retry.sh --timeout 120 -- go mod download
+        version="$(./scripts/version.sh)"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "$version"
+
+    - name: Build
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ "$INPUT_SIGN" == "true" ]]; then
+          dir="$RUNNER_TEMP/coder-signing"
+          export CODER_SIGN_DARWIN=1 CODER_SIGN_WINDOWS=1 CODER_SIGN_GPG=1 CODER_WINDOWS_RESOURCES=1
+          export AC_CERTIFICATE_FILE="$APPLE_CERTIFICATE_FILE"
+          export AC_PKCS11_LIBRARY="$APPLE_PKCS11_LIBRARY"
+          export KMS_PKCS11_CONFIG="$APPLE_PKCS11_CONFIG"
+          export AC_PKCS11_CREDENTIALS_FILE="$RELEASE_SIGNER_CREDENTIALS_FILE"
+          export CODER_GPG_KMS_CREDENTIALS_FILE="$RELEASE_SIGNER_CREDENTIALS_FILE"
+          export EV_CERTIFICATE_PATH="$dir/ev_cert.pem"
+          export JSIGN_PATH="$RUNNER_TEMP/jsign-6.0.jar"
+          if [[ "$INPUT_NOTARIZE" == "true" ]]; then
+            export AC_APIKEY_FILE="$dir/apple_apikey.p8"
+          else
+            unset AC_APIKEY_ISSUER_ID AC_APIKEY_ID
+          fi
+        else
+          unset CODER_GPG_RELEASE_KEY_BASE64 CODER_GPG_KMS_KEY AC_PKCS11_KEY_LABEL \
+            AC_APIKEY_ISSUER_ID AC_APIKEY_ID EV_KEY EV_KEYSTORE EV_TSA_URL GCLOUD_ACCESS_TOKEN
+        fi
+        if [[ "$INPUT_REACT_PROFILING" == "true" ]]; then
+          export CODER_REACT_PROFILING=true
+        fi
+
+        # read -d '' consumes every line and returns 1 at EOF.
+        read -r -d '' -a targets <<< "${INPUT_TARGETS//@VERSION@/$VERSION}" || true
+        if [[ ${#targets[@]} -eq 0 ]]; then
+          echo "::error::no make targets given"
+          exit 1
+        fi
+        make gen/mark-fresh
+        make -j "${targets[@]}"
+      env:
+        INPUT_SIGN: ${{ inputs.sign }}
+        INPUT_NOTARIZE: ${{ inputs.notarize }}
+        INPUT_REACT_PROFILING: ${{ inputs.react-profiling }}
+        INPUT_TARGETS: ${{ inputs.targets }}
+        VERSION: ${{ steps.version.outputs.version }}
+        RELEASE_SIGNER_CREDENTIALS_FILE: ${{ steps.release_signer_auth.outputs.credentials_file_path }}
+        APPLE_CERTIFICATE_FILE: ${{ steps.apple_signing.outputs.certificate-file }}
+        APPLE_PKCS11_LIBRARY: ${{ steps.apple_signing.outputs.pkcs11-library }}
+        APPLE_PKCS11_CONFIG: ${{ steps.apple_signing.outputs.pkcs11-config }}
+        CODER_GPG_RELEASE_KEY_BASE64: ${{ inputs.gpg-release-key }}
+        CODER_GPG_KMS_KEY: ${{ inputs.gpg-kms-key }}
+        AC_PKCS11_KEY_LABEL: ${{ inputs.ac-kms-key }}
+        AC_APIKEY_ISSUER_ID: ${{ inputs.ac-apikey-issuer-id }}
+        AC_APIKEY_ID: ${{ inputs.ac-apikey-id }}
+        EV_KEY: ${{ inputs.ev-key }}
+        EV_KEYSTORE: ${{ inputs.ev-keystore }}
+        EV_TSA_URL: ${{ inputs.ev-tsa-url }}
+        GCLOUD_ACCESS_TOKEN: ${{ steps.ev_auth.outputs.access_token }}
+
+    - name: Delete signing material
+      if: always() && inputs.sign == 'true'
+      shell: bash
+      run: rm -rf "$RUNNER_TEMP/coder-signing" "$RUNNER_TEMP/apple-signing"

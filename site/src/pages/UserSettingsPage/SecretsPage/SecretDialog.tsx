@@ -424,9 +424,7 @@ const BlockedFilePathField: React.FC<BlockedFilePathFieldProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium text-content-primary">
-				File path
-			</span>
+			<span className="text-sm text-content-primary">File path</span>
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 				<span
 					className={cn(

@@ -1936,6 +1936,16 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+export const WithMultiplePRsSelected: Story = {
+	args: WithMultiplePRs.args,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/multi-pr" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
 // Enough PRs to show the submenu's height limit.
 export const WithManyPRs: Story = {
 	args: {
@@ -2522,6 +2532,44 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
+// The middle pin's menu shows both "Move up" and "Move down".
+export const ReorderPinMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pin-1",
+				title: "First pin",
+				updated_at: recentTimestamp,
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "pin-2",
+				title: "Middle pin",
+				updated_at: recentTimestamp,
+				pin_order: 2,
+			}),
+			buildChat({
+				id: "pin-3",
+				title: "Last pin",
+				updated_at: recentTimestamp,
+				pin_order: 3,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Middle pin"),
+		);
+	},
+};
+
 export const ReadStateContextMenu: Story = {
 	args: {
 		chats: [
@@ -2612,7 +2660,7 @@ export const ActiveChatContextMenuHasNoReadToggle: Story = {
 	},
 };
 
-export const CopySubmenuContextMenu: Story = {
+export const CopySubmenuDropdownMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2647,6 +2695,20 @@ export const CopySubmenuContextMenu: Story = {
 			await within(document.body).findByRole("menuitem", { name: "Copy" }),
 		);
 		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
+export const CopySubmenuContextMenu: Story = {
+	...CopySubmenuDropdownMenu,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: canvas.getByText("Copy agent"),
+		});
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Copy" }),
+		);
 	},
 };
 
@@ -3237,7 +3299,7 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	// end to scroll into view.
 	decorators: [
 		(Story) => (
-			<div className="h-[500px] w-[360px]">
+			<div className="h-125 w-90">
 				<Story />
 			</div>
 		),

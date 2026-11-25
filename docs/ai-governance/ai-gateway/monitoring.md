@@ -92,12 +92,10 @@ Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for 
 
 > [!IMPORTANT]
 > The embedded gateway metric prefix changed from `coder_aibridged_*` to `coder_ai_gateway_*`, and the proxy prefix changed from `coder_aibridgeproxyd_*` to `coder_ai_gateway_proxy_*`.
-> The embedded gateway and AI Gateway Proxy emit the legacy names with identical values during the v2.35 and v2.36 deprecation window, and the legacy names are planned for removal in v2.37.
-> The cost control metrics were added after the rename and have no legacy alias.
-> The standalone gateway emits only the current `coder_ai_gateway_*` names.
+> The embedded gateway and AI Gateway Proxy no longer emit the legacy names as of Coder v2.40.
 > Migrate dashboards and alerts to the new names.
-> Do not relabel new names back to old names while both are emitted because this creates duplicate legacy series in the same scrape.
-> After the legacy names are removed, use `metric_relabel_configs` only if you need a temporary compatibility bridge:
+> If you cannot update dashboards yet, use `metric_relabel_configs` as a temporary bridge that renames the new series back to the legacy names at scrape time.
+> The new names are then not stored, so dashboards and alerts that use them stop matching:
 >
 > ```yaml
 > metric_relabel_configs:
@@ -213,6 +211,7 @@ Available query filters:
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (for example, `openai`, `anthropic`)
 - `model` - Filter by model name
+- `organization` - Filter by organization name or ID, matching sessions with at least one interception in that organization
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 

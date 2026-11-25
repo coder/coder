@@ -173,6 +173,7 @@ describe("TemplateEmbedPage", () => {
 
 		await waitFor(() => {
 			expect(writeTextMock).toHaveBeenCalled();
+			expect(screen.getByRole("status")).toHaveTextContent("Copied");
 		});
 
 		const copiedText = writeTextMock.mock.calls[0][0] as string;

@@ -1,9 +1,12 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
 import {
 	Area,
 	AreaChart,
 	CartesianGrid,
+	Dot,
+	type DotProps,
 	ReferenceLine,
 	XAxis,
 	YAxis,
@@ -33,21 +36,27 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
+type SeatDay = {
+	date: string;
+	users: number;
+};
+
+const formatDay = (date: string) =>
+	new Date(date).toLocaleString(undefined, {
+		month: "long",
+		day: "2-digit",
+	});
+
 type LicenseSeatConsumptionChartProps = {
 	limit: number | undefined;
-	data:
-		| {
-				date: string;
-				users: number;
-		  }[]
-		| undefined;
+	data: SeatDay[] | undefined;
 };
 
 export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -57,11 +66,11 @@ export const LicenseSeatConsumptionChart: React.FC<
 
 						<CollapsibleTrigger asChild>
 							<Button
-								className={`
-									h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
-									hover:bg-transparent hover:text-content-primary
-									[&[data-state=open]_svg]:rotate-90
-								`}
+								className={cn(
+									"h-auto p-0 bg-transparent font-medium text-content-secondary",
+									"hover:bg-transparent hover:text-content-primary",
+									"[&[data-state=open]_svg]:rotate-90",
+								)}
 							>
 								<ChevronRightIcon />
 								How we calculate license seat consumption
@@ -70,19 +79,19 @@ export const LicenseSeatConsumptionChart: React.FC<
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-							text-sm text-content-secondary
-							[&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
+							"text-sm text-content-secondary",
+							"[&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none",
+						)}
 					>
 						<p>
 							Licenses are consumed based on the status of user accounts. Only
-							Active user accounts are consuming license seats.
+							active user accounts are consuming license seats.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
-								<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
+								<div className="rounded-xs bg-highlight-green size-3 inline-block">
 									<span className="sr-only">
 										Legend for active users in the chart
 									</span>
@@ -97,7 +106,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 									<div className="w-full border-dashed border-content-disabled" />
 								</div>
 								Current license seat limit, or the maximum number of allowed
-								Active accounts.
+								active accounts.
 							</li>
 						</ul>
 						<div>
@@ -105,7 +114,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 							<ul>
 								<li>
 									<Link asChild>
-										<RouterLink to="/audit">Activity Audit</RouterLink>
+										<RouterLink to="/audit">Activity audit</RouterLink>
 									</Link>
 								</li>
 								<li>
@@ -130,7 +139,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-0 border-t border-solid">
+			<div className="p-6 border-t">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (
@@ -193,13 +202,9 @@ export const LicenseSeatConsumptionChart: React.FC<
 													const item = p[0];
 													return `${item.value} seats`;
 												}}
-												formatter={(_v, _n, item) => {
-													const date = new Date(item.payload.date);
-													return date.toLocaleString(undefined, {
-														month: "long",
-														day: "2-digit",
-													});
-												}}
+												formatter={(_v, _n, item) =>
+													formatDay(item.payload.date)
+												}
 											/>
 										)}
 									/>
@@ -225,6 +230,18 @@ export const LicenseSeatConsumptionChart: React.FC<
 										fillOpacity={0.4}
 										stroke="var(--color-users)"
 										stackId="a"
+										// Screen readers in browse mode reach the highlighted point
+										// directly, so it carries the same text as the tooltip.
+										activeDot={({
+											payload,
+											...props
+										}: DotProps & { payload: SeatDay }) => (
+											<Dot
+												{...props}
+												role="img"
+												aria-label={`${payload.users} seats, ${formatDay(payload.date)}`}
+											/>
+										)}
 									/>
 									{limit && (
 										<ReferenceLine
@@ -245,16 +262,16 @@ export const LicenseSeatConsumptionChart: React.FC<
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"size-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}

@@ -57,12 +57,12 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 					className={cn(
 						"relative size-3.5",
 						variant === "warning"
-							? "text-content-warning"
+							? "text-border-warning"
 							: "text-content-destructive",
 					)}
 				/>
 			</TooltipTrigger>
-			<TooltipContent className="max-w-xs">
+			<TooltipContent className="max-w-[min(20rem,var(--radix-popper-available-width))]">
 				<TooltipTitle>{title}</TooltipTitle>
 				<TooltipMessage>
 					{detail}
@@ -74,7 +74,7 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 								target="_blank"
 								rel="noreferrer"
 								href={troubleshootingURL}
-								className="p-0 mt-2"
+								className="pl-0 mt-1"
 								showExternalIcon={false}
 							>
 								Troubleshoot

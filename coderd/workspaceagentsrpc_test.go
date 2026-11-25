@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -272,6 +273,63 @@ func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
 		"ENV_ONLY":    []byte("env-value"),
 		"DUAL_TARGET": []byte("dual-value"),
 	}, byEnv)
+}
+
+func TestWorkspaceAgentRPCPluginsFollowExperiment(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Enabled=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				if enabled {
+					dv.Experiments = []string{string(codersdk.ExperimentAgentPlugins)}
+				}
+			})
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+			owner := coderdtest.CreateFirstUser(t, client)
+			workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        owner.UserID,
+			}).WithAgent().Do()
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+			conn, err := agentClient.ConnectRPC(ctx)
+			require.NoError(t, err)
+			defer conn.Close()
+			aAPI := agentproto.NewDRPCAgentClient(conn)
+
+			manifest, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
+			require.NoError(t, err)
+			require.Equal(t, enabled, manifest.GetAgentPluginsEnabled())
+
+			resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+				Version: 1,
+				Initial: true,
+				Resources: []*agentproto.ContextResource{{
+					Source: "/workspace/.agents/plugins/acme",
+					Status: agentproto.ContextResource_OK,
+					Body: &agentproto.ContextResource_Plugin{
+						Plugin: &agentproto.PluginBody{Name: "acme"},
+					},
+				}},
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+
+			resources, err := db.ListWorkspaceAgentContextResources(dbauthz.AsSystemRestricted(ctx), workspace.Agents[0].ID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+			require.NoError(t, err)
+			if enabled {
+				require.Len(t, resources, 1)
+				require.Equal(t, database.WorkspaceAgentContextBodyKindPlugin, resources[0].BodyKind)
+				require.Equal(t, "acme", resources[0].PluginName)
+			} else {
+				require.Empty(t, resources)
+			}
+		})
+	}
 }
 
 func TestWorkspaceAgentRPCRole(t *testing.T) {

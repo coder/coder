@@ -38,6 +38,7 @@ const (
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
+	CheckChatProjectsDefaultPresetOrParameters               CheckConstraint = "chat_projects_default_preset_or_parameters"                // chat_projects
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
 	CheckChatProjectsGroupAclIsObject                        CheckConstraint = "chat_projects_group_acl_is_object"                         // chat_projects
 	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
@@ -79,6 +80,8 @@ const (
 	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
+	CheckSkillsDisplayNameLength                             CheckConstraint = "skills_display_name_length"                                // skills
+	CheckSkillsDisplayNameProjectOnly                        CheckConstraint = "skills_display_name_project_only"                          // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills
 	CheckSkillsNameFormat                                    CheckConstraint = "skills_name_format"                                        // skills
 	CheckSkillsNameSize                                      CheckConstraint = "skills_name_size"                                          // skills

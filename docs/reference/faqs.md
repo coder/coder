@@ -267,7 +267,7 @@ Another way using local modules is to symlink the module directory inside the te
 
 ```sh
 ln -s modules template_1/modules
-tar -cvh -C ./template_1 | coder templates <push|create> -d - <name>
+tar -cvh -C ./template_1 . | coder templates push -d - <name>
 ```
 
 References:

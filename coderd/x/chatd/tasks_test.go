@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -499,7 +500,7 @@ func interruptedBatchFixture(
 	raw, err := chatprompt.MarshalParts(calls)
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
 			Role:           database.ChatMessageRoleAssistant,
 			Content:        raw,
@@ -508,7 +509,8 @@ func interruptedBatchFixture(
 			ModelConfigID:  uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		}}})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
@@ -1134,7 +1136,7 @@ func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessage
 	raw, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
 	var inserted []database.ChatMessage
-	require.NoError(t, h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		res, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
 			Role:           role,
 			Content:        raw,
@@ -1144,7 +1146,8 @@ func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessage
 		}}})
 		inserted = res.InsertedMessages
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 	return inserted[0]
 }
@@ -1166,10 +1169,11 @@ func (h *deletedToolCallsHistory) editPrompt(t *testing.T) {
 	prompt := messages[lastUserPromptIndex(messages)]
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
 	require.NoError(t, err)
-	require.NoError(t, h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EditMessage(chatstate.EditMessageInput{MessageID: prompt.ID, CreatedBy: h.f.user.ID, Content: content})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
@@ -1222,6 +1226,92 @@ func TestRequiresActionTimeout_NullDeadlineCancelsImmediately(t *testing.T) {
 		Status:                   database.ChatStatusRequiresAction,
 		RequiresActionDeadlineAt: nullDeadline.RequiresActionDeadlineAt,
 	})
+	require.NoError(t, err)
+
+	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, latest.Status)
+	recorder.requireStateHint(t, chat.ID, latest.SnapshotVersion, database.ChatStatusRunning)
+}
+
+// failingChatStatePubsub fails the first chat:update publish for one chat,
+// which ChatMachine.Update reports only after the transaction commits.
+type failingChatStatePubsub struct {
+	chatWorkerPubsub
+	channel string
+	failed  atomic.Bool
+}
+
+func (p *failingChatStatePubsub) Publish(event string, message []byte) error {
+	if event == p.channel && p.failed.CompareAndSwap(false, true) {
+		return xerrors.New("injected chat state publish failure")
+	}
+	return p.chatWorkerPubsub.Publish(event, message)
+}
+
+func failFirstChatStatePublish(starter *taskStarter, chatID uuid.UUID) *failingChatStatePubsub {
+	p := &failingChatStatePubsub{
+		chatWorkerPubsub: starter.opts.Pubsub,
+		channel:          coderdpubsub.ChatStateUpdateChannel(chatID),
+	}
+	starter.opts.Pubsub = p
+	return p
+}
+
+// A publish failure after the commit must not turn a committed transition
+// into a task failure.
+func TestInterruptTask_PublishFailureAfterCommitSucceeds(t *testing.T) {
+	t.Parallel()
+
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquireChat(t, f, chat.ID, workerID, runnerID)
+	interrupting := forceExecutionState(t, f, chat.ID, database.ChatStatusInterrupting, false)
+	recorder := newTaskSideEffectRecorder()
+	starter := newTestTaskStarter(t, f, recorder)
+	publisher := failFirstChatStatePublish(starter, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.True(t, publisher.failed.Load(), "the chat state publish must have failed")
+	require.NoError(t, err)
+
+	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, latest.Status)
+	recorder.requireStateHint(t, chat.ID, latest.SnapshotVersion, database.ChatStatusWaiting)
+}
+
+func TestRequiresActionTimeout_PublishFailureAfterCommitSucceeds(t *testing.T) {
+	t.Parallel()
+
+	f := newWorkerTestFixture(t)
+	chat := f.createRequiresActionChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
+	nullDeadline := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{})
+	recorder := newTaskSideEffectRecorder()
+	starter := newTestTaskStarter(t, f, recorder)
+	publisher := failFirstChatStatePublish(starter, chat.ID)
+
+	err := starter.StartRequiresActionTimeout(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:                   chat.ID,
+		WorkerID:                 workerID,
+		RunnerID:                 runnerID,
+		HistoryVersion:           acquired.HistoryVersion,
+		Status:                   database.ChatStatusRequiresAction,
+		RequiresActionDeadlineAt: nullDeadline.RequiresActionDeadlineAt,
+	})
+	require.True(t, publisher.failed.Load(), "the chat state publish must have failed")
 	require.NoError(t, err)
 
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)

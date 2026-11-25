@@ -64,6 +64,10 @@
     "destination": "install/plan/sizing/3k-users"
   },
   {
+    "source": "install/plan/migrate-from-ona",
+    "destination": "install/plan/migrate/ona"
+  },
+  {
     "source": "install/database",
     "destination": "install/server/external-database"
   },

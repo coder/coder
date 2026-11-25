@@ -148,7 +148,7 @@ async function fillForm(
 		);
 	} else {
 		const body = within(document.body);
-		await user.click(canvas.getByTestId("login-type-input"));
+		await user.click(canvas.getByRole("combobox", { name: "Login type" }));
 		await user.click(
 			await body.findByRole("option", { name: /service account/i }),
 		);
