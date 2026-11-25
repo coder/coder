@@ -311,6 +311,30 @@ describe("WorkspacesPageView", () => {
 		);
 	});
 
+	it.each(["Stop…", "Delete…"])(
+		"returns focus to the overflow menu trigger when the %s dialog is canceled",
+		async (itemName) => {
+			const user = userEvent.setup();
+			renderWithAuth(
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={[MockWorkspace]}
+					count={1}
+				/>,
+			);
+
+			const trigger = await screen.findByRole("button", {
+				name: "Workspace actions",
+			});
+			await user.click(trigger);
+			await user.click(await screen.findByRole("menuitem", { name: itemName }));
+			const dialog = await screen.findByRole("dialog");
+			await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+			await waitFor(() => expect(trigger).toHaveFocus());
+		},
+	);
+
 	it("does not offer restart for a stopped workspace", async () => {
 		const user = userEvent.setup();
 
