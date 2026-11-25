@@ -39,10 +39,14 @@ FOR SHARE;
 
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
 -- Entries match regardless of the actions they grant, so callers must
--- authorize each row.
+-- authorize each row. A NULL archived returns archived and active projects.
 SELECT chat_projects.*
 FROM chat_projects
-WHERE chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
+WHERE (
+    sqlc.narg('archived')::boolean IS NULL
+    OR (chat_projects.archived_at IS NOT NULL) = sqlc.narg('archived')::boolean
+)
+AND chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: IsChatProjectUsableByUserID :one

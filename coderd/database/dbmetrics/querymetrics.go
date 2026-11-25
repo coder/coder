@@ -1976,7 +1976,7 @@ func (m queryMetricsStore) GetChatProjectTemplatesByProjectIDs(ctx context.Conte
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
+func (m queryMetricsStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID database.GetChatProjectsOwnedOrSharedWithUserIDParams) ([]database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectsOwnedOrSharedWithUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetChatProjectsOwnedOrSharedWithUserID").Observe(time.Since(start).Seconds())

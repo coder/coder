@@ -45,11 +45,16 @@ var (
 	// ErrMemoryLimit is returned when a write would leave a project with
 	// more than MaxMemories memories.
 	ErrMemoryLimit = xerrors.New("memory limit reached")
+	// ErrProjectArchived is returned when a write targets an archived
+	// project. Archived projects are read-only.
+	ErrProjectArchived = xerrors.New("chat project is archived")
 )
 
 // writeProjectMemories runs a memory write in one transaction behind a
 // per-project advisory lock, then rejects it if it left more than
-// MaxMemories memories. The lock serializes writers so two of them cannot
+// MaxMemories memories. It first locks the project FOR SHARE and rejects an
+// archived project; archiving locks the project FOR UPDATE, so a write
+// either commits before the archive or sees it. The lock serializes writers so two of them cannot
 // both observe room and overshoot the cap, and the transaction means a
 // consolidation applies all of its deletes and saves or none of them. The
 // count runs as the system because the caller has already been authorized
@@ -58,6 +63,14 @@ var (
 func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
 	var count int64
 	err := db.InTx(func(tx database.Store) error {
+		//nolint:gocritic // See writeProjectMemories.
+		project, err := tx.GetChatProjectByIDForShare(dbauthz.AsSystemRestricted(ctx), projectID)
+		if err != nil {
+			return xerrors.Errorf("lock chat project: %w", err)
+		}
+		if project.ArchivedAt.Valid {
+			return ErrProjectArchived
+		}
 		if err := tx.AcquireLock(ctx, database.GenLockID("chat-project-memory:"+projectID.String())); err != nil {
 			return xerrors.Errorf("lock memories: %w", err)
 		}
@@ -136,6 +149,10 @@ func deleteProjectMemory(ctx context.Context, db database.Store, projectID uuid.
 	}
 	return memory, err
 }
+
+// memoryProjectArchivedMessage is the tool error for a write to an archived
+// project.
+const memoryProjectArchivedMessage = "the chat project is archived, so its memories cannot be changed; no changes were applied"
 
 func memoryIntro(projectName string) string {
 	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q, including chats started by other users the project is shared with.", projectName)
@@ -242,7 +259,12 @@ func (s projectMemoryStore) Insert(ctx context.Context, input MemoryInput) (int6
 }
 
 func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
-	memory, err := deleteProjectMemory(ctx, s.db, s.projectID, name)
+	var memory database.ChatProjectMemory
+	_, err := writeProjectMemories(ctx, s.db, s.projectID, func(tx database.Store) error {
+		var err error
+		memory, err = deleteProjectMemory(ctx, tx, s.projectID, name)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -513,6 +535,8 @@ func SaveMemory(store MemoryStore, projectName string) fantasy.AgentTool {
 		switch {
 		case errors.Is(err, ErrMemoryExists):
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("a memory named %q already exists; read it, then replace it with %s by deleting %q and saving the new version in one call", input.Name, ConsolidateMemoryToolName, input.Name)), nil
+		case errors.Is(err, ErrProjectArchived):
+			return fantasy.NewTextErrorResponse(memoryProjectArchivedMessage), nil
 		case errors.Is(err, ErrMemoryLimit):
 			// The agent resolves a full project itself, in this turn, with
 			// the tools it already has; there is no background cleanup.
@@ -538,6 +562,8 @@ func DeleteMemory(store MemoryStore, projectName string) fantasy.AgentTool {
 		switch {
 		case errors.Is(err, ErrMemoryNotFound):
 			return fantasy.NewTextErrorResponse("memory was not found"), nil
+		case errors.Is(err, ErrProjectArchived):
+			return fantasy.NewTextErrorResponse(memoryProjectArchivedMessage), nil
 		case err != nil:
 			return fantasy.NewTextErrorResponse("failed to delete memory"), nil
 		}
@@ -584,6 +610,8 @@ func ConsolidateMemory(store MemoryStore, projectName string) fantasy.AgentTool 
 		switch {
 		case errors.Is(err, ErrMemoryNotFound), errors.Is(err, ErrMemoryExists):
 			return fantasy.NewTextErrorResponse(err.Error() + "; no changes were applied"), nil
+		case errors.Is(err, ErrProjectArchived):
+			return fantasy.NewTextErrorResponse(memoryProjectArchivedMessage), nil
 		case errors.Is(err, ErrMemoryLimit):
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("this would leave more than %d memories; delete more and retry. No changes were applied", MaxMemories)), nil
 		case err != nil:

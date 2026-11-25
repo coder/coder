@@ -11,15 +11,16 @@ WHERE user_id = @user_id::uuid;
 -- Positions count the pins GetChatProjectSummariesByUserID matches and are
 -- clamped to [1, count], so callers must translate a position the user sees
 -- past matched pins that authorization hides. Pins the summaries no longer
--- match move after the others. Callers must hold the per-user pin lock so
--- concurrent writes cannot interleave.
+-- match, such as pins on archived projects, move after the others. Callers
+-- must hold the per-user pin lock so concurrent writes cannot interleave.
 WITH current_pins AS (
     SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
     FROM (
-        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
+        SELECT p.project_id, p.pin_order, cp.archived_at IS NOT NULL OR p.project_id NOT IN (
             SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true)
         ) AS stale
         FROM chat_project_pins p
+        JOIN chat_projects cp ON cp.id = p.project_id
         WHERE p.user_id = @user_id::uuid
     ) pins
 ),
@@ -60,10 +61,11 @@ WITH deleted AS (
     RETURNING project_id
 ),
 updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY cp.archived_at IS NOT NULL OR p.project_id NOT IN (
         SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true)
     ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
     FROM chat_project_pins p
+    JOIN chat_projects cp ON cp.id = p.project_id
     WHERE p.user_id = @user_id::uuid AND p.project_id <> @project_id::uuid
 )
 UPDATE chat_project_pins p
@@ -74,11 +76,11 @@ WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id
 
 -- name: GetChatProjectSummariesByUserID :many
 -- Returns the user's pin and aggregates over the user's own top-level,
--- non-archived chats for each project from
+-- non-archived chats for each unarchived project from
 -- GetChatProjectsOwnedOrSharedWithUserID. The project columns only serve
 -- authorization: entries match regardless of the actions they grant, so
 -- callers must authorize each row. Pins on projects the user can no longer
--- see are never returned.
+-- see, or on archived projects, are never returned.
 WITH own_chats AS (
     -- Read through idx_chats_owner.
     SELECT
@@ -120,11 +122,12 @@ LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
 -- Grant keys select candidates even while chat sharing is disabled, as in
 -- GetChatProjectsOwnedOrSharedWithUserID: a role can still let the caller
 -- read the project.
-WHERE chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
+WHERE chat_projects.archived_at IS NULL
+    AND chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: GetChatProjectMemberCountsByUserID :many
--- Returns how many users can use each project from
+-- Returns how many users can use each unarchived project from
 -- GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
 -- grants reach (chat_project_read_grant_members). Grants are counted only
 -- while project sharing is available; otherwise every project counts its
@@ -134,7 +137,8 @@ ORDER BY lower(chat_projects.name), chat_projects.id;
 WITH accessible AS (
     SELECT id, organization_id, owner_id, group_acl
     FROM chat_projects
-    WHERE id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
+    WHERE archived_at IS NULL
+        AND id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
 ),
 -- A read grant to the Everyone group of the project's organization reaches
 -- every member, and the other grants reach only members, so such a project

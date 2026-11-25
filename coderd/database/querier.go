@@ -580,7 +580,7 @@ type sqlcQuerier interface {
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
 	GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error)
-	// Returns how many users can use each project from
+	// Returns how many users can use each unarchived project from
 	// GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
 	// grants reach (chat_project_read_grant_members). Grants are counted only
 	// while project sharing is available; otherwise every project counts its
@@ -596,11 +596,11 @@ type sqlcQuerier interface {
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
 	// Returns the user's pin and aggregates over the user's own top-level,
-	// non-archived chats for each project from
+	// non-archived chats for each unarchived project from
 	// GetChatProjectsOwnedOrSharedWithUserID. The project columns only serve
 	// authorization: entries match regardless of the actions they grant, so
 	// callers must authorize each row. Pins on projects the user can no longer
-	// see are never returned.
+	// see, or on archived projects, are never returned.
 	// Grant keys select candidates even while chat sharing is disabled, as in
 	// GetChatProjectsOwnedOrSharedWithUserID: a role can still let the caller
 	// read the project.
@@ -612,8 +612,8 @@ type sqlcQuerier interface {
 	// exposing a template.
 	GetChatProjectTemplatesByProjectIDs(ctx context.Context, projectIds []uuid.UUID) ([]GetChatProjectTemplatesByProjectIDsRow, error)
 	// Entries match regardless of the actions they grant, so callers must
-	// authorize each row.
-	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
+	// authorize each row. A NULL archived returns archived and active projects.
+	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -1600,8 +1600,8 @@ type sqlcQuerier interface {
 	// Positions count the pins GetChatProjectSummariesByUserID matches and are
 	// clamped to [1, count], so callers must translate a position the user sees
 	// past matched pins that authorization hides. Pins the summaries no longer
-	// match move after the others. Callers must hold the per-user pin lock so
-	// concurrent writes cannot interleave.
+	// match, such as pins on archived projects, move after the others. Callers
+	// must hold the per-user pin lock so concurrent writes cannot interleave.
 	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
