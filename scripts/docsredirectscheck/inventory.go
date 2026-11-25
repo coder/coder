@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -212,12 +213,8 @@ const apiReferenceRoute = "reference/api"
 // and the manifest lists only their section pages, so the manifest cannot say
 // which of them exist.
 func isAPIEndpointRoute(route string, live routeSet) bool {
-	rest, ok := strings.CutPrefix(route, apiReferenceRoute+"/")
-	if !ok {
-		return false
-	}
-	section, endpoint, ok := strings.Cut(rest, "/")
-	return ok && !strings.Contains(endpoint, "/") && live.has(apiReferenceRoute+"/"+section)
+	section := path.Dir(route)
+	return path.Dir(section) == apiReferenceRoute && live.has(section)
 }
 
 // baseRuleSources returns the route each rule of a base branch's
