@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,16 +33,18 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil/mockprovider"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
-	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+const userSecretKey = "user-secret-key"
 
 type credentialErrorProvider struct {
 	provider.Provider
@@ -95,6 +98,39 @@ func (b *unreadBody) Close() error {
 	return nil
 }
 
+type failingStartRecorder struct{ testutil.MockRecorder }
+
+func (*failingStartRecorder) RecordInterception(context.Context, *recorder.InterceptionRecord) error {
+	return io.ErrClosedPipe
+}
+
+// cancelOnWrite simulates a client that disconnects mid-stream: its first
+// write cancels the client request with errClientGone and fails.
+type cancelOnWrite struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelCauseFunc
+}
+
+// errClientGone is the cancellation cause cancelOnWrite sets.
+var errClientGone = xerrors.New("client gone")
+
+func (w cancelOnWrite) Write([]byte) (int, error) {
+	w.cancel(errClientGone)
+	return 0, errClientGone
+}
+
+type blockingEndRecorder struct {
+	testutil.MockRecorder
+	started chan context.Context
+	release chan struct{}
+}
+
+func (r *blockingEndRecorder) RecordInterceptionEnded(ctx context.Context, req *recorder.InterceptionRecordEnded) error {
+	r.started <- ctx
+	<-r.release
+	return r.MockRecorder.RecordInterceptionEnded(ctx, req)
+}
+
 func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 	t.Helper()
 	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{
@@ -104,7 +140,7 @@ func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 		Email:    "actor@example.test",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
-	req.Header.Set("Authorization", "Bearer user-secret-key")
+	req.Header.Set("Authorization", "Bearer "+userSecretKey)
 	return req
 }
 
@@ -118,7 +154,7 @@ func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.M
 		defer gate.Close()
 		require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
 	})
-	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
 	require.NoError(t, err)
 	return h
 }
@@ -131,20 +167,17 @@ func newTestPool(t *testing.T, keys ...string) *keypool.Pool {
 	return pool
 }
 
-// prepareAndProxy validates r, captures its body for replay, and forwards it
-// outside the circuit breaker.
+// prepareAndProxy validates and reads r as start does, then forwards it outside
+// the circuit breaker.
 func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 	fr := &forwardedRequest{handler: h}
 	var record *recorder.InterceptionRecord
 	fr.logger, record, fr.cred = h.checkRequest(w, r)
 	require.NotNil(t, record, "request must pass validation")
-	fr.outbound, fr.requestBody = replaybody.NewRequest(r)
+	require.True(t, fr.readRequest(r.Context(), w, r), "request body must be readable")
 	t.Cleanup(func() { _ = fr.requestBody.Close() })
 	_ = fr.forward(w)
-	require.NoError(t, fr.requestBody.Close())
-	_, err := fr.requestBody.Wait(codertestutil.Context(t, codertestutil.WaitLong))
-	require.NoError(t, err)
 }
 
 func TestForwardingHandlerRejects(t *testing.T) {
@@ -154,7 +187,7 @@ func TestForwardingHandlerRejects(t *testing.T) {
 		t.Error("rejected requests must not call upstream")
 	}))
 	t.Cleanup(upstream.Close)
-	prov := &testutil.MockProvider{
+	prov := &mockprovider.MockProvider{
 		NameStr: "test", URL: upstream.URL,
 		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
 			t.Error("forwarding must not create an interceptor")
@@ -366,7 +399,7 @@ func TestCheckRequest(t *testing.T) {
 					require.Contains(t, entries[0].Fields, slog.Error(tc.wantLogError))
 					require.Contains(t, entries[0].Fields, slog.F("path", req.URL.Path))
 				}
-				require.NotContains(t, fmt.Sprint(entries), "user-secret-key", "rejection logs must not include credentials")
+				require.NotContains(t, fmt.Sprint(entries), userSecretKey, "rejection logs must not include credentials")
 			})
 		}
 	})
@@ -382,7 +415,7 @@ func TestCheckRequest(t *testing.T) {
 			{
 				name:     "BYOK",
 				wantKind: credential.KindBYOK,
-				wantHint: utils.MaskSecret("user-secret-key"),
+				wantHint: utils.MaskSecret(userSecretKey),
 			},
 			{
 				name:       "KeyPool",
@@ -445,8 +478,17 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	prov := provider.NewOpenAI(config.OpenAI{CircuitBreaker: &cfg})
 	logger := slogtest.Make(t, nil)
 	gate := aibridge.NewInflightGate(logger)
-	t.Cleanup(gate.Close)
-	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+	rec := &testutil.MockRecorder{}
+	t.Cleanup(func() {
+		defer gate.Close()
+		require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+		starts := rec.RecordedInterceptions()
+		require.Len(t, starts, 1)
+		end := rec.RecordedInterceptionEnd(starts[0].ID)
+		require.NotNil(t, end)
+		require.Equal(t, recorder.ErrorTypeServerError, end.ErrorType)
+	})
+	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, rec)
 	require.NoError(t, err)
 	const route = "/v1/responses"
 	require.NoError(t, handler.breaker.Execute(route, "", httptest.NewRecorder(), func(w http.ResponseWriter) error {
@@ -477,8 +519,7 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			body := &unreadBody{}
-			req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+"/responses", body)
+			req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+"/responses", strings.NewReader("{}"))
 			req = req.WithContext(aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
 			req.Header.Set("Authorization", "Bearer user-key")
 			if tc.noCredential {
@@ -492,8 +533,6 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, req)
 			require.Equal(t, tc.status, response.Code)
-			require.False(t, body.read)
-			require.False(t, body.closed)
 			if tc.status == http.StatusServiceUnavailable {
 				require.Contains(t, response.Body.String(), circuitbreaker.ErrCircuitOpen.Error())
 			}
@@ -603,7 +642,7 @@ func TestForwardingProviderCredentials(t *testing.T) {
 			// ReverseProxy removes headers nominated by Connection.
 			// Handler must restore the BYOK credential.
 			header:   http.Header{"Connection": {"Authorization"}},
-			wantAuth: http.Header{"Authorization": {"Bearer user-secret-key"}},
+			wantAuth: http.Header{"Authorization": {"Bearer " + userSecretKey}},
 		},
 		{
 			name: "AnthropicAPIKey",
@@ -698,10 +737,10 @@ func TestForwardingReusesUpstreamConnection(t *testing.T) {
 	require.Equal(t, first, send("second-key"), "per-request proxies must reuse the upstream connection")
 }
 
-// Centralized requests move to the next key after a key failure. The first
-// attempt forwards the body as it is read, so the retry replays the consumed
-// prefix and then continues reading the input. The rejected response is
-// drained and closed without reaching the client.
+// Centralized requests move to the next key after a key failure. The retry
+// replays the whole captured body even when the first attempt read only part
+// of it. The rejected response is drained and closed without reaching the
+// client.
 func TestForwardingFailoverRetry(t *testing.T) {
 	t.Parallel()
 	const prefix = `{"metadata":{"user_id":`
@@ -718,12 +757,11 @@ func TestForwardingFailoverRetry(t *testing.T) {
 			_, err := io.ReadFull(r.Body, chunk)
 			assert.NoError(t, err)
 			assert.Equal(t, prefix, string(chunk))
-			assert.Equal(t, len(suffix), input.Len(), "the first attempt must forward the prefix before the input is read")
 			return &http.Response{StatusCode: http.StatusUnauthorized, Header: http.Header{}, Body: rejected}, nil
 		}
 		payload, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
-		assert.Equal(t, prefix+suffix, string(payload), "the retry must replay the prefix and read the remaining input")
+		assert.Equal(t, prefix+suffix, string(payload), "the retry must replay the whole body")
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("ok"))}, nil
 	})
 	req := requestWithAuth(t, input)
@@ -736,4 +774,347 @@ func TestForwardingFailoverRetry(t *testing.T) {
 	require.Equal(t, "ok", response.Body.String())
 	require.EqualValues(t, 1, rejected.eofs.Load(), "rejected responses must be drained")
 	require.EqualValues(t, 1, rejected.closes.Load(), "rejected responses must be closed")
+}
+
+// newMessagesRequest returns a centralized-key Anthropic Messages request,
+// which the provider routes to its extractor.
+func newMessagesRequest(t *testing.T, prov provider.Provider, body io.Reader) *http.Request {
+	t.Helper()
+	req := requestWithAuth(t, body)
+	req.URL.Path = prov.RoutePrefix() + "/v1/messages"
+	req.Header.Del("Authorization")
+	return req
+}
+
+// Routes with an extractor read the request before recording its start, then
+// forward the same bytes. Extraction failures only lose facts.
+func TestForwardingExtractsRequest(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		body      string
+		wantModel string
+	}{
+		{
+			name:      "Messages",
+			body:      `{"model":"claude-test","stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+			wantModel: "claude-test",
+		},
+		{
+			name: "InvalidJSON",
+			body: `not JSON`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			prov, err := provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: "https://upstream.example.test", KeyPool: newTestPool(t, "centralized-key")}, nil, nil)
+			require.NoError(t, err)
+			h := newTestForwardingHandler(t, prov, nil)
+			rec := &testutil.MockRecorder{}
+			h.recorder = rec
+			var forwarded []string
+			h.transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Len(t, rec.RecordedInterceptions(), 1, "the start must be recorded before contacting upstream")
+				payload, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				forwarded = append(forwarded, string(payload))
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: http.NoBody}, nil
+			})
+			req := newMessagesRequest(t, prov, strings.NewReader(tc.body))
+			response := httptest.NewRecorder()
+			h.ServeHTTP(response, req)
+			require.NoError(t, h.inflight.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+
+			require.Equal(t, http.StatusOK, response.Code)
+			require.Equal(t, []string{tc.body}, forwarded, "extraction must not alter the forwarded bytes")
+			starts := rec.RecordedInterceptions()
+			require.Len(t, starts, 1)
+			require.Equal(t, tc.wantModel, starts[0].Model)
+			end := rec.RecordedInterceptionEnd(starts[0].ID)
+			require.NotNil(t, end)
+			require.Empty(t, end.ErrorType)
+		})
+	}
+}
+
+func TestForwardingRecordingDoesNotBlockResponse(t *testing.T) {
+	t.Parallel()
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
+	rec := &blockingEndRecorder{started: make(chan context.Context, 1), release: make(chan struct{})}
+	unblock := sync.OnceFunc(func() { close(rec.release) })
+	t.Cleanup(unblock)
+	h.recorder = rec
+	h.transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		_, err := io.Copy(io.Discard, r.Body)
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("ok"))}, err
+	})
+	req := requestWithAuth(t, strings.NewReader("{}"))
+	response := httptest.NewRecorder()
+	returned := make(chan struct{})
+	before := time.Now()
+	go func() {
+		defer close(returned)
+		h.ServeHTTP(response, req)
+	}()
+	codertestutil.TryReceive(codertestutil.Context(t, codertestutil.WaitShort), t, returned)
+	after := time.Now()
+	require.Equal(t, "ok", response.Body.String())
+	recordCtx := codertestutil.RequireReceive(codertestutil.Context(t, codertestutil.WaitShort), t, rec.started)
+	require.NoError(t, recordCtx.Err(), "handler return must not cancel recording")
+	deadline, ok := recordCtx.Deadline()
+	require.True(t, ok)
+	require.WithinRange(t, deadline, before.Add(recorder.DefaultAsyncTimeout), time.Now().Add(recorder.DefaultAsyncTimeout))
+
+	shutdownCtx, stop := context.WithCancel(t.Context())
+	stop()
+	require.ErrorIs(t, h.inflight.Shutdown(shutdownCtx), context.Canceled, "recording must retain admission")
+	unblock()
+	require.NoError(t, h.inflight.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+	starts := rec.RecordedInterceptions()
+	require.Len(t, starts, 1)
+	end := rec.RecordedInterceptionEnd(starts[0].ID)
+	require.NotNil(t, end)
+	require.WithinRange(t, end.EndedAt, before, after)
+}
+
+// Forwarding records the interception start before contacting upstream and its
+// end before releasing admission. Both records are compared in full.
+func TestForwardingRecordsInterception(t *testing.T) {
+	t.Parallel()
+	const (
+		userAgent  = "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)"
+		firewallID = "e5f6a7b8-1234-5678-9abc-def012345678"
+	)
+	for _, tc := range []struct {
+		name           string
+		pooled         bool
+		failStart      bool
+		transportError bool
+		readError      bool
+		abort          bool
+		// cancel disconnects the client once response bytes reach it.
+		cancel   bool
+		statuses []int
+		// body is the upstream response body.
+		body        string
+		wantStatus  int
+		wantError   recorder.ErrorType
+		wantMessage string
+		wantHint    string
+	}{
+		{
+			name:       "Success",
+			statuses:   []int{http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantHint:   utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "UpstreamBadRequest",
+			statuses:    []int{http.StatusBadRequest},
+			body:        `{"error":{"message":"invalid model"}}`,
+			wantStatus:  http.StatusBadRequest,
+			wantError:   recorder.ErrorTypeBadRequest,
+			wantMessage: `{"error":{"message":"invalid model"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "UpstreamUnauthorized",
+			statuses:    []int{http.StatusUnauthorized},
+			body:        `{"error":{"message":"invalid api key"}}`,
+			wantStatus:  http.StatusUnauthorized,
+			wantError:   recorder.ErrorTypeUnauthorized,
+			wantMessage: `{"error":{"message":"invalid api key"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "UpstreamRateLimited",
+			statuses:    []int{http.StatusTooManyRequests},
+			body:        `{"error":{"message":"rate limited"}}`,
+			wantStatus:  http.StatusTooManyRequests,
+			wantError:   recorder.ErrorTypeRateLimited,
+			wantMessage: `{"error":{"message":"rate limited"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "UpstreamServerError",
+			statuses:   []int{http.StatusInternalServerError},
+			wantStatus: http.StatusInternalServerError,
+			wantError:  recorder.ErrorTypeServerError,
+			// An empty body falls back to the status text.
+			wantMessage: http.StatusText(http.StatusInternalServerError),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "UpstreamOverloaded",
+			statuses:   []int{http.StatusServiceUnavailable},
+			body:       `{"error":{"message":"engine overloaded"}}`,
+			wantStatus: http.StatusServiceUnavailable,
+			// TODO: Interception mode records ErrorTypeOverloaded for OpenAI.
+			// https://linear.app/codercom/issue/AIGOV-811
+			wantError:   recorder.ErrorTypeServerError,
+			wantMessage: `{"error":{"message":"engine overloaded"}}`,
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "PooledKey",
+			pooled:     true,
+			statuses:   []int{http.StatusUnauthorized, http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantHint:   utils.MaskSecret("second-key"),
+		},
+		{
+			name:       "StartFails",
+			failStart:  true,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "TransportError",
+			transportError: true,
+			wantStatus:     http.StatusBadGateway,
+			wantError:      recorder.ErrorTypeUnknown,
+			wantMessage:    io.ErrClosedPipe.Error(),
+			wantHint:       utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:        "ReadError",
+			readError:   true,
+			statuses:    []int{http.StatusOK},
+			wantStatus:  http.StatusOK,
+			wantError:   recorder.ErrorTypeUnknown,
+			wantMessage: io.ErrUnexpectedEOF.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "Abort",
+			readError:  true,
+			abort:      true,
+			statuses:   []int{http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantError:  recorder.ErrorTypeUnknown,
+			// The aborted copy records the upstream read error, not errForwardingAborted.
+			wantMessage: io.ErrUnexpectedEOF.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "ClientCanceled",
+			abort:      true,
+			cancel:     true,
+			statuses:   []int{http.StatusOK},
+			body:       "chunk",
+			wantStatus: http.StatusOK,
+			wantError:  recorder.ErrorTypeUnknown,
+			// The cancellation cause replaces errForwardingAborted.
+			wantMessage: errClientGone.Error(),
+			wantHint:    utils.MaskSecret(userSecretKey),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.readError {
+					w.Header().Set("Content-Length", "100")
+				}
+				w.WriteHeader(tc.statuses[calls.Add(1)-1])
+				if tc.readError {
+					_, _ = io.WriteString(w, "chunk")
+				}
+				_, _ = io.WriteString(w, tc.body)
+				if tc.cancel {
+					// Keep the stream open until the client cancellation reaches upstream.
+					w.(http.Flusher).Flush()
+					<-r.Context().Done()
+				}
+			}))
+			t.Cleanup(upstream.Close)
+
+			cfg := config.OpenAI{BaseURL: upstream.URL}
+			if tc.pooled {
+				cfg.KeyPool = newTestPool(t, "first-key", "second-key")
+			}
+			rec := &testutil.MockRecorder{}
+			var r recorder.Recorder = rec
+			if tc.failStart {
+				r = &failingStartRecorder{}
+			}
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			gate := aibridge.NewInflightGate(logger)
+			t.Cleanup(gate.Close)
+
+			h, err := newForwardingHandler(provider.NewOpenAI(cfg), logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, r)
+			require.NoError(t, err)
+			if tc.transportError {
+				h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, io.ErrClosedPipe })
+			}
+			req := requestWithAuth(t, strings.NewReader("{}"))
+			req.Header.Set("User-Agent", userAgent)
+			req.Header.Set("session-id", "session-1")
+			req.Header.Set("X-Coder-Agent-Firewall-Session-Id", firewallID)
+			req.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "42")
+			if tc.pooled {
+				req.Header.Del("Authorization")
+			}
+
+			response := httptest.NewRecorder()
+			var w http.ResponseWriter = response
+			if tc.cancel {
+				ctx, cancel := context.WithCancelCause(req.Context())
+				t.Cleanup(func() { cancel(nil) })
+				req = req.WithContext(ctx)
+				w = cancelOnWrite{ResponseRecorder: response, cancel: cancel}
+			}
+			before := time.Now()
+			if tc.abort {
+				// Set ServerContextKey so ReverseProxy panics with ErrAbortHandler
+				// when copying the upstream body fails.
+				req = req.WithContext(context.WithValue(req.Context(), http.ServerContextKey, &http.Server{ReadHeaderTimeout: codertestutil.WaitShort}))
+				require.PanicsWithValue(t, http.ErrAbortHandler, func() { h.ServeHTTP(w, req) })
+			} else {
+				h.ServeHTTP(w, req)
+			}
+			require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+			require.Equal(t, tc.wantStatus, response.Code)
+			require.EqualValues(t, len(tc.statuses), calls.Load())
+			if tc.failStart {
+				return
+			}
+			starts := rec.RecordedInterceptions()
+			require.Len(t, starts, 1)
+			start := starts[0]
+			id, err := uuid.Parse(start.ID)
+			require.NoError(t, err)
+			require.NotEqual(t, uuid.Nil, id)
+			require.WithinRange(t, start.StartedAt, before, time.Now())
+			wantKind, wantStartHint := credential.KindBYOK, utils.MaskSecret(userSecretKey)
+			if tc.pooled {
+				wantKind, wantStartHint = credential.KindCentralized, credential.HintFailoverKey
+			}
+			require.Equal(t, &recorder.InterceptionRecord{
+				ID:                          start.ID,
+				InitiatorID:                 aibcontext.ActorIDFromContext(req.Context()),
+				Metadata:                    recorder.Metadata{"Username": t.Name()},
+				Provider:                    config.ProviderOpenAI,
+				ProviderName:                "openai",
+				StartedAt:                   start.StartedAt,
+				ClientSessionID:             new("session-1"),
+				Client:                      string(client.Codex),
+				UserAgent:                   userAgent,
+				AgentFirewallSessionID:      new(firewallID),
+				AgentFirewallSequenceNumber: new(int32(42)),
+				CredentialKind:              wantKind,
+				CredentialHint:              wantStartHint,
+			}, start)
+
+			end := rec.RecordedInterceptionEnd(start.ID)
+			require.NotNil(t, end)
+			require.WithinRange(t, end.EndedAt, start.StartedAt, time.Now())
+			require.Equal(t, &recorder.InterceptionRecordEnded{
+				ID:             start.ID,
+				EndedAt:        end.EndedAt,
+				CredentialHint: tc.wantHint,
+				ErrorType:      tc.wantError,
+				ErrorMessage:   tc.wantMessage,
+			}, end)
+		})
+	}
 }

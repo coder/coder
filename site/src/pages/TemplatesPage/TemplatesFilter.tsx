@@ -9,6 +9,7 @@ import {
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import { filterOptionsByText } from "#/components/Filter/FilterCombobox/filterQuery";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
 	getMeUserFilterOptions,
@@ -76,18 +77,22 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 				inlineOptions: true,
 				inlineOptionsLabel: "Template is…",
 				chipLabelOnly: true,
-				getOptions: async () => [
-					{
-						label: "Deprecated",
-						value: "deprecated",
-						token: "deprecated:true",
-					},
-					{
-						label: "Compatibility mode",
-						value: "compatibility_mode",
-						token: CLASSIC_PARAMETER_FLOW_FILTER,
-					},
-				],
+				getOptions: async (query) =>
+					filterOptionsByText(
+						[
+							{
+								label: "Deprecated",
+								value: "deprecated",
+								token: "deprecated:true",
+							},
+							{
+								label: "Compatibility mode",
+								value: "compatibility_mode",
+								token: CLASSIC_PARAMETER_FLOW_FILTER,
+							},
+						],
+						query,
+					),
 			},
 		],
 		[organizations, permissions.viewAllUsers, me, queryClient],

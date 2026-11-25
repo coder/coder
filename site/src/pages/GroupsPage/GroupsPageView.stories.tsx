@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	GROUP_MEMBER_AVATAR_LIMIT,
 	getGroupMemberAvatarsQueryKey,
 } from "#/api/queries/groups";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
-import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -19,9 +18,11 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
-type FilterProps = React.ComponentProps<typeof UsersFilter>;
+type FilterProps = React.ComponentProps<typeof GroupsPageView>["filterProps"];
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
@@ -33,7 +34,6 @@ const meta: Meta<typeof GroupsPageView> = {
 		spendError: false,
 		filterProps: getDefaultFilterProps<FilterProps>({
 			values: {},
-			menus: {},
 		}),
 		groupsQuery: {
 			...mockSuccessResult,
@@ -191,7 +191,6 @@ export const WithSearchAndPagination: Story = {
 		filterProps: getDefaultFilterProps<FilterProps>({
 			query: "group",
 			values: {},
-			menus: {},
 			used: true,
 		}),
 		groupsQuery: {
@@ -202,9 +201,22 @@ export const WithSearchAndPagination: Story = {
 			hasNextPage: true,
 		} as UsePaginatedQueryResult,
 	},
+};
+
+export const MobileFocusedSearch: Story = {
+	...WithSearchAndPagination,
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+	parameters: {
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () =>
+		setupMatchMedia({
+			[mobileViewportMediaQuery]: true,
+		}).restore,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Search")).toHaveValue("group");
+		await userEvent.click(
+			within(canvasElement).getByRole("textbox", { name: "Search groups…" }),
+		);
 	},
 };
 
@@ -428,7 +440,6 @@ export const NoSearchResults: Story = {
 		filterProps: getDefaultFilterProps<FilterProps>({
 			query: "nomatch",
 			values: {},
-			menus: {},
 			used: true,
 		}),
 	},

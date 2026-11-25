@@ -44,6 +44,10 @@ type DateTimeRangePickerProps = {
 	size?: ButtonProps["size"];
 	/** Accessible name of the picker. Defaults to "Time range". */
 	label?: string;
+	/** Visible text before the value, e.g. `Active:`. */
+	valuePrefix?: string;
+	/** Which trigger edge the menu lines up with. Defaults to `end`. */
+	align?: "start" | "end";
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
 	 * time cannot be applied, and presets that would start before it are
@@ -121,6 +125,8 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	presets,
 	size = "sm",
 	label = "Time range",
+	valuePrefix,
+	align = "end",
 	minDate,
 	maxDays,
 }) => {
@@ -298,6 +304,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
+						{valuePrefix && `${valuePrefix} `}
 						{triggerLabel}
 					</span>
 					<ChevronDownIcon
@@ -310,7 +317,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
-				align="end"
+				align={align}
 				id={contentId}
 				aria-label={label}
 			>

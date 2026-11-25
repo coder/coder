@@ -70,6 +70,9 @@ func TestApplyReasoningEffort(t *testing.T) {
 		for _, model := range []Model{
 			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6-astra"}, nil),
 			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6.1-sol"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6.2-astra"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6.2-sol"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "GPT-6-Astra-2026-09-03"}, nil),
 		} {
 			for effort, want := range map[string]fantasyopenai.ReasoningEffort{
 				codersdk.ChatModelReasoningEffortNone:    fantasyopenai.ReasoningEffortLow,
@@ -85,7 +88,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 		}
 
 		// Other OpenAI models keep the caller's value.
-		for _, modelID := range []string{"gpt-5.6-sol", "gpt-6-sol"} {
+		for _, modelID := range []string{"gpt-5.6-sol", "gpt-6-sol", "gpt-6.1-terra"} {
 			model := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: modelID}, nil)
 			got := applyReasoningEffort(model, nil, new(codersdk.ChatModelReasoningEffortNone))
 			require.Equal(t, fantasyopenai.ReasoningEffortNone, *got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions).ReasoningEffort, "model %q", modelID)

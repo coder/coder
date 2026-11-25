@@ -1,7 +1,7 @@
-import { cn } from "cn";
-import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
 import { useQuery } from "react-query";
-import { meAISpend } from "#/api/queries/users";
+import { getErrorMessage } from "#/api/errors";
+import { meAISpend, meOrganizationsAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -11,29 +11,12 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getSeverity, type UsageSeverity } from "#/utils/budget";
+import { SeverityBadge, severityIndicators } from "./severityIndicators";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { UserDropdownOrgSelect } from "./UserDropdownOrgSelect";
 import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
-
-// Elevated states show a corner badge with a distinct icon per state.
-const severityIndicators: Partial<
-	Record<
-		UsageSeverity,
-		{ badge: string; icon: React.JSX.Element; label: string }
-	>
-> = {
-	warning: {
-		badge: "bg-surface-orange text-highlight-orange",
-		icon: <TriangleAlertIcon aria-hidden className="size-3" />,
-		label: "AI spend is nearing its limit",
-	},
-	exceeded: {
-		badge: "bg-surface-red text-highlight-red",
-		icon: <OctagonAlertIcon aria-hidden className="size-3" />,
-		label: "AI spend limit exceeded",
-	},
-};
+import { getSpendSeverity, getUserMenuSpend } from "./viewedSpend";
 
 type UserDropdownProps = {
 	user: TypesGen.User;
@@ -53,31 +36,30 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 	canViewLicenses,
 }) => {
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
-	const { data, isError } = useQuery({
+	const siteWideQuery = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
 	});
+	const byOrganizationQuery = useQuery({
+		...meOrganizationsAISpend(),
+		enabled: aibridgeVisible,
+	});
+	const [selectedOrgId, setSelectedOrgId] = useState<string>();
 
-	// A null budget is unlimited and still shown.
-	const hasValidSpend =
-		data !== undefined &&
-		data.current_spend_micros >= 0 &&
-		(data.effective_budget === null ||
-			data.effective_budget.spend_limit_micros >= 0);
-	const spend =
-		aibridgeVisible && !isError && hasValidSpend
-			? {
-					currentSpend: data.current_spend_micros,
-					spendLimit: data.effective_budget?.spend_limit_micros ?? null,
-					periodStart: data.period_start,
-					periodEnd: data.period_end,
-				}
-			: null;
-	const severity =
-		spend && spend.spendLimit !== null
-			? getSeverity(spend.currentSpend, spend.spendLimit)
-			: "normal";
-	const indicator = spend ? severityIndicators[severity] : undefined;
+	// A failed poll keeps the last spend and the open selector on screen, with
+	// the error beside them.
+	const menuSpend = aibridgeVisible
+		? getUserMenuSpend(
+				siteWideQuery.data,
+				byOrganizationQuery.data,
+				selectedOrgId,
+			)
+		: undefined;
+	const spend = menuSpend?.spend ?? null;
+	const error = menuSpend?.orgSelection
+		? byOrganizationQuery.error
+		: siteWideQuery.error;
+	const indicator = severityIndicators[getSpendSeverity(spend)];
 
 	return (
 		<DropdownMenu>
@@ -91,15 +73,10 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 						{indicator ? `User menu. ${indicator.label}` : "User menu"}
 					</span>
 					{indicator && (
-						<span
-							className={cn(
-								"absolute -top-2 -right-2 flex size-icon-sm items-center",
-								"justify-center rounded",
-								indicator.badge,
-							)}
-						>
-							{indicator.icon}
-						</span>
+						<SeverityBadge
+							indicator={indicator}
+							className="absolute -top-2 -right-2"
+						/>
 					)}
 				</button>
 			</DropdownMenuTrigger>
@@ -109,10 +86,35 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 					user={user}
 					buildInfo={buildInfo}
 					profileExtra={
-						spend && (
+						menuSpend &&
+						(menuSpend.orgSelection || spend) && (
 							<>
 								<DropdownMenuSeparator />
-								<UserDropdownAISpend {...spend} />
+								{menuSpend.orgSelection && (
+									<UserDropdownOrgSelect
+										organizations={menuSpend.orgSelection.organizations}
+										selected={menuSpend.orgSelection.shown.organization}
+										onSelectedOrgIdChange={setSelectedOrgId}
+									/>
+								)}
+								{spend ? (
+									<UserDropdownAISpend
+										{...spend}
+										perOrganization={Boolean(menuSpend.orgSelection)}
+										periodStart={menuSpend.period.period_start}
+										periodEnd={menuSpend.period.period_end}
+									/>
+								) : (
+									<div className="px-2 py-2 text-xs text-content-secondary">
+										AI spend unavailable
+									</div>
+								)}
+								{error && (
+									<div className="px-2 pb-2 text-xs text-content-secondary">
+										Couldn't refresh AI spend:{" "}
+										{getErrorMessage(error, "Unknown error")}
+									</div>
+								)}
 							</>
 						)
 					}

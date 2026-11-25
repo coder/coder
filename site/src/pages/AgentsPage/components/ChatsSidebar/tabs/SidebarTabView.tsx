@@ -141,9 +141,25 @@ type SidebarTabViewProps = {
 	 * close button does, so a menu toggle selects the same neighbour.
 	 */
 	addTabControl?: (closeTab: (tabId: string) => void) => React.ReactNode;
+	/** Each new value moves keyboard focus to the active tab. */
+	focusRequestId?: number;
+	/**
+	 * Called once focus moved for `focusRequestId`, so the owner can drop it
+	 * and a remounted view does not move focus again.
+	 */
+	onFocusRequestApplied?: (id: number) => void;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
+
+// Native focus scrolling ignores scroll-padding and reveals only the focused
+// half of a closeable pill. Skip pointer focus: scrolling on mousedown moves
+// the pill under the pointer and drops the click.
+const scrollFocusedPillIntoView = (event: React.FocusEvent<HTMLDivElement>) => {
+	if (event.target.matches(":focus-visible")) {
+		event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}
+};
 
 function useTabScroll() {
 	const ref = useRef<HTMLDivElement>(null);
@@ -241,7 +257,19 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	addTabControl,
+	focusRequestId,
+	onFocusRequestApplied,
 }) => {
+	const activeTabRef = useRef<HTMLButtonElement>(null);
+	const reportFocusRequestApplied = useEffectEvent((id: number) =>
+		onFocusRequestApplied?.(id),
+	);
+	useEffect(() => {
+		if (focusRequestId !== undefined) {
+			activeTabRef.current?.focus();
+			reportFocusRequestApplied(focusRequestId);
+		}
+	}, [focusRequestId]);
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
@@ -365,13 +393,14 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
+						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scroll-px-9 scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
 							const isCloseable = tab.onClose !== undefined;
 							const tabButton = (
 								<Button
+									ref={isActive ? activeTabRef : undefined}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
@@ -404,14 +433,22 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 
 							if (!isCloseable) {
 								return (
-									<div key={tab.id} className="flex shrink-0 items-center">
+									<div
+										key={tab.id}
+										className="flex shrink-0 items-center"
+										onFocus={scrollFocusedPillIntoView}
+									>
 										{tabButton}
 									</div>
 								);
 							}
 
 							return (
-								<div key={tab.id} className="flex shrink-0 items-center">
+								<div
+									key={tab.id}
+									className="flex shrink-0 items-center"
+									onFocus={scrollFocusedPillIntoView}
+								>
 									{tabButton}
 									<Button
 										variant="outline"

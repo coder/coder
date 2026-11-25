@@ -513,7 +513,9 @@ export const AIBudgetActionEnabledForOtherGroup: Story = {
 		// The menu stays enabled while the governing group's name resolves.
 		await canvas.findByText("developer");
 		await userEvent.click(
-			canvas.getAllByRole("button", { name: "Open menu" })[0],
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
 		);
 		const menuItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
@@ -573,7 +575,9 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 		);
 
 		await userEvent.click(
-			canvas.getAllByRole("button", { name: "Open menu" })[0],
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
 		);
 		const menuItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
@@ -649,7 +653,11 @@ export const SaveMemberAIBudgetRefreshesRow: Story = {
 		);
 		await expect(budgetCell).toHaveTextContent("Group limit $9,000");
 
-		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
+		);
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Manage AI budget" }),
 		);
@@ -705,7 +713,11 @@ export const DeleteMemberAIBudgetRefreshesRow: Story = {
 		);
 		await expect(budgetCell).toHaveTextContent("Custom limit $12,000");
 
-		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
+		);
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Manage AI budget" }),
 		);
@@ -746,7 +758,9 @@ export const OpenAIBudgetForCurrentGroupMember: Story = {
 		const body = within(document.body);
 
 		await userEvent.click(
-			canvas.getAllByRole("button", { name: "Open menu" })[0],
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Manage AI budget" }),
@@ -788,7 +802,9 @@ export const AIBudgetReadOnlyWithoutUserPermission: Story = {
 		const body = within(document.body);
 
 		await userEvent.click(
-			canvas.getAllByRole("button", { name: "Open menu" })[0],
+			canvas.getByRole("button", {
+				name: `Open menu for ${MockUserOwner.username}`,
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Manage AI budget" }),
@@ -975,7 +991,7 @@ export const AIBudgetShowcase: Story = {
 
 		// Everyone (unset) must not disable the override action.
 		await userEvent.click(
-			canvas.getAllByRole("button", { name: "Open menu" })[0],
+			canvas.getByRole("button", { name: "Open menu for alice" }),
 		);
 		const manageItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
@@ -984,13 +1000,88 @@ export const AIBudgetShowcase: Story = {
 		await userEvent.keyboard("{Escape}");
 
 		// Another group in the same organization keeps the action enabled.
-		const otherGroupMenu = await canvas.findAllByRole("button", {
-			name: "Open menu",
-		});
-		await userEvent.click(otherGroupMenu[7]);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Open menu for riley" }),
+		);
 		const otherGroupItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
 		});
 		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const MemberFiltersOpen: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getGroupQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ exclude_members: true },
+				),
+				data: MockGroupWithoutMembers,
+			},
+			{
+				key: getGroupMembersQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ limit: 25, offset: 0, q: "" },
+				),
+				data: { users: MockGroup.members, count: MockGroup.members.length },
+			},
+			{
+				key: groupPermissionsKey(MockGroupWithoutMembers.id),
+				data: { canUpdateGroup: true },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const SelectedMemberFilters: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockDefaultOrganization.name,
+					groupName: MockGroupWithoutMembers.name,
+				},
+				searchParams: { filter: "status:active service_account:true" },
+			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName" },
+				<GroupMembersPage />,
+			),
+		}),
+		queries: [
+			{
+				key: getGroupQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ exclude_members: true },
+				),
+				data: MockGroupWithoutMembers,
+			},
+			{
+				key: getGroupMembersQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{
+						limit: 25,
+						offset: 0,
+						q: "status:active service_account:true",
+					},
+				),
+				data: { users: [], count: 0 },
+			},
+			{
+				key: groupPermissionsKey(MockGroupWithoutMembers.id),
+				data: { canUpdateGroup: true },
+			},
+		],
 	},
 };

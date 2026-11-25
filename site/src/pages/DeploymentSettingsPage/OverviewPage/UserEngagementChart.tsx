@@ -2,7 +2,15 @@ import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { useId } from "react";
 import { Link as RouterLink } from "react-router";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	Dot,
+	type DotProps,
+	XAxis,
+	YAxis,
+} from "recharts";
 import { Button } from "#/components/Button/Button";
 import {
 	type ChartConfig,
@@ -39,6 +47,12 @@ type UserEngagementDay = {
 	date: string;
 	users: number;
 };
+
+const formatDay = (date: string) =>
+	new Date(date).toLocaleString(undefined, {
+		month: "long",
+		day: "2-digit",
+	});
 
 type UserEngagementChartProps = {
 	data: UserEngagementDay[] | undefined;
@@ -152,13 +166,9 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 													const item = p[0];
 													return `${item.value} users`;
 												}}
-												formatter={(_v, _n, item) => {
-													const date = new Date(item.payload.date);
-													return date.toLocaleString(undefined, {
-														month: "long",
-														day: "2-digit",
-													});
-												}}
+												formatter={(_v, _n, item) =>
+													formatDay(item.payload.date)
+												}
 											/>
 										)}
 									/>
@@ -185,6 +195,18 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 										fillOpacity={0.4}
 										stroke="var(--color-users)"
 										stackId="a"
+										// Screen readers in browse mode reach the highlighted point
+										// directly, so it carries the same text as the tooltip.
+										activeDot={({
+											payload,
+											...props
+										}: DotProps & { payload: UserEngagementDay }) => (
+											<Dot
+												{...props}
+												role="img"
+												aria-label={`${payload.users} users, ${formatDay(payload.date)}`}
+											/>
+										)}
 									/>
 								</AreaChart>
 							</ChartContainer>

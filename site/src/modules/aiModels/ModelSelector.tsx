@@ -221,7 +221,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
-						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-disabled"
+						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-secondary"
 					/>
 					<CommandList
 						id={listboxId}
@@ -240,6 +240,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 								<CommandGroup className="p-1">
 									<CommandItem
 										value="__unset__"
+										aria-selected={!value}
 										onSelect={() => {
 											onValueChange("");
 											handleOpenChange(false);
@@ -411,6 +412,7 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 	return (
 		<CommandItem
 			value={option.id}
+			aria-selected={isSelected}
 			onSelect={onSelect}
 			className={cn(
 				"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
