@@ -877,7 +877,7 @@ describe("OAuth2AppForm", () => {
 			/>,
 		);
 
-		await user.click(screen.getByTestId("clear-all-button"));
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
 		await user.click(
 			screen.getByRole("button", { name: /update application/i }),
 		);
