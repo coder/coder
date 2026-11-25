@@ -55,7 +55,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	component: ProjectDetailsPanelView,
 	decorators: [
 		(Story) => (
-			<div className="max-w-[310px]">
+			<div className="max-w-77.5">
 				<Story />
 			</div>
 		),
@@ -305,7 +305,7 @@ export const MembersOverflowNarrow: Story = {
 	args: MembersOverflow.args,
 	decorators: [
 		(Story) => (
-			<div className="w-[200px]">
+			<div className="w-50">
 				<Story />
 			</div>
 		),

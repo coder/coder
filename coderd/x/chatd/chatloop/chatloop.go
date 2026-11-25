@@ -136,6 +136,11 @@ type GenerateAssistantOptions struct {
 	Stages             *StageTracer
 	// StageModel should match the model identity on provider_attempt stages.
 	StageModel StageModel
+	// ModelCallStage records the call as a model_call stage, without the
+	// stream and time_to_first_token stages, so a nested call such as the
+	// advisor is traced without counting toward the assistant stream
+	// histograms.
+	ModelCallStage bool
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -237,6 +242,10 @@ type GenerateCompactionOptions struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
+	// Stages records each summary request as a chat span under the
+	// caller's compaction stage. Nil disables tracing.
+	Stages     *StageTracer
+	StageModel StageModel
 	// SummaryContextLimit is the summary model's window. When positive, it
 	// bounds the summary cap instead of the trigger's limit.
 	SummaryContextLimit int64
@@ -367,8 +376,16 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
-	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
-	streamSpan.SetModel(opts.StageModel)
+	var streamCtx context.Context
+	var streamSpan *StageSpan
+	ttftStages := opts.Stages
+	if opts.ModelCallStage {
+		streamCtx, streamSpan = opts.Stages.StartModelCall(stepCtx, opts.StageModel, true)
+		ttftStages = nil
+	} else {
+		streamCtx, streamSpan = opts.Stages.StartWithModel(stepCtx, StageStream, opts.StageModel)
+	}
+	streamSpan.SetInferenceRequest(call)
 	attempt, streamErr := guardedStream(
 		streamCtx,
 		provider,
@@ -379,7 +396,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
-		opts.Stages,
+		ttftStages,
 		opts.StageModel,
 	)
 	if streamErr != nil {
@@ -393,12 +410,18 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}
 	// release closes the time_to_first_token window, so it must run
 	// before the stream stage ends.
+	var inference InferenceResponse
 	defer func() {
 		attempt.release()
-		streamSpan.End(retErr)
+		endModelCall(streamSpan, inference, retErr)
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	inference = InferenceResponse{
+		ResponseID:   result.providerResponseID,
+		FinishReason: result.finishReason,
+		Usage:        result.usage,
+	}
 	// Observe before error handling so failed or rejected responses are still counted.
 	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
@@ -1184,8 +1207,14 @@ func providerResponseID(part fantasy.StreamPart) string {
 	if part.ID != "" {
 		return part.ID
 	}
-	for _, metadata := range part.ProviderMetadata {
-		if responses, ok := metadata.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
+	return metadataResponseID(part.ProviderMetadata)
+}
+
+// metadataResponseID returns the OpenAI Responses API response ID, the
+// only provider that reports it in metadata rather than a part ID.
+func metadataResponseID(metadata fantasy.ProviderMetadata) string {
+	for _, m := range metadata {
+		if responses, ok := m.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
 			return responses.ResponseID
 		}
 	}
@@ -1255,10 +1284,10 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 		var toolSpan *StageSpan
 		startRun := func(ctx context.Context) context.Context {
 			var toolCtx context.Context
-			toolCtx, toolSpan = b.opts.Stages.Start(ctx, StageToolCall,
+			toolCtx, toolSpan = b.opts.Stages.StartTool(ctx, b.opts.StageModel, tc,
+				genAIToolType(b.opts.BuiltinToolNames, tc.ToolName),
 				attribute.String(AttrToolName, tc.ToolName),
 			)
-			toolSpan.SetModel(b.opts.StageModel)
 			return toolCtx
 		}
 		var execErr error
@@ -1281,7 +1310,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
-			toolSpan.End(execErr)
+			toolSpan.End(toolSpanError(execErr, executions[i].content))
 		}()
 		callCtx := ctx
 		if b.opts.ToolCallContext != nil {
@@ -1542,6 +1571,7 @@ func (b *toolBatch) runOne(
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
 			Text:      text,
+			Filename:  resp.Filename,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{

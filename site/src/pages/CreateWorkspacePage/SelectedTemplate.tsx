@@ -9,7 +9,7 @@ export const SelectedTemplate: React.FC<SelectedTemplateProps> = ({
 	template,
 }) => {
 	return (
-		<div className="flex gap-4 py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border">
+		<div className="flex gap-4 py-5 px-6 rounded-lg bg-surface-primary border">
 			<Avatar
 				variant="icon"
 				size="lg"

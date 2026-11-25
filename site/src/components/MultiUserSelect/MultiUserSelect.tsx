@@ -196,7 +196,7 @@ const InnerMultiSelect = <T extends SelectedUser>({
 				}}
 				placeholder="Search users..."
 			/>
-			<div className="h-96 w-full rounded-lg border border-border border-solid">
+			<div className="h-96 w-full rounded-lg border">
 				<div className="h-full overflow-hidden p-px">
 					<div
 						className="h-full overflow-y-auto overflow-x-hidden overscroll-contain"
@@ -223,7 +223,7 @@ const TableLoader: React.FC = () => {
 	return (
 		<div>
 			{skeletonRows.map((row) => (
-				<div className="flex min-h-[64px] items-center px-4 py-3" key={row}>
+				<div className="flex min-h-16 items-center px-4 py-3" key={row}>
 					<div className="flex items-center gap-3">
 						<Checkbox disabled />
 						<AvatarDataSkeleton />
@@ -272,7 +272,7 @@ const UserRow = <T extends SelectedUser>({
 		>
 			<div
 				className={cn(
-					"flex min-h-[64px] items-center px-4 py-3",
+					"flex min-h-16 items-center px-4 py-3",
 					isFirst && "rounded-tl-md rounded-tr-md",
 					isLast && "rounded-bl-md rounded-br-md",
 				)}

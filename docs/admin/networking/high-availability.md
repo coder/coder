@@ -4,7 +4,7 @@ title: High availability
 
 High Availability (HA) mode solves for horizontal scalability and automatic failover within a single region.
 When in HA mode, Coder continues using a single Postgres endpoint.
-[GCP](https://cloud.google.com/sql/docs/postgres/high-availability), [AWS](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-managed-postgresql/availability.html), and other cloud vendors offer fully-managed HA Postgres services that pair nicely with Coder.
+[GCP](https://cloud.google.com/sql/docs/postgres/high-availability), [AWS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html), and other cloud vendors offer fully-managed HA Postgres services that pair nicely with Coder.
 
 For Coder to operate correctly, `coderd` instances should have low-latency connections to each other so that they can effectively relay traffic between users and workspaces no matter which `coderd` instance users or workspaces connect to.
 We make a best-effort attempt to warn the user when inter-`coderd` latency is too high, but if requests start dropping, this is one metric to investigate.

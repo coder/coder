@@ -640,6 +640,9 @@ coderd_workspace_creation_duration_seconds{organization_name="",template_name=""
 # HELP coderd_workspace_creation_total Total regular (non-prebuilt) workspace creations by organization, template, and preset.
 # TYPE coderd_workspace_creation_total counter
 coderd_workspace_creation_total{organization_name="",template_name="",preset_name=""} 0
+# HELP coderd_workspace_last_used_timestamp_seconds The last time each workspace was used, as a Unix timestamp in seconds. Every replica reports the same database-derived value; aggregate with max, not sum.
+# TYPE coderd_workspace_last_used_timestamp_seconds gauge
+coderd_workspace_last_used_timestamp_seconds{organization_name="",template_name="",workspace_owner="",workspace_name="",workspace_id=""} 0
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0

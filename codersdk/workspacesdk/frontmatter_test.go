@@ -192,6 +192,52 @@ func TestParseSkillFrontmatter(t *testing.T) {
 	})
 }
 
+func TestValidatePluginName(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		"a",
+		"acme",
+		"acme-tools",
+		"acme.tools",
+		"a1.b2-c3",
+		"a.-b",
+		"a-.b",
+		"deployment.tools",
+		"lint3r",
+		"0",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength),
+	}
+	for _, name := range valid {
+		require.NoError(t, workspacesdk.ValidatePluginName(name), name)
+	}
+
+	invalid := []string{
+		"",
+		"Acme",
+		"acme tools",
+		"acme_tools",
+		"-acme",
+		"acme-",
+		".acme",
+		"acme.",
+		"acme--tools",
+		"acme..tools",
+		"acme/tools",
+		"ac\u00e9me",
+		"My-Plugin",
+		"has--double",
+		"too.many..dots",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength+1),
+	}
+	for _, name := range invalid {
+		require.Error(t, workspacesdk.ValidatePluginName(name), name)
+	}
+
+	err := workspacesdk.ValidatePluginName("ac\u00e9me")
+	require.ErrorContains(t, err, "invalid character '\u00e9'")
+}
+
 func TestSkillDisablesModelInvocation(t *testing.T) {
 	t.Parallel()
 
@@ -199,11 +245,13 @@ func TestSkillDisablesModelInvocation(t *testing.T) {
 		name  string
 		value string
 		want  bool
+		// wantBoolean is whether the key holds a YAML boolean at all.
+		wantBoolean bool
 	}{
-		{name: "True", value: "true", want: true},
-		{name: "TitleCaseTrue", value: "True", want: true},
+		{name: "True", value: "true", want: true, wantBoolean: true},
+		{name: "TitleCaseTrue", value: "True", want: true, wantBoolean: true},
 		{name: "Absent", value: "", want: false},
-		{name: "False", value: "false", want: false},
+		{name: "False", value: "false", want: false, wantBoolean: true},
 		{name: "QuotedTrue", value: `"true"`, want: false},
 		{name: "Yes", value: "yes", want: false},
 		{name: "One", value: "1", want: false},
@@ -220,6 +268,9 @@ func TestSkillDisablesModelInvocation(t *testing.T) {
 			content := "---\nname: manual-only\ndescription: Runs on request\n" + key + "---\nBody text.\n"
 
 			require.Equal(t, tt.want, workspacesdk.SkillDisablesModelInvocation(content))
+			disabled, ok := workspacesdk.SkillDisableModelInvocationValue(content)
+			require.Equal(t, tt.want, disabled)
+			require.Equal(t, tt.wantBoolean, ok)
 			name, description, body, err := workspacesdk.ParseSkillFrontmatter(content)
 			require.NoError(t, err)
 			require.Equal(t, "manual-only", name)

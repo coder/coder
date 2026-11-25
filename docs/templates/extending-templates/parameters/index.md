@@ -6,7 +6,7 @@ description: Prompt users for values, such as a region or instance size, to cust
 Parameters prompt the user for information when they create or update a workspace, such as a region, an instance size, or a repository URL.
 You declare each parameter in your template's Terraform with the [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter) data source, so the workspace creation form lives next to the provisioning code that uses it.
 
-![Parameters in Create Workspace screen](../../../images/parameters.png)
+![Parameters in Create workspace screen](../../../images/parameters.png)
 
 Users set parameter values in the dashboard or with the CLI.
 
@@ -298,6 +298,8 @@ data "coder_parameter" "force_rebuild" {
 
 ## Autofill parameters from a URL
 
-When the template doesn't specify default values, Coder looks for URL query parameters with the form `param.<name>=<value>` to autofill parameters.
+When a URL query parameter `param.<name>=<value>` matches a parameter that is not ephemeral, the workspace creation form fills in that value, even when the template sets a default.
+For dropdown and radio parameters, the value must match one of the options, or the form uses the template default.
+Ephemeral parameters always use the template default.
 
 This feature enables platform teams to create pre-filled workspace creation links.

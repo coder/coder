@@ -16,11 +16,8 @@ type FormFieldProps = React.ComponentProps<"input"> & {
 	field: FormHelpers;
 	label: React.ReactNode;
 	description?: React.ReactNode;
-	/**
-	 * When true, discourages password managers (1Password, LastPass, Bitwarden,
-	 * etc.) from offering to autofill or save this field. Has no effect when a
-	 * custom `control` is provided.
-	 */
+	descriptionPosition?: "above" | "below";
+	/** Discourages password manager autofill. Ignored with a custom `control`. */
 	ignorePasswordManagers?: boolean;
 	/**
 	 * Renders in place of the default `Input` element
@@ -32,6 +29,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 	field,
 	label,
 	description,
+	descriptionPosition = "above",
 	className,
 	control,
 	ignorePasswordManagers,
@@ -57,6 +55,11 @@ export const FormField: React.FC<FormFieldProps> = ({
 		"aria-invalid": field.error,
 		"aria-describedby": describedBy || undefined,
 	};
+	const descriptionNode = description && (
+		<div id={descriptionId} className="text-xs text-content-secondary">
+			{description}
+		</div>
+	);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -71,11 +74,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 					</>
 				)}
 			</Label>
-			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
-					{description}
-				</div>
-			)}
+			{descriptionPosition === "above" && descriptionNode}
 			{control ? (
 				control(controlProps)
 			) : (
@@ -90,6 +89,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 					className={cn(field.error && "border-border-destructive", className)}
 				/>
 			)}
+			{descriptionPosition === "below" && descriptionNode}
 			{field.error ? (
 				<span id={errorId} className="text-xs text-content-destructive">
 					{field.helperText}

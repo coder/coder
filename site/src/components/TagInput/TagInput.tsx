@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import { useId, useMemo } from "react";
 import { Badge } from "#/components/Badge/Badge";
@@ -28,8 +29,10 @@ export const TagInput: React.FC<TagInputProps> = ({
 	return (
 		<div>
 			<div
-				className="flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-border border-solid relative rounded-md
-				focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px"
+				className={cn(
+					"flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border relative rounded-md",
+					"focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px",
+				)}
 			>
 				{values.map((value, index) => (
 					<Badge key={itemIds[index]} size="md" className="gap-1 pr-1">

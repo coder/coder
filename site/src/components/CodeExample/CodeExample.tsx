@@ -55,7 +55,7 @@ export const CodeExample: React.FC<CodeExampleProps> = ({
 			className={cn(
 				"cursor-pointer flex flex-row items-center",
 				"text-content-primary font-mono text-sm",
-				"rounded-lg p-2 leading-normal border border-solid",
+				"rounded-lg p-2 leading-normal border",
 				"hover:bg-surface-secondary",
 				className,
 			)}

@@ -7,10 +7,15 @@ import (
 	"io"
 	"net/http"
 	"sync"
+
+	"golang.org/x/xerrors"
 )
 
 // maxSourceRead bounds one source read.
 const maxSourceRead = 32 << 10
+
+// ErrCaptureInProgress reports that capture has not finished.
+var ErrCaptureInProgress = xerrors.New("capture in progress")
 
 // TeeBuffer retains every byte read from source. Only the replayBody that
 // NewRequest and NewResponse install reads the source. The caller must limit
@@ -30,32 +35,35 @@ type TeeBuffer struct {
 	closeErr  error
 }
 
-// NewRequest replaces r.Body and r.GetBody with a replayBody and returns the connected buffer.
+// NewRequest returns a shallow copy of the request and a TeeBuffer that retains
+// the bytes read from the copy's body. The original request is not modified and
+// shares Header, URL, and other fields with the copy.
 // HTTP/1 handlers must enable full duplex, or the server will drain the body before an early reply.
-func NewRequest(r *http.Request) *TeeBuffer {
+func NewRequest(in *http.Request) (*http.Request, *TeeBuffer) {
+	req := *in
 	// HTTP/2 uses ContentLength == 0 instead of nil or http.NoBody.
-	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
-		r.Body = http.NoBody
-		r.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
-		return newBuffer(http.NoBody)
+	if req.Body == nil || req.Body == http.NoBody || req.ContentLength == 0 {
+		req.Body = http.NoBody
+		req.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
+		return &req, newBuffer(http.NoBody)
 	}
 	// The server closes the original body after the handler returns.
 	// Closing the buffer must not close the original body.
-	b := newBuffer(io.NopCloser(r.Body))
-	r.Body = b.newBody()
-	r.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
-	return b
+	b := newBuffer(io.NopCloser(req.Body))
+	req.Body = b.newBody()
+	req.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
+	return &req, b
 }
 
 // NewResponse replaces response Body with a replayBody and returns the connected buffer.
 // It takes ownership of the original Body and closes it when the buffer is closed.
-func NewResponse(r *http.Response) *TeeBuffer {
-	if r.Body == nil || r.Body == http.NoBody {
-		r.Body = http.NoBody
+func NewResponse(resp *http.Response) *TeeBuffer {
+	if resp.Body == nil || resp.Body == http.NoBody {
+		resp.Body = http.NoBody
 		return newBuffer(http.NoBody)
 	}
-	b := newBuffer(r.Body)
-	r.Body = b.newBody()
+	b := newBuffer(resp.Body)
+	resp.Body = b.newBody()
 	return b
 }
 
@@ -85,6 +93,33 @@ func (b *TeeBuffer) Wait(ctx context.Context) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// Err reports the capture result without waiting. A nil error means the
+// source completed, ErrCaptureInProgress means capture has not finished,
+// io.ErrClosedPipe means Close interrupted it, and any other error came from
+// the source.
+func (b *TeeBuffer) Err() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	switch b.err {
+	case nil:
+		return ErrCaptureInProgress
+	case io.EOF: //nolint:errorlint // Only bare EOF means completion.
+		return nil
+	default:
+		return b.err
+	}
+}
+
+// Bytes returns the bytes retained so far without waiting. They are complete
+// once Err no longer reports ErrCaptureInProgress. The bytes are read-only and
+// stay valid after Close.
+func (b *TeeBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	// Clamp capacity so appending to the result allocates new storage.
+	return b.data[:len(b.data):len(b.data)]
 }
 
 // teeRead reads from the source until it makes progress, appends read

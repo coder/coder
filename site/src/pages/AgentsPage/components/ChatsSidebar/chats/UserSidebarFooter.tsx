@@ -14,7 +14,7 @@ export const UserSidebarFooter: React.FC = () => {
 	const { appearance, buildInfo } = useDashboard();
 
 	return (
-		<div className="hidden border-0 border-t border-solid sm:block">
+		<div className="hidden border-t sm:block">
 			{/* This footer is resizable, so child sizing must follow its container width instead of the viewport. */}
 			<div className="flex min-w-0 items-stretch @container">
 				<DropdownMenu>
@@ -22,7 +22,7 @@ export const UserSidebarFooter: React.FC = () => {
 						<button
 							type="button"
 							aria-label={`Account menu for ${user.name || user.username}`}
-							className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+							className="flex min-w-0 flex-1 items-center gap-2 bg-transparent cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 						>
 							<Avatar
 								fallback={user.username}
@@ -34,7 +34,7 @@ export const UserSidebarFooter: React.FC = () => {
 							</span>
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-[260px]">
+					<DropdownMenuContent align="start" className="w-65">
 						<UserDropdownContent
 							user={user}
 							buildInfo={buildInfo}

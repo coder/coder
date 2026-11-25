@@ -19,7 +19,7 @@ export const WorkspaceStatus: React.FC<WorkspaceStatusProps> = ({
 			</WorkspaceStatusIndicator>
 			<time
 				dateTime={workspace.last_used_at}
-				className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap"
+				className="text-xs text-content-secondary ml-6 whitespace-nowrap"
 			>
 				{lastUsedMessage(workspace.last_used_at)}
 			</time>

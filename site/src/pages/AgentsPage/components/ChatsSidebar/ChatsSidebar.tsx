@@ -254,7 +254,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	};
 
 	return (
-		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				projects={projectsQuery.data ?? []}
@@ -344,7 +344,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

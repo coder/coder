@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.26.10
+go 1.26.11
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -54,7 +54,7 @@ replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20260313164934-7a658
 // repo as tailscale.com/tempfork/gliderlabs/ssh, however, we can't replace the
 // subpath and it includes changes to golang.org/x/crypto/ssh as well which
 // makes importing it directly a bit messy.
-replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-70855dedb788
+replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20261124114532-467fa35c3f9e
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
@@ -123,16 +123,28 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// 17) coder/fantasy#78, replay OpenAI web searches inline from their
-//    result metadata unless they go back as an item reference, which
-//    needs a stored request, a stored source response and the reasoning
-//    item right before the search. Each search replays at most once.
+// 17) coder/fantasy#78 and coder/fantasy#77, replay OpenAI web searches
+//    inline from their result metadata, without item IDs and never as
+//    item references. Each search replays at most once. Replayed
+//    computer calls also drop their item IDs.
 // 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
 //    Since coder/fantasy#82, unknown model IDs take computer_20251124.
-// See: https://github.com/coder/fantasy/commits/647b1ef66f42
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103005632-647b1ef66f42
+// 19) coder/fantasy#73 and coder/fantasy#74, convert tool result media
+//    through each provider's file part converter (Anthropic documents,
+//    Chat Completions user file parts, native Responses outputs) and add
+//    a filename. Chat Completions file parts refuse text files, as
+//    Responses does. Since coder/fantasy#84, a text part ahead of the
+//    media in the Chat Completions user message names the tool call and
+//    marks the media as tool output.
+// 20) coder/fantasy#85, send the output token limit as
+//    max_completion_tokens on every OpenAI Chat Completions request, not
+//    only for model IDs that look like reasoning models, so Azure OpenAI
+//    deployment names work. The OpenAI-compatible providers keep
+//    max_tokens.
+// See: https://github.com/coder/fantasy/commits/764e4a1985b4
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261110065722-764e4a1985b4
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -279,16 +291,16 @@ require (
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/mod v0.42.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 	golang.org/x/tools v0.52.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.308.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/api v0.311.0
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -301,7 +313,7 @@ require (
 
 require (
 	cloud.google.com/go/auth v0.24.1 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -319,7 +331,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/ProtonMail/go-crypto v1.4.1 // indirect
+	github.com/ProtonMail/go-crypto v1.5.2 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -354,7 +366,7 @@ require (
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/cloudflare/circl v1.6.3 // indirect
+	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
@@ -392,7 +404,7 @@ require (
 	github.com/google/nftables v0.2.0 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.24 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0 // indirect
@@ -517,7 +529,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20261019180522-ce908d29299b // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261019180522-ce908d29299b // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	howett.net/plist v1.0.1 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
@@ -586,13 +598,14 @@ require (
 )
 
 require (
+	github.com/coder/gpgkms v0.2.0 // indirect
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
 	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
 require (
-	cel.dev/cel-go v0.32.0
+	cel.dev/cel-go v0.33.2
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 )
 
@@ -715,6 +728,7 @@ require (
 )
 
 tool (
+	github.com/coder/gpgkms/cmd/gpgkms
 	github.com/daixiang0/gci
 	github.com/swaggo/swag/cmd/swag
 	go.uber.org/mock/mockgen
