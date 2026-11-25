@@ -181,7 +181,6 @@ describe("MoveToUnpinnedProjectDialog", () => {
 			expect(pin).toHaveBeenCalledWith(
 				MockChatProject.organization_id,
 				MockChatProject.id,
-				undefined,
 			),
 		);
 	});

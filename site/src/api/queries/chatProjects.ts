@@ -106,6 +106,19 @@ const invalidateProjectPins = async (queryClient: QueryClient) => {
 };
 
 /**
+ * Pins a project after the projects that are already pinned. The variables
+ * wrap the project, so an observer of the shared mutation key can tell a pin
+ * from the other pin changes.
+ */
+export const pinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		...projectPinsMutationOptions,
+		mutationFn: ({ project }: { project: TypesGen.ChatProject }) =>
+			API.experimental.pinChatProject(project.organization_id, project.id),
+		onSettled: () => invalidateProjectPins(queryClient),
+	});
+
+/**
  * Saves the order of the pinned projects. As on the server, pins left out of
  * projectIds follow the listed ones in their current order.
  */
