@@ -172,6 +172,8 @@ overrides:
   brace-expansion@<2: 1.1.21
   minimatch@>=10: 11.0.1
 
+packageExtensionsChecksum: sha256-KJ5S0mcdz92ou1yEBoRPMk7tFYXOsL0VDXlqdmR0uXs=
+
 patchedDependencies:
   cmdk@1.1.1: 1fd7e2e50791a6122cefa7103f66878943a4d18d434ebc6d1035e736e538caa5
 
@@ -528,6 +530,9 @@ importers:
       emojibase:
         specifier: 17.0.0
         version: 17.0.0
+      eslint-plugin-react-you-might-not-need-an-effect:
+        specifier: 1.2.0
+        version: 1.2.0
       express:
         specifier: 4.22.3
         version: 4.22.3(supports-color@7.2.0)
@@ -4501,6 +4506,15 @@ packages:
   escape-string-regexp@5.0.0:
     resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==, tarball: https://registry.npmjs.org/escape-string-regexp/-/escape-string-regexp-5.0.0.tgz}
     engines: {node: '>=12'}
+
+  eslint-plugin-react-you-might-not-need-an-effect@1.2.0:
+    resolution: {integrity: sha512-ieSAjWnVO92c2kyDPYgGJplcX1Fs4dhCmbEVgM9PMJ3Kg0mE9BBacT7HQRyKqrhaxVyneiIlA8BsY7vzF+bQ4A==, tarball: https://registry.npmjs.org/eslint-plugin-react-you-might-not-need-an-effect/-/eslint-plugin-react-you-might-not-need-an-effect-1.2.0.tgz}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      eslint: '>=8.40.0'
+    peerDependenciesMeta:
+      eslint:
+        optional: true
 
   esm-env@1.2.2:
     resolution: {integrity: sha512-Epxrv+Nr/CaL4ZcFGPJIYLWFom+YeV1DqMLHJoEd9SYRxNbaFruBwfEX/kkHUJf55j2+TUbmDcmuilbP1TmXHA==, tarball: https://registry.npmjs.org/esm-env/-/esm-env-1.2.2.tgz}
@@ -10782,6 +10796,8 @@ snapshots:
   escape-html@1.0.3: {}
 
   escape-string-regexp@5.0.0: {}
+
+  eslint-plugin-react-you-might-not-need-an-effect@1.2.0: {}
 
   esm-env@1.2.2: {}
 

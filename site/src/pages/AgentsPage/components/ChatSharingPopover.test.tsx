@@ -26,5 +26,8 @@ describe("ChatSharingPopover", () => {
 		expect(writeText).toHaveBeenCalledWith(
 			`${window.location.origin}/agents/${chatId}`,
 		);
+		expect(
+			screen.getAllByRole("status").map((status) => status.textContent),
+		).toContain("Copied");
 	});
 });

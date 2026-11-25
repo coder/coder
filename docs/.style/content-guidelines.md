@@ -281,9 +281,8 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
      For example: `{"source": "about/architecture", "destination": "/"}`.
   3. Keep `make lint/docs-redirects` passing.
 
-     It fails when a route that worked on the base branch, or that the live site still serves for the target branch, neither exists nor redirects.
+     It fails when a route that worked on the base branch neither exists nor redirects.
      The failure prints a rule you can paste into the file.
-     The check reads the live page list over the network, so run it with `-offline` when you have no access.
 
   The website reads `docs/redirects.json` at build time, and a change to the file starts a website rebuild.
   The redirect is therefore live in the build that the merge triggers.

@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -55,3 +56,6 @@ func (m *MockProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request,
 	}
 	return nil, nil //nolint:nilnil // mock: no interceptor configured is not an error
 }
+
+// CreateExtractor returns nil, so proxied requests forward without extraction.
+func (*MockProvider) CreateExtractor(string) extractors.Extractor { return nil }

@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.26.10
+go 1.26.11
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -599,7 +599,7 @@ require (
 )
 
 require (
-	github.com/coder/gpgkms v0.2.0 // indirect
+	github.com/coder/gpgkms v0.2.1 // indirect
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
 	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -41,6 +41,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 	onLoadMoreNotifications,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
+	const titleId = useId();
 
 	return (
 		<Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -50,6 +51,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 			<PopoverContent
 				className="w-(--radix-popper-available-width) max-w-116.5"
 				align="end"
+				aria-labelledby={titleId}
 			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
@@ -71,7 +73,9 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<h2 className="m-0 text-xl font-semibold">Inbox</h2>
+							<h2 id={titleId} className="m-0 text-xl font-semibold">
+								Inbox
+							</h2>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 

@@ -8,7 +8,7 @@ import {
 	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { ParameterValidationError } from "#/api/api";
@@ -43,9 +43,9 @@ import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
 	disabled: boolean;
-	onStop?: () => void;
+	onStop?: (returnFocusElement: HTMLElement | null) => void;
 	isStopping?: boolean;
-	onRestart?: () => void;
+	onRestart?: (returnFocusElement: HTMLElement | null) => void;
 	isRestarting?: boolean;
 	onActionSuccess?: () => Promise<void> | void;
 };
@@ -60,6 +60,14 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
+
+	// The dialogs below have no DialogTrigger, so Radix would return focus to
+	// the body when they close.
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const returnFocusToTrigger = (event: Event) => {
+		event.preventDefault();
+		triggerRef.current?.focus();
+	};
 
 	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
 		open: boolean;
@@ -130,6 +138,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 			<DropdownMenu open={open} onOpenChange={setOpen}>
 				<DropdownMenuTrigger asChild>
 					<Button
+						ref={triggerRef}
 						size="icon-lg"
 						variant="subtle"
 						data-testid="workspace-options-button"
@@ -143,14 +152,20 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 
 				<DropdownMenuContent id="workspace-options" align="end">
 					{onStop && (
-						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
+						<DropdownMenuItem
+							onClick={() => onStop(triggerRef.current)}
+							disabled={isStopping}
+						>
 							<SquareIcon />
 							Stop&hellip;
 						</DropdownMenuItem>
 					)}
 
 					{onRestart && (
-						<DropdownMenuItem onClick={onRestart} disabled={isRestarting}>
+						<DropdownMenuItem
+							onClick={() => onRestart(triggerRef.current)}
+							disabled={isRestarting}
+						>
 							<RotateCcwIcon />
 							Restart&hellip;
 						</DropdownMenuItem>
@@ -208,6 +223,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 				workspace={workspace}
 				open={isDownloadDialogOpen}
 				onClose={() => setIsDownloadDialogOpen(false)}
+				onCloseAutoFocus={returnFocusToTrigger}
 			/>
 
 			{changeVersionMutation.error instanceof ParameterValidationError && (
@@ -230,6 +246,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					setChangeVersionDialogOpen(false);
 					changeVersionMutation.mutate({ versionId: version.id });
 				}}
+				onCloseAutoFocus={returnFocusToTrigger}
 			/>
 
 			<WorkspaceDeleteDialog
@@ -243,6 +260,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					deleteWorkspaceMutation.mutate({ orphan });
 					setIsConfirmingDelete(false);
 				}}
+				onCloseAutoFocus={returnFocusToTrigger}
 			/>
 
 			<WorkspaceErrorDialog

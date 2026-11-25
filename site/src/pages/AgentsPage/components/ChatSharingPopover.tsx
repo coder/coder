@@ -17,6 +17,7 @@ import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -169,16 +170,19 @@ const CopyChatLinkButton: React.FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 	const chatLink = new URL(`/agents/${chatId}`, window.location.origin).href;
 
 	return (
-		<Button
-			size="sm"
-			variant="outline"
-			onClick={() => {
-				void copyToClipboard(chatLink);
-			}}
-		>
-			{showCopiedSuccess ? <CheckIcon /> : <LinkIcon />}
-			{showCopiedSuccess ? "Copied" : "Copy link"}
-		</Button>
+		<>
+			<Button
+				size="sm"
+				variant="outline"
+				onClick={() => {
+					void copyToClipboard(chatLink);
+				}}
+			>
+				{showCopiedSuccess ? <CheckIcon /> : <LinkIcon />}
+				{showCopiedSuccess ? "Copied" : "Copy link"}
+			</Button>
+			<CopiedStatus show={showCopiedSuccess} />
+		</>
 	);
 };
 

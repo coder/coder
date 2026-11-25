@@ -1,4 +1,4 @@
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
@@ -543,6 +543,7 @@ export const FilterComboboxChipsInput: React.FC<
 	return (
 		<CommandPrimitive.Input
 			{...passwordManagerIgnoreProps}
+			asChild
 			ref={ref}
 			data-slot="combobox-chip-input"
 			value={inputValue}
@@ -558,6 +559,35 @@ export const FilterComboboxChipsInput: React.FC<
 				className,
 			)}
 			{...props}
+		>
+			<ChipsInputElement />
+		</CommandPrimitive.Input>
+	);
+};
+
+type ChipsInputElementProps = React.ComponentProps<"input">;
+
+/**
+ * Renders cmdk's input from the props `asChild` passes in. cmdk sets its ARIA
+ * props after the caller's, always marking the input expanded and pointing it
+ * at its list and highlighted row, even while neither is mounted.
+ */
+const ChipsInputElement: React.FC<ChipsInputElementProps> = ({
+	"aria-controls": ariaControls,
+	"aria-activedescendant": ariaActiveDescendant,
+	...props
+}) => {
+	// With filtering off, cmdk counts every mounted item, and items mount only
+	// in the open popup's lists.
+	const expanded = useCommandState((state) => state.filtered.count > 0);
+
+	return (
+		<input
+			{...props}
+			role="combobox"
+			aria-expanded={expanded}
+			aria-controls={expanded ? ariaControls : undefined}
+			aria-activedescendant={expanded ? ariaActiveDescendant : undefined}
 		/>
 	);
 };

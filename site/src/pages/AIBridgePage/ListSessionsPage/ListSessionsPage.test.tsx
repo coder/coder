@@ -88,13 +88,14 @@ describe("ListSessionsPage", () => {
 		});
 		await waitForLoaderToBeRemoved();
 
-		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", { name: "Select an organization" }),
+		const user = userEvent.setup({ skipHover: true });
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.hover(
+			await screen.findByRole("option", { name: "Organization" }),
 		);
 		await user.click(
 			// The option name includes the avatar initials, so match by substring.
-			await screen.findByRole("option", { name: /My Organization 2/ }),
+			await screen.findByRole("button", { name: /My Organization 2/ }),
 		);
 
 		await waitFor(() =>

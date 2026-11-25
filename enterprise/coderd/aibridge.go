@@ -686,6 +686,28 @@ func (api *API) aiBridgeListProviders(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, providers)
 }
 
+// aiGatewayRetention returns the AI Gateway data retention. It holds no usage
+// data, so any authenticated user can read it when the AI Gateway feature is
+// enabled, without access to the deployment config.
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get AI Gateway data retention
+// @ID get-ai-gateway-data-retention
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Gateway
+// @Success 200 {object} codersdk.AIGatewayRetention
+// @Router /api/experimental/ai-gateway/retention [get]
+// @x-apidocgen {"skip": true}
+func (api *API) aiGatewayRetention(rw http.ResponseWriter, r *http.Request) {
+	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AIGatewayRetention{
+		// A retention of zero or less disables purging.
+		RetentionMillis: max(retention.Milliseconds(), 0),
+	})
+}
+
 // validateInterceptionCursor checks that a pagination cursor refers to an
 // existing interception. When sessionID is non-empty the interception must
 // also belong to that session. Returns errInvalidCursor on failure so
@@ -1427,13 +1449,9 @@ func escapeCSVCell(value string) string {
 	return "'" + value
 }
 
-// aiSpendPeriod is the applied [start, end) report window and, when the
-// retention window applies, its start.
+// aiSpendPeriod is the applied [start, end) report window.
 type aiSpendPeriod struct {
 	start, end time.Time
-	// retentionStart is zero when retention is disabled or the period is not
-	// subject to data retention.
-	retentionStart time.Time
 }
 
 // aiSpendPeriod resolves the report window from the request, ignoring AI
@@ -1494,7 +1512,7 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 // aiSpendRetainedPeriod is aiSpendPeriod limited to the AI Gateway data
 // retention window. Use it for raw AI Gateway data, which is subject to data
 // retention. It narrows a default period to the window, rejects an explicit
-// period that starts before it, and sets retentionStart.
+// period that starts before it.
 func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (period aiSpendPeriod, ok bool) {
 	period, ok = api.aiSpendPeriod(ctx, rw, r, parser)
 	if !ok {
@@ -1505,8 +1523,8 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 	if retention <= 0 {
 		return period, true
 	}
-	period.retentionStart = api.Clock.Now().Add(-retention)
-	if !period.start.Before(period.retentionStart) {
+	retentionStart := api.Clock.Now().Add(-retention)
+	if !period.start.Before(retentionStart) {
 		return period, true
 	}
 	// aiSpendPeriod already rejected a single bound, so period_start means the
@@ -1517,7 +1535,7 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 		})
 		return aiSpendPeriod{}, false
 	}
-	period.start = period.retentionStart
+	period.start = retentionStart
 	return period, true
 }
 
@@ -1917,9 +1935,6 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	report := codersdk.OrganizationAISpendReport{
 		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
 		Users:               users,
-	}
-	if !period.retentionStart.IsZero() {
-		report.RetentionStart = &period.retentionStart
 	}
 	if len(totals) > 0 {
 		report.Count = totals[0].Count
