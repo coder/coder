@@ -8648,20 +8648,6 @@ func (mr *MockStoreMockRecorder) InsertChatProjectMemory(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectMemory", reflect.TypeOf((*MockStore)(nil).InsertChatProjectMemory), ctx, arg)
 }
 
-// InsertChatProjectPin mocks base method.
-func (m *MockStore) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertChatProjectPin", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertChatProjectPin indicates an expected call of InsertChatProjectPin.
-func (mr *MockStoreMockRecorder) InsertChatProjectPin(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectPin", reflect.TypeOf((*MockStore)(nil).InsertChatProjectPin), ctx, arg)
-}
-
 // InsertChatProjectTemplates mocks base method.
 func (m *MockStore) InsertChatProjectTemplates(ctx context.Context, arg database.InsertChatProjectTemplatesParams) ([]database.ChatProjectTemplate, error) {
 	m.ctrl.T.Helper()
@@ -10499,6 +10485,20 @@ func (m *MockStore) RenewChatHeartbeats(ctx context.Context, arg database.RenewC
 func (mr *MockStoreMockRecorder) RenewChatHeartbeats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewChatHeartbeats", reflect.TypeOf((*MockStore)(nil).RenewChatHeartbeats), ctx, arg)
+}
+
+// ReorderChatProjectPins mocks base method.
+func (m *MockStore) ReorderChatProjectPins(ctx context.Context, arg database.ReorderChatProjectPinsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReorderChatProjectPins", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReorderChatProjectPins indicates an expected call of ReorderChatProjectPins.
+func (mr *MockStoreMockRecorder) ReorderChatProjectPins(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatProjectPins", reflect.TypeOf((*MockStore)(nil).ReorderChatProjectPins), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.

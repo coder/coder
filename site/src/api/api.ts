@@ -3367,13 +3367,16 @@ class ExperimentalApiMethods {
 	pinChatProject = async (
 		organizationId: string,
 		projectId: string,
-		pinOrder?: number,
 	): Promise<void> => {
-		const req: TypesGen.PinChatProjectRequest = { pin_order: pinOrder };
 		await this.axios.put(
 			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/pin`,
-			req,
 		);
+	};
+
+	reorderChatProjectPins = async (
+		req: TypesGen.ReorderChatProjectPinsRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/projects/pins/order", req);
 	};
 
 	unpinChatProject = async (

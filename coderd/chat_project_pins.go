@@ -1,13 +1,7 @@
 package coderd
 
 import (
-	"cmp"
-	"database/sql"
-	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
-	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -51,7 +45,6 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	compactChatProjectPinOrders(rows)
 	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectSummary))
 }
 
@@ -80,32 +73,12 @@ func (api *API) listChatProjectMemberCounts(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectMemberCount))
 }
 
-// compactChatProjectPinOrders renumbers the pinned rows 1..N in their
-// current order. The query numbers pins before authorization drops rows,
-// such as a project whose grant lacks read, which would leave gaps.
-func compactChatProjectPinOrders(rows []database.GetChatProjectSummariesByUserIDRow) {
-	pinned := make([]*database.GetChatProjectSummariesByUserIDRow, 0, len(rows))
-	for i := range rows {
-		if rows[i].Pinned {
-			pinned = append(pinned, &rows[i])
-		}
-	}
-	slices.SortFunc(pinned, func(a, b *database.GetChatProjectSummariesByUserIDRow) int {
-		return cmp.Compare(a.PinOrder, b.PinOrder)
-	})
-	for i, row := range pinned {
-		row.PinOrder = int32(i + 1) //nolint:gosec // Bounded by the number of projects.
-	}
-}
-
 // @Summary Pin chat project
 // @ID pin-chat-project
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept json
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
-// @Param request body codersdk.PinChatProjectRequest false "Pin chat project request"
 // @Success 204
 // @Router /api/experimental/organizations/{organization}/chats/projects/{project}/pin [put]
 // @x-apidocgen {"skip": true}
@@ -117,47 +90,14 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The body is optional because pin_order is. Decoding reports io.EOF
-	// only for an empty body, which a chunked request cannot announce in
-	// its Content-Length.
-	var req codersdk.PinChatProjectRequest
-	err := json.NewDecoder(http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)).Decode(&req)
-	if err != nil && !errors.Is(err, io.EOF) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Request body must be valid JSON.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	var pinOrder sql.NullInt32
-	if req.PinOrder != nil {
-		if *req.PinOrder < 1 {
-			writeChatProjectFieldError(ctx, rw, "pin_order", "Pin order must be at least 1.")
-			return
-		}
-		// Placing a pin reads the caller's other pins from the summaries.
-		if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID)) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		pinOrder = sql.NullInt32{Int32: *req.PinOrder, Valid: true}
-	}
-
-	err = api.Database.InTx(func(tx database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
 			return xerrors.Errorf("lock chat project pins: %w", err)
-		}
-		if pinOrder.Valid {
-			rows, err := tx.GetChatProjectSummariesByUserID(ctx, apiKey.UserID)
-			if err != nil {
-				return xerrors.Errorf("list visible chat project pins: %w", err)
-			}
-			pinOrder.Int32 = chatProjectPinPosition(rows, project.ID, pinOrder.Int32)
 		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
 			UserID:    apiKey.UserID,
 			ProjectID: project.ID,
-			PinOrder:  pinOrder,
+			Source:    database.ChatProjectPinSourceUser,
 		})
 	}, nil)
 	if err != nil {
@@ -170,43 +110,49 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// chatProjectPinPosition translates a requested position among the pins
-// the user sees into a position for PinChatProject. That query counts
-// every pin its access predicate matches, but authorization can still
-// hide some of them, such as a project whose grant lacks read or any
-// granted project while chat sharing is disabled. A hidden pin between
-// two visible ones would otherwise absorb the move.
-// rows must be the authorized summaries: their pin orders number the
-// matched pins, target included, in the order PinChatProject uses.
-func chatProjectPinPosition(rows []database.GetChatProjectSummariesByUserIDRow, projectID uuid.UUID, requested int32) int32 {
-	var targetOrder int32
-	visible := make([]int32, 0, len(rows))
-	for _, row := range rows {
-		switch {
-		case !row.Pinned:
-		case row.ProjectID == projectID:
-			targetOrder = row.PinOrder
-		default:
-			visible = append(visible, row.PinOrder)
+// @Summary Reorder pinned chat projects
+// @ID reorder-chat-project-pins
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.ReorderChatProjectPinsRequest true "Reorder chat project pins request"
+// @Success 204
+// @Router /api/experimental/chats/projects/pins/order [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putChatProjectPinOrder(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	// The order is the caller's personal data, and the request names no
+	// project to authorize. dbauthz refuses the write for an API key scoped
+	// without user:update_personal, so answer 403 here instead of failing
+	// the transaction.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.ReorderChatProjectPinsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
+			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
+		return tx.ReorderChatProjectPins(ctx, database.ReorderChatProjectPinsParams{
+			UserID:     apiKey.UserID,
+			ProjectIDs: req.ProjectIDs,
+		})
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to reorder chat project pins.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	if len(visible) == 0 {
-		return 1
-	}
-	slices.Sort(visible)
-	// PinChatProject numbers the other pins without the target.
-	position := func(order int32) int32 {
-		if targetOrder != 0 && targetOrder < order {
-			return order - 1
-		}
-		return order
-	}
-	if int(requested) <= len(visible) {
-		// Take the place of the visible pin now shown at that position.
-		return position(visible[requested-1])
-	}
-	// Go right after the last visible pin.
-	return position(visible[len(visible)-1]) + 1
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Unpin chat project
@@ -226,15 +172,12 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
-			return xerrors.Errorf("lock chat project pins: %w", err)
-		}
-		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-			UserID:    apiKey.UserID,
-			ProjectID: project.ID,
-		})
-	}, nil)
+	// Deleting one row cannot collide with another pin write, so unpinning
+	// takes no lock.
+	err := api.Database.UnpinChatProject(ctx, database.UnpinChatProjectParams{
+		UserID:    apiKey.UserID,
+		ProjectID: project.ID,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to unpin chat project.",
@@ -262,8 +205,7 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	userID := httpmw.APIKey(r).UserID
 	// A pin is a personal preference, so the project only needs to be
 	// readable.
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
-		(project.OwnerID != userID && api.chatSharingDisabled()) {
+	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return false
 	}
@@ -289,10 +231,10 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	return true
 }
 
-// chatProjectsOwnerLockID serializes one user's project creates and pin
-// writes. Pin writes renumber every pin of the user, so overlapping writes
-// would otherwise deadlock or write positions onto rows another write just
-// unpinned.
+// chatProjectsOwnerLockID serializes one user's project creates, pins and
+// reorders. A new pin reads the last position and a reorder rewrites every
+// position, so overlapping writes could otherwise share a position or
+// deadlock.
 func chatProjectsOwnerLockID(userID uuid.UUID) int64 {
 	return database.GenLockID("chat-projects-owner:" + userID.String())
 }
