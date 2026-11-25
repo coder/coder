@@ -304,8 +304,7 @@ const isThisDeployment = (
  * since parsing normalizes `/.` and drops an empty `?`.
  */
 export const isBareOrigin = (url: string): boolean =>
-	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) &&
-	parseURL(url) !== undefined;
+	BARE_ORIGIN_PATTERN.test(url) && parseURL(url) !== undefined;
 
 /**
  * True for apps that can be rendered inside a dashboard iframe. Command apps
