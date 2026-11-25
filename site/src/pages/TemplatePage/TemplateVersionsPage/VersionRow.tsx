@@ -47,7 +47,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-						<div className="flex items-center gap-2 font-inherit text-base font-normal leading-normal">
+						<div className="flex items-center gap-2 font-inherit text-base leading-normal">
 							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>

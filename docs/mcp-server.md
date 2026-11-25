@@ -87,8 +87,9 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at `/
 This enables MCP clients to connect to Coder without running the CLI locally.
 
 The endpoint implements the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) in stateless mode: it supports MCP specification versions from `2024-11-05` through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone server-event stream or explicit session termination, both permitted by the specification).
-The server exposes tools only.
-MCP resources, prompts, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
+The server exposes tools and prompts through the default toolset.
+Set the `toolset` query parameter to `chatgpt` to select the ChatGPT toolset, which does not include prompts.
+MCP resources, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
 
 ### Prerequisites
 
@@ -200,7 +201,7 @@ The workspace file and command tools (`coder_workspace_read_file`, `coder_worksp
 
 - Each tool takes a `workspace` argument that selects the workspace to act on.
 - Invalid arguments and workspace agent errors are returned as MCP tool errors.
-- A single call waits at most 5 minutes.
+- A single call waits at most 5&nbsp;minutes.
   Run longer commands with `run_in_background` and check on them with `coder_workspace_process_output`.
 - Commands started through MCP are separate from Coder Agents chat processes, but anyone with SSH access to the workspace can list and signal them.
 

@@ -109,7 +109,7 @@ export const TotalAgentHoursUsage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const agentHoursHeading = canvas.getByRole("heading", {
-			name: "Total agent hours",
+			name: "Total Agent Hours",
 		});
 		const agentHoursCard = within(agentHoursHeading.closest("section")!);
 		await expect(agentHoursCard.getByText("435.8")).toBeInTheDocument();

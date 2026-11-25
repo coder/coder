@@ -222,6 +222,23 @@ it.each([
 );
 
 it.each([
+	{ type: "anthropic", href: "https://platform.claude.com/settings/keys" },
+	{ type: "google", href: "https://aistudio.google.com/apikey" },
+	{ type: "openai", href: "https://platform.openai.com/api-keys" },
+	{ type: "openrouter", href: "https://openrouter.ai/settings/keys" },
+	{
+		type: "vercel",
+		href: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys&title=AI+Gateway+API+Keys",
+	},
+] as const)("links to the $type API key creation page", ({ type, href }) => {
+	render(<ProviderForm initialValues={{ type }} />);
+	expect(screen.getByRole("link", { name: /Create API key/ })).toHaveAttribute(
+		"href",
+		href,
+	);
+});
+
+it.each([
 	{ type: "azure", labels: [/^API key/i] },
 	{ type: "bedrock", labels: [/^Access key$/i, /^Access key secret/i] },
 ] as const)(

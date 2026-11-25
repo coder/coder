@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { ActiveUserChart } from "./ActiveUserChart";
 
 const meta: Meta<typeof ActiveUserChart> = {
@@ -34,6 +34,18 @@ export const Example: Story = {
 		const chart = await canvas.findByRole("group", { name: "Active users" });
 		expect(chart).toHaveAttribute("aria-roledescription", "chart");
 		expect(canvas.queryByRole("application")).not.toBeInTheDocument();
+	},
+};
+
+// Highlights the second point from the keyboard, so its named active dot and
+// tooltip are captured.
+export const KeyboardHighlight: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", { name: "Active users" });
+		chart.focus();
+		await userEvent.keyboard("{ArrowRight}");
+		await canvas.findByRole("img", { name: /^8 active users, / });
 	},
 };
 

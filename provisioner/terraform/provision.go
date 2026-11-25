@@ -132,6 +132,7 @@ func (s *server) Init(
 			stacktrace := tryGettingCoderProviderStacktrace(sess)
 			s.logger.Critical(ctx, "init: text file busy",
 				slog.Error(errTFB),
+				slog.F("stdout", errTFB.stdout),
 				slog.F("stderr", errTFB.stderr),
 				slog.F("provider_coder_stacktrace", stacktrace),
 			)
@@ -241,13 +242,13 @@ func (s *server) Plan(
 	}
 	env = otelEnvInject(ctx, env)
 
-	vars, err := planVars(request)
+	vars, sensitiveVars, err := planVars(request)
 	if err != nil {
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sensitiveVars, sess, request)
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
@@ -500,12 +501,18 @@ func (s *server) Apply(
 	return resp
 }
 
-func planVars(plan *proto.PlanRequest) ([]string, error) {
+// planVars returns the `name=value` template variables for the plan, and the
+// names of those flagged sensitive, whose values are redacted from logs.
+func planVars(plan *proto.PlanRequest) ([]string, map[string]bool, error) {
 	vars := []string{}
+	sensitive := map[string]bool{}
 	for _, variable := range plan.VariableValues {
 		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
+		if variable.Sensitive {
+			sensitive[variable.Name] = true
+		}
 	}
-	return vars, nil
+	return vars, sensitive, nil
 }
 
 func provisionEnv(

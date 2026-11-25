@@ -53,7 +53,7 @@ export const BuildParametersPopover: React.FC<BuildParametersPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[304px]"
+				className="bg-surface-secondary border-surface-quaternary w-76"
 			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
@@ -79,7 +79,7 @@ const BuildParametersPopoverContent: React.FC<
 	if (ephemeralParameters.length === 0) {
 		return (
 			<div className="p-5 text-content-secondary">
-				<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+				<HelpPopoverTitle>Build options</HelpPopoverTitle>
 				<HelpPopoverText>
 					This template has no ephemeral build options.
 				</HelpPopoverText>

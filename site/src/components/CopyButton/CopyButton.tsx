@@ -23,19 +23,37 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					size="icon"
-					variant="subtle"
-					aria-label={label}
-					onClick={() => copyToClipboard(text)}
-					{...buttonProps}
-				>
-					{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent side={tooltipSide}>{label}</TooltipContent>
-		</Tooltip>
+		<>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
+						aria-label={label}
+						onClick={() => copyToClipboard(text)}
+						{...buttonProps}
+					>
+						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent side={tooltipSide}>{label}</TooltipContent>
+			</Tooltip>
+			<CopiedStatus show={showCopiedSuccess} />
+		</>
 	);
 };
+
+type CopiedStatusProps = {
+	show: boolean;
+};
+
+/**
+ * Announces a successful copy to screen readers. Render it alongside the copy
+ * control before the copy happens, so the live region already exists when its
+ * text changes.
+ */
+export const CopiedStatus: React.FC<CopiedStatusProps> = ({ show }) => (
+	<span role="status" className="sr-only">
+		{show && "Copied"}
+	</span>
+);

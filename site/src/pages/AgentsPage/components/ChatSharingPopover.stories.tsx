@@ -154,7 +154,7 @@ const addAutocompleteOption = async (
 };
 
 const MobileFrame = (Story: React.FC) => (
-	<div className="w-[390px] max-w-full">
+	<div className="w-97.5 max-w-full">
 		<Story />
 	</div>
 );

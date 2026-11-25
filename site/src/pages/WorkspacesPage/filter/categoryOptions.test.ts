@@ -1,9 +1,13 @@
+import { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import {
+	getMeUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userOptions";
+import type { OptionsQueryClient } from "#/utils/filters";
 import {
 	getAttributeFilterOptions,
-	getSelfUserFilterOptions,
 	getStatusFilterOptions,
-	getUserFilterOptions,
-	type OptionsQueryClient,
 } from "./categoryOptions";
 
 const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
@@ -12,6 +16,10 @@ const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
 
 describe("getUserFilterOptions", () => {
 	const me = { username: "alice", avatar_url: "/alice.png" };
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 
 	it("puts the current user first and commits the me sentinel", async () => {
 		const queryClient = fakeQueryClient({ users: [] });
@@ -53,21 +61,34 @@ describe("getUserFilterOptions", () => {
 
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
 	});
+
+	it("searches system users so the prebuilds owner can be picked", async () => {
+		const getUsers = vi
+			.spyOn(API, "getUsers")
+			.mockResolvedValue({ users: [], count: 0 });
+
+		await getUserFilterOptions("prebu", me, new QueryClient());
+
+		expect(getUsers).toHaveBeenCalledWith(
+			expect.objectContaining({ q: "prebu include_system:true" }),
+			expect.anything(),
+		);
+	});
 });
 
-describe("getSelfUserFilterOptions", () => {
+describe("getMeUserFilterOptions", () => {
 	const me = { username: "alice", avatar_url: "/alice.png" };
 
 	it("returns only the current user without fetching", async () => {
-		const options = await getSelfUserFilterOptions("", me);
+		const options = await getMeUserFilterOptions("", me);
 
 		expect(options).toMatchObject([{ label: "alice (you)", value: "me" }]);
 	});
 
-	it("matches the self option by the me sentinel and username", async () => {
-		expect(await getSelfUserFilterOptions("me", me)).toHaveLength(1);
-		expect(await getSelfUserFilterOptions("ali", me)).toHaveLength(1);
-		expect(await getSelfUserFilterOptions("bob", me)).toHaveLength(0);
+	it("matches the current user by the me sentinel and username", async () => {
+		expect(await getMeUserFilterOptions("me", me)).toHaveLength(1);
+		expect(await getMeUserFilterOptions("ali", me)).toHaveLength(1);
+		expect(await getMeUserFilterOptions("bob", me)).toHaveLength(0);
 	});
 });
 

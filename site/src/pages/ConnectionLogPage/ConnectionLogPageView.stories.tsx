@@ -1,9 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { expect, userEvent, within } from "storybook/test";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -14,8 +11,13 @@ import {
 	MockDisconnectedSSHConnectionLog,
 	MockPermissions,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { docs } from "#/utils/docs";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
@@ -24,23 +26,20 @@ type FilterProps = React.ComponentProps<
 >["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: `username:${MockUserOwner.username}`,
+	query: `workspace_owner:${MockUserOwner.username}`,
 	values: {
-		username: MockUserOwner.username,
+		workspace_owner: MockUserOwner.username,
 		status: undefined,
 		method: undefined,
 		organization: undefined,
-	},
-	menus: {
-		user: MockMenu,
-		status: MockMenu,
-		method: MockMenu,
 	},
 });
 
 const meta: Meta<typeof ConnectionLogPageView> = {
 	title: "pages/ConnectionLogPage",
 	component: ConnectionLogPageView,
+	decorators: [withDashboardProvider, withAuthProvider],
+	parameters: { user: MockUserOwner },
 	args: {
 		connectionLogs: [
 			MockConnectedSSHConnectionLog,
@@ -122,5 +121,46 @@ export const NotVisibleWithoutLicenseAccess: Story = {
 		await expect(
 			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const FiltersOpen: Story = {
+	args: ConnectionLog.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const DeprecatedType: Story = {
+	args: {
+		...ConnectionLog.args,
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "type:ssh",
+			values: { type: "ssh" },
+		}),
+	},
+};
+
+const mockInvalidFilterError = mockApiError({
+	message: "Invalid connection log search query.",
+	validations: [
+		{ field: "status", detail: "Status must be ongoing or completed." },
+	],
+});
+
+export const InvalidFilter: Story = {
+	args: {
+		connectionLogs: undefined,
+		connectionLogsQuery: mockInitialRenderResult,
+		error: mockInvalidFilterError,
+		filterProps: {
+			...getDefaultFilterProps<FilterProps>({
+				query: "status:invalid",
+				values: { status: "invalid" },
+			}),
+			error: mockInvalidFilterError,
+		},
 	},
 };

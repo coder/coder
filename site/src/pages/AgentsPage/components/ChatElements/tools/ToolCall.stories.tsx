@@ -71,9 +71,7 @@ export const Collapsible: Story = {
 		>
 			<ToolCall.Header iconName="read_file" label="Read README.md" />
 			<ToolCall.Content>
-				<div className="mt-1.5 rounded-md border border-solid border-border p-3">
-					File contents
-				</div>
+				<div className="mt-1.5 rounded-md border p-3">File contents</div>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	),

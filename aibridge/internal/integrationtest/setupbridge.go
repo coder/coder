@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 )
 
 const (
@@ -53,6 +54,11 @@ var (
 )
 
 type bridgeConfig struct {
+	// proxyMode serves [proxy.NewRouter], which executes requests through
+	// ReverseProxy.
+	// Default remains interception mode that uses [aibridge.NewRequestBridge],
+	// which executes requests through interceptors.
+	proxyMode        bool
 	providerBuilders []func(t *testing.T, upstreamURL string) aibridge.Provider
 	metrics          *metrics.Metrics
 	tracer           trace.Tracer
@@ -74,11 +80,26 @@ type bridgeConfig struct {
 	recorderMiddleware []recorder.Middleware
 }
 
-// bridgeTestServer wraps an httptest.Server running a RequestBridge.
+// bridgeTestServer wraps an httptest.Server running a RequestBridge or, in
+// proxy mode, a proxy Router.
 type bridgeTestServer struct {
 	*httptest.Server
 	Recorder *testutil.MockRecorder
-	Bridge   *aibridge.RequestBridge
+	// Bridge is nil in proxy mode.
+	Bridge *aibridge.RequestBridge
+	// gate admits every request the server handles.
+	gate *aibridge.InflightGate
+}
+
+// awaitRecordings stops admission and waits until every admitted request has
+// finished recording. Call it after the case's final request and before
+// asserting records: proxy mode records after the response completes, so
+// reading the response to EOF does not order the records.
+func (s *bridgeTestServer) awaitRecordings(t *testing.T) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	require.NoError(t, s.gate.Shutdown(ctx), "recording did not finish")
 }
 
 // makeRequest builds and executes an HTTP request against this server.
@@ -124,6 +145,12 @@ func withCustomProvider(p aibridge.Provider) bridgeOption {
 	}
 }
 
+// withProxyMode serves [proxy.NewRouter] instead of the default
+// [aibridge.NewRequestBridge].
+func withProxyMode() bridgeOption {
+	return func(c *bridgeConfig) { c.proxyMode = true }
+}
+
 // withMetrics sets the Prometheus metrics for the bridge.
 func withMetrics(m *metrics.Metrics) bridgeOption {
 	return func(c *bridgeConfig) { c.metrics = m }
@@ -146,6 +173,7 @@ func withActor(id uuid.UUID, username string) bridgeOption {
 
 // newBridgeTestServer creates a fully configured test server running
 // a RequestBridge with sensible defaults:
+//   - interception mode (unless withProxyMode)
 //   - All standard providers (unless withProvider / withCustomProvider)
 //   - NoopMCPManager (unless withMCP)
 //   - slogtest debug logger
@@ -194,18 +222,34 @@ func newBridgeTestServer(
 	mockRec := &testutil.MockRecorder{}
 	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
 
-	bridge, err := aibridge.NewRequestBridge(
-		ctx, providers, rec, cfg.mcpProxy,
-		cfg.logger, cfg.metrics, cfg.tracer,
+	// gate admits every request, so shutting it down waits for interception
+	// handlers to return and for proxy recording to finish.
+	gate := aibridge.NewInflightGate(cfg.logger)
+	t.Cleanup(gate.Close)
+	var (
+		handler http.Handler
+		bridge  *aibridge.RequestBridge
 	)
-	require.NoError(t, err)
+	if cfg.proxyMode {
+		router, err := proxy.NewRouter(ctx, providers, cfg.logger, cfg.metrics, cfg.tracer, gate, rec)
+		require.NoError(t, err)
+		handler = router
+	} else {
+		var err error
+		bridge, err = aibridge.NewRequestBridge(
+			ctx, providers, rec, cfg.mcpProxy,
+			cfg.logger, cfg.metrics, cfg.tracer,
+		)
+		require.NoError(t, err)
+		handler = gate.Middleware(bridge)
+	}
 
 	actor := aibcontext.Actor{
 		ID:       cfg.actorID,
 		APIKeyID: cfg.apiKeyID,
 		Username: cfg.actorUsername,
 	}
-	srv := httptest.NewUnstartedServer(bridge)
+	srv := httptest.NewUnstartedServer(handler)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return aibcontext.AsActor(ctx, actor)
 	}
@@ -216,6 +260,7 @@ func newBridgeTestServer(
 		Server:   srv,
 		Recorder: mockRec,
 		Bridge:   bridge,
+		gate:     gate,
 	}
 }
 

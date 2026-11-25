@@ -50,6 +50,8 @@ import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
+const ORG_COMBOBOX_LABEL = "Coder organization";
+
 type IdpSyncPageViewProps = {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	claimFieldValues: readonly string[] | undefined;
@@ -197,7 +199,7 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 									/>
 									<span className="flex items-center gap-1">
 										<Label htmlFor={`${id}-assign-default-org`}>
-											Assign Default Organization
+											Assign default organization
 										</Label>
 										<AssignDefaultOrgHelpPopover />
 									</span>
@@ -238,7 +240,10 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 												placeholder="Select IdP organization"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent
+											className="w-72"
+											label="Search IdP organizations"
+										>
 											<ComboboxInput
 												value={inputValue}
 												onValueChange={setInputValue}
@@ -276,13 +281,9 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor={`${id}-coder-org`}>
-									Coder organization
-								</Label>
+								<Label className="text-sm">{ORG_COMBOBOX_LABEL}</Label>
 								<MultiSelectCombobox
-									inputProps={{
-										id: `${id}-coder-org`,
-									}}
+									commandProps={{ label: ORG_COMBOBOX_LABEL }}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
