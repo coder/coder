@@ -304,6 +304,73 @@ func TestStandard_Next_Terminates(t *testing.T) {
 	require.Equal(t, time.Date(2040, 12, 31, 14, 0, 0, 0, time.UTC), next)
 }
 
+func TestSchedule_FirstOnDate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		spec        string
+		notBefore   string
+		want        time.Time
+		wantSkipped bool
+	}{
+		// Los Angeles, clocks go back on 2025-11-02: 02:00 becomes 01:00.
+		// 01:50 PDT is at the cutoff and precedes 01:30 PST.
+		{
+			name:      "EarliestMatchAtCutoffOnRollback",
+			spec:      "CRON_TZ=America/Los_Angeles 30,50 1 * * *",
+			notBefore: "2025-11-02T01:50:00-07:00",
+			want:      time.Date(2025, time.November, 2, 8, 50, 0, 0, time.UTC),
+		},
+		// The cutoff is at 22:00. The next match is at 00:00 on the
+		// next day, outside the requested local date.
+		{
+			name:      "ExcludesNextLocalDate",
+			spec:      "CRON_TZ=America/Los_Angeles 0 0 * * *",
+			notBefore: "2025-01-06T06:00:00Z",
+		},
+		// Sydney, clocks go forward on 2025-10-05: 02:00 becomes 03:00.
+		// The cutoff is at the jump that skips the 02:30 match.
+		{
+			name:        "GapAtCutoff",
+			spec:        "CRON_TZ=Australia/Sydney 30 2 * * *",
+			notBefore:   "2025-10-05T03:00:00+11:00",
+			wantSkipped: true,
+		},
+		// The cutoff is one second after the jump.
+		{
+			name:      "GapBeforeCutoff",
+			spec:      "CRON_TZ=Australia/Sydney 30 2 * * *",
+			notBefore: "2025-10-05T03:00:01+11:00",
+		},
+		// The clock showed 01:30 before the cutoff and skipped 02:30 after it.
+		{
+			name:        "GapAfterPastMatch",
+			spec:        "CRON_TZ=Australia/Sydney 30 1,2 * * *",
+			notBefore:   "2025-10-05T01:45:00+10:00",
+			wantSkipped: true,
+		},
+		// The jump at the cutoff skips 02:30. The 03:30 match still qualifies.
+		{
+			name:      "MatchAfterGap",
+			spec:      "CRON_TZ=Australia/Sydney 30 2,3 * * *",
+			notBefore: "2025-10-05T03:00:00+11:00",
+			want:      time.Date(2025, time.October, 4, 16, 30, 0, 0, time.UTC),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Daily(tc.spec)
+			require.NoError(t, err)
+			notBefore := mustParseTime(t, time.RFC3339, tc.notBefore)
+			got, skipped := sched.FirstOnDate(notBefore, notBefore)
+			require.Equal(t, tc.want, got.UTC())
+			require.Equal(t, tc.wantSkipped, skipped)
+		})
+	}
+}
+
 func TestSchedule_MinInterval(t *testing.T) {
 	t.Parallel()
 

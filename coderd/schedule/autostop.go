@@ -175,13 +175,14 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 	if userQuietHoursSchedule.Schedule == nil {
 		return time.Time{}, nil
 	}
+	schedule := userQuietHoursSchedule.Schedule
 
 	// A bitmap with only the unused bit set would never match a date.
 	if requirement.DaysOfWeek&0b01111111 == 0 {
 		return time.Time{}, xerrors.New("autostop requirement has no valid weekdays")
 	}
 
-	loc := userQuietHoursSchedule.Schedule.Location()
+	loc := schedule.Location()
 	buildCompletedAtInLoc := params.WorkspaceBuildCompletedAt.In(loc)
 	// Add the leeway here so we avoid checking today's quiet hours if
 	// the workspace was started shortly before midnight.
@@ -199,23 +200,29 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 		// WeeksSinceEpoch returns an error for pre-epoch dates.
 		!prevDate.Before(TemplateAutostopRequirementEpoch(loc))
 	if canCheckPrevDate && requirementDays[prevDate.Weekday()] {
-		quietStart, _ := userQuietHoursSchedule.Schedule.FirstOnDate(prevDate, notBefore)
+		quietStart, _ := schedule.FirstOnDate(prevDate, notBefore)
 		if !quietStart.IsZero() {
 			searchStart = prevDate
 		}
 	}
 
 	weeks := max(1, requirement.Weeks)
-	// Include the second full cadence so one skipped required date still
-	// leaves another chance to schedule the stop.
-	lastDayOffset := 2 * 7 * int(min(weeks, MaxTemplateAutostopRequirementWeeks))
+	// Add the second full cadence so one skipped required date still
+	// leaves another chance to schedule the stop. For a weekly rule,
+	// offset 14 can be needed if the required date at offset 7 is
+	// skipped entirely.
+	lastDayOffset := 2 * 7 * int(weeks)
 	year, month, day := searchStart.Date()
 	useNextQuietHours := false
-	for offset := 0; offset <= lastDayOffset; offset++ {
-		// Count dates in UTC so skipped local dates cannot stall the search.
-		y, m, d := time.Date(year, month, day+offset, 0, 0, 0, 0, time.UTC).Date()
+	for i := 0; i <= lastDayOffset; i++ {
+		// Use UTC for date arithmetic so local clock changes cannot affect it.
+		y, m, d := time.Date(year, month, day+i, 0, 0, 0, 0, time.UTC).Date()
+		// Use noon to reduce the chance that time.Date resolves a skipped
+		// time to another date and the search misses valid quiet hours.
 		stopDay := time.Date(y, m, d, 12, 0, 0, 0, loc)
 		if stopDay.Year() != y || stopDay.Month() != m || stopDay.Day() != d {
+			// A clock change skipped local noon (e.g. Manila skipping
+			// December 31, 1844).
 			continue
 		}
 		if !useNextQuietHours && weeks > 1 {
@@ -231,7 +238,7 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 			continue
 		}
 
-		quietStart, skippedQuietHours := userQuietHoursSchedule.Schedule.FirstOnDate(stopDay, notBefore)
+		quietStart, skippedQuietHours := schedule.FirstOnDate(stopDay, notBefore)
 		if !quietStart.IsZero() {
 			return quietStart, nil
 		}

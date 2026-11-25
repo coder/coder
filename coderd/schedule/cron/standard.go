@@ -192,8 +192,8 @@ func wallClock(t time.Time, loc *time.Location) time.Time {
 // the cron fields on the given date in the schedule's timezone. It returns
 // zero if none qualify. When the clock rolls back, FirstOnDate considers each
 // occurrence of a repeated local time.
-// skipped reports whether the date had no matching instants and a clock jump
-// at or after notBefore skipped a scheduled time.
+// skipped is true when no instant qualifies and a clock jump at or after
+// notBefore skipped a scheduled time on that date.
 func (s Schedule) FirstOnDate(date, notBefore time.Time) (first time.Time, skipped bool) {
 	loc := s.Location()
 	year, month, day := date.In(loc).Date()
@@ -201,9 +201,10 @@ func (s Schedule) FirstOnDate(date, notBefore time.Time) (first time.Time, skipp
 	end := start.AddDate(0, 0, 1)
 	naive := s.naive()
 
-	var hasOccurrence bool
 	for wall := naive.Next(start.Add(-time.Second)); !wall.IsZero() && wall.Before(end); wall = naive.Next(wall) {
 		matched := false
+		// Sample nearby offsets because the UTC-encoded reading and its actual
+		// occurrences can fall on different sides of a clock change.
 		for probe := -probeSpan; probe <= probeSpan; probe += probeStep {
 			_, offset := wall.Add(probe).In(loc).Zone()
 			instant := wall.Add(-time.Duration(offset) * time.Second).In(loc)
@@ -215,12 +216,13 @@ func (s Schedule) FirstOnDate(date, notBefore time.Time) (first time.Time, skipp
 				first = instant
 			}
 		}
-		hasOccurrence = hasOccurrence || matched
+		// For a skipped reading, resolveWallClock returns the clock
+		// change instant.
 		if !matched && !resolveWallClock(wall, loc).Before(notBefore) {
 			skipped = true
 		}
 	}
-	return first, skipped && !hasOccurrence
+	return first, first.IsZero() && skipped
 }
 
 // A UTC offset is at most 25:59:59 either way (RFC 8536), so the instant at
