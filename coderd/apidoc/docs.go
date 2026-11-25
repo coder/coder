@@ -24517,7 +24517,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "pin_order": {
-                    "description": "PinOrder is the 1-based position among pinned projects, or 0.",
+                    "description": "PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.",
                     "type": "integer"
                 },
                 "pinned": {

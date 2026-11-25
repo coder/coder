@@ -3796,7 +3796,7 @@ export interface ChatProjectSummary {
 	readonly project_id: string;
 	readonly pinned: boolean;
 	/**
-	 * PinOrder is the 1-based position among pinned projects, or 0.
+	 * PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.
 	 */
 	readonly pin_order: number;
 	readonly own_chat_count: number;

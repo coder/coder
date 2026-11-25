@@ -5504,7 +5504,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `own_needs_attention` | boolean | false    |              | Own needs attention reports a chat that requires action, failed, or is paused. |
 | `own_running`         | boolean | false    |              |                                                                                |
 | `own_unread_count`    | integer | false    |              |                                                                                |
-| `pin_order`           | integer | false    |              | Pin order is the 1-based position among pinned projects, or 0.                 |
+| `pin_order`           | integer | false    |              | Pin order sorts pinned projects, lowest first, with gaps. 0 means not pinned.  |
 | `pinned`              | boolean | false    |              |                                                                                |
 | `project_id`          | string  | false    |              |                                                                                |
 

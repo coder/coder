@@ -291,7 +291,7 @@ type ChatProjectDefaultTemplate struct {
 type ChatProjectSummary struct {
 	ProjectID uuid.UUID `json:"project_id" format:"uuid"`
 	Pinned    bool      `json:"pinned"`
-	// PinOrder is the 1-based position among pinned projects, or 0.
+	// PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.
 	PinOrder       int32 `json:"pin_order"`
 	OwnChatCount   int64 `json:"own_chat_count"`
 	OwnUnreadCount int64 `json:"own_unread_count"`

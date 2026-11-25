@@ -65,10 +65,8 @@ SELECT
     chat_projects.user_acl,
     chat_projects.group_acl,
     (pins.project_id IS NOT NULL)::boolean AS pinned,
-    -- Numbered over the returned pins, so pins the user can no longer see
-    -- leave no gaps.
-    (CASE WHEN pins.project_id IS NULL THEN 0
-        ELSE ROW_NUMBER() OVER (PARTITION BY pins.project_id IS NULL ORDER BY pins.pin_order, chat_projects.id) END)::integer AS pin_order,
+    -- The stored order: it sorts the pins, and its values can have gaps.
+    COALESCE(pins.pin_order, 0)::integer AS pin_order,
     COALESCE(own_chats.chat_count, 0)::bigint AS own_chat_count,
     COALESCE(own_chats.unread_count, 0)::bigint AS own_unread_count,
     COALESCE(own_chats.running, false)::boolean AS own_running,
