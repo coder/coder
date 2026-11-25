@@ -312,8 +312,14 @@ Visibility follows the viewer's role:
   If the effective group is in a different organization, the row shows a dash and explains that the group is not visible there.
   Because the organization's `Everyone` group includes every member, its **Members** tab is a quick way to look up any user's effective group.
 - The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
+  A user in more than one organization can choose an organization in the menu to see their spend and budget there, and the badge on their avatar follows that choice.
+  Once spend reaches the budget, the menu shows `Limit exceeded` and the date the budget period ends, when AI requests resume.
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
+This endpoint resolves the effective group across all of the user's organizations, so it can be a group in a different organization.
+To see the user's effective group, budget, and spend in each of their organizations that you can read, use the [Get user AI spend by organization](../../reference/api/enterprise.md#get-user-ai-spend-by-organization) API endpoint.
+To see the budget and spend that apply to a user in one organization, use the [Get organization member AI spend](../../reference/api/enterprise.md#get-organization-member-ai-spend) API endpoint.
+Users can read their own spend, and administrators can read the spend of a user whose membership in that organization they can read.
 
 For a user in several organizations, some of these reports can differ from the budget that applied to a request.
 Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).
@@ -331,7 +337,11 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - To select a range, pass `period_start` and `period_end` together as Request for Comments (RFC) 3339 timestamps.
   A range can span at most 31&nbsp;days.
 - Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
-- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+- Each CSV row breaks spend down by user, group, model, provider, and client, with the underlying token counts.
+  Usage without a recorded client is reported as `Unknown`.
+- To narrow the export, pass `user_id`, `group_id`, `provider_name`, `model`, or `client`.
+  Use `client=Unknown` for usage without a recorded client.
+- New columns are only added at the end, so existing columns keep their position.
 
 <!-- TODO(AIGOV-685): Restore once the per-user spend endpoint moves out of /api/experimental.
 For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).

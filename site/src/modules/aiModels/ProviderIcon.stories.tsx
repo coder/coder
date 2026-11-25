@@ -64,3 +64,19 @@ export const Fallback: Story = {
 		provider: "openai-compat",
 	},
 };
+
+// A configured icon that fails to load renders the same generic icon.
+export const FailedIconWithoutTypeIcon: Story = {
+	args: {
+		provider: "openai-compat",
+		icon: "/icon/does-not-exist.svg",
+	},
+};
+
+// A configured icon that fails to load falls back to the provider type's icon.
+export const FailedIconWithKnownType: Story = {
+	args: {
+		provider: "openai",
+		icon: "/icon/does-not-exist.svg",
+	},
+};

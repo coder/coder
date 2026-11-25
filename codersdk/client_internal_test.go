@@ -703,3 +703,25 @@ func marshal(res any) string {
 
 	return string(b)
 }
+
+func TestClient_GetProvisionerKeyKeepsSecretOutOfPath(t *testing.T) {
+	t.Parallel()
+
+	const secret = "synthetic0123456789secretkeyvalue" //nolint:gosec // synthetic test value
+
+	var gotPath, gotHeader string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotHeader = r.Header.Get(ProvisionerDaemonKey)
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	_, err = New(u).GetProvisionerKey(context.Background(), secret)
+	require.NoError(t, err)
+	require.NotContains(t, gotPath, secret)
+	require.Equal(t, secret, gotHeader)
+}

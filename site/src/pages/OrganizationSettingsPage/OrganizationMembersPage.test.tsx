@@ -56,7 +56,7 @@ const removeMember = async () => {
 		throw new Error("Error on get the first user row");
 	}
 	const menuButton = await within(userRow).findByRole("button", {
-		name: "Open menu",
+		name: `Open menu for ${MockOrganizationMember2.name}`,
 	});
 	await user.click(menuButton);
 
@@ -79,7 +79,9 @@ const updateUserRole = async (role: SlimRole) => {
 	}
 
 	// Open the Edit roles dialog
-	const editButton = within(userRow).getByLabelText("Open menu");
+	const editButton = within(userRow).getByLabelText(
+		`Open menu for ${MockOrganizationMember2.name}`,
+	);
 	await user.click(editButton);
 	await user.click(await screen.findByText("Edit roles"));
 

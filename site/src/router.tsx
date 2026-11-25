@@ -469,9 +469,6 @@ const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
 );
 const AISettingsSpendPage = lazy(
-	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
-);
-const AISettingsAISpendPage = lazy(
 	() => import("./pages/AISettingsPage/AISpendPage/AISpendPage"),
 );
 const AISettingsModelsPage = lazy(
@@ -786,11 +783,6 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route path="spend" element={<AISettingsSpendPage />} />
-						{/* TODO(AIGOV-729): The redesigned spend page, unlisted until it replaces the one above. */}
-						<Route
-							path="spend/experimental"
-							element={<AISettingsAISpendPage />}
-						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
 						<Route

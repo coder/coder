@@ -15,6 +15,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
 	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
@@ -209,6 +210,7 @@ func TestPushContextState(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, resp)
 			require.Contains(t, err.Error(), "duplicate source")
+			require.EqualValues(t, codes.InvalidArgument, drpcerr.Code(err))
 		})
 	})
 
@@ -906,6 +908,7 @@ func TestPushContextState(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, resp)
 			require.Contains(t, err.Error(), "byte cap")
+			require.EqualValues(t, codes.InvalidArgument, drpcerr.Code(err))
 		})
 	})
 }
