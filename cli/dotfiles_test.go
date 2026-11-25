@@ -214,6 +214,40 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, "original", string(b))
 		require.NoFileExists(t, filepath.Join(string(root), ".bashrc.bak"))
 	})
+	t.Run("SymlinkEmptyDir", func(t *testing.T) {
+		t.Parallel()
+		_, root := clitest.New(t)
+		testRepo := testGitRepo(t, root)
+
+		err := os.MkdirAll(filepath.Join(testRepo, ".vim"), 0o750)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(testRepo, ".vim", "vimrc"), []byte("wow"), 0o600)
+		require.NoError(t, err)
+
+		c := exec.Command("git", "add", ".")
+		c.Dir = testRepo
+		err = c.Run()
+		require.NoError(t, err)
+
+		c = exec.Command("git", "commit", "-m", `"add .vim"`)
+		c.Dir = testRepo
+		out, err := c.CombinedOutput()
+		require.NoError(t, err, string(out))
+
+		err = os.MkdirAll(filepath.Join(string(root), ".vim"), 0o750)
+		require.NoError(t, err)
+
+		// the second run replaces the directory symlink from the first
+		for range 2 {
+			inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+			err = inv.Run()
+			require.NoError(t, err)
+
+			b, err := os.ReadFile(filepath.Join(string(root), ".vim", "vimrc"))
+			require.NoError(t, err)
+			require.Equal(t, "wow", string(b))
+		}
+	})
 }
 
 func TestDotfilesInstallScriptUnix(t *testing.T) {

@@ -94,5 +94,5 @@ If your dotfiles repo has none of the setup scripts in this section, Coder symli
 Coder symlinks each file and directory at the root of the repo with a name that starts with `.`, except `.git*` entries other than `.gitconfig`.
 To symlink into a different directory, use the [`--symlink-dir`](../reference/cli/dotfiles.md#--symlink-dir) flag.
 
-If your home directory already has a directory with one of those names, such as `~/.config`, the dotfiles setup fails before it creates any symlinks or backs up any files.
+If your home directory already has a non-empty directory with one of those names, such as `~/.config`, the dotfiles setup fails before it creates any symlinks or backs up any files.
 Coder doesn't symlink anything when it finds a setup script, so use a setup script that installs all of your dotfiles, including directories like `.config`.

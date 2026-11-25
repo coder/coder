@@ -251,12 +251,19 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 					return xerrors.Errorf("lstat %s: %w", to, err)
 				}
 				if fi.IsDir() {
-					conflicts = append(conflicts, to)
+					ents, err := os.ReadDir(to)
+					if err != nil {
+						return xerrors.Errorf("reading dir %s: %w", to, err)
+					}
+					// Empty directories are removed and replaced below.
+					if len(ents) > 0 {
+						conflicts = append(conflicts, to)
+					}
 				}
 			}
 			if len(conflicts) > 0 {
 				return xerrors.Errorf(
-					"cannot symlink dotfiles, these paths already exist as directories:\n  %s\nAdd an install script to your dotfiles repository to install them instead. Recognized names: %s",
+					"cannot symlink dotfiles, these paths already exist as non-empty directories:\n  %s\nAdd an install script to your dotfiles repository to install them instead. Recognized names: %s",
 					strings.Join(conflicts, "\n  "),
 					strings.Join(installScriptFiles(), ", "),
 				)
