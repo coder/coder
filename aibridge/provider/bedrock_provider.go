@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -155,6 +156,9 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	return intr, outErr
 }
+
+// CreateExtractor returns nil. No Bedrock route has an extractor yet.
+func (*Bedrock) CreateExtractor(string) extractors.Extractor { return nil }
 
 // createMessagesInterceptor builds a messages interceptor wired to the full
 // Bedrock runtime. The runtime carries the InvokeModel remap config and the

@@ -2053,6 +2053,50 @@ describe("ChatsSidebar pinned reordering", () => {
 			}
 		},
 	);
+
+	it.each([
+		{
+			id: "top",
+			title: "Top pin",
+			action: "Move down",
+			order: 2,
+		},
+		{
+			id: "bottom",
+			title: "Bottom pin",
+			action: "Move up",
+			order: 1,
+		},
+	])(
+		"$action on $title reorders the pins without dragging",
+		async ({ id, title, action, order }) => {
+			const user = userEvent.setup();
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({ id: "top", title: "Top pin", pin_order: 1 }),
+							buildChat({ id: "bottom", title: "Bottom pin", pin_order: 2 }),
+						]}
+					/>
+				</Wrapper>,
+			);
+
+			await user.click(
+				screen.getByRole("button", { name: `Open actions for ${title}` }),
+			);
+			const item = await screen.findByRole("menuitem", { name: action });
+			await user.click(item);
+
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith(id, { pin_order: order }),
+			);
+		},
+	);
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;

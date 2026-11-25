@@ -1,3 +1,16 @@
+/**
+ * Returns `url` parsed against `base`, or undefined when it is not a valid
+ * URL. Use it instead of `URL.parse`, which some browsers in the
+ * browserslist in package.json do not have.
+ */
+export const parseURL = (url: string, base?: string): URL | undefined => {
+	try {
+		return new URL(url, base);
+	} catch {
+		return undefined;
+	}
+};
+
 export const truncateURI = (uri: string) => {
 	if (uri.startsWith("file://")) {
 		const path = uri.slice(7);

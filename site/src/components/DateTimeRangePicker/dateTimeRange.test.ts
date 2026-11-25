@@ -135,13 +135,22 @@ describe("formatCustomLabel", () => {
 				new Date(2026, 3, 12, 9, 0, 0),
 				new Date(2026, 3, 12, 11, 30, 0),
 			),
-		).toBe("April 12, 9:00 AM - 11:30 AM");
+		).toBe("Apr 12, 9:00 - 11:30 AM");
+	});
+
+	it("keeps both meridiems when they differ", () => {
+		expect(
+			formatCustomLabel(
+				new Date(2026, 3, 12, 9, 0, 0),
+				new Date(2026, 3, 12, 13, 30, 0),
+			),
+		).toBe("Apr 12, 9:00 AM - 1:30 PM");
 	});
 
 	it("collapses ranges within one month to a day span", () => {
 		expect(
 			formatCustomLabel(new Date(2026, 3, 10), new Date(2026, 3, 16)),
-		).toBe("April 10-16");
+		).toBe("Apr 10-16");
 	});
 
 	it("spells out both months within one year", () => {
