@@ -505,9 +505,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 
 		// Removing an item, as when a turn's blocks merge at its end, can shrink
-		// the timeline, so the scroller syncs before paint. Only removals: an
-		// append cannot shrink it, and the sync must not run when a prompt is
-		// appended.
+		// the timeline, so the scroller syncs before paint. A commit that only
+		// appends does not sync: an append cannot shrink the timeline, and the
+		// sync would scroll a newly sent prompt away while following.
 		const itemSignature = layout.items
 			.map((item) =>
 				item.type === "block"
