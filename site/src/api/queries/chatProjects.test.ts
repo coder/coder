@@ -17,6 +17,7 @@ import {
 	createChatProject,
 	deleteChatProject,
 	joinChatProjectSummaries,
+	pinChatProject,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -83,14 +84,151 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, nestedKey)).toBe(false);
 	});
 
-	it("refreshes only the summaries after an unpin", async () => {
-		const queryClient = seed();
-		queryClient.setQueryData(chatProjectSummariesKey, []);
-		await settle(unpinChatProject(queryClient));
-		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
-		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
-		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	it("refreshes only the summaries after a pin change", async () => {
+		for (const factory of [pinChatProject, unpinChatProject]) {
+			const queryClient = seed();
+			queryClient.setQueryData(chatProjectSummariesKey, []);
+			await settle(factory(queryClient));
+			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
+			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+		}
+	});
+
+	it("moves a pinned project in the cached order and restores it when the move fails", async () => {
+		const mockBillingProject = { ...MockChatProject, id: "billing-project" };
+		const mockBillingSummary = {
+			...MockChatProjectSummary,
+			project_id: mockBillingProject.id,
+			pin_order: 2,
+		};
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			MockChatProjectSummary,
+			mockBillingSummary,
+		]);
+		const pinOrderById = () =>
+			Object.fromEntries(
+				(
+					queryClient.getQueryData<ChatProjectSummary[]>(
+						chatProjectSummariesKey,
+					) ?? []
+				).map((s) => [s.project_id, s.pin_order]),
+			);
+		let rejectPin: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectPin = reject;
+			}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+
+		const move = new MutationObserver(
+			queryClient,
+			pinChatProject(queryClient),
+		).mutate({ project: mockBillingProject, pinOrder: 1 });
+		await vi.waitFor(() =>
+			expect(pinOrderById()).toEqual({
+				[mockBillingProject.id]: 1,
+				[MockChatProject.id]: 2,
+			}),
+		);
+
+		rejectPin(mockApiError({}));
+		await expect(move).rejects.toBeDefined();
+		expect(pinOrderById()).toEqual({
+			[MockChatProject.id]: 1,
+			[mockBillingProject.id]: 2,
+		});
+	});
+});
+
+describe("pinChatProject ordering", () => {
+	const [mockLaunch, mockBilling, mockOps] = ["launch", "billing", "ops"].map(
+		(id, index) => ({
+			...MockChatProjectSummary,
+			project_id: id,
+			pin_order: index + 1,
+		}),
+	);
+	const setup = () => {
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			mockLaunch,
+			mockBilling,
+			mockOps,
+		]);
+		const requests: { id: string; settle: (error?: unknown) => void }[] = [];
+		const pin = vi.spyOn(API.experimental, "pinChatProject").mockImplementation(
+			(_organizationId, id) =>
+				new Promise((resolve, reject) => {
+					requests.push({
+						id,
+						settle: (error) => (error ? reject(error) : resolve()),
+					});
+				}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+		const move = (summary: ChatProjectSummary, pinOrder: number) =>
+			new MutationObserver(queryClient, pinChatProject(queryClient)).mutate({
+				project: { ...MockChatProject, id: summary.project_id },
+				pinOrder,
+			});
+		const pinnedIds = () =>
+			(
+				queryClient.getQueryData<ChatProjectSummary[]>(
+					chatProjectSummariesKey,
+				) ?? []
+			)
+				.toSorted((a, b) => a.pin_order - b.pin_order)
+				.map((s) => s.project_id);
+		return { queryClient, requests, pin, move, pinnedIds };
+	};
+
+	it("sends queued moves one at a time, in order", async () => {
+		const { requests, pin, move } = setup();
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		expect(pin).toHaveBeenCalledTimes(1);
+		expect(requests[0].id).toBe(mockOps.project_id);
+
+		requests[0].settle();
+		await first;
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		expect(requests[1].id).toBe(mockBilling.project_id);
+		requests[1].settle();
+		await second;
+	});
+
+	it("keeps a later queued move when an earlier one fails", async () => {
+		const { requests, move, pinnedIds } = setup();
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
+		await vi.waitFor(() =>
+			expect(pinnedIds()).toEqual(["billing", "ops", "launch"]),
+		);
+
+		await vi.waitFor(() => expect(requests.length).toBeGreaterThan(0));
+		requests[0].settle(mockApiError({}));
+		await expect(first).rejects.toBeDefined();
+		expect(pinnedIds()).toEqual(["billing", "ops", "launch"]);
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		requests[1].settle();
+		await second;
 	});
 });
 

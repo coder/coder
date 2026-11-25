@@ -85,9 +85,85 @@ export const getPinnedProjectSummaries = <
 		.filter((summary) => summary.pinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
+const projectPinsMutationKey = ["chat-project-pins"] as const;
+
+// Pin changes share a scope, so the server applies them in the order the
+// user made them.
+const projectPinsMutationOptions = {
+	mutationKey: projectPinsMutationKey,
+	scope: { id: "chat-project-pins" },
+} as const;
+
+// An earlier queued pin change would replace the later changes' optimistic
+// order with the server's, so only the last one restores or refreshes it.
+const isLastProjectPinChange = (queryClient: QueryClient) =>
+	queryClient.isMutating({ mutationKey: projectPinsMutationKey }) <= 1;
+
+const invalidateProjectPins = async (queryClient: QueryClient) => {
+	if (isLastProjectPinChange(queryClient)) {
+		await queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey });
+	}
+};
+
+type PinChatProjectVariables = {
+	project: TypesGen.ChatProject;
+	pinOrder?: number;
+};
+
+/** Pins a project at the end, or moves a pinned project to pinOrder. */
+export const pinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		...projectPinsMutationOptions,
+		mutationFn: ({ project, pinOrder }: PinChatProjectVariables) =>
+			API.experimental.pinChatProject(
+				project.organization_id,
+				project.id,
+				pinOrder,
+			),
+		// A move shows at once, and a summaries fetch already in flight cannot
+		// put the project back while the request runs.
+		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
+			if (pinOrder === undefined) {
+				return { previousSummaries: undefined };
+			}
+			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
+			const previousSummaries = queryClient.getQueryData<
+				TypesGen.ChatProjectSummary[]
+			>(chatProjectSummariesKey);
+			const previousPinnedIds = getPinnedProjectSummaries(
+				previousSummaries ?? [],
+			).map((s) => s.project_id);
+			const pinnedIds = previousPinnedIds
+				.filter((id) => id !== project.id)
+				.toSpliced(pinOrder - 1, 0, project.id);
+			const pinOrderById = new Map(pinnedIds.map((id, i) => [id, i + 1]));
+			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+				(summaries) =>
+					summaries?.map((s) => {
+						const order = pinOrderById.get(s.project_id);
+						return order === undefined
+							? s
+							: { ...s, pinned: true, pin_order: order };
+					}),
+			);
+			return { previousSummaries };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
+				queryClient.setQueryData(
+					chatProjectSummariesKey,
+					context.previousSummaries,
+				);
+			}
+		},
+		onSettled: () => invalidateProjectPins(queryClient),
+	});
+
 /** Unpins a project, which also takes its chats out of the sidebar. */
 export const unpinChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
+		...projectPinsMutationOptions,
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.unpinChatProject(project.organization_id, project.id),
 		// The folder and its chats leave the sidebar at once, and a summaries
@@ -109,15 +185,14 @@ export const unpinChatProject = (queryClient: QueryClient) =>
 			return { previousSummaries };
 		},
 		onError: (_error, _project, context) => {
-			if (context?.previousSummaries) {
+			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
 				queryClient.setQueryData(
 					chatProjectSummariesKey,
 					context.previousSummaries,
 				);
 			}
 		},
-		onSettled: () =>
-			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		onSettled: () => invalidateProjectPins(queryClient),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>

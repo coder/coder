@@ -3355,6 +3355,18 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	pinChatProject = async (
+		organizationId: string,
+		projectId: string,
+		pinOrder?: number,
+	): Promise<void> => {
+		const req: TypesGen.PinChatProjectRequest = { pin_order: pinOrder };
+		await this.axios.put(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/pin`,
+			req,
+		);
+	};
+
 	unpinChatProject = async (
 		organizationId: string,
 		projectId: string,

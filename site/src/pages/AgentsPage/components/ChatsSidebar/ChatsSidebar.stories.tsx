@@ -3030,6 +3030,27 @@ export const ProjectFolderCollapsed: Story = {
 	},
 };
 
+export const PinnedChatsAndProjects: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-project-chat",
+				title: "Pinned chat in a project",
+				project_id: MockChatProject.id,
+				pin_order: 1,
+			}),
+			buildChat({ id: "pinned-chat", title: "Pinned chat", pin_order: 2 }),
+			mockLooseChat,
+		],
+	},
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
+	},
+};
+
 export const ProjectFolderWithUnreadChats: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
@@ -3128,6 +3149,23 @@ const mockOtherOrganizationProjectSummary: TypesGen.ChatProjectSummary = {
 	...MockChatProjectSummary,
 	project_id: mockOtherOrganizationProject.id,
 	pin_order: 3,
+};
+
+export const PinnedProjectDragged: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+			{
+				key: chatProjectSummariesKey,
+				data: [MockChatProjectSummary, mockBillingProjectSummary],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /^Launch$/);
+		await userEvent.keyboard("[ArrowDown]");
+	},
 };
 
 export const LooseChatDragMutesUnavailableTargets: Story = {
