@@ -16,10 +16,13 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/v2/provider"
@@ -89,6 +92,15 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	// The captured lock file only speeds up init, so failing to restore it
+	// isn't fatal.
+	restored, err := restoreImportedLockFile(sess.Files, request.ModuleArchive)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to restore lock file captured during template import", slog.Error(err))
+	} else if restored {
+		s.logger.Debug(ctx, "using lock file captured during template import", slog.F("platform", terraformPlatform()))
+	}
+
 	err = CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
@@ -97,6 +109,9 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
+	if err != nil && restored && ctx.Err() == nil {
+		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	}
 	endStage(err)
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
@@ -165,6 +180,28 @@ func (s *server) Init(
 	}
 }
 
+// initWithTemplateLockFile retries a failed init with the template's own lock
+// file, or none, as builds did before the captured lock file was reused. This
+// covers provisioners that can't install the captured versions, for example
+// after an air-gapped image upgrade.
+func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
+	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
+		slog.Error(initErr))
+	sess.ProvisionLog(proto.LogLevel_WARN,
+		"Retrying terraform init without the provider versions selected when this template version was imported.")
+
+	if err := restoreTemplateLockFile(sess.Files); err != nil {
+		return errors.Join(initErr, err)
+	}
+	err := e.init(ctx, killCtx, sess)
+	if err == nil {
+		sess.ProvisionLog(proto.LogLevel_WARN,
+			"If this warning appears on every build, push a new template version and update workspaces to it "+
+				"so builds reuse provider versions again.")
+	}
+	return err
+}
+
 func (s *server) Plan(
 	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
 ) *proto.PlanComplete {
@@ -210,14 +247,56 @@ func (s *server) Plan(
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
+	// State JSON omits configuration, so retain the plan configuration needed to
+	// finalize script ordering during post-apply graph conversion.
+	s.cachePlanConfig(sess.Context(), sess, planConfig)
 
 	resp.Timings = e.timings.aggregate()
 	return resp
+}
+
+func (s *server) cachePlanConfig(
+	ctx context.Context, sess *provisionersdk.Session, config *tfjson.Config,
+) {
+	registerCleanup := false
+	s.planConfigsBySessionMu.Lock()
+	if _, cleanupRegistered := s.planConfigsBySession[sess]; cleanupRegistered {
+		s.planConfigsBySession[sess] = config
+	} else if config != nil {
+		if s.planConfigsBySession == nil {
+			s.planConfigsBySession = make(map[*provisionersdk.Session]*tfjson.Config)
+		}
+		s.planConfigsBySession[sess] = config
+		registerCleanup = true
+	}
+	s.planConfigsBySessionMu.Unlock()
+
+	if !registerCleanup {
+		return
+	}
+	context.AfterFunc(ctx, func() {
+		s.planConfigsBySessionMu.Lock()
+		delete(s.planConfigsBySession, sess)
+		s.planConfigsBySessionMu.Unlock()
+	})
+}
+
+func (s *server) loadPlanConfig(
+	sess *provisionersdk.Session,
+) (*tfjson.Config, bool) {
+	s.planConfigsBySessionMu.Lock()
+	defer s.planConfigsBySessionMu.Unlock()
+
+	config, ok := s.planConfigsBySession[sess]
+	if !ok || config == nil {
+		return nil, false
+	}
+	return config, true
 }
 
 func (s *server) Graph(
@@ -236,39 +315,81 @@ func (s *server) Graph(
 	logTerraformEnvVars(sess)
 
 	modules := []*tfjson.StateModule{}
+	var planConfig *tfjson.Config
+	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
+		proto.WorkspaceTransition_START
+	convertScriptOrder := false
+	scriptOrderSource := proto.GraphSource_SOURCE_STATE
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
+		scriptOrderSource = proto.GraphSource_SOURCE_PLAN
+		e.mut.Lock()
 		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+		e.mut.Unlock()
 		if err != nil {
 			return provisionersdk.GraphError("parse plan for graph: %s", err)
 		}
 
 		modules = planModules(plan)
+		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
+		if convertScriptOrder {
+			planConfig = plan.Config
+		}
 	case proto.GraphSource_SOURCE_STATE:
+		e.mut.Lock()
 		tfState, err := e.state(ctx, killCtx)
+		e.mut.Unlock()
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
 		if tfState.Values != nil {
 			modules = []*tfjson.StateModule{tfState.Values.RootModule}
 		}
+		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
+		if convertScriptOrder {
+			cachedPlanConfig, ok := s.loadPlanConfig(sess)
+			if !ok {
+				return provisionersdk.GraphError(
+					"load plan configuration for script ordering: " +
+						"state graph requires a preceding successful plan",
+				)
+			}
+			planConfig = cachedPlanConfig
+		}
 	default:
 		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	e.mut.Lock()
 	rawGraph, err := e.graph(ctx, killCtx)
+	e.mut.Unlock()
 	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)
 	}
 
-	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
-	if err != nil {
-		return provisionersdk.GraphError("convert state for graph: %s", err)
+	var state *State
+	if convertScriptOrder {
+		conversion, err := convertStateWithScriptOrder(
+			ctx, modules, planConfig, rawGraph, e.server.logger,
+			scriptOrderSource,
+		)
+		if err != nil {
+			return provisionersdk.GraphError("convert state for graph: %s", err)
+		}
+		logScriptOrderWarnings(
+			sess, conversion.warnings, conversion.warningsOmitted,
+		)
+		state = conversion.state
+	} else {
+		state, err = ConvertState(ctx, modules, rawGraph, e.server.logger)
+		if err != nil {
+			return provisionersdk.GraphError("convert state for graph: %s", err)
+		}
 	}
 
-	return &proto.GraphComplete{
+	response := &proto.GraphComplete{
 		Error:                 "",
 		Timings:               e.timings.aggregate(),
 		Resources:             state.Resources,
@@ -276,6 +397,51 @@ func (s *server) Graph(
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Presets:               state.Presets,
 		HasExternalAgents:     state.HasExternalAgents,
+	}
+	if err := checkGraphCompleteSize(response); err != nil {
+		if convertScriptOrder {
+			return provisionersdk.GraphError(
+				"%s; reduce the number of coder_script_order dependencies", err,
+			)
+		}
+		return provisionersdk.GraphError("%s", err)
+	}
+	return response
+}
+
+// checkGraphCompleteSize rejects a Graph response that cannot cross the
+// DRPC transport in one message, so the import fails with a readable error
+// instead of a dropped connection. The session wraps the result in a
+// proto.Response before sending, so the check measures that envelope rather
+// than the bare GraphComplete. The caller adds the script order hint when
+// that conversion ran, since it is the only unbounded addition to the
+// response and the hint would mislead templates without it.
+func checkGraphCompleteSize(response *proto.GraphComplete) error {
+	size := protobuf.Size(&proto.Response{
+		Type: &proto.Response_Graph{Graph: response},
+	})
+	if size <= drpcsdk.MaxMessageSize {
+		return nil
+	}
+	return xerrors.Errorf(
+		"graph result is %d bytes, above the %d byte message limit",
+		size, drpcsdk.MaxMessageSize,
+	)
+}
+
+func logScriptOrderWarnings(
+	sink logSink,
+	warnings []string,
+	omitted int,
+) {
+	for _, warning := range warnings {
+		sink.ProvisionLog(proto.LogLevel_WARN, warning)
+	}
+	if omitted > 0 {
+		sink.ProvisionLog(proto.LogLevel_WARN, fmt.Sprintf(
+			"%d additional script order warnings were omitted; only the first %d are reported",
+			omitted, scriptorder.MaxWarnings,
+		))
 	}
 }
 

@@ -1,6 +1,5 @@
 import { TriangleAlertIcon, UserPlusIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -20,6 +19,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import {
 	OrganizationMembersTable,
@@ -61,14 +61,17 @@ export const OrganizationMembersPageView: React.FC<
 
 				<UsersFilter {...filterProps} />
 				{!canViewMembers && (
-					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
+					<div className="flex text-content-warning gap-2 items-center text-sm font-medium">
 						<TriangleAlertIcon className="size-icon-sm" />
 						<p>
 							You do not have permission to view members other than yourself.
 						</p>
 					</div>
 				)}
-				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+				<PaginationContainer
+					query={membersQuery}
+					paginationUnitLabel={{ singular: "member", plural: "members" }}
+				>
 					<OrganizationMembersTable {...props} />
 				</PaginationContainer>
 			</div>
@@ -107,7 +110,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 			>
 				<DialogContent
 					data-testid="dialog"
-					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
+					className="max-w-md gap-4 border-border bg-surface-primary p-8 text-content-primary"
 				>
 					<DialogTitle className="font-semibold text-content-primary">
 						Add user(s)

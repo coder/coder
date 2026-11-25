@@ -300,7 +300,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 		<>
 			<div className="max-h-80 overflow-y-auto">
 				<div className="flex flex-col p-5">
-					<div className="flex flex-row justify-between items-start">
+					<div className="flex justify-between items-start">
 						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
 						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
@@ -393,9 +393,9 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 						return (
 							<div
 								key={port.port}
-								className="flex flex-row items-center justify-between"
+								className="flex items-center justify-between"
 							>
-								<div className="flex flex-row gap-3">
+								<div className="flex gap-3">
 									<a
 										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
 										href={url}
@@ -414,7 +414,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										{label}
 									</a>
 								</div>
-								<div className="flex flex-row gap-2 justify-end items-center">
+								<div className="flex gap-2 justify-end items-center">
 									{canSharePorts && (
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -467,7 +467,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							return (
 								<div
 									key={share.port}
-									className="flex flex-row justify-between items-center"
+									className="flex justify-between items-center"
 								>
 									<a
 										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
@@ -510,7 +510,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										</SelectContent>
 									</Select>
 
-									<div className="flex flex-row justify-end">
+									<div className="flex justify-end">
 										<Select
 											value={share.share_level}
 											onValueChange={(value) => {

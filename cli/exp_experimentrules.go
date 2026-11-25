@@ -26,15 +26,15 @@ func (r *RootCmd) experimentRulesCommand() *serpent.Command {
 			FormatExamples(
 				Example{
 					Description: "Enable an experiment for users whose condition is true",
-					Command:     `coder exp experiment-rules set mcp-tool-search 'user.email.endsWith("@example.com")'`,
+					Command:     `coder exp experiment-rules set example 'user.email.endsWith("@example.com")'`,
 				},
 				Example{
 					Description: "Turn an experiment off for everyone, even if it is enabled at startup",
-					Command:     "coder exp experiment-rules off mcp-tool-search",
+					Command:     "coder exp experiment-rules off example",
 				},
 				Example{
 					Description: "Restore the startup --experiments default",
-					Command:     "coder exp experiment-rules reset mcp-tool-search",
+					Command:     "coder exp experiment-rules reset example",
 				},
 			),
 		Handler: func(inv *serpent.Invocation) error {

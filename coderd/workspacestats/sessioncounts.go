@@ -1,10 +1,6 @@
 package workspacestats
 
 import (
-	"cmp"
-	"maps"
-	"slices"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -34,52 +30,13 @@ func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 			continue
 		}
 		name := codersdk.NormalizeAppName(app)
-		// Reserved for capSessionCounts.
+		// Reserved for codersdk.FoldUnregisteredSessionApps.
 		if name == codersdk.AppNameOverflow {
 			name = string(codersdk.AppFamilyUnknown)
 		}
 		counts[name] += count
 	}
 	return counts
-}
-
-// maxSessionCountEntries bounds distinct app names per stats report. Overflow
-// aggregates under codersdk.AppNameOverflow.
-const maxSessionCountEntries = 64
-
-// capSessionCounts keeps the busiest maxSessionCountEntries normalized names,
-// preferring known apps, and sums the rest into codersdk.AppNameOverflow, so the
-// result can hold one name past the cap. The second return counts the names
-// summed away.
-func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
-	if len(counts) <= maxSessionCountEntries {
-		return counts, 0
-	}
-	// Names are already normalized, so look up families directly rather
-	// than normalizing again on every sort comparison.
-	families := codersdk.SessionCountAppFamilies()
-	rank := func(name string) int {
-		if family, ok := families[name]; ok && family != codersdk.AppFamilyUnknown {
-			return 0
-		}
-		return 1
-	}
-	ranked := slices.SortedFunc(maps.Keys(counts), func(a, b string) int {
-		return cmp.Or(
-			cmp.Compare(rank(a), rank(b)),     // known apps first
-			cmp.Compare(counts[b], counts[a]), // then busiest
-			cmp.Compare(a, b),                 // then name, so the cut is stable
-		)
-	})
-	capped := make(map[string]int64, maxSessionCountEntries+1)
-	for _, name := range ranked[:maxSessionCountEntries] {
-		capped[name] = counts[name]
-	}
-	overflow := ranked[maxSessionCountEntries:]
-	for _, name := range overflow {
-		capped[codersdk.AppNameOverflow] += counts[name]
-	}
-	return capped, len(overflow)
 }
 
 // HasSessionCounts reports whether the stats contain any active session.

@@ -7,7 +7,6 @@ import {
 
 describe("resolveAgentDisplayState", () => {
 	it("resolves auto and explicit display modes", () => {
-		expect(resolveAgentDisplayState(undefined, "preview")).toBe("preview");
 		expect(resolveAgentDisplayState("auto", "collapsed")).toBe("collapsed");
 		expect(resolveAgentDisplayState("auto", "expanded")).toBe("expanded");
 		expect(resolveAgentDisplayState("always_expanded", "collapsed")).toBe(

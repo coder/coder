@@ -4,9 +4,10 @@
  * To change who appears in the game, edit the entries below.
  */
 
-type RosterEntry = {
+export type RosterEntry = {
 	name: string;
 	role: string;
+	isCommunity?: boolean;
 };
 
 export const ROSTER: RosterEntry[] = [
@@ -17,7 +18,7 @@ export const ROSTER: RosterEntry[] = [
 	{ name: "Ashleigh Hughes", role: "Technical Recruiter" },
 	{ name: "Bartek Gatz", role: "Staff Product Manager" },
 	{ name: "Bjorn", role: "Senior Customer Support Engineer" },
-	{ name: "Boubel", role: "R&D Analyst" },
+	{ name: "Boubel", role: "Technical Program Manager" },
 	{ name: "Carly Stephens", role: "Director of International Marketing" },
 	{ name: "Carmeleon", role: "Sr. Director of Marketing" },
 	{ name: "Cian Johnston", role: "Staff Software Engineer" },
@@ -25,24 +26,29 @@ export const ROSTER: RosterEntry[] = [
 	{ name: "Danielle Maywood", role: "Software Engineer" },
 	{ name: "Danny Kopping", role: "Staff Software Engineer" },
 	{ name: "Dylan Huff", role: "Software Engineer (AI Tools)" },
+	{ name: "Eleni Arapostathis", role: "Developer Relations Intern" },
 	{ name: "Ethan Dickson", role: "Software Engineer" },
 	{ name: "Hannah Koeshall", role: "Sr. Demand Generation Program Manager" },
 	{ name: "Hugo Dutka", role: "Staff Software Engineer" },
 	{ name: "Jaayden Halko", role: "Senior Software Engineer" },
 	{ name: "Jackie Clark", role: "Executive Assistant" },
 	{ name: "James Frey", role: "VP Sales" },
+	{ name: "Jessica Rothfuss", role: "FinOps Manager" },
 	{ name: "Jiachen Jiang", role: "Senior Product Manager" },
 	{ name: "JJ Thomson", role: "Senior Enterprise Account Manager" },
+	{ name: "Jskawinters", role: "Senior Front-End Engineer" },
+	{ name: "Kevin Williams", role: "Director of IT" },
 	{ name: "Kira Pilot", role: "Engineering Manager" },
 	{ name: "Kodie Dower", role: "Content & Social Media Marketing Manager" },
 	{ name: "Luke Brand", role: "VP International" },
 	{ name: "Marcin Tojek", role: "Senior Engineering Manager" },
-	{ name: "Marco Martinez", role: "Community Team Lead" },
+	{ name: "Marco Martinez", role: "Community Team Lead", isCommunity: true },
 	{ name: "Mark Eadie", role: "Technical Account Manager" },
 	{ name: "Matt Colton", role: "Staff Solutions Engineer" },
 	{ name: "Nick Spangler", role: "Customer Success Manager" },
 	{ name: "Nicky Pike", role: "Field CTO" },
 	{ name: "Noah Boyers", role: "Solutions Architect" },
+	{ name: "Pav", role: "Senior SDR" },
 	{ name: "Pawel Kawinski", role: "Senior SDR" },
 	{ name: "Rob Whiteley", role: "CEO" },
 	{ name: "Ross Weatherford", role: "Federal Account Manager" },
@@ -57,4 +63,5 @@ export const ROSTER: RosterEntry[] = [
 	{ name: "Tracy Johnson", role: "Senior Product Designer" },
 	{ name: "Uzair", role: "Senior Customer Support Engineer" },
 	{ name: "Yoel Govrin", role: "Enterprise Account Manager" },
+	{ name: "Zara", role: "Field Marketing Manager" },
 ];

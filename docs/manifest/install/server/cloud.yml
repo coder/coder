@@ -1,0 +1,14 @@
+title: Cloud platforms
+description: Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.
+path: ./install/server/cloud/index.md
+icon_path: ./images/icons/cloud.svg
+children:
+  - title: AWS Marketplace
+    description: Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.
+    path: ./install/server/cloud/aws-marketplace.md
+  - title: GCP Compute Engine
+    description: Deploy the Coder control plane on a Google Cloud Compute Engine virtual machine.
+    path: ./install/server/cloud/compute-engine.md
+  - title: Azure VM
+    description: Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.
+    path: ./install/server/cloud/azure-vm.md

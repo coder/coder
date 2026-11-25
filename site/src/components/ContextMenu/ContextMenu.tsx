@@ -7,6 +7,7 @@
  */
 
 import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import {
 	menuContentClass,
@@ -17,6 +18,26 @@ import {
 export const ContextMenu = ContextMenuPrimitive.Root;
 
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
+
+const stopRightClick = (event: React.MouseEvent) => {
+	if (event.button === 2) {
+		event.preventDefault();
+		event.stopPropagation();
+	}
+};
+
+/**
+ * Spread on a menu button inside a row that has its own context menu, so a
+ * right-click on the button does not also open the row's context menu.
+ */
+export const preventRowContextMenuProps = {
+	onContextMenuCapture: (event: React.MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+	},
+	onMouseDownCapture: stopRightClick,
+	onPointerDownCapture: stopRightClick,
+};
 
 /** @public */
 export const ContextMenuGroup = ContextMenuPrimitive.Group;
@@ -53,6 +74,37 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 			className={cn(menuItemClass, inset && "pl-8", className)}
 			{...props}
 		/>
+	);
+};
+
+export const ContextMenuSub = ContextMenuPrimitive.Sub;
+
+export const ContextMenuSubTrigger: React.FC<
+	React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & {
+		inset?: boolean;
+	}
+> = ({ className, inset, children, ...props }) => {
+	return (
+		<ContextMenuPrimitive.SubTrigger
+			className={cn(menuItemClass, inset && "pl-8", className)}
+			{...props}
+		>
+			{children}
+			<ChevronRightIcon className="ml-auto size-3.5" />
+		</ContextMenuPrimitive.SubTrigger>
+	);
+};
+
+export const ContextMenuSubContent: React.FC<
+	React.ComponentProps<typeof ContextMenuPrimitive.SubContent>
+> = ({ className, ...props }) => {
+	return (
+		<ContextMenuPrimitive.Portal>
+			<ContextMenuPrimitive.SubContent
+				className={cn(menuContentClass, className)}
+				{...props}
+			/>
+		</ContextMenuPrimitive.Portal>
 	);
 };
 

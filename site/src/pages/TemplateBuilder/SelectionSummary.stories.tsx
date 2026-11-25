@@ -103,6 +103,23 @@ export const WithModules: Story = {
 	},
 };
 
+export const ModulesStepKeyboardFocus: Story = {
+	args: {
+		currentStep: 2,
+		maxReachedStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{ id: "git-clone", name: "Git clone", iconUrl: "/icon/git.svg" },
+		],
+	},
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const WithLongNameModule: Story = {
 	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
 	parameters: { pixel: { exclude: true } },

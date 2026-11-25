@@ -1,0 +1,49 @@
+Builtin tool call truncated by max_tokens: the partial tool input is not valid JSON.
+
+-- request --
+{
+	"model": "claude-sonnet-4-20250514",
+	"max_tokens": 32,
+	"tools": [
+		{
+			"name": "Read",
+			"description": "Read the contents of a file at the given path.",
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"file_path": {
+						"type": "string",
+						"description": "The absolute path to the file to read"
+					}
+				},
+				"required": ["file_path"]
+			}
+		}
+	],
+	"messages": [
+		{
+			"role": "user",
+			"content": "read the foo file"
+		}
+	]
+}
+
+-- streaming --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01TruncatedToolUse000001","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":12,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01TruncatedRead00000001","name":"Read","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/tmp/bl"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"max_tokens","stop_sequence":null},"usage":{"output_tokens":32}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

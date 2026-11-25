@@ -3,30 +3,29 @@ import {
 	MessageSquarePlusIcon,
 	NetworkIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import {
+	useEffect,
+	useEffectEvent,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
 	type HighlightItem,
 } from "#/annotator/protocol";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { toast } from "#/components/Toaster/toast";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
-import {
-	type ComposerHandle,
-	useComposer,
-} from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 
 const sendRetries = 6;
 const sendRetryMs = 500;
@@ -47,25 +46,33 @@ const turnStartGraceMs = 15_000;
 // message was accepted. Kept outside the component, with the queue below,
 // because the React Compiler does not yet handle loops in try/catch or
 // try/finally.
-async function deliver(
-	composerRef: React.RefObject<ComposerHandle | undefined>,
-	message: string,
-): Promise<boolean> {
+async function deliver(queue: SendQueue, message: string): Promise<boolean> {
 	try {
 		for (let attempt = 0; attempt < sendRetries; attempt++) {
-			if ((await composerRef.current?.send(message)) === "sent") {
+			const result = await queue.send?.(message);
+			if (result === "sent") {
 				return true;
+			}
+			if (result !== "busy") {
+				toast.error(
+					"Sending messages is unavailable; the UI annotation was not sent.",
+				);
+				return false;
 			}
 			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
 		}
 		toast.error("The chat is busy; the UI annotation was not sent.");
 	} catch (error) {
-		toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+		// API failures are already displayed by the chat's request error handler.
+		if (!isApiError(error)) {
+			toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+		}
 	}
 	return false;
 }
 
 type SendQueue = {
+	send?: (message: string) => Promise<SubmitChatTurnResult> | undefined;
 	chain: Promise<void>;
 	// Accepted and not yet finished, including the one being sent.
 	pending: number;
@@ -84,7 +91,6 @@ function newSendQueue(): SendQueue {
 // accepted.
 function enqueueSend(
 	queue: SendQueue,
-	composerRef: React.RefObject<ComposerHandle | undefined>,
 	message: string,
 	onSent: () => void,
 ): boolean {
@@ -99,7 +105,7 @@ function enqueueSend(
 				return;
 			}
 			queue.sending = true;
-			if (await deliver(composerRef, message)) {
+			if (await deliver(queue, message)) {
 				onSent();
 			}
 		} finally {
@@ -129,6 +135,7 @@ export const PortPreviewPanel: React.FC<{
 	// Drives the shimmer over annotated elements: on while the agent works
 	// on a sent annotation message, cleared when it stops.
 	isAgentWorking?: boolean;
+	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -137,6 +144,7 @@ export const PortPreviewPanel: React.FC<{
 	tab,
 	canAnnotate = false,
 	isAgentWorking = false,
+	onSendToolMessage,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -149,16 +157,18 @@ export const PortPreviewPanel: React.FC<{
 	);
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const composer = useComposer();
-	// Queued retries must use the current committed send gate, not the
-	// composer captured when the annotation was accepted.
-	const composerRef = useRef(composer);
+	const send = useEffectEvent((message: string) =>
+		onSendToolMessage?.(message),
+	);
+	const sendQueueRef = useRef(newSendQueue());
 	useLayoutEffect(() => {
-		composerRef.current = composer;
+		const queue = sendQueueRef.current;
+		// Retries read the latest sender; disconnect it when the panel unmounts.
+		queue.send = (message) => send(message);
 		return () => {
-			composerRef.current = undefined;
+			queue.send = undefined;
 		};
-	}, [composer]);
+	}, []);
 	const unavailableReasonId = useId();
 	// The proxy injects the overlay only on the request that carries the
 	// marker param, so each request reloads the frame. Client-side routing
@@ -176,9 +186,11 @@ export const PortPreviewPanel: React.FC<{
 
 	// Each saved comment goes straight to the agent as its own message.
 	// The shimmer starts once the send is accepted.
-	const sendQueueRef = useRef(newSendQueue());
 	const handleSubmit = (submission: AnnotationSubmission) => {
-		if (!composer) {
+		if (!onSendToolMessage) {
+			toast.error(
+				"Sending messages is unavailable; the UI annotation was not sent.",
+			);
 			return;
 		}
 		const message = formatAnnotations(submission);
@@ -187,15 +199,11 @@ export const PortPreviewPanel: React.FC<{
 			selector: element.selector,
 			url: submission.page.url,
 		}));
-		const accepted = enqueueSend(
-			sendQueueRef.current,
-			composerRef,
-			message,
-			() =>
-				setWorkingOn((current) => ({
-					items: [...(current?.items ?? []), ...items],
-					started: current?.started ?? false,
-				})),
+		const accepted = enqueueSend(sendQueueRef.current, message, () =>
+			setWorkingOn((current) => ({
+				items: [...(current?.items ?? []), ...items],
+				started: current?.started ?? false,
+			})),
 		);
 		if (!accepted) {
 			toast.error("Too many UI annotations at once; the latest was not sent.", {
@@ -225,6 +233,20 @@ export const PortPreviewPanel: React.FC<{
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
+	const canSendMessage = onSendToolMessage !== undefined;
+	const stopAnnotating = useEffectEvent(() => {
+		if (bridge.requested) {
+			bridge.setPicking(false);
+			toast.error(
+				"Annotation mode stopped because sending messages is unavailable.",
+			);
+		}
+	});
+	useLayoutEffect(() => {
+		if (!canSendMessage) {
+			stopAnnotating();
+		}
+	}, [canSendMessage]);
 
 	// The overlay is requested at most once per attempt: while it is still
 	// loading, further clicks only toggle the desired picking state instead
@@ -276,33 +298,25 @@ export const PortPreviewPanel: React.FC<{
 	// accepted while the request stands, so the button reads "on" whenever
 	// they might be. Escape leaves annotate mode from either side, listened
 	// for here in case focus is outside the preview.
+	const { requested: pickingRequested, setPicking } = bridge;
 	useEffect(() => {
-		if (!bridge.requested) {
+		if (!pickingRequested) {
 			return;
 		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && !event.defaultPrevented) {
-				bridge.setPicking(false);
+				setPicking(false);
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [bridge.requested, bridge.setPicking]);
+	}, [pickingRequested, setPicking]);
 
-	// Focus normally stays in the dashboard when the button is clicked, so
-	// move it into the frame once the overlay confirms picking.
-	useEffect(() => {
-		if (bridge.picking) {
-			frameRef.current?.focus();
-		}
-	}, [bridge.picking]);
-
-	const showAnnotate =
-		canAnnotate && composer !== undefined && frameUrl !== undefined;
+	const showAnnotate = canAnnotate && canSendMessage && frameUrl !== undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
 				<NetworkIcon className="size-3.5 shrink-0" />
 				<span className="min-w-0 truncate text-content-primary">
 					{tab.label}
@@ -310,40 +324,29 @@ export const PortPreviewPanel: React.FC<{
 				<div className="flex-1" />
 				{showAnnotate && (
 					<>
-						<Tooltip>
-							{/* aria-disabled rather than disabled so the control stays
-							 * focusable and the explanation reaches keyboard users. */}
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									aria-pressed={bridge.requested}
-									aria-label={
-										bridge.requested ? "Stop annotating" : "Annotate elements"
-									}
-									aria-disabled={bridge.unavailable}
-									aria-describedby={
-										bridge.unavailable ? unavailableReasonId : undefined
-									}
-									aria-busy={bridge.loading}
-									onClick={handleAnnotateClick}
-									className={
-										bridge.requested
-											? "bg-surface-tertiary text-content-primary"
-											: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
-									}
-								>
-									<MessageSquarePlusIcon />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent side="bottom">
-								{bridge.unavailable
-									? overlayUnavailableReason
-									: bridge.requested
-										? "Click elements in the preview to annotate them"
-										: "Annotate elements in the preview; each comment is sent to the agent"}
-							</TooltipContent>
-						</Tooltip>
+						{/* aria-disabled rather than disabled so the control stays
+						 * focusable and the explanation reaches keyboard users. */}
+						<Button
+							size="icon"
+							variant="subtle"
+							aria-pressed={bridge.requested}
+							aria-label={
+								bridge.requested ? "Stop annotating" : "Annotate elements"
+							}
+							aria-disabled={bridge.unavailable}
+							aria-describedby={
+								bridge.unavailable ? unavailableReasonId : undefined
+							}
+							aria-busy={bridge.loading}
+							onClick={handleAnnotateClick}
+							className={
+								bridge.requested
+									? "bg-surface-tertiary text-content-primary"
+									: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
+							}
+						>
+							<MessageSquarePlusIcon />
+						</Button>
 						{bridge.unavailable && (
 							<span id={unavailableReasonId} className="sr-only">
 								{overlayUnavailableReason}

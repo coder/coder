@@ -1,8 +1,10 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"runtime"
@@ -143,6 +145,51 @@ func TestServerCreateAdminUser(t *testing.T) {
 		stdout.ExpectMatch(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" || testing.Short() {
+			// Skip on non-Linux because it spawns a PostgreSQL instance.
+			t.SkipNow()
+		}
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		jsonUsername, jsonEmail, jsonPassword := "jsondean", "jsondean@example.com", "SecurePa$$word123"
+
+		inv, _ := clitest.New(t,
+			"server", "create-admin-user",
+			"--postgres-url", connectionURL,
+			"--ssh-keygen-algorithm", "ed25519",
+			"--username", jsonUsername,
+			"--email", jsonEmail,
+			"--password", jsonPassword,
+			"--output", "json",
+		)
+		stdout := new(bytes.Buffer)
+		inv.Stdout = stdout
+		inv.Stderr = io.Discard
+		require.NoError(t, inv.WithContext(ctx).Run())
+
+		var resp struct {
+			ID       uuid.UUID `json:"id"`
+			Username string    `json:"username"`
+			Email    string    `json:"email"`
+			Roles    []string  `json:"roles"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &resp))
+		assert.NotEmpty(t, resp.ID)
+		assert.Equal(t, jsonUsername, resp.Username)
+		assert.Equal(t, jsonEmail, resp.Email)
+		assert.Contains(t, resp.Roles, codersdk.RoleOwner)
+		assert.NotContains(t, stdout.String(), jsonPassword)
+
+		verifyUser(t, connectionURL, jsonUsername, jsonEmail, jsonPassword)
 	})
 
 	t.Run("Env", func(t *testing.T) {

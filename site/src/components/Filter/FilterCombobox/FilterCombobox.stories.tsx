@@ -7,7 +7,7 @@ import {
 	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
@@ -279,6 +279,26 @@ export const LongOptionLabelsMobile: Story = {
 export const SearchableHoverFlyoutNoMatches: Story = {
 	...SearchableHoverFlyout,
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "nobody"),
+};
+
+export const FlyoutNearRightEdge: Story = {
+	render: () => (
+		<div className="ml-auto w-72">
+			<FilterComboboxHarness initialQuery="" />
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
+		);
+		await body.findByRole("button", { name: "kubernetes" });
+	},
 };
 
 // Inside a category, the filter toggle returns to the category list instead of
@@ -1088,26 +1108,24 @@ export const InlineOptionsError: Story = {
 
 // A Retry that has not settled keeps the heading with a loading row.
 export const InlineOptionsRetrying: Story = {
-	render: () => {
-		let failed = false;
-		return (
-			<FilterComboboxHarness
-				initialQuery=""
-				categories={categoriesWithAttributes.map((category) =>
-					category.key === "status"
-						? {
-								...category,
-								getOptions: () => {
-									if (!failed) {
-										failed = true;
-										return Promise.reject(new Error("boom"));
-									}
-									return new Promise<FilterOption[]>(() => {});
-								},
+	render: function Render() {
+		const failed = useRef(false);
+		const retryingCategories = categoriesWithAttributes.map((category) =>
+			category.key === "status"
+				? {
+						...category,
+						getOptions: () => {
+							if (!failed.current) {
+								failed.current = true;
+								return Promise.reject(new Error("boom"));
 							}
-						: category,
-				)}
-			/>
+							return new Promise<FilterOption[]>(() => {});
+						},
+					}
+				: category,
+		);
+		return (
+			<FilterComboboxHarness initialQuery="" categories={retryingCategories} />
 		);
 	},
 	play: async ({ canvasElement }) => {

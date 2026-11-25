@@ -8,7 +8,9 @@ import {
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { isStaleChunkReloadPending } from "#/utils/staleChunkReload";
 
 const errorPageTitle = "Something went wrong";
 
@@ -16,6 +18,11 @@ const errorPageTitle = "Something went wrong";
 // to split it off from the rest of the code, and pass the value via props
 export const GlobalErrorBoundary: React.FC = () => {
 	const error = useRouteError();
+	// The failed import is expected after a redeploy and the page is already
+	// reloading, so keep showing a loader instead of an error.
+	if (isStaleChunkReloadPending()) {
+		return <Loader fullscreen />;
+	}
 	return <GlobalErrorBoundaryInner error={error} />;
 };
 
@@ -50,7 +57,6 @@ export const GlobalErrorBoundaryInner: React.FC<
 								rel="noreferrer"
 							>
 								Coder Discord community
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>{" "}
 							or{" "}
 							<Link
@@ -63,14 +69,13 @@ export const GlobalErrorBoundaryInner: React.FC<
 								)}
 							>
 								open an issue on GitHub
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>
 							.
 						</p>
 					</div>
 				</div>
 
-				<div className="flex flex-row flex-nowrap justify-center gap-2">
+				<div className="flex flex-nowrap justify-center gap-2">
 					<Button asChild className="min-w-32 ">
 						<a href={location.pathname}>Reload page</a>
 					</Button>
@@ -95,7 +100,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 type ErrorStackProps = Readonly<{ error: Error | ErrorResponse }>;
 const ErrorStack: React.FC<ErrorStackProps> = ({ error }) => {
 	return (
-		<aside className="p-4 text-left rounded-md border border-content-tertiary border-solid">
+		<aside className="p-4 text-left rounded-md border border-border border-solid">
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">

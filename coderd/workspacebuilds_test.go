@@ -2234,7 +2234,25 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
+		// Starting an hour ago puts these two rows before the default
+		// timings once sorted by StartedAt below.
+		skippedAt := dbtime.Now().Add(-time.Hour)
+		canceledAt := skippedAt.Add(time.Second)
+		agentScriptTimings := []database.WorkspaceAgentScriptTiming{
+			dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				ScriptID:  scripts[0].ID,
+				StartedAt: skippedAt,
+				EndedAt:   skippedAt,
+				Status:    database.WorkspaceAgentScriptTimingStatusSkipped,
+			}),
+			dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				ScriptID:  scripts[1].ID,
+				StartedAt: canceledAt,
+				EndedAt:   canceledAt,
+				Status:    database.WorkspaceAgentScriptTimingStatusCanceled,
+			}),
+		}
+		agentScriptTimings = append(agentScriptTimings, dbgen.WorkspaceAgentScriptTimings(t, db, scripts[2:])...)
 
 		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2250,11 +2268,13 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		slices.SortFunc(agentScriptTimings, func(a, b database.WorkspaceAgentScriptTiming) int {
 			return a.StartedAt.Compare(b.StartedAt)
 		})
+		require.Equal(t, codersdk.WorkspaceAgentScriptStatusSkipped, res.AgentScriptTimings[0].Status)
+		require.Equal(t, codersdk.WorkspaceAgentScriptStatusCanceled, res.AgentScriptTimings[1].Status)
 		for i := range res.AgentScriptTimings {
 			timingRes := res.AgentScriptTimings[i]
 			genTiming := agentScriptTimings[i]
 			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
-			require.Equal(t, string(genTiming.Status), timingRes.Status)
+			require.Equal(t, codersdk.WorkspaceAgentScriptStatus(genTiming.Status), timingRes.Status)
 			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())

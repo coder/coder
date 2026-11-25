@@ -15,6 +15,7 @@ import {
 	MockWorkspaceResourceMultipleAgents,
 	MockWorkspaceResourceSensitive,
 	MockWorkspaceVolumeResource,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
@@ -173,6 +174,25 @@ export const PublishDialog: Story = {
 	},
 };
 
+export const PublishDialogDuplicateName: Story = {
+	args: {
+		isAskingPublishParameters: true,
+		publishingError: mockApiError({
+			message: "template version name must be unique for a template",
+			validations: [{ field: "name", detail: "Name is already used" }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog", {
+			name: "Publish new version",
+		});
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Publish" }),
+		);
+	},
+};
+
 export const PublishDialogActiveVersionHelp: Story = {
 	args: {
 		isAskingPublishParameters: true,
@@ -184,7 +204,7 @@ export const PublishDialogActiveVersionHelp: Story = {
 		await userEvent.hover(trigger);
 		await expect(await body.findByText("Active versions")).toBeInTheDocument();
 		await expect(
-			body.getByRole("link", { name: "Review the documentation" }),
+			body.getByRole("link", { name: /Review the documentation/ }),
 		).toBeInTheDocument();
 	},
 };

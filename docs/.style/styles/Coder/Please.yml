@@ -1,0 +1,12 @@
+# Coder.Please - leave "please" out of instructions.
+# Refer to voice-and-tone.md#leave-out-please for the rule and its exception.
+#
+# Vale skips code spans and fenced code blocks, so quoted product text in code
+# font (such as `Please try again later`) stays untouched, as the guide asks.
+extends: existence
+message: "Leave out '%s'; write the instruction directly. Refer to voice-and-tone.md#leave-out-please."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/voice-and-tone.md#leave-out-please
+level: warning
+ignorecase: true
+tokens:
+  - '\bplease\b'

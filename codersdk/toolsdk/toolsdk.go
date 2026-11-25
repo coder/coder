@@ -19,17 +19,16 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // Tool name constants to avoid hardcoded strings
 const (
-	ToolNameReportTask                  = "coder_report_task"
 	ToolNameGetWorkspace                = "coder_get_workspace"
 	ToolNameCreateWorkspace             = "coder_create_workspace"
 	ToolNameListWorkspaces              = "coder_list_workspaces"
@@ -47,13 +46,15 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
-	ToolNameWorkspaceBash               = "coder_workspace_bash"
+	ToolNameWorkspaceExecute            = "coder_workspace_execute"
+	ToolNameWorkspaceProcessOutput      = "coder_workspace_process_output"
+	ToolNameWorkspaceProcessList        = "coder_workspace_process_list"
+	ToolNameWorkspaceProcessSignal      = "coder_workspace_process_signal"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
 	ToolNameWorkspaceLS                 = "coder_workspace_ls"
 	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
-	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
 	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
 	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
 	ToolNameWorkspaceListApps           = "coder_workspace_list_apps"
@@ -94,7 +95,6 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 // Deps provides access to tool dependencies.
 type Deps struct {
 	coderClient *codersdk.Client
-	report      func(ReportTaskArgs) error
 	agentConnFn workspacesdk.AgentConnFunc
 }
 
@@ -103,12 +103,6 @@ func (d Deps) ServerURL() string {
 	serverURLCopy.Path = ""
 	serverURLCopy.RawQuery = ""
 	return serverURLCopy.String()
-}
-
-func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
-	return func(d *Deps) {
-		d.report = fn
-	}
 }
 
 // WithAgentConnFunc overrides how workspace tools open logical connections to
@@ -163,9 +157,9 @@ func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspaces
 // HandlerFunc is a typed function that handles a tool call.
 type HandlerFunc[Arg, Ret any] func(context.Context, Deps, Arg) (Ret, error)
 
-// Tool consists of an aisdk.Tool and a corresponding typed handler function.
+// Tool consists of a tooldef.Tool and a corresponding typed handler function.
 type Tool[Arg, Ret any] struct {
-	aisdk.Tool
+	tooldef.Tool
 	Handler HandlerFunc[Arg, Ret]
 
 	// MCPAnnotations is the shared source of truth for MCP tool
@@ -283,7 +277,7 @@ func (t Tool[Arg, Ret]) Generic() GenericTool {
 // This allows referencing the tool without knowing the concrete argument or
 // return type. The Handler function allows calling the tool with known types.
 type GenericTool struct {
-	aisdk.Tool
+	tooldef.Tool
 	Handler GenericHandlerFunc
 
 	// MCPAnnotations are host hints used when this tool is exposed over MCP.
@@ -412,16 +406,17 @@ var All = []GenericTool{
 	GetWorkspace.Generic(),
 	GetWorkspaceAgentLogs.Generic(),
 	GetWorkspaceBuildLogs.Generic(),
-	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
-	WorkspaceBash.Generic(),
+	WorkspaceExecute.Generic(),
+	WorkspaceProcessOutput.Generic(),
+	WorkspaceProcessList.Generic(),
+	WorkspaceProcessSignal.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
 	WorkspaceLS.Generic(),
 	WorkspaceReadFile.Generic(),
 	WorkspaceWriteFile.Generic(),
-	WorkspaceEditFile.Generic(),
 	WorkspaceEditFiles.Generic(),
 	WorkspacePortForward.Generic(),
 	WorkspaceListApps.Generic(),
@@ -437,90 +432,17 @@ var All = []GenericTool{
 	ListChatModelConfigs.Generic(),
 }
 
-type ReportTaskArgs struct {
-	Link    string `json:"link"`
-	State   string `json:"state"`
-	Summary string `json:"summary"`
-}
-
-var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name: ToolNameReportTask,
-		Description: `Report progress on your work.
-
-The user observes your work through a Task UI. To keep them updated
-on your progress, or if you need help - use this tool.
-
-Good Tasks
-- "Cloning the repository <repository-url>"
-- "Working on <feature-name>"
-- "Figuring our why <issue> is happening"
-
-Bad Tasks
-- "I'm working on it"
-- "I'm trying to fix it"
-- "I'm trying to implement <feature-name>"
-
-Use the "state" field to indicate your progress. Periodically report
-progress with state "working" to keep the user updated. It is not possible to send too many updates!
-
-ONLY report a "complete", "idle", or "failure" state if you have FULLY completed the task.
-`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"summary": map[string]any{
-					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
-				},
-				"link": map[string]any{
-					"type":        "string",
-					"description": "A link to a relevant resource, such as a PR or issue.",
-				},
-				"state": map[string]any{
-					"type":        "string",
-					"description": "The state of your task. This can be one of the following: working, complete, idle, or failure. Select the state that best represents your current progress.",
-					"enum": []string{
-						string(codersdk.WorkspaceAppStatusStateWorking),
-						string(codersdk.WorkspaceAppStatusStateComplete),
-						string(codersdk.WorkspaceAppStatusStateIdle),
-						string(codersdk.WorkspaceAppStatusStateFailure),
-					},
-				},
-			},
-			Required: []string{"summary", "link", "state"},
-		},
-	},
-	MCPAnnotations:     mcpMutationAnnotations,
-	UserClientOptional: true,
-	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
-		if len(args.Summary) > 160 {
-			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
-		}
-		// Check if task reporting is available to prevent nil pointer dereference
-		if deps.report == nil {
-			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
-		}
-		err := deps.report(args)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-		return codersdk.Response{
-			Message: "Thanks for reporting!",
-		}, nil
-	},
-}
-
 type GetWorkspaceArgs struct {
 	WorkspaceID string `json:"workspace_id"`
 }
 
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameGetWorkspace,
 		Description: `Get a workspace by name or ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
 					"type":        "string",
@@ -560,7 +482,7 @@ func richParametersFromMap(m map[string]string) []codersdk.WorkspaceBuildParamet
 }
 
 var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameCreateWorkspace,
 		Description: `Create a new workspace in Coder.
 
@@ -580,7 +502,7 @@ choice with the user.
 After creating a workspace, watch the build logs and wait for the workspace to
 be ready before trying to use or connect to the workspace.
 `,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"user": map[string]any{
 					"type":        "string",
@@ -674,10 +596,10 @@ type ListWorkspacesArgs struct {
 }
 
 var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameListWorkspaces,
 		Description: "Lists workspaces for the authenticated user.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"owner": map[string]any{
 					"type":        "string",
@@ -731,10 +653,10 @@ func minimalTemplate(template codersdk.Template) MinimalTemplate {
 }
 
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameListTemplates,
 		Description: "Lists templates for the authenticated user. agents_allowed indicates whether Coder Agents (chats) may create workspaces from the template.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
 		},
@@ -758,10 +680,10 @@ type ListTemplateVersionParametersArgs struct {
 }
 
 var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []codersdk.TemplateVersionParameter]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameListTemplateVersionParams,
 		Description: "Get the parameters for a template version. You can refer to these as workspace parameters to the user, as they are typically important for creating a workspace.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"template_version_id": map[string]any{
 					"type": "string",
@@ -835,14 +757,14 @@ func toPresetView(p codersdk.Preset) presetView {
 }
 
 var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameGetTemplate,
 		Description: `Get details about a workspace template, including its configurable parameters and available presets for the active version.
 
 Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
 
 When selecting a preset: if a preset is marked default and the user has not specified preferences, prefer that preset. Presets with desired_prebuild_instances > 0 may have prebuilt workspaces available for faster startup; prefer those when startup speed matters.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"template_id": map[string]any{
 					"type":        "string",
@@ -888,10 +810,10 @@ When selecting a preset: if a preset is marked default and the user has not spec
 }
 
 var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameGetAuthenticatedUser,
 		Description: "Get the currently authenticated user, similar to the `whoami` command.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
 		},
@@ -911,7 +833,7 @@ type CreateWorkspaceBuildArgs struct {
 }
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameCreateWorkspaceBuild,
 		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
 
@@ -924,7 +846,7 @@ After creating a workspace build, watch the build logs and wait for the
 workspace build to complete before trying to start another build or use or
 connect to the workspace.
 `,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
 					"type": "string",
@@ -1001,7 +923,7 @@ type CreateTemplateVersionArgs struct {
 }
 
 var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameCreateTemplateVersion,
 		Description: `Create a new template version. This is a precursor to creating a template, or you can update an existing template.
 
@@ -1453,7 +1375,7 @@ resource "kubernetes_deployment" "main" {
 
 The file_id provided is a reference to a tar file you have uploaded containing the Terraform.
 `,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
@@ -1506,12 +1428,12 @@ type GetWorkspaceAgentLogsArgs struct {
 }
 
 var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameGetWorkspaceAgentLogs,
 		Description: `Get the logs of a workspace agent.
 
 		More logs may appear after this call. It does not wait for the agent to finish.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace_agent_id": map[string]any{
 					"type": "string",
@@ -1546,12 +1468,12 @@ type GetWorkspaceBuildLogsArgs struct {
 }
 
 var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameGetWorkspaceBuildLogs,
 		Description: `Get the logs of a workspace build.
 
 		Useful for checking whether a workspace builds successfully or not.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace_build_id": map[string]any{
 					"type": "string",
@@ -1584,10 +1506,10 @@ type GetTemplateVersionLogsArgs struct {
 }
 
 var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameGetTemplateVersionLogs,
 		Description: "Get the logs of a template version. This is useful to check whether a template version successfully imports or not.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"template_version_id": map[string]any{
 					"type": "string",
@@ -1622,10 +1544,10 @@ type UpdateTemplateActiveVersionArgs struct {
 }
 
 var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameUpdateTemplateActiveVersion,
 		Description: "Update the active version of a template. This is helpful when iterating on templates.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"template_id": map[string]any{
 					"type": "string",
@@ -1662,10 +1584,10 @@ type UploadTarFileArgs struct {
 }
 
 var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameUploadTarFile,
 		Description: `Create and upload a tar file by key/value mapping of file names to file contents. Use this to create template versions. Reference the tool description of "create_template_version" to understand template requirements.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"files": map[string]any{
 					"type":                 "object",
@@ -1727,10 +1649,10 @@ type CreateTemplateArgs struct {
 }
 
 var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameCreateTemplate,
 		Description: "Create a new template in Coder. First, you must create a template version.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
@@ -1785,10 +1707,10 @@ type DeleteTemplateArgs struct {
 }
 
 var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameDeleteTemplate,
 		Description: "Delete a template. This is irreversible.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"template_id": map[string]any{
 					"type": "string",
@@ -1851,10 +1773,10 @@ type WorkspaceLSResponse struct {
 }
 
 var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceLS,
 		Description: `List directories in a workspace.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
@@ -1893,308 +1815,6 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	},
 }
 
-type WorkspaceReadFileArgs struct {
-	Workspace string `json:"workspace"`
-	Path      string `json:"path"`
-	Offset    int64  `json:"offset"`
-	Limit     int64  `json:"limit"`
-}
-
-type WorkspaceReadFileResponse struct {
-	// Content is the base64-encoded bytes from the file.
-	Content  []byte `json:"content"`
-	MimeType string `json:"mimeType"`
-}
-
-const maxFileLimit = 1 << 20 // 1MiB
-
-var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceReadFile,
-		Description: `Read from a file in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to read in the workspace.",
-				},
-				"offset": map[string]any{
-					"type":        "integer",
-					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
-				},
-				"limit": map[string]any{
-					"type":        "integer",
-					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
-				},
-			},
-			Required: []string{"path", "workspace"},
-		},
-	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, err
-		}
-		defer conn.Close()
-
-		// Ideally we could stream this all the way back, but it looks like the MCP
-		// interfaces only allow returning full responses which means the whole
-		// thing has to be read into memory.  So, add a maximum limit to compensate.
-		limit := args.Limit
-		if limit == 0 {
-			limit = maxFileLimit
-		} else if limit > maxFileLimit {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
-		}
-
-		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, err
-		}
-		defer reader.Close()
-
-		bs, err := io.ReadAll(reader)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
-		}
-
-		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
-	},
-}
-
-type WorkspaceWriteFileArgs struct {
-	Workspace string `json:"workspace"`
-	Path      string `json:"path"`
-	Content   []byte `json:"content"`
-}
-
-var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name: ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.
-
-If a file write fails due to syntax errors or encoding issues, do NOT switch
-to using bash commands as a workaround. Instead:
-
-	1. Read the error message carefully to identify the issue
-	2. Fix the content encoding/syntax
-	3. Retry with this tool
-
-The content parameter expects base64-encoded bytes. Ensure your source content
-is correct before encoding it. If you encounter errors, decode and verify the
-content you are trying to write, then re-encode it properly.
-`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to write in the workspace.",
-				},
-				"content": map[string]any{
-					"type":        "string",
-					"description": "The base64-encoded bytes to write to the file.",
-				},
-			},
-			Required: []string{"path", "workspace", "content"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-		defer conn.Close()
-
-		reader := bytes.NewReader(args.Content)
-		err = conn.WriteFile(ctx, args.Path, reader)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-
-		return codersdk.Response{
-			Message: "File written successfully.",
-		}, nil
-	},
-}
-
-type WorkspaceEditFileArgs struct {
-	Workspace string                  `json:"workspace"`
-	Path      string                  `json:"path"`
-	Edits     []workspacesdk.FileEdit `json:"edits"`
-}
-
-// WorkspaceEditFilesResponse is the response shape for the edit-file
-// and edit-files tools. Message preserves the existing success text.
-// Files carries the per-file results returned by the agent
-// (populated when the agent-side IncludeDiff flag was set). The
-// field is named Files (matching the agent's FileEditResponse.Files)
-// so future per-file error or status fields can be added without a
-// second wire break.
-type WorkspaceEditFilesResponse struct {
-	Message string                        `json:"message"`
-	Files   []workspacesdk.FileEditResult `json:"files,omitempty"`
-}
-
-var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceEditFile,
-		Description: `Edit a file in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path of the file to write in the workspace.",
-				},
-				"edits": map[string]any{
-					"type":        "array",
-					"description": "An array of edit operations.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"old_text": map[string]any{
-								"type":        "string",
-								"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
-							},
-							"new_text": map[string]any{
-								"type":        "string",
-								"description": "The new text that replaces the old text.",
-							},
-							"replace_all": map[string]any{
-								"type":        "boolean",
-								"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
-							},
-						},
-						"required": []string{"old_text", "new_text"},
-					},
-				},
-			},
-			Required: []string{"path", "workspace", "edits"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-		defer conn.Close()
-
-		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{
-				{
-					Path:  args.Path,
-					Edits: args.Edits,
-				},
-			},
-			IncludeDiff: true,
-		})
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-
-		return WorkspaceEditFilesResponse{
-			Message: "File edited successfully.",
-			Files:   resp.Files,
-		}, nil
-	},
-}
-
-type WorkspaceEditFilesArgs struct {
-	Workspace string                   `json:"workspace"`
-	Files     []workspacesdk.FileEdits `json:"files"`
-}
-
-var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse]{
-	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceEditFiles,
-		Description: `Edit one or more files in a workspace.`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"workspace": map[string]any{
-					"type":        "string",
-					"description": workspaceAgentDescription,
-				},
-				"files": map[string]any{
-					"type":        "array",
-					"description": "An array of files to edit.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"path": map[string]any{
-								"type":        "string",
-								"description": "The absolute path of the file to write in the workspace.",
-							},
-							"edits": map[string]any{
-								"type":        "array",
-								"description": "An array of edit operations.",
-								"items": map[string]any{
-									"type": "object",
-									"properties": map[string]any{
-										"old_text": map[string]any{
-											"type":        "string",
-											"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
-										},
-										"new_text": map[string]any{
-											"type":        "string",
-											"description": "The new text that replaces the old text.",
-										},
-										"replace_all": map[string]any{
-											"type":        "boolean",
-											"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
-										},
-									},
-									"required": []string{"old_text", "new_text"},
-								},
-							},
-						},
-						"required": []string{"path", "edits"},
-					},
-				},
-			},
-			Required: []string{"workspace", "files"},
-		},
-	},
-	MCPAnnotations:     mcpDestructiveAnnotations,
-	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-		defer conn.Close()
-
-		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-			Files:       args.Files,
-			IncludeDiff: true,
-		})
-		if err != nil {
-			return WorkspaceEditFilesResponse{}, err
-		}
-
-		return WorkspaceEditFilesResponse{
-			Message: "File(s) edited successfully.",
-			Files:   resp.Files,
-		}, nil
-	},
-}
-
 type WorkspacePortForwardArgs struct {
 	Workspace string `json:"workspace"`
 	Port      int    `json:"port"`
@@ -2205,10 +1825,10 @@ type WorkspacePortForwardResponse struct {
 }
 
 var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspacePortForward,
 		Description: `Fetch URLs that forward to the specified port.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
@@ -2263,10 +1883,10 @@ type WorkspaceListAppsResponse struct {
 }
 
 var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceListApps,
 		Description: `List the URLs of Coder apps running in a workspace for a single agent.`,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",

@@ -19,11 +19,13 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -499,4 +501,70 @@ func assertWritePayload(t *testing.T, w io.Writer, prefix []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
+}
+
+// TestPortForward_UpdateUsage checks that a forwarded connection is reported
+// under the port_forwarding app for the workspace's agent.
+func TestPortForward_UpdateUsage(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+	batcher := &workspacestatstest.StatsBatcher{
+		LastStats: &agentproto.Stats{},
+	}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+		StatsBatcher:     batcher,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	workspace := runAgent(t, client, memberUser.ID, db)
+
+	ws, err := client.Workspace(context.Background(), workspace.ID)
+	require.NoError(t, err)
+	var agentID uuid.UUID
+	for _, res := range ws.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			agentID = a.ID
+		}
+	}
+	require.NotEqual(t, uuid.Nil, agentID, "workspace has no agent")
+
+	prefix := generateRandomPrefix(t)
+	remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err, "create TCP listener")
+	p1 := setupTestListener(t, remoteLis, prefix)
+
+	flag := fmt.Sprintf("--tcp=5555:%v", p1)
+	inv, root := clitest.New(t, "port-forward", workspace.Name, flag)
+	clitest.SetupConfig(t, member, root)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+
+	iNet := testutil.NewInProcNet()
+	inv.Net = iNet
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	errC := make(chan error)
+	go func() {
+		errC <- inv.WithContext(ctx).Run()
+	}()
+	stdout.ExpectMatch(ctx, "Ready!")
+
+	// Open and use a forwarded connection so the session is reported.
+	dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer dialCtxCancel()
+	c1, err := iNet.Dial(dialCtx, testutil.NewAddr("tcp", "127.0.0.1:5555"))
+	require.NoError(t, err, "open connection to 'local' listener")
+	testDial(t, c1, prefix)
+	require.NoError(t, c1.Close())
+
+	cancel()
+	err = <-errC
+	require.ErrorIs(t, err, context.Canceled)
+
+	batcher.Mu.Lock()
+	defer batcher.Mu.Unlock()
+	require.Equal(t, map[string]int64{"port_forwarding": 1}, batcher.LastStats.GetSessionCounts())
+	require.Equal(t, agentID, batcher.LastAgentID)
 }

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { deploymentSSHConfigQueryKey } from "#/api/queries/deployment";
+import { apiKeyQueryKey } from "#/api/queries/users";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
+	MockDeploymentSSH,
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockStoppedWorkspace,
@@ -135,7 +138,12 @@ export const WithAllApps: Story = {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithApps,
-		sshCommand: "ssh coder.test-workspace",
+	},
+	parameters: {
+		queries: [
+			{ key: apiKeyQueryKey, data: { key: "mock-api-key" } },
+			{ key: deploymentSSHConfigQueryKey, data: MockDeploymentSSH },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

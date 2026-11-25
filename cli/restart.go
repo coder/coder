@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -41,7 +42,7 @@ func (r *RootCmd) restart() *serpent.Command {
 				return err
 			}
 
-			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, bflags, WorkspaceRestart)
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, bflags, WorkspaceRestart, uuid.Nil)
 			if err != nil {
 				return err
 			}
@@ -84,7 +85,7 @@ func (r *RootCmd) restart() *serpent.Command {
 			// workspaces with the active version.
 			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
 				_, _ = fmt.Fprintln(inv.Stdout, "Unable to restart the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, uuid.Nil)
 				if err != nil {
 					return xerrors.Errorf("start workspace with active template version: %w", err)
 				}

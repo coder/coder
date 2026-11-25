@@ -1,0 +1,1 @@
+-- no-op. The deleted mcp-tool-search experiment rule is not restored.

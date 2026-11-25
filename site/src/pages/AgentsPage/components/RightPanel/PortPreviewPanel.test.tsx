@@ -1,20 +1,24 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
+import { randomId } from "#/annotator/randomId";
+import { toast } from "#/components/Toaster/toast";
 import { createDeferred } from "#/testHelpers/deferred";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockWorkspace,
+	MockWorkspaceAgent,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { portForwardURL } from "#/utils/portForward";
-import {
-	ComposerContext,
-	type ComposerSendResult,
-} from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("#/components/Toaster/toast", () => ({
+	toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	id: "port-3000",
@@ -25,7 +29,7 @@ const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	protocol: "http",
 };
 
-type Send = (message: string) => Promise<ComposerSendResult>;
+type Send = (message: string) => Promise<SubmitChatTurnResult>;
 
 const sent = () => vi.fn<Send>().mockResolvedValue("sent");
 
@@ -38,17 +42,16 @@ function frameWindow(frame: HTMLIFrameElement): Window {
 
 function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 	const panel = (send: Send | undefined, isAgentWorking: boolean) => (
-		<ComposerContext value={send ? { send } : undefined}>
-			<PortPreviewPanel
-				workspace={MockWorkspace}
-				agent={MockWorkspaceAgent}
-				host="*.apps.example.com"
-				tab={tab}
-				canAnnotate
-				isAgentWorking={isAgentWorking}
-				annotatorReadyTimeoutMs={readyTimeoutMs}
-			/>
-		</ComposerContext>
+		<PortPreviewPanel
+			workspace={MockWorkspace}
+			agent={MockWorkspaceAgent}
+			host="*.apps.example.com"
+			tab={tab}
+			onSendToolMessage={send}
+			canAnnotate
+			isAgentWorking={isAgentWorking}
+			annotatorReadyTimeoutMs={readyTimeoutMs}
+		/>
 	);
 	const { rerender, unmount } = renderComponent(panel(onSend, false));
 	const setAgentWorking = (isAgentWorking: boolean) =>
@@ -70,7 +73,7 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 		frameOrigin,
 		receive,
 		onSend,
-		setComposer: (send?: Send) => rerender(panel(send, false)),
+		setSender: (send?: Send) => rerender(panel(send, false)),
 		setAgentWorking,
 		unmount,
 	};
@@ -98,7 +101,7 @@ const submission: AnnotatorToHostMessage = {
 	},
 	annotations: [
 		{
-			id: "a",
+			id: randomId(),
 			comment: "Make this red",
 			element: {
 				tag: "button",
@@ -193,7 +196,12 @@ describe("PortPreviewPanel annotations", () => {
 		await act(async () => {
 			receive({ type: "coder-annotator:state", picking: true });
 		});
-		expect(focus).toHaveBeenCalled();
+		expect(focus).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(focus).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps a new request when the overlay acknowledges the stop before it late", async () => {
@@ -247,7 +255,7 @@ describe("PortPreviewPanel annotations", () => {
 
 	it("bounds how many submissions wait to be sent", async () => {
 		vi.mocked(toast.error).mockClear();
-		const first = createDeferred<ComposerSendResult>();
+		const first = createDeferred<SubmitChatTurnResult>();
 		const onSend = vi
 			.fn<Send>()
 			.mockReturnValueOnce(first.promise)
@@ -259,7 +267,7 @@ describe("PortPreviewPanel annotations", () => {
 		for (let index = 0; index < 6; index++) {
 			receive({
 				...submission,
-				annotations: [{ ...submission.annotations[0], id: `${index}` }],
+				annotations: [{ ...submission.annotations[0], id: randomId() }],
 			});
 		}
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
@@ -276,7 +284,7 @@ describe("PortPreviewPanel annotations", () => {
 
 	it("drops waiting submissions once annotate mode is turned off", async () => {
 		vi.mocked(toast.error).mockClear();
-		const first = createDeferred<ComposerSendResult>();
+		const first = createDeferred<SubmitChatTurnResult>();
 		const onSend = vi
 			.fn<Send>()
 			.mockReturnValueOnce(first.promise)
@@ -287,7 +295,7 @@ describe("PortPreviewPanel annotations", () => {
 			receive({ type: "coder-annotator:ready" });
 			receive({ type: "coder-annotator:state", picking: true });
 		});
-		for (const id of ["a", "b", "c"]) {
+		for (const id of Array.from({ length: 3 }, randomId)) {
 			receive({
 				...submission,
 				annotations: [{ ...submission.annotations[0], id }],
@@ -310,39 +318,39 @@ describe("PortPreviewPanel annotations", () => {
 	it("accepts a submission through the new handler after rerender without rearming", async () => {
 		const originalSend = sent();
 		const nextSend = sent();
-		const { receive, setComposer } = renderPanel(originalSend);
+		const { receive, setSender } = renderPanel(originalSend);
 		await requestOverlay();
 		receive({ type: "coder-annotator:ready" });
 
-		setComposer(nextSend);
+		setSender(nextSend);
 		receive(submission);
 		await waitFor(() => expect(nextSend).toHaveBeenCalledTimes(1));
 		expect(originalSend).not.toHaveBeenCalled();
 	});
 
 	it("uses the latest committed sender for queued messages after an ordinary rerender", async () => {
-		const first = createDeferred<ComposerSendResult>();
+		const first = createDeferred<SubmitChatTurnResult>();
 		const originalSend = vi.fn<Send>().mockReturnValue(first.promise);
 		const nextSend = sent();
-		const { receive, setComposer } = renderPanel(originalSend);
+		const { receive, setSender } = renderPanel(originalSend);
 		await requestOverlay();
 		receive({ type: "coder-annotator:ready" });
 		receive(submission);
 		await waitFor(() => expect(originalSend).toHaveBeenCalledTimes(1));
 		receive({
 			...submission,
-			annotations: [{ ...submission.annotations[0], id: "b" }],
+			annotations: [{ ...submission.annotations[0], id: randomId() }],
 		});
-		setComposer(nextSend);
+		setSender(nextSend);
 		first.resolve("sent");
 		await waitFor(() => expect(nextSend).toHaveBeenCalledTimes(1));
 		expect(originalSend).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not call a disabled composer while retrying, then uses the latest sender", async () => {
+	it("stops retrying when sending is disabled", async () => {
 		const busySend = vi.fn<Send>().mockResolvedValue("busy");
 		const nextSend = sent();
-		const { receive, setComposer } = renderPanel(busySend);
+		const { receive, setSender } = renderPanel(busySend);
 		await requestOverlay();
 		receive({ type: "coder-annotator:ready" });
 		vi.useFakeTimers();
@@ -351,23 +359,110 @@ describe("PortPreviewPanel annotations", () => {
 				receive(submission);
 			});
 			expect(busySend).toHaveBeenCalledTimes(1);
-			setComposer(undefined);
+			setSender(undefined);
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(500);
 			});
 			expect(busySend).toHaveBeenCalledTimes(1);
-			setComposer(nextSend);
+			setSender(nextSend);
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(500);
 			});
-			expect(nextSend).toHaveBeenCalledTimes(1);
+			expect(nextSend).not.toHaveBeenCalled();
 			expect(busySend).toHaveBeenCalledTimes(1);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("does not retry through the old composer after unmount", async () => {
+	it.each([false, true])(
+		"stops annotating when sending is disabled (overlay ready: %s)",
+		async (ready) => {
+			vi.mocked(toast.error).mockClear();
+			const { frame, frameOrigin, receive, onSend, setSender } = renderPanel();
+			await requestOverlay();
+			if (ready) {
+				await act(async () => {
+					receive({ type: "coder-annotator:ready" });
+					receive({ type: "coder-annotator:state", picking: true });
+				});
+			}
+			const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+			setSender(undefined);
+			if (ready) {
+				expect(postMessage).toHaveBeenCalledWith(
+					{ type: "coder-annotator:set-picking", picking: false },
+					frameOrigin,
+				);
+			}
+			expect(toast.error).toHaveBeenCalledWith(
+				"Annotation mode stopped because sending messages is unavailable.",
+			);
+			await act(async () => {
+				receive({ type: "coder-annotator:ready" });
+			});
+			setSender(onSend);
+			receive(submission);
+			await settled();
+			expect(onSend).not.toHaveBeenCalled();
+			expect(postMessage).not.toHaveBeenCalledWith(
+				{ type: "coder-annotator:set-picking", picking: true },
+				frameOrigin,
+			);
+			await userEvent.click(annotateButton());
+			receive(submission);
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		},
+	);
+
+	it.each([
+		{ error: mockApiError({ message: "Request denied" }), expectedToasts: [] },
+		{
+			error: new Error("Network failed"),
+			expectedToasts: [["Network failed"]],
+		},
+	])(
+		"only toasts failures not already reported by the chat: $error",
+		async ({ error, expectedToasts }) => {
+			vi.mocked(toast.error).mockClear();
+			const onSend = vi
+				.fn<Send>()
+				.mockRejectedValueOnce(error)
+				.mockResolvedValue("sent");
+			const { receive } = renderPanel(onSend);
+			await requestOverlay();
+			receive({ type: "coder-annotator:ready" });
+			receive(submission);
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+			await settled();
+			expect(vi.mocked(toast.error).mock.calls).toEqual(expectedToasts);
+			receive(submission);
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+		},
+	);
+
+	it("does not retry an unavailable send", async () => {
+		vi.mocked(toast.error).mockClear();
+		const onSend = vi.fn<Send>().mockResolvedValue("unavailable");
+		const { receive } = renderPanel(onSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				receive(submission);
+				await vi.advanceTimersByTimeAsync(3000);
+			});
+			expect(onSend).toHaveBeenCalledTimes(1);
+			expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+				"Sending messages is unavailable; the UI annotation was not sent.",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry through the old sender after unmount", async () => {
 		const busySend = vi.fn<Send>().mockResolvedValue("busy");
 		const { receive, unmount } = renderPanel(busySend);
 		await requestOverlay();
@@ -400,7 +495,11 @@ describe("PortPreviewPanel annotations", () => {
 		receive({
 			...submission,
 			annotations: [
-				{ ...submission.annotations[0], id: "b", comment: "Then this" },
+				{
+					...submission.annotations[0],
+					id: randomId(),
+					comment: "Then this",
+				},
 			],
 		});
 
@@ -448,6 +547,7 @@ describe("PortPreviewPanel annotations", () => {
 		});
 		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
 
+		const focus = vi.spyOn(frame(), "focus");
 		// The page claims annotate mode is back on without the user asking.
 		await act(async () => {
 			receive({ type: "coder-annotator:state", picking: true });
@@ -457,6 +557,7 @@ describe("PortPreviewPanel annotations", () => {
 			frameOrigin,
 		);
 		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		expect(focus).not.toHaveBeenCalled();
 		receive(submission);
 		await settled();
 		expect(onSend).not.toHaveBeenCalled();
@@ -557,7 +658,7 @@ describe("PortPreviewPanel annotations", () => {
 
 		setAgentWorking(true);
 		const item = {
-			id: "a",
+			id: submission.annotations[0].id,
 			selector: "#save",
 			url: submission.page.url,
 		};

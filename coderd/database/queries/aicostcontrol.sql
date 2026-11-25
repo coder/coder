@@ -36,21 +36,109 @@ WHERE (
 	EXCLUDED.cache_write_price
 );
 
--- name: GetAIModelPriceByProviderModel :one
--- Returns the price in effect for the requested model, falling back to the
--- model reported by the provider when the requested model has no price.
--- Rows are ordered by model first, then by source, so the lookup order is:
---   1. Custom price for the requested model.
---   2. Price book price for the requested model.
---   3. Custom price for the provider-reported model.
---   4. Price book price for the provider-reported model.
-SELECT *
-FROM ai_model_prices
-WHERE provider = @provider AND model IN (@model, @provider_model)
+-- name: GetAIModelPriceForProvider :one
+-- Returns the price in effect for the model served by the configured provider.
+-- The requested model is preferred over the model reported by the provider,
+-- whatever the kind of price. For each model, the lookup order is:
+--   1. The organization's price for the provider.
+--   2. A site-wide custom price.
+--   3. The price book price.
+-- A NULL organization_id matches no organization price, so only site-wide
+-- prices apply. Soft-deleted organization configs, and those that set no
+-- price, are ignored. A matched price is used as a whole: its NULL prices are
+-- not filled in from a less specific price. Each branch is a unique index
+-- lookup.
+WITH prices AS (
+	SELECT
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_prices
+	WHERE ai_model_prices.provider = @provider_type::text
+		AND ai_model_prices.model IN (@model::text, @provider_model::text)
+	UNION ALL
+	SELECT
+		1,
+		model,
+		input_price,
+		output_price,
+		cache_read_price,
+		cache_write_price
+	FROM ai_model_configs
+	WHERE ai_model_configs.organization_id = sqlc.narg('organization_id')::uuid
+		AND ai_model_configs.provider_id = @provider_id::uuid
+		AND ai_model_configs.model IN (@model::text, @provider_model::text)
+		AND ai_model_configs.deleted = FALSE
+		AND COALESCE(
+			ai_model_configs.input_price,
+			ai_model_configs.output_price,
+			ai_model_configs.cache_read_price,
+			ai_model_configs.cache_write_price
+		) IS NOT NULL
+)
+SELECT
+	prices.model,
+	prices.input_price,
+	prices.output_price,
+	prices.cache_read_price,
+	prices.cache_write_price
+FROM prices
 ORDER BY
-	CASE WHEN model = @model THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+	CASE WHEN prices.model = @model::text THEN 0 ELSE 1 END ASC,
+	prices.specificity ASC
 LIMIT 1;
+
+-- name: GetOrganizationAIProviderModelConfig :one
+-- Returns the organization's live config for one model on one configured
+-- provider. Soft-deleted rows are ignored.
+SELECT *
+FROM ai_model_configs
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model
+	AND deleted = FALSE;
+
+-- name: UpsertOrganizationAIProviderModelConfig :exec
+-- Sets the organization's config for one model on one configured provider. A
+-- NULL price is unknown. An existing live row is only rewritten when a price
+-- differs, so updated_at records when a price last changed. Soft-deleted rows
+-- are left untouched, and a new live row is inserted beside them.
+INSERT INTO ai_model_configs (
+	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
+) VALUES (
+	@organization_id, @provider_id, @model, @input_price, @output_price, @cache_read_price, @cache_write_price
+)
+ON CONFLICT (organization_id, provider_id, model) WHERE deleted = FALSE DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+WHERE (
+	ai_model_configs.input_price,
+	ai_model_configs.output_price,
+	ai_model_configs.cache_read_price,
+	ai_model_configs.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
+
+-- name: DeleteOrganizationAIProviderModelConfig :execrows
+-- Soft deletes the organization's live config for one model on one configured
+-- provider. Returns zero rows when there is no live config.
+UPDATE ai_model_configs
+SET deleted = TRUE,
+	updated_at = NOW()
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model
+	AND deleted = FALSE;
 
 -- name: GetAIModelPrices :many
 -- Returns the price in effect for each model, preferring a custom price over
@@ -110,6 +198,20 @@ SELECT *
 FROM user_ai_budget_overrides
 WHERE user_id = @user_id;
 
+-- name: GetUserAIBudgetOverrideWithOrganization :one
+-- Returns the user's AI budget override with the organization of its group, for
+-- budget resolution. An override whose group is in a deleted organization is
+-- never returned. When organization_id is set, returns the override only if its
+-- group belongs to that organization.
+SELECT override.user_id, override.group_id, override.spend_limit_micros,
+	groups.organization_id
+FROM user_ai_budget_overrides override
+JOIN groups ON groups.id = override.group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE override.user_id = @user_id
+	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR groups.organization_id = sqlc.narg('organization_id')::uuid);
+
 -- name: UpsertUserAIBudgetOverride :one
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
 VALUES (@user_id, @group_id, @spend_limit_micros)
@@ -129,9 +231,11 @@ DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;
 -- and organization_members, so the implicit "Everyone" group
 -- (group_id == organization_id) is included. Returns no rows when the user has
 -- no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
+-- When organization_id is set, only groups in that organization count.
 SELECT
 	budget.group_id,
-	budget.spend_limit_micros
+	budget.spend_limit_micros,
+	member.organization_id
 FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
@@ -140,6 +244,7 @@ JOIN organization_members
 	AND organization_members.organization_id = member.organization_id
 WHERE member.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR member.organization_id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	budget.spend_limit_micros DESC,       -- highest wins
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -150,12 +255,14 @@ LIMIT 1;
 -- Returns the "Everyone" group (id == organization_id) to attribute a user's
 -- spend to when no override or budgeted group applies. Prefers the default org,
 -- then the earliest organization membership. Returns no rows when the user has
--- no organization membership.
+-- no organization membership. When organization_id is set, returns that
+-- organization's Everyone group only if the user is a member of it.
 SELECT organizations.id AS group_id
 FROM organization_members
 JOIN organizations ON organizations.id = organization_members.organization_id
 WHERE organization_members.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR organizations.id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	organizations.is_default DESC,        -- prefer the default org
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -513,7 +620,7 @@ WITH spend AS (
 		ai.initiator_id AS user_id,
 		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
 		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name)::text[] AS providers,
 		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
 	FROM aibridge_token_usages tu

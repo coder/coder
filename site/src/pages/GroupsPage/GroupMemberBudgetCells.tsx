@@ -94,10 +94,10 @@ export const GroupMemberBudgetCells: React.FC<{
 				<div className="flex flex-col gap-0.5">
 					<span className="flex items-center gap-1">
 						<span>
-							<span className="text-content-secondary">
+							<span className="text-content-primary">
 								{formatBudgetUSD(spend.group_spend_micros)}
 							</span>{" "}
-							<span className="text-content-disabled">USD</span>
+							<span className="text-content-secondary">USD</span>
 						</span>
 						<StatusIconTooltip
 							message={
@@ -145,7 +145,7 @@ export const GroupMemberBudgetCells: React.FC<{
 				<div className="flex flex-col gap-0.5">
 					<span>
 						<AIBudgetAmount spend={spend.group_spend_micros} limit={limit} />{" "}
-						<span className="text-content-disabled">USD</span>
+						<span className="text-content-secondary">USD</span>
 					</span>
 					<span className="text-xs text-content-secondary">
 						{`${limitLabel} limit ${formatBudgetUSD(limit)}`}

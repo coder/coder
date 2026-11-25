@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { NewTabLabel } from "#/components/Link/Link";
 
 type AlternativeLink = {
 	label: string;
@@ -44,6 +45,7 @@ export const TemplateAlternatives: React.FC = () => {
 							<a href={alt.href} target="_blank" rel="noreferrer">
 								{alt.label}
 								<ExternalLinkIcon />
+								<NewTabLabel />
 							</a>
 						</Button>
 					) : (

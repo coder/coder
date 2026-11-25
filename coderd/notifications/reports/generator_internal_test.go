@@ -495,8 +495,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Setup
 		ctx, logger, db, ps, notifEnq, clk := setup(t)
 
-		// Given
-		// Organization
+		// Given an organization
 		org := dbgen.Organization(t, db, database.Organization{})
 
 		// Template admins

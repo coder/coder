@@ -15,5 +15,8 @@ OPTIONS:
   -l, --license string
           License string.
 
+  -o, --output text|json (default: text)
+          Output format.
+
 ———
 Run `coder --help` for a list of global options.

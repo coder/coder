@@ -6,7 +6,12 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -699,4 +704,71 @@ func extractTar(t *testing.T, data []byte) map[string]string {
 		files[hdr.Name] = string(body)
 	}
 	return files
+}
+
+// TestQuickstartCppInstallGuard verifies the C/C++ branch of the quickstart
+// install script installs the toolchain when only part of it is present. The
+// base image ships gcc but not cmake, so guarding on gcc alone skipped the
+// install and still reported success.
+func TestQuickstartCppInstallGuard(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("requires bash")
+	}
+	bash, err := exec.LookPath("bash")
+	require.NoError(t, err)
+	head, err := exec.LookPath("head")
+	require.NoError(t, err)
+
+	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
+	require.NoError(t, err)
+	raw, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
+	require.NoError(t, err)
+	// Render the template the way Terraform's templatefile would for the
+	// two constructs the script uses.
+	script := strings.ReplaceAll(string(raw), "${LANGUAGES}", "cpp")
+	script = strings.ReplaceAll(script, "$$", "$")
+
+	// gcc is always present: the script echoes its version after installing.
+	tests := []struct {
+		name        string
+		present     []string
+		wantInstall bool
+	}{
+		{name: "AllPresent", present: []string{"gcc", "g++", "make", "cmake"}, wantInstall: false},
+		{name: "MissingCmake", present: []string{"gcc", "g++", "make"}, wantInstall: true},
+		{name: "OnlyGcc", present: []string{"gcc"}, wantInstall: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// PATH holds only stubs, so the host's real toolchain can't
+			// influence the result.
+			binDir := t.TempDir()
+			writeExecutable := func(name, content string) {
+				path := filepath.Join(binDir, name)
+				require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+				require.NoError(t, os.Chmod(path, 0o700))
+			}
+			require.NoError(t, os.Symlink(head, filepath.Join(binDir, "head")))
+			stub := "#!" + bash + "\necho stub 1.0\n"
+			for _, tool := range tt.present {
+				writeExecutable(tool, stub)
+			}
+			// The sudo stub records its arguments and "installs" nothing.
+			logPath := filepath.Join(t.TempDir(), "sudo.log")
+			sudo := "#!" + bash + "\necho \"$@\" >> " + logPath + "\n"
+			writeExecutable("sudo", sudo)
+
+			cmd := exec.Command(bash, "-c", script)
+			cmd.Env = []string{"PATH=" + binDir, "HOME=" + t.TempDir()}
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(out))
+
+			logged, _ := os.ReadFile(logPath)
+			installed := strings.Contains(string(logged), "install")
+			require.Equal(t, tt.wantInstall, installed, "output: %s", out)
+		})
+	}
 }

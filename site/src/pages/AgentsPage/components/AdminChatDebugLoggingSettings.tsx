@@ -50,7 +50,7 @@ export const AdminChatDebugLoggingSettings: React.FC<
 				<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
 					{description}{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/platform-controls/chat-debug-logging")}
+						href={docs("/coder-agents/platform-controls/chat-debug-logging")}
 						context="about chat debug logging"
 					/>
 				</p>

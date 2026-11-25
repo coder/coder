@@ -62,7 +62,6 @@ export const ProviderConnectionFields: React.FC<
 				helpers={getFieldHelpers("apiKey")}
 				onBlur={() => onCredentialBlur("apiKey")}
 				onFocus={() => onCredentialFocus("apiKey")}
-				autoComplete="new-password"
 				placeholder={apiKeyPlaceholder}
 			/>
 		)}

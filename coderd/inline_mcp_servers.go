@@ -16,29 +16,29 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
 )
 
 var inlineMCPServerSlugPattern = regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9][A-Za-z0-9_-]{0,%d}$`, codersdk.MaxInlineMCPServerSlugBytes-1))
 
-func writeChatCallerSuppliedToolsDisabled(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+func chatCallerSuppliedToolsDisabledError() error {
+	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 		Message: "Caller-supplied tools are disabled on this deployment.",
 		Detail:  "The server runs with --disable-chat-caller-supplied-tools. Remove unsafe_dynamic_tools and inline_mcp_servers from the request.",
 	})
 }
 
-func writeInlineMCPServersExperimentRequired(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+func inlineMCPServersExperimentRequiredError() error {
+	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 		Message: "Inline MCP servers are not enabled on this deployment.",
 		Detail:  fmt.Sprintf("Enable the %s experiment.", codersdk.ExperimentChatInlineMCPServers),
 	})
 }
 
-func writeInlineMCPServersInvalid(ctx context.Context, rw http.ResponseWriter, validations []codersdk.ValidationError) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+func inlineMCPServersInvalidError(validations []codersdk.ValidationError) error {
+	return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 		Message:     "Invalid inline_mcp_servers.",
 		Validations: validations,
 	})

@@ -8,42 +8,18 @@ type CommentPopupOptions = {
 	onCancel(): void;
 };
 
+/** Controls a comment dialog mounted in the overlay's shadow root. */
 export type CommentPopup = {
 	element: HTMLDivElement;
 	focus(): void;
+	reposition(): void;
 };
 
-const popupWidth = 384;
-// Tall enough for the title, three rows and the actions; the popup flips
-// above the target when this would not fit below it.
-const popupHeight = 220;
 const popupGap = 8;
 
 /**
- * Where to put the popup so it sits just below the target, or above it
- * when there is no room, and stays inside the viewport horizontally.
- */
-export function popupPosition(
-	target: DOMRect,
-	viewport: Pick<Window, "innerWidth" | "innerHeight">,
-): { left: number; top: number } {
-	const left = Math.max(
-		popupGap,
-		Math.min(target.left, viewport.innerWidth - popupWidth - popupGap),
-	);
-	const below = target.bottom + popupGap;
-	const fitsBelow = below + popupHeight <= viewport.innerHeight;
-	const top = fitsBelow
-		? below
-		: Math.max(popupGap, target.top - popupHeight - popupGap);
-	return { left, top };
-}
-
-/**
- * The comment box for a picked element: a title naming the element, a
- * textarea, Cancel and Send. Enter sends, Shift+Enter makes a new line
- * and an empty comment cannot be sent. Positioned for the caller to
- * append into the overlay.
+ * Creates a non-modal comment dialog. Append it before repositioning so
+ * placement uses its rendered size rather than an assumed viewport or font.
  */
 export function createCommentPopup(
 	win: Window,
@@ -52,10 +28,10 @@ export function createCommentPopup(
 	const doc = win.document;
 	const element = el(doc, "div", "popup", {
 		role: "dialog",
-		"aria-label": "Annotate element",
+		"aria-labelledby": "comment-title",
 	});
 
-	const title = el(doc, "div", "popup-title");
+	const title = el(doc, "div", "popup-title", { id: "comment-title" });
 	title.textContent = "Comment";
 	const targetName = el(doc, "span", "popup-target");
 	targetName.textContent = `(${elementLabel(options.target)})`;
@@ -98,12 +74,29 @@ export function createCommentPopup(
 	actions.append(cancel, send);
 	element.append(title, textarea, actions);
 
-	const { left, top } = popupPosition(
-		options.target.getBoundingClientRect(),
-		win,
-	);
-	element.style.left = `${left}px`;
-	element.style.top = `${top}px`;
-
-	return { element, focus: () => textarea.focus() };
+	return {
+		element,
+		focus: () => textarea.focus({ preventScroll: true }),
+		reposition: () => {
+			const target = options.target.getBoundingClientRect();
+			const { width, height } = element.getBoundingClientRect();
+			const left = Math.max(
+				popupGap,
+				Math.min(target.left, win.innerWidth - width - popupGap),
+			);
+			const below = target.bottom + popupGap;
+			const top =
+				below + height <= win.innerHeight - popupGap
+					? below
+					: Math.max(
+							popupGap,
+							Math.min(
+								target.top - height - popupGap,
+								win.innerHeight - height - popupGap,
+							),
+						);
+			element.style.left = `${left}px`;
+			element.style.top = `${top}px`;
+		},
+	};
 }

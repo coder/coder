@@ -1,0 +1,8 @@
+title: Dev Containers
+description: Configure dev container support in your templates using either Docker or Envbuilder.
+path: ./admin/integrations/devcontainers/index.md
+children:
+  - title: Configure a template for Dev Containers
+    description: Configure a Coder template for native dev containers backed by Docker.
+    path: ./admin/integrations/devcontainers/integration.md
+  - include: admin/integrations/devcontainers/envbuilder.yml
