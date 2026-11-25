@@ -29,11 +29,12 @@ type ChangeWorkspaceVersionDialogProps = {
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const ChangeWorkspaceVersionDialog: React.FC<
 	ChangeWorkspaceVersionDialogProps
-> = ({ workspace, onClose, onConfirm, open }) => {
+> = ({ workspace, onClose, onConfirm, onCloseAutoFocus, open }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
 		select: (data) => [...data].reverse(),
@@ -66,6 +67,7 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 		<ConfirmDialog
 			open={open}
 			onClose={onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onConfirm={() => {
 				if (newVersion) {
 					onConfirm(newVersion);

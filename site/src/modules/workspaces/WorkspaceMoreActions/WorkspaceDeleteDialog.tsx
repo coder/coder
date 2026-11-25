@@ -22,6 +22,7 @@ type WorkspaceDeleteDialogProps = {
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
@@ -30,6 +31,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
+	onCloseAutoFocus,
 }) => {
 	const orphanId = useId();
 
@@ -76,6 +78,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 			title="Delete workspace"
 			onConfirm={confirm}
 			onClose={onCancel}
+			onCloseAutoFocus={onCloseAutoFocus}
 			disabled={!confirmation.confirmed}
 			description={
 				<>
