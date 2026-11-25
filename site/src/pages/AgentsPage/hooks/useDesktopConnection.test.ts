@@ -124,7 +124,6 @@ describe("useDesktopConnection", () => {
 
 		expect(result.current.status).toBe("idle");
 		expect(result.current.hasConnected).toBe(false);
-		expect(result.current.rfb).toBeNull();
 		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 	});
 
@@ -148,7 +147,7 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({
 				chatId: "chat-1",
 				activated: true,
-				scaleViewport: true,
+				initialScaleViewport: true,
 			}),
 		);
 		const rfb = getLastRFBInstance();
@@ -158,22 +157,20 @@ describe("useDesktopConnection", () => {
 	});
 
 	it("syncs scaleViewport changes to the RFB instance", () => {
-		const { rerender } = renderHook(
-			({ scaleViewport }) =>
-				useDesktopConnection({
-					chatId: "chat-1",
-					activated: true,
-					scaleViewport,
-				}),
-			{ initialProps: { scaleViewport: true } },
+		const { result } = renderHook(() =>
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				initialScaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 		expect(rfb.scaleViewport).toBe(true);
 
-		rerender({ scaleViewport: false });
+		act(() => result.current.setScaleViewport(false));
 		expect(rfb.scaleViewport).toBe(false);
 
-		rerender({ scaleViewport: true });
+		act(() => result.current.setScaleViewport(true));
 		expect(rfb.scaleViewport).toBe(true);
 	});
 
@@ -398,8 +395,8 @@ describe("useDesktopConnection", () => {
 		expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
 	});
 
-	it("stores remote clipboard text when the server sends it", async () => {
-		const { result } = renderHook(() =>
+	it("copies remote clipboard text to the local clipboard", async () => {
+		renderHook(() =>
 			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
@@ -407,7 +404,6 @@ describe("useDesktopConnection", () => {
 		act(() => rfb.simulateEvent("connect"));
 		act(() => rfb.simulateEvent("clipboard", { text: "from remote" }));
 
-		expect(result.current.remoteClipboardText).toBe("from remote");
 		await vi.waitFor(() => {
 			expect(mockClipboardWriteText).toHaveBeenCalledWith("from remote");
 		});
@@ -740,12 +736,14 @@ describe("useDesktopConnection", () => {
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("error");
 
-			// User clicks Reconnect.
+			// User switches to fit mode, then clicks Reconnect.
+			act(() => result.current.setScaleViewport(true));
 			mockWatchChatDesktop.mockClear();
 			act(() => result.current.reconnect());
 
 			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
 			expect(result.current.status).toBe("connecting");
+			expect(getLastRFBInstance().scaleViewport).toBe(true);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -892,7 +890,7 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({
 				chatId: "chat-1",
 				activated: true,
-				scaleViewport: true,
+				initialScaleViewport: true,
 			}),
 		);
 		const rfb = getLastRFBInstance();
