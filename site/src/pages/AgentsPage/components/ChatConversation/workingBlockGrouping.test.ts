@@ -300,7 +300,7 @@ describe("groupWorkingBlocks", () => {
 		// Reasoning start counts toward the wall-clock span of its block.
 		expect(layout.blocks).toMatchObject([
 			{
-				stepCount: 2,
+				stepCount: 1,
 				startedAt: WORKING_FIXTURE_START + 500,
 				endedAt: WORKING_FIXTURE_START + 2000,
 				key: `working:through:message:${firstStepId}`,
@@ -327,7 +327,7 @@ describe("groupWorkingBlocks", () => {
 		]);
 		expect(layout.blocks).toMatchObject([
 			{
-				stepCount: 4,
+				stepCount: 3,
 				startedAt: WORKING_FIXTURE_START + 500,
 				endedAt: WORKING_FIXTURE_START + 6000,
 				key: `working:through:message:${answer.id}`,
@@ -444,7 +444,7 @@ describe("groupWorkingBlocks", () => {
 			answer.id,
 		]);
 		expect(blocks[0]).toMatchObject({
-			stepCount: 4,
+			stepCount: 3,
 			endedAt: WORKING_FIXTURE_START + 9000,
 			key: `working:through:message:${answer.id}`,
 		});
@@ -482,7 +482,7 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0]).toMatchObject({ stepCount: 2 });
 	});
 
-	it("starts a block from an answer that searched in a turn without tools", () => {
+	it("starts a one-step block from an answer that searched in a turn without tools", () => {
 		const prompt = user("Go");
 		const answer = message("assistant", [
 			reasoning("Look it up"),
@@ -493,7 +493,7 @@ describe("groupWorkingBlocks", () => {
 
 		expect(blocks).toHaveLength(1);
 		expect(rowIds(rows, blocks[0].slices)).toEqual([answer.id]);
-		expect(blocks[0]).toMatchObject({ stepCount: 2 });
+		expect(blocks[0]).toMatchObject({ stepCount: 1 });
 	});
 
 	it("counts a reissued hidden call once, ignoring its unanswered first call", () => {
@@ -511,14 +511,16 @@ describe("groupWorkingBlocks", () => {
 	});
 
 	it.each([
-		{ name: "no answer", answers: [] },
+		{ name: "no answer", answers: [], stepCount: 2 },
 		{
 			name: "a cited answer",
 			answers: [[text("Go 1.27"), citation, text(" is out."), citation]],
+			// The answer's citations fold into the block, so its call counts.
+			stepCount: 3,
 		},
 	])(
 		"keeps the step of a search an interrupt committed apart from its row with $name",
-		({ answers }) => {
+		({ answers, stepCount }) => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			// chatd commits the call and result as separate messages that render
@@ -531,7 +533,7 @@ describe("groupWorkingBlocks", () => {
 
 			expect(
 				group([prompt, ...steps, ...search, ...after]).blocks,
-			).toMatchObject([{ stepCount: 2 }]);
+			).toMatchObject([{ stepCount }]);
 		},
 	);
 
@@ -619,7 +621,7 @@ describe("groupWorkingBlocks", () => {
 			search.id,
 			second[0].id,
 		]);
-		expect(blocks[0]).toMatchObject({ stepCount: 4 });
+		expect(blocks[0]).toMatchObject({ stepCount: 3 });
 	});
 
 	it("starts a new block after an answer row closes one", () => {
@@ -692,7 +694,7 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0]).toMatchObject({ stepCount: 2 });
 	});
 
-	it("uses the wall-clock span of parallel tools rather than their sum", () => {
+	it("counts parallel tool calls as one step and uses their wall-clock span rather than their sum", () => {
 		const prompt = user("Go");
 		const parallel = message(
 			"assistant",
@@ -707,7 +709,7 @@ describe("groupWorkingBlocks", () => {
 		const { blocks } = group([prompt, parallel, results]);
 
 		expect(blocks[0]).toMatchObject({
-			stepCount: 2,
+			stepCount: 1,
 			startedAt: WORKING_FIXTURE_START + 1000,
 			endedAt: WORKING_FIXTURE_START + 11_000,
 		});
@@ -1095,7 +1097,7 @@ describe("groupWorkingBlocks", () => {
 				`${answer.id}[1]`,
 			]);
 			expect(persisted.blocks).toMatchObject([
-				{ stepCount: 0, key: `working:through:message:${answer.id}` },
+				{ stepCount: 1, key: `working:through:message:${answer.id}` },
 			]);
 		});
 
@@ -1119,7 +1121,6 @@ describe("groupWorkingBlocks", () => {
 					citation,
 					text("Go 1.27 is out."),
 				],
-				stepCount: 2,
 			},
 			{
 				name: "the search before its reasoning",
@@ -1138,7 +1139,6 @@ describe("groupWorkingBlocks", () => {
 					citation,
 					text("Go 1.27 is out."),
 				],
-				stepCount: 2,
 			},
 			{
 				name: "text before the search",
@@ -1157,7 +1157,6 @@ describe("groupWorkingBlocks", () => {
 					citation,
 					text("Go 1.27 is out."),
 				],
-				stepCount: 1,
 			},
 			{
 				name: "two searches",
@@ -1180,7 +1179,6 @@ describe("groupWorkingBlocks", () => {
 					citation,
 					text("Go 1.27 is out."),
 				],
-				stepCount: 3,
 			},
 			{
 				name: "a search without citations",
@@ -1196,11 +1194,10 @@ describe("groupWorkingBlocks", () => {
 					searchResult("a"),
 					text("Nothing new."),
 				],
-				stepCount: 2,
 			},
 		])(
 			"keeps one search block through streaming and persistence with $name",
-			({ live, persisted, stepCount }) => {
+			({ live, persisted }) => {
 				const prompt = user("Go");
 				const liveKey = `working:live:message:${prompt.id}:0`;
 				const prefixBlocks = live.map(
@@ -1215,6 +1212,7 @@ describe("groupWorkingBlocks", () => {
 					expect(blocks).toMatchObject([
 						{
 							key: liveKey,
+							stepCount: 1,
 							isLive: true,
 							startedAt: WORKING_FIXTURE_START + 1000,
 						},
@@ -1225,7 +1223,7 @@ describe("groupWorkingBlocks", () => {
 				).toMatchObject([
 					{
 						liveKey,
-						stepCount,
+						stepCount: 1,
 						isLive: false,
 						startedAt: WORKING_FIXTURE_START + 1000,
 					},
@@ -1355,6 +1353,18 @@ describe("groupWorkingBlocks", () => {
 			});
 
 			expect(blocks).toMatchObject([{ isLive: true, endedAt: undefined }]);
+		});
+
+		it("does not count files a tool attaches while its batch runs as a step", () => {
+			const prompt = user("Go");
+			const [attachCall] = attachStep("a", 1, 2);
+			const live = groupLive([prompt, attachCall], [mockAttachment]);
+
+			expect(layoutOf(live)).toEqual([
+				`${prompt.id}`,
+				[`${attachCall.id}`, "live"],
+			]);
+			expect(live.blocks).toMatchObject([{ isLive: true, stepCount: 1 }]);
 		});
 
 		it("stops the block's clock while an interrupt drains the turn", () => {

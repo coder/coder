@@ -115,7 +115,7 @@ export const AnswerWorkFoldsExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (5 steps)",
+				name: "Worked for 15s (3 steps)",
 			}),
 		);
 	},
@@ -483,7 +483,7 @@ export const TurnAttachmentsPillBlockExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (6 steps)",
+				name: "Worked for 15s (4 steps)",
 			}),
 		);
 	},

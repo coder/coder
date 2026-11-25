@@ -55,7 +55,10 @@ export type WorkingBlock = {
 	pieceKeys: string[];
 	/** The work ordinal of the block's slice of the live row. */
 	liveWorkOrdinal?: number;
-	/** Distinct visible tools and reasoning blocks, plus hidden provider calls. */
+	/**
+	 * Model calls with output in the block: assistant messages, one per call,
+	 * and the live stream once its output joins the block.
+	 */
 	stepCount: number;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
@@ -555,6 +558,12 @@ const isHiddenProviderResult = (part: TypesGen.ChatMessagePart): boolean =>
 export const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
+/**
+ * chatd persists a tool batch's attachments as an assistant message of their
+ * own, so a file is not model output.
+ */
+const isModelOutput = (part: { type: string }) => part.type !== "file";
+
 type PiecePosition = { rowIndex: number; pieceIndex: number };
 
 type DraftSlice = {
@@ -569,7 +578,7 @@ type DraftSlice = {
 type Draft = {
 	slices: DraftSlice[];
 	toolIds: Set<string>;
-	thoughts: number;
+	assistantIds: Set<number>;
 	sourceBlocks: number;
 	searches: number;
 	hasProviderTool: boolean;
@@ -577,6 +586,7 @@ type Draft = {
 	anchorKey?: string;
 	ordinal: number;
 	containsLiveRow: boolean;
+	containsLiveOutput: boolean;
 	containsNarration: boolean;
 	/** Type of the row whose text, or non-folding content, closed the block. */
 	closedByRowType?: TimelineRow["type"];
@@ -637,7 +647,7 @@ export const groupWorkingBlocks = (
 			open = {
 				slices: [],
 				toolIds: new Set(),
-				thoughts: 0,
+				assistantIds: new Set(),
 				sourceBlocks: 0,
 				searches: 0,
 				hasProviderTool: false,
@@ -645,6 +655,7 @@ export const groupWorkingBlocks = (
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
+				containsLiveOutput: false,
 				containsNarration: false,
 				isPartial: mayContinueOlderBlock,
 			};
@@ -667,7 +678,14 @@ export const groupWorkingBlocks = (
 				workOrdinals,
 			});
 		}
-		open.containsLiveRow ||= rows[rowIndex].type === "live";
+		const row = rows[rowIndex];
+		open.containsLiveRow ||= row.type === "live";
+		if (
+			row.type === "live" &&
+			rowPieces[rowIndex]?.pieces[pieceIndex].blocks.some(isModelOutput)
+		) {
+			open.containsLiveOutput = true;
+		}
 		pieceDrafts[rowIndex][pieceIndex] = open;
 		return open;
 	};
@@ -686,7 +704,8 @@ export const groupWorkingBlocks = (
 
 		const isEnded = isRowEnded(rowIndex);
 		// The empty stream before each step extends a block but never starts
-		// one, so a turn's first moments keep the thinking indicator.
+		// one, so a turn's first moments keep the thinking indicator. It is not
+		// a step yet: if it turns out to be the answer, it leaves the block.
 		if (split.pieces.length === 0 && open) {
 			open.slices.push({
 				rowIndex,
@@ -740,8 +759,6 @@ export const groupWorkingBlocks = (
 					);
 				} else if (block.type === "sources") {
 					draft.sourceBlocks += 1;
-				} else if (block.type === "thinking") {
-					draft.thoughts += 1;
 				}
 			}
 		}
@@ -816,14 +833,6 @@ export const groupWorkingBlocks = (
 		}
 
 		for (const [partIndex, part] of parts.entries()) {
-			const timestamps = getPartTimestamps(part);
-			// Results, not calls: a step can end with a provider call
-			// unanswered, and the next step issues that call again.
-			const isSearch = isHiddenProviderResult(part);
-			if (timestamps.length === 0 && !isSearch) {
-				continue;
-			}
-
 			// A tool's parts join its call's block, even from a later message.
 			const toolId =
 				part.type === "tool-call" || part.type === "tool-result"
@@ -835,8 +844,13 @@ export const groupWorkingBlocks = (
 			if (!draft) {
 				continue;
 			}
-			draft.times.push(...timestamps);
-			if (isSearch) {
+			if (entry.message.role === "assistant" && isModelOutput(part)) {
+				draft.assistantIds.add(entry.message.id);
+			}
+			draft.times.push(...getPartTimestamps(part));
+			// Results, not calls: a step can end with a provider call
+			// unanswered, and the next step issues that call again.
+			if (isHiddenProviderResult(part)) {
 				draft.searches += 1;
 			}
 		}
@@ -887,6 +901,7 @@ export const groupWorkingBlocks = (
 					: liveDrafts[citedPieceIndex];
 			if (searchDraft) {
 				searchDraft.searches += 1;
+				searchDraft.containsLiveOutput = true;
 			}
 		}
 	}
@@ -964,7 +979,8 @@ export const groupWorkingBlocks = (
 			liveWorkOrdinal: draft.slices.find(
 				({ rowIndex }) => rowIndex === liveRowIndex,
 			)?.workOrdinals[0],
-			stepCount: getActionCount(draft) + draft.thoughts,
+			stepCount:
+				draft.assistantIds.size + (draft.containsLiveOutput ? 1 : 0),
 			isLive,
 			isPartial: draft.isPartial,
 			startedAt: draft.times.length > 0 ? Math.min(...draft.times) : undefined,
