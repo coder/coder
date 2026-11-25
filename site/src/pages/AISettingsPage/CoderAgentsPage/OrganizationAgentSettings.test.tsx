@@ -12,6 +12,7 @@ import type {
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockComputerUseChatModel,
 } from "#/testHelpers/chatModels";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -42,26 +43,25 @@ const mockChatModelsResponse: OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const renderSettings = () =>
+const renderSettings = ({ showComputerUse = false } = {}) =>
 	render(
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
 			canEdit
-			showAdvisor
+			showComputerUse={showComputerUse}
 		/>,
 	);
 
 const selectModel = async (
 	user: ReturnType<typeof userEvent.setup>,
-	from: ChatModel,
+	currentLabel: string,
 	to: ChatModel,
+	sectionName = "Default model",
 ) => {
-	const defaultSection = await screen.findByRole("form", {
-		name: "Default model",
-	});
+	const section = await screen.findByRole("form", { name: sectionName });
 	await user.click(
-		await within(defaultSection).findByRole("combobox", {
-			name: `Default model, ${from.display_name}`,
+		await within(section).findByRole("combobox", {
+			name: `${sectionName}, ${currentLabel}`,
 		}),
 	);
 	await user.click(
@@ -69,14 +69,16 @@ const selectModel = async (
 			name: new RegExp(`^${escapeRegExp(to.display_name)}(\\s*\\(.+\\))?$`),
 		}),
 	);
-	return defaultSection;
+	return section;
 };
 
+const mockEmptyOverrides = () =>
+	vi
+		.spyOn(API.experimental, "getOrganizationChatModelOverrides")
+		.mockResolvedValue({ overrides: [] });
+
 const mockOverridesAndUpdate = () => {
-	vi.spyOn(
-		API.experimental,
-		"getOrganizationChatModelOverrides",
-	).mockResolvedValue({ overrides: [] });
+	mockEmptyOverrides();
 	return vi
 		.spyOn(API.experimental, "updateChatModel")
 		.mockResolvedValue({ ...mockAlternateModel, is_default: true });
@@ -122,7 +124,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await user.click(
@@ -143,7 +145,7 @@ describe("OrganizationAgentSettings", () => {
 			...mockThirdModel,
 			is_default: true,
 		});
-		await selectModel(user, mockAlternateModel, mockThirdModel);
+		await selectModel(user, mockAlternateModel.display_name, mockThirdModel);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
 		);
@@ -169,7 +171,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await user.click(
@@ -199,7 +201,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
@@ -237,7 +239,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
@@ -264,10 +266,10 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
-		await selectModel(user, mockAlternateModel, mockDefaultModel);
+		await selectModel(user, mockAlternateModel.display_name, mockDefaultModel);
 		await refetchCatalog(queryClient);
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
@@ -298,12 +300,60 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
 		await refetchCatalog(queryClient);
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
+	});
+});
+
+const mockComputerUseModel: ChatModel = {
+	...MockComputerUseChatModel,
+	organization_id: MockDefaultOrganization.id,
+};
+
+describe("OrganizationAgentSettings computer use model", () => {
+	it("saves the computer use override", async () => {
+		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+			...mockChatModelsResponse,
+			models: [...mockChatModelsResponse.models, mockComputerUseModel],
+			providers: [
+				MockChatModelProviderDescriptor,
+				{
+					...MockChatModelProviderDescriptor,
+					id: MockComputerUseChatModel.ai_provider_id,
+					type: "anthropic",
+					display_name: "Anthropic",
+				},
+			],
+		});
+		mockEmptyOverrides();
+		const updateOverride = vi
+			.spyOn(API.experimental, "updateOrganizationChatModelOverride")
+			.mockResolvedValue({
+				context: "computer_use",
+				model_config_id: mockComputerUseModel.id,
+			});
+		const user = userEvent.setup();
+		renderSettings({ showComputerUse: true });
+
+		const section = await selectModel(
+			user,
+			"Use default model",
+			mockComputerUseModel,
+			"Computer use",
+		);
+		await user.click(within(section).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateOverride).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+				"computer_use",
+				{ model_config_id: mockComputerUseModel.id },
+			);
+		});
 	});
 });

@@ -1,7 +1,9 @@
 package chatstate_test
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -32,13 +34,24 @@ func (r *recordingPubsub) ownershipPublishCount() int {
 // SendMessage (typically R0, R1, or I*).
 func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
 	t.Helper()
+	return sendMessageWithBehavior(t, f, m, body, chatstate.BusyBehaviorQueue)
+}
+
+func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID, body string) chatstate.SendMessageResult {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if err := ownChat(ctx, tx, store, chatID); err != nil {
+			return err
+		}
+		if _, err := tx.Interrupt(chatstate.InterruptInput{Reason: "seed"}); err != nil {
+			return err
+		}
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: chatstate.BusyBehaviorSteer,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
@@ -46,10 +59,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 	return send
 }
 
-// sendInterruptMessage seeds one queued user message via SendMessage
-// with BusyBehaviorInterrupt. From R0/R1 this transitions the chat to
-// `interrupting` and appends the new user message to the queue tail.
-func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
+func sendMessageWithBehavior(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string, behavior chatstate.BusyBehavior) chatstate.SendMessageResult {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
@@ -57,7 +67,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: behavior,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
@@ -65,12 +75,19 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 	return send
 }
 
-// queuedIDsByPosition returns the queued-message IDs for the chat in
-// queue order.
+func queuedRowsByPosition(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []database.ChatQueuedMessage {
+	t.Helper()
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
+	require.NoError(t, err)
+	slices.SortFunc(rows, func(a, b database.ChatQueuedMessage) int {
+		return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID))
+	})
+	return rows
+}
+
 func queuedIDsByPosition(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
-	require.NoError(t, err)
+	rows := queuedRowsByPosition(ctx, t, f, chatID)
 	ids := make([]int64, len(rows))
 	for i, r := range rows {
 		ids[i] = r.ID
@@ -78,9 +95,6 @@ func queuedIDsByPosition(ctx context.Context, t *testing.T, f *testFixture, chat
 	return ids
 }
 
-// historyMessageIDs returns the chat history message IDs ordered by
-// row id. Used to assert that PromoteQueuedMessage from R1/I1 does NOT
-// insert any history rows.
 func historyMessageIDs(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	t.Helper()
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
@@ -92,4 +106,20 @@ func historyMessageIDs(ctx context.Context, t *testing.T, f *testFixture, chatID
 		out[i] = m.ID
 	}
 	return out
+}
+
+// ownChat gives an unowned chat a worker and runner inside tx, as an
+// acquired chat has. Interrupting an unowned running chat finishes the
+// interruption inline, so tests of the interrupting states need an
+// owner.
+func ownChat(ctx context.Context, tx *chatstate.Tx, store database.Store, chatID uuid.UUID) error {
+	chat, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if chat.WorkerID.Valid {
+		return nil
+	}
+	_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+	return err
 }

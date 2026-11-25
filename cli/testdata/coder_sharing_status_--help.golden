@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder sharing status <workspace>
+
+  List all users and groups the given Workspace is shared with.
+
+  Aliases: list
+
+———
+Run `coder --help` for a list of global options.

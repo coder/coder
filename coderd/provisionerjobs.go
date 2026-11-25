@@ -73,7 +73,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param limit query int false "Page limit"
-// @Param ids query []string false "Filter results by job IDs" format(uuid)
+// @Param ids query []string false "Filter results by job IDs (UUIDs)"
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query string false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
@@ -328,8 +328,17 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
+			apiScripts, err := convertScripts(dbScripts)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error reading workspace agent scripts.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), convertScripts(dbScripts), convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), apiScripts, convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {

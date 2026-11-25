@@ -133,7 +133,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 											virtual machines will not be destroyed.{" "}
 											<Link
 												href={docs(
-													"/user-guides/workspace-management#workspace-resources",
+													"/workspaces/workspace-management#workspace-resources",
 												)}
 												target="_blank"
 												rel="noreferrer"

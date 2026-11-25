@@ -338,7 +338,7 @@ func TestCache_DeploymentStats(t *testing.T) {
 					"zed":              {Count: 3, DisplayName: "Zed", Icon: "/icon/zed.svg", Family: codersdk.AppFamilySSH},
 					"future_ide":       {Count: 4, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
 					"jetbrains":        {Count: 5, DisplayName: "JetBrains", Icon: "/icon/jetbrains.svg", Family: codersdk.AppFamilyJetBrains},
-					"reconnecting_pty": {Count: 6, DisplayName: "Web Terminal", Family: codersdk.AppFamilyReconnectingPTY},
+					"reconnecting_pty": {Count: 6, DisplayName: "Web Terminal", Icon: "/icon/terminal.svg", Family: codersdk.AppFamilyReconnectingPTY},
 				},
 				VSCode: 3, SSH: 3, JetBrains: 5, ReconnectingPTY: 6,
 			}, stat.SessionCount)

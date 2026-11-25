@@ -168,7 +168,7 @@ func TestOAuth2RateLimit(t *testing.T) {
 		requireLimited(t, func() *http.Response {
 			uri := baseURL + "/.well-known/oauth-protected-resource/" + uuid.NewString()
 			return doRequest(ctx, t, http.MethodGet, uri, nil)
-		}, http.StatusOK)
+		}, http.StatusNotFound)
 	})
 
 	t.Run("SeparateBucketPerEndpoint", func(t *testing.T) {

@@ -191,3 +191,40 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Equal(t, "spaced", name)
 	})
 }
+
+func TestSkillDisablesModelInvocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "True", value: "true", want: true},
+		{name: "TitleCaseTrue", value: "True", want: true},
+		{name: "Absent", value: "", want: false},
+		{name: "False", value: "false", want: false},
+		{name: "QuotedTrue", value: `"true"`, want: false},
+		{name: "Yes", value: "yes", want: false},
+		{name: "One", value: "1", want: false},
+		{name: "Null", value: "null", want: false},
+		{name: "List", value: "[true]", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			key := ""
+			if tt.value != "" {
+				key = "disable-model-invocation: " + tt.value + "\n"
+			}
+			content := "---\nname: manual-only\ndescription: Runs on request\n" + key + "---\nBody text.\n"
+
+			require.Equal(t, tt.want, workspacesdk.SkillDisablesModelInvocation(content))
+			name, description, body, err := workspacesdk.ParseSkillFrontmatter(content)
+			require.NoError(t, err)
+			require.Equal(t, "manual-only", name)
+			require.Equal(t, "Runs on request", description)
+			require.Equal(t, "Body text.", body)
+		})
+	}
+}

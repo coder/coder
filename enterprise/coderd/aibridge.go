@@ -395,9 +395,12 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 		// Fetch all interceptions (unpaginated) so we can aggregate
 		// session-level token metadata across every thread.
-		//nolint:exhaustruct // Let's be concise.
 		allRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
 			SessionID: sessionIDParam,
+			AfterID:   uuid.Nil,
+			BeforeID:  uuid.Nil,
+			// A limit of 0 returns every thread in the session.
+			Limit: 0,
 		})
 		if err != nil {
 			return xerrors.Errorf("list all session threads: %w", err)
@@ -1052,7 +1055,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
 	if err != nil {
 		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)

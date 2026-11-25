@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -112,8 +113,17 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiScripts, err := convertScripts(scripts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent scripts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -974,9 +984,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to fetch containers from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1068,9 +1076,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to delete devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1159,9 +1165,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-		// If the agent returns a codersdk.Error, we can return that directly.
-		if cerr, ok := codersdk.AsError(err); ok {
-			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+		if writeAgentError(ctx, rw, err, "Failed to recreate devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1172,6 +1176,35 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 
 	httpapi.Write(ctx, rw, http.StatusAccepted, m)
+}
+
+// writeAgentError writes err if it is a *codersdk.Error and reports
+// whether it did. Pass only errors from workspace agent requests.
+// Workspace code can impersonate the agent API, so coderd does not relay
+// an authentication challenge (401 or 407) or a status outside 4xx and
+// 5xx; for example, a relayed 401 would make the frontend sign the user
+// out. Those statuses become 502 Bad Gateway with message and the agent's
+// text in a truncated Detail. Every other status and its response pass
+// through unchanged.
+func writeAgentError(ctx context.Context, rw http.ResponseWriter, err error, message string) bool {
+	var agentErr *codersdk.Error
+	if !errors.As(err, &agentErr) {
+		return false
+	}
+	status := agentErr.StatusCode()
+	if status >= 400 && status < 600 && status != http.StatusUnauthorized && status != http.StatusProxyAuthRequired {
+		httpapi.Write(ctx, rw, status, agentErr.Response)
+		return true
+	}
+	detail := agentErr.Message
+	if agentErr.Detail != "" {
+		detail = strings.TrimSuffix(detail, ".") + ": " + agentErr.Detail
+	}
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+		Message: message,
+		Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", status, stringutil.Truncate(detail, 512, stringutil.TruncateWithEllipsis)),
+	})
+	return true
 }
 
 // @Summary Get connection info for workspace agent
@@ -1501,16 +1534,18 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		WorkspaceID:      waws.WorkspaceTable.ID,
 		WorkspaceName:    waws.WorkspaceTable.Name,
 		AgentName:        waws.WorkspaceAgent.Name,
-		Type:             database.ConnectionTypeTunnel,
+		ConnectionMethod: database.ConnectionLogMethodTunnel,
 		IP:               database.ParseIP(ip),
 		Code:             sql.NullInt32{Int32: statusCode, Valid: true},
 		UserAgent:        sql.NullString{String: userAgent, Valid: userAgent != ""},
 		UserID:           uuid.NullUUID{UUID: userID, Valid: userID != uuid.Nil},
-		SlugOrPort:       sql.NullString{},
+		AppNameOrPort:    sql.NullString{},
 		ConnectionID:     uuid.NullUUID{},
 		DisconnectReason: sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ClientSessionID:  sql.NullString{},
+		RxBytes:          sql.NullInt64{},
+		TxBytes:          sql.NullInt64{},
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",
@@ -1802,12 +1837,16 @@ func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []coders
 	return logSources
 }
 
-func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []codersdk.WorkspaceAgentScript {
-	scripts := make([]codersdk.WorkspaceAgentScript, 0)
-	for _, dbScript := range dbScripts {
-		scripts = append(scripts, db2sdk.WorkspaceAgentScript(dbScript))
+func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) ([]codersdk.WorkspaceAgentScript, error) {
+	scripts := make([]codersdk.WorkspaceAgentScript, 0, len(dbScripts))
+	for i, dbScript := range dbScripts {
+		script, err := db2sdk.WorkspaceAgentScript(dbScript)
+		if err != nil {
+			return nil, xerrors.Errorf("convert script %d: %w", i, err)
+		}
+		scripts = append(scripts, script)
 	}
-	return scripts
+	return scripts, nil
 }
 
 // @Summary Watch for workspace agent metadata updates

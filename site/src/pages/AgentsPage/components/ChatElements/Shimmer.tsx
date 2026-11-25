@@ -1,28 +1,15 @@
 import { cn } from "cn";
-import type { MotionProps } from "motion/react";
 import { MotionConfig, MotionConfigContext, motion } from "motion/react";
 import { useContext } from "react";
 
-type MotionHTMLProps = MotionProps & Record<string, unknown>;
-
-// Cache motion components at module level to avoid creating during render
-const motionComponentCache = new Map<
-	keyof React.JSX.IntrinsicElements,
-	React.ComponentType<MotionHTMLProps>
->();
-
-const getMotionComponent = (element: keyof React.JSX.IntrinsicElements) => {
-	let component = motionComponentCache.get(element);
-	if (!component) {
-		component = motion.create(element);
-		motionComponentCache.set(element, component);
-	}
-	return component;
+const motionComponents = {
+	p: motion.p,
+	span: motion.span,
 };
 
 type TextShimmerProps = {
 	children: string;
-	as?: React.ElementType;
+	as?: keyof typeof motionComponents;
 	className?: string;
 	duration?: number;
 	spread?: number;
@@ -30,14 +17,12 @@ type TextShimmerProps = {
 
 const ShimmerComponent = ({
 	children,
-	as: Component = "p",
+	as = "p",
 	className,
 	duration = 2,
 	spread = 2,
 }: TextShimmerProps) => {
-	const MotionComponent = getMotionComponent(
-		Component as keyof React.JSX.IntrinsicElements,
-	);
+	const MotionComponent = motionComponents[as];
 
 	// skipAnimations jumps to the final keyframe, which leaves the
 	// gradient offscreen, so hold it centered for captures.

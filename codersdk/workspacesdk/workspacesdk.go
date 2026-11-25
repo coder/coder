@@ -28,6 +28,17 @@ import (
 
 var ErrSkipClose = xerrors.New("skip tailnet close")
 
+// ErrDialAbandoned is a cancel cause for a dial whose result the caller no
+// longer wants, such as a dial to an agent that a rebuild replaced. A dial
+// canceled with it is not counted as an unreachable agent.
+var ErrDialAbandoned = xerrors.New("dial abandoned")
+
+// ErrReadinessProbeTimeout is a timeout cause for one attempt in a loop that
+// waits for a starting agent to come online. The agent is expected to be
+// missing until it boots, so a dial that times out with it is not counted as
+// an unreachable agent.
+var ErrReadinessProbeTimeout = xerrors.New("agent readiness probe timed out")
+
 const (
 	AgentSSHPort             = tailnet.WorkspaceAgentSSHPort
 	AgentStandardSSHPort     = tailnet.WorkspaceAgentStandardSSHPort

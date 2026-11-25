@@ -107,7 +107,7 @@ export const MultipleSessions: Story = {
 			providers: i % 2 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 			last_prompt: [
 				"But *can* I really fix it?",
-				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",
+				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies? Keep the existing middleware signatures, migrate the stored sessions, and add tests for token expiry and refresh.",
 				"What's the best way to handle errors in Go?",
 				"Help me write a Terraform module for a Kubernetes cluster.",
 				"Explain how the agentic loop works in this codebase.",

@@ -10,7 +10,7 @@ export const DiffStatBadge: React.FC<{
 		return null;
 	}
 	return (
-		<span className="inline-flex items-center overflow-hidden rounded-sm border border-solid border-border-default font-mono text-[13px] font-medium leading-5">
+		<span className="inline-flex items-center overflow-hidden rounded-sm border border-solid border-border font-mono text-[13px] font-medium leading-5">
 			{additions > 0 && (
 				<span className="flex items-center px-1.5 bg-surface-git-added text-git-added-bright">
 					+{additions}

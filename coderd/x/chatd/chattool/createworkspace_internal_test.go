@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -74,7 +75,8 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Empty(t, result)
 	})
 
@@ -93,7 +95,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -130,7 +133,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, agent, connFn)
+		result, err := waitForAgentReady(ctx, db, agent, connFn)
+		require.NoError(t, err)
 		require.GreaterOrEqual(t, attempts, 1)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.Equal(t, ExternalAgentUnavailableMessage(agent), result["agent_error"])
@@ -167,10 +171,48 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agent, connFn)
+		result, err := waitForAgentReady(context.Background(), db, agent, connFn)
+		require.NoError(t, err)
 		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
 		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
 		require.NotContains(t, result, "agent_error")
+	})
+
+	t.Run("AttemptTimeoutCause", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name             string
+			firstConnectedAt sql.NullTime
+			wantProbeTimeout bool
+		}{
+			{name: "NewAgent", wantProbeTimeout: true},
+			{name: "ConnectedBefore", firstConnectedAt: sql.NullTime{Time: time.Now(), Valid: true}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				db := newCreateWorkspaceMockStore(ctrl)
+				agentID := uuid.New()
+
+				db.EXPECT().
+					GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+					Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+						LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+					}, nil)
+
+				var cause error
+				connFn := func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					<-ctx.Done()
+					cause = context.Cause(ctx)
+					return nil, func() {}, nil
+				}
+
+				agent := database.WorkspaceAgent{ID: agentID, FirstConnectedAt: tc.firstConnectedAt}
+				waitForAgentReady(context.Background(), db, agent, connFn)
+				require.Equal(t, tc.wantProbeTimeout, errors.Is(cause, workspacesdk.ErrReadinessProbeTimeout), "cause: %v", cause)
+			})
+		}
 	})
 
 	t.Run("AgentConnectsButStartupFails", func(t *testing.T) {
@@ -190,9 +232,44 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
+	})
+
+	t.Run("LifecycleReadError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{}, xerrors.New("db down"))
+
+		_, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.ErrorContains(t, err, "db down")
+	})
+
+	t.Run("LifecycleReadAfterDeadlineReportsTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			DoAndReturn(func(ctx context.Context, _ uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+				return database.GetWorkspaceAgentLifecycleStateByIDRow{}, ctx.Err()
+			})
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.NoError(t, err)
+		require.Equal(t, "startup_scripts_timeout", result["startup_scripts"])
 	})
 
 	t.Run("NilAgentConnFn", func(t *testing.T) {
@@ -208,7 +285,8 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.NoError(t, err)
 		require.Empty(t, result)
 	})
 
@@ -222,7 +300,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		result, err := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -246,10 +325,6 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
-		Return(database.Chat{ID: chatID}, nil)
-
-	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
 		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
@@ -299,7 +374,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		}, nil)
 
 	var connectedAgentID uuid.UUID
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		return codersdk.Workspace{
 			ID:        workspaceID,
 			Name:      req.Name,
@@ -307,7 +382,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: buildID,
 			},
-		}, nil
+		}, database.Chat{ID: chatID}, nil
 	}
 	agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		connectedAgentID = agentID
@@ -388,17 +463,6 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			JobStatus: database.ProvisionerJobStatusSucceeded,
 		}, nil)
 	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{},
-		}).
-		Return(database.Chat{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-		}, nil)
-	db.EXPECT().
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{
 			{ID: uuid.New(), Name: "alpha-coderd-chat", DisplayOrder: 0},
@@ -408,7 +472,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
-		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			return codersdk.Workspace{
 				ID:        workspaceID,
 				Name:      req.Name,
@@ -416,7 +480,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 				LatestBuild: codersdk.WorkspaceBuild{
 					ID: buildID,
 				},
-			}, nil
+			}, database.Chat{ID: chatID}, nil
 		},
 		AgentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			t.Fatal("AgentConnFn should not be called when agent selection fails")
@@ -462,10 +526,6 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
-		Return(database.Chat{ID: chatID}, nil)
-
-	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
 		Return(database.GetAuthorizationUserRolesRow{
 			ID:     ownerID,
@@ -504,7 +564,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 			Error:     sql.NullString{String: "terraform apply failed", Valid: true},
 		}, nil)
 
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		return codersdk.Workspace{
 			ID:        workspaceID,
 			Name:      req.Name,
@@ -512,7 +572,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: buildID,
 			},
-		}, nil
+		}, database.Chat{ID: chatID}, nil
 	}
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
@@ -559,10 +619,6 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
-		Return(database.Chat{ID: chatID}, nil)
-
-	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
 		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
@@ -619,7 +675,7 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 		}).
 		Return(int64(40), nil)
 
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		return codersdk.Workspace{
 			ID:        workspaceID,
 			Name:      req.Name,
@@ -627,7 +683,7 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: buildID,
 			},
-		}, nil
+		}, database.Chat{ID: chatID}, nil
 	}
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
@@ -760,9 +816,9 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
-		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			t.Fatal("CreateFn should not be called when an existing build is in progress")
-			return codersdk.Workspace{}, nil
+			return codersdk.Workspace{}, database.Chat{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -829,8 +885,8 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
-		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-			return codersdk.Workspace{}, httperror.NewResponseError(400, codersdk.Response{
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+			return codersdk.Workspace{}, database.Chat{}, httperror.NewResponseError(400, codersdk.Response{
 				Message: "missing required parameter",
 				Detail:  "region must be set before the workspace can start",
 				Validations: []codersdk.ValidationError{{
@@ -938,8 +994,8 @@ func TestCreateWorkspace_ExternalAuthRequiredGuidance(t *testing.T) {
 
 			tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 				OwnerID: ownerID,
-				CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-					return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+					return codersdk.Workspace{}, database.Chat{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 						Message:     "External authentication is required to create a workspace with this template.",
 						Detail:      detail,
 						Validations: tt.validations,
@@ -984,18 +1040,19 @@ func TestCreateWorkspaceWithNameRetry(t *testing.T) {
 		t.Parallel()
 
 		var names []string
-		workspace, err := createWorkspaceWithNameRetry(
+		workspace, _, err := createWorkspaceWithNameRetry(
 			context.Background(),
 			uuid.New(),
+			uuid.New(),
 			codersdk.CreateWorkspaceRequest{Name: "fun-dashboard"},
-			func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 				names = append(names, req.Name)
 				if len(names) == 1 {
-					return codersdk.Workspace{}, workspaceNameConflictError(req.Name)
+					return codersdk.Workspace{}, database.Chat{}, workspaceNameConflictError(req.Name)
 				}
 
 				require.Regexp(t, `^fun-dashboard-[0-9a-f]{4}$`, req.Name)
-				return codersdk.Workspace{Name: req.Name}, nil
+				return codersdk.Workspace{Name: req.Name}, database.Chat{}, nil
 			},
 		)
 
@@ -1016,13 +1073,14 @@ func TestCreateWorkspaceWithNameRetry(t *testing.T) {
 				Detail: "quota exceeded",
 			}},
 		})
-		_, err := createWorkspaceWithNameRetry(
+		_, _, err := createWorkspaceWithNameRetry(
 			context.Background(),
 			uuid.New(),
+			uuid.New(),
 			codersdk.CreateWorkspaceRequest{Name: "fun-dashboard"},
-			func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 				calls++
-				return codersdk.Workspace{}, wantErr
+				return codersdk.Workspace{}, database.Chat{}, wantErr
 			},
 		)
 
@@ -1061,10 +1119,9 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			wantTTLMs: nil,
 		},
 		{
-			name:      "DBError_FallsBackToNil",
+			name:      "DBError_ReturnsToolError",
 			ttlReturn: "",
 			ttlErr:    xerrors.New("db error"),
-			wantTTLMs: nil,
 		},
 		{
 			name:      "InvalidStoredValue_FallsBackToNil",
@@ -1092,10 +1149,6 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				Return(database.Chat{ID: chatID}, nil)
 
 			db.EXPECT().
-				UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
-				Return(database.Chat{ID: chatID}, nil)
-
-			db.EXPECT().
 				GetAuthorizationUserRoles(gomock.Any(), ownerID).
 				Return(database.GetAuthorizationUserRolesRow{
 					ID:     ownerID,
@@ -1116,26 +1169,28 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				GetChatWorkspaceTTL(gomock.Any()).
 				Return(tc.ttlReturn, tc.ttlErr)
 
-			db.EXPECT().
-				GetWorkspaceBuildByID(gomock.Any(), buildID).
-				Return(database.WorkspaceBuild{
-					ID:          buildID,
-					WorkspaceID: workspaceID,
-					JobID:       jobID,
-				}, nil)
-			db.EXPECT().
-				GetProvisionerJobByID(gomock.Any(), jobID).
-				Return(database.ProvisionerJob{
-					ID:        jobID,
-					JobStatus: database.ProvisionerJobStatusSucceeded,
-				}, nil)
+			if tc.ttlErr == nil {
+				db.EXPECT().
+					GetWorkspaceBuildByID(gomock.Any(), buildID).
+					Return(database.WorkspaceBuild{
+						ID:          buildID,
+						WorkspaceID: workspaceID,
+						JobID:       jobID,
+					}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{
+						ID:        jobID,
+						JobStatus: database.ProvisionerJobStatusSucceeded,
+					}, nil)
 
-			db.EXPECT().
-				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-				Return([]database.WorkspaceAgent{}, nil)
+				db.EXPECT().
+					GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return([]database.WorkspaceAgent{}, nil)
+			}
 
 			var capturedReq codersdk.CreateWorkspaceRequest
-			createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 				capturedReq = req
 				return codersdk.Workspace{
 					ID:        workspaceID,
@@ -1144,7 +1199,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 					LatestBuild: codersdk.WorkspaceBuild{
 						ID: buildID,
 					},
-				}, nil
+				}, database.Chat{ID: chatID}, nil
 			}
 
 			tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
@@ -1163,6 +1218,11 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Content)
+			if tc.ttlErr != nil {
+				require.True(t, resp.IsError)
+				require.Contains(t, resp.Content, "read chat workspace TTL: db error")
+				return
+			}
 
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
@@ -1221,9 +1281,9 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 	tool := CreateWorkspace(db, chatOrgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
-		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			createCalled = true
-			return codersdk.Workspace{}, nil
+			return codersdk.Workspace{}, database.Chat{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -1278,9 +1338,9 @@ func TestCreateWorkspace_ReturnsExistingWorkspaceBeforeTemplateValidation(t *tes
 
 	tool := CreateWorkspace(db, uuid.New(), chatID, CreateWorkspaceOptions{
 		OwnerID: uuid.New(),
-		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			t.Fatal("CreateFn should not be called when the chat already has a workspace")
-			return codersdk.Workspace{}, nil
+			return codersdk.Workspace{}, database.Chat{}, nil
 		},
 		WorkspaceMu:                    &sync.Mutex{},
 		AgentInactiveDisconnectTimeout: time.Minute,
@@ -1346,9 +1406,9 @@ func TestCreateWorkspace_BlocksExternalTemplate(t *testing.T) {
 	createCalled := false
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
-		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			createCalled = true
-			return codersdk.Workspace{}, nil
+			return codersdk.Workspace{}, database.Chat{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -1722,10 +1782,6 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
-		Return(database.Chat{ID: chatID}, nil)
-
-	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
 		Return(database.GetAuthorizationUserRolesRow{
 			ID:     ownerID,
@@ -1763,7 +1819,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 			JobStatus: database.ProvisionerJobStatusCanceled,
 		}, nil)
 
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		return codersdk.Workspace{
 			ID:        workspaceID,
 			Name:      req.Name,
@@ -1771,7 +1827,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: buildID,
 			},
-		}, nil
+		}, database.Chat{ID: chatID}, nil
 	}
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
@@ -1856,6 +1912,101 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 	require.NoError(t, check.Err)
 	require.False(t, check.Done, "should allow creation for deleted workspace")
 	require.Nil(t, check.Result)
+}
+
+func TestCheckExistingWorkspace_DBErrorStopsCreation(t *testing.T) {
+	t.Parallel()
+
+	dbErr := xerrors.New("db down")
+	tests := []struct {
+		name    string
+		setup   func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID)
+		wantErr string
+	}{
+		{
+			name: "Build",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{}, dbErr)
+			},
+			wantErr: "get latest build: db down",
+		},
+		{
+			name: "Job",
+			setup: func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{ID: uuid.New(), JobID: jobID}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{}, dbErr)
+			},
+			wantErr: "get provisioner job: db down",
+		},
+		{
+			name: "Agents",
+			setup: func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{
+						ID:         uuid.New(),
+						JobID:      jobID,
+						Transition: database.WorkspaceTransitionStart,
+					}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{
+						ID:        jobID,
+						JobStatus: database.ProvisionerJobStatusSucceeded,
+					}, nil)
+				db.EXPECT().
+					GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(nil, dbErr)
+			},
+			wantErr: "get workspace agents: db down",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			db := newCreateWorkspaceMockStore(ctrl)
+
+			chatID := uuid.New()
+			workspaceID := uuid.New()
+			jobID := uuid.New()
+
+			db.EXPECT().
+				GetChatByID(gomock.Any(), chatID).
+				Return(database.Chat{
+					ID:          chatID,
+					WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+				}, nil)
+			db.EXPECT().
+				GetWorkspaceByID(gomock.Any(), workspaceID).
+				Return(database.Workspace{ID: workspaceID}, nil)
+			tc.setup(db, workspaceID, jobID)
+
+			tool := CreateWorkspace(db, uuid.New(), chatID, CreateWorkspaceOptions{
+				CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+					t.Fatal("CreateFn must not be called when the existing workspace check fails")
+					return codersdk.Workspace{}, database.Chat{}, nil
+				},
+				WorkspaceMu: &sync.Mutex{},
+			})
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "create_workspace",
+				Input: fmt.Sprintf(`{"template_id":%q}`, uuid.New()),
+			})
+			require.NoError(t, err)
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, tc.wantErr)
+		})
+	}
 }
 
 func testCheckExistingWorkspaceOptions(
@@ -1964,14 +2115,6 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
-	// UpdateChatWorkspaceBinding — triggers first OnChatUpdated.
-	db.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
-		Return(database.Chat{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-		}, nil)
-
 	// waitForBuild: fetch build, then poll job as completed.
 	db.EXPECT().
 		GetWorkspaceBuildByID(gomock.Any(), buildID).
@@ -2005,7 +2148,13 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 	var mu sync.Mutex
 	var callbackChats []database.Chat
 
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	boundChat := database.Chat{
+		ID:          chatID,
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
+	}
+	createFn := func(_ context.Context, _, gotChatID uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+		require.Equal(t, chatID, gotChatID)
 		return codersdk.Workspace{
 			ID:        workspaceID,
 			Name:      req.Name,
@@ -2013,7 +2162,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: buildID,
 			},
-		}, nil
+		}, boundChat, nil
 	}
 
 	tool := CreateWorkspace(db, uuid.Nil, chatID, CreateWorkspaceOptions{
@@ -2042,6 +2191,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 	defer mu.Unlock()
 	require.Len(t, callbackChats, 2,
 		"OnChatUpdated should fire twice: once on binding, once after build completes")
+	require.Equal(t, boundChat, callbackChats[0], "first callback must carry the chat row bound by CreateFn")
 	// Both callbacks should carry the workspace ID.
 	for i, chat := range callbackChats {
 		require.True(t, chat.WorkspaceID.Valid, "callback %d should have workspace ID", i)
@@ -2109,7 +2259,7 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 	// Chat workspace TTL.
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
-		Return("", sql.ErrNoRows)
+		Return("0s", nil)
 
 	// Check for existing workspace (no existing).
 	db.EXPECT().
@@ -2122,10 +2272,6 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 // expectSuccessfulBuild adds mock expectations for a successful
 // build, agent lookup, and agent lifecycle check.
 func (s createWorkspacePresetTestSetup) expectSuccessfulBuild() {
-	s.DB.EXPECT().
-		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
-		Return(database.Chat{ID: s.ChatID}, nil)
-
 	s.DB.EXPECT().
 		GetWorkspaceBuildByID(gomock.Any(), s.BuildID).
 		Return(database.WorkspaceBuild{
@@ -2161,7 +2307,7 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 	presetID := uuid.New()
 
 	var capturedReq codersdk.CreateWorkspaceRequest
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		capturedReq = req
 		return codersdk.Workspace{
 			ID:   s.WorkspaceID,
@@ -2169,7 +2315,7 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: s.BuildID,
 			},
-		}, nil
+		}, database.Chat{ID: s.ChatID}, nil
 	}
 
 	agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -2209,9 +2355,9 @@ func TestCreateWorkspace_InvalidPresetID(t *testing.T) {
 
 	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
 		OwnerID: s.OwnerID,
-		CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(_ context.Context, _, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			t.Fatal("CreateFn should not be called with invalid preset_id")
-			return codersdk.Workspace{}, nil
+			return codersdk.Workspace{}, database.Chat{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -2242,7 +2388,7 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 	presetID := uuid.New()
 
 	var capturedReq codersdk.CreateWorkspaceRequest
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 		capturedReq = req
 		return codersdk.Workspace{
 			ID:   s.WorkspaceID,
@@ -2250,7 +2396,7 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 			LatestBuild: codersdk.WorkspaceBuild{
 				ID: s.BuildID,
 			},
-		}, nil
+		}, database.Chat{ID: s.ChatID}, nil
 	}
 
 	agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {

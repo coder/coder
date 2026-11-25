@@ -52,7 +52,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
 				entitlements, err := client.Entitlements(inv.Context())
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set flags that require a license")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
@@ -65,7 +65,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 
 				if requireActiveVersion {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+						return xerrors.Errorf("your license is not entitled to use access control, so you cannot set --require-active-version")
 					}
 				}
 			}
@@ -245,7 +245,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		},
 		{
 			Flag:        "require-active-version",
-			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature. See https://coder.com/docs/admin/templates/managing-templates#require-automatic-updates-enterprise for more details.",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is a Premium feature. See https://coder.com/docs/admin/templates/managing-templates#template-update-policies for more details.",
 			Value:       serpent.BoolOf(&requireActiveVersion),
 			Default:     "false",
 		},

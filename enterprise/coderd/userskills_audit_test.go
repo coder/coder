@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -51,14 +52,14 @@ func TestUserSkillAuditDiffTracksContent(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	initialContent := userSkillMarkdown("audit-tracking", "initial", "initial body")
-	skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: initialContent,
 	})
 	require.NoError(t, err)
 
 	newContent := userSkillMarkdown("audit-tracking", "after", "new body")
-	_, err = member.UpdateUserSkill(ctx, codersdk.Me, skill.Name, codersdk.UpdateUserSkillRequest{
-		Content: newContent,
+	_, err = member.UpdateUserSkill(ctx, codersdk.Me, skill.Name, codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(newContent),
 	})
 	require.NoError(t, err)
 

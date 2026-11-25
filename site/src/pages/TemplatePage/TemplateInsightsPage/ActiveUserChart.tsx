@@ -4,6 +4,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import { formatDate } from "#/utils/time";
 
@@ -23,6 +24,13 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 		<ChartContainer config={chartConfig} className="aspect-auto h-full">
 			<AreaChart
 				accessibilityLayer
+				role="group"
+				aria-roledescription="chart"
+				title="Active users"
+				desc={getDailyChartDescription(
+					"Daily active users",
+					data.map((d) => d.date),
+				)}
 				data={data}
 				margin={{
 					top: 10,
@@ -58,8 +66,9 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 				/>
 				<ChartTooltip
 					cursor={false}
-					content={
+					content={(props) => (
 						<ChartTooltipContent
+							{...props}
 							className="font-medium text-content-secondary"
 							labelClassName="text-content-primary"
 							labelFormatter={(_, p) => {
@@ -74,7 +83,7 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 								});
 							}}
 						/>
-					}
+					)}
 				/>
 				<defs>
 					<linearGradient id="fillAmount" x1="0" y1="0" x2="0" y2="1">

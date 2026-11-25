@@ -125,7 +125,7 @@ func TestAdmission_SubagentPoolCap(t *testing.T) {
 	require.True(t, admitted, "a full subagent pool must not refuse roots")
 }
 
-func TestAdmission_InterruptingBypassesCap(t *testing.T) {
+func TestAdmission_InterruptingRequiresCapacity(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -137,10 +137,12 @@ func TestAdmission_InterruptingBypassesCap(t *testing.T) {
 	interrupting := f.chat(t, database.Chat{Status: database.ChatStatusInterrupting})
 	admitted, err := a.Admit(ctx, f.db, interrupting)
 	require.NoError(t, err)
-	require.True(t, admitted, "interrupting chats must always be acquirable")
+	// Finishing the interruption can promote a queued message into a
+	// running turn under the same ownership, so acquisition holds a slot.
+	require.False(t, admitted, "interrupting chats must be refused at capacity")
 }
 
-func TestAdmission_RequiresActionBypassesCap(t *testing.T) {
+func TestAdmission_RequiresActionRequiresCapacity(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -152,7 +154,9 @@ func TestAdmission_RequiresActionBypassesCap(t *testing.T) {
 	requiresAction := f.chat(t, database.Chat{Status: database.ChatStatusRequiresAction})
 	admitted, err := a.Admit(ctx, f.db, requiresAction)
 	require.NoError(t, err)
-	require.True(t, admitted, "requires_action chats hold no slot and need their runner")
+	// Resolving the action returns the chat to running under the same
+	// ownership, so acquisition holds a slot.
+	require.False(t, admitted, "requires_action chats must be refused at capacity")
 }
 
 func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {

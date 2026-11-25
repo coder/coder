@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
@@ -166,24 +166,23 @@ export function useWorkspaceFileUploads(
 	// replays this cleanup on a simulated unmount and keeps the
 	// component, so the generation state must follow the ref or every
 	// later deferred callback would reject as stale.
-	useEffect(
-		() => () => {
-			abortAllUploads();
-			setQueueGeneration(generationRef.current);
-		},
-		[abortAllUploads],
-	);
+	const abortOnUnmount = useEffectEvent(() => {
+		abortAllUploads();
+		setQueueGeneration(generationRef.current);
+	});
+	useEffect(() => () => abortOnUnmount(), []);
 
 	// Uploads target a specific chat's directory in a specific
 	// workspace, so navigating to a different chat or rebinding the
 	// workspace invalidates the pending set.
+	const resetForScope = useEffectEvent(reset);
 	useEffect(() => {
 		if (previousScopeKeyRef.current === scopeKey) {
 			return;
 		}
 		previousScopeKeyRef.current = scopeKey;
-		reset();
-	}, [scopeKey, reset]);
+		resetForScope();
+	}, [scopeKey]);
 
 	const setUploadResult = (
 		id: string,

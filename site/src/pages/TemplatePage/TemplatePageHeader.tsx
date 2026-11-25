@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
@@ -37,6 +36,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";
@@ -244,7 +244,7 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-				<div className="flex flex-row gap-4">
+				<div className="flex gap-4">
 					<Avatar
 						size="lg"
 						variant="icon"
@@ -252,7 +252,7 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 						fallback={template.name}
 					/>
 					<div>
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<PageHeaderTitle>
 								{template.display_name.length > 0
 									? template.display_name

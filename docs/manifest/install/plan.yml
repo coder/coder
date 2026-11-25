@@ -1,0 +1,12 @@
+title: Plan your deployment
+description: Learn the architecture, size the deployment, and record the decisions that shape it.
+path: ./install/plan/index.md
+icon_path: ./images/icons/notes.svg
+children:
+  - title: Architecture
+    description: Learn about Coder's architecture and the components that make up a deployment.
+    path: ./install/plan/architecture.md
+  - include: install/plan/sizing.yml
+  - title: Migrate from Ona (formerly Gitpod)
+    description: Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.
+    path: ./install/plan/migrate-from-ona.md

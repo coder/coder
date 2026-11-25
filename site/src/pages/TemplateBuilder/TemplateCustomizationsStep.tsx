@@ -37,6 +37,8 @@ export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
+const emptyOrgs: readonly Organization[] = [];
+
 const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),
 	display_name: displayNameValidator("Display name"),
@@ -66,7 +68,7 @@ export const TemplateCustomizationsStep: React.FC<
 			action: "create",
 		}),
 	);
-	const orgOptions = permittedOrgsQuery.data ?? [];
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: {
@@ -222,7 +224,11 @@ const ProvisionerWarning: React.FC = () => {
 		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+			<Link
+				href={docs("/admin/provisioners#organization-scoped-provisioners")}
+				target="_blank"
+				rel="noreferrer"
+			>
 				See our documentation
 			</Link>
 		</Alert>

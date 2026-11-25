@@ -2,11 +2,8 @@
 title: DX PlatformX
 ---
 
-[DX](https://getdx.com) is a developer intelligence platform used by engineering
-leaders and platform engineers. Coder notifications can be transformed to
-[PlatformX](https://getdx.com/platformx) events, allowing platform engineers to
-measure activity and send pulse surveys to subsets of Coder users to understand
-their experience.
+[DX](https://getdx.com) is a developer intelligence platform used by engineering leaders and platform engineers.
+Coder notifications can be transformed to [PlatformX](https://getdx.com/platformx) events, allowing platform engineers to measure activity and send pulse surveys to subsets of Coder users to understand their experience.
 
 ![PlatformX Events in Coder](../../images/integrations/platformx-screenshot.png)
 
@@ -25,14 +22,9 @@ You'll need:
 
 ## coder-platformx-events-middleware
 
-Coder sends [notifications](../monitoring/notifications/index.md) via webhooks
-to coder-platformx-events-middleware, which processes and reformats the payload
-into a structure compatible with [PlatformX by DX](https://help.getdx.com/en/articles/7880779-getting-started).
+Coder sends [notifications](../monitoring/notifications/index.md) via webhooks to coder-platformx-events-middleware, which processes and reformats the payload into a structure compatible with [PlatformX by DX](https://help.getdx.com/en/articles/7880779-getting-started).
 
-For more information about coder-platformx-events-middleware and how to
-integrate it with your Coder deployment and PlatformX events, refer to the
-[coder-platformx-notifications](https://github.com/coder/coder-platformx-notifications)
-repository.
+For more information about coder-platformx-events-middleware and how to integrate it with your Coder deployment and PlatformX events, refer to the [coder-platformx-notifications](https://github.com/coder/coder-platformx-notifications) repository.
 
 ### Supported Notification Types
 
@@ -58,7 +50,8 @@ A `.env.sample` file is included:
 
 ### Logging
 
-Logs are printed to the console and can be adjusted using the `LOG_LEVEL` variable. The available levels are:
+Logs are printed to the console and can be adjusted using the `LOG_LEVEL` variable.
+The available levels are:
 
 | Level     | Description                           |
 |-----------|---------------------------------------|

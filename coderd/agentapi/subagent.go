@@ -24,6 +24,10 @@ import (
 	"github.com/coder/quartz"
 )
 
+// sessionTokenPlaceholder stands for the viewer's session token in external
+// app URLs.
+const sessionTokenPlaceholder = "$SESSION_TOKEN"
+
 type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
@@ -250,6 +254,24 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 
+			// Only template apps may receive a session token.
+			appURL := app.GetUrl()
+			if strings.Contains(appURL, sessionTokenPlaceholder) {
+				a.Log.Warn(ctx, "removing session token placeholder from sub-agent app url",
+					slog.F("sub_agent_name", subAgent.Name),
+					slog.F("sub_agent_id", subAgent.ID),
+					slog.F("app_slug", slug))
+				appURL = strings.ReplaceAll(appURL, sessionTokenPlaceholder, "")
+			}
+			if app.GetExternal() && appURL != "" {
+				if err := provisioner.ValidateExternalURL(appURL); err != nil {
+					return codersdk.ValidationError{
+						Field:  "url",
+						Detail: fmt.Sprintf("invalid external url: %s", err),
+					}
+				}
+			}
+
 			// NOTE(DanielleMaywood):
 			// Slugs must be unique PER workspace/template. As of 2025-06-25,
 			// there is no database-layer enforcement of this constraint.
@@ -272,8 +294,8 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 					String: app.GetCommand(),
 				},
 				Url: sql.NullString{
-					Valid:  app.GetUrl() != "",
-					String: app.GetUrl(),
+					Valid:  appURL != "",
+					String: appURL,
 				},
 				External:             app.GetExternal(),
 				Subdomain:            app.GetSubdomain(),

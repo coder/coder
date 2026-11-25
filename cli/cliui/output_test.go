@@ -1,11 +1,15 @@
 package cliui_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -134,5 +138,90 @@ func Test_OutputFormatter(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "foo", out)
 		require.EqualValues(t, 2, called.Load())
+	})
+
+	t.Run("WriteLine", func(t *testing.T) {
+		t.Parallel()
+
+		f := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+		cmd := &serpent.Command{}
+		f.AttachOptions(&cmd.Options)
+
+		var buf bytes.Buffer
+		require.NoError(t, f.WriteLine(context.Background(), &buf, "hello"))
+		require.Equal(t, "hello\n", buf.String())
+
+		require.NoError(t, cmd.Options.FlagSet().Set("output", "json"))
+		buf.Reset()
+		require.NoError(t, f.WriteLine(context.Background(), &buf, "hello"))
+		require.Equal(t, "\"hello\"\n", buf.String())
+
+		require.NoError(t, cmd.Options.FlagSet().Set("output", "text"))
+		buf.Reset()
+		require.NoError(t, f.WriteLine(context.Background(), &buf, ""))
+		require.Equal(t, "\n", buf.String())
+	})
+
+	t.Run("WriteLineFormatError", func(t *testing.T) {
+		t.Parallel()
+
+		f := cliui.NewOutputFormatter(
+			cliui.TextFormatFunc(func(int) (string, error) { return "unreachable", nil }),
+			cliui.JSONFormat(),
+		)
+		cmd := &serpent.Command{}
+		f.AttachOptions(&cmd.Options)
+
+		var buf bytes.Buffer
+		require.Error(t, f.WriteLine(context.Background(), &buf, "not an int"))
+		require.Empty(t, buf.String())
+	})
+}
+
+func Test_TextFormatFunc(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		Name string `json:"name"`
+	}
+
+	f := cliui.TextFormatFunc(func(i item) (string, error) {
+		return strings.ToUpper(i.Name), nil
+	})
+	require.Equal(t, "text", f.ID())
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		out, err := f.Format(context.Background(), item{Name: "coder"})
+		require.NoError(t, err)
+		require.Equal(t, "CODER", out)
+	})
+
+	t.Run("WrongType", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := f.Format(context.Background(), "coder")
+		require.ErrorContains(t, err, "expected cliui_test.item, got string")
+	})
+
+	t.Run("WrongTypeInterface", func(t *testing.T) {
+		t.Parallel()
+
+		stringer := cliui.TextFormatFunc(func(s fmt.Stringer) (string, error) {
+			return s.String(), nil
+		})
+		_, err := stringer.Format(context.Background(), 42)
+		require.ErrorContains(t, err, "expected fmt.Stringer, got int")
+	})
+
+	t.Run("FuncError", func(t *testing.T) {
+		t.Parallel()
+
+		failing := cliui.TextFormatFunc(func(item) (string, error) {
+			return "", assert.AnError
+		})
+		_, err := failing.Format(context.Background(), item{})
+		require.ErrorIs(t, err, assert.AnError)
 	})
 }

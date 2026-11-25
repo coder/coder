@@ -16,7 +16,7 @@ export const Checkbox: React.FC<
 	return (
 		<CheckboxPrimitive.Root
 			className={cn(
-				"peer size-[18px] shrink-0 rounded-xs border border-border border-solid m-1",
+				"peer size-[18px] shrink-0 rounded-xs border border-border-control border-solid m-1",
 				"focus-visible:outline-hidden focus-visible:ring-2 relative",
 				"focus-visible:ring-content-link focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface-primary",
 				"disabled:cursor-not-allowed",
@@ -30,7 +30,7 @@ export const Checkbox: React.FC<
 				"data-[state=indeterminate]:bg-surface-invert-primary",
 				"data-[state=indeterminate]:text-content-invert",
 				"data-[state=indeterminate]:border-surface-invert-primary",
-				"hover:enabled:border-border-secondary",
+				"hover:enabled:border-border-control-hover",
 				"hover:data-[state=checked]:bg-surface-invert-secondary",
 				"hover:data-[state=checked]:border-surface-invert-secondary",
 				"hover:data-[state=indeterminate]:bg-surface-invert-secondary",

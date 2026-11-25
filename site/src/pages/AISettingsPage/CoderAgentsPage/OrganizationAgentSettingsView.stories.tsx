@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+	MockComputerUseChatModel,
+} from "#/testHelpers/chatModels";
 import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
@@ -9,13 +13,54 @@ const model: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-1",
 	display_name: "Model One",
+	computer_use_provider: "openai",
 };
 const alternateModel: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-2",
 	model: "model-two",
 	display_name: "Model Two",
+	computer_use_provider: "openai",
 };
+const mockGoogleModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gemini",
+	ai_provider_id: "provider-google",
+	model: "gemini-3.8-flash",
+	display_name: "Gemini Flash",
+};
+const mockBedrockClaudeModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-claude",
+	ai_provider_id: "provider-bedrock",
+	model: "us.anthropic.claude-opus-5-5",
+	display_name: "Claude Opus 5.5 on Bedrock",
+	computer_use_provider: "anthropic",
+};
+const mockBedrockNovaModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-nova",
+	ai_provider_id: "provider-bedrock",
+	model: "amazon.nova-pro-v1:0",
+	display_name: "Nova Pro on Bedrock",
+};
+const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "tiny-model",
+	model: "tiny",
+	display_name: "Tiny Model",
+	context_limit: 8_000,
+	compression_threshold: 100,
+};
+const mockWarningModels = [
+	MockCompactionChatModel,
+	model,
+	{ ...alternateModel, compression_threshold: 100 },
+	mockTinyModelWithCompactionOff,
+];
+const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+	{ context: "compaction", model_config_id: model.id },
+];
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -31,6 +76,7 @@ const saveByContext = new Map<
 	["title_generation", fn()],
 	["compaction", fn()],
 	["advisor", fn()],
+	["computer_use", fn()],
 ]);
 
 const meta: Meta<typeof OrganizationAgentSettingsView> = {
@@ -55,7 +101,7 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
-		showAdvisor: true,
+		showComputerUse: false,
 		saveByContext,
 		savingContexts: new Set(),
 		errorContexts: new Set(),
@@ -162,14 +208,191 @@ export const SetAndUnset: Story = {
 		});
 	},
 };
-export const AdvisorDisabled: Story = {
-	args: { showAdvisor: false },
+
+export const CompactionTriggerWarning: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: mockWarningModels,
+		// Unavailable to this viewer; the admin alert must still warn because it
+		// ignores per-user provider access.
+		providerInfoByID: new Map([
+			[
+				model.ai_provider_id,
+				{
+					provider: "openai",
+					displayName: "OpenAI",
+					icon: "",
+					available: false,
+				},
+			],
+		]),
+	},
 	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).queryByText("Advisor"),
-		).not.toBeInTheDocument();
+		const section = within(
+			within(canvasElement).getByRole("form", { name: "Compaction" }),
+		);
+
+		await userEvent.click(
+			section.getByRole("combobox", { name: /Model One/i }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Compact Mini/i }),
+		);
 	},
 };
+
+export const CompactionTriggerWarningWithoutCompactionOff: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [MockCompactionChatModel, model, alternateModel],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
+export const CompactionTriggerWarningManyModels: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [
+			MockCompactionChatModel,
+			model,
+			alternateModel,
+			{ ...MockChatModel, id: "model-3", display_name: "Model Three" },
+			{ ...MockChatModel, id: "model-4", display_name: "Model Four" },
+			{ ...MockChatModel, id: "model-5", display_name: "Model Five" },
+		],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
+const computerUseArgs = {
+	showComputerUse: true,
+	enabledModels: [
+		model,
+		alternateModel,
+		MockComputerUseChatModel,
+		mockGoogleModel,
+		mockBedrockClaudeModel,
+		mockBedrockNovaModel,
+	],
+	providerInfoByID: new Map([
+		[
+			model.ai_provider_id,
+			{ provider: "openai", displayName: "OpenAI", icon: "" },
+		],
+		[
+			MockComputerUseChatModel.ai_provider_id,
+			{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+		],
+		[
+			mockGoogleModel.ai_provider_id,
+			{ provider: "google", displayName: "Google", icon: "" },
+		],
+		[
+			mockBedrockClaudeModel.ai_provider_id,
+			{ provider: "bedrock", displayName: "AWS Bedrock", icon: "" },
+		],
+	]),
+};
+const mockUnverifiedComputerUseOverrides: readonly TypesGen.ChatModelOverrideResponse[] =
+	[...overrides, { context: "computer_use", model_config_id: model.id }];
+
+// The gpt-5 model behind model-1 is not on the curated computer use list.
+export const ComputerUseUnverifiedModel: Story = {
+	args: { ...computerUseArgs, overrides: mockUnverifiedComputerUseOverrides },
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: "Computer use model warning" })
+			.focus();
+	},
+};
+
+export const ComputerUseVerifiedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: MockComputerUseChatModel.id },
+		],
+	},
+};
+
+export const ComputerUseUnverifiedDefaultModel: Story = {
+	args: computerUseArgs,
+	play: ComputerUseUnverifiedModel.play,
+};
+
+const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gpt-5-4",
+	model: "gpt-5.4",
+	display_name: "GPT-5.4",
+	model_config: { openai_config: { use_responses_api: false } },
+	computer_use_provider: "openai",
+};
+
+// gpt-5.4 is on the curated list, but OpenAI computer use needs the Responses
+// API.
+export const ComputerUseResponsesAPIDisabled: Story = {
+	args: {
+		...computerUseArgs,
+		enabledModels: [
+			...computerUseArgs.enabledModels,
+			mockResponsesAPIDisabledModel,
+		],
+		overrides: [
+			...overrides,
+			{
+				context: "computer_use",
+				model_config_id: mockResponsesAPIDisabledModel.id,
+			},
+		],
+	},
+	play: ComputerUseUnverifiedModel.play,
+};
+
+export const ComputerUseNoDefaultModel: Story = {
+	args: { ...computerUseArgs, defaultModelID: undefined },
+};
+
+export const ComputerUseModelOptions: Story = {
+	args: computerUseArgs,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: /^Computer use,/ }),
+		);
+	},
+};
+
+export const ComputerUseNoProviderModels: Story = {
+	args: { ...computerUseArgs, enabledModels: [mockGoogleModel] },
+};
+
+export const ComputerUseUnavailableSavedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: "model-gone" },
+		],
+	},
+};
+
+export const ComputerUseOverridesLoading: Story = {
+	args: { ...computerUseArgs, isOverridesLoading: true, overrides: undefined },
+};
+
+export const ComputerUseSaveError: Story = {
+	args: { ...computerUseArgs, errorContexts: new Set(["computer_use"]) },
+};
+
+export const ComputerUseReadOnly: Story = {
+	args: {
+		...computerUseArgs,
+		canEdit: false,
+		overrides: mockUnverifiedComputerUseOverrides,
+	},
+};
+
 export const ReadOnly: Story = {
 	args: { canEdit: false },
 	play: async ({ canvasElement }) => {
