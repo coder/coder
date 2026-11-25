@@ -101,18 +101,17 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 	return project
 }
 
-// ChatProjectPin pins a project for a user at the end of their list, as
-// project creation does. Source "user" then re-pins it as the pin endpoint
-// does. Only the upgrade migration creates migration pins.
+// ChatProjectPin pins a project for a user at the end of their list. The
+// source defaults to "default", as project creation records it.
 func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPin) {
 	t.Helper()
 
-	err := db.InsertChatProjectPin(genCtx, database.InsertChatProjectPinParams{UserID: seed.UserID, ProjectID: seed.ProjectID})
-	require.NoError(t, err, "insert chat project pin")
-	if seed.Source == database.ChatProjectPinSourceUser {
-		err = db.PinChatProject(genCtx, database.PinChatProjectParams{UserID: seed.UserID, ProjectID: seed.ProjectID, PinOrder: sql.NullInt32{}})
-		require.NoError(t, err, "pin chat project")
-	}
+	err := db.PinChatProject(genCtx, database.PinChatProjectParams{
+		UserID:    seed.UserID,
+		ProjectID: seed.ProjectID,
+		Source:    takeFirst(seed.Source, database.ChatProjectPinSourceDefault),
+	})
+	require.NoError(t, err, "pin chat project")
 }
 
 // ChatProjectTemplate attaches a template to a chat project.

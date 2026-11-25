@@ -3796,7 +3796,7 @@ export interface ChatProjectSummary {
 	readonly project_id: string;
 	readonly pinned: boolean;
 	/**
-	 * PinOrder is the 1-based position among pinned projects, or 0.
+	 * PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.
 	 */
 	readonly pin_order: number;
 	readonly own_chat_count: number;
@@ -8981,19 +8981,6 @@ export interface Permission {
 	readonly action: RBACAction;
 }
 
-// From codersdk/chats.go
-/**
- * PinChatProjectRequest pins a chat project for the caller, or moves an
- * already pinned project.
- */
-export interface PinChatProjectRequest {
-	/**
-	 * PinOrder is the 1-based position to pin at. When omitted, a new pin
-	 * goes to the end and an existing pin keeps its position.
-	 */
-	readonly pin_order?: number;
-}
-
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
@@ -9805,6 +9792,20 @@ export type RegionTypes = Region | WorkspaceProxy;
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
+}
+
+// From codersdk/chats.go
+/**
+ * ReorderChatProjectPinsRequest sets the order of the caller's pinned chat
+ * projects.
+ */
+export interface ReorderChatProjectPinsRequest {
+	/**
+	 * ProjectIDs are the pinned projects in their new order. Pins that are
+	 * left out follow the listed ones in their current order, and IDs the
+	 * caller has not pinned are ignored.
+	 */
+	readonly project_ids: readonly string[];
 }
 
 // From codersdk/replicas.go
