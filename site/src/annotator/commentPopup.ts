@@ -5,6 +5,7 @@ import { maxAnnotations } from "./protocol";
 
 type CommentPopupOptions = {
 	target: Element;
+	toolbar: HTMLElement;
 	// Comments already held back, which the next plain Send includes.
 	heldCount: number;
 	// `hold` is Shift+Send. Returns false when the batch cannot hold more.
@@ -68,7 +69,8 @@ export function createCommentPopup(
 			? limitMessage
 			: "Shift+click to hold this comment and pick more",
 	});
-	const setSendLabel = (hold: boolean) => {
+	const setSendLabel = (shift: boolean) => {
+		const hold = shift && !atLimit;
 		send.innerHTML = hold ? plusIcon : sendIcon;
 		const count = options.heldCount;
 		send.append(hold ? "Add" : count > 0 ? `Send ${count + 1}` : "Send");
@@ -110,21 +112,27 @@ export function createCommentPopup(
 		focus: () => textarea.focus({ preventScroll: true }),
 		reposition: () => {
 			const target = options.target.getBoundingClientRect();
-			const { width, height } = element.getBoundingClientRect();
+			const { width } = element.getBoundingClientRect();
 			const left = Math.max(
 				popupGap,
 				Math.min(target.left, win.innerWidth - width - popupGap),
 			);
+			const toolbar = options.toolbar.getBoundingClientRect();
+			const bottom =
+				left < toolbar.right + popupGap &&
+				left + width > toolbar.left - popupGap
+					? Math.min(win.innerHeight, toolbar.top) - popupGap
+					: win.innerHeight - popupGap;
+			// Keep the Stop control reachable even when the batch helper wraps.
+			element.style.maxHeight = `${Math.max(0, bottom - popupGap)}px`;
+			const { height } = element.getBoundingClientRect();
 			const below = target.bottom + popupGap;
 			const top =
-				below + height <= win.innerHeight - popupGap
+				below + height <= bottom
 					? below
 					: Math.max(
 							popupGap,
-							Math.min(
-								target.top - height - popupGap,
-								win.innerHeight - height - popupGap,
-							),
+							Math.min(target.top - height - popupGap, bottom - height),
 						);
 			element.style.left = `${left}px`;
 			element.style.top = `${top}px`;
