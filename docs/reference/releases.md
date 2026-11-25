@@ -165,7 +165,10 @@ The `Coder.Coder` package gets every release except release candidates, so it in
 If Coder promotes an existing release to stable without publishing a new release, `Coder.Coder.Stable` keeps the previous stable version until the next stable release.
 
 Switching from `Coder.Coder` to `Coder.Coder.Stable` installs the latest stable release, which can be older than your installed mainline version.
-If the `coder` executable runs your Coder server, wait to switch until the latest stable release is the same as or newer than your installed version, because Coder does not support rollbacks.
+If the `coder` executable runs your Coder server, wait to switch until the latest stable release is the same as or newer than your installed version, because Coder doesn't support rollbacks.
+
+The switch also installs the `coder` executable in a different folder, for the current user only.
+Before you switch, find any Windows service, scheduled task, or script that runs `coder.exe` by its full path or as another user, so you can update it after the switch.
 
 To switch, uninstall `Coder.Coder` first:
 

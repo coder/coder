@@ -83,5 +83,6 @@ winget install --id Coder.Coder.Stable --exact --source winget
 ```
 
 To switch from `Coder.Coder` to `Coder.Coder.Stable`, refer to [Install stable](../../reference/releases.md#install-stable).
+To switch from `Coder.Coder.Stable` to `Coder.Coder`, run `winget uninstall --id Coder.Coder.Stable --exact` first, then the `Coder.Coder` command.
 
 </div>
