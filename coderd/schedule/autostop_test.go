@@ -527,18 +527,18 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: time.Date(1988, time.October, 30, 3, 50, 0, 0, time.UTC),
 		},
 		{
-			// Manila skipped December 31, 1844. Adding one calendar day at
-			// noon on December 30 resolves back to December 30 in Go.
+			// Manila skipped Tuesday, December 31, 1844. The first eligible
+			// Tuesday after the December 24 build is January 7, 14 days later.
 			name: "SkippedCalendarDay",
-			// December 30 at 08:00 in Manila, when the local offset was UTC-15:56:08.
-			buildCompletedAt:       time.Date(1844, time.December, 30, 23, 56, 8, 0, time.UTC),
+			// December 24 at 08:00 in Manila, when the local offset was UTC-15:56:08.
+			buildCompletedAt:       time.Date(1844, time.December, 24, 23, 56, 8, 0, time.UTC),
 			userQuietHoursSchedule: "CRON_TZ=Asia/Manila 0 0 * * *",
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
-				DaysOfWeek: 0b00010000, // Friday
+				DaysOfWeek: 0b00000010, // Tuesday
 				Weeks:      1,
 			},
-			// January 3 at 00:00 in Manila, after the offset advanced to UTC+08:03:52.
-			expectedMaxDeadline: time.Date(1845, time.January, 2, 15, 56, 8, 0, time.UTC),
+			// January 7 at 00:00 in Manila, after the offset advanced to UTC+08:03:52.
+			expectedMaxDeadline: time.Date(1845, time.January, 6, 15, 56, 8, 0, time.UTC),
 		},
 		{
 			// A user expects this workspace to be online from 9am -> 9pm.
@@ -793,58 +793,27 @@ func TestFindWeek(t *testing.T) {
 			loc, err := time.LoadLocation(tz)
 			require.NoError(t, err)
 
-			now := time.Now().In(loc)
-			currentWeek, err := schedule.WeeksSinceEpoch(now)
-			require.NoError(t, err)
+			epoch := time.Date(2023, time.January, 2, 0, 0, 0, 0, loc)
+			for expectedWeek := range int64(52 * 100) {
+				msg := fmt.Sprintf("week %d", expectedWeek)
 
-			diffMonday := now.Weekday() - time.Monday
-			if now.Weekday() == time.Sunday {
-				// Sunday is 0, but Monday is the first day of the week in the
-				// code.
-				diffMonday = 6
-			}
-			currentWeekMondayExpected := now.AddDate(0, 0, -int(diffMonday))
-			require.Equal(t, time.Monday, currentWeekMondayExpected.Weekday())
-			y, m, d := currentWeekMondayExpected.Date()
-			// Change to midnight.
-			currentWeekMondayExpected = time.Date(y, m, d, 0, 0, 0, 0, loc)
-
-			currentWeekMonday, err := schedule.GetMondayOfWeek(now.Location(), currentWeek)
-			require.NoError(t, err)
-			require.Equal(t, time.Monday, currentWeekMonday.Weekday())
-			require.Equal(t, currentWeekMondayExpected, currentWeekMonday)
-
-			t.Log("now", now)
-			t.Log("currentWeek", currentWeek)
-			t.Log("currentMonday", currentWeekMonday)
-
-			// Loop through every single Monday and Sunday for the next 100
-			// years and make sure the week calculations are correct.
-			for i := int64(1); i < 52*100; i++ {
-				msg := fmt.Sprintf("week %d", i)
-
-				monday := currentWeekMonday.AddDate(0, 0, int(i*7))
-				y, m, d := monday.Date()
-				monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
-				require.Equal(t, monday.Weekday(), time.Monday, msg)
+				monday := epoch.AddDate(0, 0, int(expectedWeek*7))
+				require.Equal(t, time.Monday, monday.Weekday(), msg)
 				t.Log(msg, "monday", monday)
 
 				week, err := schedule.WeeksSinceEpoch(monday)
 				require.NoError(t, err, msg)
-				require.Equal(t, currentWeek+i, week, msg)
-
-				gotMonday, err := schedule.GetMondayOfWeek(monday.Location(), week)
-				require.NoError(t, err, msg)
-				require.Equal(t, monday, gotMonday, msg)
+				require.Equal(t, expectedWeek, week, msg)
 
 				// Check that we get the same week number for late Sunday.
+				y, m, d := monday.Date()
 				sunday := time.Date(y, m, d+6, 23, 59, 59, 0, loc)
-				require.Equal(t, sunday.Weekday(), time.Sunday, msg)
+				require.Equal(t, time.Sunday, sunday.Weekday(), msg)
 				t.Log(msg, "sunday", sunday)
 
 				week, err = schedule.WeeksSinceEpoch(sunday)
 				require.NoError(t, err, msg)
-				require.Equal(t, currentWeek+i, week, msg)
+				require.Equal(t, expectedWeek, week, msg)
 			}
 		})
 	}

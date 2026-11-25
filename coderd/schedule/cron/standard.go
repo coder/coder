@@ -189,8 +189,9 @@ func wallClock(t time.Time, loc *time.Location) time.Time {
 }
 
 // FirstOnDate returns the first instant at or after notBefore that matches
-// the cron fields on the given date in the schedule's timezone. It considers
-// both occurrences of repeated local times and returns zero if none qualify.
+// the cron fields on the given date in the schedule's timezone. It returns
+// zero if none qualify. When the clock rolls back, FirstOnDate considers each
+// occurrence of a repeated local time.
 // skipped reports whether the date had no matching instants and a clock jump
 // at or after notBefore skipped a scheduled time.
 func (s Schedule) FirstOnDate(date, notBefore time.Time) (first time.Time, skipped bool) {

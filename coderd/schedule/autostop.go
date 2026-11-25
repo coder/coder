@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"cmp"
 	"context"
 	"time"
 
@@ -174,6 +173,11 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 		return time.Time{}, nil
 	}
 
+	// A bitmap with only the unused bit set would never match a date.
+	if requirement.DaysOfWeek&0b01111111 == 0 {
+		return time.Time{}, xerrors.New("autostop requirement has no valid weekdays")
+	}
+
 	loc := userQuietHoursSchedule.Schedule.Location()
 	buildCompletedAtInLoc := params.WorkspaceBuildCompletedAt.In(loc)
 	// Add the leeway here so we avoid checking today's quiet hours if
@@ -182,64 +186,44 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 	if params.AutostopRequirementNotBefore.After(notBefore) {
 		notBefore = params.AutostopRequirementNotBefore.In(loc)
 	}
-	// A bitmap with only the unused bit set would never match a date.
-	if requirement.DaysOfWeek&0b01111111 == 0 {
-		return time.Time{}, xerrors.New("autostop requirement has no valid weekdays")
-	}
 	requirementDays := requirement.DaysMap()
-
-	// A rollback across midnight can bring back the previous date after
-	// the cutoff. Include it if a quiet-hours start still qualifies.
 	searchStart := notBefore
-	previousDate := notBefore.AddDate(0, 0, -1)
-	if requirementDays[previousDate.Weekday()] &&
-		(requirement.Weeks <= 1 || !previousDate.Before(TemplateAutostopRequirementEpoch(loc))) {
-		if quietStart, _ := userQuietHoursSchedule.Schedule.FirstOnDate(previousDate, notBefore); !quietStart.IsZero() {
-			searchStart = previousDate
+
+	// If the clock rolls back across midnight, quiet hours on the
+	// previous date can occur again after the cutoff.
+	prevDate := notBefore.AddDate(0, 0, -1)
+	canCheckPrevDate := requirement.Weeks <= 1 ||
+		// WeeksSinceEpoch returns an error for pre-epoch dates.
+		!prevDate.Before(TemplateAutostopRequirementEpoch(loc))
+	if canCheckPrevDate && requirementDays[prevDate.Weekday()] {
+		quietStart, _ := userQuietHoursSchedule.Schedule.FirstOnDate(prevDate, notBefore)
+		if !quietStart.IsZero() {
+			searchStart = prevDate
 		}
 	}
 
-	var prevStopDay time.Time
+	weeks := max(1, requirement.Weeks)
+	// Include the second full cadence so one skipped required date still
+	// leaves another chance to schedule the stop.
+	lastDayOffset := 2 * 7 * int(min(weeks, MaxTemplateAutostopRequirementWeeks))
+	year, month, day := searchStart.Date()
 	useNextQuietHours := false
-	for stopDay := searchStart; ; stopDay = stopDay.AddDate(0, 0, 1) {
-		// If a clock change returns the cursor to an earlier date,
-		// recover by finding the next quiet-hours start on a later
-		// date (if a stop is required, a late one is better than
-		// none).
-		for !prevStopDay.IsZero() && cmp.Or(
-			cmp.Compare(stopDay.Year(), prevStopDay.Year()),
-			cmp.Compare(stopDay.YearDay(), prevStopDay.YearDay()),
-		) <= 0 {
-			// The daily cron search advances through elapsed hours,
-			// so it can cross a skipped date.
-			next := userQuietHoursSchedule.Schedule.Next(stopDay)
-			if !next.After(stopDay) {
-				return time.Time{}, xerrors.Errorf("could not find next quiet hours after %q", stopDay)
-			}
-			stopDay = next
+	for offset := 0; offset <= lastDayOffset; offset++ {
+		// Count dates in UTC so skipped local dates cannot stall the search.
+		y, m, d := time.Date(year, month, day+offset, 0, 0, 0, 0, time.UTC).Date()
+		stopDay := time.Date(y, m, d, 12, 0, 0, 0, loc)
+		if stopDay.Year() != y || stopDay.Month() != m || stopDay.Day() != d {
+			continue
 		}
-		// Recovery can move the cursor into a different week. Apply
-		// the cadence to the recovered date before checking its weekday.
-		if !useNextQuietHours && requirement.Weeks > 1 {
-			stopDay, err = GetNextApplicableMondayOfNWeeks(stopDay, requirement.Weeks)
+		if !useNextQuietHours && weeks > 1 {
+			week, err := WeeksSinceEpoch(stopDay)
 			if err != nil {
-				return time.Time{}, xerrors.Errorf("determine start of stop week: %w", err)
+				return time.Time{}, xerrors.Errorf("determine stop week: %w", err)
+			}
+			if week%weeks != 0 {
+				continue
 			}
 		}
-		// Advance calendar days from noon, since a timezone transition
-		// such as a daylight saving time change is more likely to skip
-		// midnight than noon.
-		year, month, day := stopDay.Date()
-		noon := time.Date(year, month, day, 12, 0, 0, 0, loc)
-		// Keep the original cursor if a skipped noon resolves to a
-		// different local date.
-		if noon.Year() == year && noon.Month() == month && noon.Day() == day {
-			stopDay = noon
-		}
-		if !prevStopDay.IsZero() && !stopDay.After(prevStopDay) {
-			return time.Time{}, xerrors.Errorf("required stop date search did not advance past %q", prevStopDay)
-		}
-		prevStopDay = stopDay
 		if !useNextQuietHours && !requirementDays[stopDay.Weekday()] {
 			continue
 		}
@@ -255,6 +239,7 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 			useNextQuietHours = true
 		}
 	}
+	return time.Time{}, xerrors.Errorf("could not find a required stop within %d days of %q", lastDayOffset, searchStart)
 }
 
 // workspaceTTL returns the TTL to use for a workspace.
@@ -321,60 +306,4 @@ func WeeksSinceEpoch(now time.Time) (int64, error) {
 	// Divide by 7 to get the number of weeks.
 	weeksSinceEpoch := int64(days / 7)
 	return weeksSinceEpoch, nil
-}
-
-// GetMondayOfWeek gets the Monday (0:00) of the n-th week since epoch.
-func GetMondayOfWeek(loc *time.Location, n int64) (time.Time, error) {
-	if n < 0 {
-		return time.Time{}, xerrors.New("weeks since epoch must be positive")
-	}
-	epoch := TemplateAutostopRequirementEpoch(loc)
-	monday := epoch.AddDate(0, 0, int(n*7))
-
-	y, m, d := monday.Date()
-	monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
-	if monday.Weekday() != time.Monday {
-		// This condition should never be hit, but we have a check for it just
-		// in case.
-		return time.Time{}, xerrors.Errorf("calculated incorrect Monday for week %v since epoch (actual weekday %q)", n, monday.Weekday())
-	}
-	return monday, nil
-}
-
-// GetNextApplicableMondayOfNWeeks gets the next Monday (0:00) of the next week
-// divisible by n since epoch. If the next applicable week is invalid for any
-// reason, the week after will be used instead (up to 2 attempts).
-//
-// If the current week is divisible by n, then the provided time is returned as
-// is.
-//
-// The timezone embedded in the time object is used to determine the epoch.
-func GetNextApplicableMondayOfNWeeks(now time.Time, n int64) (time.Time, error) {
-	// Get the current week number.
-	weeksSinceEpoch, err := WeeksSinceEpoch(now)
-	if err != nil {
-		return time.Time{}, xerrors.Errorf("get current week number: %w", err)
-	}
-
-	// Get the next week divisible by n.
-	remainder := weeksSinceEpoch % n
-	week := weeksSinceEpoch + (n - remainder)
-	if remainder == 0 {
-		return now, nil
-	}
-
-	// Loop until we find a week that doesn't fail. This should never loop, but
-	// we account for failures just in case.
-	var lastErr error
-	for i := int64(0); i < 3; i++ {
-		monday, err := GetMondayOfWeek(now.Location(), week+i)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		return monday, nil
-	}
-
-	return time.Time{}, xerrors.Errorf("get next applicable Monday of %v weeks: %w", n, lastErr)
 }
