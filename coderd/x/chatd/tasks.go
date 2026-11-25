@@ -768,6 +768,9 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 	if len(calls) == 0 {
 		return nil
 	}
+	if !s.server.chatOwnerCanUseWorkspace(ctx, chat.OwnerID, chat.WorkspaceID, "tool call cancellation") {
+		return nil
+	}
 	logger := s.opts.Logger.With(slog.F("chat_id", chat.ID))
 	ctx, cancel := context.WithTimeout(ctx, interruptCancelTimeout)
 	defer cancel()
