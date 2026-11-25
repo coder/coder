@@ -17,6 +17,7 @@ type OverviewTabProps = {
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	minDay: string | undefined;
 	overview: OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
 	unpricedModels: UnpricedAIModels | undefined;
@@ -32,6 +33,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	now,
 	days,
 	onDaysChange,
+	minDay,
 	overview,
 	overviewError,
 	unpricedModels,
@@ -45,7 +47,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	return (
 		<div className="flex flex-col gap-6">
 			<div className="flex justify-end">
-				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
+				<SpendDaysPicker
+					now={now}
+					days={days}
+					onDaysChange={onDaysChange}
+					minDay={minDay}
+				/>
 			</div>
 			{overviewError !== null && <ErrorAlert error={overviewError} />}
 			{(overview !== undefined || overviewError === null) && (

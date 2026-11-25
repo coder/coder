@@ -41,7 +41,7 @@ it("links a user to their AI session logs for the same period", async () => {
 		"http://localhost",
 	).searchParams.get("filter");
 	expect(filter).toBe(
-		'initiator:alice started_after:"2026-03-06T00:00:00Z" started_before:"2026-03-13T00:00:00Z"',
+		'user:alice started_after:"2026-03-06T00:00:00Z" started_before:"2026-03-13T00:00:00Z"',
 	);
 });
 

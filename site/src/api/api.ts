@@ -3731,6 +3731,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getAIGatewayRetention = async (): Promise<TypesGen.AIGatewayRetention> => {
+		const response = await this.axios.get<TypesGen.AIGatewayRetention>(
+			"/api/experimental/ai-gateway/retention",
+		);
+		return response.data;
+	};
+
 	getAIModelPrices = async (filter: {
 		provider?: string;
 		model?: string;

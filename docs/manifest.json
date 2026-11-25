@@ -283,6 +283,11 @@
 							]
 						},
 						{
+							"title": "Disaster recovery",
+							"description": "Plan database backups and restores, and learn what users experience during a control plane outage.",
+							"path": "./install/operate/disaster-recovery.md"
+						},
+						{
 							"title": "Google Cloud to AWS federation",
 							"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
 							"path": "./install/operate/gcp-to-aws.md"
@@ -845,6 +850,11 @@
 							"title": "Chat debug logging",
 							"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
 							"path": "./coder-agents/platform-controls/chat-debug-logging.md"
+						},
+						{
+							"title": "OpenTelemetry tracing",
+							"description": "Export Coder Agents traces that follow the OpenTelemetry GenAI semantic conventions.",
+							"path": "./coder-agents/platform-controls/opentelemetry-tracing.md"
 						}
 					]
 				},

@@ -222,7 +222,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
-						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-disabled"
+						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-secondary"
 					/>
 					<CommandList
 						role="listbox"
