@@ -6,9 +6,9 @@ import { originRepoLabel } from "../utils/originRepoLabel";
 import { prNumber } from "../utils/pullRequest";
 import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
 
-/** Menu content for PR links. The height fits five rows before it scrolls. */
+/** Menu content for PR links. The height fits up to five rows before it scrolls. */
 export const prMenuContentClassName =
-	"max-h-50 w-72 overflow-auto [&_[role=menuitem]]:text-[13px]";
+	"max-h-[min(12.5rem,var(--radix-popper-available-height))] w-72 **:[[role=menuitem]]:text-[13px]";
 
 type PRMenuLinksProps = {
 	readonly prStatuses: readonly ChatDiffStatus[];

@@ -28,14 +28,14 @@ type ProvisionerAlertProps = {
 const severityBorderColors: Record<AlertColor, string> = {
 	info: "border-l-highlight-sky",
 	success: "border-l-content-success",
-	warning: "border-l-content-warning",
+	warning: "border-l-border-warning",
 	error: "border-l-content-destructive",
 };
 
 const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
 	if (variant === AlertVariant.Inline) {
 		return cn(
-			"rounded-none border-0 border-b border-l-2 border-solid border-b-border",
+			"rounded-none border-0 border-b border-l-2 border-b-border",
 			severityBorderColors[severity],
 		);
 	}

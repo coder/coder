@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -769,7 +768,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 				return chattest.OpenAIStreamingResponse(chunk)
 			})
 			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				if request.Type != agenthooks.EventPreToolUse {
@@ -783,8 +782,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 				}
 				_, err := w.Write([]byte(tt.response))
 				require.NoError(t, err)
-			}))
-			t.Cleanup(consumer.Close)
+			})
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -842,7 +840,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	var secondCalls atomic.Int32
 	var failSecond atomic.Bool
 	failSecond.Store(true)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -867,8 +865,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 		default:
 			t.Fatalf("unexpected tool use ID %q", data.ToolUseID)
 		}
-	}))
-	t.Cleanup(consumer.Close)
+	})
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -1111,7 +1108,7 @@ func seedPendingToolCall(
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleAssistant,
@@ -1122,7 +1119,8 @@ func seedPendingToolCall(
 			},
 		}})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return created.Chat.ID
 }
 
@@ -1382,9 +1380,9 @@ func requireModelOnlyTextCount(ctx context.Context, t *testing.T, db database.St
 	require.Equal(t, count, found)
 }
 
-func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
+func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *hookConsumer {
 	t.Helper()
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventPreToolUse {
@@ -1396,7 +1394,6 @@ func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) s
 		var err error
 		_, err = w.Write([]byte(response(data)))
 		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	return consumer
 }

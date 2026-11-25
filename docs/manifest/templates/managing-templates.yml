@@ -5,6 +5,9 @@ children:
   - title: Image management
     description: Learn how to build and manage the container images that back your Coder templates.
     path: ./templates/managing-templates/image-management.md
+  - title: Security updates
+    description: Roll out a patched image to every new and existing workspace by publishing a template version and updating outdated workspaces.
+    path: ./templates/managing-templates/roll-out-security-updates.md
   - title: Change management
     description: Manage Coder template changes with source control, versioning, and CI/CD publishing.
     path: ./templates/managing-templates/change-management.md

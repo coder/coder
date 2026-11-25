@@ -88,7 +88,7 @@ const MCPServersPage: React.FC = () => {
 				authorizedOrganizations.length > 0
 			}
 		>
-			<title>{pageTitle("MCP servers", "AI Settings")}</title>
+			<title>{pageTitle("MCP servers", "AI settings")}</title>
 			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&

@@ -55,6 +55,16 @@ const MockDebugHTTPSkill = {
 	description: "",
 };
 
+const MockManualReviewSQLSkill = {
+	...MockReviewSQLSkill,
+	model_invocable: false,
+};
+
+const MockManualFrontendReviewSkill = {
+	...MockFrontendReviewSkill,
+	model_invocable: false,
+};
+
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
@@ -111,6 +121,16 @@ export const LongDescriptionNarrow: Story = {
 	globals: { viewport: { value: "ipad" } },
 };
 
+export const ManualOnlySkills: Story = {
+	args: {
+		skills: [
+			MockManualReviewSQLSkill,
+			MockReleaseNotesSkill,
+			MockManualFrontendReviewSkill,
+		],
+	},
+};
+
 export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",
@@ -120,7 +140,7 @@ export const DownloadingSkill: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
 		await userEvent.click(
-			within(row).getByRole("button", { name: "Open menu" }),
+			within(row).getByRole("button", { name: "Open menu for review-sql" }),
 		);
 		const menu = await body.findByRole("menu");
 		await expect(
@@ -143,7 +163,9 @@ export const RowMenuActions: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
-		const trigger = within(row).getByRole("button", { name: "Open menu" });
+		const trigger = within(row).getByRole("button", {
+			name: "Open menu for review-sql",
+		});
 
 		await userEvent.click(trigger);
 		await userEvent.click(
@@ -270,13 +292,15 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
+const mockReviewSQLFormValues = {
+	name: "review-sql",
+	description: "Review SQL changes for query and index risks.",
+	body: "Check query plans, missing indexes, and transaction boundaries.",
+};
+
 const mockReviewSQLEditorState: SkillEditorState = {
 	mode: "edit",
-	initialValues: {
-		name: "review-sql",
-		description: "Review SQL changes for query and index risks.",
-		body: "Check query plans, missing indexes, and transaction boundaries.",
-	},
+	initialValues: mockReviewSQLFormValues,
 	existingNames: MockPersonalSkills.map((skill) => skill.name),
 	isLoading: false,
 	isRetrying: false,
@@ -289,6 +313,15 @@ const mockReviewSQLEditorState: SkillEditorState = {
 export const EditDialogOpen: Story = {
 	args: {
 		editorState: mockReviewSQLEditorState,
+	},
+};
+
+export const EditManualOnlyDialogOpen: Story = {
+	args: {
+		editorState: {
+			...mockReviewSQLEditorState,
+			initialValues: { ...mockReviewSQLFormValues, modelInvocable: false },
+		},
 	},
 };
 

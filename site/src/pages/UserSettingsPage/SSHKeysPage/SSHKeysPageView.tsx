@@ -37,7 +37,7 @@ export const SSHKeysPageView: React.FC<SSHKeysPageViewProps> = ({
 						The following public key is used to authenticate Git in workspaces.
 						You may add it to Git services (such as GitHub) that you need to
 						access from your workspace. Coder configures authentication via{" "}
-						<code className="rounded-sm border border-border bg-surface-secondary px-1 py-0.5 text-xs text-content-primary">
+						<code className="rounded-sm border bg-surface-secondary px-1 py-0.5 text-xs text-content-primary">
 							$GIT_SSH_COMMAND
 						</code>
 						.

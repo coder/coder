@@ -1,7 +1,6 @@
 title: Agent Firewall
 description: Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.
 path: ./ai-governance/agent-firewall/index.md
-state: [premium]
 children:
   - include: ai-governance/agent-firewall/nsjail.yml
   - title: Landjail jail type

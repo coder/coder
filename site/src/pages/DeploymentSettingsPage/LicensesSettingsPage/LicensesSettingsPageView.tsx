@@ -1,4 +1,5 @@
 import { PlusIcon, RotateCwIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
@@ -22,6 +23,7 @@ import {
 import { useWindowSize } from "#/hooks/useWindowSize";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { useTheme } from "#/theme/context";
+import { readThemeColors } from "#/theme/cssColors";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
@@ -69,16 +71,29 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
+	const [confettiColors, setConfettiColors] = useState<string[]>([]);
+	useEffect(() => {
+		setConfettiColors(
+			Object.values(
+				readThemeColors(theme.mode, [
+					"--confetti-primary",
+					"--confetti-secondary",
+				]),
+			),
+		);
+	}, [theme.mode]);
 
 	return (
 		<>
-			<Confetti
-				// For some reason this overflows the window and adds scrollbars if we don't subtract here.
-				width={width - 1}
-				height={height - 1}
-				numberOfPieces={showConfetti ? 200 : 0}
-				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
-			/>
+			{confettiColors.length > 0 && (
+				<Confetti
+					// For some reason this overflows the window and adds scrollbars if we don't subtract here.
+					width={width - 1}
+					height={height - 1}
+					numberOfPieces={showConfetti ? 200 : 0}
+					colors={confettiColors}
+				/>
+			)}
 
 			<div className="flex gap-4 items-baseline justify-between">
 				<SettingsHeader>
@@ -171,7 +186,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 
 				{!isLoading && canViewLicenses && licenses?.length === 0 && (
 					<EmptyState
-						className="rounded-lg border border-solid border-border"
+						className="rounded-lg border"
 						message="No licenses yet"
 						description={
 							<>
@@ -179,7 +194,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 								more.{" "}
 								<Link
 									href={CONTACT_SALES_LINK}
-									className="m-0 p-0 text-sm"
+									className="pl-0 text-sm"
 									showExternalIcon={false}
 								>
 									Contact sales

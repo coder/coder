@@ -1,6 +1,9 @@
 package main //nolint:testpackage // Tests unexported release helpers.
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestUpdateCalendarLatestReleaseVersionPrefix checks the formatting of the
 // "Latest Release" cell produced by updateCalendar. version.String() already
@@ -81,5 +84,46 @@ func TestUpdateCalendarNotReleasedRowName(t *testing.T) {
 	const want = "[2.36](https://coder.com/changelog/coder-2-36)"
 	if got[0].ReleaseName != want {
 		t.Fatalf("ReleaseName = %q, want %q", got[0].ReleaseName, want)
+	}
+}
+
+// TestRenderCalendarTableSeparatorWidth ensures every separator segment is as
+// wide as its header segment, matching what markdown-table-formatter enforces
+// in CI. The first column was previously rendered one dash short, which made
+// `make fmt` fail on wizard-generated docs PRs.
+func TestRenderCalendarTableSeparatorWidth(t *testing.T) {
+	t.Parallel()
+
+	rows := []calendarRow{
+		{
+			ReleaseName:   "[2.39](https://coder.com/changelog/coder-2-39)",
+			Major:         2,
+			Minor:         39,
+			ReleaseDate:   "November 03, 2026",
+			Status:        "Mainline",
+			LatestRelease: "[v2.39.2](https://github.com/coder/coder/releases/tag/v2.39.2)",
+		},
+		{
+			ReleaseName:   "2.40",
+			Major:         2,
+			Minor:         40,
+			Status:        "Not Released",
+			LatestRelease: "N/A",
+		},
+	}
+
+	lines := strings.Split(strings.TrimSuffix(renderCalendarTable(rows), "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least header and separator lines, got %d", len(lines))
+	}
+	header := strings.Split(lines[0], "|")
+	sep := strings.Split(lines[1], "|")
+	if len(header) != len(sep) {
+		t.Fatalf("header has %d columns, separator has %d", len(header), len(sep))
+	}
+	for i := range header {
+		if len(header[i]) != len(sep[i]) {
+			t.Errorf("column %d: header width %d, separator width %d", i, len(header[i]), len(sep[i]))
+		}
 	}
 }

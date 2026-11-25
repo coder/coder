@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button } from "#/components/Button/Button";
 import { ROSTER, type RosterEntry } from "./roster";
 
 // ---------------------------------------------------------------------------
@@ -88,11 +89,41 @@ const EXPLOSION_PARTICLES = 28;
 // The lander spans from y=-7 (dome) to y=8 (feet) = 15 px tall.
 const LANDER_HEIGHT = 15;
 
-// Maximum touchdown speed: one lander height per second.
-const LANDING_MAX_SPEED = LANDER_HEIGHT;
+// Touchdown limits for a safe landing, chosen on the start screen.
+// Exceeding either destroys the lander and turns the matching HUD
+// readout into a warning.
+type LandingLimits = {
+	label: string;
+	// Lowercase keyboard shortcut on the start screen.
+	key: string;
+	// Maximum touchdown speed (px/s).
+	maxSpeed: number;
+	// Maximum tilt from vertical (radians).
+	maxAngle: number;
+};
 
-// Maximum tilt from vertical for a successful landing (10°).
-const LANDING_ANGLE_TOL = (10 * Math.PI) / 180;
+// Difficulty levels in the order their start-screen buttons appear.
+const DIFFICULTIES: readonly LandingLimits[] = [
+	{
+		label: "Easy",
+		key: "e",
+		maxSpeed: 50,
+		maxAngle: (30 * Math.PI) / 180,
+	},
+	{
+		label: "Moderate",
+		key: "m",
+		maxSpeed: 30,
+		maxAngle: (20 * Math.PI) / 180,
+	},
+	// One lander height per second and 10°.
+	{
+		label: "Hard",
+		key: "h",
+		maxSpeed: LANDER_HEIGHT,
+		maxAngle: (10 * Math.PI) / 180,
+	},
+];
 
 // How many Codernauts appear per round.
 const CODERNAUTS_PER_ROUND = 10;
@@ -103,8 +134,11 @@ const ROUND_TRANSITION_DELAY = 3;
 // How long the victory celebration plays (seconds).
 const VICTORY_DURATION = 6;
 
-// How long the intro title is shown (seconds).
-const INTRO_DURATION = 7;
+// How far back the R key rewinds the game (seconds of play).
+const REWIND_SECONDS = 5;
+
+// How many seconds of play the rewind replays per real second.
+const REWIND_PLAYBACK_SPEED = 2.5;
 
 // Fuel consumption rates.
 const FUEL_BURN_MAIN = 2; // % per second of main thruster
@@ -891,6 +925,8 @@ function drawDashboard(
 	state: DashboardState,
 	cargo: Codernaut[],
 	savedPct: number,
+	// Null on the start screen, where no warnings apply.
+	limits: LandingLimits | null,
 ) {
 	const top = h - DASHBOARD_H;
 
@@ -977,8 +1013,8 @@ function drawDashboard(
 
 	// --- small panels (velocity, yaw, altitude, fuel) ---
 	const yawDeg = (state.yaw * 180) / Math.PI;
-	const velWarn = state.velocity > LANDING_MAX_SPEED;
-	const yawWarn = Math.abs(yawDeg) > (LANDING_ANGLE_TOL * 180) / Math.PI;
+	const velWarn = limits !== null && state.velocity > limits.maxSpeed;
+	const yawWarn = limits !== null && Math.abs(state.yaw) > limits.maxAngle;
 
 	const smallPanels = [
 		{ label: "VELOCITY", value: `${state.velocity.toFixed(1)}`, warn: velWarn },
@@ -1186,16 +1222,17 @@ function tryLanding(
 	vx: number,
 	vy: number,
 	pads: LandingPad[],
+	limits: LandingLimits,
 ): LandingPad | null {
 	const pad = findPadAt(x, pads);
 	if (!pad) return null;
 
 	// Orientation: must be roughly upright.
-	if (Math.abs(normalizeAngle(angle)) > LANDING_ANGLE_TOL) return null;
+	if (Math.abs(normalizeAngle(angle)) > limits.maxAngle) return null;
 
 	// Speed: magnitude must be within tolerance.
 	const speed = Math.sqrt(vx * vx + vy * vy);
-	if (speed > LANDING_MAX_SPEED) return null;
+	if (speed > limits.maxSpeed) return null;
 
 	return pad;
 }
@@ -1812,9 +1849,218 @@ function sidebarHitTest(
 	return null;
 }
 
+/**
+ * Draw the title and controls help behind the difficulty buttons. The
+ * game waits on this screen until the player picks a difficulty.
+ */
+function drawStartScreen(
+	ctx: CanvasRenderingContext2D,
+	dashW: number,
+	playH: number,
+) {
+	drawVectorText(ctx, "SAVE ALL", dashW / 2, playH * 0.25, 44);
+	drawVectorText(ctx, "CODERNAUTS", dashW / 2, playH * 0.43, 44);
+
+	ctx.fillStyle = "white";
+	ctx.font = "bold 14px monospace";
+	ctx.textAlign = "center";
+	ctx.fillText(
+		"press \u2190 or A to rotate left, \u2192 or D to rotate right",
+		dashW / 2,
+		playH * 0.59,
+	);
+	ctx.fillText(
+		"press \u2193 or S for main thruster, R to rewind 5 seconds",
+		dashW / 2,
+		playH * 0.65,
+	);
+}
+
+// The game state needed to resume play from a moment in the past.
+type GameSnapshot = {
+	// Seconds of play when the snapshot was taken.
+	time: number;
+	terrain: Terrain | null;
+	codernauts: Codernaut[];
+	disembarks: DisembarkAnim[];
+	landerX: number;
+	landerY: number;
+	landerVx: number;
+	landerVy: number;
+	landerAngle: number;
+	thrusting: boolean;
+	landed: boolean;
+	landedOnStation: boolean;
+	fuel: number;
+	exploding: boolean;
+	explosionTimer: number;
+	explosionParts: ExplosionParticle[];
+	savedNames: string[];
+	roundCompleteTimer: number;
+};
+
+/**
+ * Offscreen buffers for the VHS rewind effect: a copy of the frame and
+ * its red and cyan tinted versions, recombined with an offset to fake
+ * the color bleed of a worn tape.
+ */
+type VhsBuffers = {
+	frame: HTMLCanvasElement;
+	red: HTMLCanvasElement;
+	cyan: HTMLCanvasElement;
+};
+
+/**
+ * Size an offscreen buffer to match the source. Assigning a canvas size
+ * clears its backing store even when the size is unchanged, so only do
+ * it on an actual change; every caller then draws an opaque full frame
+ * over the old contents.
+ */
+function matchSize(target: HTMLCanvasElement, w: number, h: number) {
+	if (target.width !== w || target.height !== h) {
+		target.width = w;
+		target.height = h;
+	}
+}
+
+function tintInto(
+	target: HTMLCanvasElement,
+	source: HTMLCanvasElement,
+	color: string,
+) {
+	matchSize(target, source.width, source.height);
+	const tctx = target.getContext("2d");
+	if (!tctx) return;
+	tctx.globalCompositeOperation = "source-over";
+	tctx.drawImage(source, 0, 0);
+	// Multiply keeps black black and turns white into the tint color.
+	tctx.globalCompositeOperation = "multiply";
+	tctx.fillStyle = color;
+	tctx.fillRect(0, 0, target.width, target.height);
+	tctx.globalCompositeOperation = "source-over";
+}
+
+/**
+ * Repaint the frame already on the canvas so it looks like a VHS tape
+ * played backwards: color bleed, horizontal tearing, a rolling
+ * tracking-noise band, static, and scanlines. Works in device pixels.
+ */
+function drawVhsRewindEffect(
+	ctx: CanvasRenderingContext2D,
+	buffers: VhsBuffers,
+	now: number,
+) {
+	const canvas = ctx.canvas;
+	const w = canvas.width;
+	const h = canvas.height;
+	if (w === 0 || h === 0) return;
+
+	matchSize(buffers.frame, w, h);
+	const fctx = buffers.frame.getContext("2d");
+	if (!fctx) return;
+	fctx.drawImage(canvas, 0, 0);
+	tintInto(buffers.red, buffers.frame, "#ff3030");
+	tintInto(buffers.cyan, buffers.frame, "#30ffff");
+
+	ctx.save();
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, w, h);
+
+	// Horizontal bands, each shifted sideways; a few tear hard.
+	const bleed = Math.max(2, Math.round(w / 400));
+	const wobbleY = Math.round((Math.random() - 0.5) * 4);
+	ctx.globalCompositeOperation = "lighter";
+	let y = 0;
+	while (y < h) {
+		const bandH = Math.min(
+			h - y,
+			Math.round(h * (0.02 + Math.random() * 0.08)),
+		);
+		const tear = Math.random() < 0.15 ? (Math.random() - 0.5) * w * 0.08 : 0;
+		const shift = Math.round((Math.random() - 0.5) * bleed * 2 + tear);
+		for (const [layer, dx] of [
+			[buffers.red, shift - bleed],
+			[buffers.cyan, shift + bleed],
+		] as const) {
+			ctx.drawImage(layer, 0, y, w, bandH, dx, y + wobbleY, w, bandH);
+		}
+		y += bandH;
+	}
+	ctx.globalCompositeOperation = "source-over";
+
+	// Rolling tracking-noise band.
+	const bandH = h * 0.09;
+	const bandY = ((now * 0.9) % 1.3) * h - bandH;
+	ctx.fillStyle = "rgba(255,255,255,0.08)";
+	ctx.fillRect(0, bandY, w, bandH);
+	for (let i = 0; i < 140; i++) {
+		ctx.fillStyle = `rgba(255,255,255,${0.2 + Math.random() * 0.6})`;
+		ctx.fillRect(
+			Math.random() * w,
+			bandY + Math.random() * bandH,
+			4 + Math.random() * w * 0.06,
+			1 + Math.random() * 2,
+		);
+	}
+
+	// Static across the whole picture.
+	const dots = Math.round((w * h) / 2500);
+	for (let i = 0; i < dots; i++) {
+		const v = Math.floor(Math.random() * 255);
+		ctx.fillStyle = `rgba(${v},${v},${v},0.5)`;
+		ctx.fillRect(Math.random() * w, Math.random() * h, 2, 1);
+	}
+
+	// Scanlines and a faint blue cast.
+	ctx.fillStyle = "rgba(0,0,0,0.3)";
+	for (let sy = 0; sy < h; sy += 3) ctx.fillRect(0, sy, w, 1);
+	ctx.fillStyle = "rgba(40,60,140,0.08)";
+	ctx.fillRect(0, 0, w, h);
+	ctx.restore();
+}
+
+/** Draw the VCR on-screen display shown while rewinding. */
+function drawRewindLabel(ctx: CanvasRenderingContext2D) {
+	const x = 28;
+	const y = 48;
+	const size = 26;
+	ctx.save();
+	ctx.shadowColor = "black";
+	ctx.shadowOffsetX = 3;
+	ctx.shadowOffsetY = 3;
+	ctx.fillStyle = "white";
+
+	// Two left-pointing triangles: the rewind symbol.
+	for (const ox of [0, size * 0.75]) {
+		ctx.beginPath();
+		ctx.moveTo(x + ox, y - size * 0.35);
+		ctx.lineTo(x + ox + size * 0.75, y - size * 0.75);
+		ctx.lineTo(x + ox + size * 0.75, y + size * 0.05);
+		ctx.closePath();
+		ctx.fill();
+	}
+
+	ctx.font = `bold ${size}px monospace`;
+	ctx.textAlign = "left";
+	ctx.fillText("REWINDING...", x + size * 1.8, y);
+	ctx.restore();
+}
+
 export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const controlsHintId = useId();
+	// The state renders the start-screen buttons; the ref carries the
+	// same choice into the game loop, which runs outside React renders.
+	const [chosenLimits, setLimits] = useState<LandingLimits | null>(null);
+	const limitsRef = useRef<LandingLimits | null>(null);
+	// Drives the screen reader announcement; the loop owns the replay.
+	const [rewinding, setRewinding] = useState(false);
+	const selectDifficulty = (picked: LandingLimits) => {
+		limitsRef.current = picked;
+		setLimits(picked);
+	};
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -1859,7 +2105,17 @@ export const LunarLander: React.FC = () => {
 		let victory = false;
 		let victoryTimer = 0;
 		let victoryBursts: ExplosionParticle[][] = [];
-		let introTimer = INTRO_DURATION;
+		// Rewind state: seconds of play so far, recent snapshots (oldest
+		// first), and the replay in progress, if any.
+		let gameTime = 0;
+		let history: GameSnapshot[] = [];
+		let rewind: { cursor: number; target: number } | null = null;
+		const vhsBuffers: VhsBuffers = {
+			frame: document.createElement("canvas"),
+			red: document.createElement("canvas"),
+			cyan: document.createElement("canvas"),
+		};
+		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 		// Sidebar interaction state.
 		let savedBubbleTimer = 0;
 		let savedBubbleName = "";
@@ -1906,7 +2162,112 @@ export const LunarLander: React.FC = () => {
 			cvs.style.width = `${logicalW}px`;
 			cvs.style.height = `${logicalH}px`;
 			cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			// A resize regenerates the terrain, so older snapshots no
+			// longer fit the screen.
+			history = [];
+			endRewind();
 			if (!victory) startNewRound();
+		}
+
+		// ---- rewind ----
+		function recordSnapshot() {
+			history.push({
+				...structuredClone({
+					time: gameTime,
+					codernauts,
+					disembarks,
+					landerX,
+					landerY,
+					landerVx,
+					landerVy,
+					landerAngle,
+					thrusting,
+					landed,
+					landedOnStation,
+					fuel,
+					exploding,
+					explosionTimer,
+					explosionParts,
+					savedNames: [...savedNames],
+					roundCompleteTimer,
+				}),
+				// Terrain is replaced, never mutated, so share it.
+				terrain,
+			});
+			// Keep one snapshot at or before the rewind window so a full
+			// rewind lands exactly REWIND_SECONDS back.
+			while (
+				history.length > 1 &&
+				history[1].time <= gameTime - REWIND_SECONDS
+			) {
+				history.shift();
+			}
+		}
+
+		function restoreSnapshot(s: GameSnapshot) {
+			// Copy, because play mutates these and the snapshot may be
+			// restored again.
+			const copy = structuredClone({
+				codernauts: s.codernauts,
+				disembarks: s.disembarks,
+				explosionParts: s.explosionParts,
+			});
+			terrain = s.terrain;
+			codernauts = copy.codernauts;
+			disembarks = copy.disembarks;
+			explosionParts = copy.explosionParts;
+			landerX = s.landerX;
+			landerY = s.landerY;
+			landerVx = s.landerVx;
+			landerVy = s.landerVy;
+			landerAngle = s.landerAngle;
+			thrusting = s.thrusting;
+			landed = s.landed;
+			landedOnStation = s.landedOnStation;
+			fuel = s.fuel;
+			exploding = s.exploding;
+			explosionTimer = s.explosionTimer;
+			roundCompleteTimer = s.roundCompleteTimer;
+			savedNames.clear();
+			for (const name of s.savedNames) savedNames.add(name);
+		}
+
+		function startRewind() {
+			if (!limitsRef.current || victory || rewind || history.length < 2) {
+				return;
+			}
+			rewind = {
+				cursor: gameTime,
+				target: Math.max(history[0].time, gameTime - REWIND_SECONDS),
+			};
+			setRewinding(true);
+		}
+
+		function endRewind() {
+			rewind = null;
+			setRewinding(false);
+		}
+
+		// Replay history backwards, dropping snapshots as it passes them,
+		// and resume play from the target snapshot.
+		function stepRewind(dt: number) {
+			if (!rewind) return;
+			rewind.cursor = Math.max(
+				rewind.target,
+				rewind.cursor - dt * REWIND_PLAYBACK_SPEED,
+			);
+			while (
+				history.length > 1 &&
+				history[history.length - 1].time > rewind.cursor
+			) {
+				history.pop();
+			}
+			const current = history[history.length - 1];
+			restoreSnapshot(current);
+			if (rewind.cursor <= rewind.target) {
+				gameTime = current.time;
+				endRewind();
+			}
 		}
 
 		// ---- input ----
@@ -1922,6 +2283,26 @@ export const LunarLander: React.FC = () => {
 			S: "ArrowDown",
 		};
 		function onKeyDown(e: KeyboardEvent) {
+			if (!limitsRef.current && !e.ctrlKey && !e.metaKey && !e.altKey) {
+				const picked = DIFFICULTIES.find((d) => d.key === e.key.toLowerCase());
+				if (picked) {
+					e.preventDefault();
+					limitsRef.current = picked;
+					setLimits(picked);
+					return;
+				}
+			}
+			if (
+				e.key.toLowerCase() === "r" &&
+				!e.repeat &&
+				!e.ctrlKey &&
+				!e.metaKey &&
+				!e.altKey
+			) {
+				e.preventDefault();
+				startRewind();
+				return;
+			}
 			if (
 				e.key === "ArrowLeft" ||
 				e.key === "ArrowRight" ||
@@ -1968,6 +2349,8 @@ export const LunarLander: React.FC = () => {
 			const rect = cvs.getBoundingClientRect();
 			const mx = e.clientX - rect.left;
 			const my = e.clientY - rect.top;
+
+			if (!limitsRef.current) return;
 
 			// Handle dialog button clicks first.
 			if (dialogVisible) {
@@ -2049,89 +2432,10 @@ export const LunarLander: React.FC = () => {
 			dialogVisible = true;
 		}
 
-		// ---- game loop ----
-		function loop(ts: number) {
-			const dt = lastTs ? (ts - lastTs) / 1000 : 0;
-			lastTs = ts;
-
+		// ---- simulation ----
+		// Advance the game by dt seconds of play.
+		function updateGame(dt: number, activeLimits: LandingLimits) {
 			const dashW = logicalW - SIDEBAR_W;
-
-			// --- intro screen ---
-			if (introTimer > 0) {
-				introTimer -= dt;
-				cx.fillStyle = "black";
-				cx.fillRect(0, 0, logicalW, logicalH);
-
-				const playH = logicalH - DASHBOARD_H;
-				drawVectorText(cx, "SAVE ALL", dashW / 2, playH * 0.25, 44);
-				drawVectorText(cx, "CODERNAUTS", dashW / 2, playH * 0.43, 44);
-
-				cx.fillStyle = "white";
-				cx.font = "bold 14px monospace";
-				cx.textAlign = "center";
-				cx.fillText(
-					"press \u2190 or A to rotate left, \u2192 or D to rotate right",
-					dashW / 2,
-					playH * 0.59,
-				);
-				cx.fillText(
-					"press \u2193 or S for main thruster",
-					dashW / 2,
-					playH * 0.65,
-				);
-				if (Math.floor(introTimer * 2.5) % 2 === 0) {
-					cx.fillStyle = "#888";
-					cx.font = "12px monospace";
-					cx.fillText(
-						`get ready... ${Math.ceil(introTimer)}`,
-						dashW / 2,
-						playH * 0.76,
-					);
-				}
-
-				drawDashboard(
-					cx,
-					dashW,
-					logicalH,
-					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
-					[],
-					0,
-				);
-				frameId = requestAnimationFrame(loop);
-				return;
-			}
-
-			// --- victory screen ---
-			if (victory) {
-				victoryTimer -= dt;
-				for (const b of victoryBursts) updateExplosion(b, dt);
-
-				cx.fillStyle = "black";
-				cx.fillRect(0, 0, logicalW, logicalH);
-
-				const playH = logicalH - DASHBOARD_H;
-				drawTada(cx, dashW / 2, playH * 0.4);
-
-				const prog = Math.max(0, victoryTimer / VICTORY_DURATION);
-				for (const b of victoryBursts) drawExplosion(cx, b, prog);
-
-				cx.fillStyle = "#aaa";
-				cx.font = "14px monospace";
-				cx.textAlign = "center";
-				cx.fillText("All Codernauts have been saved!", dashW / 2, playH * 0.6);
-
-				const savedPct = (savedNames.size / ROSTER.length) * 100;
-				drawDashboard(
-					cx,
-					dashW,
-					logicalH,
-					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
-					[],
-					savedPct,
-				);
-				frameId = requestAnimationFrame(loop);
-				return;
-			}
 
 			// --- round-complete transition ---
 			if (roundCompleteTimer > 0) {
@@ -2201,6 +2505,7 @@ export const LunarLander: React.FC = () => {
 							landerVx,
 							landerVy,
 							terrain.pads,
+							activeLimits,
 						);
 						if (pad) {
 							landed = true;
@@ -2265,6 +2570,78 @@ export const LunarLander: React.FC = () => {
 				}
 			}
 
+			updateDisembarks(disembarks, dt);
+			disembarks = disembarks.filter((a) => !a.done);
+		}
+
+		// ---- game loop ----
+		function loop(ts: number) {
+			const dt = lastTs ? (ts - lastTs) / 1000 : 0;
+			lastTs = ts;
+
+			const dashW = logicalW - SIDEBAR_W;
+			const limits = limitsRef.current;
+
+			// --- start screen: wait for a difficulty choice ---
+			if (!limits) {
+				cx.fillStyle = "black";
+				cx.fillRect(0, 0, logicalW, logicalH);
+				drawStartScreen(cx, dashW, logicalH - DASHBOARD_H);
+
+				drawDashboard(
+					cx,
+					dashW,
+					logicalH,
+					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
+					[],
+					0,
+					null,
+				);
+				frameId = requestAnimationFrame(loop);
+				return;
+			}
+
+			// --- victory screen ---
+			if (victory) {
+				victoryTimer -= dt;
+				for (const b of victoryBursts) updateExplosion(b, dt);
+
+				cx.fillStyle = "black";
+				cx.fillRect(0, 0, logicalW, logicalH);
+
+				const playH = logicalH - DASHBOARD_H;
+				drawTada(cx, dashW / 2, playH * 0.4);
+
+				const prog = Math.max(0, victoryTimer / VICTORY_DURATION);
+				for (const b of victoryBursts) drawExplosion(cx, b, prog);
+
+				cx.fillStyle = "#aaa";
+				cx.font = "14px monospace";
+				cx.textAlign = "center";
+				cx.fillText("All Codernauts have been saved!", dashW / 2, playH * 0.6);
+
+				const savedPct = (savedNames.size / ROSTER.length) * 100;
+				drawDashboard(
+					cx,
+					dashW,
+					logicalH,
+					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
+					[],
+					savedPct,
+					limits,
+				);
+				frameId = requestAnimationFrame(loop);
+				return;
+			}
+
+			if (rewind) {
+				stepRewind(dt);
+			} else {
+				updateGame(dt, limits);
+				gameTime += dt;
+				recordSnapshot();
+			}
+
 			// -- draw --
 			cx.fillStyle = "black";
 			cx.fillRect(0, 0, logicalW, logicalH);
@@ -2278,8 +2655,6 @@ export const LunarLander: React.FC = () => {
 				}
 			}
 
-			updateDisembarks(disembarks, dt);
-			disembarks = disembarks.filter((a) => !a.done);
 			for (const a of disembarks) {
 				const tmpNaut: Codernaut = {
 					x: a.x,
@@ -2478,7 +2853,17 @@ export const LunarLander: React.FC = () => {
 				},
 				cargo,
 				savedPct,
+				limits,
 			);
+
+			if (rewind) {
+				// Players who ask for reduced motion get the label without
+				// the tearing and static.
+				if (!reducedMotion.matches) {
+					drawVhsRewindEffect(cx, vhsBuffers, ts / 1000);
+				}
+				drawRewindLabel(cx);
+			}
 
 			frameId = requestAnimationFrame(loop);
 		}
@@ -2509,8 +2894,40 @@ export const LunarLander: React.FC = () => {
 	}, []);
 
 	return (
-		<div ref={containerRef} className="w-full h-full bg-black">
-			<canvas ref={canvasRef} className="block" />
+		<div ref={containerRef} className="relative size-full bg-black">
+			<canvas
+				ref={canvasRef}
+				className="block"
+				role="img"
+				aria-label="Save all Codernauts lunar lander game"
+				aria-describedby={controlsHintId}
+			/>
+			<p id={controlsHintId} className="sr-only">
+				Press the left and right arrow keys, or A and D, to rotate. Press the
+				down arrow key or S to fire the main thruster. Press R to rewind the
+				last 5 seconds.
+			</p>
+			<p className="sr-only" aria-live="polite">
+				{rewinding ? "Rewinding 5 seconds" : ""}
+			</p>
+			{!chosenLimits && (
+				// Centered over the playfield: the canvas reserves 200px on the
+				// right for the roster (SIDEBAR_W) and 84px at the bottom for the
+				// dashboard (DASHBOARD_H). The game is always drawn light on
+				// black, so the buttons use the dark theme tokens.
+				<div className="dark absolute left-0 top-[calc((100%-84px)*0.74)] flex w-[calc(100%-200px)] justify-center gap-5">
+					{DIFFICULTIES.map((d) => (
+						<Button
+							key={d.key}
+							variant="outline"
+							className="min-w-32 font-mono uppercase"
+							onClick={() => selectDifficulty(d)}
+						>
+							{d.label} ({d.key.toUpperCase()})
+						</Button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 };

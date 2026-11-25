@@ -56,7 +56,7 @@ const WorkspaceScheduleContainer: React.FC<WorkspaceScheduleContainerProps> = ({
 							data-testid="schedule-icon-button"
 							onClick={onClickIcon}
 							className={cn(
-								"flex items-center bg-transparent border-0 p-0",
+								"flex items-center bg-transparent p-0",
 								"[font-size:inherit] leading-[inherit] cursor-pointer",
 							)}
 						>
@@ -277,7 +277,7 @@ const ScheduleSettingsLink: React.FC<LinkProps> = ({
 	return (
 		<Link
 			className={cn(
-				"first-letter:uppercase p-0 hover:no-underline text-content-link text-xs",
+				"first-letter:uppercase pl-0 hover:no-underline text-content-link text-xs",
 				className,
 			)}
 			showExternalIcon={false}

@@ -6,6 +6,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -23,7 +24,6 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 import { needsSignIn } from "../../components/mcpMenuServers";
-import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
 
 type AgentSettingsMCPConnectionsPageViewProps = {
@@ -122,7 +122,7 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 	const connectLabel = isConnecting ? "Connecting" : "Connect";
 
 	return (
-		<li className="flex flex-col gap-3 rounded-lg border border-solid border-border p-4">
+		<li className="flex flex-col gap-3 rounded-lg border p-4">
 			<div className="flex items-center gap-3">
 				<MCPServerIcon iconUrl={server.icon_url} className="size-8" />
 				<span
@@ -133,7 +133,7 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 				</span>
 			</div>
 			<p
-				className="m-0 line-clamp-2 text-sm text-content-secondary break-words"
+				className="m-0 line-clamp-2 text-sm text-content-secondary wrap-break-word"
 				title={server.description || undefined}
 			>
 				{server.description || (

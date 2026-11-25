@@ -1,39 +1,7 @@
 -- Removes the chat automations experiment (migrations 000609 to 000611).
--- Those migrations stay unchanged because deployments already ran them.
---
--- Take every table lock this migration needs before changing anything,
--- retrying short waits so that concurrent chatd traffic cannot deadlock
--- with it. See 000609_chat_automations.up.sql for the reasoning.
-DO $$
-DECLARE
-	previous_lock_timeout text := current_setting('lock_timeout');
-	deadline timestamptz := clock_timestamp() + interval '2 minutes';
-BEGIN
-	LOOP
-		BEGIN
-			-- Well below the default deadlock_timeout of 1s, so this
-			-- transaction gives up before PostgreSQL can choose an
-			-- application transaction as the deadlock victim.
-			PERFORM set_config('lock_timeout', '100ms', true);
-			-- chats_expanded is recreated below. DROP VIEW locks only the
-			-- view, while LOCK TABLE on the view would also lock users (via
-			-- visible_users) in ACCESS EXCLUSIVE mode.
-			DROP VIEW IF EXISTS chats_expanded;
-			LOCK TABLE chats, chat_messages, chat_queued_messages, chat_automations IN ACCESS EXCLUSIVE MODE;
-			-- Dropping chat_automations drops its foreign keys, and PostgreSQL
-			-- takes ACCESS EXCLUSIVE on every referenced table to do that.
-			LOCK TABLE organizations, users, chat_model_configs IN ACCESS EXCLUSIVE MODE;
-			EXIT;
-		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
-			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration 000615 could not lock the chat tables within 2 minutes';
-			END IF;
-		END;
-		PERFORM pg_sleep(0.1);
-	END LOOP;
-	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
-END;
-$$;
+-- Those migrations stay because deployments already ran them.
+
+DROP VIEW IF EXISTS chats_expanded;
 
 -- Messages that automations queued cannot be delivered without the
 -- automation that owns them. Ordinary queued messages stay. The queue

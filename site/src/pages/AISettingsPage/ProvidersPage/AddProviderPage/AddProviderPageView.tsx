@@ -47,7 +47,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 				<p className="text-sm text-content-secondary m-0">
 					Configure connection details and credentials.
 				</p>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
 						initialValues={{ type: provider.value, icon: defaultIcon }}
