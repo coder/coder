@@ -1414,19 +1414,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectMemberCountsByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
 		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("InsertChatProjectPin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		project := testutil.Fake(s.T(), faker, database.ChatProject{})
-		arg := database.InsertChatProjectPinParams{UserID: uuid.New(), ProjectID: project.ID}
-		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		dbm.EXPECT().InsertChatProjectPin(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, project, policy.ActionRead)
-	}))
 	s.Run("PinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
-		arg := database.PinChatProjectParams{UserID: uuid.New(), ProjectID: project.ID, PinOrder: sql.NullInt32{Int32: 2, Valid: true}}
+		arg := database.PinChatProjectParams{UserID: uuid.New(), ProjectID: project.ID, Source: database.ChatProjectPinSourceUser}
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		dbm.EXPECT().PinChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, project, policy.ActionRead)
+	}))
+	s.Run("ReorderChatProjectPins", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ReorderChatProjectPinsParams{UserID: uuid.New(), ProjectIDs: []uuid.UUID{uuid.New()}}
+		dbm.EXPECT().ReorderChatProjectPins(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal)
 	}))
 	s.Run("UnpinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
