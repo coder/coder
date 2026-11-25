@@ -199,16 +199,12 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	children,
 }) => {
 	const canShowPeek = peek && !expanded;
-	// Whether the peek showed at the last render, so one that shows can
-	// stay after `peekCanStart` turns false.
 	const [peekShown, setPeekShown] = useState(canShowPeek && peekCanStart);
 	const showPeek = canShowPeek && (peekShown || peekCanStart);
 	if (showPeek !== peekShown) {
 		setPeekShown(showPeek);
 	}
-	// Rows that leave without the block expanding shrink the timeline, so
-	// the scroller reconciles before paint rather than painting a clamped
-	// scroll position.
+	// The peek hiding without the block expanding shrinks the timeline.
 	const syncLayout = useMessageScrollerLayoutSync();
 	const peekWasShown = useRef(showPeek);
 	useLayoutEffect(() => {
@@ -217,21 +213,20 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 		}
 		peekWasShown.current = showPeek;
 	}, [showPeek, expanded, syncLayout]);
-	// A page that loads mid-turn, or a reader collapsing the block, shows the
-	// peek at once; only a block that just formed grows it in.
 	const [formedFresh] = useState(
 		() =>
 			block.startedAt === undefined ||
 			Date.now() - block.startedAt < FRESH_BLOCK_MS,
 	);
+	// A peek that returns when the reader collapses the block appears at once.
 	const [hasExpanded, setHasExpanded] = useState(expanded);
 	if (expanded && !hasExpanded) {
 		setHasExpanded(true);
 	}
 	const rootRef = useRef<HTMLDivElement>(null);
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
-	// The scroller reveals the end of the item holding the toggled element.
-	// The peek unmounts as the block expands, so the root stands in for it.
+	// The peek unmounts as the block expands, so the root is the toggled
+	// element.
 	const expandFromPeek = () => {
 		if (rootRef.current) {
 			userLayoutIntent(rootRef.current, { revealEnd: true });

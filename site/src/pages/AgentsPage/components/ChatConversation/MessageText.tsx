@@ -132,9 +132,8 @@ export const ResponseBlock = memo<{
 	streamKey: string;
 	urlTransform?: UrlTransform;
 	/**
-	 * Told with the stream key when the block starts and stops showing text.
-	 * Smoothing holds streamed text back for a few frames, and Markdown
-	 * syntax alone, such as a heading marker, renders none.
+	 * Called with the stream key when the block starts and stops showing text.
+	 * Smoothing delays streamed text, and Markdown syntax alone renders none.
 	 */
 	onTextShownChange?: (streamKey: string, shown: boolean) => void;
 }>(({ text, isStreaming, streamKey, urlTransform, onTextShownChange }) => {

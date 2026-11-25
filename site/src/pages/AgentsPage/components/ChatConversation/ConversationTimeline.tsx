@@ -116,10 +116,8 @@ const LifecycleHookNotice: React.FC<{
 );
 
 /**
- * How many of its block's newest slices a collapsed live block's peek
- * renders, so a long block costs what a short one does. A slice without a
- * step row, such as narration, renders nothing, so the peek can show fewer
- * than three rows.
+ * How many of a block's newest slices its peek renders, so a long block costs
+ * what a short one does.
  */
 const PEEK_SLICES = 4;
 
@@ -205,7 +203,6 @@ const ChatMessageItem = memo<{
 		showDesktopPreviews,
 	}) => {
 		const isUser = message?.role === "user";
-		// In a working block's peek, a slice shows only its step rows.
 		const inSummary = useInToolCallSummary();
 		const messageId = message?.id;
 
@@ -658,8 +655,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				slice.pieceRange !== undefined ||
 				liveBlocks.some((block) => block.type === "response"),
 		);
-		// Smoothing can hold a live reply's text back for a few frames after
-		// its slice renders, so a peek that shows waits for the text.
+		// A peek that shows stays until the reply's text shows.
 		const lastShownReplyIndex = findLastReply(
 			(slice) => (replyTextCounts.get(slice.key) ?? 0) > 0,
 		);

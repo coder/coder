@@ -25,10 +25,7 @@ const TWO_ROWS_HEIGHT = RAIL_GAP + 2 * ROW_HEIGHT + ROW_GAP;
 const TOP_FADE = RAIL_GAP + ROW_INK_INSET;
 const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${ROW_INK_INSET}px), transparent)`;
 
-/**
- * Rows and the window share one curve that lands, so they arrive together
- * without a creeping tail.
- */
+/** Rows and the window share one transition, so they arrive together. */
 const slide = { duration: 0.3, ease: [0.2, 0.8, 0.2, 1] } as const;
 
 type WorkingBlockPeekProps = {
@@ -62,7 +59,6 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	const reduceMotion = useReducedMotion();
 
 	const place = useEffectEvent(() => {
-		// With reduced motion the window and rows move without sliding.
 		const transition = reduceMotion ? { duration: 0 } : slide;
 		const track = trackRef.current;
 		if (!track) {
