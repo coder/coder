@@ -681,7 +681,16 @@ describe("FilterCombobox", () => {
 		);
 		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
-		await user.keyboard("{ArrowDown}{Enter}");
+		await user.keyboard("{ArrowDown}");
+		// The category list shows beside the main menu. The input controls the
+		// one listbox that holds its highlighted row.
+		const alice = screen.getByRole("option", { name: "alice" });
+		expect(input).toHaveAttribute("aria-activedescendant", alice.id);
+		const lists = screen.getAllByRole("listbox");
+		expect(
+			lists.filter((list) => list.id === input.getAttribute("aria-controls")),
+		).toEqual(lists.filter((list) => list.contains(alice)));
+		await user.keyboard("{Enter}");
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
@@ -1380,6 +1389,34 @@ describe("FilterCombobox", () => {
 				SUGGESTIONS_ERROR_MESSAGE,
 			),
 		);
+	});
+
+	it("retries failed suggestions from a Retry outside the listbox", async () => {
+		let failed = false;
+		const { user, onChange, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query && !failed) {
+						failed = true;
+						throw new Error("failed");
+					}
+					return ownerCategory.getOptions(query);
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		const retry = await screen.findByRole("button", { name: "Retry" });
+		// A listbox may only hold options and groups.
+		expect(
+			screen.queryAllByRole("listbox").filter((list) => list.contains(retry)),
+		).toEqual([]);
+		await user.click(retry);
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
 	});
 
 	it("activates flyout option buttons and Retry with Enter", async () => {
