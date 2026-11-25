@@ -9,6 +9,7 @@ import {
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -173,9 +174,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							) : (
 								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
-							<span role="status" className="sr-only">
-								{showCopiedSuccess && "Copied"}
-							</span>
+							<CopiedStatus show={showCopiedSuccess} />
 						</DropdownMenuItem>
 					</TooltipTrigger>
 					<TooltipContent side="left">
