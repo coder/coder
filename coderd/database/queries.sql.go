@@ -8472,117 +8472,72 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
-const insertChatProjectPin = `-- name: InsertChatProjectPin :exec
+const pinChatProject = `-- name: PinChatProject :exec
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
-SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
+SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, $3::chat_project_pin_source
 FROM chat_project_pins
 WHERE user_id = $1::uuid
-`
-
-type InsertChatProjectPinParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-}
-
-// Pins a newly created project for its creator at the end of their list.
-func (q *sqlQuerier) InsertChatProjectPin(ctx context.Context, arg InsertChatProjectPinParams) error {
-	_, err := q.db.ExecContext(ctx, insertChatProjectPin, arg.UserID, arg.ProjectID)
-	return err
-}
-
-const pinChatProject = `-- name: PinChatProject :exec
-WITH current_pins AS (
-    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
-    FROM (
-        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
-            SELECT project_id FROM chat_project_ids_for_user($1::uuid, $3::boolean)
-        ) AS stale
-        FROM chat_project_pins p
-        WHERE p.user_id = $1::uuid
-    ) pins
-),
-ranked AS (
-    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY position ASC) :: integer AS position
-    FROM current_pins
-    WHERE project_id <> $2::uuid
-),
-target AS (
-    SELECT LEAST(GREATEST(COALESCE(
-        $4::integer,
-        (SELECT position FROM current_pins WHERE project_id = $2::uuid),
-        pinned_count + 1
-    ), 1), pinned_count + 1) :: integer AS position
-    FROM (SELECT COUNT(*) FILTER (WHERE NOT stale) :: integer AS pinned_count FROM ranked) counts
-),
-shifted AS (
-    UPDATE chat_project_pins p
-    SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
-    FROM ranked CROSS JOIN target
-    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id
-)
-INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
-SELECT $1::uuid, $2::uuid, target.position, 'user'
-FROM target
-ON CONFLICT (user_id, project_id) DO UPDATE SET
-    pin_order = EXCLUDED.pin_order,
-    source = 'user'
+ON CONFLICT (user_id, project_id) DO NOTHING
 `
 
 type PinChatProjectParams struct {
-	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID     `db:"project_id" json:"project_id"`
-	ACLEnabled bool          `db:"acl_enabled" json:"acl_enabled"`
-	PinOrder   sql.NullInt32 `db:"pin_order" json:"pin_order"`
+	UserID    uuid.UUID            `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID            `db:"project_id" json:"project_id"`
+	Source    ChatProjectPinSource `db:"source" json:"source"`
 }
 
-// Pins a project, or moves an already pinned project, to pin_order. Without
-// pin_order a new pin goes to the end and an existing pin keeps its place.
-// Positions count only pins the user can still see and are clamped to
-// [1, count]. Pins on projects the user can no longer see move
-// after the visible ones. Callers must hold the per-user pin lock so
-// concurrent writes cannot interleave.
+// Pins a project at the end of the user's list. An existing pin keeps its
+// place. Callers must hold the per-user pin lock, or two new pins could
+// take the same position.
 func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, pinChatProject,
-		arg.UserID,
-		arg.ProjectID,
-		arg.ACLEnabled,
-		arg.PinOrder,
-	)
+	_, err := q.db.ExecContext(ctx, pinChatProject, arg.UserID, arg.ProjectID, arg.Source)
+	return err
+}
+
+const reorderChatProjectPins = `-- name: ReorderChatProjectPins :exec
+WITH ranked AS (
+    SELECT p.project_id, ROW_NUMBER() OVER (
+        ORDER BY array_position($2::uuid[], p.project_id) ASC NULLS LAST, p.pin_order ASC, p.project_id ASC
+    ) :: integer AS pin_order
+    FROM chat_project_pins p
+    WHERE p.user_id = $1::uuid
+)
+UPDATE chat_project_pins p
+SET pin_order = ranked.pin_order
+FROM ranked
+WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id
+`
+
+type ReorderChatProjectPinsParams struct {
+	UserID     uuid.UUID   `db:"user_id" json:"user_id"`
+	ProjectIDs []uuid.UUID `db:"project_ids" json:"project_ids"`
+}
+
+// Puts the user's pins on project_ids in that order, followed by the user's
+// other pins in their current order. IDs the user has not pinned are
+// ignored. The other pins include those on projects the user can no longer
+// see, so no caller has to work out which pins are hidden. Callers must hold
+// the per-user pin lock, or overlapping reorders could deadlock.
+func (q *sqlQuerier) ReorderChatProjectPins(ctx context.Context, arg ReorderChatProjectPinsParams) error {
+	_, err := q.db.ExecContext(ctx, reorderChatProjectPins, arg.UserID, pq.Array(arg.ProjectIDs))
 	return err
 }
 
 const unpinChatProject = `-- name: UnpinChatProject :exec
-WITH deleted AS (
-    DELETE FROM chat_project_pins
-    WHERE user_id = $1::uuid AND project_id = $2::uuid
-    RETURNING project_id
-),
-updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
-        SELECT project_id FROM chat_project_ids_for_user($1::uuid, $3::boolean)
-    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
-    FROM chat_project_pins p
-    WHERE p.user_id = $1::uuid AND p.project_id <> $2::uuid
-)
-UPDATE chat_project_pins p
-SET pin_order = updates.pin_order
-FROM updates
-WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id
-    AND EXISTS (SELECT 1 FROM deleted)
+DELETE FROM chat_project_pins
+WHERE user_id = $1::uuid AND project_id = $2::uuid
 `
 
 type UnpinChatProjectParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
-	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
 }
 
-// Deletes a pin and compacts the remaining pins to 1..N.
-// Unpinning a project that is not pinned changes nothing. Like
-// PinChatProject, pins the user can still see come first, and callers must
-// hold the per-user pin lock.
+// Deletes a pin. Unpinning a project that is not pinned changes nothing.
+// The remaining pins keep their order, with a gap in pin_order until the
+// next reorder.
 func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
+	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID)
 	return err
 }
 

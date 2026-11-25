@@ -1,72 +1,34 @@
--- name: InsertChatProjectPin :exec
--- Pins a newly created project for its creator at the end of their list.
-INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
-SELECT @user_id::uuid, @project_id::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
-FROM chat_project_pins
-WHERE user_id = @user_id::uuid;
-
 -- name: PinChatProject :exec
--- Pins a project, or moves an already pinned project, to pin_order. Without
--- pin_order a new pin goes to the end and an existing pin keeps its place.
--- Positions count only pins the user can still see and are clamped to
--- [1, count]. Pins on projects the user can no longer see move
--- after the visible ones. Callers must hold the per-user pin lock so
--- concurrent writes cannot interleave.
-WITH current_pins AS (
-    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
-    FROM (
-        SELECT p.project_id, p.pin_order, p.project_id NOT IN (
-            SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, @acl_enabled::boolean)
-        ) AS stale
-        FROM chat_project_pins p
-        WHERE p.user_id = @user_id::uuid
-    ) pins
-),
-ranked AS (
-    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY position ASC) :: integer AS position
-    FROM current_pins
-    WHERE project_id <> @project_id::uuid
-),
-target AS (
-    SELECT LEAST(GREATEST(COALESCE(
-        sqlc.narg('pin_order')::integer,
-        (SELECT position FROM current_pins WHERE project_id = @project_id::uuid),
-        pinned_count + 1
-    ), 1), pinned_count + 1) :: integer AS position
-    FROM (SELECT COUNT(*) FILTER (WHERE NOT stale) :: integer AS pinned_count FROM ranked) counts
-),
-shifted AS (
-    UPDATE chat_project_pins p
-    SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
-    FROM ranked CROSS JOIN target
-    WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id
-)
+-- Pins a project at the end of the user's list. An existing pin keeps its
+-- place. Callers must hold the per-user pin lock, or two new pins could
+-- take the same position.
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
-SELECT @user_id::uuid, @project_id::uuid, target.position, 'user'
-FROM target
-ON CONFLICT (user_id, project_id) DO UPDATE SET
-    pin_order = EXCLUDED.pin_order,
-    source = 'user';
+SELECT @user_id::uuid, @project_id::uuid, COALESCE(MAX(pin_order), 0) + 1, @source::chat_project_pin_source
+FROM chat_project_pins
+WHERE user_id = @user_id::uuid
+ON CONFLICT (user_id, project_id) DO NOTHING;
 
--- name: UnpinChatProject :exec
--- Deletes a pin and compacts the remaining pins to 1..N.
--- Unpinning a project that is not pinned changes nothing. Like
--- PinChatProject, pins the user can still see come first, and callers must
--- hold the per-user pin lock.
-WITH deleted AS (
-    DELETE FROM chat_project_pins
-    WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid
-    RETURNING project_id
-),
-updates AS (
-    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY p.project_id NOT IN (
-        SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, @acl_enabled::boolean)
-    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order
+-- name: ReorderChatProjectPins :exec
+-- Puts the user's pins on project_ids in that order, followed by the user's
+-- other pins in their current order. IDs the user has not pinned are
+-- ignored. The other pins include those on projects the user can no longer
+-- see, so no caller has to work out which pins are hidden. Callers must hold
+-- the per-user pin lock, or overlapping reorders could deadlock.
+WITH ranked AS (
+    SELECT p.project_id, ROW_NUMBER() OVER (
+        ORDER BY array_position(@project_ids::uuid[], p.project_id) ASC NULLS LAST, p.pin_order ASC, p.project_id ASC
+    ) :: integer AS pin_order
     FROM chat_project_pins p
-    WHERE p.user_id = @user_id::uuid AND p.project_id <> @project_id::uuid
+    WHERE p.user_id = @user_id::uuid
 )
 UPDATE chat_project_pins p
-SET pin_order = updates.pin_order
-FROM updates
-WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id
-    AND EXISTS (SELECT 1 FROM deleted);
+SET pin_order = ranked.pin_order
+FROM ranked
+WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id;
+
+-- name: UnpinChatProject :exec
+-- Deletes a pin. Unpinning a project that is not pinned changes nothing.
+-- The remaining pins keep their order, with a gap in pin_order until the
+-- next reorder.
+DELETE FROM chat_project_pins
+WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid;
