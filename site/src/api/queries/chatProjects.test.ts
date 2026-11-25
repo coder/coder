@@ -17,7 +17,7 @@ import {
 	createChatProject,
 	deleteChatProject,
 	joinChatProjectSummaries,
-	pinChatProject,
+	reorderChatProjectPins,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -85,7 +85,7 @@ describe("chat project mutations", () => {
 	});
 
 	it("refreshes only the summaries after a pin change", async () => {
-		for (const factory of [pinChatProject, unpinChatProject]) {
+		for (const factory of [reorderChatProjectPins, unpinChatProject]) {
 			const queryClient = seed();
 			queryClient.setQueryData(chatProjectSummariesKey, []);
 			await settle(factory(queryClient));
@@ -95,86 +95,32 @@ describe("chat project mutations", () => {
 			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
 		}
 	});
-
-	it("moves a pinned project in the cached order and restores it when the move fails", async () => {
-		const mockBillingProject = { ...MockChatProject, id: "billing-project" };
-		const mockBillingSummary = {
-			...MockChatProjectSummary,
-			project_id: mockBillingProject.id,
-			pin_order: 2,
-		};
-		const queryClient = createTestQueryClient();
-		// Keeps the summaries cached without an observer.
-		queryClient.setQueryDefaults(chatProjectSummariesKey, {
-			gcTime: Number.POSITIVE_INFINITY,
-		});
-		queryClient.setQueryData(chatProjectSummariesKey, [
-			MockChatProjectSummary,
-			mockBillingSummary,
-		]);
-		const pinOrderById = () =>
-			Object.fromEntries(
-				(
-					queryClient.getQueryData<ChatProjectSummary[]>(
-						chatProjectSummariesKey,
-					) ?? []
-				).map((s) => [s.project_id, s.pin_order]),
-			);
-		let rejectPin: (error: unknown) => void = () => {};
-		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
-			new Promise((_resolve, reject) => {
-				rejectPin = reject;
-			}),
-		);
-		onTestFinished(() => {
-			vi.restoreAllMocks();
-		});
-
-		const move = new MutationObserver(
-			queryClient,
-			pinChatProject(queryClient),
-		).mutate({ project: mockBillingProject, pinOrder: 1 });
-		await vi.waitFor(() =>
-			expect(pinOrderById()).toEqual({
-				[mockBillingProject.id]: 1,
-				[MockChatProject.id]: 2,
-			}),
-		);
-
-		rejectPin(mockApiError({}));
-		await expect(move).rejects.toBeDefined();
-		expect(pinOrderById()).toEqual({
-			[MockChatProject.id]: 1,
-			[mockBillingProject.id]: 2,
-		});
-	});
 });
 
-describe("pinChatProject ordering", () => {
-	const [mockLaunch, mockBilling, mockOps] = ["launch", "billing", "ops"].map(
-		(id, index) => ({
-			...MockChatProjectSummary,
-			project_id: id,
-			pin_order: index + 1,
-		}),
-	);
+describe("reorderChatProjectPins", () => {
 	const setup = () => {
 		const queryClient = createTestQueryClient();
 		// Keeps the summaries cached without an observer.
 		queryClient.setQueryDefaults(chatProjectSummariesKey, {
 			gcTime: Number.POSITIVE_INFINITY,
 		});
-		queryClient.setQueryData(chatProjectSummariesKey, [
-			mockLaunch,
-			mockBilling,
-			mockOps,
-		]);
-		const requests: { id: string; settle: (error?: unknown) => void }[] = [];
-		const pin = vi.spyOn(API.experimental, "pinChatProject").mockImplementation(
-			(_organizationId, id) =>
+		queryClient.setQueryData(
+			chatProjectSummariesKey,
+			["launch", "billing", "ops"].map((id, index) => ({
+				...MockChatProjectSummary,
+				project_id: id,
+				pin_order: index + 1,
+			})),
+		);
+		const requests: {
+			projectIds: readonly string[];
+			settle: (error?: unknown) => void;
+		}[] = [];
+		vi.spyOn(API.experimental, "reorderChatProjectPins").mockImplementation(
+			(req) =>
 				new Promise((resolve, reject) => {
 					requests.push({
-						id,
+						projectIds: req.project_ids,
 						settle: (error) => (error ? reject(error) : resolve()),
 					});
 				}),
@@ -182,11 +128,11 @@ describe("pinChatProject ordering", () => {
 		onTestFinished(() => {
 			vi.restoreAllMocks();
 		});
-		const move = (summary: ChatProjectSummary, pinOrder: number) =>
-			new MutationObserver(queryClient, pinChatProject(queryClient)).mutate({
-				project: { ...MockChatProject, id: summary.project_id },
-				pinOrder,
-			});
+		const reorder = (...projectIds: string[]) =>
+			new MutationObserver(
+				queryClient,
+				reorderChatProjectPins(queryClient),
+			).mutate(projectIds);
 		const pinnedIds = () =>
 			(
 				queryClient.getQueryData<ChatProjectSummary[]>(
@@ -195,29 +141,41 @@ describe("pinChatProject ordering", () => {
 			)
 				.toSorted((a, b) => a.pin_order - b.pin_order)
 				.map((s) => s.project_id);
-		return { queryClient, requests, pin, move, pinnedIds };
+		return { requests, reorder, pinnedIds };
 	};
 
-	it("sends queued moves one at a time, in order", async () => {
-		const { requests, pin, move } = setup();
-		const first = move(mockOps, 1);
-		const second = move(mockBilling, 1);
+	it("shows the new order at once, with unlisted pins last, and restores the old order when the request fails", async () => {
+		const { requests, reorder, pinnedIds } = setup();
+		const reordered = reorder("ops", "launch");
+		await vi.waitFor(() =>
+			expect(pinnedIds()).toEqual(["ops", "launch", "billing"]),
+		);
+
 		await vi.waitFor(() => expect(requests).toHaveLength(1));
-		expect(pin).toHaveBeenCalledTimes(1);
-		expect(requests[0].id).toBe(mockOps.project_id);
+		requests[0].settle(mockApiError({}));
+		await expect(reordered).rejects.toBeDefined();
+		expect(pinnedIds()).toEqual(["launch", "billing", "ops"]);
+	});
+
+	it("sends queued reorders one at a time, in order", async () => {
+		const { requests, reorder } = setup();
+		const first = reorder("ops", "launch", "billing");
+		const second = reorder("billing", "ops", "launch");
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		expect(requests[0].projectIds).toEqual(["ops", "launch", "billing"]);
 
 		requests[0].settle();
 		await first;
 		await vi.waitFor(() => expect(requests).toHaveLength(2));
-		expect(requests[1].id).toBe(mockBilling.project_id);
+		expect(requests[1].projectIds).toEqual(["billing", "ops", "launch"]);
 		requests[1].settle();
 		await second;
 	});
 
-	it("keeps a later queued move when an earlier one fails", async () => {
-		const { requests, move, pinnedIds } = setup();
-		const first = move(mockOps, 1);
-		const second = move(mockBilling, 1);
+	it("keeps a later queued reorder when an earlier one fails", async () => {
+		const { requests, reorder, pinnedIds } = setup();
+		const first = reorder("ops", "launch", "billing");
+		const second = reorder("billing", "ops", "launch");
 		await vi.waitFor(() =>
 			expect(pinnedIds()).toEqual(["billing", "ops", "launch"]),
 		);

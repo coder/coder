@@ -105,51 +105,41 @@ const invalidateProjectPins = async (queryClient: QueryClient) => {
 	}
 };
 
-type PinChatProjectVariables = {
-	project: TypesGen.ChatProject;
-	pinOrder?: number;
-};
-
-/** Pins a project at the end, or moves a pinned project to pinOrder. */
-export const pinChatProject = (queryClient: QueryClient) =>
+/**
+ * Saves the order of the pinned projects. As on the server, pins left out of
+ * projectIds follow the listed ones in their current order.
+ */
+export const reorderChatProjectPins = (queryClient: QueryClient) =>
 	mutationOptions({
 		...projectPinsMutationOptions,
-		mutationFn: ({ project, pinOrder }: PinChatProjectVariables) =>
-			API.experimental.pinChatProject(
-				project.organization_id,
-				project.id,
-				pinOrder,
-			),
-		// A move shows at once, and a summaries fetch already in flight cannot
-		// put the project back while the request runs.
-		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
-			if (pinOrder === undefined) {
-				return { previousSummaries: undefined };
-			}
+		mutationFn: (projectIds: readonly string[]) =>
+			API.experimental.reorderChatProjectPins({ project_ids: projectIds }),
+		// The new order shows at once, and a summaries fetch already in flight
+		// cannot put the projects back while the request runs.
+		onMutate: async (projectIds: readonly string[]) => {
 			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
 			const previousSummaries = queryClient.getQueryData<
 				TypesGen.ChatProjectSummary[]
 			>(chatProjectSummariesKey);
-			const previousPinnedIds = getPinnedProjectSummaries(
-				previousSummaries ?? [],
-			).map((s) => s.project_id);
-			const pinnedIds = previousPinnedIds
-				.filter((id) => id !== project.id)
-				.toSpliced(pinOrder - 1, 0, project.id);
-			const pinOrderById = new Map(pinnedIds.map((id, i) => [id, i + 1]));
+			const listedAt = new Map(projectIds.map((id, index) => [id, index]));
+			const place = (summary: TypesGen.ChatProjectSummary) =>
+				listedAt.get(summary.project_id) ?? projectIds.length;
+			const pinOrderById = new Map(
+				getPinnedProjectSummaries(previousSummaries ?? [])
+					.sort((a, b) => place(a) - place(b))
+					.map((summary, index) => [summary.project_id, index + 1]),
+			);
 			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
 				chatProjectSummariesKey,
 				(summaries) =>
 					summaries?.map((s) => {
 						const order = pinOrderById.get(s.project_id);
-						return order === undefined
-							? s
-							: { ...s, pinned: true, pin_order: order };
+						return order === undefined ? s : { ...s, pin_order: order };
 					}),
 			);
 			return { previousSummaries };
 		},
-		onError: (_error, _variables, context) => {
+		onError: (_error, _projectIds, context) => {
 			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
 				queryClient.setQueryData(
 					chatProjectSummariesKey,

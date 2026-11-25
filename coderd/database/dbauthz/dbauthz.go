@@ -6691,13 +6691,6 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
-func (q *querier) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
-	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
-		return err
-	}
-	return q.db.InsertChatProjectPin(ctx, arg)
-}
-
 // InsertChatProjectTemplates requires use on every template as well as
 // update on the project, so attaching can never reach a template the actor
 // cannot use.
@@ -7794,6 +7787,16 @@ func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewCha
 		return nil, err
 	}
 	return q.db.RenewChatHeartbeats(ctx, arg)
+}
+
+// ReorderChatProjectPins changes only the order of the user's own pins and
+// reveals nothing about the listed projects, so it is authorized on the user
+// alone.
+func (q *querier) ReorderChatProjectPins(ctx context.Context, arg database.ReorderChatProjectPinsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return err
+	}
+	return q.db.ReorderChatProjectPins(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
