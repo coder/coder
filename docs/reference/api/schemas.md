@@ -14133,20 +14133,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `negate`        | boolean                                        | false    |              | Negate makes this a negative permission |
 | `resource_type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |                                         |
 
-## codersdk.PinChatProjectRequest
-
-```json
-{
-  "pin_order": 0
-}
-```
-
-### Properties
-
-| Name        | Type    | Required | Restrictions | Description                                                                                                                  |
-|-------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
-| `pin_order` | integer | false    |              | Pin order is the 1-based position to pin at. When omitted, a new pin goes to the end and an existing pin keeps its position. |
-
 ## codersdk.PostOAuth2ProviderAppRequest
 
 ```json
@@ -15230,6 +15216,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name      | Type                                                        | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------|----------|--------------|-------------|
 | `regions` | array of [codersdk.WorkspaceProxy](#codersdkworkspaceproxy) | false    |              |             |
+
+## codersdk.ReorderChatProjectPinsRequest
+
+```json
+{
+  "project_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type            | Required | Restrictions | Description                                                                                                                                                                  |
+|---------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `project_ids` | array of string | false    |              | Project ids are the pinned projects in their new order. Pins that are left out follow the listed ones in their current order, and IDs the caller has not pinned are ignored. |
 
 ## codersdk.Replica
 

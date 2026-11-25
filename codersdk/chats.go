@@ -311,12 +311,13 @@ type ChatProjectMemberCount struct {
 	MemberCount int64 `json:"member_count"`
 }
 
-// PinChatProjectRequest pins a chat project for the caller, or moves an
-// already pinned project.
-type PinChatProjectRequest struct {
-	// PinOrder is the 1-based position to pin at. When omitted, a new pin
-	// goes to the end and an existing pin keeps its position.
-	PinOrder *int32 `json:"pin_order,omitempty"`
+// ReorderChatProjectPinsRequest sets the order of the caller's pinned chat
+// projects.
+type ReorderChatProjectPinsRequest struct {
+	// ProjectIDs are the pinned projects in their new order. Pins that are
+	// left out follow the listed ones in their current order, and IDs the
+	// caller has not pinned are ignored.
+	ProjectIDs []uuid.UUID `json:"project_ids" format:"uuid"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -2730,9 +2731,15 @@ func (c *ExperimentalClient) ListChatProjectMemberCounts(ctx context.Context) ([
 	return requestJSON[[]ChatProjectMemberCount](ctx, c.Client, http.MethodGet, "/api/experimental/chats/projects/member-counts", http.StatusOK, nil)
 }
 
-// PinChatProject pins a chat project for the caller or moves its pin.
-func (c *ExperimentalClient) PinChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req PinChatProjectRequest) error {
-	return requestNoContent(ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/pin", req)
+// PinChatProject pins a chat project at the end of the caller's pins. A
+// project that is already pinned keeps its place.
+func (c *ExperimentalClient) PinChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/pin", nil)
+}
+
+// ReorderChatProjectPins sets the order of the caller's pinned chat projects.
+func (c *ExperimentalClient) ReorderChatProjectPins(ctx context.Context, req ReorderChatProjectPinsRequest) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, "/api/experimental/chats/projects/pins/order", req)
 }
 
 // UnpinChatProject unpins a chat project for the caller.
