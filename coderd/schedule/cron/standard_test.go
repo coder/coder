@@ -64,6 +64,11 @@ func TestStandard(t *testing.T) {
 			{name: "CronTZPrefix", spec: "CRON_TZ=UTC 0 9 * * *", zone: "UTC", wantErr: "time zone"},
 			{name: "TZPrefix", spec: "TZ=UTC 0 9 * * *", zone: "UTC", wantErr: "time zone"},
 			{name: "NotANumber", spec: "a * * * *", zone: "UTC", wantErr: "parse"},
+			// Extensions of other cron dialects: Sunday as 7, the last day of
+			// the month and the nth weekday of the month.
+			{name: "SundayAsSeven", spec: "0 9 * * 7", zone: "UTC", wantErr: "parse"},
+			{name: "LastDayOfMonth", spec: "0 9 L * *", zone: "UTC", wantErr: "parse"},
+			{name: "NthWeekday", spec: "0 9 * * 1#2", zone: "UTC", wantErr: "parse"},
 			{name: "NeverRuns", spec: "0 0 30 2 *", zone: "UTC", wantErr: "never runs"},
 			{name: "EmptyZone", spec: "0 9 * * *", zone: "", wantErr: "time zone is empty"},
 			{name: "UnknownZone", spec: "0 9 * * *", zone: "Nowhere/Land", wantErr: "unknown time zone"},
@@ -84,6 +89,11 @@ func TestStandard(t *testing.T) {
 			{name: "PosixZone", spec: "0 9 * * *", zone: "posix/America/New_York", wantErr: "is not a zone name"},
 			// The files that are not zones, in any directory.
 			{name: "LocaltimeInADirectory", spec: "0 9 * * *", zone: "Etc/localtime", wantErr: `"Etc/localtime" is not supported`},
+			// Letter case does not change the rule: a case-insensitive file
+			// system loads factory as Factory.
+			{name: "LocalUppercase", spec: "0 9 * * *", zone: "LOCAL", wantErr: `"LOCAL" is not supported`},
+			{name: "FactoryLowercase", spec: "0 9 * * *", zone: "factory", wantErr: `"factory" is not supported`},
+			{name: "PosixUppercase", spec: "0 9 * * *", zone: "POSIX/UTC", wantErr: "is not a zone name"},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -113,6 +123,15 @@ func TestStandard_Next(t *testing.T) {
 			zone: "UTC",
 			from: "2026-12-10T12:00:00Z",
 			want: []string{"2026-12-11T00:00:00Z", "2026-12-13T00:00:00Z", "2026-12-18T00:00:00Z"},
+		},
+		{
+			// A step such as */2 restricts the day of month, so either field
+			// matches. A parser that reads */2 as * runs on Mondays only.
+			name: "DayOfMonthStepOrDayOfWeek",
+			spec: "0 9 */2 * 1",
+			zone: "Pacific/Auckland",
+			from: "2027-01-02T00:00:00+13:00",
+			want: []string{"2027-01-03T09:00:00+13:00", "2027-01-04T09:00:00+13:00", "2027-01-05T09:00:00+13:00", "2027-01-07T09:00:00+13:00"},
 		},
 		{
 			// 2100 is not a leap year, so the leap days are eight years apart,

@@ -102,6 +102,32 @@ export const Lists: Story = {
 	],
 };
 
+export const LiteralListNumbers: Story = {
+	args: {
+		children: `Steps 2 and 6 were already done, so the rest are:
+
+1. Clone the repository.
+3. Install dependencies.
+4. Run the migrations.
+5. Start the server.
+7. Open the dashboard.
+
+A list written as all ones still counts up:
+
+1. First.
+1. Second.
+1. Third.
+`,
+	},
+};
+
+export const SingleTildes: Story = {
+	args: {
+		children:
+			"Each step takes ~5 min, so 10~15 min total, or 20~30 min on a cold cache. Only ~~double tildes~~ strike text through.",
+	},
+};
+
 export const TableColumnAlignment: Story = {
 	args: {
 		children: [
@@ -156,20 +182,20 @@ export const LongLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		// The fenced block renders asynchronously inside the FileViewer
-		// shadow root, so retry until a horizontally scrollable viewport
+		// shadow root, so retry until a horizontally scrollable container
 		// exists, then scroll it so the capture shows the scrolled state.
-		const viewport = await waitFor(() => {
-			const found = [
-				...canvasElement.querySelectorAll<HTMLElement>(
-					"[data-radix-scroll-area-viewport]",
-				),
-			].find((v) => v.scrollWidth > v.clientWidth);
+		const scroller = await waitFor(() => {
+			const found = [...canvasElement.querySelectorAll<HTMLElement>("*")].find(
+				(el) =>
+					getComputedStyle(el).overflowX === "auto" &&
+					el.scrollWidth > el.clientWidth,
+			);
 			if (!found) {
-				throw new Error("Expected a horizontally scrollable viewport.");
+				throw new Error("Expected a horizontally scrollable code block.");
 			}
 			return found;
 		});
-		viewport.scrollLeft = 200;
+		scroller.scrollLeft = 200;
 	},
 };
 

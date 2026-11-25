@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -98,6 +99,23 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	requireOpenAIUserOption(t, summaryObjectCall(resolved).ProviderOptions, "summary-options-sentinel")
 }
 
+func TestResolvedModelCallStageModelMarksBedrockSettings(t *testing.T) {
+	t.Parallel()
+	settings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+	resolved := resolvedModelCall{
+		route: aiGatewayModelRoute{Provider: database.AIProvider{
+			Type:     database.AIProviderTypeAnthropic,
+			Settings: sql.NullString{String: string(settings), Valid: true},
+		}},
+		resolvedModel: "claude",
+	}
+
+	require.True(t, resolved.stageModel().Bedrock)
+}
+
 func TestResolveModelCallStageModel(t *testing.T) {
 	t.Parallel()
 
@@ -185,13 +203,18 @@ func TestResolveModelCallStageModel(t *testing.T) {
 			}}})
 			require.Error(t, err)
 			ended := recorder.Ended()
-			require.Len(t, ended, 1)
-			require.Equal(t, string(chatloop.StageProviderAttempt), ended[0].Name())
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
-			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
+			require.Len(t, ended, 2)
+			// The provider attempt ends inside the model call's chat span.
+			attemptSpan, modelCall := ended[0], ended[1]
+			require.Equal(t, chatloop.StageModelCall, spanStage(modelCall))
+			require.Equal(t, modelCall.SpanContext().SpanID(), attemptSpan.Parent().SpanID())
+			require.Contains(t, modelCall.Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
+			require.Equal(t, string(chatloop.StageProviderAttempt), attemptSpan.Name())
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
+			require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
 			if wantStageModel.Effort != "" {
-				require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrReasoningEffort, wantStageModel.Effort))
+				require.Contains(t, attemptSpan.Attributes(), attribute.String(chatloop.AttrReasoningEffort, wantStageModel.Effort))
 			}
 		})
 	}
