@@ -85,7 +85,6 @@ This means:
 When a workspace _is_ needed, the agent reads the templates available to that user (including their descriptions and parameters), selects the appropriate one, and creates a workspace automatically.
 Template visibility is scoped to the user's role and permissions, so the agent can only select templates the user is authorized to use.
 Users can also manually choose which workspace is used when starting a new chat.
-Chats that share a workspace also share its files, and Coder doesn't isolate them from each other.
 Before you attach a workspace to more than one chat, refer to [Chats that share a workspace are not isolated](./architecture.md#chats-that-share-a-workspace-are-not-isolated).
 
 Platform teams control template routing by writing clear template descriptions.

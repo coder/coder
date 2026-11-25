@@ -300,28 +300,17 @@ The agent cannot provision a workspace from a template the user does not have pe
 
 ## Chats that share a workspace are not isolated
 
-The permission boundaries above keep users apart.
-They do not keep apart the chats of one user that run on the same workspace.
-
-You can attach more than one chat to a workspace, for example by selecting an existing workspace for a new chat or by passing the same `workspace_id` to the Chats API.
-Those chats share the workspace's file system, including the home directory, `/tmp`, git checkouts, and credentials.
-They run commands as the same workspace user, and no chat knows that the others exist.
-Because every chat can run shell commands, Coder can't isolate chats from each other within one workspace.
-
-When two chats use the same fixed path, such as a temporary file for a pull request description or a clone directory, one chat silently overwrites the other's file.
-The agent might not notice the overwrite and can report success.
-Content from one chat can then end up in the other chat's commits, pushes, or pull requests.
+Chats attached to the same workspace share its files, including the home directory, `/tmp`, git checkouts, and credentials.
+No chat knows the others exist, and Coder can't isolate them without restricting shell commands.
+If two chats write to the same path, one overwrites the other's file, and the agent might still report success.
 
 > [!WARNING]
-> Do not run chats that work in repositories with different visibility on the same workspace.
-> Content from a private repository or internal context can be committed, pushed, or posted to another repository, including a public one.
+> Do not share a workspace between chats that work in repositories with different visibility.
+> Content from a private repository can end up in commits, pushes, or pull requests in another repository, including a public one.
 
-To keep unrelated work apart:
-
-- Use a separate workspace for each chat that works on unrelated tasks.
-- If chats must share a workspace, give each chat its own git worktree or clone directory.
-- If chats must share a workspace, tell the agent to create temporary files with unique names, for example with `mktemp`, instead of fixed paths.
-  Put this rule in your personal instructions or in the workspace's [`AGENTS.md`](./getting-started.md#add-workspace-context-with-agentsmd) file.
+Use a separate workspace for each unrelated chat.
+If chats must share a workspace, give each chat its own git worktree.
+In your personal instructions or [`AGENTS.md`](./getting-started.md#add-workspace-context-with-agentsmd), tell the agent to create temporary files with `mktemp` instead of fixed paths.
 
 ## Scaling and resource impact
 
