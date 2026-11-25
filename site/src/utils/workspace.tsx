@@ -35,6 +35,7 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "autostart":
 		case "autostop":
 		case "dormancy":
+		case "autodelete":
 			return "Coder";
 	}
 	if (legacySystemBuildReasons.includes(build.reason)) {
@@ -46,27 +47,33 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 	return undefined;
 };
 
-export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+export const systemBuildReasons = [
+	"autostart",
+	"autostop",
+	"dormancy",
+	"autodelete",
+];
 
 const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
 	initiator: "API",
 	dashboard: "Dashboard",
 	cli: "CLI",
-	ssh_connection: "SSH Connection",
-	vscode_connection: "VSCode Connection",
-	jetbrains_connection: "JetBrains Connection",
+	ssh_connection: "SSH connection",
+	vscode_connection: "VSCode connection",
+	jetbrains_connection: "JetBrains connection",
 
 	// System build reasons
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
+	autodelete: "Autodelete",
 };
 
 // Build reasons removed from the API that can still appear on retained
 // workspace builds and their audit logs.
 const legacyBuildReasonLabels: Record<string, string> = {
-	task_resume: "Task Resume",
+	task_resume: "Task resume",
 };
 
 // Retained audit rows and workspace builds for automatic task pauses were

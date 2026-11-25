@@ -101,7 +101,9 @@ Override a group budget when one user needs a different limit from the rest of t
 Overrides behave as follows:
 
 - A user can have only one override at a time.
-- An override supersedes every group budget the user belongs to.
+- An override applies to requests in the organization of its assigned group, where it supersedes every group budget the user belongs to.
+  It doesn't apply to requests in other organizations.
+  For details, refer to [Request organization](./request-organization.md#effective-group-and-budget).
 - Spend is always attributed to a group, so an override must name the assigned group.
   This group can be different from the group selected in the **Members** tab.
   The user must belong to the assigned group.
@@ -111,7 +113,7 @@ Overrides behave as follows:
 ### Effective group resolution
 
 A user can belong to several groups that have budgets, and can also hold an override.
-AI Gateway resolves a single effective group for each request, in this order:
+AI Gateway assigns each request to one organization, then resolves a single effective group for the request within that organization, in this order:
 
 1. The user's [override](#user-override) takes precedence over every group budget.
 1. Otherwise, the [budget policy](#deployment-settings) selects one of the user's groups.
@@ -119,12 +121,15 @@ AI Gateway resolves a single effective group for each request, in this order:
    The default policy, `highest`, selects the group with the largest budget.
 1. If none of those groups has a budget, the user has *effectively* unlimited spend.
 
-   Their spend is recorded against the `Everyone` group.
+   Their spend is recorded against the organization's `Everyone` group.
+
+When a request authenticates with a workspace session token or comes from a Coder Agents chat, only the user's groups in that organization count.
+When it comes from any other client, AI Gateway resolves the effective group across all of the user's organizations, and the request takes that group's organization.
+For the full rules, refer to [Request organization](./request-organization.md).
 
 > [!NOTE]
 > Groups with identical budgets are ranked by the organization membership the user joined first, then by group ID.
-> To see the effective group currently assigned to a user, see [Monitor spend](#monitor-spend).
-> The effective group is deployment-wide, so it can be a group in a different organization.
+> To see the effective group resolved across all of a user's organizations, see [Monitor spend](#monitor-spend).
 
 Recorded spend is immutable.
 Changing which budget applies to a user affects future requests only: spend that Coder has already recorded stays with the group it was attributed to, so a user's history can span several groups.
@@ -139,7 +144,7 @@ The check compares the user's spend in the current budget period with the budget
 - Spend at or above the budget: AI Gateway returns `403 Forbidden` with a message that describes the issue.
 
 Users without a budget have **unlimited spend**, so their requests proceed without enforcement.
-A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added.
+A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added for a group in the request's organization.
 
 > [!NOTE]
 > Enforcement is approximate.
@@ -229,7 +234,7 @@ Coder also notifies Owners weekly about models used in the past week that have n
 ### Configure model prices
 
 Use the experimental `coder exp ai-model-prices` command to set model prices for your deployment.
-It requires AI Governance, which is included with a Premium license, and the Owner [role](../../admin/users/groups-roles.md) or a custom role granting `ai_model_price:update`.
+It requires AI Governance, which is included with a Premium license, and the Owner [role](../../admin/users/groups-roles.md).
 Run `coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or model.
@@ -307,8 +312,17 @@ Visibility follows the viewer's role:
   If the effective group is in a different organization, the row shows a dash and explains that the group is not visible there.
   Because the organization's `Everyone` group includes every member, its **Members** tab is a quick way to look up any user's effective group.
 - The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
+  A user in more than one organization can choose an organization in the menu to see their spend and budget there, and the badge on their avatar follows that choice.
+  Once spend reaches the budget, the menu shows `Limit exceeded` and the date the budget period ends, when AI requests resume.
 
 Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
+This endpoint resolves the effective group across all of the user's organizations, so it can be a group in a different organization.
+To see the user's effective group, budget, and spend in each of their organizations that you can read, use the [Get user AI spend by organization](../../reference/api/enterprise.md#get-user-ai-spend-by-organization) API endpoint.
+To see the budget and spend that apply to a user in one organization, use the [Get organization member AI spend](../../reference/api/enterprise.md#get-organization-member-ai-spend) API endpoint.
+Users can read their own spend, and administrators can read the spend of a user whose membership in that organization they can read.
+
+For a user in several organizations, some of these reports can differ from the budget that applied to a request.
+Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).
 
 ### Spend export
 
@@ -323,7 +337,11 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - To select a range, pass `period_start` and `period_end` together as Request for Comments (RFC) 3339 timestamps.
   A range can span at most 31&nbsp;days.
 - Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
-- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+- Each CSV row breaks spend down by user, group, model, provider, and client, with the underlying token counts.
+  Usage without a recorded client is reported as `Unknown`.
+- To narrow the export, pass `user_id`, `group_id`, `provider_name`, `model`, or `client`.
+  Use `client=Unknown` for usage without a recorded client.
+- New columns are only added at the end, so existing columns keep their position.
 
 <!-- TODO(AIGOV-685): Restore once the per-user spend endpoint moves out of /api/experimental.
 For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).

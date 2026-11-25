@@ -248,6 +248,14 @@ func TestCoordinator(t *testing.T) {
 	})
 }
 
+func TestCoordinator_TunnelPolicyRefusal(t *testing.T) {
+	t.Parallel()
+	logger := testutil.Logger(t)
+	coordinator := tailnet.NewCoordinator(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.TunnelPolicyRefusalTest(ctx, t, coordinator)
+}
+
 func TestCoordinator_BidirectionalTunnels(t *testing.T) {
 	t.Parallel()
 	logger := testutil.Logger(t)

@@ -166,6 +166,8 @@ linters:
       checks:
         - all
         - -SA1019
+    testpackage:
+      skip-regexp: _internal_test\.go$
     usetesting:
       context-background: false
       context-todo: false
@@ -190,6 +192,10 @@ linters:
       - linters:
           - exhaustruct
         path: ^scripts/
+      # Legacy export_test.go shims. Do not add to this list.
+      - linters:
+          - testpackage
+        path: ^coderd/(|aibridged/|x/chatd/|x/chatd/chatstate/|x/chatd/mcpclient/)export_test\.go$
       - linters:
           - ALL
         path: scripts/rules.go

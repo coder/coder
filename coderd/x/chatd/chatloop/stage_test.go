@@ -17,8 +17,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/quartz"
 )
+
+func spanStage(span sdktrace.ReadOnlySpan) chatloop.Stage {
+	return chatloop.Stage(chattest.SpanStage(span))
+}
 
 type stageFixture struct {
 	tracer   *chatloop.StageTracer
@@ -114,7 +119,7 @@ func (f stageFixture) spanDuration(t *testing.T, stage chatloop.Stage) time.Dura
 	t.Helper()
 	var found []sdktrace.ReadOnlySpan
 	for _, span := range f.spans.Ended() {
-		if span.Name() == string(stage) {
+		if spanStage(span) == stage {
 			found = append(found, span)
 		}
 	}
@@ -249,7 +254,8 @@ func TestStageTracerStartRootAtIgnoresParent(t *testing.T) {
 	ended := fixture.spans.Ended()
 	require.Len(t, ended, 2)
 	turn, step := ended[0], ended[1]
-	require.Equal(t, string(chatloop.StageChatTurn), turn.Name())
+	require.Equal(t, chatloop.StageChatTurn, spanStage(turn))
+	require.Equal(t, "invoke_agent coder", turn.Name())
 	require.False(t, turn.Parent().IsValid())
 	require.NotEqual(t, step.SpanContext().TraceID(), turn.SpanContext().TraceID())
 	require.Equal(t, time.Second, fixture.spanDuration(t, chatloop.StageChatTurn))
@@ -266,7 +272,7 @@ func TestStageTracerStartRootAt(t *testing.T) {
 
 	var chatTurn, acquisition sdktrace.ReadOnlySpan
 	for _, span := range fixture.spans.Ended() {
-		switch chatloop.Stage(span.Name()) {
+		switch spanStage(span) {
 		case chatloop.StageChatTurn:
 			chatTurn = span
 		case chatloop.StageAcquisition:

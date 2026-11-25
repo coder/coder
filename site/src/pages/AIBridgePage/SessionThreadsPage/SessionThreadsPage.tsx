@@ -10,7 +10,7 @@ import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
 const SessionThreadsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const navigate = useNavigate();
 	const location = useLocation();
 
@@ -34,7 +34,7 @@ const SessionThreadsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Session Threads", "AI Gateway")}</title>
+			<title>{pageTitle("Session threads", "AI Gateway")}</title>
 
 			<SessionThreadsPageView
 				session={firstPage}
@@ -45,6 +45,7 @@ const SessionThreadsPage: React.FC = () => {
 				onFetchNextPage={sessionQuery.fetchNextPage}
 				isAISessionsEnabled={isEnabled}
 				isAISessionsEntitled={isEntitled}
+				showOrganizations={showOrganizations}
 				onBackClicked={() => {
 					// location.key is "default" when the user navigated directly to
 					// this page (e.g. by refreshing or opening in a new tab). if there

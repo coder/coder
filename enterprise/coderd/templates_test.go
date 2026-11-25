@@ -36,6 +36,31 @@ func TestTemplates(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
+	t.Run("CreateBrowserOnly", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		created := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.BrowserOnly = new(true)
+		})
+		require.True(t, created.BrowserOnly)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		got, err := client.Template(ctx, created.ID)
+		require.NoError(t, err)
+		require.True(t, got.BrowserOnly)
+	})
+
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 

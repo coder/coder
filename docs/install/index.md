@@ -28,7 +28,8 @@ A single-server deployment fits an evaluation, a proof of concept, or a small te
 The Quickstart is quick because it skips most of the planning and prerequisites that a team deployment needs.
 Coder runs on one machine, so there's nothing to size.
 When `CODER_ACCESS_URL` isn't set, `coder server` opens a tunnel and gives you a `try.coder.app` URL, so you don't need DNS records or TLS certificates.
-You sign in with a password or with GitHub, so you don't set up an identity provider application, and you don't need a license.
+Because anyone can reach that URL, the server prints a setup token in its output, and the setup page asks for the token before it creates the first account.
+You create the first account with a password and can switch it to GitHub sign-in afterward under **Account** > **Security**, so you don't set up an identity provider application, and you don't need a license.
 
 Coder also uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
 The built-in database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.

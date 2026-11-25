@@ -10,12 +10,11 @@ const meta: Meta<typeof TerminalStatusRow> = {
 	beforeEach: pinFixtureClock,
 	decorators: [
 		(Story) => (
-			<div className="flex h-[320px] flex-col">
+			<div className="flex h-80 flex-col">
 				<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 					<ChatMessageScroller
 						hasMoreMessages={false}
 						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						hasTranscriptRows={true}
 						onFetchMoreMessages={async () => {}}
