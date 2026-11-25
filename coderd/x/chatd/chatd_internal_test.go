@@ -4135,6 +4135,11 @@ func (allowAllAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, 
 // withChatWorkspaceAccess lets the chat owner use every workspace, for tests
 // that mock the database and so cannot load a real owner subject.
 func withChatWorkspaceAccess(server *Server) *Server {
+	if db, ok := server.db.(*dbmock.MockStore); ok {
+		db.EXPECT().GetUserByID(gomock.Any(), gomock.Any()).
+			Return(database.User{Status: database.UserStatusActive}, nil).
+			AnyTimes()
+	}
 	server.authorizer = allowAllAuthorizer{}
 	server.modelConfigContext = func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 		//nolint:gocritic // Tests stand in for the chat owner's subject.

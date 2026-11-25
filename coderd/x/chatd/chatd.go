@@ -840,8 +840,9 @@ func callerModelConfigContext(
 // authorizeChatWorkspace checks that the chat owner still has SSH access to
 // workspace. Chatd reads and dials workspaces with its own subject, so this
 // keeps a chat from using a workspace after the owner loses access, for
-// example when a share is revoked or the owner leaves the organization. A
-// denial is terminal for the turn and carries a user-facing message.
+// example when a share is revoked, the owner leaves the organization, or the
+// owner is suspended or deleted. A denial is terminal for the turn and
+// carries a user-facing message.
 func (p *Server) authorizeChatWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -849,6 +850,19 @@ func (p *Server) authorizeChatWorkspace(
 ) error {
 	if p.authorizer == nil {
 		return xerrors.New("chat workspace authorizer is not configured")
+	}
+	// A suspended user keeps their roles, so RBAC alone would still allow
+	// them. Dormant users are allowed: API authentication reactivates them
+	// on their next request.
+	//nolint:gocritic // Chatd reads the chat owner's status to gate workspace use.
+	ownerUser, err := p.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("authorize chat workspace: get chat owner: %w", err)
+	}
+	if err != nil || ownerUser.Deleted || ownerUser.Status == database.UserStatusSuspended {
+		return chatWorkspaceAccessDeniedError(workspace.ID,
+			"Your account is not active, so this chat can no longer use its workspace. "+
+				"Contact an administrator to reactivate your account.")
 	}
 	owner, err := p.chatOwnerSubject(ctx, ownerID)
 	if err != nil {
@@ -861,12 +875,19 @@ func (p *Server) authorizeChatWorkspace(
 	if !rbac.IsUnauthorizedError(err) {
 		return xerrors.Errorf("authorize chat workspace: %w", err)
 	}
+	return chatWorkspaceAccessDeniedError(workspace.ID,
+		"You no longer have access to this chat's workspace. "+
+			"Ask the workspace owner to share it with you again, or start a new chat.")
+}
+
+// chatWorkspaceAccessDeniedError ends the turn with message shown to the
+// user, without retrying.
+func chatWorkspaceAccessDeniedError(workspaceID uuid.UUID, message string) error {
 	return terminalGeneration(chaterror.WithClassification(
-		xerrors.Errorf("workspace %s: %w", workspace.ID, errChatWorkspaceAccessDenied),
+		xerrors.Errorf("workspace %s: %w", workspaceID, errChatWorkspaceAccessDenied),
 		chaterror.ClassifiedError{
-			Message: "You no longer have access to this chat's workspace. " +
-				"Ask the workspace owner to share it with you again, or start a new chat.",
-			Kind: codersdk.ChatErrorKindGeneric,
+			Message: message,
+			Kind:    codersdk.ChatErrorKindGeneric,
 		},
 	))
 }

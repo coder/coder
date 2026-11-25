@@ -9419,6 +9419,17 @@ func TestChatRechecksWorkspaceAccess(t *testing.T) {
 
 	const accessDeniedMessage = "You no longer have access to this chat's workspace. " +
 		"Ask the workspace owner to share it with you again, or start a new chat."
+	const inactiveOwnerMessage = "Your account is not active, so this chat can no longer use its workspace. " +
+		"Contact an administrator to reactivate your account."
+	setUserStatus := func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID, status database.UserStatus) {
+		t.Helper()
+		_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+			ID:        userID,
+			Status:    status,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
 	shareUse := func(userID uuid.UUID) database.WorkspaceACL {
 		return database.WorkspaceACL{
 			userID.String(): {Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse)},
@@ -9435,12 +9446,14 @@ func TestChatRechecksWorkspaceAccess(t *testing.T) {
 
 	type accessChange func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID)
 	tests := []struct {
-		name    string
-		revoke  accessChange
-		restore accessChange
+		name        string
+		revoke      accessChange
+		restore     accessChange
+		wantMessage string
 	}{
 		{
-			name: "ShareRevoked",
+			name:        "ShareRevoked",
+			wantMessage: accessDeniedMessage,
 			revoke: func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, _ uuid.UUID) {
 				setUserACL(ctx, t, db, ws.ID, database.WorkspaceACL{})
 			},
@@ -9449,7 +9462,8 @@ func TestChatRechecksWorkspaceAccess(t *testing.T) {
 			},
 		},
 		{
-			name: "RemovedFromOrganization",
+			name:        "RemovedFromOrganization",
+			wantMessage: accessDeniedMessage,
 			revoke: func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID) {
 				require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 					OrganizationID: ws.OrganizationID,
@@ -9461,6 +9475,16 @@ func TestChatRechecksWorkspaceAccess(t *testing.T) {
 					UserID:         userID,
 					OrganizationID: ws.OrganizationID,
 				})
+			},
+		},
+		{
+			name:        "OwnerSuspended",
+			wantMessage: inactiveOwnerMessage,
+			revoke: func(ctx context.Context, t *testing.T, db database.Store, _ database.WorkspaceTable, userID uuid.UUID) {
+				setUserStatus(ctx, t, db, userID, database.UserStatusSuspended)
+			},
+			restore: func(ctx context.Context, t *testing.T, db database.Store, _ database.WorkspaceTable, userID uuid.UUID) {
+				setUserStatus(ctx, t, db, userID, database.UserStatusActive)
 			},
 		},
 	}
@@ -9543,7 +9567,7 @@ func TestChatRechecksWorkspaceAccess(t *testing.T) {
 			dialsBeforeDenied := dials.Load()
 			sendMessage("read it again")
 			denied := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
-			require.Equal(t, accessDeniedMessage, chatLastErrorMessage(denied.LastError))
+			require.Equal(t, tt.wantMessage, chatLastErrorMessage(denied.LastError))
 			require.Equal(t, int32(2), streamCalls.Load(), "denied turn must not call the model")
 			require.Equal(t, dialsBeforeDenied, dials.Load(), "denied turn must not dial the agent")
 
