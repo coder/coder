@@ -33,7 +33,7 @@ export const ExternalAuthButton: React.FC<ExternalAuthButtonProps> = ({
 }) => {
 	return (
 		<div className="flex items-center gap-2 border border-border border-solid rounded-md p-3 justify-between">
-			<span className="flex flex-row items-center gap-2">
+			<span className="flex items-center gap-2">
 				{auth.display_icon && (
 					<ExternalImage
 						className="size-5"
@@ -49,7 +49,7 @@ export const ExternalAuthButton: React.FC<ExternalAuthButtonProps> = ({
 				)}
 			</span>
 
-			<span className="flex flex-row items-center gap-2">
+			<span className="flex items-center gap-2">
 				{auth.authenticated ? (
 					<>
 						<CheckIcon className="size-4 text-content-success" />

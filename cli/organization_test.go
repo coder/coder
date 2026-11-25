@@ -103,6 +103,49 @@ func TestOrganizationList(t *testing.T) {
 	})
 }
 
+func TestOrganizationCreate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SkipPromptFlag", func(t *testing.T) {
+		t.Parallel()
+
+		orgID := uuid.New()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/v2/organizations/my-org":
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "not found"})
+			case r.Method == http.MethodPost && r.URL.Path == "/api/v2/organizations":
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_ = json.NewEncoder(w).Encode(codersdk.Organization{
+					MinimalOrganization: codersdk.MinimalOrganization{
+						ID:   orgID,
+						Name: "my-org",
+					},
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				})
+			default:
+				t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		client := codersdk.New(must(url.Parse(server.URL)))
+		inv, root := clitest.New(t, "organizations", "create", "my-org", "-y")
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+
+		require.NoError(t, inv.Run())
+		require.Contains(t, buf.String(), "my-org")
+	})
+}
+
 func TestOrganizationDelete(t *testing.T) {
 	t.Parallel()
 

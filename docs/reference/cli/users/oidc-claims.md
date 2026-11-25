@@ -30,18 +30,18 @@ coder users oidc-claims [flags]
 
 ### -c, --column
 
-|         |                           |
-|---------|---------------------------|
-| Type    | <code>[key\|value]</code> |
-| Default | <code>key,value</code>    |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>[key\|value]</code> |
+| Default  | <code>key,value</code>    |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

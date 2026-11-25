@@ -23,14 +23,16 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 	})
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
-		// Reserve the unmounted segment so it returns 404 instead of
+		// Reserve unmounted segments so they return 404 instead of
 		// falling into the {chat} wildcard and failing UUID parsing
 		// with a 400.
-		r.Route("/model-configs", func(r chi.Router) {
-			r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-				httpapi.RouteNotFound(rw)
+		for _, segment := range []string{"/model-configs", "/projects"} {
+			r.Route(segment, func(r chi.Router) {
+				r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+					httpapi.RouteNotFound(rw)
+				})
 			})
-		})
+		}
 		r.Get("/by-workspace", api.chatsByWorkspace)
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
@@ -65,6 +67,8 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 			r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 			r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
+			r.Get("/advisor", api.getChatAdvisorConfig)
+			r.Put("/advisor", api.putChatAdvisorConfig)
 		})
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))
@@ -79,7 +83,8 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Post("/messages", api.postChatMessages)
 			r.Patch("/messages/{message}", api.patchChatMessage)
 			r.Get("/prompts", api.getChatUserPrompts)
-			r.Post("/interrupt", api.interruptChat)
+			r.Get("/attachments", api.getChatAttachments)
+			r.Post("/interrupt", api.postChatInterrupt)
 			r.Post("/compact", api.compactChat)
 			r.Post("/clear", api.clearChat)
 			r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
@@ -87,11 +92,12 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Post("/title/propose", api.proposeChatTitle)
 			r.Get("/diff", api.getChatDiffContents)
 			r.With(
-				httpmw.RateLimit(api.FilesRateLimit, time.Minute),
+				httpmw.RateLimitPerCaller(api.FilesRateLimit, time.Minute),
 				api.chatWorkspaceUploadMiddleware,
 			).Post("/workspace-files", api.postChatWorkspaceFile)
 			r.Put("/context", api.refreshChatContext)
 			r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+				r.Patch("/", api.patchChatQueuedMessage)
 				r.Delete("/", api.deleteChatQueuedMessage)
 				r.Post("/promote", api.promoteChatQueuedMessage)
 			})
@@ -109,16 +115,13 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
+		r.Get("/projects", api.listChatProjects)
+		// Reserve the promoted /config segment so it returns 404 instead
+		// of falling into the {chat} wildcard and failing UUID parsing
+		// with a 400.
 		r.Route("/config", func(r chi.Router) {
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
-			})
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-				r.Get("/advisor", api.getChatAdvisorConfig)
-				r.Put("/advisor", api.putChatAdvisorConfig)
+			r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+				httpapi.RouteNotFound(rw)
 			})
 		})
 		r.Route("/{chat}", func(r chi.Router) {
@@ -127,6 +130,49 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 			r.Route("/debug", func(r chi.Router) {
 				r.Get("/runs", api.getChatDebugRuns)
 				r.Get("/runs/{debugRun}", api.getChatDebugRun)
+			})
+		})
+	})
+}
+
+// registerExperimentalOrganizationChatRoutes mounts the organization-scoped
+// chat routes that were not promoted to /api/v2; r must already extract the
+// organization parameter.
+func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
+	r.Route("/chats/projects", func(r chi.Router) {
+		r.Post("/", api.postChatProject)
+		r.Route("/{project}", func(r chi.Router) {
+			r.Use(httpmw.ExtractChatProjectParam(api.Database))
+			r.Get("/", api.getChatProject)
+			r.Patch("/", api.patchChatProject)
+			r.Delete("/", api.deleteChatProject)
+			r.Route("/acl", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjectSharing))
+				r.Get("/", api.getChatProjectACL)
+				r.Patch("/", api.patchChatProjectACL)
+			})
+			r.Route("/instructions", func(r chi.Router) {
+				r.Get("/", api.getChatProjectInstructions)
+				r.Put("/", api.putChatProjectInstructions)
+				r.Delete("/", api.deleteChatProjectInstructions)
+			})
+			r.Route("/skills", func(r chi.Router) {
+				r.Get("/", api.listChatProjectSkills)
+				r.Post("/", api.postChatProjectSkill)
+				r.Route("/{skillName}", func(r chi.Router) {
+					r.Get("/", api.getChatProjectSkill)
+					r.Patch("/", api.patchChatProjectSkill)
+					r.Delete("/", api.deleteChatProjectSkill)
+				})
+			})
+			r.Route("/memories", func(r chi.Router) {
+				r.Get("/", api.listChatProjectMemories)
+				r.Post("/", api.postChatProjectMemory)
+				r.Route("/{memory}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
+					r.Get("/", api.getChatProjectMemory)
+					r.Delete("/", api.deleteChatProjectMemory)
+				})
 			})
 		})
 	})
@@ -163,6 +209,10 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})
+	})
+	r.Route("/chats/config/system-prompt", func(r chi.Router) {
+		r.Get("/", api.getOrganizationChatSystemPrompt)
+		r.Put("/", api.putOrganizationChatSystemPrompt)
 	})
 	r.Route("/chats/model-overrides", func(r chi.Router) {
 		r.Get("/", api.getOrganizationChatModelOverrides)

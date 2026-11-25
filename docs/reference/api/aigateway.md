@@ -304,6 +304,13 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "priced_model": {
+            "cache_read_price": 0,
+            "cache_write_price": 0,
+            "input_price": 0,
+            "model": "string",
+            "output_price": 0
+          },
           "thinking": [
             {
               "text": "string"
@@ -312,6 +319,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -348,12 +357,21 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -366,6 +384,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,

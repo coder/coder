@@ -32,6 +32,20 @@ type Story = StoryObj<typeof ProvidersPageView>;
 
 export const Default: Story = {};
 
+const longBaseUrl =
+	"https://ai-gateway-proxy.internal.example-corporation.com/v1/providers/anthropic/aws-external-anthropic.us-east-1.api.aws";
+
+export const LongBaseURL: Story = {
+	args: {
+		providers: [
+			{ ...MockAIProviders[0], base_url: longBaseUrl },
+			...MockAIProviders.slice(1),
+		],
+	},
+	// No play function, so this story is safe to screenshot.
+	parameters: { pixel: { exclude: false } },
+};
+
 export const Loading: Story = {
 	args: {
 		isLoading: true,

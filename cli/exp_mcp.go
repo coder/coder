@@ -5,34 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	agentapi "github.com/coder/agentapi-sdk-go"
-	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/cliutil"
 	coderdmcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
-	"github.com/coder/retry"
 	"github.com/coder/serpent"
-)
-
-const (
-	envAppStatusSlug = "CODER_MCP_APP_STATUS_SLUG"
-	envAIAgentAPIURL = "CODER_MCP_AI_AGENTAPI_URL"
 )
 
 func (r *RootCmd) mcpCommand() *serpent.Command {
@@ -128,9 +115,7 @@ func mcpConfigureClaudeCode() *serpent.Command {
 		claudeMDPath     string
 		systemPrompt     string
 		coderPrompt      string
-		appStatusSlug    string
 		testBinaryName   string
-		aiAgentAPIURL    url.URL
 		claudeUseBedrock string
 
 		deprecatedCoderMCPClaudeAPIKey string
@@ -161,20 +146,12 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
 			}
 
-			if appStatusSlug != "" {
-				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
-			}
-			if aiAgentAPIURL.String() != "" {
-				configureClaudeEnv[envAIAgentAPIURL] = aiAgentAPIURL.String()
-			}
 			if deprecatedSystemPromptEnv, ok := os.LookupEnv("SYSTEM_PROMPT"); ok {
 				cliui.Warnf(inv.Stderr, "SYSTEM_PROMPT is deprecated, use CODER_MCP_CLAUDE_SYSTEM_PROMPT instead")
 				systemPrompt = deprecatedSystemPromptEnv
 			}
 
 			if err := configureClaude(fs, ClaudeConfig{
-				// TODO: will this always be stable?
-				AllowedTools:     []string{`mcp__coder__coder_report_task`},
 				APIKey:           claudeAPIKey,
 				ConfigPath:       claudeConfigPath,
 				ProjectDirectory: projectDirectory,
@@ -190,21 +167,8 @@ func mcpConfigureClaudeCode() *serpent.Command {
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 
-			// Include the report task prompt when an app status slug is
-			// configured. The agent socket is available at runtime, so we
-			// only check the slug here.
-			var reportTaskPrompt string
-			if appStatusSlug != "" {
-				reportTaskPrompt = defaultReportTaskPrompt
-			}
-
-			// The Coder Prompt just allows users to extend our
-			if coderPrompt != "" {
-				reportTaskPrompt += "\n\n" + coderPrompt
-			}
-
 			// We also write the system prompt to the CLAUDE.md file.
-			if err := injectClaudeMD(fs, reportTaskPrompt, systemPrompt, claudeMDPath); err != nil {
+			if err := injectClaudeMD(fs, coderPrompt, systemPrompt, claudeMDPath); err != nil {
 				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
 			}
 			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
@@ -247,7 +211,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
-				Default:     "Send a task status update to notify the user that you are ready for input, and then wait for user input.",
 			},
 			{
 				Name:        "coder-prompt",
@@ -255,20 +218,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_CODER_PROMPT",
 				Flag:        "claude-coder-prompt",
 				Value:       serpent.StringOf(&coderPrompt),
-				Default:     "", // Empty default means we'll use defaultCoderPrompt from the variable
-			},
-			{
-				Name:        "app-status-slug",
-				Description: "The app status slug to use when running the Coder MCP server.",
-				Env:         envAppStatusSlug,
-				Flag:        "claude-app-status-slug",
-				Value:       serpent.StringOf(&appStatusSlug),
-			},
-			{
-				Flag:        "ai-agentapi-url",
-				Description: "The URL of the AI AgentAPI, used to listen for status updates.",
-				Env:         envAIAgentAPIURL,
-				Value:       serpent.URLOf(&aiAgentAPIURL),
 			},
 			{
 				Name:        "test-binary-name",
@@ -367,40 +316,14 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 	return cmd
 }
 
-type taskReport struct {
-	// link is optional.
-	link string
-	// messageID must be set if this update is from a *user* message. A user
-	// message only happens when interacting via the AI AgentAPI (as opposed to
-	// interacting with the terminal directly).
-	messageID *int64
-	// selfReported must be set if the update is directly from the AI agent
-	// (as opposed to the screen watcher).
-	selfReported bool
-	// state must always be set.
-	state codersdk.WorkspaceAppStatusState
-	// summary is optional.
-	summary string
-}
-
 type mcpServer struct {
-	socketClient     *agentsocket.Client
-	appStatusSlug    string
-	client           *codersdk.Client
-	aiAgentAPIClient *agentapi.Client
-	queue            *cliutil.Queue[taskReport]
-	// wg tracks the reporter and watcher goroutines, which write to
-	// inv.Stderr and must not outlive the handler.
-	wg sync.WaitGroup
+	client *codersdk.Client
 }
 
 func (r *RootCmd) mcpServer() *serpent.Command {
 	var (
-		instructions  string
-		allowedTools  []string
-		appStatusSlug string
-		aiAgentAPIURL url.URL
-		socketPath    string
+		instructions string
+		allowedTools []string
 	)
 	cmd := &serpent.Command{
 		Use: "server",
@@ -410,69 +333,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				return err
 			}
 
-			var lastReport taskReport
-			// Create a queue that skips duplicates and preserves summaries.
-			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
-				// Avoid queuing empty statuses (this would probably indicate a
-				// developer error)
-				if report.state == "" {
-					return report, false
-				}
-				// If this is a user message, discard if it is not new.
-				if report.messageID != nil && lastReport.messageID != nil &&
-					*lastReport.messageID >= *report.messageID {
-					return report, false
-				}
-				// If this is not a user message, and the status is "working" and not
-				// self-reported (meaning it came from the screen watcher), then it
-				// means one of two things:
-				//
-				// 1. The AI agent is not working; the user is interacting with the
-				//    terminal directly.
-				// 2. The AI agent is working.
-				//
-				// At the moment, we have no way to tell the difference between these
-				// two states. In the future, if we can reliably distinguish between
-				// user and AI agent activity, we can change this.
-				//
-				// If this is our first update, we assume it is the AI agent working and
-				// accept the update.
-				//
-				// Otherwise we discard the update.  This risks missing cases where the
-				// user manually submits a new prompt and the AI agent becomes active
-				// (and does not update itself), but it avoids spamming useless status
-				// updates as the user is typing, so the tradeoff is worth it.
-				if report.messageID == nil &&
-					report.state == codersdk.WorkspaceAppStatusStateWorking &&
-					!report.selfReported && lastReport.state != "" {
-					return report, false
-				}
-				// Keep track of the last message ID so we can tell when a message is
-				// new or if it has been re-emitted.
-				if report.messageID == nil {
-					report.messageID = lastReport.messageID
-				}
-				// Preserve previous message and URI if there was no message.
-				if report.summary == "" {
-					report.summary = lastReport.summary
-					if report.link == "" {
-						report.link = lastReport.link
-					}
-				}
-				// Avoid queueing duplicate updates.
-				if report.state == lastReport.state &&
-					report.link == lastReport.link &&
-					report.summary == lastReport.summary {
-					return report, false
-				}
-				lastReport = report
-				return report, true
-			})
-
-			srv := &mcpServer{
-				appStatusSlug: appStatusSlug,
-				queue:         queue,
-			}
+			srv := &mcpServer{}
 
 			// Display client URL separately from authentication status.
 			if client != nil && client.URL != nil {
@@ -491,72 +352,12 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 					srv.client = client
 				} else {
 					cliui.Infof(inv.Stderr, "Authentication : Failed (%s)", err)
-					cliui.Warnf(inv.Stderr, "Some tools that require authentication will not be available.")
 				}
 			} else {
 				cliui.Infof(inv.Stderr, "Authentication : None")
 			}
 
-			// Try to connect to the agent socket for status reporting.
-			if appStatusSlug == "" {
-				cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
-				cliui.Warnf(inv.Stderr, "%s must be set", envAppStatusSlug)
-			} else {
-				socketClient, err := agentsocket.NewClient(
-					inv.Context(),
-					agentsocket.WithPath(socketPath),
-				)
-				if err != nil {
-					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
-					cliui.Warnf(inv.Stderr, "Failed to connect to agent socket: %s", err)
-				} else if err := socketClient.Ping(inv.Context()); err != nil {
-					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
-					cliui.Warnf(inv.Stderr, "Agent socket ping failed: %s", err)
-					_ = socketClient.Close()
-				} else {
-					cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
-					srv.socketClient = socketClient
-				}
-			}
-
-			// Try to create a client for the AI AgentAPI, which is used to get the
-			// screen status to make the status reporting more robust.  No auth
-			// needed, so no validation.
-			if aiAgentAPIURL.String() == "" {
-				cliui.Infof(inv.Stderr, "AI AgentAPI URL  : Not configured")
-			} else {
-				cliui.Infof(inv.Stderr, "AI AgentAPI URL  : %s", aiAgentAPIURL.String())
-				aiAgentAPIClient, err := agentapi.NewClient(aiAgentAPIURL.String())
-				if err != nil {
-					cliui.Infof(inv.Stderr, "Screen events  : Disabled")
-					cliui.Warnf(inv.Stderr, "%s must be set", envAIAgentAPIURL)
-				} else {
-					cliui.Infof(inv.Stderr, "Screen events  : Enabled")
-					srv.aiAgentAPIClient = aiAgentAPIClient
-				}
-			}
-
-			ctx, cancel := context.WithCancel(inv.Context())
-			defer cancel()
-
-			// Start the reporter, watcher, and server.  These are all tied to the
-			// lifetime of the MCP server, which is itself tied to the lifetime of the
-			// AI agent.
-			if srv.socketClient != nil && appStatusSlug != "" {
-				srv.startReporter(ctx, inv)
-				if srv.aiAgentAPIClient != nil {
-					srv.startWatcher(ctx, inv)
-				}
-			}
-			serveErr := srv.startServer(ctx, inv, instructions, allowedTools)
-
-			cancel()
-			srv.queue.Close()
-			if srv.socketClient != nil {
-				_ = srv.socketClient.Close()
-			}
-			srv.wg.Wait()
-			return serveErr
+			return srv.startServer(inv.Context(), inv, instructions, allowedTools)
 		},
 		Short: "Start the Coder MCP server.",
 		Options: []serpent.Option{
@@ -574,114 +375,9 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Env:         "CODER_MCP_ALLOWED_TOOLS",
 				Value:       serpent.StringArrayOf(&allowedTools),
 			},
-			{
-				Name:        "app-status-slug",
-				Description: "When reporting a task, the coder_app slug under which to report the task.",
-				Flag:        "app-status-slug",
-				Env:         envAppStatusSlug,
-				Value:       serpent.StringOf(&appStatusSlug),
-				Default:     "",
-			},
-			{
-				Flag:        "ai-agentapi-url",
-				Description: "The URL of the AI AgentAPI, used to listen for status updates.",
-				Env:         envAIAgentAPIURL,
-				Value:       serpent.URLOf(&aiAgentAPIURL),
-			},
-			{
-				Flag:        "socket-path",
-				Description: "Specify the path for the agent socket.",
-				Env:         "CODER_AGENT_SOCKET_PATH",
-				Value:       serpent.StringOf(&socketPath),
-			},
 		},
 	}
 	return cmd
-}
-
-func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		for {
-			// TODO: Even with the queue, there is still the potential that a message
-			// from the screen watcher and a message from the AI agent could arrive
-			// out of order if the timing is just right.  We might want to wait a bit,
-			// then check if the status has changed before committing.
-			item, ok := s.queue.Pop()
-			if !ok {
-				return
-			}
-
-			req, err := agentsdk.ProtoFromPatchAppStatus(agentsdk.PatchAppStatus{
-				AppSlug: s.appStatusSlug,
-				Message: item.summary,
-				URI:     item.link,
-				State:   item.state,
-			})
-			if err != nil {
-				cliui.Warnf(inv.Stderr, "Failed to convert task status: %s", err)
-				continue
-			}
-			_, err = s.socketClient.UpdateAppStatus(ctx, req)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				cliui.Warnf(inv.Stderr, "Failed to report task status: %s", err)
-			}
-		}
-	}()
-}
-
-func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		for retrier := retry.New(time.Second, 30*time.Second); retrier.Wait(ctx); {
-			eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
-			if err == nil {
-				retrier.Reset()
-			loop:
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case event := <-eventsCh:
-						switch ev := event.(type) {
-						case agentapi.EventStatusChange:
-							state := codersdk.WorkspaceAppStatusStateWorking
-							if ev.Status == agentapi.StatusStable {
-								state = codersdk.WorkspaceAppStatusStateIdle
-							}
-							err := s.queue.Push(taskReport{
-								state: state,
-							})
-							if err != nil {
-								cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-								return
-							}
-						case agentapi.EventMessageUpdate:
-							if ev.Role == agentapi.RoleUser {
-								err := s.queue.Push(taskReport{
-									messageID: &ev.Id,
-									state:     codersdk.WorkspaceAppStatusStateWorking,
-								})
-								if err != nil {
-									cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-									return
-								}
-							}
-						}
-					case err := <-errCh:
-						if !errors.Is(err, context.Canceled) {
-							cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
-						}
-						break loop
-					}
-				}
-			} else {
-				cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
-			}
-		}
-	}()
 }
 
 func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, instructions string, allowedTools []string) error {
@@ -699,34 +395,12 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		Instructions: instructions,
 	})
 
-	// If neither the user client nor the agent socket is available, there
-	// are no tools we can enable.
-	if s.client == nil && s.socketClient == nil {
+	// Every tool needs an authenticated user client.
+	if s.client == nil {
 		return xerrors.New(notLoggedInMessage)
 	}
 
-	// Add tool dependencies.
-	toolOpts := []func(*toolsdk.Deps){
-		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			state := codersdk.WorkspaceAppStatusState(args.State)
-			// The agent does not reliably report idle, so when AgentAPI is
-			// enabled we override idle to working and let the screen watcher
-			// detect the real idle via StatusStable.  Final states (failure,
-			// complete) are trusted from the agent since the screen watcher
-			// cannot produce them.
-			if s.aiAgentAPIClient != nil && state == codersdk.WorkspaceAppStatusStateIdle {
-				state = codersdk.WorkspaceAppStatusStateWorking
-			}
-			return s.queue.Push(taskReport{
-				link:         args.Link,
-				selfReported: true,
-				state:        state,
-				summary:      args.Summary,
-			})
-		}),
-	}
-
-	toolDeps, err := toolsdk.NewDeps(s.client, toolOpts...)
+	toolDeps, err := toolsdk.NewDeps(s.client)
 	if err != nil {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
@@ -738,18 +412,6 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		if len(allowedTools) > 0 && !slices.ContainsFunc(allowedTools, func(t string) bool {
 			return t == tool.Name
 		}) {
-			continue
-		}
-
-		// Skip user-dependent tools if no authenticated user client.
-		if !tool.UserClientOptional && s.client == nil {
-			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Name)
-			continue
-		}
-
-		// Skip the coder_report_task tool if there is no socket client or slug.
-		if tool.Name == "coder_report_task" && (s.socketClient == nil || s.appStatusSlug == "") {
-			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Name)
 			continue
 		}
 
@@ -800,7 +462,6 @@ type ClaudeConfig struct {
 	ConfigPath       string
 	ProjectDirectory string
 	APIKey           string
-	AllowedTools     []string
 	MCPServers       map[string]ClaudeConfigMCP
 }
 
@@ -857,21 +518,6 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 		project = make(map[string]any)
 	}
 
-	allowedTools, ok := project["allowedTools"].([]string)
-	if !ok {
-		allowedTools = []string{}
-	}
-
-	// Add cfg.AllowedTools to the list if they're not already present.
-	for _, tool := range cfg.AllowedTools {
-		for _, existingTool := range allowedTools {
-			if tool == existingTool {
-				continue
-			}
-		}
-		allowedTools = append(allowedTools, tool)
-	}
-	project["allowedTools"] = allowedTools
 	project["hasTrustDialogAccepted"] = true
 	project["hasCompletedProjectOnboarding"] = true
 
@@ -885,19 +531,6 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	project["mcpServers"] = mcpServers
 	// Prevents Claude from asking the user to complete the project onboarding.
 	project["hasCompletedProjectOnboarding"] = true
-
-	history, ok := project["history"].([]string)
-	injectedHistoryLine := "make sure to read claude.md and report tasks properly"
-
-	if !ok || len(history) == 0 {
-		// History doesn't exist or is empty, create it with our injected line
-		history = []string{injectedHistoryLine}
-	} else if history[0] != injectedHistoryLine {
-		// Check if our line is already the first item
-		// Prepend our line to the existing history
-		history = append([]string{injectedHistoryLine}, history...)
-	}
-	project["history"] = history
 
 	projects[cfg.ProjectDirectory] = project
 	config["projects"] = projects
@@ -914,8 +547,6 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 }
 
 var (
-	defaultReportTaskPrompt = `Respect the requirements of the "coder_report_task" tool. It is pertinent to provide a fantastic user-experience.`
-
 	// Define the guard strings
 	coderPromptStartGuard  = "<coder-prompt>"
 	coderPromptEndGuard    = "</coder-prompt>"

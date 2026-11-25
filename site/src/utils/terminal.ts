@@ -28,7 +28,7 @@ export const terminalWebsocketUrl = async (
 	const url = new URL(baseUrl || `${location.protocol}//${location.host}`);
 	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 	if (!url.pathname.endsWith("/")) {
-		`${url.pathname}/`;
+		url.pathname = `${url.pathname}/`;
 	}
 	url.pathname += `api/v2/workspaceagents/${agentId}/pty`;
 	url.search = `?${query.toString()}`;

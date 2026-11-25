@@ -719,12 +719,15 @@ func TestServer_Metrics(t *testing.T) {
 			sendLogs(t, conn, makeReq(1))
 		}
 
+		// The two metrics are updated separately, so the poll waits for both.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") >= 1
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.GreaterOrEqual(t,
-			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"),
-			float64(1))
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full"))
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"))
 	})
 
 	// The remaining metrics share one server, forwarder, and connection. The
@@ -772,20 +775,28 @@ func TestServer_Metrics(t *testing.T) {
 			t.Fatal("timed out waiting for forward attempt")
 		}
 
-		// The metric is incremented after ReportBoundaryLogs returns, so we
-		// need to poll briefly.
+		// The metrics are updated after ReportBoundaryLogs returns, each one
+		// separately, so the poll waits for every metric asserted below.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") >= 1
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed"))
 		require.Equal(t, float64(2),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed"))
 
 		// Phase 2: forward succeeds.
 		sendLogs(t, conn, makeReq(1))
 
+		// The reporter records the logs before ReportBoundaryLogs returns, and
+		// the forwarder increments its counter afterward, so the poll waits
+		// for both.
 		require.Eventually(t, func() bool {
-			return len(reporter.getLogs()) >= 1
+			return len(reporter.getLogs()) > 0 &&
+				getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Len(t, reporter.getLogs(), 1)
 		require.Equal(t, float64(1),
 			getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total"))
 
@@ -796,10 +807,12 @@ func TestServer_Metrics(t *testing.T) {
 			DroppedBatchFull:   3,
 		})
 
-		// Status is handled immediately by the reader goroutine, not by the
-		// forwarder, so poll metrics directly.
+		// Status is handled by the reader goroutine, not by the forwarder. It
+		// updates each series separately, so the poll waits for every series
+		// asserted below.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full") >= 5
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_batch_full") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
 		require.Equal(t, float64(5),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full"))

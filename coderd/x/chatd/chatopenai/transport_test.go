@@ -3,7 +3,6 @@ package chatopenai_test
 import (
 	"testing"
 
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
@@ -36,8 +35,6 @@ func TestTransportFor(t *testing.T) {
 		{"OpenAIGPT6AstraDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra", nil, chatopenai.TransportResponses},
 		{"OpenAIGPT6AstraSnapshotDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra-2026-09-03", nil, chatopenai.TransportResponses},
 		{"OpenAIGPT6AstraForceCompletions", fantasyopenai.Name, "gpt-6-astra", &forceCompletions, chatopenai.TransportChatCompletions},
-		{"AzureIgnoresOverride", fantasyazure.Name, responsesModel, &forceCompletions, chatopenai.TransportResponses},
-		{"AzureKnownModelList", fantasyazure.Name, nonResponsesModel, nil, chatopenai.TransportChatCompletions},
 		{"OpenAICompat", fantasyopenaicompat.Name, responsesModel, &forceResponses, chatopenai.TransportChatCompletions},
 		{"Anthropic", "anthropic", "claude-sonnet-4-5", &forceResponses, chatopenai.TransportNotApplicable},
 	}

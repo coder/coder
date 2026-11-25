@@ -104,7 +104,7 @@ export const Picking: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("save-button"));
+		await userEvent.hover(canvas.getByRole("button", { name: "Save" }));
 	},
 };
 
@@ -114,26 +114,94 @@ export const PickingAtEdge: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("banner"));
+		await userEvent.hover(
+			canvas.getByText(
+				"Billing moves to the new plans on the first of next month.",
+			),
+		);
 	},
 };
 
-function commentBox(): HTMLTextAreaElement {
-	const textarea = document
-		.getElementById(annotatorHostId)
-		?.shadowRoot?.querySelector("textarea");
-	if (!textarea) {
-		throw new Error("the comment popup did not open");
+export const PickingAtRightEdge: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				id="right-edge-action"
+				className="fixed right-0 top-0 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Edge action" }),
+		);
+	},
+};
+
+function commentBox(): HTMLElement {
+	const shadow = document.getElementById(annotatorHostId)?.shadowRoot;
+	const dialog = Array.from(shadow?.children ?? []).find(
+		(element) => element.getAttribute("role") === "dialog",
+	);
+	if (!(dialog instanceof HTMLElement)) {
+		throw new Error("The annotation dialog did not open");
 	}
-	return textarea;
+	return within(dialog).getByRole("textbox", { name: "Annotation comment" });
 }
 
 export const CommentPopup: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByTestId("save-button"));
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
 		await userEvent.type(commentBox(), "Make this the primary action");
+	},
+};
+
+export const CommentPopupAtRightEdge: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				className="fixed right-0 top-24 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Right edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Right edge action" }),
+		);
+		await userEvent.type(commentBox(), "Keep the dialog inside the preview");
+	},
+};
+
+export const CommentPopupAboveTarget: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				className="fixed bottom-0 left-5 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Bottom edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Bottom edge action" }),
+		);
+		await userEvent.type(commentBox(), "Open above this action");
 	},
 };
 
@@ -141,7 +209,7 @@ export const SentOnSave: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByTestId("save-button"));
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
 		await userEvent.type(commentBox(), "Use the primary style{enter}");
 	},
 };

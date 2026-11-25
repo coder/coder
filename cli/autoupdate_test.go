@@ -41,6 +41,14 @@ func TestAutoUpdate(t *testing.T) {
 		require.Equal(t, expectedPolicy, workspace.AutomaticUpdates)
 	})
 
+	t.Run("YesFlagRejected", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t, "autoupdate", "my-workspace", string(codersdk.AutomaticUpdatesAlways), "-y")
+		err := inv.Run()
+		require.ErrorContains(t, err, "unknown shorthand flag: 'y'")
+	})
+
 	t.Run("InvalidArgs", func(t *testing.T) {
 		type testcase struct {
 			Name          string

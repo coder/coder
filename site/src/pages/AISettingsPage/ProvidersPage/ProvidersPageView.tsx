@@ -9,10 +9,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -88,9 +88,9 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					Bedrock. Providers configured here power Coder Agents, AI Gateway, and
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
-					<Link href={docs("/ai-coder/ai-gateway/setup#configure-providers")}>
-						View docs
-					</Link>
+					<SettingsHeaderDocsLink
+						href={docs("/ai-governance/ai-gateway/setup#configure-providers")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{Boolean(error) && (
@@ -98,13 +98,16 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table aria-label="AI providers">
+			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/3">Base URL</TableHead>
 						<TableHead>
 							<span className="sr-only">Status</span>
+						</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open provider</span>
 						</TableHead>
 					</TableRow>
 				</TableHeader>

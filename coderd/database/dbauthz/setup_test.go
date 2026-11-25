@@ -37,12 +37,13 @@ import (
 var errMatchAny = xerrors.New("match any error")
 
 var skipMethods = map[string]string{
-	"InTx":           "Not relevant",
-	"Ping":           "Not relevant",
-	"PGLocks":        "Not relevant",
-	"Wrappers":       "Not relevant",
-	"AcquireLock":    "Not relevant",
-	"TryAcquireLock": "Not relevant",
+	"InTx":                      "Not relevant",
+	"Ping":                      "Not relevant",
+	"PGLocks":                   "Not relevant",
+	"Wrappers":                  "Not relevant",
+	"AcquireLock":               "Not relevant",
+	"TryAcquireLock":            "Not relevant",
+	"SetTransactionLockTimeout": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

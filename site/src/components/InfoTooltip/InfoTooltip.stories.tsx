@@ -26,7 +26,7 @@ export const Info: Story = {
 		await step("hover trigger reveals content", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					"Today is a lovely day :^)",
 				),
 			);
@@ -50,7 +50,7 @@ export const Warning: Story = {
 		await step("hover trigger reveals content", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					"Unfortunately, there's a radio connected to my brain",
 				),
 			);
@@ -77,7 +77,7 @@ export const WithLink: Story = {
 		await step("hover trigger reveals content", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent("User Roles"),
+				expect(screen.getByRole("dialog")).toHaveTextContent("User Roles"),
 			);
 		});
 	},

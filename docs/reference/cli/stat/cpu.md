@@ -18,17 +18,17 @@ coder stat cpu [flags]
 
 ### --host
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Force host CPU measurement.
 
 ### -o, --output
 
-|         |                         |
-|---------|-------------------------|
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+| Property | Value                   |
+|----------|-------------------------|
+| Type     | <code>text\|json</code> |
+| Default  | <code>text</code>       |
 
 Output format.

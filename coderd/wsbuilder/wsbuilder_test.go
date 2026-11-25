@@ -408,6 +408,62 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 	req.NoError(err)
 }
 
+func TestWorkspaceBuildClassicParameterContinuity(t *testing.T) {
+	t.Parallel()
+	for _, transition := range []database.WorkspaceTransition{
+		database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete,
+	} {
+		t.Run(string(transition), func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			parameters := []database.TemplateVersionParameter{
+				{Name: "mutable", Mutable: true, Options: json.RawMessage("[]")},
+				{Name: "immutable", Options: json.RawMessage("[]")},
+			}
+			previous := []database.WorkspaceBuildParameter{
+				{Name: "mutable", Value: "old"},
+				{Name: "immutable", Value: "fixed"},
+				{Name: "absent", Value: "128"},
+			}
+			expected := map[string]string{"mutable": "updated", "immutable": "fixed"}
+			if transition != database.WorkspaceTransitionStart {
+				expected["absent"] = "128"
+			}
+			mDB := expectDB(t,
+				withTemplate, withInactiveVersion(parameters), withLastBuildFound,
+				withLastBuildState, withTemplateVersionVariables(inactiveVersionID, nil),
+				withRichParameters(previous),
+				func(store *dbmock.MockStore) {
+					if transition == database.WorkspaceTransitionStart {
+						withParameterSchemas(inactiveJobID, nil)(store)
+					}
+				},
+				withWorkspaceTags(inactiveVersionID, nil),
+				withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+				expectProvisionerJob(func(database.InsertProvisionerJobParams) {}),
+				withInTx, expectBuild(func(database.InsertWorkspaceBuildParams) {}),
+				expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+					require.Len(t, params.Name, len(expected))
+					actual := make(map[string]string, len(params.Name))
+					for i, name := range params.Name {
+						actual[name] = params.Value[i]
+					}
+					require.Equal(t, expected, actual)
+				}),
+				withBuild, expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
+			)
+			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+			builder := wsbuilder.New(ws, transition, wsbuilder.NoopUsageChecker{}).
+				RichParameterValues([]codersdk.WorkspaceBuildParameter{{Name: "mutable", Value: "updated"}})
+			// nolint: dogsled
+			_, _, _, err := builder.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 	t.Parallel()
 
@@ -1453,6 +1509,9 @@ func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWork
 					return nil
 				},
 			)
+		mTx.EXPECT().ClearWorkspaceSecretsByWorkspaceID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(nil)
 		mTx.EXPECT().SoftDeleteWorkspaceAgentsByWorkspaceID(gomock.Any(), gomock.Any()).
 			Times(1).
 			Return(nil)
@@ -1480,6 +1539,10 @@ func withBuild(mTx *dbmock.MockStore) {
 		DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 			return database.WorkspaceBuild{ID: id}, nil
 		})
+	// Every build after the first copies forward the previous build's
+	// secrets; with none present there is nothing to insert. Older builds'
+	// rows are cleared when the job completes, not here.
+	mTx.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), gomock.Any()).MaxTimes(1).Return(nil, nil)
 }
 
 // expectBuild captures a call to InsertWorkspaceBuild and runs the provided assertions

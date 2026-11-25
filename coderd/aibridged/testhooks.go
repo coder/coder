@@ -24,6 +24,6 @@ func (s *Server) SetPoolForTest(ctx context.Context, t testing.TB, pool Pooler) 
 	if err := current.pool.Shutdown(ctx); err != nil {
 		return xerrors.Errorf("shutdown unused request pool: %w", err)
 	}
-	s.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
+	s.backend.Store(&backend{pool: pool})
 	return nil
 }

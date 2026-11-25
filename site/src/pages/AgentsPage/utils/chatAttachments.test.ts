@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({
+vi.mock("#/components/Toaster/toast", () => ({
 	toast: {
 		error: vi.fn(),
 	},
 }));
 
-import { toast } from "sonner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	handleAttachmentDownloadClick,
 	isChatAttachmentFile,

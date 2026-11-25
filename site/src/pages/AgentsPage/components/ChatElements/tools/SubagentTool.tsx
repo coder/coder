@@ -3,7 +3,6 @@ import {
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
-	LoaderIcon,
 	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
@@ -11,7 +10,6 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
 import { chatModel } from "#/api/queries/chats";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { useDesktopPanel } from "./DesktopPanelContext";
@@ -60,7 +58,7 @@ const SUBAGENT_VERBS: Record<
  * the rendering logic for the three label variants readable.
  */
 function getSubagentLabel(
-	showDesktopPreview: boolean | undefined,
+	showDesktopPreview: boolean,
 	toolStatus: ToolStatus,
 	descriptor: SubagentDescriptor,
 	title: string,
@@ -108,28 +106,13 @@ function getSubagentLabel(
 	);
 }
 
-/**
- * Resolves a sub-agent status string and tool-level status into a
- * display icon. The sub-agent status in the tool result is a
- * snapshot from when the tool returned and may be stale (e.g. a
- * background sub-agent records "running" forever). The icon is
- * therefore driven primarily by the tool-call status itself.
- */
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
-	iconKind?: SubagentDescriptor["iconKind"];
-	showDesktopPreview?: boolean;
-}> = ({
-	subagentStatus,
-	toolStatus,
-	isError,
-	isTimeout,
-	iconKind = "bot",
-	showDesktopPreview = false,
-}) => {
+	iconKind: SubagentDescriptor["iconKind"];
+}> = ({ subagentStatus, toolStatus, isError, isTimeout, iconKind }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
@@ -137,16 +120,6 @@ const SubagentStatusIcon: React.FC<{
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
-	}
-	if (toolStatus === "running") {
-		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-			);
-		}
-		return (
-			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-		);
 	}
 	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
@@ -168,9 +141,9 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-	isTimeout?: boolean;
+	isTimeout: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
-	showDesktopPreview?: boolean;
+	showDesktopPreview: boolean;
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
@@ -186,7 +159,7 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
-	isTimeout = false,
+	isTimeout,
 	showDesktopPreview,
 	recordingFileId,
 	thumbnailFileId,
@@ -231,7 +204,6 @@ export const SubagentTool: React.FC<{
 							isError={isError}
 							isTimeout={isTimeout}
 							iconKind={descriptor.iconKind}
-							showDesktopPreview={showDesktopPreview}
 						/>
 					</ToolCall.LeadingIcon>
 					<ToolCall.Label>
@@ -244,6 +216,9 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
+					{toolStatus === "running" && !isError && !isTimeout && (
+						<ToolCall.Status />
+					)}
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
@@ -260,7 +235,7 @@ export const SubagentTool: React.FC<{
 			</ToolCall.HeaderLayout>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
-				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
+				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
@@ -278,45 +253,39 @@ export const SubagentTool: React.FC<{
 			)}
 			<ToolCall.Content>
 				{hasPrompt && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent prompt"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent prompt"
 					>
 						<div className="px-3 py-2">
 							<Response>{prompt ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasMessage && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent response"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent response"
 					>
 						<div className="px-3 py-2">
 							<Response>{message ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasReport && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent report"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent report"
 					>
 						<div className="px-3 py-2">
 							<Response>{report ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 			</ToolCall.Content>
 		</ToolCall.Root>

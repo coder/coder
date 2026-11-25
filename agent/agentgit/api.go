@@ -88,8 +88,9 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 	ctx = a.wsWatcher.Watch(ctx, logger, conn)
 	handler := NewHandler(logger, a.opts...)
 
-	// Scan returns nil only when no roots are subscribed; once any
-	// root lands it returns either a delta or a heartbeat message.
+	// Scan returns nil once the initial state has been sent and no
+	// roots are subscribed; otherwise it returns a delta or a
+	// heartbeat message.
 	scanAndSend := func() {
 		msg := handler.Scan(ctx)
 		if msg == nil {
@@ -114,11 +115,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 		defer unsubscribe()
 
 		// Load any paths that are already tracked for this chat.
-		existingPaths := a.pathStore.GetPaths(watchChatID)
-		if len(existingPaths) > 0 {
-			handler.Subscribe(existingPaths)
-			handler.RequestScan()
-		}
+		handler.Subscribe(a.pathStore.GetPaths(watchChatID))
 
 		go func() {
 			for {
@@ -134,7 +131,9 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	// Start the main run loop in a goroutine.
+	// The initial scan is sent even with no repos, so the client
+	// replaces any state left from an earlier connection.
+	handler.RequestScan()
 	go handler.RunLoop(ctx, scanAndSend)
 
 	// Read client messages.
@@ -151,6 +150,12 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 
 			switch msg.Type {
 			case codersdk.WorkspaceAgentGitClientMessageTypeRefresh:
+				// Re-resolve the chat's paths, as a new connection
+				// would, so repos created or recreated after their
+				// paths were recorded are picked up.
+				if hasWatchChatID && a.pathStore != nil {
+					handler.Subscribe(a.pathStore.GetPaths(watchChatID))
+				}
 				handler.RequestScan()
 			default:
 				if err := stream.Send(codersdk.WorkspaceAgentGitServerMessage{

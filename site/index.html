@@ -15,7 +15,17 @@
 	<meta charset="utf-8" />
 	<title>Coder</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="theme-color" content="#17172E" />
+	<!-- ThemeProvider overwrites both with the active theme. Until then, a dark OS gets a dark title bar, not a white one. -->
+	<meta
+		name="theme-color"
+		media="(prefers-color-scheme: light)"
+		content="#ffffff"
+	/>
+	<meta
+		name="theme-color"
+		media="(prefers-color-scheme: dark)"
+		content="#09090b"
+	/>
 	<meta name="application-name" content="{{ .ApplicationName }}" />
 	<meta property="og:type" content="website" />
 	<meta property="csrf-token" content="{{ .CSRF.Token }}" />
@@ -62,6 +72,8 @@
 </head>
 
 <body>
+	<!-- Invisible color source for the iOS standalone status bar; see .ios-status-bar-band. -->
+	<div class="ios-status-bar-band" aria-hidden="true"></div>
 	<div id="root"></div>
 	<script type="module" src="./src/index.tsx"></script>
 </body>

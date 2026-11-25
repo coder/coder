@@ -22,13 +22,13 @@ export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 	return (
 		<div
 			key={agent.id}
-			className="relative flex flex-row items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base not-last:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
+			className="relative flex items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base not-last:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
 		>
-			<div className="flex flex-row items-baseline gap-4">
+			<div className="flex items-baseline gap-4">
 				<div className="flex w-6 shrink-0 justify-center">
 					<div className="relative z-1 size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
 				</div>
-				<div className="flex flex-row items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
+				<div className="flex items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div
 						className={cn(
 							"flex shrink-0 flex-row items-baseline gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2",
@@ -53,7 +53,7 @@ export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 
 					<div className="flex flex-row items-center gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2">
 						<span>Apps:</span>
-						<div className="flex flex-row items-center gap-1 flex-wrap">
+						<div className="flex items-center gap-1 flex-wrap">
 							{/* We display all modules returned in agent.apps */}
 							{agent.apps.map((app) => (
 								<AppPreview key={app.slug}>

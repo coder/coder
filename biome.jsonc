@@ -15,14 +15,17 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useKeyWithClickEvents": "off", // oxlint owns click-events-have-key-events
 				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
 				"useSemanticElements": "off",
-				"noStaticElementInteractions": "off"
+				"noStaticElementInteractions": "off",
+				"noNoninteractiveTabindex": "off" // oxlint owns no-noninteractive-tabindex
 			},
 			"correctness": {
 				"noInvalidBuiltinInstantiation": "off", // oxlint owns new-for-builtins
+				"useExhaustiveDependencies": "off", // oxlint owns exhaustive-deps
 				"noUnusedImports": "warn",
 				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
 				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
@@ -33,6 +36,9 @@
 					}
 				}
 			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off" // oxlint owns no-danger
+			},
 			"style": {
 				"noNonNullAssertion": "off",
 				"noParameterAssign": "off",
@@ -41,10 +47,10 @@
 				"useAsConstAssertion": "error",
 				"useEnumInitializers": "error",
 				"useSingleVarDeclarator": "error",
-				"useConsistentCurlyBraces": "error",
+				"useConsistentCurlyBraces": "off", // oxlint owns jsx-curly-brace-presence
 				"noUnusedTemplateLiteral": "error",
 				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
+				"noInferrableTypes": "off", // oxlint owns no-inferrable-types
 				"noUselessElse": "error",
 				"noRestrictedImports": {
 					"level": "error",
@@ -64,12 +70,17 @@
 								]
 							},
 							// "#/components/Stack/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
+							"sonner": {
+								"message": "Import toast from #/components/Toaster/toast.",
+								"importNames": ["toast"]
+							},
 							"lodash": "Use lodash/<name> instead."
 						}
 					}
 				}
 			},
 			"suspicious": {
+				"noFallthroughSwitchClause": "off", // oxlint owns no-fallthrough
 				"noConfusingVoidType": "off", // oxlint owns no-invalid-void-type
 				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",
@@ -77,12 +88,8 @@
 				"noTemplateCurlyInString": "off",
 				"useIterableCallbackReturn": "off",
 				"noUnknownAtRules": "off", // Allow Tailwind directives
-				"noConsole": {
-					"level": "error",
-					"options": {
-						"allow": ["error", "info", "warn"]
-					}
-				}
+				"noEmptyInterface": "off", // oxlint owns no-empty-interface
+				"noConsole": "off" // oxlint owns no-console
 			},
 			"complexity": {
 				"noImportantStyles": "off", // TODO: check and fix !important styles
@@ -100,24 +107,23 @@
 	},
 	"overrides": [
 		{
-			// Generated Go types can produce empty interfaces; the
-			// safe fix conflicts with noBannedTypes.
-			"includes": ["**/typesGenerated.ts"],
-			"linter": {
-				"rules": {
-					"suspicious": {
-						"noEmptyInterface": "off"
-					}
-				}
-			}
-		},
-		{
 			// parseDiff.ts is the single choke point allowed to import
 			// the raw @pierre/diffs parsers.
 			"includes": [
 				"**/DiffViewer/parseDiff.ts",
 				"**/DiffViewer/parseDiff.test.ts"
 			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
+					}
+				}
+			}
+		},
+		{
+			// toast.ts is the single choke point allowed to import Sonner's toast.
+			"includes": ["**/components/Toaster/toast.ts"],
 			"linter": {
 				"rules": {
 					"style": {

@@ -50,6 +50,11 @@ linters:
               desc:
                 aibridge code must not import coder packages outside aibridge;
                 buildinfo is the only exception
+        no_stdlib_slog:
+          list-mode: lax
+          deny:
+            - pkg: log/slog
+              desc: use cdr.dev/slog/v3 instead
     dupl:
       threshold: 412
     exhaustruct:
@@ -67,6 +72,7 @@ linters:
         - badRegexp
         - boolExprSimplify
         - builtinShadowDecl
+        - commentedOutCode
         - commentedOutImport
         - deferUnlambda
         - dupImport
@@ -183,14 +189,14 @@ linters:
         path: _test\.go
       - linters:
           - exhaustruct
-        path: scripts/*
+        path: ^scripts/
       - linters:
           - ALL
         path: scripts/rules.go
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$
@@ -214,7 +220,7 @@ formatters:
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$

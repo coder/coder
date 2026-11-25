@@ -138,7 +138,7 @@ it("requests the default organization and switches organizations from the first 
 	);
 
 	await user.click(
-		screen.getByRole("button", {
+		screen.getByRole("combobox", {
 			name: `Organization ${MockOrganization.display_name}`,
 		}),
 	);
@@ -175,9 +175,7 @@ it("requests no spend for a denied organization until another one is picked", as
 	await screen.findByRole("alert");
 	expect(spendSpy).not.toHaveBeenCalled();
 
-	await user.click(
-		screen.getByRole("button", { name: /Select an organization/ }),
-	);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
@@ -344,9 +342,12 @@ it.each([
 		await user.click(screen.getByRole("button", { name: button }));
 		await user.click(await screen.findByRole("option", { name: option }));
 		await waitFor(() => expect(searchParam(router, key)).toBeNull());
-		const lastParams = spendSpy.mock.lastCall?.[1];
-		expect(lastParams).toMatchObject({ offset: 0 });
-		expect(lastParams?.[key]).toBeUndefined();
+		// The cleared request is sent after the URL updates, so wait for it.
+		await waitFor(() => {
+			const lastParams = spendSpy.mock.lastCall?.[1];
+			expect(lastParams?.[key]).toBeUndefined();
+			expect(lastParams).toMatchObject({ offset: 0 });
+		});
 	},
 );
 

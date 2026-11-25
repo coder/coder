@@ -2,6 +2,9 @@ import { Blob as NativeBlob } from "node:buffer";
 import cssEscape from "css.escape";
 import ResizeObserver from "resize-observer-polyfill";
 
+// JSDOM does not provide CSS.escape, which the injected overlay uses for selectors.
+vi.stubGlobal("CSS", { ...globalThis.CSS, escape: cssEscape });
+
 // JSDom `Blob` is missing important methods[1] that have been standardized for
 // years. MDN categorizes this API as baseline[2].
 // [1]: https://github.com/jsdom/jsdom/issues/2555
@@ -15,6 +18,16 @@ globalThis.ResizeObserver = ResizeObserver;
 
 if (typeof globalThis.CSS === "undefined") {
 	globalThis.CSS = { escape: cssEscape } as typeof CSS;
+}
+
+// JSDOM does not implement the CSS Font Loading API. The web terminal listens
+// for document.fonts loadingdone events. document.fonts is read-only in the
+// DOM types, so it is defined rather than assigned.
+if (!("fonts" in document)) {
+	Object.defineProperty(document, "fonts", {
+		configurable: true,
+		value: new EventTarget(),
+	});
 }
 
 // JSDOM does not implement window.matchMedia. Monaco editor (and other

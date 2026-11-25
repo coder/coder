@@ -41,13 +41,13 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 			{...(permissions.updateTemplates ? clickableProps : { clickable: false })}
 		>
 			<TableCell className="relative border-b-0 p-0!">
-				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
-					<div className="flex flex-row items-center gap-4">
+				<div className="flex items-center justify-between gap-4 px-8 py-4">
+					<div className="flex items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-						<div className="flex flex-row items-center gap-2 font-inherit text-base font-normal leading-normal">
+						<div className="flex items-center gap-2 font-inherit text-base font-normal leading-normal">
 							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>
@@ -63,7 +63,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 							</span>
 						</div>
 					</div>
-					<div className="flex flex-row items-center gap-4">
+					<div className="flex items-center gap-4">
 						{isActive && (
 							<Badge role="status" variant="green">
 								Active

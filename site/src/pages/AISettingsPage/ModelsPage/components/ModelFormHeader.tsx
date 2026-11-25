@@ -119,7 +119,10 @@ export const ModelFormHeader: React.FC<{
 					<Avatar
 						variant="icon"
 						size="lg"
-						src={getProviderIcon(selectedProviderState.provider)}
+						src={
+							selectedProviderState.providerDescriptor.icon ||
+							getProviderIcon(selectedProviderState.provider)
+						}
 					/>
 					<SettingsHeaderTitle>
 						<span

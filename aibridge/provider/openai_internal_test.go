@@ -280,6 +280,12 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders:  map[string]string{},
 			wantErr:     ErrNoCredential,
 		},
+		{
+			name:        "Responses_NoCredential",
+			route:       routeResponses,
+			requestBody: `{`,
+			wantErr:     ErrNoCredential,
+		},
 	}
 
 	for _, tc := range tests {
@@ -509,7 +515,6 @@ func BenchmarkOpenAI_CreateInterceptor_Responses(b *testing.B) {
 	messagesPerRequest := 50
 	requestCount := 100
 	maxConcurrentRequests := 10
-	// payloadSizes := []int{2000, 10000, 50000, 100000, 2000000}
 	payloadSizes := []int{2000000}
 	for _, payloadSize := range payloadSizes {
 		for _, stream := range []bool{true, false} {

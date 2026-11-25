@@ -8,6 +8,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -45,6 +47,11 @@ func (m *MockProvider) RoutePrefix() string         { return fmt.Sprintf("/%s", 
 func (m *MockProvider) BridgedRoutes() []string     { return m.Bridged }
 func (m *MockProvider) PassthroughRoutes() []string { return m.Passthrough }
 func (*MockProvider) AuthHeader() string            { return "Authorization" }
+
+// ResolveCredential returns a fixed BYOK credential for tests.
+func (*MockProvider) ResolveCredential(*http.Request) (credential.Credential, error) {
+	return credential.BYOK{Secret: "test-key", Header: aibheaders.AuthHeaderAuthorization}, nil
+}
 
 func (*MockProvider) KeyPool() *keypool.Pool { return nil }
 func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {

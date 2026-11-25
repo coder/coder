@@ -61,3 +61,30 @@ it("applies a start on the minDate day only once it is past the cutoff", async (
 		end: new Date(2026, 3, 10, 23, 59, 59),
 	});
 });
+
+it("picks a quick range with the keyboard alone", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	const now = new Date(2026, 3, 16, 10, 30);
+	render(
+		<DateTimeRangePicker
+			now={now}
+			value={{
+				start: new Date(2026, 3, 15, 10, 30),
+				end: now,
+				preset: "last_24h",
+			}}
+			onChange={onChange}
+		/>,
+	);
+
+	await user.tab();
+	await user.keyboard("{Enter}");
+	expect(
+		await screen.findByRole("radio", { name: "Last 24 hours" }),
+	).toHaveFocus();
+	await user.keyboard("{ArrowDown}{Enter}");
+	expect(onChange).toHaveBeenCalledWith(
+		expect.objectContaining({ preset: "today" }),
+	);
+});

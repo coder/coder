@@ -1,0 +1,74 @@
+Follow-up turn after a custom (freeform) tool call. The last input item is a
+custom_tool_call_output, as sent by Codex after it executes a custom tool such
+as apply_patch.
+
+-- request --
+{
+  "input": [
+    {
+      "type": "message",
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Use the code_exec tool to print hello world to the console."
+        }
+      ]
+    },
+    {
+      "type": "custom_tool_call",
+      "call_id": "call_2gSnF58IEhXLwlbnqbm5XKMd",
+      "name": "code_exec",
+      "input": "print(\"hello world\")"
+    },
+    {
+      "type": "custom_tool_call_output",
+      "call_id": "call_2gSnF58IEhXLwlbnqbm5XKMd",
+      "output": "hello world"
+    }
+  ],
+  "model": "gpt-5",
+  "stream": true,
+  "tools": [
+    {
+      "type": "custom",
+      "name": "code_exec",
+      "description": "Executes arbitrary Python code."
+    }
+  ]
+}
+
+-- streaming --
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1","object":"response","created_at":1768506100,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5-2025-08-07","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"medium","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"custom","description":"Executes arbitrary Python code.","format":{"type":"text"},"name":"code_exec"}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1","object":"response","created_at":1768506100,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5-2025-08-07","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"medium","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"custom","description":"Executes arbitrary Python code.","format":{"type":"text"},"name":"code_exec"}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":0,"sequence_number":2}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","content_index":0,"delta":"The code printed","item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","logprobs":[],"output_index":0,"sequence_number":4}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","content_index":0,"delta":" \"hello world\"","item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","logprobs":[],"output_index":0,"sequence_number":5}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","content_index":0,"delta":" to the console.","item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","logprobs":[],"output_index":0,"sequence_number":6}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","logprobs":[],"output_index":0,"text":"The code printed \"hello world\" to the console.","sequence_number":7}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"The code printed \"hello world\" to the console."},"sequence_number":8}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"The code printed \"hello world\" to the console."}],"role":"assistant"},"output_index":0,"sequence_number":9}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1","object":"response","created_at":1768506100,"status":"completed","background":false,"completed_at":1768506102,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5-2025-08-07","output":[{"id":"msg_0c26996bc41c2a0500696942f2b3c4819fd5e6f7a8b9c0d1e2","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"The code printed \"hello world\" to the console."}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"medium","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"custom","description":"Executes arbitrary Python code.","format":{"type":"text"},"name":"code_exec"}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":112,"input_tokens_details":{"cached_tokens":0},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":126},"user":null,"metadata":{}},"sequence_number":10}
+

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 )
@@ -38,27 +37,21 @@ func (t Transport) UsesResponses() bool {
 	}
 }
 
-// TransportFor resolves the wire format for a provider and model. override,
-// when non-nil, forces the choice instead of consulting the provider SDK's
-// known-model list. Azure follows the known-model list because its provider
-// exposes no equivalent hook.
+// TransportFor resolves the wire format for a provider and model. For OpenAI,
+// a non-nil override takes precedence over the provider SDK's known-model list.
 func TransportFor(provider, modelID string, override *bool) Transport {
-	var useResponses bool
 	switch provider {
 	case fantasyopenai.Name:
-		useResponses = UsesResponsesAPI(modelID, override)
-	case fantasyazure.Name:
-		useResponses = fantasyopenai.IsResponsesModel(modelID)
+		if UsesResponsesAPI(modelID, override) {
+			return TransportResponses
+		}
+		return TransportChatCompletions
 	case fantasyopenaicompat.Name:
 		// chatd never builds an openai-compat client with Responses enabled.
 		return TransportChatCompletions
 	default:
 		return TransportNotApplicable
 	}
-	if useResponses {
-		return TransportResponses
-	}
-	return TransportChatCompletions
 }
 
 // UsesResponsesAPI decides the wire format for an OpenAI model. override, when

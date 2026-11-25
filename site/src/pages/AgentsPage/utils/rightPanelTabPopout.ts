@@ -1,4 +1,4 @@
-import type { ComposerSendResult } from "../context/ComposerContext";
+import type { SubmitChatTurnResult } from "../components/ChatConversation/submitChatTurn";
 
 /**
  * A right-panel tab can be shown in a window of its own, at
@@ -24,7 +24,7 @@ export type TabPopoutMessage =
 	| {
 			type: "send-result";
 			id: string;
-			result: ComposerSendResult | { error: string };
+			result: SubmitChatTurnResult | { error: string };
 	  };
 
 export function tabPopoutChannelName(tabId: string): string {

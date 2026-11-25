@@ -24,7 +24,6 @@ type Story = StoryObj<typeof VideoLightbox>;
 export const Default: Story = {
 	args: {
 		src: TINY_MP4,
-		open: true,
 		onClose: fn(),
 	},
 };
@@ -32,7 +31,6 @@ export const Default: Story = {
 export const VideoError: Story = {
 	args: {
 		src: TINY_MP4,
-		open: true,
 		onClose: fn(),
 	},
 	play: async ({ canvasElement }) => {

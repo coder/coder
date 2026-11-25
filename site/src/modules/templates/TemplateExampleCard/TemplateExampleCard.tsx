@@ -44,7 +44,12 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
 							<Badge
 								variant={activeTag === tag ? "info" : "default"}
-								className="cursor-pointer no-underline hover:border-content-primary"
+								className={cn(
+									"cursor-pointer no-underline",
+									activeTag === tag
+										? "hover:border-content-primary"
+										: "hover:bg-surface-tertiary",
+								)}
 							>
 								{tag}
 							</Badge>
