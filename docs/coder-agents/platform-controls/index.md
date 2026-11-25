@@ -18,7 +18,7 @@ This means:
   A developer just describes the work they want done.
   They do not need to pick a provider or write a system prompt.
   The platform team has already set all of that up.
-  When a platform team enables user API keys for a provider, developers may optionally supply their own key, but this is an opt-in policy decision, not a requirement.
+  When a platform team enables user API keys for a provider, developers can optionally supply their own key, but this is an opt-in policy decision, not a requirement.
 - **Enforcement, not defaults.**
   Settings configured by administrators are enforced server-side.
   Developers cannot override them.
@@ -149,7 +149,7 @@ When the Agent Hours hard limit is reached, additional agents queue under the co
 
 AI Gateway budgets cap each user's AI spend, including Coder Agents chats, over a monthly period.
 Coder sets budgets per group, and the deployment policy selects the group with the largest spend limit when a user belongs to several budgeted groups.
-A per-user override takes priority over all group budgets.
+A per-user override takes priority over the group budgets in its assigned group's organization, and a chat uses the budgets of the chat's organization.
 
 Budgets are the only spend cap for Coder Agents chats.
 Chats no longer enforce a separate limit of their own, and existing native limit values are not migrated to budgets.

@@ -6,6 +6,7 @@ const meta: Meta<typeof ModuleCard> = {
 	title: "pages/TemplateBuilder/ModuleCard",
 	component: ModuleCard,
 	args: {
+		detailsUrl: "https://registry.coder.com/modules/docker",
 		onSelect: fn(),
 	},
 };

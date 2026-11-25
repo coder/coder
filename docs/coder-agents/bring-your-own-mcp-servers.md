@@ -2,7 +2,7 @@
 title: Bring your own MCP servers
 ---
 
-This page is for developers who want their own MCP servers in Coder Agents chats without asking an administrator to register each one.
+This page is for developers who want their own Model Context Protocol (MCP) servers in Coder Agents chats without asking an administrator to register each one.
 If you use `claude mcp add` in Claude Code, a `.mcp.json` file in your workspace is the closest equivalent.
 You write the file once, from your dotfiles or a startup script, and chats in that workspace get its tools.
 

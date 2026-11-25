@@ -396,7 +396,7 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	chat := created.Chat
 
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -409,7 +409,8 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 			},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	server := newInternalTestServer(
 		t, db, ps, chatprovider.ProviderAPIKeys{},
@@ -519,21 +520,34 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}
 }
 
-func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+// Only the OpenAI flavor needs result metadata on the tool result. The Anthropic
+// toolset and the OpenAI-compatible function tool send the screenshot as an
+// ordinary image result.
+func TestAppendComputerUseProviderTool_HasNoResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	providerTools, err := appendComputerUseProviderTool(
-		nil,
-		computerUseProviderToolOptions{
-			provider:      codersdk.ChatComputerUseProviderAnthropic,
-			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, providerTools, 1)
-	require.Equal(t, "computer", providerTools[0].Definition.GetName())
-	require.Nil(t, providerTools[0].ResultProviderMetadata)
+	for _, provider := range []codersdk.ChatComputerUseProvider{
+		codersdk.ChatComputerUseProviderAnthropic,
+		codersdk.ChatComputerUseProviderOpenAICompat,
+	} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				nil,
+				computerUseProviderToolOptions{
+					provider:      provider,
+					isComputerUse: true,
+					logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "computer", providerTools[0].Definition.GetName())
+			require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+			require.Nil(t, providerTools[0].ResultProviderMetadata)
+		})
+	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
@@ -1814,14 +1828,14 @@ func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
 	require.False(t, ok)
 	require.Nil(t, snapshot)
 	require.Nil(t, events)
 	require.Nil(t, cancel)
 }
 
-func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
+func TestSubscribeFailsOnTransientLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -1833,16 +1847,11 @@ func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, xerrors.New("transient lookup failure"))
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
-	require.True(t, ok)
-	require.NotNil(t, cancel)
-	require.Len(t, snapshot, 1)
-	require.Equal(t, codersdk.ChatStreamEventTypeError, snapshot[0].Type)
-	require.Equal(t, chatID, snapshot[0].ChatID)
-	require.Equal(t, "failed to load initial snapshot", snapshot[0].Error.Message)
-
-	_, open := <-events
-	require.False(t, open)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
+	require.False(t, ok)
+	require.Nil(t, snapshot)
+	require.Nil(t, events)
+	require.Nil(t, cancel)
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
@@ -4125,8 +4134,16 @@ func TestWithStageIdentity(t *testing.T) {
 	t.Parallel()
 
 	tracer, recorder := newStageTestTracer(t)
-	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent)
-	_, span := tracer.Start(ctx, chatloop.StageCommit)
+	chat := database.Chat{
+		ID:             uuid.New(),
+		OwnerID:        uuid.New(),
+		OrganizationID: uuid.New(),
+		WorkspaceID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chat)
+	_, span := tracer.Start(ctx, chatloop.StageStream)
 	span.End(nil)
 
 	ended := recorder.Ended()
@@ -4134,5 +4151,11 @@ func TestWithStageIdentity(t *testing.T) {
 	require.Subset(t, ended[0].Attributes(), []attribute.KeyValue{
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)),
 		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)),
+		attribute.String("gen_ai.conversation.id", chat.ID.String()),
+		attribute.String("user.id", chat.OwnerID.String()),
+		attribute.String(chatloop.AttrOrganizationID, chat.OrganizationID.String()),
+		attribute.String(chatloop.AttrWorkspaceID, chat.WorkspaceID.UUID.String()),
+		attribute.String(chatloop.AttrParentChatID, chat.ParentChatID.UUID.String()),
+		attribute.String(chatloop.AttrRootChatID, chat.RootChatID.UUID.String()),
 	})
 }

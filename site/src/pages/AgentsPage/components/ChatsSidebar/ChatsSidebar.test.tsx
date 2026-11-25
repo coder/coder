@@ -773,6 +773,46 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar search dialog", () => {
+	const SidebarWithSearchState: React.FC = () => {
+		const [open, setOpen] = useState(false);
+		return (
+			<ChatsSidebar
+				{...defaultProps}
+				isSearchDialogOpen={open}
+				onSearchDialogOpenChange={setOpen}
+			/>
+		);
+	};
+
+	it("returns focus to the search button when dismissed", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<SidebarWithSearchState />
+			</Wrapper>,
+		);
+
+		const [searchButton] = screen.getAllByRole("button", {
+			name: "Search chats",
+		});
+		// isMac() returns false in our Vitest environment, which is set to jsdom
+		expect(searchButton).toHaveAttribute("aria-keyshortcuts", "Control+K");
+		searchButton.focus();
+		await user.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("combobox", { name: "Search chats" }),
+			).toHaveFocus();
+		});
+
+		await user.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(searchButton).toHaveFocus();
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
@@ -1781,6 +1821,50 @@ describe("ChatsSidebar pinned reordering", () => {
 					expect(errorToast).toHaveBeenCalledWith("Reorder rejected"),
 				);
 			}
+		},
+	);
+
+	it.each([
+		{
+			id: "top",
+			title: "Top pin",
+			action: "Move down",
+			order: 2,
+		},
+		{
+			id: "bottom",
+			title: "Bottom pin",
+			action: "Move up",
+			order: 1,
+		},
+	])(
+		"$action on $title reorders the pins without dragging",
+		async ({ id, title, action, order }) => {
+			const user = userEvent.setup();
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({ id: "top", title: "Top pin", pin_order: 1 }),
+							buildChat({ id: "bottom", title: "Bottom pin", pin_order: 2 }),
+						]}
+					/>
+				</Wrapper>,
+			);
+
+			await user.click(
+				screen.getByRole("button", { name: `Open actions for ${title}` }),
+			);
+			const item = await screen.findByRole("menuitem", { name: action });
+			await user.click(item);
+
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith(id, { pin_order: order }),
+			);
 		},
 	);
 });

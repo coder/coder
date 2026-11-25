@@ -129,7 +129,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2">
+				<div className="flex items-center gap-2">
 					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*
@@ -163,15 +163,18 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 					}}
 				>
 					<Spinner loading={externalAuthPollingState === "polling"} />
-					{authenticated ? "Authenticated" : "Click to Login"}
+					{authenticated ? "Authenticated" : "Click to login"}
 				</Button>
 			</TableCell>
 			<TableCell>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+						<Button
+							size="icon-lg"
+							variant="subtle"
+							aria-label={`Open menu for ${name}`}
+						>
 							<EllipsisVerticalIcon aria-hidden="true" />
-							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
@@ -185,7 +188,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 								await refetch();
 							}}
 						>
-							Test Validate&hellip;
+							Test validate&hellip;
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							className="text-content-destructive focus:text-content-destructive"

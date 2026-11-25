@@ -197,7 +197,7 @@ Check that your Artifactory token is valid and has read access to the `coder-reg
 
 ### Modules not caching
 
-Ensure the remote repository URL is set to `https://registry.coder.com` and not other paths.
+Make sure the remote repository URL is set to `https://registry.coder.com` and not other paths.
 
 ## Next Steps
 

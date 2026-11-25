@@ -6,7 +6,7 @@ You can install Coder on Kubernetes (K8s) using Helm.
 Coder runs on most Kubernetes distributions, including Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), Google Kubernetes Engine (GKE), K3s, and [OpenShift](../openshift.md).
 Kubernetes is the recommended platform for deployments that others depend on.
 
-If your cluster can't reach the internet, follow the [air-gapped installation guide](../../prepare/airgap.md) for the container image and Helm values.
+If your cluster is not connected to the internet, follow the [air-gapped installation guide](../../prepare/airgap.md) for the container image and Helm values.
 To evaluate an offline installation on a single machine, follow [Install Coder on K3s in an air-gapped environment](./k3s-air-gapped.md).
 
 ## Requirements
@@ -204,7 +204,7 @@ For installation instructions, visit the [observability repository](https://gith
 ## Kubernetes Security Reference
 
 Below are common requirements we see from our enterprise customers when deploying an application in Kubernetes.
-This is intended to serve as a reference, and not all security requirements may apply to your business.
+This is intended to serve as a reference, and some security requirements might not apply to your business.
 
 1. **All container images must be sourced from an internal container registry.**
 
@@ -292,7 +292,7 @@ You can also view these logs in your Cloud's log management system if you are us
 
 ### Kubernetes-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
+Make sure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart.
 If you do not have a domain set up, this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
 
 See [troubleshooting templates](../../../templates/troubleshooting.md) for more steps.

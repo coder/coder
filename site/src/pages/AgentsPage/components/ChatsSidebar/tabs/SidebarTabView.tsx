@@ -141,6 +141,13 @@ type SidebarTabViewProps = {
 	 * close button does, so a menu toggle selects the same neighbour.
 	 */
 	addTabControl?: (closeTab: (tabId: string) => void) => React.ReactNode;
+	/** Each new value moves keyboard focus to the active tab. */
+	focusRequestId?: number;
+	/**
+	 * Called once focus moved for `focusRequestId`, so the owner can drop it
+	 * and a remounted view does not move focus again.
+	 */
+	onFocusRequestApplied?: (id: number) => void;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -241,7 +248,19 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	addTabControl,
+	focusRequestId,
+	onFocusRequestApplied,
 }) => {
+	const activeTabRef = useRef<HTMLButtonElement>(null);
+	const reportFocusRequestApplied = useEffectEvent((id: number) =>
+		onFocusRequestApplied?.(id),
+	);
+	useEffect(() => {
+		if (focusRequestId !== undefined) {
+			activeTabRef.current?.focus();
+			reportFocusRequestApplied(focusRequestId);
+		}
+	}, [focusRequestId]);
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
@@ -289,7 +308,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
+					className="flex shrink-0 items-center gap-2 border-b px-4 py-1.5 lg:px-3 lg:py-1"
 				>
 					{onClose && (
 						<Button
@@ -331,7 +350,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
+				className="relative flex shrink-0 items-center gap-2 border-b px-4 py-1.5 lg:px-3 lg:py-1"
 			>
 				{onClose && (
 					<Button
@@ -372,6 +391,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 							const isCloseable = tab.onClose !== undefined;
 							const tabButton = (
 								<Button
+									ref={isActive ? activeTabRef : undefined}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}

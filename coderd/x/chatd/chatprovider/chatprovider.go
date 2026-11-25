@@ -2,7 +2,6 @@ package chatprovider
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -93,78 +92,115 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 	return unsupported
 }
 
-// InlineImageCapBytes returns the per-image byte cap for inline
-// image parts, or (0, false) when no documented cap applies.
-// Bedrock shares Anthropic's cap because its Anthropic models use the Anthropic client.
-func InlineImageCapBytes(provider string) (int, bool) {
-	switch NormalizeProvider(provider) {
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		return codersdk.AnthropicInlineImageCapBytes, true
-	default:
-		return 0, false
-	}
+// mediaRoute identifies a request path: the configured provider type, the
+// fantasy client that carries its requests, and whether that client speaks
+// the OpenAI Responses API.
+type mediaRoute struct {
+	provider  database.AIProviderType
+	transport string
+	responses bool
 }
 
-// ToolResultMediaOmission reports media unsupported by the transport or upstream
-// provider. configuredProvider supplies vendor limits hidden by a shared
-// OpenAI-compatible transport.
-func ToolResultMediaOmission(transportProvider, configuredProvider, mediaType string, size int) (string, bool) {
-	provider := NormalizeProvider(transportProvider)
-	if provider == fantasyopenaicompat.Name {
-		provider = NormalizeProvider(configuredProvider)
-	}
+// routeMedia lists the media types a route accepts as file parts. The same
+// rule applies to user attachments and to tool result media.
+type routeMedia struct {
+	// images lists the accepted raster image types. anyImage accepts all
+	// raster image types.
+	images   []string
+	anyImage bool
+	// imageCapBytes is the per-image inline limit. Zero means no limit.
+	imageCapBytes int
+	pdf           bool
+	text          bool
+	audio         bool
+}
+
+var (
+	commonImageTypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp"}
+	googleImageTypes = []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+	audioTypes       = []string{"audio/wav", "audio/mpeg", "audio/mp3"}
+)
+
+// mediaByRoute lists every route that chatd builds through aibridge. Other
+// routes, such as fantasy clients that chatd never builds, accept no media.
+var mediaByRoute = map[mediaRoute]routeMedia{
+	{provider: database.AIProviderTypeAnthropic, transport: fantasyanthropic.Name}: {
+		images: commonImageTypes, imageCapBytes: codersdk.AnthropicInlineImageCapBytes, pdf: true, text: true,
+	},
+	{provider: database.AIProviderTypeBedrock, transport: fantasyanthropic.Name}: {
+		images: commonImageTypes, imageCapBytes: codersdk.AnthropicInlineImageCapBytes, pdf: true, text: true,
+	},
+	{provider: database.AIProviderTypeBedrock, transport: fantasyopenai.Name, responses: true}: {
+		images: commonImageTypes, pdf: true,
+	},
+	// Bedrock uses Chat Completions only when a model config forces it.
+	{provider: database.AIProviderTypeBedrock, transport: fantasyopenai.Name}: {
+		images: commonImageTypes, pdf: true, audio: true,
+	},
+	{provider: database.AIProviderTypeOpenai, transport: fantasyopenai.Name, responses: true}: {
+		images: commonImageTypes, pdf: true,
+	},
+	{provider: database.AIProviderTypeOpenai, transport: fantasyopenai.Name}: {
+		images: commonImageTypes, pdf: true, audio: true,
+	},
+	// Azure Chat Completions rejects file content parts with HTTP 400, and
+	// Gemini's OpenAI-compatible endpoint does not process them, so neither
+	// route takes PDFs.
+	{provider: database.AIProviderTypeAzure, transport: fantasyopenaicompat.Name}: {
+		images: commonImageTypes, audio: true,
+	},
+	{provider: database.AIProviderTypeGoogle, transport: fantasyopenaicompat.Name}: {
+		images: googleImageTypes, audio: true,
+	},
+	{provider: database.AIProviderTypeVercel, transport: fantasyopenaicompat.Name}: {
+		anyImage: true, pdf: true, audio: true,
+	},
+	{provider: database.AIProviderTypeOpenrouter, transport: fantasyopenaicompat.Name}: {
+		anyImage: true, pdf: true, audio: true,
+	},
+	{provider: database.AIProviderTypeOpenaiCompat, transport: fantasyopenaicompat.Name}: {
+		anyImage: true, pdf: true, audio: true,
+	},
+}
+
+func (r routeMedia) accepts(mediaType string) bool {
 	baseType := chatfiles.BaseMediaType(mediaType)
-	isImage := strings.HasPrefix(baseType, "image/")
-	accepted := true
-	switch provider {
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		accepted = slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
-	case fantasyopenai.Name, fantasyazure.Name:
-		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
-	case fantasygoogle.Name:
-		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}, baseType)
+	switch {
+	// SVG is not a raster image. No route accepts it as a file part, so
+	// user attachments inline it as text.
+	case chatfiles.IsRasterImageMediaType(baseType):
+		return r.anyImage || slices.Contains(r.images, baseType)
+	case baseType == "application/pdf":
+		return r.pdf
+	case strings.HasPrefix(baseType, "text/"):
+		return r.text
+	default:
+		return r.audio && slices.Contains(audioTypes, baseType)
 	}
-	if !accepted {
-		return fmt.Sprintf("[%s content omitted: unsupported tool result media type]", mediaType), true
-	}
-	if imageCap, hasCap := InlineImageCapBytes(provider); hasCap && size >= imageCap {
-		return fmt.Sprintf("[image omitted: %d bytes exceeds the inline image limit of %d bytes]", size, imageCap), true
-	}
-	return "", false
 }
 
-// AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
-// file content part rather than silently dropping it. Callers replace rejected
+func (m Model) routeMedia() routeMedia {
+	return mediaByRoute[mediaRoute{
+		provider:  database.AIProviderType(m.RouteProvider()),
+		transport: NormalizeProvider(m.Provider()),
+		responses: m.transport.UsesResponses(),
+	}]
+}
+
+// AcceptsFilePartMediaType reports whether m's route accepts mediaType as a
+// file part, in a user message or in a tool result. Callers replace rejected
 // parts with text, so a false negative costs fidelity while a false positive
-// loses the attachment entirely. Unknown providers therefore return false.
+// loses the part or fails the request. Unknown routes therefore accept
+// nothing.
 func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
-	baseType := chatfiles.BaseMediaType(mediaType)
-	// No provider accepts SVG as a native part; it is inlined as text.
-	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
-		return false
-	}
-	isImage := strings.HasPrefix(baseType, "image/")
-	isText := strings.HasPrefix(baseType, "text/")
-	// Audio types are included for matrix completeness but are not
-	// currently reachable: no audio type is in the storable attachment
-	// allowlist (codersdk.AllChatAttachmentMediaTypes).
-	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
-	isPDF := baseType == "application/pdf"
+	return m.routeMedia().accepts(mediaType)
+}
 
-	switch NormalizeProvider(m.Provider()) {
-	case fantasyanthropic.Name:
-		return isImage || isText || isPDF
-	case fantasyopenai.Name:
-		// Chat Completions accepts text and audio as native file parts.
-		if m.transport.UsesResponses() {
-			return isImage || isPDF
-		}
-		return isImage || isText || isAudio || isPDF
-	case fantasyopenaicompat.Name:
-		return isImage || isText || isAudio || isPDF
-	default:
-		return false
-	}
+// InlineImageCapBytes returns the per-image byte cap of m's route, or
+// (0, false) when no documented cap applies.
+func (m Model) InlineImageCapBytes() (int, bool) {
+	imageCap := m.routeMedia().imageCapBytes
+	return imageCap, imageCap > 0
 }
 
 // ProviderAPIKeys contains API keys for provider calls.
@@ -543,13 +579,19 @@ func ClientProvider(providerType database.AIProviderType, model string) string {
 
 // ComputerUseModelRequirement describes the models that ComputerUseProvider
 // accepts.
-const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, or a Claude model from an AWS Bedrock AI provider"
+const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, a Claude model from an AWS Bedrock AI provider, or a model from an OpenAI-compatible AI provider"
 
 // ComputerUseProvider returns the computer use tool flavor for a model on an
-// AI provider of the given type. The flavor follows the client that chatd
-// builds for the model, so a Claude model on AWS Bedrock gets the Anthropic
-// tool. The OpenAI tool is accepted only on OpenAI: it is untested on Bedrock
-// Mantle.
+// AI provider of the given type. The flavor follows the API format of the
+// client that chatd builds for the model:
+//   - Anthropic Messages gets the Anthropic tool, so a Claude model on AWS
+//     Bedrock gets it too.
+//   - OpenAI Responses gets the hosted OpenAI tool, but only on OpenAI: it is
+//     untested on Bedrock Mantle.
+//   - Chat completions has no hosted computer tool, so it gets the
+//     openai-compat flavor, an ordinary function tool, but only on
+//     OpenAI-compatible providers. The other provider types that use this
+//     client stay unsupported until each is verified.
 func ComputerUseProvider(providerType database.AIProviderType, model string) (codersdk.ChatComputerUseProvider, bool) {
 	switch ClientProvider(providerType, model) {
 	case fantasyanthropic.Name:
@@ -557,6 +599,10 @@ func ComputerUseProvider(providerType database.AIProviderType, model string) (co
 	case fantasyopenai.Name:
 		if providerType == database.AIProviderTypeOpenai {
 			return codersdk.ChatComputerUseProviderOpenAI, true
+		}
+	case fantasyopenaicompat.Name:
+		if providerType == database.AIProviderTypeOpenaiCompat {
+			return codersdk.ChatComputerUseProviderOpenAICompat, true
 		}
 	}
 	return "", false

@@ -65,13 +65,13 @@ export const OrganizationMembersTable: React.FC<
 				<TableRow>
 					<TableHead className="w-max">User</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Roles</span>
 							<RolesHelpPopover />
 						</div>
 					</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Groups</span>
 							<GroupsHelpPopover />
 						</div>
@@ -135,10 +135,9 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 										<Button
 											size="icon-lg"
 											variant="subtle"
-											aria-label="Open menu"
+											aria-label={`Open menu for ${member.name || member.username}`}
 										>
 											<EllipsisVerticalIcon aria-hidden="true" />
-											<span className="sr-only">Open menu</span>
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">

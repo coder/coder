@@ -702,6 +702,19 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 
 // TestPGCoordinator_BidirectionalTunnels tests when peers create tunnels to each other.  We don't
 // do this now, but it's schematically possible, so we should make sure it doesn't break anything.
+func TestPGCoordinator_TunnelPolicyRefusal(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+	agpltest.TunnelPolicyRefusalTest(ctx, t, coordinator)
+}
+
 func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	t.Parallel()
 

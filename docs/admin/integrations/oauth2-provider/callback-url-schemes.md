@@ -18,7 +18,7 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 Confidential clients are not subject to this restriction.
 
 A cleartext `http://` redirect URI is accepted only for a local host.
-A confidential client may use `localhost`, `127.0.0.1`, `[::1]`, or a `.localhost` subdomain such as `http://app.localhost/callback`.
+A confidential client can use `localhost`, `127.0.0.1`, `[::1]`, or a `.localhost` subdomain such as `http://app.localhost/callback`.
 A public client is limited to `localhost`, `127.0.0.1`, and `[::1]`.
 Every other host must use `https://`, so that an authorization code is never delivered in the clear.
 The management API and Dynamic Client Registration apply the same rule, so an administrator cannot store a target that a client could not register for itself.

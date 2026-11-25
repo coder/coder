@@ -13,7 +13,7 @@ This lets an entire team work in environments that are identically configured an
 ## Create workspaces
 
 You can create a workspace in the UI.
-Log in to your Coder instance, go to the **Templates** tab, find the template you need, and select **Create Workspace**.
+Log in to your Coder instance, go to the **Templates** tab, find the template you need, and select **Create workspace**.
 
 ![Creating a workspace in the UI](../images/creating-workspace-ui.png)
 
@@ -124,11 +124,11 @@ Users can choose to opt-in to automatic updates to update to the active template
 
 Note: If a template is updated such that new parameter inputs are required from the user, autostart will be disabled for the workspace until the user has manually updated the workspace.
 
-![Automatic Updates](../images/workspace-automatic-updates.png)
+![Automatic updates](../images/workspace-automatic-updates.png)
 
 ## Bulk operations
 
-Admins may apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
+Admins can apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
 Select the workspaces you'd like to modify with the checkboxes on the left, then use the top-right **Actions** dropdown to apply the operation.
 
 The start and stop operations can be applied even when the selected workspaces are not all in the same state.
@@ -136,6 +136,8 @@ Bulk start will only apply to selected workspaces that are currently stopped, an
 For update, delete, and stop, the admin applying the operation is prompted for confirmation before any action is taken. The owners of the selected workspaces are not prompted.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
+
+To use bulk update to roll out a patched image to every workspace of a template, refer to [Roll out a security update to every workspace](../templates/managing-templates/roll-out-security-updates.md).
 
 <a id="starting-and-stopping-workspaces"></a>
 
@@ -205,4 +207,5 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > [!NOTE]
-> Logs are truncated once they reach 5&nbsp;MB in size.
+> The agent log rotates when it reaches 5&nbsp;MB in size, and Coder keeps up to 19 rotated files.
+> The startup and shutdown script log files in the workspace have no size limit.

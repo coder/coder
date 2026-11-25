@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"storj.io/drpc/drpcerr"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
@@ -175,6 +177,16 @@ func TestDRPCPusher_UnimplementedTranslated(t *testing.T) {
 
 	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{})
 	require.ErrorIs(t, err, agentcontext.ErrPushUnimplemented)
+}
+
+func TestDRPCPusher_InvalidArgumentTranslated(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{err: drpcerr.WithCode(xerrors.New("duplicate source"), uint64(codes.InvalidArgument))}
+	pusher := agentcontext.NewDRPCPusher(client)
+
+	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{})
+	require.ErrorIs(t, err, agentcontext.ErrPushInvalid)
+	require.ErrorContains(t, err, "duplicate source")
 }
 
 func TestDRPCPusher_PropagatesOtherErrors(t *testing.T) {

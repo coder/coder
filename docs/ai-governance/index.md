@@ -49,7 +49,7 @@ AI Gateway centralizes authentication so users authenticate through Coder, elimi
 
 ### Standardize MCP tools and servers
 
-Different teams may use different MCP servers and tools with varying security postures.
+Different teams might use different MCP servers and tools with varying security postures.
 AI Gateway enables centralized MCP administration, allowing organizations to define approved tools and servers that all users can access.
 
 ### Measure AI adoption and spend

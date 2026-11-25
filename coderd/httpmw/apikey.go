@@ -588,11 +588,12 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger sl
 			}
 		}
 
+		logger.Error(ctx, "fetch api key by id", slog.Error(err))
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,
 			Response: codersdk.Response{
 				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+				Detail:  "Internal error fetching API key by id.",
 			},
 			Hard: true,
 		}

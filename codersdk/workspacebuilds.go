@@ -62,52 +62,54 @@ const (
 	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
 	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
+	// BuildReasonAutodelete "autodelete" is used when a build to delete a workspace is triggered by dormancy auto-delete.
+	BuildReasonAutodelete BuildReason = "autodelete"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID               uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
-	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid"`
-	WorkspaceName    string    `json:"workspace_name"`
-	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid"`
+	ID               uuid.UUID `json:"id" format:"uuid" wsrelated:"latest_build"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time" wsrelated:"latest_build"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time" wsrelated:"latest_build"`
+	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid" wsrelated:"latest_build"`
+	WorkspaceName    string    `json:"workspace_name" wsrelated:"latest_build"`
+	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid" wsrelated:"latest_build"`
 	// WorkspaceOwnerName is the username of the owner of the workspace.
-	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
-	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
-	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
-	TemplateVersionName     string               `json:"template_version_name"`
-	BuildNumber             int32                `json:"build_number"`
-	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
-	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
-	InitiatorUsername       string               `json:"initiator_name"`
-	Job                     ProvisionerJob       `json:"job"`
-	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
-	Resources               []WorkspaceResource  `json:"resources"`
-	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
-	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
-	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
-	DailyCost               int32                `json:"daily_cost"`
-	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
-	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
-	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
+	WorkspaceOwnerName      string               `json:"workspace_owner_name" wsrelated:"latest_build"`
+	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty" wsrelated:"latest_build"`
+	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid" wsrelated:"latest_build"`
+	TemplateVersionName     string               `json:"template_version_name" wsrelated:"latest_build.template_version"`
+	BuildNumber             int32                `json:"build_number" wsrelated:"latest_build"`
+	Transition              WorkspaceTransition  `json:"transition" wsrelated:"latest_build"`
+	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid" wsrelated:"latest_build"`
+	InitiatorUsername       string               `json:"initiator_name" wsrelated:"latest_build"`
+	Job                     ProvisionerJob       `json:"job" wsrelated:"latest_build.job"`
+	Reason                  BuildReason          `db:"reason" json:"reason" wsrelated:"latest_build"`
+	Resources               []WorkspaceResource  `json:"resources" wsrelated:"latest_build.resources"`
+	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time" wsrelated:"latest_build"`
+	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time" wsrelated:"latest_build"`
+	Status                  WorkspaceStatus      `json:"status" wsrelated:"latest_build.job"`
+	DailyCost               int32                `json:"daily_cost" wsrelated:"latest_build"`
+	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty" wsrelated:"latest_build.job"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid" wsrelated:"latest_build"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty" wsrelated:"latest_build"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {
-	ID         uuid.UUID                   `json:"id" format:"uuid"`
-	CreatedAt  time.Time                   `json:"created_at" format:"date-time"`
-	JobID      uuid.UUID                   `json:"job_id" format:"uuid"`
-	Transition WorkspaceTransition         `json:"workspace_transition" enums:"start,stop,delete"`
-	Type       string                      `json:"type"`
-	Name       string                      `json:"name"`
-	Hide       bool                        `json:"hide"`
-	Icon       string                      `json:"icon"`
-	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
-	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
-	DailyCost  int32                       `json:"daily_cost"`
+	ID         uuid.UUID                   `json:"id" format:"uuid" wsrelated:"latest_build.resources"`
+	CreatedAt  time.Time                   `json:"created_at" format:"date-time" wsrelated:"latest_build.resources"`
+	JobID      uuid.UUID                   `json:"job_id" format:"uuid" wsrelated:"latest_build.resources"`
+	Transition WorkspaceTransition         `json:"workspace_transition" wsrelated:"latest_build.resources"`
+	Type       string                      `json:"type" wsrelated:"latest_build.resources"`
+	Name       string                      `json:"name" wsrelated:"latest_build.resources"`
+	Hide       bool                        `json:"hide" wsrelated:"latest_build.resources"`
+	Icon       string                      `json:"icon" wsrelated:"latest_build.resources"`
+	Agents     []WorkspaceAgent            `json:"agents,omitempty" wsrelated:"latest_build.resources.agents"`
+	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty" wsrelated:"latest_build.resources.metadata"`
+	DailyCost  int32                       `json:"daily_cost" wsrelated:"latest_build.resources"`
 }
 
 // WorkspaceResourceMetadata annotates the workspace resource with custom key-value pairs.

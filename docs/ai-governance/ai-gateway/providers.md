@@ -142,6 +142,8 @@ Still supported, but Mantle is recommended for new deployments.
 
 The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new deployments.
 AI Gateway serves Anthropic models through the native Messages API, forwarding the request body **unchanged** and only applying AWS SigV4 signing with the provider's base identity.
+Mantle providers also intercept `/v1/chat/completions` and `/v1/responses`.
+Refer to [Amazon Bedrock](./reference.md#amazon-bedrock) for the full route list.
 
 To route Claude Code through a Mantle provider, run it in mantle mode with client-side signing disabled so the gateway signs centrally:
 
@@ -331,7 +333,7 @@ Each [standalone gateway](./standalone.md) replica reloads providers independent
 If a reload fails, that replica retains its previous provider snapshot and continues serving from it.
 
 A growing gap between the attempt and success timestamps means reloads are firing but failing to apply.
-Alert on that gap rather than on a single failure, which may resolve on the next change.
+Alert on that gap rather than on a single failure, which might resolve on the next change.
 Refer to [Monitoring](./monitoring.md#prometheus-metrics) for the full metric list and sample alert queries.
 
 ## Key failover

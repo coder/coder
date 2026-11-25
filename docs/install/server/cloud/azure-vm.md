@@ -85,6 +85,7 @@ coder login <url***.try.coder.app>
 ```
 
 Fill out the prompts.
+When `coder login` asks for a setup token, copy it from the line that starts with `Setup token:` in the logs.
 Be sure to save use email and password as these are your admin username and password.
 
 You can now access Coder on your local machine with the relevant `***.try.coder.app` URL and logging in with the username and password.

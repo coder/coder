@@ -66,7 +66,7 @@ You can use:
 ## Why remote development
 
 Provisioning consistent development environments for a large engineering team is difficult.
-Each developer has preferences for operating systems, editors, and toolchains, and ensuring a reliable build environment across all of them is a maintenance burden.
+Each developer has preferences for operating systems, editors, and toolchains, and providing a reliable build environment across all of them is a maintenance burden.
 A missed step during onboarding or an unsupported local configuration can cost hours of debugging.
 
 Remote development solves this by moving the environment off the developer's machine and into managed infrastructure.

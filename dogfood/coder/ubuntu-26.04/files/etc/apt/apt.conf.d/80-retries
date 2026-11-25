@@ -1,1 +1,5 @@
-APT::Acquire::Retries "3";
+// Move to the next host in /etc/apt/ubuntu-mirrors.txt sooner: apt retries a
+// transient error on the same host first. The retry count also applies to the
+// HTTPS third-party sources, which have no other host.
+Acquire::Retries "1";
+Acquire::http::Timeout "15";

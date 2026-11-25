@@ -10,6 +10,7 @@ import type {
 	MergedTool,
 	ParsedMessageEntry,
 	RenderBlock,
+	SourceLink,
 	StreamState,
 } from "./types";
 
@@ -316,14 +317,11 @@ const hasAnswer = (row: TimelineMessageRow): boolean => {
 		.some((block) => block.type === "response");
 };
 
-/**
- * Chat state that decides whether the newest turn's Attachments pill, which
- * `TurnAttachments` renders, shows yet and which of the turn's rows hosts it.
- */
-export type TurnAttachmentsOptions = {
+/** Controls pill placement without exposing an unfinished turn's files or citations. */
+export type TurnPillOptions = {
 	/**
 	 * Collapsed steps hide attachment-only rows, so those rows never host the
-	 * Attachments pill.
+	 * turn's action pills.
 	 */
 	hidesAttachmentRows: boolean;
 	/** The chat may still add to its newest turn. */
@@ -372,7 +370,7 @@ const canHostPill = (
 const hasNewestTurnEnded = (
 	turnRows: readonly TimelineMessageRow[],
 	pillRowIndex: number,
-	{ isChatActive, isCompacting }: TurnAttachmentsOptions,
+	{ isChatActive, isCompacting }: TurnPillOptions,
 ): boolean => {
 	if (!isChatActive) {
 		return true;
@@ -386,34 +384,55 @@ const hasNewestTurnEnded = (
 };
 
 /**
- * Each turn's agent files, keyed by the row that shows them in the
- * Attachments pill: the turn's last assistant row that can host it.
+ * Files and deduplicated citations, keyed by each completed turn's last
+ * eligible assistant row.
  */
-export const getTurnAttachmentsByRow = (
+export const getTurnPillsByRow = (
 	rows: readonly TimelineRow[],
-	options: TurnAttachmentsOptions,
-): ReadonlyMap<string, readonly MessageAttachment[]> => {
+	options: TurnPillOptions,
+): {
+	attachmentsByRow: ReadonlyMap<string, readonly MessageAttachment[]>;
+	sourcesByRow: ReadonlyMap<string, SourceLink[]>;
+} => {
 	const turns = splitIntoTurns(rows);
 	const attachmentsByRow = new Map<string, readonly MessageAttachment[]>();
+	const sourcesByRow = new Map<string, SourceLink[]>();
 	for (const [turnIndex, turnRows] of turns.entries()) {
-		const attachments = turnRows.flatMap((row) =>
-			getMessageFileAttachments(row.entry.message),
-		);
 		const pillRowIndex = turnRows.findLastIndex((row) =>
 			canHostPill(row, options.hidesAttachmentRows),
 		);
-		if (attachments.length === 0 || pillRowIndex === -1) {
+		if (
+			pillRowIndex === -1 ||
+			(turnIndex === turns.length - 1 &&
+				!hasNewestTurnEnded(turnRows, pillRowIndex, options))
+		) {
 			continue;
 		}
 
-		const isNewestTurn = turnIndex === turns.length - 1;
-		if (isNewestTurn && !hasNewestTurnEnded(turnRows, pillRowIndex, options)) {
-			continue;
+		const attachments: MessageAttachment[] = [];
+		const sources = new Map<string, SourceLink>();
+		for (const row of turnRows) {
+			attachments.push(...getMessageFileAttachments(row.entry.message));
+			for (const source of row.entry.parsed.sources) {
+				const previous = sources.get(source.url);
+				if (
+					!previous ||
+					((!previous.title || previous.title === previous.url) && source.title)
+				) {
+					sources.set(source.url, source);
+				}
+			}
 		}
 
-		attachmentsByRow.set(turnRows[pillRowIndex].key, attachments);
+		const rowKey = turnRows[pillRowIndex].key;
+		if (attachments.length > 0) {
+			attachmentsByRow.set(rowKey, attachments);
+		}
+		if (sources.size > 0) {
+			sourcesByRow.set(rowKey, [...sources.values()]);
+		}
 	}
-	return attachmentsByRow;
+	return { attachmentsByRow, sourcesByRow };
 };
 
 const sliceEndsRow = (
@@ -445,6 +464,18 @@ export const getBlockTurnAttachments = (
 	}
 	return undefined;
 };
+
+/** A source pill whose host row ends inside a working block belongs below it. */
+export const getBlockSources = (
+	block: WorkingBlock,
+	rows: readonly TimelineRow[],
+	sourcesByRow: ReadonlyMap<string, SourceLink[]>,
+): SourceLink[] =>
+	block.slices.flatMap((slice) => {
+		const row = rows[slice.rowIndex];
+		const sources = sourcesByRow.get(row.key);
+		return sources && sliceEndsRow(row, slice) ? sources : [];
+	});
 
 /**
  * Pieces of a row that can fold, or undefined for a row that never folds and

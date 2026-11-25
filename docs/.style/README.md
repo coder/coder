@@ -11,7 +11,7 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what to route elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide.
@@ -26,15 +26,10 @@ Refer to "What does not run against this directory" below for that exemption.
 
 ## How exclusion from coder.com works
 
-[coder.com/docs](https://coder.com/docs) routes and search are manifest-driven:
+[coder.com/docs](https://coder.com/docs) is built by [coder/docs-engine](https://github.com/coder/docs-engine), and its routes and search are manifest-driven.
+The engine's sync publishes only the pages `docs/manifest.json` names, so a file that isn't in the manifest gets no route, no search record, and no sidebar entry.
 
-- Route discovery lives in [`coder/coder.com:src/utils/docs/docs.ts`](https://github.com/coder/coder.com/blob/master/src/utils/docs/docs.ts) (`getDocsStaticPaths`).
-  It iterates `routes` from `docs/manifest.json` and emits one Next.js static path per entry.
-  Files not in the manifest do not become routes.
-- The Algolia surgical indexer at [`coder/coder.com:src/utils/algoliaDocs/surgical.ts`](https://github.com/coder/coder.com/blob/master/src/utils/algoliaDocs/surgical.ts) explicitly skips paths that are not in the manifest, incrementing `pathsSkipped`.
-
-Net result: not adding anything from `docs/.style/` to `docs/manifest.json` gives us no route, no Algolia record, and no sidebar entry.
-Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the deploy workflow from running on `.style`-only commits and exclude the directory from the surgical-reindex payload on mixed commits.
+Net result: not adding anything from `docs/.style/` to `docs/manifest.json` keeps it off coder.com/docs.
 
 ## What still runs against this directory
 
@@ -48,8 +43,6 @@ Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the de
 
 - `linkspector`: excluded via `excludedDirs` in `.github/.linkspector.yml`.
   External-link checking is overkill for contributor tooling.
-- The `deploy-docs` workflow: its `paths:` filter negates `docs/.style/**`, and the surgical-reindex git-diff invocation excludes the same path.
-  See `.github/workflows/deploy-docs.yaml`.
 - The `docs-preview` workflow: its `paths:` filter negates `docs/.style/**`, so `.style`-only PRs produce no preview comment.
   The selection logic also skips `.style` files when picking the preview target on mixed PRs.
   See `.github/workflows/docs-preview.yaml`.
@@ -87,6 +80,8 @@ The skill finds a persona's rules by reading this field, not by file path, so pa
 When you add a rule page, add the field.
 When you move a rule to a different page, check that the new page lists every persona that applied it.
 The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
+The CI review of a PR runs only the `accuracy`, `coverage`, and `learner` personas, so it applies only the rule pages that list one of them.
+The other personas run when an author uses the skill on their own branch.
 
 ## Add a Vale rule
 

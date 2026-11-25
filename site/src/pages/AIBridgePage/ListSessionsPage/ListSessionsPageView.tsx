@@ -16,7 +16,6 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
@@ -28,6 +27,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 type ListSessionsPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
+	isPlaceholderData: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -37,32 +37,31 @@ type ListSessionsPageViewProps = {
 };
 
 const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
-	<TooltipProvider>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label="About threads"
-					className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-				>
-					{children}
-				</button>
-			</TooltipTrigger>
-			<TooltipContent
-				side="top"
-				align="end"
-				className="max-w-xs text-sm font-normal"
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<button
+				type="button"
+				aria-label="About threads"
+				className="m-0 flex items-center bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
-				A thread is a multi-part interaction between human and agent involving
-				an initial human prompt and a subsequent agentic loop.
-			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
+				{children}
+			</button>
+		</TooltipTrigger>
+		<TooltipContent
+			side="top"
+			align="end"
+			className="max-w-xs text-sm font-normal"
+		>
+			A thread is a multi-part interaction between human and agent involving an
+			initial human prompt and a subsequent agentic loop.
+		</TooltipContent>
+	</Tooltip>
 );
 
 export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
+	isPlaceholderData,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -93,14 +92,14 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 				query={sessionsQuery}
 				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
 			>
-				<Table className="text-sm font-normal">
+				<Table className="text-sm font-normal" aria-busy={isFetching}>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="text-nowrap">Last Prompt</TableHead>
+							<TableHead className="text-nowrap">Last prompt</TableHead>
 							<TableHead className="text-nowrap">User</TableHead>
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
-							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+							<TableHead className="text-nowrap">In/Out tokens</TableHead>
 							<TableHead className="text-nowrap">Network</TableHead>
 							<TableHead>
 								<div className="flex items-center flex-nowrap gap-1">
@@ -113,35 +112,33 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 							<TableHead>
 								<div className="flex items-center flex-nowrap gap-1">
 									Last active
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<button
-													type="button"
-													aria-label="About last active time"
-													className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-												>
-													<InfoIcon className="size-icon-xs" />
-												</button>
-											</TooltipTrigger>
-											<TooltipContent
-												side="top"
-												align="end"
-												className="max-w-60 text-sm font-normal"
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<button
+												type="button"
+												aria-label="About last active time"
+												className="m-0 flex items-center bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 											>
-												Times are shown in your local timezone{" "}
-												<span className="whitespace-nowrap">
-													(UTC{utcOffset}).
-												</span>
-											</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
+												<InfoIcon className="size-icon-xs" />
+											</button>
+										</TooltipTrigger>
+										<TooltipContent
+											side="top"
+											align="end"
+											className="max-w-60 text-sm font-normal"
+										>
+											Times are shown in your local timezone{" "}
+											<span className="whitespace-nowrap">
+												(UTC{utcOffset}).
+											</span>
+										</TooltipContent>
+									</Tooltip>
 								</div>
 							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading || isFetching ? (
+						{isLoading || isPlaceholderData ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

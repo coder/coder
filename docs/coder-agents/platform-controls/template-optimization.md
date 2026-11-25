@@ -170,7 +170,7 @@ Every git operation the agent performs (commits, pushes, pull requests) is attri
 This happens through the existing git authentication configured in your Coder deployment.
 There is no shared bot account.
 
-Ensure your templates configure git with the appropriate author information so that commits are properly attributed.
+Make sure your templates configure git with the appropriate author information so that commits are properly attributed.
 The agent does not override git configuration.
 It uses whatever is set in the workspace environment.
 
@@ -224,7 +224,7 @@ The agent does not know how to install your organization's specific toolchain, a
 - **Project-specific dependencies.**
   If the template targets a specific repository, consider pre-installing the project's dependencies or running the setup script as part of workspace startup.
 - **Git configuration.**
-  Ensure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
+  Make sure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
 
 For guidance on building and maintaining workspace images, see [Image management](../../templates/managing-templates/image-management.md).
 

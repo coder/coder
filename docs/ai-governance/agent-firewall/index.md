@@ -4,6 +4,10 @@ title: Agent Firewall
 
 Agent Firewall is a process-level firewall that restricts and audits what autonomous programs, such as AI agents, can access and use.
 
+> [!IMPORTANT]
+> Agent Firewall is being phased out in favor of more comprehensive approaches to sandboxing workspaces.
+> To isolate the kernel, network, and secrets of AI agents, refer to [Sandbox agents](../../templates/extending-templates/sandbox-agents.md).
+
 ![Screenshot of Agent Firewall blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Firewall blocking a process.
 
 > [!NOTE]
@@ -93,7 +97,8 @@ module "agent-firewall" {
 
 - `allowlist` defines the URLs that the agent can access, in addition to the default URLs required for the agent to work.
   Rules use the format `"key=value [key=value ...]"`:
-  - `domain=github.com` - allows the domain and all its subdomains
+  - `domain=github.com` - allows only `github.com`, not its subdomains.
+    Add the `domain=*.github.com` rule below to allow subdomains.
   - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
   - `method=POST domain=api.example.com path=/users,/posts` - allows specific methods, domain, and paths
@@ -144,7 +149,7 @@ Agent Firewall supports two different jail types for process isolation, each wit
 
 The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment.
 Both nsjail and landjail provide network isolation, but they use different underlying mechanisms. nsjail uses Linux namespaces, while landjail uses Landlock V4.
-Landjail may be preferred in environments where namespace capabilities are limited or unavailable.
+Landjail might be preferred in environments where namespace capabilities are limited or unavailable.
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 

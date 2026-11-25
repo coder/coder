@@ -149,9 +149,13 @@ curl -X POST \
   }'
 ```
 
-The Chats API supports message queuing.
-If the agent is busy, the message is queued automatically and delivered when the agent finishes its current step.
-The response includes a `queued` field indicating whether the message was delivered immediately or queued.
+If the agent is busy, the `busy_behavior` field controls when the message reaches the agent:
+
+- `steer` (default): before the agent's next model call in the current turn.
+- `queue`: after the current turn ends.
+
+Call `POST /api/v2/chats/{chat}/interrupt` only to stop the turn, not to send a message.
+The response includes a `queued` field that shows whether the message was delivered immediately or held for later delivery.
 
 ### 4. Switch from log polling to WebSocket streaming
 
@@ -165,41 +169,79 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
 ```
 
 **Chats API**.
-You open a one-way WebSocket connection:
+You request the newest messages page, then open a one-way WebSocket connection that sends each later change:
 
 ```txt
-GET wss://coder.example.com/api/v2/chats/{chat}/stream
+GET https://coder.example.com/api/v2/chats/{chat}/messages
+GET wss://coder.example.com/api/v2/chats/{chat}/stream?snapshot_version={snapshot_version}
 ```
 
-The WebSocket sends JSON envelopes with a `type` field (`"ping"`, `"data"`, or `"error"`).
-Data envelopes contain batches of events:
+Each WebSocket message is a JSON array of events.
+Each event has a `type` field:
 
-| Event type     | Description                                             |
-|----------------|---------------------------------------------------------|
-| `message_part` | A chunk of the agent's response (text, tool call, etc.) |
-| `message`      | A complete message has been persisted                   |
-| `status`       | The chat status changed (e.g. `running` → `waiting`)    |
-| `error`        | An error occurred during processing                     |
-| `retry`        | The control plane is retrying a failed LLM call         |
-| `queue_update` | The queued message list changed                         |
+| Event type        | Description                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                 |
+| `preview_reset`   | Remove the `message_part` content that you received before this event                                                   |
+| `message`         | A message was created, so add the message or replace your message that has the same ID                                  |
+| `history_reset`   | An edit deleted messages, so delete your messages that have an ID of `history_reset.from_message_id` or higher          |
+| `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                   |
+| `error`           | An error occurred during processing                                                                                     |
+| `retry`           | The control plane is retrying a failed LLM call                                                                         |
+| `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
+| `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
-Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
+The server increases a chat's `snapshot_version` each time it changes the chat's messages, queue, or status.
+To keep your client in sync with the chat:
+
+1. Request the newest messages page with `GET /api/v2/chats/{chat}/messages`, without `before_id` or `after_id`.
+1. Store the `snapshot_version`, `messages`, and `queued_messages` from the response.
+1. Open the stream with `snapshot_version` set to the stored value.
+1. Apply each event as the event table describes.
+1. When an event includes a `snapshot_version` that is higher than the stored value, store the new value.
+1. When the connection closes, fails to open, or sends a WebSocket message that isn't valid JSON:
+   1. Remove the `message_part` content.
+   1. Remove what your client shows for the `retry` event.
+   1. Wait before you reconnect.
+      After each failed attempt, double the wait.
+   1. Open the stream again with the stored `snapshot_version`.
+   1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
+
+On the next connection, the server again sends the `message_part` events of the response that the agent is writing.
+If a retry is pending, the server also sends the `retry` event again.
+
+Do not reconnect with `after_id`.
+Suppose your client misses an edit, then sends a message and reconnects with that message's ID as `after_id`.
+The stream doesn't send a `history_reset` event for that edit, so your client keeps the messages that the edit deleted.
+It also doesn't send the messages written between the edit and your message.
+
+The stream can send a change that your client already has.
+Apply the change again: a `message` event replaces the message that has the same ID, and a `queue_update` event replaces the whole queue.
+Each connection also sends `action_required` again while the chat's tool calls wait for results, so run the tool only once for each tool call ID.
+
+If you applied a `history_reset` event after you sent a `before_id` request, discard that request's response.
+Then send the `before_id` request again with the lowest message ID that you have.
+
+Send actions, such as new messages, edits, and tool results, as HTTP requests.
+Do not apply their response bodies to your client's state, because the stream sends the result of each action.
+
+For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../reference/api/chats.md#stream-chat-events-via-websockets).
 
 ### 5. Update status handling
 
 Task and chat statuses use different values.
 The Chats API status set is defined in `codersdk.ChatStatus`:
 
-| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                                                                                                                                                                   |
-|------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                                                                                                                                                                                                                                                                           |
-| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                                                                                                                                                              |
-| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                                                                                                                                                             |
-| `paused`         | n/a               | The Tasks API pause stops the workspace. The Chats API has no workspace-stopping status; use `interrupt` plus separate workspace lifecycle. The Chats API `paused` status (last row) is unrelated: it marks a queued message under edit.                                                                                                                                |
-| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                                                                                                                                                             |
-| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                                                                                                                                                                   |
-| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                                                                                                                                                                                                                                                                               |
-| n/a              | `paused`          | A turn finished while the next queued message was under edit; the agent does not run again until the edit ends. Queued messages wait behind it; a message sent with `busy_behavior: interrupt` runs first, and the chat pauses again when that turn ends. Ending the edit via `PATCH /chats/{chat}/queue/{queuedMessage}` with `{"editing": false}` sends that message. |
+| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `paused`         | n/a               | The Tasks API pause stops the workspace. The Chats API has no workspace-stopping status; use `interrupt` plus separate workspace lifecycle. The Chats API `paused` status (last row) is unrelated: it marks a queued message under edit.                                                                                                                                                                                                                                                                                    |
+| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| n/a              | `paused`          | A turn finished while the next queued message, or any queued `steer` message, was under edit; the agent does not run again until the edit ends. Queued messages wait behind it, and a `steer` message under edit also holds the `steer` messages ahead of it. A message sent with `steer` runs first, unless the message under edit is also a `steer` message, and the chat pauses again when that turn ends. Ending the edit via `PATCH /chats/{chat}/queue/{queuedMessage}` with `{"editing": false}` sends that message. |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
 A chat enters `waiting` when it is first created (before any message is queued) and again whenever a run finishes or is interrupted, so treat `waiting` as "the agent is not currently working" rather than only "the agent just finished."
@@ -261,7 +303,7 @@ curl -X POST \
 
 In the Tasks API, pausing stops the workspace and frees compute.
 In the Chats API, interrupt stops the agent loop in the control plane.
-The workspace may remain running.
+The workspace might remain running.
 The workspace lifecycle is managed independently.
 
 ### 8. Update GitHub Actions integrations
@@ -316,7 +358,8 @@ Key differences from the Tasks GitHub Action (GHA):
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template.
   They are configured in the Coder control plane.
-- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent, because the chat is always owned by the user the `coder-token` belongs to and the Chats API has no owner override.
+- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent in the action, which always creates chats as the user that owns the `coder-token`.
+  The Chats API accepts an optional `owner_id` in the request body, but only when the caller can create API keys for that user.
 
 See the [action README](https://github.com/coder/create-agent-chat-action#inputs) for the full input and output reference, including the `existing-chat-id` input for sending follow-up messages on a previous chat.
 
@@ -327,7 +370,7 @@ See the [action README](https://github.com/coder/create-agent-chat-action#inputs
      these against their own deployment patterns before adopting them. -->
 
 > [!NOTE]
-> This section contains recommendations that may evolve as Coder Agents matures.
+> This section contains recommendations that might evolve as Coder Agents matures.
 > Review these against your deployment requirements.
 
 With Coder Tasks, every task-capable template requires specific Terraform resources (`coder_ai_task`, `coder_task`, agent modules, and LLM API keys).
@@ -347,7 +390,7 @@ The reasons are different from Tasks, but the principle holds:
   The agent connects via the workspace daemon's HTTP API, not through VS Code or JetBrains.
   Removing IDE extensions, desktop environments, and similar tooling from agent templates reduces image size and startup time.
 - **Scoped credentials.**
-  Agent workloads may warrant more restrictive credentials than interactive developer sessions.
+  Agent workloads might warrant more restrictive credentials than interactive developer sessions.
   A dedicated template lets you provide a separate, narrower-scoped git token or service account without affecting your developers' workflow.
 - **Cost control.**
   Agent workspaces can often use smaller compute resources than developer workspaces since they don't need to run IDEs, language servers, or other interactive tooling.
@@ -367,7 +410,7 @@ The reasons are different from Tasks, but the principle holds:
   Language runtimes, build tools, `git`, and project-specific dependencies should be baked into the image.
   Time the agent spends installing tools is time not spent on the task.
 - **Git configuration.**
-  Ensure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
+  Make sure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
 - **Minimal parameters.**
   Use sensible defaults so the agent can provision workspaces without guessing.
   Avoid required parameters with opaque identifiers.
@@ -485,13 +528,16 @@ If this returns an empty list or an error, revisit [Step 1: Configure an LLM pro
 
 ### 2. Create a chat and confirm the response
 
-Create a simple chat that does not require a workspace:
+Create a simple chat that does not require a workspace.
+Replace `<your-org-id>` with the ID of an organization you belong to.
+To find the ID, run `coder organizations list` and copy the value in the `id` column.
 
 ```sh
 curl -s -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [{"type": "text", "text": "What is 2 + 2?"}]
   }' | jq '{id, status, title}'
 ```
@@ -509,7 +555,9 @@ websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
-You should see JSON envelopes with `"type": "data"` containing `message_part` and `status` events.
+`websocat` prints JSON arrays of events.
+The arrays include `message` and `status` events.
+While the agent writes its response, the arrays also include `message_part` events.
 The chat should eventually reach `"waiting"` status, indicating the agent completed its response.
 
 ### 4. Send a follow-up message
@@ -526,8 +574,7 @@ curl -s -X POST \
   }' | jq '{queued}'
 ```
 
-The response should include `"queued": false` (delivered immediately) or `"queued": true` (agent was busy.
-The message is queued and will be processed next).
+The response should include `"queued": false` (delivered immediately) or `"queued": true` (the agent was busy, so the message is delivered before the agent's next model call).
 
 ### 5. Test workspace provisioning
 
@@ -612,7 +659,7 @@ The Chats API includes capabilities that have no equivalent in the Tasks API:
 | **WebSocket streaming**              | Real-time event stream via `GET /chats/{chat}/stream` instead of HTTP polling                         |
 | **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user                                      |
 | **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process                        |
-| **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy                                    |
+| **Message steering and queuing**     | Follow-up messages steer a busy agent's current turn by default, or queue until the turn ends         |
 | **Queued message editing**           | `PATCH /chats/{chat}/queue/{queuedMessage}` to edit a queued message before the agent processes it    |
 | **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages                                  |
 | **Model selection**                  | `GET /organizations/{organization}/chats/models` to discover models; override per-chat or per-message |
@@ -636,7 +683,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 | `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                |
 | `status`           | `status`                                      | Different enum values (see status table above)                   |
 | `current_state`    | Latest `status` event from the stream         | No equivalent top-level field                                    |
-| `workspace_id`     | `workspace_id`                                | Nullable in Chats. May be `null` if no workspace was provisioned |
+| `workspace_id`     | `workspace_id`                                | Nullable in Chats. Can be `null` if no workspace was provisioned |
 | `workspace_status` | n/a                                           | Manage workspace lifecycle separately                            |
 | `template_id`      | n/a                                           | Not exposed; the agent selects templates internally              |
 | `owner_id`         | `owner_id`                                    | Same concept                                                     |

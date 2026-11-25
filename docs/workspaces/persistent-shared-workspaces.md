@@ -29,7 +29,7 @@ Substitute the usernames, group names, and template to match your use case.
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
   Sharing is on by default for open source software (OSS).
-  Premium deployments may require [admin configuration](shared-workspaces.md#policies).
+  Premium deployments might require [admin configuration](shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OpenID Connect (OIDC) authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate single sign-on (SSO) identity.
