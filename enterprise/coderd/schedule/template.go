@@ -367,12 +367,15 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	//
 	// This also matches the behavior of updating a workspace's TTL, where we
 	// don't apply the changes until the workspace is rebuilt.
+	//
+	// Apply the minimum lead time after the template save so owners have
+	// time to see the new stop time.
 	autostop, err := agpl.CalculateAutostop(ctx, agpl.CalculateAutostopParams{
 		Database:                     db,
 		TemplateScheduleStore:        s,
 		UserQuietHoursScheduleStore:  *s.UserQuietHoursScheduleStore.Load(),
 		WorkspaceBuildCompletedAt:    job.CompletedAt.Time,
-		AutostopRequirementNotBefore: scheduleUpdatedAt,
+		AutostopRequirementNotBefore: scheduleUpdatedAt.Add(agpl.AutostopRequirementLeeway),
 		Workspace:                    workspace.WorkspaceTable(),
 		WorkspaceAutostart:           workspace.AutostartSchedule.String,
 	})

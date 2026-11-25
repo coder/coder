@@ -14,14 +14,9 @@ import (
 )
 
 const (
-	// autostopRequirementLeeway is the duration of time before a autostop
-	// requirement where we skip the requirement and fall back to the next
-	// scheduled stop. This avoids workspaces being stopped too soon.
-	//
-	// E.g. If the workspace is started shortly before the quiet hours, we
-	//      will skip the autostop requirement and use the next scheduled
-	//      stop time instead.
-	autostopRequirementLeeway = 2 * time.Hour
+	// AutostopRequirementLeeway is the minimum time between build
+	// completion or a template schedule save and a newly scheduled required stop.
+	AutostopRequirementLeeway = 2 * time.Hour
 )
 
 type CalculateAutostopParams struct {
@@ -183,7 +178,7 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 	buildCompletedAtInLoc := params.WorkspaceBuildCompletedAt.In(loc)
 	// Add the leeway here so we avoid checking today's quiet hours if
 	// the workspace was started shortly before midnight.
-	notBefore := buildCompletedAtInLoc.Add(autostopRequirementLeeway)
+	notBefore := buildCompletedAtInLoc.Add(AutostopRequirementLeeway)
 	if params.AutostopRequirementNotBefore.After(notBefore) {
 		notBefore = params.AutostopRequirementNotBefore.In(loc)
 	}
