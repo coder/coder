@@ -197,27 +197,34 @@ func originLocalURL(p string) *url.URL {
 	return &url.URL{Path: "/" + strings.TrimLeft(p, `/\`)}
 }
 
-// stripQueryParam removes every field whose decoded key equals key from
-// rawQuery and reports whether any field was removed. Other fields are kept
+// stripQueryParam removes every field whose decoded key equals key. It returns
+// the remaining query, the first decoded value, and whether a field was removed.
+// A malformed first value is returned as an empty string. Other fields are kept
 // byte-for-byte and in order, including fields url.ParseQuery would reject, so
 // the result can be forwarded to apps that rely on the exact query string.
 // Fields are split on "&" only and keys are decoded with url.QueryUnescape to
 // match how Coder's auth reads the parameter. A key that fails to decode is
 // kept because Coder's auth could not have read it.
-func stripQueryParam(rawQuery, key string) (string, bool) {
+func stripQueryParam(rawQuery, key string) (rest, value string, found bool) {
 	fields := strings.Split(rawQuery, "&")
 	kept := fields[:0]
 	for _, field := range fields {
-		fieldKey, _, _ := strings.Cut(field, "=")
+		fieldKey, fieldValue, _ := strings.Cut(field, "=")
 		if decoded, err := url.QueryUnescape(fieldKey); err == nil && decoded == key {
+			if !found {
+				found = true
+				if decodedValue, err := url.QueryUnescape(fieldValue); err == nil {
+					value = decodedValue
+				}
+			}
 			continue
 		}
 		kept = append(kept, field)
 	}
-	if len(kept) == len(fields) {
-		return rawQuery, false
+	if !found {
+		return rawQuery, "", false
 	}
-	return strings.Join(kept, "&"), true
+	return strings.Join(kept, "&"), value, true
 }
 
 // handleAPIKeySmuggling is called by the proxy path and subdomain handlers to
@@ -756,7 +763,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
 	}
 	r.Header.Del(codersdk.SessionTokenHeader)
-	if rawQuery, ok := stripQueryParam(r.URL.RawQuery, codersdk.SessionTokenCookie); ok {
+	if rawQuery, _, ok := stripQueryParam(r.URL.RawQuery, codersdk.SessionTokenCookie); ok {
 		r.URL.RawQuery = rawQuery
 	}
 
