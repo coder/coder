@@ -3329,6 +3329,7 @@ class ExperimentalApiMethods {
 			offset?: number;
 			q?: string;
 			project_id?: string;
+			exclude_own_project_chats?: boolean;
 		},
 		signal?: AbortSignal,
 	): Promise<TypesGen.Chat[]> => {
@@ -3343,6 +3344,24 @@ class ExperimentalApiMethods {
 			"/api/experimental/chats/projects",
 		);
 		return response.data;
+	};
+
+	getChatProjectSummaries = async (): Promise<
+		TypesGen.ChatProjectSummary[]
+	> => {
+		const response = await this.axios.get<TypesGen.ChatProjectSummary[]>(
+			"/api/experimental/chats/projects/summaries",
+		);
+		return response.data;
+	};
+
+	unpinChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/pin`,
+		);
 	};
 
 	createChatProject = async (

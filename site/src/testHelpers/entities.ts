@@ -580,6 +580,16 @@ export const MockChatProject: TypesGen.ChatProject = {
 	permissions: { update: true, delete: true, share: true },
 };
 
+export const MockChatProjectSummary: TypesGen.ChatProjectSummary = {
+	project_id: MockChatProject.id,
+	pinned: true,
+	pin_order: 1,
+	own_chat_count: 0,
+	own_unread_count: 0,
+	own_running: false,
+	own_needs_attention: false,
+};
+
 export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
 	project_id: MockChatProject.id,
 	instructions:
