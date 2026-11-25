@@ -18,6 +18,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
+import { useUnarchiveChatProject } from "../../hooks/useUnarchiveChatProject";
 import { draftStorageKeys } from "../AgentCreateForm";
 import {
 	hasProjectManageAction,
@@ -64,6 +65,9 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			toast.error(getErrorMessage(error, "Failed to delete project."));
 		},
 	});
+
+	const { unarchive, isPending: isUnarchiving } =
+		useUnarchiveChatProject(project);
 
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -114,6 +118,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 										setIsEditOpen(true);
 									}}
 									onArchive={() => setIsArchiveOpen(true)}
+									onUnarchive={isUnarchiving ? undefined : unarchive}
 									onDelete={() => setIsDeleteOpen(true)}
 								/>
 							</DropdownMenuContent>

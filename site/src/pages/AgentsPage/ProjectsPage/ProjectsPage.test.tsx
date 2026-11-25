@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatProjectWithSummary } from "#/api/queries/chatProjects";
-import type { ChatProjectSummary } from "#/api/typesGenerated";
+import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockChatProjectSummary,
 	MockUserMember,
@@ -161,9 +163,8 @@ describe("ProjectsPage", () => {
 		const archive = vi
 			.spyOn(API.experimental, "archiveChatProject")
 			.mockImplementation(async (_organizationId, projectId) => ({
-				...MockChatProject,
+				...MockArchivedChatProject,
 				id: projectId,
-				archived_at: "2026-11-10T12:00:00Z",
 			}));
 		renderWithAuth(<ProjectsPage />);
 		await user.click(
@@ -189,6 +190,55 @@ describe("ProjectsPage", () => {
 				screen.getAllByRole("button", { name: "New project" })[0],
 			).toHaveFocus(),
 		);
+	});
+
+	it("unarchives once from the Archived tab, then leaves the emptied tab", async () => {
+		const user = userEvent.setup();
+		const mockKilo = summary("Kilo");
+		mockProjectsApi([mockKilo]);
+		const mockArchivedLima = {
+			...MockArchivedChatProject,
+			id: "Lima",
+			name: "Lima",
+		};
+		let archived = [mockArchivedLima];
+		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(
+			async (params) => (params?.archived ? archived : [mockKilo.project]),
+		);
+		const unarchived = createDeferred<ChatProject>();
+		const unarchive = vi
+			.spyOn(API.experimental, "unarchiveChatProject")
+			.mockReturnValue(unarchived.promise);
+		const { router } = renderWithAuth(<ProjectsPage />, {
+			route: "/?tab=archived",
+		});
+		const pickUnarchive = async () => {
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Open project actions for Lima",
+				}),
+			);
+			await user.click(screen.getByRole("menuitem", { name: "Unarchive" }));
+		};
+
+		// The card stays until the request succeeds, but its menu leaves
+		// Unarchive out meanwhile.
+		await pickUnarchive();
+		await user.click(
+			screen.getByRole("button", { name: "Open project actions for Lima" }),
+		);
+		expect(screen.queryByRole("menuitem", { name: "Unarchive" })).toBeNull();
+		await user.keyboard("{Escape}");
+		archived = [];
+		unarchived.resolve({ ...mockArchivedLima, archived_at: undefined });
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "New project" })).toHaveFocus(),
+		);
+		expect(unarchive).toHaveBeenCalledOnce();
+		// The emptied tab's link is replaced, so a later archive cannot
+		// reopen it.
+		await waitFor(() => expect(router.state.location.search).toBe(""));
 	});
 
 	it("moves focus to New project when Retry loads the projects", async () => {
