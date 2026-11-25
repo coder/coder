@@ -8476,11 +8476,11 @@ const getChatProjectMemberCountsByUserID = `-- name: GetChatProjectMemberCountsB
 WITH accessible AS (
     SELECT id, organization_id, owner_id, group_acl
     FROM chat_projects
-    WHERE id IN (SELECT project_id FROM chat_project_ids_for_user($2::uuid, true))
+    WHERE id IN (SELECT project_id FROM chat_project_ids_for_user($1::uuid, true))
 ),
 everyone_projects AS (
     SELECT id AS project_id, organization_id FROM accessible
-    WHERE $1::boolean
+    WHERE $2::boolean
         AND group_acl -> organization_id::text -> 'permissions' ?| ARRAY['read', '*']
 ),
 org_member_counts AS (
@@ -8505,7 +8505,7 @@ project_members AS (
     SELECT project_id, user_id FROM chat_project_read_grant_members
     -- An array lets the planner filter the view's project scans; a join or
     -- IN would expand the grants of every project first.
-    WHERE $1::boolean AND project_id = ANY(ARRAY(
+    WHERE $2::boolean AND project_id = ANY(ARRAY(
         SELECT id FROM accessible
         EXCEPT
         SELECT project_id FROM everyone_projects
@@ -8524,7 +8524,9 @@ SELECT
     chat_projects.owner_id,
     chat_projects.user_acl,
     chat_projects.group_acl,
-    (CASE WHEN $1::boolean THEN COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+    -- Without shared members, project_members holds only the owner, so the
+    -- owner is counted through the same user filters.
+    (COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0))::bigint AS member_count
 FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
@@ -8534,8 +8536,8 @@ ORDER BY chat_projects.id
 `
 
 type GetChatProjectMemberCountsByUserIDParams struct {
-	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
 	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
 }
 
 type GetChatProjectMemberCountsByUserIDRow struct {
@@ -8550,8 +8552,8 @@ type GetChatProjectMemberCountsByUserIDRow struct {
 // Returns how many users can use each project from
 // GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
 // grants reach (chat_project_read_grant_members). Grants are counted only
-// while project sharing is available; otherwise every project counts its
-// owner alone. Suspended users cannot sign in, so they are not counted. The
+// while project sharing is available; otherwise every project counts at most
+// its owner. Suspended users cannot sign in, so they are not counted. The
 // project columns only serve authorization: callers must authorize each
 // row.
 // A read grant to the Everyone group of the project's organization reaches
@@ -8559,7 +8561,7 @@ type GetChatProjectMemberCountsByUserIDRow struct {
 // counts its organization's members once per organization instead of
 // expanding the group into a row per member for every project.
 func (q *sqlQuerier) GetChatProjectMemberCountsByUserID(ctx context.Context, arg GetChatProjectMemberCountsByUserIDParams) ([]GetChatProjectMemberCountsByUserIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectMemberCountsByUserID, arg.CountSharedMembers, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getChatProjectMemberCountsByUserID, arg.UserID, arg.CountSharedMembers)
 	if err != nil {
 		return nil, err
 	}

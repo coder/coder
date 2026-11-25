@@ -306,8 +306,8 @@ type ChatProjectSummary struct {
 type ChatProjectMemberCount struct {
 	ProjectID uuid.UUID `json:"project_id" format:"uuid"`
 	// MemberCount counts users who can use the project, including the owner.
-	// Suspended users are not counted. It is 1 when chat sharing is
-	// unavailable.
+	// Suspended users are not counted. When chat sharing is unavailable,
+	// only the owner is counted.
 	MemberCount int64 `json:"member_count"`
 }
 

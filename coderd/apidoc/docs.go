@@ -24422,7 +24422,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "member_count": {
-                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
+                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. When chat sharing is unavailable,\nonly the owner is counted.",
                     "type": "integer"
                 },
                 "project_id": {

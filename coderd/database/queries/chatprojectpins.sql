@@ -86,8 +86,8 @@ ORDER BY lower(chat_projects.name), chat_projects.id;
 -- Returns how many users can use each project from
 -- GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
 -- grants reach (chat_project_read_grant_members). Grants are counted only
--- while project sharing is available; otherwise every project counts its
--- owner alone. Suspended users cannot sign in, so they are not counted. The
+-- while project sharing is available; otherwise every project counts at most
+-- its owner. Suspended users cannot sign in, so they are not counted. The
 -- project columns only serve authorization: callers must authorize each
 -- row.
 WITH accessible AS (
@@ -145,7 +145,9 @@ SELECT
     chat_projects.owner_id,
     chat_projects.user_acl,
     chat_projects.group_acl,
-    (CASE WHEN @count_shared_members::boolean THEN COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+    -- Without shared members, project_members holds only the owner, so the
+    -- owner is counted through the same user filters.
+    (COALESCE(member_counts.member_count, 0) + COALESCE(org_member_counts.member_count, 0))::bigint AS member_count
 FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id

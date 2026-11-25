@@ -396,6 +396,14 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 	// as the project list does.
 	require.Contains(t, chatProjectSummariesByID(ctx, t, client), memberProject.ID)
 	requireSummariesMatchList(ctx, t, client)
+
+	// A suspended owner cannot use their project, and the grant cannot be
+	// used, so nobody is counted.
+	_, err = client.UpdateUserStatus(ctx, memberUser.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
+	counts := chatProjectMemberCountsByID(ctx, t, client)
+	require.Contains(t, counts, memberProject.ID)
+	require.Zero(t, counts[memberProject.ID])
 }
 
 func TestListChatsExcludeOwnProjectChats(t *testing.T) {

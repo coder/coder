@@ -5413,10 +5413,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description                                                                                                                                        |
-|----------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `member_count` | integer | false    |              | Member count counts users who can use the project, including the owner. Suspended users are not counted. It is 1 when chat sharing is unavailable. |
-| `project_id`   | string  | false    |              |                                                                                                                                                    |
+| Name           | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `member_count` | integer | false    |              | Member count counts users who can use the project, including the owner. Suspended users are not counted. When chat sharing is unavailable, only the owner is counted. |
+| `project_id`   | string  | false    |              |                                                                                                                                                                       |
 
 ## codersdk.ChatProjectMemory
 

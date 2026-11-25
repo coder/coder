@@ -567,8 +567,8 @@ type sqlcQuerier interface {
 	// Returns how many users can use each project from
 	// GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
 	// grants reach (chat_project_read_grant_members). Grants are counted only
-	// while project sharing is available; otherwise every project counts its
-	// owner alone. Suspended users cannot sign in, so they are not counted. The
+	// while project sharing is available; otherwise every project counts at most
+	// its owner. Suspended users cannot sign in, so they are not counted. The
 	// project columns only serve authorization: callers must authorize each
 	// row.
 	// A read grant to the Everyone group of the project's organization reaches

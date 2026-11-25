@@ -3749,8 +3749,8 @@ export interface ChatProjectMemberCount {
 	readonly project_id: string;
 	/**
 	 * MemberCount counts users who can use the project, including the owner.
-	 * Suspended users are not counted. It is 1 when chat sharing is
-	 * unavailable.
+	 * Suspended users are not counted. When chat sharing is unavailable,
+	 * only the owner is counted.
 	 */
 	readonly member_count: number;
 }
