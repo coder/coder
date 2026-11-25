@@ -669,9 +669,17 @@ describe("FilterCombobox", () => {
 
 		await user.tab();
 		expect(filtersButton).toHaveFocus();
+		expect(input).toHaveAttribute("aria-expanded", "false");
+		expect(input).not.toHaveAttribute("aria-controls");
 		await user.keyboard("{Enter}");
 		expect(input).toHaveFocus();
-		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await user.keyboard("{ArrowDown}");
+		expect(input).toHaveAttribute("aria-expanded", "true");
+		expect(input).toHaveAttribute(
+			"aria-controls",
+			screen.getByRole("listbox").id,
+		);
+		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.keyboard("{ArrowDown}{Enter}");
 
@@ -1723,6 +1731,8 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(screen.getByRole("status")).toHaveTextContent("No filters found"),
 		);
+		expect(input).toHaveAttribute("aria-expanded", "false");
+		expect(input).not.toHaveAttribute("aria-controls");
 	});
 
 	it("announces a category search with no match", async () => {
