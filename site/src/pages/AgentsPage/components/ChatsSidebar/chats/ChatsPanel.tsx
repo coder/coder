@@ -38,7 +38,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getOSKey } from "#/utils/platform";
+import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -273,6 +273,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
+	const movePinnedChat = (chatId: string, to: number) => {
+		const from = pinnedChatIds.indexOf(chatId);
+		if (from === -1 || from === to) {
+			return;
+		}
+		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
+		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
+	};
+
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { source, target } = event.operation;
 		if (event.canceled) {
@@ -298,14 +307,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		if (disablePinnedReordering || !isSortable(source)) {
 			return;
 		}
-		const chatId = String(source.id);
-		const from = pinnedChatIds.indexOf(chatId);
-		const to = source.index;
-		if (from === -1 || from === to) {
-			return;
-		}
-		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
-		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
+		movePinnedChat(String(source.id), source.index);
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -558,6 +560,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						label="Search"
 						active={false}
 						ariaLabel="Search chats"
+						ariaKeyShortcuts={isMac() ? "Meta+K" : "Control+K"}
 						onClick={onOpenSearchDialog}
 						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
 						trailing={
@@ -668,7 +671,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									<ChatTreeContext value={chatTreeCtx}>
 										<div className="pb-2">
 											{isShowingEmptyState ? (
-												<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+												<div className="rounded-lg border border-dashed bg-surface-primary p-4 text-center text-xs text-content-secondary">
 													<p className="m-0">{emptyStateMessage}</p>
 													{hasAppliedResultFilters && (
 														<button
@@ -711,6 +714,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																				key={chat.id}
 																				chat={chat}
 																				index={index}
+																				pinCount={sortedPinnedChats.length}
+																				onMovePin={(to) =>
+																					movePinnedChat(chat.id, to)
+																				}
 																			/>
 																		))}
 																	</div>

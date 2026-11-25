@@ -25,8 +25,8 @@ type (
 	UpsertWorkspaceAgentPortShareRequest struct {
 		AgentName  string                          `json:"agent_name"`
 		Port       int32                           `json:"port"`
-		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
-		Protocol   WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
+		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level"`
+		Protocol   WorkspaceAgentPortShareProtocol `json:"protocol"`
 	}
 	WorkspaceAgentPortShares struct {
 		Shares []WorkspaceAgentPortShare `json:"shares"`
@@ -35,8 +35,8 @@ type (
 		WorkspaceID uuid.UUID                       `json:"workspace_id" format:"uuid"`
 		AgentName   string                          `json:"agent_name"`
 		Port        int32                           `json:"port"`
-		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
-		Protocol    WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
+		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level"`
+		Protocol    WorkspaceAgentPortShareProtocol `json:"protocol"`
 	}
 	DeleteWorkspaceAgentPortShareRequest struct {
 		AgentName string `json:"agent_name"`

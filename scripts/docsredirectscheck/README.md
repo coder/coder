@@ -78,7 +78,8 @@ Each route in the inventory must be a live route in the head manifest, or be res
 The inventory is the union of:
 
 - The routes in `docs/manifest.json` on the base branch.
-- The routes in the live production page list for the target branch.
+- The routes in the live production page list for the target branch, when the run reads the list.
+  `make lint/docs-redirects` does not read it.
   The list is `https://coder.com/beta-docs/@main/llms.txt` for `main` and `https://coder.com/beta-docs/vX.Y/llms.txt` for `release/X.Y`.
   Only links under that version count.
   The version served at the unversioned `/beta-docs` path links its pages without a version segment, so when a list has no links under its own segment, the unversioned links count instead.
@@ -105,8 +106,9 @@ Both ends of the check can be missing, and the check says so and skips that part
   A branch other than `main` or `release/X.Y`, or no known branch, skips the list with a note.
   A list that answers 404 skips the list with a note, because a new `release/X.Y` branch has no published docs version yet.
   When `docs/manifest.json` and `docs/redirects.json` are the same as on the base branch, the list is skipped with a note, because the change cannot affect the result.
-  On a pull request, a coder.com outage only blocks changes to those two files.
-  Pass `-offline` to skip the list on purpose, for example without network access.
+  Pass `-offline` to skip the list on purpose.
+  `make lint/docs-redirects` passes it, so that lint depends only on the repository and not on what the docs site serves at the time.
+  Run the command without `-offline` to compare against the live site as well.
 
 A live page list that cannot be read for any other reason is an infrastructure failure and exits 2, not a pass.
 The request has a descriptive `User-Agent`, because the site answers 403 to some default clients, and it retries a few times before it gives up.
@@ -119,6 +121,16 @@ Any other failure to read it skips the base redirect sources with a note.
 
 beta-docs currently serves a dotted segment with hyphens, so `esr-2.24-2.29-upgrade` is served as `esr-2-24-2-29-upgrade`.
 Until the docs engine fixes it, a live route that equals a head route with `.` replaced by `-` counts as present.
+
+### REST API endpoint pages
+
+The docs site generates one page for each REST API endpoint from `coderd/apidoc/swagger.json`, at `reference/api/<section>/<endpoint>`, such as `reference/api/users/get-user-by-name`.
+`docs/manifest.json` lists only the section pages, such as `reference/api/users`, so the check cannot tell which endpoint pages exist.
+A route of that form in the live page list is therefore not checked while its section page is a live route, and the check prints how many it left out.
+Once the section page is gone, its endpoint routes need a rule like any other route.
+
+The endpoint part of the URL comes from the endpoint's summary and the section from its tag.
+A change to either one moves the page, and the check does not notice.
 
 ## How it decides which pages exist
 

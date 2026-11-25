@@ -71,7 +71,7 @@ export const DownloadSelectedAgentLogsButton: React.FC<
 			<DropdownMenuContent
 				side="bottom"
 				align="end"
-				className="max-h-56 overflow-y-auto"
+				className="max-h-[min(14rem,var(--radix-popper-available-height))]"
 			>
 				<DropdownMenuItem
 					disabled={!hasAllLogs}

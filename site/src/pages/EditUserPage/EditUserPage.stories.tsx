@@ -164,7 +164,10 @@ export const KeepsDraftWhenUserRefetches: Story = {
 		await body.findByText(
 			`User "${MockUserMember.username}" suspended successfully.`,
 		);
-		expect(API.getUser).toHaveBeenCalledWith(MockUserMember.username);
+		expect(API.getUser).toHaveBeenCalledWith(
+			MockUserMember.username,
+			expect.any(AbortSignal),
+		);
 		await expect(name).toHaveValue("Draft Name");
 		await expect(
 			await canvas.findByRole("heading", {

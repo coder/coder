@@ -30,7 +30,7 @@ export const ProvisionerTagsPopover: React.FC<ProvisionerTagsPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="w-[300px] bg-surface-secondary border-surface-quaternary"
+				className="w-75 bg-surface-secondary border-surface-quaternary"
 			>
 				<div className="text-content-secondary p-5">
 					<VerticalForm>
@@ -41,7 +41,7 @@ export const ProvisionerTagsPopover: React.FC<ProvisionerTagsPopoverProps> = ({
 								// direction ("horizontal") which adds lg:flex-row.
 								root: "flex-col lg:flex-col gap-4 lg:gap-4",
 							}}
-							title="Provisioner Tags"
+							title="Provisioner tags"
 							description={
 								<>
 									Tags are a way to control which provisioner daemons complete
@@ -50,7 +50,7 @@ export const ProvisionerTagsPopover: React.FC<ProvisionerTagsPopoverProps> = ({
 										href={docs("/admin/provisioners")}
 										target="_blank"
 										rel="noreferrer"
-										className="p-0"
+										className="pl-0"
 										showExternalIcon={false}
 									>
 										Learn more...

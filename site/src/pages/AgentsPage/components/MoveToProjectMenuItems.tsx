@@ -97,7 +97,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 				<FolderInputIcon />
 				Move to project
 			</SubTrigger>
-			<SubContent className="max-h-80 max-w-72 overflow-y-auto">
+			<SubContent className="max-h-[min(20rem,var(--radix-popper-available-height))] max-w-72">
 				{projectsQuery.isPending && <Item disabled>Loading projects…</Item>}
 				{projectsQuery.isError && (
 					<Item disabled>

@@ -114,7 +114,7 @@ func (r *RootCmd) loginWithPassword(
 	}
 
 	sessionToken := resp.SessionToken
-	err = r.ensureTokenBackend().Write(client.URL, sessionToken)
+	err = r.ensureTokenBackend(inv).Write(client.URL, sessionToken)
 	if err != nil {
 		if xerrors.Is(err, sessionstore.ErrNotImplemented) {
 			return errKeyringNotSupported
@@ -147,6 +147,7 @@ func (r *RootCmd) login() *serpent.Command {
 		username           string
 		name               string
 		password           string
+		setupToken         string
 		trial              bool
 		trialInfo          codersdk.CreateFirstUserTrialInfo
 		useTokenForSession bool
@@ -207,7 +208,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 			// Check keyring availability before prompting the user for a token to fail fast.
 			if r.useKeyring {
-				backend := r.ensureTokenBackend()
+				backend := r.ensureTokenBackend(inv)
 				_, err := backend.Read(client.URL)
 				if err != nil && xerrors.Is(err, sessionstore.ErrNotImplemented) {
 					return errKeyringNotSupported
@@ -246,6 +247,30 @@ func (r *RootCmd) login() *serpent.Command {
 					name, err = promptFirstName(inv)
 					if err != nil {
 						return err
+					}
+				}
+
+				// The setup token is asked for first, so that someone
+				// without it stops before typing an email and a password.
+				if setupToken == "" {
+					methods, err := client.AuthMethods(ctx)
+					if err != nil {
+						return xerrors.Errorf("get auth methods: %w", err)
+					}
+					if methods.SetupTokenRequired {
+						setupToken, err = cliui.Prompt(inv, cliui.PromptOptions{
+							Text:   "Setup token:",
+							Secret: true,
+							Validate: func(s string) error {
+								if s == "" {
+									return xerrors.New("The setup token is printed by coder server when it starts.")
+								}
+								return nil
+							},
+						})
+						if err != nil {
+							return err
+						}
 					}
 				}
 
@@ -288,12 +313,13 @@ func (r *RootCmd) login() *serpent.Command {
 				}
 
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-					Email:     email,
-					Username:  username,
-					Name:      name,
-					Password:  password,
-					Trial:     trial,
-					TrialInfo: trialInfo,
+					Email:      email,
+					Username:   username,
+					Name:       name,
+					Password:   password,
+					Trial:      trial,
+					TrialInfo:  trialInfo,
+					SetupToken: setupToken,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -389,7 +415,7 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			config := r.createConfig()
-			err = r.ensureTokenBackend().Write(client.URL, sessionToken)
+			err = r.ensureTokenBackend(inv).Write(client.URL, sessionToken)
 			if err != nil {
 				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
 					return errKeyringNotSupported
@@ -429,6 +455,12 @@ func (r *RootCmd) login() *serpent.Command {
 			Env:         "CODER_FIRST_USER_PASSWORD",
 			Description: "Specifies a password to use if creating the first user for the deployment.",
 			Value:       serpent.StringOf(&password),
+		},
+		{
+			Flag:        "first-user-setup-token",
+			Env:         "CODER_FIRST_USER_SETUP_TOKEN",
+			Description: "Specifies the setup token to use if creating the first user for a deployment that requires one. The server prints it at startup.",
+			Value:       serpent.StringOf(&setupToken),
 		},
 		{
 			Flag:        "first-user-trial",
@@ -505,7 +537,7 @@ func (r *RootCmd) loginToken() *serpent.Command {
 			// multiple deployment session tokens. Error if the requested URL doesn't
 			// match the stored config URL when using file storage to avoid returning
 			// a token for the wrong deployment.
-			backend := r.ensureTokenBackend()
+			backend := r.ensureTokenBackend(inv)
 			if _, ok := backend.(*sessionstore.File); ok {
 				conf := r.createConfig()
 				storedURL, err := conf.URL().Read()

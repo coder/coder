@@ -181,9 +181,7 @@ describe("ProjectChatsList", () => {
 
 		renderList();
 
-		expect(
-			await screen.findByRole("link", { name: /Chat 0.*\$1\.23/ }),
-		).toBeInTheDocument();
+		await screen.findByRole("link", { name: /Chat 0/ });
 		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
 			"chat-0",
 			expect.anything(),

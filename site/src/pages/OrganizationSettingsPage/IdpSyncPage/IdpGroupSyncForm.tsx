@@ -40,6 +40,8 @@ import { isUUID } from "#/utils/uuid";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
 
+const GROUP_COMBOBOX_LABEL = "Coder group";
+
 const groupSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
 	regex_filter: Yup.string().trim(),
@@ -259,7 +261,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 												placeholder="Select IdP group"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent className="w-72" label="Search IdP groups">
 											<ComboboxInput
 												value={comboInputValue}
 												onValueChange={setComboInputValue}
@@ -297,13 +299,9 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor={`${id}-coder-group`}>
-									Coder group
-								</Label>
+								<Label className="text-sm">{GROUP_COMBOBOX_LABEL}</Label>
 								<MultiSelectCombobox
-									inputProps={{
-										id: `${id}-coder-group`,
-									}}
+									commandProps={{ label: GROUP_COMBOBOX_LABEL }}
 									className="min-w-60 max-w-3xl"
 									value={coderGroups}
 									onChange={setCoderGroups}

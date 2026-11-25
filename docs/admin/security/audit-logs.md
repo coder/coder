@@ -151,6 +151,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -161,6 +162,19 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>updated_at</code></td><td>No</td></tr>
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### AuditableChatProjectTemplates
+
+Actions: `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>project_id</code></td><td>No</td></tr>
+<tr><td><code>project_name</code></td><td>No</td></tr>
+<tr><td><code>template_ids</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -224,6 +238,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -398,10 +413,14 @@ Actions: `create`, `write`, `delete`
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
 <tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>default_parameters</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_id</code></td><td>Yes</td></tr>
+<tr><td><code>default_template_version_preset_id</code></td><td>Yes</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>limit_templates</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
@@ -712,6 +731,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
@@ -742,6 +762,7 @@ Actions: `write`, `delete`
 <tr><td><code>autostart_block_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_weeks</code></td><td>Yes</td></tr>
+<tr><td><code>browser_only</code></td><td>Yes</td></tr>
 <tr><td><code>cors_behavior</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>created_by</code></td><td>Yes</td></tr>

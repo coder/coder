@@ -45,8 +45,10 @@ If your upstream identity provider users a different claim, you can set `CODER_O
 ### Email Address Verification
 
 Coder requires all OIDC email addresses to be verified by default.
-If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
-If needed, you can disable this behavior with the following setting:
+The identity provider must send the `email_verified` claim with the value `true`.
+Coder also accepts the string form of `true`, such as `"true"`.
+Some identity providers omit this claim.
+If the claim is missing, Coder rejects the login unless you disable this check with the following setting:
 
 ```dotenv
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
@@ -159,7 +161,8 @@ Behavior notes:
   `DELETE /scim/v2/Users/{id}` and deactivation (`active: false`) both [suspend](../index.md#suspend-a-user) the user.
 - Re-activating or re-creating a previously suspended user places them in the dormant state, and they become active again on their next login.
 - Usernames are immutable.
-  Attempts to change `userName` via `PUT` or `PATCH` return a `mutability` error.
+  Coder does not change `userName` through `PUT` or `PATCH`.
+  A `PUT` request that changes `userName` returns a 400 error.
 
 The SCIM 2.0 handler will eventually become the default behavior.
 

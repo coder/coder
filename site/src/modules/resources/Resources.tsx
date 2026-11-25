@@ -43,7 +43,7 @@ export const Resources: React.FC<ResourcesProps> = ({
 				<div className="flex items-center justify-center mt-4">
 					<Button
 						variant="outline"
-						className="rounded-full w-full max-w-[260px]"
+						className="rounded-full w-full max-w-65"
 						size="sm"
 						onClick={() => setShouldDisplayHideResources((v) => !v)}
 					>

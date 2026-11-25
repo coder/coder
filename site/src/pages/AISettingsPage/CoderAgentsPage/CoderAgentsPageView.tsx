@@ -109,7 +109,7 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 					title="Deployment settings"
 					description="Configure Coder Agents capabilities that apply to every organization."
 				>
-					<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
+					<div className="flex flex-col gap-6 rounded-lg border px-6 py-7">
 						<AdminPersonalModelOverridesSettings
 							adminSettings={adminOverridesData}
 							adminSettingsError={adminOverridesError}

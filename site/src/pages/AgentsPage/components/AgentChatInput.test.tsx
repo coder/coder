@@ -6,9 +6,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import userEvent, {
-	PointerEventsCheckLevel,
-} from "@testing-library/user-event";
+import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -77,6 +75,14 @@ const stubViewport = (
 		return query === mediaQuery ? { ...result, matches } : result;
 	});
 };
+
+const mobileDropdownVariables = [
+	"--mobile-dropdown-bottom",
+	"--mobile-dropdown-left",
+	"--mobile-dropdown-width",
+	"--mobile-dropdown-above-composer-bottom",
+	"--mobile-dropdown-above-composer-max-height",
+];
 
 const modelOptions = [
 	{
@@ -324,6 +330,40 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
 	});
 
+	it("accepts typing without sending while a send is pending", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				inputRef={inputRef}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Next message");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("Next message");
+		});
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		["a pending send settles", { isLoading: true }],
 		["the composer is enabled", { isDisabled: true }],
@@ -353,6 +393,51 @@ describe("AgentChatInput", () => {
 			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1"),
 		);
 	});
+
+	it.each([
+		{ lockWhileLoading: false, focused: "Elsewhere" },
+		{ lockWhileLoading: true, focused: "Chat message" },
+	])(
+		"focuses $focused when a send completes with lockWhileLoading $lockWhileLoading",
+		async ({ lockWhileLoading, focused }) => {
+			const user = userEvent.setup();
+			const input = (isLoading: boolean) => (
+				<AppProviders>
+					<button type="button">Elsewhere</button>
+					<AgentChatInput
+						onSend={vi.fn()}
+						isDisabled={false}
+						isLoading={isLoading}
+						lockWhileLoading={lockWhileLoading}
+						selectedModel={modelOptions[0].id}
+						onModelChange={vi.fn()}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder="Select model"
+						hasModelOptions
+						canConfigureAgentSetup={false}
+						initialValue=""
+						onContentChange={vi.fn()}
+						planModeEnabled={false}
+						onPlanModeToggle={vi.fn()}
+						isModelCatalogLoading={false}
+					/>
+				</AppProviders>
+			);
+			const { rerender } = render(input(true), { wrapper: MemoryRouter });
+
+			const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+			await user.click(elsewhere);
+			rerender(input(false));
+			// Lexical moves DOM focus in its update commit, after this render.
+			await act(async () => {});
+
+			expect(
+				screen.getByRole(focused === "Elsewhere" ? "button" : "textbox", {
+					name: focused,
+				}),
+			).toHaveFocus();
+		},
+	);
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
@@ -722,10 +807,7 @@ describe("AgentChatInput", () => {
 	});
 
 	it("on a busy chat, a long press on Send opens the menu and the release does not send", async () => {
-		// Allow the held touch to finish after the menu disables outside pointer events.
-		const user = userEvent.setup({
-			pointerEventsCheck: PointerEventsCheckLevel.Never,
-		});
+		const user = userEvent.setup();
 		const onSend = vi.fn();
 
 		renderInput(
@@ -852,7 +934,7 @@ describe("AgentChatInput", () => {
 
 	it.each([
 		["history", "Stop", "onInterrupt"],
-		["queued", "Save Edit", "onSend"],
+		["queued", "Save edit", "onSend"],
 	] as const)(
 		"a %s edit while streaming puts %s in the footer slot",
 		async (editingKind, buttonName, calledHandler) => {
@@ -1473,7 +1555,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -1484,6 +1566,41 @@ describe("AgentChatInput", () => {
 			);
 		} else {
 			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
+	});
+
+	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
+		stubViewport(false, belowMdViewportMediaQuery);
+		const user = userEvent.setup();
+		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
+
+		renderInput(<AgentChatInput {...inputProps} />);
+		const textbox = screen.getByRole("textbox", { name: "Chat message" });
+		await user.click(textbox);
+		await user.keyboard("when");
+
+		const rootWrites = setProperty.mock.calls.filter(([name]) =>
+			name.startsWith("--mobile-dropdown-"),
+		);
+		expect(rootWrites).toEqual([]);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
+		}
+	});
+
+	it("writes mobile dropdown variables below the md breakpoint and removes them on unmount", () => {
+		stubViewport(true, belowMdViewportMediaQuery);
+
+		const { unmount } = renderInput(<AgentChatInput {...inputProps} />);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toMatch(
+				/^\d+px$/,
+			);
+		}
+
+		unmount();
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
 		}
 	});
 });
