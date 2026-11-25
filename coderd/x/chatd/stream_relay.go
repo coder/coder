@@ -199,10 +199,10 @@ func (f *streamRelayForwarder) loop() {
 				slog.F("worker_id", target.workerID.UUID),
 				slog.Error(err),
 			)
-			// Unrecoverable dial errors (e.g. auth failures) will not
-			// succeed on retry with the same inputs, so arm no timer. A
-			// later configuration for the same worker arms one for the rest
-			// of the backoff.
+			// An unrecoverable error (e.g. an auth failure) arms no timer, so
+			// the forwarder does not redial on its own. A same-worker
+			// configuration during the backoff dials once it passes, so the
+			// last configured episode is still dialed.
 			scheduleRetry(!streamPartsDialUnrecoverable(err))
 			return
 		}

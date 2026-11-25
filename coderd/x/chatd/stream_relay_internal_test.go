@@ -267,8 +267,9 @@ type closingSession struct {
 func (s closingSession) Parts() <-chan StreamPart { return s.parts }
 
 // TestStreamRelayForwarderDialBackoff configures the forwarder on a mock
-// clock with failing dials and lost sessions and expects a worker to be
-// redialed on the retry backoff, however often it is configured.
+// clock with failing dials and lost sessions and expects each redial on the
+// retry backoff, however often the worker is configured. After an
+// unrecoverable error, only a configuration leads to a redial.
 func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -314,9 +315,10 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 		// closedBuffer accepts every dial over a closed message part buffer,
 		// so each session closes after its selection.
 		closedBuffer bool
-		// closeSessionAt is the time since start at which the test closes the
-		// connected session's parts channel. Zero never closes; a nonzero
-		// value needs succeedDial to have connected by then.
+		// closeSessionAt is the time since start at which the connected
+		// session sends one part and then closes its parts channel. Zero
+		// never closes; a nonzero value needs succeedDial to have connected
+		// by then.
 		closeSessionAt time.Duration
 		wantDials      []dial
 		// connects expects the last target's parts on relay.Parts().
