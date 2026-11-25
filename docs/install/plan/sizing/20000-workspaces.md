@@ -1,16 +1,17 @@
 ---
-title: "Reference architecture: up to 2,000 users"
+title: "Reference architecture: up to 20,000 concurrent workspaces"
 ---
 
-In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.
-This setup is well-suited for mid-sized companies experiencing growth or for universities seeking to accommodate their expanding user populations.
+This architecture supports up to 20,000 concurrent running workspaces.
+It targets the largest enterprise deployments, and applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./3k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources.
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 2000  | 1200                          | 120               |
+| Concurrent running workspaces | Concurrent workspace builds |
+|------------------------------:|----------------------------:|
+|                        20,000 |                       2,040 |
 
 **Observability**:
 Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
@@ -18,20 +19,25 @@ This allows operators to respond quickly to incidents and continuously improve t
 
 ## Hardware recommendations
 
+These recommendations assume a deployment across three regions: `coderd` in the primary region, a workspace proxy in each of the other two regions, and workspaces and provisioners split evenly across all three.
+The provisioner replica count is the total across all regions, and the workspace proxy replica count applies to each proxy region.
+
 ### Coderd
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 16   | 32&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
+  - Set CPU request and limit to `16000m`
+  - Set Memory request and limit to `32Gi`
 - `coderd` does not typically benefit from high performance disks like solid-state drives (SSDs), unless you are co-locating provisioners.
 - `coderd` instances should be deployed in the same region as the database.
+- Set `CODER_PG_CONN_MAX_OPEN` to `180` and `CODER_PG_CONN_MAX_IDLE` to `90`.
+  To learn how to tune these values, refer to [Connection pool tuning](../../validate/scale-coder.md#connection-pool-tuning).
 
 ### Workspace Proxies
 
@@ -39,21 +45,21 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 16   | 32&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
+  - Set CPU request and limit to `16000m`
+  - Set Memory request and limit to `32Gi`
 - Workspace Proxies do not typically benefit from high performance disks like SSDs.
 
 ### Provisioners
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 120      |
+| 1    | 1&nbsp;GB | 2,040    |
 
 **Notes**:
 
@@ -68,20 +74,21 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 ### Database
 
-| vCPU | Memory     | Replicas |
-|------|------------|----------|
-| 16   | 60&nbsp;GB | 1        |
+| vCPU | Memory      | Replicas |
+|------|-------------|----------|
+| 64   | 240&nbsp;GB | 1        |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as the M8-series in AWS work well.
-- Deploy in the same region as `coderd`
+- Deploy in the same region as `coderd`.
+- Set `max_connections` to at least 2,000.
 
 ### Workspaces
 
-The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
+The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users' work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
 Size your workspaces to fit the use case your users will be undertaking.
-If in doubt, chose sizes based on the development environments your users are migrating from onto Coder.
+If in doubt, choose sizes based on the development environments your users are migrating from onto Coder.
 
 | vCPU | Memory      |
 |------|-------------|
