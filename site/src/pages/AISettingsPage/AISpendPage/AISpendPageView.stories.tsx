@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
+import {
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendOverview,
@@ -9,6 +13,24 @@ import {
 	mockApiQueryError,
 } from "#/testHelpers/entities";
 import { AISpendPageView } from "./AISpendPageView";
+import type { DetailedReportQuery } from "./DetailedReportTable";
+
+const mockReportQuery = {
+	...mockSuccessResult,
+	totalRecords: MockOrganizationAISpendReport.count,
+	data: MockOrganizationAISpendReport,
+	isFetching: false,
+	error: null,
+	refetch: fn(),
+} satisfies DetailedReportQuery;
+
+const mockPendingReportQuery = {
+	...mockInitialRenderResult,
+	data: undefined,
+	isFetching: true,
+	error: null,
+	refetch: fn(),
+} satisfies DetailedReportQuery;
 
 // The first user used both unpriced models, so their row warns like the total.
 const [mockSpender, ...mockOtherSpenders] = MockOrganizationAISpendReport.users;
@@ -41,13 +63,27 @@ const meta = {
 		organizations: [MockOrganization, MockOrganization2],
 		organization: MockOrganization,
 		onOrganizationChange: fn(),
+		tab: "overview",
+		onTabChange: fn(),
 		isOrganizationsLoading: false,
 		organizationsError: null,
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
+		minDay: undefined,
+		reportFilter: "",
+		onReportFilterChange: fn(),
+		reportQuery: mockPendingReportQuery,
+		hasRunReport: false,
+		isReportOutdated: false,
+		onRunReport: fn(),
+		onCancelReport: fn(),
+		canExportReport: false,
+		isExportingReport: false,
+		onExportReport: fn(),
+		onOpenDetailedReport: fn(),
 		overview: MockOrganizationAISpendOverview,
 		overviewError: null,
-		unpricedModels: MockUnpricedAIModels.models,
+		unpricedModels: MockUnpricedAIModels,
 		isUnpricedModelsLoading: false,
 		topSpenderDetails: mockTopSpenderDetails,
 		topSpenderDetailsError: null,
@@ -59,10 +95,6 @@ export default meta;
 type Story = StoryObj<typeof AISpendPageView>;
 
 export const Overview: Story = {};
-
-export const Mobile: Story = {
-	globals: { viewport: { value: "iphone12", isRotated: false } },
-};
 
 export const OverviewLoading: Story = {
 	args: {
@@ -85,7 +117,7 @@ export const NoSpend: Story = {
 			})),
 			users: [],
 		},
-		unpricedModels: [],
+		unpricedModels: { ...MockUnpricedAIModels, count: 0, models: [] },
 	},
 };
 
@@ -98,6 +130,12 @@ export const DatePickerOpen: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /Mar 6, 2026/ }));
 	},
+};
+
+/** The days before the retention can't be picked. */
+export const DatePickerOpenWithRetention: Story = {
+	args: { minDay: "2026-03-04" },
+	play: DatePickerOpen.play,
 };
 
 /** A failed refetch keeps the cached spend on screen. */
@@ -114,6 +152,105 @@ export const OverviewError: Story = {
 		overview: undefined,
 		overviewError: mockApiQueryError({ message: "Unable to load AI spend." }),
 	},
+};
+
+export const OverviewMobile: Story = {
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const DetailedReport: Story = {
+	args: { tab: "detailed-report" },
+};
+
+export const DetailedReportBuilding: Story = {
+	args: { tab: "detailed-report", hasRunReport: true },
+};
+
+export const DetailedReportResults: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: mockReportQuery,
+		canExportReport: true,
+	},
+};
+
+export const DetailedReportExporting: Story = {
+	args: { ...DetailedReportResults.args, isExportingReport: true },
+};
+
+export const DetailedReportUnpricedModels: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockReportQuery,
+			data: {
+				...MockOrganizationAISpendReport,
+				totals: {
+					...MockOrganizationAISpendReport.totals,
+					has_unpriced_usage: true,
+				},
+				users: mockTopSpenderDetails,
+			},
+		},
+	},
+};
+
+export const DetailedReportNoSpend: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockReportQuery,
+			totalRecords: 0,
+			data: {
+				...MockOrganizationAISpendReport,
+				count: 0,
+				totals: { cost_micros: 0, has_unpriced_usage: false },
+				users: [],
+			},
+		},
+	},
+};
+
+/** The previous results stay visible while the report runs again. */
+export const DetailedReportRefreshing: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: { ...mockReportQuery, isFetching: true },
+	},
+};
+
+export const DetailedReportOutdated: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		isReportOutdated: true,
+		reportQuery: mockReportQuery,
+	},
+};
+
+export const DetailedReportError: Story = {
+	args: {
+		tab: "detailed-report",
+		hasRunReport: true,
+		reportQuery: {
+			...mockPendingReportQuery,
+			isFetching: false,
+			error: mockApiQueryError({ message: "Failed to build the report." }),
+		},
+	},
+};
+
+export const DetailedReportMobile: Story = {
+	args: DetailedReportResults.args,
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const DetailedReportNoSessionAccess: Story = {
+	args: { ...DetailedReportResults.args, canViewSessions: false },
 };
 
 export const Paywall: Story = {
