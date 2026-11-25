@@ -94,12 +94,12 @@ describe(Filter.name, () => {
 
 	it("applies the typed search when the box loses focus", async () => {
 		const user = userEvent.setup();
-		renderWithAuth(<FilterWithSearchParams />);
+		const { router } = renderWithAuth(<FilterWithSearchParams />);
 		const search = await screen.findByRole("textbox", { name: "Search" });
 
 		await user.type(search, "owner:me");
 		await user.tab();
 
-		expect(search).toHaveValue("owner:me");
+		expect(router.state.location.search).toBe("?filter=owner%3Ame");
 	});
 });
