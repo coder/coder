@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -740,6 +741,13 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
 	}
 
+	if req.IncludeResult {
+		resp, err := rawResult(result)
+		if err != nil {
+			return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("encode result of tool %q on %q: %w", originalName, serverName, err)
+		}
+		return resp, nil
+	}
 	return convertResult(result), nil
 }
 
@@ -1011,6 +1019,23 @@ func splitToolName(prefixed string) (serverName, toolName string, err error) {
 		return "", "", xerrors.Errorf("%w: expected format \"server%stool\", got %q", ErrInvalidToolName, ToolNameSep, prefixed)
 	}
 	return server, tool, nil
+}
+
+// rawResult returns the whole MCP CallToolResult in MCP wire format, so
+// coderd converts every content type itself. Content stays empty so media
+// is not sent twice.
+func rawResult(result *mcp.CallToolResult) (workspacesdk.CallMCPToolResponse, error) {
+	if result == nil {
+		return workspacesdk.CallMCPToolResponse{}, nil
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("marshal result: %w", err)
+	}
+	return workspacesdk.CallMCPToolResponse{
+		Result:  raw,
+		IsError: result.IsError,
+	}, nil
 }
 
 // convertResult translates an MCP CallToolResult into a

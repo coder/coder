@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/cli/config"
 )
 
 const trackingDDL = `
@@ -59,6 +60,9 @@ func recoverDB(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 				return xerrors.Errorf("remove postgres directory: %w", err)
 			}
 			return nil
+		}
+		if err := config.ValidateBuiltinPostgresVersion(pgDir); err != nil {
+			return err
 		}
 		stopPG, err := startTempPostgresSetURL(ctx, logger, cfg, &pgURL)
 		if err != nil {

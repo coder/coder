@@ -120,7 +120,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 										<button type="button">Unavailable</button>
 									</Badge>
 								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[240px]">
+								<TooltipContent side="bottom" className="max-w-60">
 									{providerNotice}
 								</TooltipContent>
 							</Tooltip>
@@ -142,7 +142,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+					<span className="truncate text-sm leading-6 text-content-secondary">
 						Unset
 					</span>
 				)}

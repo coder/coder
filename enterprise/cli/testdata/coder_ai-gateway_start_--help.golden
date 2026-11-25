@@ -17,7 +17,7 @@ OPTIONS:
       --experiments string-array, $CODER_EXPERIMENTS
           Enable one or more experiments. These are not ready for production.
           Separate multiple experiments with commas, or enter '*' to opt-in to
-          all available experiments.
+          the experiments that are marked safe.
 
       --http-address string, $CODER_AI_GATEWAY_HTTP_ADDRESS (default: 127.0.0.1:4001)
           The bind address to serve incoming AI Gateway client traffic.

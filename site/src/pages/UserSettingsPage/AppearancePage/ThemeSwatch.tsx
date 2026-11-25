@@ -35,7 +35,7 @@ export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 				{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Hover preview only; the radio handles keyboard focus. */}
 				<label
 					className={cn(
-						"inline-flex rounded-full size-8 p-0 border-2 border-solid cursor-pointer",
+						"inline-flex rounded-full size-8 p-0 border-2 cursor-pointer",
 						"transition-[outline] outline-solid outline-2 outline-offset-2",
 						selected ? "outline-content-link" : "outline-transparent",
 						"border-surface-invert-secondary",

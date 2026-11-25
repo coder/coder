@@ -75,6 +75,7 @@ export const WithSearch: Story = {
 				{...args}
 				selectedOption={selectedOption}
 				onSelect={setSelectedOption}
+				searchLabel="Search options"
 				selectFilterSearch={
 					<ComboboxInput
 						placeholder="Search options..."
@@ -89,6 +90,37 @@ export const WithSearch: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
+	},
+};
+
+const mockLongOption: SelectFilterOption = {
+	label: "Meridian Systems Engineering",
+	value: "long-option",
+};
+
+export const LongOptionHighlighted: Story = {
+	args: {
+		options: [mockLongOption, ...options.slice(0, 3)],
+		selectedOption: mockLongOption,
+		width: 150,
+	},
+	decorators: [
+		(Story) => (
+			<div className="flex w-40">
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const TruncatedTriggerFocused: Story = {
+	...LongOptionHighlighted,
+	play: async () => {
+		await userEvent.tab();
 	},
 };
 
@@ -146,9 +178,9 @@ export const SearchingOption: Story = {
 				selectedOption={selectedOption}
 				onSelect={setSelectedOption}
 				options={visibleOptions}
+				searchLabel="Search options"
 				selectFilterSearch={
 					<ComboboxInput
-						aria-label="Search options"
 						placeholder="Search options..."
 						value={search}
 						onValueChange={setSearch}

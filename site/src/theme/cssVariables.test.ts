@@ -1,11 +1,28 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { hsl } from "color-convert";
 import {
 	baseModeFor,
 	CONCRETE_THEMES,
 	type ConcreteThemeName,
 	DEFAULT_THEME,
 } from ".";
+
+// Use filesystem paths to avoid Vite's browser asset URL transform.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const css = fs.readFileSync(path.resolve(moduleDir, "../index.css"), "utf8");
+const html = fs.readFileSync(
+	path.resolve(moduleDir, "../../index.html"),
+	"utf8",
+);
+const manifest: { theme_color?: string; background_color?: string } =
+	JSON.parse(
+		fs.readFileSync(
+			path.resolve(moduleDir, "../../static/manifest.json"),
+			"utf8",
+		),
+	);
 
 const REQUIRED_VARIABLES = [
 	"--content-primary",
@@ -22,6 +39,8 @@ const REQUIRED_VARIABLES = [
 	"--git-merged",
 	"--surface-git-added",
 	"--surface-git-deleted",
+	"--surface-git-added-emphasis",
+	"--surface-git-deleted-emphasis",
 	// Extended palette surface. These carry semantic color meaning in
 	// alerts, badges, chips, and syntax highlighting. A concrete theme
 	// must resolve every token after base mode and variant overrides are
@@ -55,9 +74,22 @@ const REQUIRED_VARIABLES = [
 	"--git-merged-bright",
 ];
 
-const THEME_CLASSES = [
-	":root",
-	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
+const THEME_VARIABLES = [
+	...REQUIRED_VARIABLES,
+	...["success", "error", "warning", "active", "inactive", "notice"].flatMap(
+		(role) => [`--chart-${role}`, `--chart-${role}-border`],
+	),
+	"--confetti-primary",
+	"--confetti-secondary",
+	...[
+		"foreground",
+		"background",
+		"comment",
+		"type",
+		"string",
+		"variable",
+		"brace",
+	].map((token) => `--editor-${token}`),
 ];
 
 const COLORBLIND_THEME_CLASSES = [
@@ -112,6 +144,23 @@ function extractVariables(block: string): Map<string, string> {
 	return variables;
 }
 
+// Relative luminance and contrast ratio as defined by WCAG 2.x:
+// https://www.w3.org/WAI/GL/wiki/Relative_luminance#Definition_as_Stated_in_WCAG_2.x
+function relativeLuminance(hslValue: string): number {
+	const [h = 0, s = 0, l = 0] = hslValue.split(/[\s,%]+/).map(Number);
+	const [r = 0, g = 0, b = 0] = hsl.rgb([h, s, l]).map((channel) => {
+		const value = channel / 255;
+		return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: string, b: string): number {
+	const la = relativeLuminance(a);
+	const lb = relativeLuminance(b);
+	return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
 function extractEffectiveBlock(css: string, selector: string): string | null {
 	const block = extractBlock(css, selector);
 	if (block === null) {
@@ -131,10 +180,20 @@ function extractEffectiveBlock(css: string, selector: string): string | null {
 }
 
 describe("theme CSS variables", () => {
-	const cssPath = path.resolve(__dirname, "../index.css");
-	const css = fs.readFileSync(cssPath, "utf8");
+	describe(":root", () => {
+		const block = extractBlock(css, ":root");
 
-	for (const selector of THEME_CLASSES) {
+		it("has a rule block in index.css", () => {
+			expect(block).not.toBeNull();
+		});
+
+		it.each(REQUIRED_VARIABLES)("resolves %s", (variable) => {
+			expect(extractVariable(block ?? "", variable)).not.toBeNull();
+		});
+	});
+
+	for (const themeName of CONCRETE_THEMES) {
+		const selector = `.${themeName}`;
 		describe(selector, () => {
 			const block = extractBlock(css, selector);
 			const effectiveBlock = extractEffectiveBlock(css, selector);
@@ -143,7 +202,7 @@ describe("theme CSS variables", () => {
 				expect(block).not.toBeNull();
 			});
 
-			it.each(REQUIRED_VARIABLES)("resolves %s", (variable) => {
+			it.each(THEME_VARIABLES)("resolves %s", (variable) => {
 				expect(extractVariable(effectiveBlock ?? "", variable)).not.toBeNull();
 			});
 		});
@@ -185,6 +244,69 @@ describe("theme CSS variables", () => {
 		});
 	}
 
+	for (const name of CONCRETE_THEMES) {
+		it(`${name} distinguishes chart success, failure, warning, canceled, and skipped states`, () => {
+			const block = extractEffectiveBlock(css, `.${name}`) ?? "";
+			const fills = ["success", "error", "warning", "notice", "inactive"].map(
+				(role) => extractVariable(block, `--chart-${role}`),
+			);
+			expect(new Set(fills).size).toBe(fills.length);
+		});
+	}
+
+	it.each(CONCRETE_THEMES.filter((name) => name !== baseModeFor(name)))(
+		"%s adapts chart fills and borders for colorblind users",
+		(name) => {
+			const variant = extractEffectiveBlock(css, `.${name}`) ?? "";
+			const base = extractEffectiveBlock(css, `.${baseModeFor(name)}`) ?? "";
+			for (const role of ["success", "error", "warning"]) {
+				for (const variable of [`--chart-${role}`, `--chart-${role}-border`]) {
+					expect(extractVariable(variant, variable), variable).not.toBe(
+						extractVariable(base, variable),
+					);
+				}
+			}
+		},
+	);
+
+	// --content-warning is text (WCAG 1.4.3, 4.5:1); --border-warning is icons
+	// and graphics (WCAG 1.4.11, 3:1).
+	describe("warning contrast", () => {
+		it.each(
+			CONCRETE_THEMES.flatMap((themeName) =>
+				[
+					"--surface-primary",
+					"--surface-secondary",
+					"--surface-orange",
+				].flatMap((surface) => [
+					[themeName, "--content-warning", surface, 4.5] as const,
+					[themeName, "--border-warning", surface, 3] as const,
+				]),
+			),
+		)("%s keeps %s on %s at %d:1", (themeName, token, surface, minimum) => {
+			const block = extractEffectiveBlock(css, `.${themeName}`) ?? "";
+			const warning = extractVariable(block, token);
+			const background = extractVariable(block, surface);
+			expect(warning).not.toBeNull();
+			expect(background).not.toBeNull();
+			expect(
+				contrastRatio(warning ?? "", background ?? ""),
+			).toBeGreaterThanOrEqual(minimum);
+		});
+	});
+
+	// Consumers compose tokens as `hsl(var(--x) / alpha)`, which only resolves
+	// for space-separated channels.
+	it("does not use comma-separated HSL channels", () => {
+		const commaTokens = Array.from(
+			stripCssComments(css).matchAll(
+				/(--[\w-]+)\s*:\s*[\d.]+,\s*[\d.]+%,\s*[\d.]+%\s*;/g,
+			),
+			(match) => match[1],
+		);
+		expect(commaTokens).toEqual([]);
+	});
+
 	it("gives body the surface that ThemeProvider copies into theme-color", () => {
 		expect(extractBlocks(css, "body").join("\n")).toContain(
 			"bg-surface-primary",
@@ -212,10 +334,6 @@ describe("theme CSS variables", () => {
 		};
 
 		it("gives each OS color scheme its theme's surface in index.html", () => {
-			const html = fs.readFileSync(
-				path.resolve(__dirname, "../../index.html"),
-				"utf8",
-			);
 			const metas = Array.from(
 				new DOMParser()
 					.parseFromString(html, "text/html")
@@ -241,13 +359,6 @@ describe("theme CSS variables", () => {
 
 		it("uses the default theme's surface in the PWA manifest", () => {
 			const surface = surfaceOf(`.${DEFAULT_THEME}`);
-			const manifest: { theme_color?: string; background_color?: string } =
-				JSON.parse(
-					fs.readFileSync(
-						path.resolve(__dirname, "../../static/manifest.json"),
-						"utf8",
-					),
-				);
 
 			expect(toRGB("manifest.json theme_color", manifest.theme_color)).toBe(
 				surface,

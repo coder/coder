@@ -760,11 +760,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2008,7 +2008,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 
 `GET /api/v2/organizations/{organization}/ai/spend/export`
 
-Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+Returns per-user, per-group, per-model, per-provider, per-client aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage. Usage without a recorded client is reported as Unknown. New columns are only added at the end.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
 Unknown query parameters are rejected.
@@ -2016,15 +2016,16 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name            | In    | Type              | Required | Description                     |
-|-----------------|-------|-------------------|----------|---------------------------------|
-| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
-| `user_id`       | query | string(uuid)      | false    | User ID                         |
-| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
-| `provider_name` | query | string            | false    | Configured provider name        |
-| `model`         | query | string            | false    | Model name                      |
+| Name            | In    | Type              | Required | Description                                                 |
+|-----------------|-------|-------------------|----------|-------------------------------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                                             |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                             |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                             |
+| `user_id`       | query | string(uuid)      | false    | User ID                                                     |
+| `group_id`      | query | string(uuid)      | false    | Effective group ID                                          |
+| `provider_name` | query | string            | false    | Configured provider name                                    |
+| `model`         | query | string            | false    | Model name                                                  |
+| `client`        | query | string            | false    | Client name, or Unknown for usage without a recorded client |
 
 ### Responses
 
@@ -2129,11 +2130,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2440,6 +2441,53 @@ User IDs that are not members of the group, or that the caller has no read acces
 | Status | Meaning                                                 | Description | Schema                                                                 |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersAISpend](schemas.md#codersdkgroupmembersaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get organization member AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/members/{user}/ai/spend`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description              |
+|----------------|------|--------|----------|--------------------------|
+| `organization` | path | string | true     | Organization ID or name  |
+| `user`         | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMemberAISpendStatus](schemas.md#codersdkorganizationmemberaispendstatus) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2795,9 +2843,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                        |
-|----------|-------------------------------------------------------------------------------------------------|
-| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded` |
+| Property | Value(s)                                                                                                   |
+|----------|------------------------------------------------------------------------------------------------------------|
+| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded`, `unknown` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3500,9 +3548,9 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
 
 ### Parameters
 
-| Name             | In   | Type   | Required | Description     |
-|------------------|------|--------|----------|-----------------|
-| `provisionerkey` | path | string | true     | Provisioner Key |
+| Name             | In   | Type   | Required | Description                                                                                         |
+|------------------|------|--------|----------|-----------------------------------------------------------------------------------------------------|
+| `provisionerkey` | path | string | true     | Provisioner key placeholder (ignored; the key is read from the Coder-Provisioner-Daemon-Key header) |
 
 ### Example responses
 
@@ -4154,11 +4202,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4337,6 +4385,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 
 `GET /api/v2/users/{user}/ai/spend`
 
+Returns the user's site-wide effective AI budget and spend in the current budget period.
+The effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.
+The response does not depend on which organizations the caller can read.
+To see spend per organization, use GET /users/{user}/ai/spend/organizations.
+
 ### Parameters
 
 | Name   | In   | Type   | Required | Description              |
@@ -4366,6 +4419,67 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 | Status | Meaning                                                 | Description | Schema                                                             |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAISpendStatus](schemas.md#codersdkuseraispendstatus) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user AI spend by organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend/organizations \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai/spend/organizations`
+
+Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.
+Organizations the caller cannot read are omitted, so the response for a given user can differ between callers.
+Each organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.
+organization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.
+Access requires permission to read the user, as for GET /users/{user}/ai/spend.
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organizations": [
+    {
+      "current_spend_micros": 0,
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      }
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserOrganizationsAISpendStatus](schemas.md#codersdkuserorganizationsaispendstatus) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

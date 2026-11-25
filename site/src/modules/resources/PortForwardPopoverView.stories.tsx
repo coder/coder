@@ -14,7 +14,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	component: PortForwardPopoverView,
 	decorators: [
 		(Story) => (
-			<div className="w-[404px] rounded-lg border border-solid border-border bg-surface-primary">
+			<div className="w-101 rounded-lg border bg-surface-primary">
 				<Story />
 			</div>
 		),
@@ -41,7 +41,9 @@ const listeningPortsWithSubstringMatch = [
 
 const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
 	userEvent.type(
-		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
+		within(
+			within(canvasElement).getByRole("group", { name: "Listening ports" }),
+		).getByRole("textbox", { name: "Port" }),
 		text,
 	);
 
@@ -133,7 +135,7 @@ export const DisabledOptions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const dropdown = canvas.getByLabelText("Sharing Level");
+		const dropdown = canvas.getByLabelText("Sharing level");
 		await userEvent.click(dropdown);
 	},
 };

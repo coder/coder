@@ -147,14 +147,14 @@ export const GitDeviceAuth: React.FC<GitDeviceAuthProps> = ({
 			</p>
 			<div className="m-4 flex justify-center">
 				<Link
-					className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
+					className="inline-flex items-center gap-2 pl-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
 					showExternalIcon={false}
 				>
 					<ExternalLinkIcon className="size-icon-xs" />
-					Open and Paste
+					Open and paste
 				</Link>
 			</div>
 

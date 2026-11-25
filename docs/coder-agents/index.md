@@ -159,12 +159,29 @@ This is useful for sharing screenshots of errors, UI mockups, terminal output, l
 Messages can contain attachments alone or combined with text.
 Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
 Providers differ in which types they accept as native file content.
-A part the provider rejects is downgraded to text instead of being dropped.
+A text file the provider rejects reaches the model as text.
+Any other file the provider rejects reaches the model as a short note that names the file.
+For example, the Azure OpenAI and Google providers reject PDFs, and the Google provider rejects GIF images.
 
 The agent can also attach files to its messages (for example, with the `attach_file` tool).
 After a turn ends, an **Attachments** button at the end of the turn opens a list of the files the agent attached during it.
 The **Attachments** section of the chat's **Summary** tab lists the files the agent attached across the chat.
 In either list, you can download the files, and open PNG, JPEG, GIF, and WebP images and plain text, Markdown, CSV, and JSON files in the chat.
+
+### Chat overview
+
+On a wide screen, a chat shows an overview card in its top-right corner while the right panel is closed.
+The card lists the chat's cost, the uncommitted changes in each repository, the pull requests, the subagents that are not idle, and the attachments.
+The cost appears when the deployment has the AI Gateway entitlement and the chat has sent at least one model request.
+A repository without uncommitted changes shows zero added and zero deleted lines, and you cannot select it.
+
+Select a row to open the matching tab in the right panel, or select a subagent to open its chat.
+The card returns when you close the right panel.
+
+The card shows by default.
+To hide or show it, select **Toggle overview** (the list icon) in the chat top bar.
+Your browser remembers the choice for every chat.
+The card does not appear when the chat uses the full width.
 
 ## Security benefits of the control plane architecture
 
@@ -268,7 +285,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting, to running if there are queued messages, or to paused if the next queued message, or any message under **Next step**, is being edited |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                                                          |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                                             |
-| `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                                               |
+| `read_skill`                                | Read the instructions for a skill by name                                                                                                                                                         |
 | `read_skill_file`                           | Read a supporting file from a skill's directory                                                                                                                                                   |
 | `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                                               |
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the turn has MCP tools to defer                                                                             |
@@ -281,7 +298,7 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 
 `spawn_agent` with `type=computer_use` works only after an administrator enables the [virtual desktop](./platform-controls/virtual-desktop.md) feature.
 It also requires a model from an Anthropic, OpenAI, or OpenAI-compatible AI provider, or a Claude model from an AWS Bedrock AI provider.
-`read_skill` and `read_skill_file` are available when the workspace contains skills in its `.agents/skills/` directory.
+`read_skill` is available when personal, organization, project, or workspace skills exist, and `read_skill_file` is available when the workspace has skills.
 
 `propose_plan` and `ask_user_question` are only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.

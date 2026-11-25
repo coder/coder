@@ -37,7 +37,7 @@ export const ContextAlert: React.FC<ContextAlertProps> = ({
 			className={cn(
 				"group/context-alert grid grid-cols-[0.75rem_minmax(0,1fr)] gap-x-1.5 gap-y-1.5",
 				variant === "panel" &&
-					"gap-x-2 rounded-lg border border-solid border-border bg-surface-secondary p-3 text-xs font-normal",
+					"gap-x-2 rounded-lg border bg-surface-secondary p-3 text-xs font-normal",
 				className,
 			)}
 			{...props}

@@ -33,6 +33,13 @@ export const SourceIconFocused: Story = {
 	},
 };
 
+// The mock logs include error rows, whose background must not cover the ring.
+export const LogsFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("region", { name: "Agent logs" }).focus();
+	},
+};
+
 export const Overflowed: Story = {
 	args: {
 		className: "max-h-[420px]",

@@ -48,6 +48,7 @@ type turnState struct {
 	span     *chatloop.StageSpan
 	spanCtx  trace.SpanContext
 	chatKind chatloop.ChatKind
+	identity chatloop.ChatIdentity
 	// triggerAt is unadjusted, unlike the span's anchor.
 	triggerAt  time.Time
 	finished   bool
@@ -115,6 +116,7 @@ func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, tr
 	turn := &turnState{
 		token:     t.lastToken,
 		chatKind:  chatKind(chat),
+		identity:  chatIdentity(chat),
 		triggerAt: triggerAt,
 		holders:   map[uuid.UUID]struct{}{},
 	}
@@ -141,7 +143,7 @@ func (turn *turnState) hold(taskID uuid.UUID) {
 
 func (turn *turnState) context(ctx context.Context) context.Context {
 	// Stage identity is needed even when tracing is not recording.
-	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, turn.chatKind)
+	ctx = stageIdentityContext(ctx, chatloop.ScopeTurn, turn.chatKind, turn.identity)
 	if !turn.spanCtx.IsValid() {
 		return ctx
 	}
@@ -202,6 +204,18 @@ func (t *runnerTurnSpan) Release(taskID uuid.UUID) {
 	for _, turn := range t.pendingLocked() {
 		delete(turn.holders, taskID)
 		t.emitIfReleasedLocked(turn)
+	}
+}
+
+// SetProvider records the model provider on the turn's invoke_agent span.
+func (t *runnerTurnSpan) SetProvider(token turnToken, model chatloop.StageModel) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if turn := t.turns[token]; turn != nil {
+		turn.span.SetGenAIProvider(model)
 	}
 }
 

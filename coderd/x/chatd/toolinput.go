@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"encoding/json"
+	"errors"
 
 	"charm.land/fantasy"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -81,7 +82,17 @@ func validateBuiltinToolInput(prepared turnEnvironment, toolName string, input [
 		if err := json.Unmarshal(input, &value); err != nil {
 			return xerrors.Errorf("decode tool input: %w", err)
 		}
-		return compiled.Validate(value)
+		// jsonschema-go wraps each recursive error with an absolute schema path.
+		// Keep the innermost wrapper so the location and cause are reported once,
+		// without repeating every ancestor path.
+		err = compiled.Validate(value)
+		for {
+			cause := errors.Unwrap(err)
+			if cause == nil || errors.Unwrap(cause) == nil {
+				return err
+			}
+			err = cause
+		}
 	}
 	return nil
 }
@@ -124,7 +135,7 @@ func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultCon
 
 func invalidToolInputResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
 	message := "This tool call was not executed because its input is invalid: " + err.Error() +
-		". Retry with a JSON object matching the tool schema, including all required properties and their declared types. Use the exact property names, each key used once."
+		". Retry with a JSON object matching the tool schema, including all required properties and their declared types."
 	return fantasy.ToolResultContent{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,

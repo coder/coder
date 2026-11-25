@@ -122,10 +122,7 @@ export const OrganizationProvisionersPageView: React.FC<
 								});
 							}}
 						/>
-						<label
-							htmlFor="offline-filter"
-							className="text-sm font-medium leading-none"
-						>
+						<label htmlFor="offline-filter" className="text-sm leading-none">
 							Include offline provisioners
 						</label>
 					</div>
@@ -161,6 +158,7 @@ export const OrganizationProvisionersPageView: React.FC<
 											<Button size="sm" asChild>
 												<Link
 													href={docs("/admin/provisioners")}
+													className="py-0 my-0"
 													target="_blank"
 													rel="noreferrer"
 												>
