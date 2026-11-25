@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -187,38 +186,23 @@ func (p *Server) deliverToChat(ctx, ownerCtx context.Context, automation databas
 		return runRefusedError(runReasonChatBusy)
 	}
 
-	opts := SendMessageOptions{
+	_, err = p.SendMessage(ownerCtx, SendMessageOptions{
 		ChatID:       chatID,
 		CreatedBy:    automation.OwnerID,
 		Content:      content,
 		BusyBehavior: SendMessageBusyBehaviorQueue,
 		AutomationID: uuid.NullUUID{UUID: automation.ID, Valid: true},
-	}
-	prepared, err := p.prepareSendMessage(ownerCtx, opts)
-	if err != nil {
-		return err
-	}
-	var (
-		result           SendMessageResult
-		promotedQueuedAt time.Time
-	)
-	refreshed, err := p.updateChat(ownerCtx, chatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
-		if err := lockAutomationForRun(ctx, store, automation); err != nil {
-			return err
-		}
-		if !automationCanSend(snapshot.State()) {
-			return runRefusedError(runReasonChatBusy)
-		}
-		var err error
-		result, promotedQueuedAt, err = p.sendMessageLocked(ownerCtx, tx, store, snapshot, opts, prepared)
-		return err
+		BeforeSend: func(store database.Store, snapshot *chatstate.ChatSnapshot) error {
+			if err := lockAutomationForRun(ctx, store, automation); err != nil {
+				return err
+			}
+			if !automationCanSend(snapshot.State()) {
+				return runRefusedError(runReasonChatBusy)
+			}
+			return nil
+		},
 	})
-	if err != nil {
-		return err
-	}
-	result.Chat = refreshed
-	p.finishSendMessage(ownerCtx, result, promotedQueuedAt)
-	return nil
+	return err
 }
 
 // deliverToNewChat creates a chat with the prompt. A schedule skips while an

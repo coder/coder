@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -49,45 +48,11 @@ func (p *Server) SendMessage(
 	ctx context.Context,
 	opts SendMessageOptions,
 ) (SendMessageResult, error) {
-	prepared, err := p.prepareSendMessage(ctx, opts)
-	if err != nil {
-		return SendMessageResult{}, err
-	}
-
-	var (
-		result           SendMessageResult
-		promotedQueuedAt time.Time
-	)
-	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
-		var err error
-		result, promotedQueuedAt, err = p.sendMessageLocked(ctx, tx, store, snapshot, opts, prepared)
-		return err
-	})
-	if err != nil {
-		return SendMessageResult{}, err
-	}
-
-	result.Chat = refreshed
-	p.finishSendMessage(ctx, result, promotedQueuedAt)
-	return result, nil
-}
-
-// sendPreparation is what SendMessage resolves before its transaction.
-type sendPreparation struct {
-	busyBehavior   SendMessageBusyBehavior
-	requestedModel uuid.NullUUID
-	contentParts   []codersdk.ChatMessagePart
-	content        pqtype.NullRawMessage
-}
-
-// prepareSendMessage runs the checks and the prompt-submit hooks that
-// SendMessage needs before its transaction.
-func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions) (sendPreparation, error) {
 	if opts.ChatID == uuid.Nil {
-		return sendPreparation{}, xerrors.New("chat_id is required")
+		return SendMessageResult{}, xerrors.New("chat_id is required")
 	}
 	if len(opts.Content) == 0 {
-		return sendPreparation{}, xerrors.New("content is required")
+		return SendMessageResult{}, xerrors.New("content is required")
 	}
 
 	busyBehavior := opts.BusyBehavior
@@ -97,12 +62,12 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 	switch busyBehavior {
 	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer:
 	default:
-		return sendPreparation{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
+		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
 	contentParts, err := p.resolveChatSkillInvocations(ctx, opts.ChatID, opts.Content)
 	if err != nil {
-		return sendPreparation{}, err
+		return SendMessageResult{}, err
 	}
 	var (
 		chat           database.Chat
@@ -111,11 +76,11 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 	if p.hooks.Enabled() || opts.ModelConfigID != uuid.Nil {
 		chat, err = p.loadChatForAdmission(ctx, opts.ChatID)
 		if err != nil {
-			return sendPreparation{}, err
+			return SendMessageResult{}, err
 		}
 		requestedModel, err = validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID)
 		if err != nil {
-			return sendPreparation{}, err
+			return SendMessageResult{}, err
 		}
 	}
 	if p.hooks.Enabled() {
@@ -124,18 +89,18 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 		// rechecks it under lock.
 		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
-			return sendPreparation{}, xerrors.Errorf("count queued messages: %w", err)
+			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
 		queue, err := chatstate.LoadQueueState(ctx, p.db, opts.ChatID)
 		if err != nil {
-			return sendPreparation{}, xerrors.Errorf("load queue state: %w", err)
+			return SendMessageResult{}, xerrors.Errorf("load queue state: %w", err)
 		}
 		if err := chatstate.CheckSendMessageQueueCapacity(chat, queue, busyBehaviorToChatState(busyBehavior), queuedCount, p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
-			return sendPreparation{}, err
+			return SendMessageResult{}, err
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
-			return sendPreparation{}, err
+			return SendMessageResult{}, err
 		}
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
@@ -143,160 +108,149 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 			// instead of failing the chat, so a run that turns out to be
 			// stale leaves the chat as it was.
 			if opts.AutomationID.Valid {
-				return sendPreparation{}, chathooks.UserPromptDenial(err)
+				return SendMessageResult{}, chathooks.UserPromptDenial(err)
 			}
-			return sendPreparation{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
+			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
-			return sendPreparation{}, err
+			return SendMessageResult{}, err
 		}
 	}
 
 	content, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
-		return sendPreparation{}, xerrors.Errorf("marshal message content: %w", err)
+		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
-	return sendPreparation{
-		busyBehavior:   busyBehavior,
-		requestedModel: requestedModel,
-		contentParts:   contentParts,
-		content:        content,
-	}, nil
-}
-
-// sendMessageLocked is the part of SendMessage that runs in the chat's
-// transaction, under its row lock. The returned time is when the queued
-// message that this send delivered was queued, and zero when it
-// delivered none.
-func (p *Server) sendMessageLocked(
-	ctx context.Context,
-	tx *chatstate.Tx,
-	store database.Store,
-	snapshot *chatstate.ChatSnapshot,
-	opts SendMessageOptions,
-	prepared sendPreparation,
-) (SendMessageResult, time.Time, error) {
 	var (
 		result           SendMessageResult
 		promotedQueuedAt time.Time
-		err              error
 	)
-	lockedChat := snapshot.Chat
-	if lockedChat.Archived {
-		return SendMessageResult{}, time.Time{}, ErrChatArchived
-	}
-
-	if opts.PlanMode != nil {
-		lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
-			PlanMode: *opts.PlanMode,
-			ID:       opts.ChatID,
-		})
-		if err != nil {
-			return SendMessageResult{}, time.Time{}, xerrors.Errorf("update chat plan mode: %w", err)
-		}
-	}
-
-	modelConfigID := prepared.requestedModel.UUID
-	if !prepared.requestedModel.Valid {
-		// The fallback reads the chat's last model, so it runs under
-		// the row lock.
-		modelConfigID, err = resolveFallbackModelConfigID(ctx, store, lockedChat, lockedChat.LastModelConfigID)
-		if err != nil {
-			return SendMessageResult{}, time.Time{}, err
-		}
-	}
-
-	lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
-	if err != nil {
-		return SendMessageResult{}, time.Time{}, err
-	}
-
-	if opts.InlineMCPServers != nil {
-		if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
-			return SendMessageResult{}, time.Time{}, xerrors.Errorf("replace inline MCP servers: %w", err)
-		}
-	}
-
-	messageCreatedBy := opts.CreatedBy
-	if messageCreatedBy == uuid.Nil {
-		messageCreatedBy = lockedChat.OwnerID
-	}
-
-	firstUserTurn := false
-	if lockedChat.Title == chatprompt.DefaultChatTitle {
-		visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
-			ChatID:   opts.ChatID,
-			LimitVal: 1,
-		})
-		if err != nil {
-			return SendMessageResult{}, time.Time{}, xerrors.Errorf("probe visible chat messages: %w", err)
-		}
-		firstUserTurn = len(visible) == 0
-	}
-
-	// Queue capacity is enforced inside tx.SendMessage; this
-	// wrapper only propagates the typed error.
-	message := userMessage(prepared.content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
-	message.AutomationID = opts.AutomationID
-	sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-		// The writes above may have made the snapshot stale, so the
-		// transition reads the chat itself.
-		Snapshot:     nil,
-		Message:      message,
-		BusyBehavior: busyBehaviorToChatState(prepared.busyBehavior),
-		MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
-		FileIDs:      chatprompt.FileIDs(prepared.contentParts),
-		MaxFileLinks: p.chatLimits.MaxAttachmentsPerChat,
-	})
-	if err != nil {
-		return SendMessageResult{}, time.Time{}, err
-	}
-
-	if sendResult.QueuedMessage != nil {
-		result.Queued = true
-		result.QueuedMessage = sendResult.QueuedMessage
-	} else if len(sendResult.InsertedMessages) > 0 {
-		// The state machine prepends synthetic tool-result
-		// cancellation messages; the user message is always
-		// last in the inserted slice.
-		result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
-	}
-	// A send to an errored or paused chat can also insert queued
-	// messages; report those inserts so clients can update their
-	// caches.
-	result.InsertedMessages = sendResult.InsertedMessages
-	promotedQueuedAt = sendResult.PromotedQueuedAt
-
-	if firstUserTurn && !result.Queued {
-		result.FirstUserTurn = true
-		// Persist the fallback title with the message so a failed
-		// async title call cannot leave the placeholder forever.
-		firstMessage := []database.ChatMessage{result.Message}
-		pasteText, err := titlePasteText(ctx, store, firstMessage)
-		if err != nil {
-			return SendMessageResult{}, time.Time{}, err
-		}
-		if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
-			if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-				ID:          opts.ChatID,
-				Title:       chatprompt.FallbackTitle(titleText),
-				TitleSource: database.ChatTitleSourceFallback,
-			}); err != nil {
-				return SendMessageResult{}, time.Time{}, xerrors.Errorf("update fallback chat title: %w", err)
+	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
+		if opts.BeforeSend != nil {
+			if err := opts.BeforeSend(store, snapshot); err != nil {
+				return err
 			}
 		}
-	}
-	return result, promotedQueuedAt, nil
-}
+		lockedChat := snapshot.Chat
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
 
-// finishSendMessage publishes and records what follows a committed send.
-func (p *Server) finishSendMessage(ctx context.Context, result SendMessageResult, promotedQueuedAt time.Time) {
+		if opts.PlanMode != nil {
+			var err error
+			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+				PlanMode: *opts.PlanMode,
+				ID:       opts.ChatID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat plan mode: %w", err)
+			}
+		}
+
+		modelConfigID := requestedModel.UUID
+		if !requestedModel.Valid {
+			// The fallback reads the chat's last model, so it runs under
+			// the row lock.
+			modelConfigID, err = resolveFallbackModelConfigID(ctx, store, lockedChat, lockedChat.LastModelConfigID)
+			if err != nil {
+				return err
+			}
+		}
+
+		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
+		if err != nil {
+			return err
+		}
+
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
+		}
+
+		messageCreatedBy := opts.CreatedBy
+		if messageCreatedBy == uuid.Nil {
+			messageCreatedBy = lockedChat.OwnerID
+		}
+
+		firstUserTurn := false
+		if lockedChat.Title == chatprompt.DefaultChatTitle {
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+				ChatID:   opts.ChatID,
+				LimitVal: 1,
+			})
+			if err != nil {
+				return xerrors.Errorf("probe visible chat messages: %w", err)
+			}
+			firstUserTurn = len(visible) == 0
+		}
+
+		// Queue capacity is enforced inside tx.SendMessage; this
+		// wrapper only propagates the typed error.
+		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		message.AutomationID = opts.AutomationID
+		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
+			// The writes above may have made the snapshot stale, so the
+			// transition reads the chat itself.
+			Snapshot:     nil,
+			Message:      message,
+			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			FileIDs:      chatprompt.FileIDs(contentParts),
+			MaxFileLinks: p.chatLimits.MaxAttachmentsPerChat,
+		})
+		if err != nil {
+			return err
+		}
+
+		if sendResult.QueuedMessage != nil {
+			result.Queued = true
+			result.QueuedMessage = sendResult.QueuedMessage
+		} else if len(sendResult.InsertedMessages) > 0 {
+			// The state machine prepends synthetic tool-result
+			// cancellation messages; the user message is always
+			// last in the inserted slice.
+			result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
+		}
+		// A send to an errored or paused chat can also insert queued
+		// messages; report those inserts so clients can update their
+		// caches.
+		result.InsertedMessages = sendResult.InsertedMessages
+		promotedQueuedAt = sendResult.PromotedQueuedAt
+
+		if firstUserTurn && !result.Queued {
+			result.FirstUserTurn = true
+			// Persist the fallback title with the message so a failed
+			// async title call cannot leave the placeholder forever.
+			firstMessage := []database.ChatMessage{result.Message}
+			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			if err != nil {
+				return err
+			}
+			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
+				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					ID:          opts.ChatID,
+					Title:       chatprompt.FallbackTitle(titleText),
+					TitleSource: database.ChatTitleSourceFallback,
+				}); err != nil {
+					return xerrors.Errorf("update fallback chat title: %w", err)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+
+	result.Chat = refreshed
 	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
 	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
+	return result, nil
 }
 
 // loadChatForAdmission loads a chat for checks that run before a
