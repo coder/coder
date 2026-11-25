@@ -531,9 +531,19 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUser = async (usernameOrId: string) => {
+	getUserOrganizationsAISpend =
+		async (): Promise<TypesGen.UserOrganizationsAISpendStatus> => {
+			const response =
+				await this.axios.get<TypesGen.UserOrganizationsAISpendStatus>(
+					"/api/v2/users/me/ai/spend/organizations",
+				);
+			return response.data;
+		};
+
+	getUser = async (usernameOrId: string, signal?: AbortSignal) => {
 		const response = await this.axios.get<TypesGen.User>(
 			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -2273,6 +2283,26 @@ class ApiMethods {
 		};
 	};
 
+	/** The organization's AI spend as a CSV file. */
+	getOrganizationAISpendExport = async (
+		organizationId: string,
+		params: TypesGen.AISpendPeriodWindow & {
+			user_id?: string;
+			group_id?: string;
+			provider_name?: string;
+			model?: string;
+		},
+	): Promise<Blob> => {
+		const response = await this.axios.get<Blob>(
+			getURLWithSearchParams(
+				`/api/v2/organizations/${organizationId}/ai/spend/export`,
+				params,
+			),
+			{ responseType: "blob" },
+		);
+		return response.data;
+	};
+
 	/**
 	 * Per-member AI spend attributed to a group in the active budget period.
 	 * Users not in the group, or whose spend the caller can't read, are
@@ -3698,6 +3728,7 @@ class ExperimentalApiMethods {
 	getOrganizationAISpendUsers = async (
 		organizationId: string,
 		{ limit, offset, ...filter }: OrganizationAISpendParams,
+		signal?: AbortSignal,
 	): Promise<TypesGen.OrganizationAISpendReport> => {
 		// Like the Go SDK, a zero page value means the server default; the
 		// endpoint rejects an explicit limit=0.
@@ -3709,8 +3740,10 @@ class ExperimentalApiMethods {
 				offset: offset !== undefined && offset > 0 ? offset : undefined,
 			},
 		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
+		const response = await this.axios.get<TypesGen.OrganizationAISpendReport>(
+			url,
+			{ signal },
+		);
 		return response.data;
 	};
 
@@ -3729,10 +3762,18 @@ class ExperimentalApiMethods {
 	getOrganizationUnpricedAIModels = async (
 		organizationId: string,
 		period: TypesGen.AISpendPeriodWindow,
+		limit?: number,
 	): Promise<TypesGen.UnpricedAIModels> => {
 		const response = await this.axios.get<TypesGen.UnpricedAIModels>(
 			`/api/experimental/organizations/${organizationId}/ai/model-prices/unpriced`,
-			{ params: period },
+			{ params: { ...period, limit } },
+		);
+		return response.data;
+	};
+
+	getAIGatewayRetention = async (): Promise<TypesGen.AIGatewayRetention> => {
+		const response = await this.axios.get<TypesGen.AIGatewayRetention>(
+			"/api/experimental/ai-gateway/retention",
 		);
 		return response.data;
 	};

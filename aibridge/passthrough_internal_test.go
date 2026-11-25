@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil/mockprovider"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
@@ -123,7 +124,7 @@ func TestPassthroughRoutes(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 
-			prov := &testutil.MockProvider{
+			prov := &mockprovider.MockProvider{
 				URL: upstream.URL + tc.baseURLPath,
 			}
 
@@ -151,7 +152,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 		reqRemoteAddr string
 		reqHeaders    http.Header
 		reqTLS        bool
-		provider      *testutil.MockProvider
+		provider      *mockprovider.MockProvider
 		expectURL     string
 		expectHeaders http.Header
 	}{
@@ -159,7 +160,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			name:          "sets_upstream_url_and_forwarded_headers_from_client_peer",
 			reqPath:       "http://client-host/chat?stream=true",
 			reqRemoteAddr: "1.1.1.1:1111",
-			provider:      &testutil.MockProvider{URL: "https://upstream-host/base"},
+			provider:      &mockprovider.MockProvider{URL: "https://upstream-host/base"},
 			expectURL:     "https://upstream-host/base/chat?stream=true",
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
@@ -173,7 +174,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqHeaders:    http.Header{"User-Agent": {"custom-agent/1.0"}},
-			provider:      &testutil.MockProvider{URL: "https://upstream-host/base"},
+			provider:      &mockprovider.MockProvider{URL: "https://upstream-host/base"},
 			expectURL:     "https://upstream-host/base/chat",
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
@@ -189,7 +190,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			reqHeaders: http.Header{
 				"X-Forwarded-For": {"2.2.2.2, 3.3.3.3"},
 			},
-			provider:  &testutil.MockProvider{URL: "https://upstream-host/base"},
+			provider:  &mockprovider.MockProvider{URL: "https://upstream-host/base"},
 			expectURL: "https://upstream-host/base/chat",
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
@@ -203,7 +204,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqTLS:        true,
-			provider:      &testutil.MockProvider{URL: "https://upstream-host/base"},
+			provider:      &mockprovider.MockProvider{URL: "https://upstream-host/base"},
 			expectURL:     "https://upstream-host/base/chat",
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
@@ -224,7 +225,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			reqHeaders: http.Header{
 				"X-Forwarded-For": {"1.1.1.1"},
 			},
-			provider:  &testutil.MockProvider{URL: "https://upstream-host/base"},
+			provider:  &mockprovider.MockProvider{URL: "https://upstream-host/base"},
 			expectURL: "https://upstream-host/base/chat",
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
@@ -278,7 +279,7 @@ func TestPassthroughHandlerReusesProxyInstance(t *testing.T) {
 	t.Cleanup(upstream.Close)
 
 	logger := slogtest.Make(t, nil)
-	prov := &testutil.MockProvider{URL: upstream.URL}
+	prov := &mockprovider.MockProvider{URL: upstream.URL}
 	handler := NewPassthroughHandler(prov, logger, nil, testTracer)
 
 	for i := range 2 {

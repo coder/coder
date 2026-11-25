@@ -12296,31 +12296,17 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// titleRequested is signaled when the provider receives the structured
-	// title-generation request. Automatic title generation issues a
-	// non-streaming request using the "propose_title" schema, which uniquely
-	// identifies it (the turn status label uses "propose_turn_status_label").
-	titleRequested := make(chan struct{}, 1)
-	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if req.Stream {
-			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
-		}
-		if bytes.Contains(req.RawBody, []byte("propose_title")) {
-			select {
-			case titleRequested <- struct{}{}:
-			default:
-			}
-		}
-		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
-	})
-
 	client, _, api := newChatClientWithoutAIBridge(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelWithBaseURL(t, client, baseURL)
+	modelConfig := createTitleGenerationChatModel(t, client)
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	// A member cannot read AI providers, unlike the first user.
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
+		ModelConfigID:  &modelConfig.ID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "automatic title generation please",
@@ -12332,17 +12318,13 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	require.Equal(t, "automatic title generation please", chat.Title)
 	require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
-	// The create endpoint kicks off detached title generation; the provider
-	// should receive the title request without any further client action.
-	select {
-	case <-titleRequested:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for automatic title generation to be triggered")
-	}
-
-	// Drain background work so the detached goroutine finishes before the test
-	// (and its fake provider) tears down.
+	// The create endpoint kicks off detached title generation, which writes
+	// the generated title without any further client action.
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	chat, err = memberClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Test Chat", chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceGenerated, chat.TitleSource)
 }
 
 func TestPostChats_UserTitle(t *testing.T) {

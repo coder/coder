@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_MENU_RESIZE_STEP,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
 
@@ -95,4 +97,42 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		expect(persistedWidth()).toBe(LEFT_SIDEBAR_DEFAULT_WIDTH + 40);
 	});
+
+	it.each([
+		{ item: "Decrease width", expected: 400 - LEFT_SIDEBAR_MENU_RESIZE_STEP },
+		{ item: "Increase width", expected: 400 + LEFT_SIDEBAR_MENU_RESIZE_STEP },
+		{ item: "Reset width", expected: LEFT_SIDEBAR_DEFAULT_WIDTH },
+	])(
+		"resizes with a click on $item, without dragging",
+		async ({ item, expected }) => {
+			const user = userEvent.setup();
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+			await user.pointer({ keys: "[MouseRight]", target: renderHandle() });
+			await user.click(await screen.findByRole("menuitem", { name: item }));
+
+			expect(persistedWidth()).toBe(expected);
+		},
+	);
+
+	it.each(["touch", "pen"])(
+		"resizes from a %s long-press menu, without dragging",
+		async (pointerType) => {
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+			const handle = renderHandle();
+
+			vi.useFakeTimers();
+			fireEvent.pointerDown(handle, { ...PRIMARY, pointerType, clientX: 0 });
+			vi.advanceTimersByTime(1000);
+			vi.useRealTimers();
+			const increase = await screen.findByRole("menuitem", {
+				name: "Increase width",
+			});
+			// Moving after the menu opens must not resize under it.
+			fireEvent.pointerMove(handle, { ...PRIMARY, pointerType, clientX: 200 });
+			fireEvent.pointerUp(handle, { ...PRIMARY, pointerType, clientX: 200 });
+			await userEvent.click(increase);
+
+			expect(persistedWidth()).toBe(400 + LEFT_SIDEBAR_MENU_RESIZE_STEP);
+		},
+	);
 });

@@ -8,8 +8,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -273,4 +276,50 @@ func TestCheckPermissions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, map[string]bool(resp))
 	})
+}
+
+type secretObject struct {
+	Secret string
+}
+
+func (secretObject) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(uuid.New())
+}
+
+type denyAuthorizer struct{ rbac.Authorizer }
+
+func (denyAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, rbac.Object) error {
+	return rbac.UnauthorizedError{}
+}
+
+func TestHTTPAuthorizer_DenialDoesNotLogSecrets(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret = "synthetic-oauth2-client-secret" //nolint:gosec // synthetic test value
+		email  = "synthetic-user@example.invalid"
+	)
+	sink := testutil.NewFakeSink(t)
+	auth := &coderd.HTTPAuthorizer{Authorizer: denyAuthorizer{}, Logger: sink.Logger()}
+	ctx := dbauthz.As(context.Background(), rbac.Subject{
+		ID:           uuid.NewString(),
+		FriendlyName: "synthetic",
+		Email:        email,
+		Roles:        rbac.RoleIdentifiers{rbac.RoleMember()},
+		Scope:        rbac.ScopeAll,
+	})
+
+	require.False(t, auth.AuthorizeContext(ctx, policy.ActionRead, secretObject{Secret: secret}))
+
+	entries := sink.Entries()
+	require.Len(t, entries, 1)
+	var actorName any
+	for _, f := range entries[0].Fields {
+		v := fmt.Sprintf("%+v", f.Value)
+		require.NotContains(t, v, secret, "field %q leaks the object's secret", f.Name)
+		if f.Name == "actor_name" {
+			actorName = f.Value
+		}
+	}
+	require.Equal(t, "synthetic", actorName, "actor_name should be the subject's FriendlyName")
 }
