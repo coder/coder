@@ -1,5 +1,12 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./Tooltip";
 
@@ -98,6 +105,42 @@ describe("Tooltip delay", () => {
 			expect(onOpenChange).not.toHaveBeenCalled();
 			act(() => vi.advanceTimersByTime(1));
 			expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+		},
+	);
+});
+
+describe("TooltipContent", () => {
+	it.each([
+		{ interactive: false, target: () => screen.findByRole("tooltip") },
+		{
+			interactive: true,
+			target: () => screen.findByRole("link", { name: "Docs" }),
+		},
+	])(
+		"keeps an open dialog from cancelling wheel scrolling (interactive: $interactive)",
+		async ({ interactive, target }) => {
+			renderComponent(
+				<Dialog open>
+					<DialogContent aria-describedby={undefined}>
+						<DialogTitle>Dialog</DialogTitle>
+						<Tooltip
+							open={interactive ? undefined : true}
+							interactive={interactive}
+						>
+							<TooltipTrigger>Details</TooltipTrigger>
+							<TooltipContent>
+								Long content <a href="/docs">Docs</a>
+							</TooltipContent>
+						</Tooltip>
+					</DialogContent>
+				</Dialog>,
+			);
+			if (interactive) {
+				await userEvent.click(screen.getByRole("button", { name: "Details" }));
+			}
+
+			// fireEvent returns false when a listener called preventDefault.
+			expect(fireEvent.wheel(await target(), { deltaY: 100 })).toBe(true);
 		},
 	);
 });

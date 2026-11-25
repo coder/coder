@@ -46,3 +46,26 @@ export const NarrowViewport: Story = {
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
+
+export const TallerThanViewport: Story = {
+	args: {
+		children: (
+			<Tooltip open>
+				<TooltipTrigger asChild>
+					<Button variant="outline">Hover</Button>
+				</TooltipTrigger>
+				<TooltipContent>
+					{Array.from({ length: 30 }, (_, index) => (
+						<p key={index} className="m-0">
+							Line {index + 1} of a tooltip taller than the viewport.
+						</p>
+					))}
+				</TooltipContent>
+			</Tooltip>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
