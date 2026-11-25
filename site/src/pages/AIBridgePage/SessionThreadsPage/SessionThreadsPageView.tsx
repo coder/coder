@@ -28,7 +28,13 @@ const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 	<TooltipProvider>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="shrink-0 flex items-center">{children}</div>
+				<button
+					type="button"
+					aria-label="About sessions"
+					className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{children}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent
 				side="top"
@@ -111,16 +117,13 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
-					asChild
 					variant="outline"
 					size="lg"
 					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
-					<span>
-						<ArrowLeftIcon />
-						Back
-					</span>
+					<ArrowLeftIcon />
+					Back
 				</Button>
 				{session && (
 					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
@@ -158,7 +161,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 text-content-secondary size-icon-xs" />
+							<InfoIcon className="text-content-secondary size-icon-xs" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}
@@ -174,6 +177,14 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 							providers={session.providers}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}
+							cacheReadTokens={
+								session.token_usage_summary.cache_read_input_tokens
+							}
+							cacheWriteTokens={
+								session.token_usage_summary.cache_write_input_tokens
+							}
+							costMicros={session.token_usage_summary.cost_micros}
+							hasUnpricedUsage={session.token_usage_summary.has_unpriced_usage}
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}

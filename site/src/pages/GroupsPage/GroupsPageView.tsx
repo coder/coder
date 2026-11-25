@@ -138,7 +138,10 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 				<div className="flex flex-col gap-4">
 					<GroupsFilter {...filterProps} />
 
-					<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+					<PaginationContainer
+						query={groupsQuery}
+						paginationUnitLabel={{ singular: "group", plural: "groups" }}
+					>
 						<Table aria-label="Groups">
 							<TableHeader>
 								<TableRow>
@@ -160,7 +163,8 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 														message={
 															<>
 																Approximate AI spend compared to the group's AI
-																budget for the active period.{" "}
+																budget for the active period.
+																<br />
 																<SpendEstimateDocsLink />
 															</>
 														}
@@ -279,7 +283,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 
 	return (
 		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					avatar={
 						<Avatar
@@ -290,9 +294,9 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						/>
 					}
 					title={group.display_name || group.name}
-					subtitle={`${group.total_member_count} members`}
+					subtitle={`${group.total_member_count.toLocaleString("en-US")} ${group.total_member_count === 1 ? "member" : "members"}`}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell>
 				{group.total_member_count === 0 || membersQuery.isError ? (
@@ -314,7 +318,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						))}
 						{remainingAvatars > 0 && (
 							<Badge className="h-(--avatar-default)">
-								+{remainingAvatars}
+								+{remainingAvatars.toLocaleString("en-US")}
 							</Badge>
 						)}
 					</div>

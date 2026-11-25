@@ -159,7 +159,11 @@ export const OrganizationProvisionersPageView: React.FC<
 										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
 										cta={
 											<Button size="sm" asChild>
-												<Link href={docs("/admin/provisioners")}>
+												<Link
+													href={docs("/admin/provisioners")}
+													target="_blank"
+													rel="noreferrer"
+												>
 													Create a provisioner
 												</Link>
 											</Button>

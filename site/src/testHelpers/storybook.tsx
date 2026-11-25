@@ -142,9 +142,11 @@ export const withWebSocket = (
 					const callback = this.#listeners.get(entry.event);
 
 					if (callback) {
-						entry.event === "message"
-							? callback({ data: entry.data })
-							: callback();
+						if (entry.event === "message") {
+							callback({ data: entry.data });
+						} else {
+							callback();
+						}
 					}
 				}
 			}, 0);

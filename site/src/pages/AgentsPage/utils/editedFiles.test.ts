@@ -9,7 +9,7 @@ import {
 
 const message = (
 	id: number,
-	role: "user" | "assistant",
+	role: "user" | "assistant" | "tool",
 	content: unknown[],
 ): TypesGen.ChatMessage =>
 	({
@@ -20,37 +20,73 @@ const message = (
 		content,
 	}) as TypesGen.ChatMessage;
 
-const editFiles = (...paths: string[]) => ({
-	type: "tool-call",
-	tool_name: "edit_files",
-	args: {
-		files: paths.map((path) => ({
-			path,
-			edits: [{ old_text: "a", new_text: "b" }],
-		})),
-	},
+const editFiles = (id: string, paths: string[], serialized = false) => {
+	const files = paths.map((path) => ({
+		path,
+		edits: [{ old_text: "a", new_text: "b" }],
+	}));
+	return {
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: "edit_files",
+		args: { files: serialized ? JSON.stringify(files) : files },
+	};
+};
+
+const result = (
+	id: string,
+	name: "edit_files" | "write_file",
+	value: unknown,
+	isError = false,
+) => ({
+	type: "tool-result",
+	tool_call_id: id,
+	tool_name: name,
+	result: value,
+	is_error: isError,
 });
 
 describe("selectEditedFilesThisTurn", () => {
-	it("collects paths from edit_files and write_file calls since the last user message", () => {
+	it("collects successful edits in this turn from results, with both files-arg encodings", () => {
 		const store = createChatStore();
 		store.replaceMessages([
 			message(1, "user", [{ type: "text", text: "earlier" }]),
-			message(2, "assistant", [editFiles("/repo/src/Old.tsx")]),
-			message(3, "user", [{ type: "text", text: "make it red" }]),
-			message(4, "assistant", [
+			message(2, "assistant", [editFiles("old", ["/repo/src/Old.tsx"])]),
+			message(3, "tool", [
+				result("old", "edit_files", {
+					ok: true,
+					files: [{ path: "/repo/src/Old.tsx", diff: "+old" }],
+				}),
+			]),
+			message(4, "user", [{ type: "text", text: "make it red" }]),
+			message(5, "assistant", [
 				{ type: "text", text: "Sure." },
-				editFiles("/repo/src/Button.tsx", "/repo/src/theme.css"),
+				editFiles("edit-array", ["/container/src/Button.tsx"]),
+				editFiles("edit-string", ["/container/src/theme.css"], true),
 				{
 					type: "tool-call",
+					tool_call_id: "write",
 					tool_name: "write_file",
-					args: { path: "/repo/src/New.tsx", content: "" },
+					args: { path: "/repo/src/New.tsx", content: "new file" },
 				},
 				{
 					type: "tool-call",
 					tool_name: "execute",
 					args: { command: "pnpm test" },
 				},
+			]),
+			message(6, "tool", [
+				result("edit-array", "edit_files", {
+					ok: true,
+					files: [
+						{ path: "/repo/src/Button.tsx", diff: "@@ -1 +1 @@\n-a\n+b" },
+					],
+				}),
+				result("edit-string", "edit_files", {
+					ok: true,
+					files: [{ path: "/repo/src/theme.css", diff: "@@ -1 +1 @@\n-a\n+b" }],
+				}),
+				result("write", "write_file", { ok: true }),
 			]),
 		]);
 		expect(
@@ -62,7 +98,49 @@ describe("selectEditedFilesThisTurn", () => {
 		]);
 	});
 
-	it("includes calls that are still streaming", () => {
+	it("does not acknowledge failed, incomplete, malformed, or no-op calls", () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			message(1, "user", [{ type: "text", text: "update this" }]),
+			message(2, "assistant", [
+				editFiles("failed", ["/repo/src/Failed.tsx"]),
+				editFiles("no-op", ["/repo/src/Unchanged.tsx"]),
+				editFiles("malformed", ["/repo/src/Malformed.tsx"]),
+				editFiles("malformed-entry", ["/repo/src/BadEntry.tsx"]),
+				editFiles("incomplete", ["/repo/src/Incomplete.tsx"]),
+				{
+					type: "tool-call",
+					tool_call_id: "write-failed",
+					tool_name: "write_file",
+					args: { path: "/repo/src/FailedWrite.tsx", content: "new" },
+				},
+			]),
+			message(3, "tool", [
+				result("failed", "edit_files", { error: "old_text not found" }, true),
+				result("no-op", "edit_files", {
+					ok: true,
+					files: [{ path: "/repo/src/Unchanged.tsx", diff: "" }],
+				}),
+				result("malformed", "edit_files", { ok: true, files: "bad" }),
+				result("malformed-entry", "edit_files", {
+					ok: true,
+					files: [
+						{ path: 42, diff: "+x" },
+						{ path: "/repo/src/BadEntry.tsx", diff: 42 },
+					],
+				}),
+				result(
+					"write-failed",
+					"write_file",
+					{ error: "permission denied" },
+					true,
+				),
+			]),
+		]);
+		expect(selectEditedFilesThisTurn(store.getSnapshot())).toBe("");
+	});
+
+	it("acknowledges only completed successful streaming results", () => {
 		const store = createChatStore();
 		store.replaceMessages([
 			message(1, "user", [{ type: "text", text: "make it red" }]),
@@ -70,23 +148,58 @@ describe("selectEditedFilesThisTurn", () => {
 		store.setStreamState({
 			blocks: [],
 			toolCalls: {
-				call: {
-					id: "call",
+				edit: { id: "edit", name: "edit_files", args: { files: "[]" } },
+				write: {
+					id: "write",
 					name: "write_file",
-					args: { path: "/repo/src/Live.tsx" },
+					argsRaw: '{"path":"/repo/src/Live.tsx","content":"x"}',
 				},
-				raw: {
-					id: "raw",
+				pending: {
+					id: "pending",
 					name: "write_file",
-					argsRaw: '{"path":"/repo/src/Raw.tsx","content":"x"}',
+					args: { path: "/repo/src/Pending.tsx" },
+				},
+				failed: {
+					id: "failed",
+					name: "write_file",
+					args: { path: "/repo/src/Failed.tsx" },
 				},
 			},
-			toolResults: {},
+			toolResults: {
+				edit: {
+					id: "edit",
+					name: "edit_files",
+					result: {
+						ok: true,
+						files: [{ path: "/repo/src/App.tsx", diff: "@@ -0,0 +1 @@\n+x" }],
+					},
+					isError: false,
+				},
+				write: {
+					id: "write",
+					name: "write_file",
+					resultRaw: '{"ok":true}',
+					isError: false,
+				},
+				pending: {
+					id: "pending",
+					name: "write_file",
+					result: { ok: true },
+					isError: false,
+					isStreaming: true,
+				},
+				failed: {
+					id: "failed",
+					name: "write_file",
+					result: { error: "denied" },
+					isError: true,
+				},
+			},
 			sources: [],
 		});
 		expect(
 			parseEditedFiles(selectEditedFilesThisTurn(store.getSnapshot())),
-		).toEqual(["/repo/src/Live.tsx", "/repo/src/Raw.tsx"]);
+		).toEqual(["/repo/src/App.tsx", "/repo/src/Live.tsx"]);
 	});
 
 	it("is empty with no edits", () => {

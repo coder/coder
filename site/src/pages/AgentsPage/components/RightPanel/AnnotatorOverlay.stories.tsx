@@ -102,33 +102,57 @@ type Story = StoryObj<typeof meta>;
 
 export const Idle: Story = {};
 
+async function holdComment(target: HTMLElement, text: string) {
+	await userEvent.click(target);
+	const controls = commentControls();
+	await userEvent.type(
+		controls.getByRole("textbox", { name: "Annotation comment" }),
+		text,
+	);
+	// Storybook's userEvent does not carry held modifiers into shadow-root clicks.
+	controls.getByRole("button", { name: /^Send/ }).dispatchEvent(
+		new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			shiftKey: true,
+		}),
+	);
+}
+
 export const HoldingComments: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const root = () => document.getElementById(annotatorHostId)?.shadowRoot;
-		await userEvent.click(canvas.getByText("Acme Settings"));
-		const first = root()?.querySelector("textarea");
-		if (first) {
-			await userEvent.type(first, "Shorter title");
-		}
-		const send = root()?.querySelector<HTMLButtonElement>(
-			".popup .button:not(.outline)",
+		await holdComment(
+			canvas.getByRole("heading", { name: "Acme Settings" }),
+			"Shorter title",
 		);
-		// userEvent does not carry held modifiers into shadow-root clicks,
-		// so the Shift+click is dispatched directly.
-		send?.dispatchEvent(
-			new MouseEvent("click", {
-				bubbles: true,
-				cancelable: true,
-				shiftKey: true,
-			}),
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this primary",
 		);
-		await userEvent.click(canvas.getByTestId("save-button"));
-		const second = root()?.querySelector("textarea");
-		if (second) {
-			await userEvent.type(second, "Make this primary");
+	},
+};
+
+export const BatchLimit: Story = {
+	args: { picking: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const targets = [
+			canvas.getByRole("heading", { name: "Acme Settings" }),
+			canvas.getByRole("link", { name: "General" }),
+			canvas.getByRole("link", { name: "Billing" }),
+			canvas.getByRole("textbox", { name: "Display name" }),
+		];
+		for (const target of targets) {
+			await holdComment(target, "Update this element");
 		}
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this primary",
+		);
 	},
 };
 
@@ -140,7 +164,7 @@ export const Picking: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("save-button"));
+		await userEvent.hover(canvas.getByRole("button", { name: "Save" }));
 	},
 };
 
@@ -150,26 +174,103 @@ export const PickingAtEdge: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByTestId("banner"));
+		await userEvent.hover(
+			canvas.getByText(
+				"Billing moves to the new plans on the first of next month.",
+			),
+		);
 	},
 };
 
-function commentBox(): HTMLTextAreaElement {
-	const textarea = document
-		.getElementById(annotatorHostId)
-		?.shadowRoot?.querySelector("textarea");
-	if (!textarea) {
-		throw new Error("the comment popup did not open");
+export const PickingAtRightEdge: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				id="right-edge-action"
+				className="fixed right-0 top-0 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Edge action" }),
+		);
+	},
+};
+
+function commentControls() {
+	const shadow = document.getElementById(annotatorHostId)?.shadowRoot;
+	const dialog = Array.from(shadow?.children ?? []).find(
+		(element) => element.getAttribute("role") === "dialog",
+	);
+	if (!(dialog instanceof HTMLElement)) {
+		throw new Error("The annotation dialog did not open");
 	}
-	return textarea;
+	return within(dialog);
 }
 
 export const CommentPopup: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByTestId("save-button"));
-		await userEvent.type(commentBox(), "Make this the primary action");
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this the primary action",
+		);
+	},
+};
+
+export const CommentPopupAtRightEdge: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				className="fixed right-0 top-24 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Right edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Right edge action" }),
+		);
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Keep the dialog inside the preview",
+		);
+	},
+};
+
+export const CommentPopupAboveTarget: Story = {
+	args: { picking: true },
+	render: (args) => (
+		<>
+			<DemoPage {...args} />
+			<button
+				type="button"
+				className="fixed bottom-0 left-5 rounded bg-surface-tertiary px-3 py-1.5 text-sm text-content-primary"
+			>
+				Bottom edge action
+			</button>
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Bottom edge action" }),
+		);
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Open above this action",
+		);
 	},
 };
 
@@ -177,8 +278,11 @@ export const SentOnSave: Story = {
 	args: { picking: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByTestId("save-button"));
-		await userEvent.type(commentBox(), "Use the primary style{enter}");
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Use the primary style{enter}",
+		);
 	},
 };
 

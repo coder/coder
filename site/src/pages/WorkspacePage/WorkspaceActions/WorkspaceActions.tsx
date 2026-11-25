@@ -190,7 +190,7 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 			{permissions.shareWorkspace && (
 				<ShareButton
 					workspace={workspace}
-					canUpdatePermissions={permissions.updateWorkspace}
+					canShareWorkspace={permissions.shareWorkspace}
 				/>
 			)}
 

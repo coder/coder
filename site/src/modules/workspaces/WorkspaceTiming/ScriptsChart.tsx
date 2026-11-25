@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { WorkspaceAgentScriptStatus } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
@@ -6,7 +7,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { Theme } from "#/theme";
 import { useTheme } from "#/theme/context";
-import { Bar } from "./Chart/Bar";
+import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
@@ -17,6 +18,11 @@ import {
 	ChartToolbar,
 } from "./Chart/Chart";
 import {
+	ChartTable,
+	ChartTableRow,
+	ChartTableSection,
+} from "./Chart/ChartTable";
+import {
 	calcDuration,
 	calcOffset,
 	formatTime,
@@ -24,19 +30,11 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
-import {
-	YAxis,
-	YAxisHeader,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
 import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
 	name: string;
-	status: string;
+	status: WorkspaceAgentScriptStatus;
 	exitCode: number;
 	range: TimeRange;
 };
@@ -85,58 +83,69 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
-				<YAxis>
-					<YAxisSection>
-						<YAxisHeader>{stage.name} stage</YAxisHeader>
-						<YAxisLabels>
-							{visibleTimings.map((t) => (
-								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>
-									{t.name}
-								</YAxisLabel>
-							))}
-						</YAxisLabels>
-					</YAxisSection>
-				</YAxis>
-
-				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSection>
+				<ChartTable caption={`Scripts in ${stage.name} stage`} ticks={ticks}>
+					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
+							const legend = legendsByStatus[t.status];
 
 							return (
-								<XAxisRow
-									key={t.name}
-									yAxisLabelId={encodeURIComponent(t.name)}
-								>
+								<ChartTableRow key={t.name} label={t.name}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<Bar
+											<FocusableBar
+												aria-label={`${t.name}: ${legend.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={legend.colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
 											side="bottom"
 											className="border-surface-quaternary text-content-primary"
 										>
-											Script exited with <strong>code {t.exitCode}</strong>
+											{tooltipContent(t)}
 										</TooltipContent>
 									</Tooltip>
 
 									{formatTime(duration)}
-								</XAxisRow>
+								</ChartTableRow>
 							);
 						})}
-					</XAxisSection>
-				</XAxis>
+					</ChartTableSection>
+				</ChartTable>
 			</ChartContent>
 		</Chart>
 	);
 };
 
-function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
+// The runner reports 255 when it has no exit code, so a timeout or an open
+// pipe must not be shown as an exit code.
+function tooltipContent(t: ScriptTiming): React.ReactNode {
+	switch (t.status) {
+		case "timed_out":
+			return "Script timed out.";
+		case "pipes_left_open":
+			return "Script exited without closing its output pipes.";
+		case "skipped":
+			return "Script was skipped because a script it depends on failed, timed out, or was skipped.";
+		case "canceled":
+			return "Script was canceled because the agent shut down before it finished.";
+		default:
+			return (
+				<>
+					Script exited with <strong>code {t.exitCode}</strong>
+				</>
+			);
+	}
+}
+
+// Keyed by the union so a status without a legend fails the type check
+// instead of throwing on .colors at runtime.
+function getLegendsByStatus(
+	theme: Theme,
+): Record<WorkspaceAgentScriptStatus, ChartLegend> {
 	return {
 		ok: {
 			label: "success",
@@ -152,11 +161,34 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.error.outline,
 			},
 		},
-		timeout: {
+		timed_out: {
 			label: "timed out",
 			colors: {
 				fill: theme.roles.warning.background,
 				stroke: theme.roles.warning.outline,
+			},
+		},
+		pipes_left_open: {
+			label: "output pipes left open",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
+		skipped: {
+			label: "skipped",
+			colors: {
+				fill: theme.roles.inactive.background,
+				stroke: theme.roles.inactive.outline,
+			},
+		},
+		// The notice role rather than info: info and inactive share the same
+		// fill in both themes, so canceled and skipped bars would look alike.
+		canceled: {
+			label: "canceled",
+			colors: {
+				fill: theme.roles.notice.background,
+				stroke: theme.roles.notice.outline,
 			},
 		},
 	};

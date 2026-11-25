@@ -41,6 +41,18 @@ var (
 
 	//go:embed anthropic/haiku_simple.txtar
 	AntHaikuSimple []byte
+
+	//go:embed anthropic/max_tokens_truncated_tool.txtar
+	AntMaxTokensTruncatedTool []byte
+
+	//go:embed anthropic/max_tokens_truncated_tool_no_block_stop.txtar
+	AntMaxTokensTruncatedToolNoBlockStop []byte
+
+	//go:embed anthropic/max_tokens_truncated_injected_tool.txtar
+	AntMaxTokensTruncatedInjectedTool []byte
+
+	//go:embed anthropic/injected_tool_invalid_input.txtar
+	AntInjectedToolInvalidInput []byte
 )
 
 var (
@@ -94,6 +106,9 @@ var (
 	//go:embed openai/responses/blocking/custom_tool.txtar
 	OaiResponsesBlockingCustomTool []byte
 
+	//go:embed openai/responses/blocking/custom_tool_result.txtar
+	OaiResponsesBlockingCustomToolResult []byte
+
 	//go:embed openai/responses/blocking/web_search.txtar
 	OaiResponsesBlockingWebSearch []byte
 
@@ -146,6 +161,9 @@ var (
 
 	//go:embed openai/responses/streaming/custom_tool.txtar
 	OaiResponsesStreamingCustomTool []byte
+
+	//go:embed openai/responses/streaming/custom_tool_result.txtar
+	OaiResponsesStreamingCustomToolResult []byte
 
 	//go:embed openai/responses/streaming/conversation.txtar
 	OaiResponsesStreamingConversation []byte

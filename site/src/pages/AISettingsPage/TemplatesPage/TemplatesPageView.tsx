@@ -125,7 +125,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 					Choose which templates Coder Agents can use to create workspaces.{" "}
 					<SettingsHeaderDocsLink
 						href={docs(
-							"/ai-coder/agents/platform-controls/template-optimization#restrict-available-templates",
+							"/coder-agents/platform-controls/template-optimization#restrict-available-templates",
 						)}
 					/>
 				</SettingsHeaderDescription>

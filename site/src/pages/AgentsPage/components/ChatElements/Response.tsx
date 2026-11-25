@@ -3,24 +3,38 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
+import { createContext, useContext } from "react";
+import remarkBreaks from "remark-breaks";
 import {
 	type Components,
 	defaultRehypePlugins,
+	defaultRemarkPlugins,
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import {
+	type InlineNode,
+	inlineNodeIndexProperty,
+	joinInlineNodes,
+	rehypeInlineNodes,
+	resolveInlineNodeText,
+} from "./inlineNodes";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
 type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
-	children: string;
+	/** Markdown text, or a list of text and chips to show inline. */
+	children: string | readonly (string | InlineNode)[];
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend). Pass true only for live-streaming
 	 * output. */
 	streaming?: boolean;
+	/** Keep single line breaks, the way the user typed them. */
+	preserveLineBreaks?: boolean;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -33,6 +47,24 @@ const chatRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
+// Only used when chips are passed in, so odd characters in agent replies
+// never turn into chips. The chip step must run after the safety cleanup
+// (which would strip the chip number we add) and before the link check (so
+// links it shortens still get checked).
+const inlineNodeRehypePlugins = [
+	defaultRehypePlugins.sanitize,
+	rehypeInlineNodes,
+	defaultRehypePlugins.harden,
+];
+
+const lineBreakRemarkPlugins = [
+	...Object.values(defaultRemarkPlugins),
+	remarkBreaks,
+];
+
+const noInlineNodes: readonly InlineNode[] = [];
+const InlineNodesContext = createContext(noInlineNodes);
+
 type HastNode = {
 	type?: string;
 	value?: string;
@@ -40,6 +72,7 @@ type HastNode = {
 	tagName?: string;
 	properties?: {
 		className?: string[] | string;
+		[inlineNodeIndexProperty]?: number;
 	};
 };
 
@@ -89,11 +122,11 @@ type FileViewerThemeType = keyof typeof fileViewerTheme;
 
 const markdownFileViewerCSS = [
 	":host { background-color: transparent !important; }",
-	"pre, [data-code], [data-line], [data-diffs-header] { background-color: transparent !important; }",
+	"pre, [data-code], [data-line], [data-diffs-header], [data-content] { background-color: transparent !important; }",
 	"[data-code] { padding-block: 8px !important; overflow: visible !important; }",
 	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
 	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
-	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
+	"[data-line] { min-height: 20px !important; padding-inline: 12px 40px !important; }",
 ].join(" ");
 
 const markdownFileViewerStyle = {
@@ -101,6 +134,19 @@ const markdownFileViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "12px",
 	"--diffs-line-height": "20px",
+};
+
+// Shows the chip for a marker span. Other spans render as normal.
+const InlineNodeSpan = ({
+	node,
+	...props
+}: React.ComponentProps<"span"> & { node?: HastNode }) => {
+	const inlineNodes = useContext(InlineNodesContext);
+	const index = node?.properties?.[inlineNodeIndexProperty];
+	if (index === undefined) {
+		return <span {...props} />;
+	}
+	return inlineNodes[index]?.element ?? null;
 };
 
 const createComponents = (
@@ -165,7 +211,7 @@ const createComponents = (
 						"align-middle relative -top-px",
 						checked
 							? "border-content-link bg-content-link text-white"
-							: "border-border-default bg-surface-primary",
+							: "border-border bg-surface-primary",
 					)}
 				>
 					{checked && (
@@ -196,7 +242,7 @@ const createComponents = (
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
 		hr: () => (
-			<hr className="my-6 border-0 border-t border-solid border-border-default" />
+			<hr className="my-6 border-0 border-t border-solid border-border" />
 		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
@@ -214,7 +260,9 @@ const createComponents = (
 				{children}
 			</code>
 		),
-		pre: ({ node }: MarkdownComponentProps) => {
+		span: InlineNodeSpan,
+		pre: function MarkdownPre({ node }: MarkdownComponentProps) {
+			const inlineNodes = useContext(InlineNodesContext);
 			const codeChild = node?.children?.[0];
 			if (codeChild?.tagName === "code") {
 				const classes = getClassNames(codeChild.properties?.className);
@@ -222,7 +270,10 @@ const createComponents = (
 					c.startsWith("language-"),
 				);
 				const lang = langClass?.replace(/^language-/, "") ?? "text";
-				const content = getHastText(codeChild).trimEnd();
+				const content = resolveInlineNodeText(
+					getHastText(codeChild).trimEnd(),
+					inlineNodes,
+				);
 				if (content) {
 					const isMermaid = lang === "mermaid";
 					// Shiki has no Mermaid grammar and the viewer renders
@@ -231,31 +282,40 @@ const createComponents = (
 					const viewerLang: SupportedLanguages = isMermaid
 						? "text"
 						: (lang as SupportedLanguages);
+					// MermaidDiagram's error fallback strips the margin, border
+					// and rounding from its direct child, so the frame must stay
+					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<ScrollArea
-							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
-							scrollBarClassName="w-1.5"
-							horizontalScrollBarClassName="h-1.5"
-						>
-							<FileViewer
-								file={{
-									name: `block.${viewerLang}`,
-									lang: viewerLang,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: markdownFileViewerCSS,
-								}}
-								style={markdownFileViewerStyle}
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
+							<ScrollArea
+								orientation="both"
+								scrollBarClassName="w-1.5"
+								horizontalScrollBarClassName="h-1.5"
+							>
+								<FileViewer
+									file={{
+										name: `block.${viewerLang}`,
+										lang: viewerLang,
+										contents: content,
+										cacheKey: content,
+									}}
+									options={{
+										overflow: "scroll",
+										themeType: fileViewerThemeType,
+										disableFileHeader: true,
+										disableLineNumbers: true,
+										theme: viewerTheme,
+										unsafeCSS: markdownFileViewerCSS,
+									}}
+									style={markdownFileViewerStyle}
+								/>
+							</ScrollArea>
+							<CopyButton
+								text={content}
+								label="Copy code"
+								className="absolute right-1.5 top-1.5 z-20 size-6 bg-surface-primary p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/code-block:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
 							/>
-						</ScrollArea>
+						</div>
 					);
 					if (isMermaid) {
 						return <MermaidDiagram source={content} fallback={codeBlock} />;
@@ -283,12 +343,17 @@ export const Response = ({
 	ref,
 	urlTransform,
 	streaming,
+	preserveLineBreaks,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
+	const { markdown, inlineNodes } =
+		typeof children === "string"
+			? { markdown: children, inlineNodes: undefined }
+			: joinInlineNodes(children);
 
 	return (
 		<div
@@ -299,25 +364,32 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown
-				controls={false}
-				components={components}
-				urlTransform={urlTransform}
-				rehypePlugins={chatRehypePlugins}
-				mode={streaming ? "streaming" : "static"}
-				parseIncompleteMarkdown={streaming}
-				// Streamdown only flags the trailing block as an
-				// incomplete code fence while isAnimating is set, which
-				// MermaidDiagram relies on to defer rendering.
-				isAnimating={streaming}
-				// Streamdown 2.6 caps table height at 300px by
-				// default, even with controls disabled. Chat tables
-				// should grow with their content instead of
-				// scrolling internally.
-				tableMaxHeight={0}
-			>
-				{children}
-			</Streamdown>
+			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
+				<Streamdown
+					controls={false}
+					components={components}
+					urlTransform={urlTransform}
+					remarkPlugins={
+						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
+					}
+					rehypePlugins={
+						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
+					}
+					mode={streaming ? "streaming" : "static"}
+					parseIncompleteMarkdown={streaming}
+					// Streamdown only flags the trailing block as an
+					// incomplete code fence while isAnimating is set, which
+					// MermaidDiagram relies on to defer rendering.
+					isAnimating={streaming}
+					// Streamdown 2.6 caps table height at 300px by
+					// default, even with controls disabled. Chat tables
+					// should grow with their content instead of
+					// scrolling internally.
+					tableMaxHeight={0}
+				>
+					{markdown}
+				</Streamdown>
+			</InlineNodesContext>
 		</div>
 	);
 };

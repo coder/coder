@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { MockAdvisorConfig } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -22,12 +23,7 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
 	isSaveAdminOverridesError: false,
-	showAdvisorSettings: true,
-	advisorConfigData: {
-		enabled: true,
-		max_uses_per_run: 5,
-		max_output_tokens: 2048,
-	},
+	advisorConfigData: MockAdvisorConfig,
 	isAdvisorConfigLoading: false,
 	isAdvisorConfigFetching: false,
 	isAdvisorConfigLoadError: false,
@@ -35,12 +31,6 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	isSavingAdvisorConfig: false,
 	isSaveAdvisorConfigError: false,
 	saveAdvisorConfigError: null,
-	showVirtualDesktopSettings: false,
-	computerUseProviderData: undefined,
-	isLoadingComputerUseProvider: false,
-	onSaveComputerUseProvider: fn(),
-	isSavingComputerUseProvider: false,
-	computerUseProviderSaveError: null,
 };
 
 const meta: Meta<typeof CoderAgentsPageView> = {
@@ -83,20 +73,12 @@ export const Default: Story = {
 	},
 };
 
-export const WithoutAdvisor: Story = {
-	args: { showAdvisorSettings: false },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
-	},
-};
-
 export const SelectOrganization: Story = {
 	args: { onSelectOrganization: fn() },
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		);
@@ -165,7 +147,7 @@ export const SingleOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		).not.toBeInTheDocument();

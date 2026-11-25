@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { Link } from "react-router";
+import { fn, screen, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -11,6 +16,10 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import {
+	compactionOverrideWindowPercent,
+	type OrganizationCompactionTrigger,
+} from "../utils/compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -22,6 +31,27 @@ const organizationWithEmptyDisplayName = {
 	...MockDefaultOrganization,
 	id: MockChatModel.organization_id,
 	display_name: "",
+};
+
+const organizationTriggerFor = (
+	model: TypesGen.ChatModel,
+): OrganizationCompactionTrigger => ({
+	model,
+	trigger: {
+		thresholdPercent: compactionOverrideWindowPercent,
+		contextLimit: model.context_limit,
+	},
+	pointTokens: (model.context_limit * compactionOverrideWindowPercent) / 100,
+});
+const mockCompactionTrigger = organizationTriggerFor(MockCompactionChatModel);
+const mockCompactionTriggersByOrganizationID = new Map([
+	[MockChatModel.organization_id, mockCompactionTrigger],
+]);
+// Window smaller than mockCompactionTrigger's 16K point.
+const mockSmallWindowModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	display_name: "GPT-4o",
+	context_limit: 10_000,
 };
 
 const mockModels: TypesGen.ChatModel[] = [
@@ -64,11 +94,17 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		models: mockModels,
-		providerTypeByID: new Map<string, string>([
-			["provider-1", "openai"],
-			["provider-anthropic", "anthropic"],
+		providerInfoByID: new Map([
+			["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+			[
+				"provider-anthropic",
+				{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+			],
 		]),
 		organizations: [modelsOrganization],
+		compactionTriggersByOrganizationID: new Map(),
+		compactionTriggerLoadErrors: [],
+		isLoadingModels: false,
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -82,6 +118,13 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+// The click inside userEvent.type closes the Radix tooltip, and it reopens
+// only on a fresh pointer enter.
+const reopenTooltip = async (element: HTMLElement) => {
+	await userEvent.unhover(element);
+	await userEvent.hover(element);
+};
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
@@ -107,20 +150,24 @@ export const ContextWindowTracksDraft: Story = {
 	},
 };
 
-export const CompactionOverrideShrinksWindow: Story = {
-	name: "Compaction Override Shrinks Window",
-	args: {
-		// The organization summarizes with the 16K model, so both enabled
-		// models show a 16K compaction window instead of their own.
-		compactionModelIDByOrganization: new Map([
-			[MockChatModel.organization_id, "model-3"],
-		]),
-	},
-};
-
 export const UnknownContextWindow: Story = {
 	args: {
 		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerInfoByID: new Map([
+			[
+				"provider-1",
+				{
+					provider: "openai",
+					displayName: "DeepSeek",
+					icon: "/icon/widgets.svg",
+				},
+			],
+		]),
 	},
 };
 
@@ -131,30 +178,21 @@ export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	},
 };
 
-export const SaveAll: Story = {
-	play: async ({ canvasElement, args }) => {
+export const MultipleUnsavedRows: Story = {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		// Edit both models
-		await userEvent.type(gpt4oInput, "95");
-		await userEvent.type(claudeInput, "50");
-
-		// Footer should show "Save 2 changes"
-		const saveButton = await canvas.findByRole("button", {
-			name: /Save 2 changes/i,
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 95);
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
-		});
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
+		);
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /Claude Sonnet compaction threshold/i,
+			}),
+			"50",
+		);
 	},
 };
 
@@ -165,46 +203,10 @@ export const WithOverrides: Story = {
 			{ model_config_id: "model-2", threshold_percent: 50 },
 		],
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		expect(gpt4oInput).toHaveValue("90");
-		expect(claudeInput).toHaveValue("50");
-
-		// Reset buttons should be visible for both overridden models
-		const resetButtons = canvas.getAllByRole("button", {
-			name: /Reset .+ to default/i,
-		});
-		expect(resetButtons).toHaveLength(2);
-
-		await userEvent.click(resetButtons[0]);
-		await waitFor(() => {
-			expect(args.onResetThreshold).toHaveBeenCalledWith("model-1");
-		});
-	},
 };
 
-export const CancelChanges: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-
-		await userEvent.type(gpt4oInput, "42");
-		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
-		await userEvent.click(cancelButton);
-	},
-};
-
-export const InvalidDraftShowsFooter: Story = {
-	name: "Invalid Draft Shows Footer",
+export const InvalidDraftShowsActions: Story = {
+	name: "Invalid Draft Shows Actions",
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const gpt4oInput = await canvas.findByRole("textbox", {
@@ -225,6 +227,117 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
+export const DisableCompactionWithOverridesLoadError: Story = {
+	name: "100% Disable Compaction Warning With Overrides Load Error",
+	args: {
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockChatModel.organization_id,
+				error: new Error("Network Error"),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
+export const OrganizationCompactionTriggerWarning: Story = {
+	args: {
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				organizationTriggerFor({
+					...MockCompactionChatModel,
+					context_limit: 160_000,
+				}),
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const OrganizationTriggerBeyondModelWindow: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		thresholds: [
+			{ model_config_id: mockSmallWindowModel.id, threshold_percent: 100 },
+		],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const DisableCompactionBeyondOrganizationPoint: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		models: [
+			...mockModels,
+			{
+				...mockModels[0],
+				id: "model-organization-2",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockOrganization2.id,
+				error: new Error("Network Error"),
+			},
+		],
 	},
 };
 
@@ -234,8 +347,8 @@ export const Loading: Story = {
 	},
 };
 
-export const PartialSaveFailure: Story = {
-	name: "Partial Save Failure",
+export const RowSaveFailure: Story = {
+	name: "Row Save Failure",
 	args: {
 		onSaveThreshold: fn(async (modelId: string) => {
 			if (modelId === "model-2") {
@@ -243,36 +356,13 @@ export const PartialSaveFailure: Story = {
 			}
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		await userEvent.type(gpt4oInput, "90");
-		await userEvent.type(claudeInput, "55");
-
-		const saveButton = await canvas.findByRole("button", {
-			name: /Save 2 changes/i,
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 90);
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
-		});
-
-		// model-2 should show an error, footer should still be visible
-		// with Save showing "Save 1 change" for the failed row
-		await waitFor(() => {
-			expect(canvas.getByText("Network error")).toBeInTheDocument();
-			expect(
-				canvas.getByRole("button", { name: /Save 1 change/i }),
-			).toBeInTheDocument();
-		});
+	play: async ({ canvasElement }) => {
+		const claudeRow = within(
+			within(canvasElement).getByRole("row", { name: /Claude Sonnet/i }),
+		);
+		await userEvent.type(claudeRow.getByRole("textbox"), "55");
+		await userEvent.click(claudeRow.getByRole("button", { name: /^Save / }));
+		await claudeRow.findByText("Network error");
 	},
 };
 
@@ -289,13 +379,13 @@ export const OrganizationFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const filter = await canvas.findByRole("button", {
+		const filter = await canvas.findByRole("combobox", {
 			name: `Organization ${modelsOrganization.display_name}`,
 		});
 
 		await userEvent.click(filter);
-		const option = await within(document.body).findByRole("option", {
-			name: MockOrganization2.display_name,
+		const option = await screen.findByRole("option", {
+			name: new RegExp(`${MockOrganization2.display_name}$`),
 		});
 		await userEvent.click(option);
 	},
@@ -303,7 +393,7 @@ export const OrganizationFilter: Story = {
 
 export const SingleOrganizationHidesFilter: Story = {};
 
-export const OrganizationFilterScopesSaveActions: Story = {
+export const OrganizationFilterPreservesDraft: Story = {
 	args: {
 		models: [
 			mockModels[0],
@@ -314,68 +404,134 @@ export const OrganizationFilterScopesSaveActions: Story = {
 		],
 		organizations: [modelsOrganization, MockOrganization2],
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		await userEvent.type(gpt4oInput, "95");
-		await canvas.findByRole("button", { name: /Save 1 change/i });
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
+		);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(`${MockOrganization2.display_name}$`),
+			}),
+		);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(`${modelsOrganization.display_name}$`),
+			}),
+		);
+	},
+};
 
-		// Switch to the other organization: the draft belongs to a hidden
-		// row, so the footer must disappear.
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: `Organization ${modelsOrganization.display_name}`,
-			}),
+export const SavedRow: Story = {
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
 		);
-		await userEvent.click(
-			await within(document.body).findByRole("option", {
-				name: MockOrganization2.display_name,
-			}),
-		);
-		await waitFor(() => {
-			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
-		});
+		await userEvent.type(row.getByRole("textbox"), "90");
+		await userEvent.click(row.getByRole("button", { name: /^Save / }));
+		await row.findByText("Saved");
+	},
+};
 
-		// Editing the visible row saves only that row.
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-		await userEvent.type(claudeInput, "50");
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /Save 1 change/i }),
+export const ClearedOverrideDraft: Story = {
+	args: {
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
 		);
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
-			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
-		});
+		await userEvent.clear(row.getByRole("textbox"));
+	},
+};
 
-		// Switching back restores the hidden draft and its footer.
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: `Organization ${MockOrganization2.display_name}`,
+export const PendingRowSave: Story = {
+	args: {
+		onSaveThreshold: fn(() => new Promise<void>(() => {})),
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
+		);
+		await userEvent.type(row.getByRole("textbox"), "90");
+		await userEvent.click(row.getByRole("button", { name: /^Save / }));
+	},
+};
+
+export const UnsavedLeaveDialog: Story = {
+	decorators: [
+		(Story) => (
+			<>
+				<Link to="/general">General settings</Link>
+				<Story />
+			</>
+		),
+	],
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/compaction" },
+			routing: [
+				{ path: "/compaction", useStoryElement: true },
+				{ path: "/general", element: <h1>General settings</h1> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
 			}),
+			"95",
 		);
 		await userEvent.click(
-			await within(document.body).findByRole("option", {
-				name: modelsOrganization.display_name,
+			canvas.getByRole("link", { name: "General settings" }),
+		);
+	},
+};
+
+export const LongListNarrowViewport: Story = {
+	args: {
+		models: Array.from({ length: 12 }, (_, index) => ({
+			...mockModels[0],
+			id: `model-long-list-${index}`,
+			display_name: `GPT-4o model ${index + 1}`,
+		})),
+	},
+	globals: { viewport: { value: "ipad" } },
+	play: async ({ canvasElement }) => {
+		await userEvent.type(
+			await within(canvasElement).findByRole("textbox", {
+				name: /GPT-4o model 1 compaction threshold/i,
 			}),
+			"95",
 		);
-		const restoredInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		expect(restoredInput).toHaveValue("95");
-		// Wait out the temporary "Saved" footer state (2.5s) before the
-		// action buttons reappear.
-		await waitFor(
-			() => {
-				expect(
-					canvas.getByRole("button", { name: /Save 1 change/i }),
-				).toBeInTheDocument();
-			},
-			{ timeout: 5000 },
+	},
+};
+
+export const MobileEditedRow: Story = {
+	args: {
+		models: [mockModels[0]],
+	},
+	globals: { viewport: { value: "iphone12" } },
+	play: async ({ canvasElement }) => {
+		await userEvent.type(
+			await within(canvasElement).findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
 		);
+	},
+};
+
+export const NoEnabledModels: Story = {
+	args: {
+		models: [],
 	},
 };
 
@@ -383,6 +539,24 @@ export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const ModelLoadErrorWhileLoading: Story = {
+	args: {
+		models: [],
+		isLoadingModels: true,
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+};
+
+export const ModelLoadError: Story = {
+	args: {
+		models: [],
+		isLoadingModels: false,
+		modelsError: new globalThis.Error("Failed to load models"),
 	},
 };
 

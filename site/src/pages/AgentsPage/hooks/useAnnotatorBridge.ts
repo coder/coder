@@ -221,6 +221,9 @@ export function useAnnotatorBridge({
 							send({ type: "coder-annotator:set-picking", picking: false });
 							return;
 						}
+						if (!stateRef.current.picking) {
+							frame.focus();
+						}
 						update({ picking: true });
 						return;
 					}

@@ -13,18 +13,13 @@ type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 /**
  * Syncs with the system clock to produce a live countdown from an
  * ISO-8601 deadline. Polls at 100ms so the displayed second flips
- * within 100ms of the real transition. Returns 0 when no deadline is
- * provided or the deadline has passed.
+ * within 100ms of the real transition. Returns 0 when the deadline is
+ * invalid or has passed.
  */
-const useDeadlineCountdown = (deadline: string | undefined): number => {
+const useDeadlineCountdown = (deadline: string): number => {
 	const [secondsLeft, setSecondsLeft] = useState(0);
 
 	useEffect(() => {
-		if (!deadline) {
-			setSecondsLeft(0);
-			return;
-		}
-
 		const targetMs = new Date(deadline).getTime();
 		if (!Number.isFinite(targetMs)) {
 			setSecondsLeft(0);

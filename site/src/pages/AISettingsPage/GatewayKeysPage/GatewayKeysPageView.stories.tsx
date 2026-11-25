@@ -86,7 +86,7 @@ export const Paywall: Story = {
 			canvas.getByRole("link", { name: /View docs/ }),
 		).toHaveAttribute(
 			"href",
-			docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key"),
+			docs("/ai-governance/ai-gateway/standalone#create-a-gateway-key"),
 		);
 	},
 };

@@ -9,8 +9,8 @@ import (
 
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
-	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -33,6 +34,7 @@ type modelClientRequest struct {
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
+	StageModel     chatloop.StageModel
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
@@ -119,12 +121,34 @@ func (a aiGatewayProviderAuth) GoString() string {
 	return a.String()
 }
 
-type aiGatewayRequestFormat int
+// stageSpanRoundTripper records a provider_attempt stage per round trip,
+// so each retry gets its own span.
+type stageSpanRoundTripper struct {
+	base       http.RoundTripper
+	stages     *chatloop.StageTracer
+	stageModel chatloop.StageModel
+}
 
-const (
-	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
-	aiGatewayRequestFormatAnthropic
-)
+var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
+
+func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, span := t.stages.Start(req.Context(), chatloop.StageProviderAttempt,
+		attribute.String(chatloop.AttrHTTPMethod, req.Method),
+	)
+	span.SetModel(t.stageModel)
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if resp != nil {
+		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
+		if err == nil && resp.StatusCode >= http.StatusBadRequest {
+			err = xerrors.Errorf("provider returned status %d", resp.StatusCode)
+			span.End(err)
+			return resp, nil
+		}
+	}
+	// Ends on response headers; the streamed body outlives this call.
+	span.End(err)
+	return resp, err
+}
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -204,8 +228,9 @@ func (p *Server) newModel(
 		)
 	}
 
-	// Use the trusted workspace binding already persisted on the chat.
-	attr := aibridge.Attribution{}
+	// Use the trusted workspace binding and organization already persisted on
+	// the chat.
+	attr := aibridge.Attribution{DelegatedOrganizationID: req.Chat.OrganizationID}
 	if req.Chat.WorkspaceID.Valid {
 		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
 	}
@@ -231,6 +256,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
+	stageRT := &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
@@ -247,19 +273,26 @@ func (p *Server) newModel(
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	callConfig := req.CallConfig
 	callConfig.OpenAIConfig = openAIConfig
-	return newLanguageModel(
+	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
 		extraHeaders,
-		&http.Client{Transport: baseRT},
+		&http.Client{Transport: stageRT},
 		&callConfig,
 	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	// Safe to mutate: the model has not sent a request yet.
+	stageRT.stageModel.Provider = model.Provider()
+	return model, nil
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
-	if providerType != database.AIProviderTypeBedrock || bedrockIsAnthropicModel(model) ||
+	if providerType != database.AIProviderTypeBedrock ||
+		chatprovider.ClientProvider(providerType, model) != fantasyopenai.Name ||
 		callConfig.ProviderOptions == nil || callConfig.ProviderOptions.OpenAI == nil ||
 		callConfig.ProviderOptions.OpenAI.ReasoningSummary == nil ||
 		*callConfig.ProviderOptions.OpenAI.ReasoningSummary == "auto" {
@@ -314,35 +347,11 @@ type aibridgeFantasyConfig struct {
 	Keys         chatprovider.ProviderAPIKeys
 }
 
-// bedrockIsAnthropicModel reports whether a model ID on a bedrock provider
-// uses the Anthropic Messages wire shape. InvokeModel configurations can use a
-// client-facing Claude alias while remapping it to an AWS model ID upstream.
-func bedrockIsAnthropicModel(model string) bool {
-	return strings.HasPrefix(model, "claude-") ||
-		strings.HasPrefix(model, "anthropic.") ||
-		strings.Contains(model, ".anthropic.")
-}
-
 func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
-	var fantasyProvider string
+	fantasyProvider := chatprovider.ClientProvider(providerType, model)
 	baseURL := aibridgeLocalBaseURL + "/v1"
-	switch providerType {
-	case database.AIProviderTypeAnthropic:
-		fantasyProvider = fantasyanthropic.Name
+	if fantasyProvider == fantasyanthropic.Name {
 		baseURL = aibridgeLocalBaseURL
-	case database.AIProviderTypeBedrock:
-		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
-		// shapes; the model ID vendor prefix picks the wire format.
-		if bedrockIsAnthropicModel(model) {
-			fantasyProvider = fantasyanthropic.Name
-			baseURL = aibridgeLocalBaseURL
-		} else {
-			fantasyProvider = fantasyopenai.Name
-		}
-	case database.AIProviderTypeOpenai:
-		fantasyProvider = fantasyopenai.Name
-	default:
-		fantasyProvider = fantasyopenaicompat.Name
 	}
 	return aibridgeFantasyConfig{
 		ProviderHint: fantasyProvider,
@@ -357,26 +366,11 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType, model string
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType, model string) aiGatewayRequestFormat {
-	switch providerType {
-	case database.AIProviderTypeAnthropic:
-		return aiGatewayRequestFormatAnthropic
-	case database.AIProviderTypeBedrock:
-		// The BYOK header shape must agree with the inferred wire format.
-		if bedrockIsAnthropicModel(model) {
-			return aiGatewayRequestFormatAnthropic
-		}
-		return aiGatewayRequestFormatOpenAI
-	default:
-		return aiGatewayRequestFormatOpenAI
-	}
-}
-
 func (p *Server) aiGatewayProviderAuthForUser(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	provider database.AIProvider,
-	format aiGatewayRequestFormat,
+	clientProvider string,
 ) (aiGatewayProviderAuth, error) {
 	if !p.allowBYOK {
 		return aiGatewayProviderAuth{}, nil
@@ -397,8 +391,8 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	}
 
 	headers := map[string]string{}
-	switch format {
-	case aiGatewayRequestFormatAnthropic:
+	switch clientProvider {
+	case fantasyanthropic.Name:
 		headers["X-Api-Key"] = apiKey
 	default:
 		headers["Authorization"] = "Bearer " + apiKey
@@ -417,7 +411,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type, model),
+		chatprovider.ClientProvider(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -437,28 +431,6 @@ func (p *Server) resolveModelRouteForConfig(
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type), modelConfig.Model)
 }
 
-func (p *Server) resolveModelRouteForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (aiGatewayModelRoute, error) {
-	provider, err := p.aiProviderForProviderType(ctx, providerType)
-	if err != nil {
-		return aiGatewayModelRoute{}, err
-	}
-	// This path serves hardcoded computer-use defaults (openai or
-	// anthropic), never bedrock, so the model name is not needed for
-	// format inference. An empty model makes bedrock infer OpenAI format,
-	// which is harmless because bedrock cannot reach this path.
-	return p.resolveAIGatewayRoute(
-		ctx,
-		ownerID,
-		provider,
-		chatprovider.NormalizeProvider(providerType),
-		"",
-	)
-}
-
 func (p *Server) gatewayProviderForConfig(
 	ctx context.Context,
 	modelConfig database.ChatModelConfig,
@@ -471,28 +443,4 @@ func (p *Server) gatewayProviderForConfig(
 		)
 	}
 	return p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
-}
-
-func (p *Server) aiProviderForProviderType(
-	ctx context.Context,
-	providerType string,
-) (database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return database.AIProvider{}, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if !provider.Enabled {
-			continue
-		}
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		return provider, nil
-	}
-	return database.AIProvider{}, xerrors.Errorf(
-		"AI Gateway routing requires a usable AI provider for provider type %q",
-		providerType,
-	)
 }

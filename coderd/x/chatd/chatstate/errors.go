@@ -21,8 +21,13 @@ var (
 	// execution state model.
 	ErrInvalidState = xerrors.New("chat is in an invalid execution state")
 
+	// ErrPausedQueuedHeadUnderEdit is returned by EditQueuedMessage from
+	// P when beginning an edit on a row other than the head, which would
+	// end the head's edit.
+	ErrPausedQueuedHeadUnderEdit = xerrors.New("chat is paused at a queued message under edit; finish editing, send, or remove it first")
+
 	// ErrQueuedMessageNotFound is returned by queue-targeting
-	// transitions (delete, promote) when the supplied queued message
+	// transitions (delete, promote, edit) when the supplied queued message
 	// ID does not match a row on the chat.
 	ErrQueuedMessageNotFound = xerrors.New("queued message not found")
 
@@ -38,6 +43,12 @@ var (
 	// ErrChatNotRoot is returned by family-archive helpers when the
 	// supplied chat is not a root chat (its parent_chat_id is set).
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")
+
+	// ErrChatFamilyArchived is returned by [CreateChat] and
+	// [CreateChatWithID] when the new chat names an archived root
+	// chat. Every member of an archived family must be archived, so
+	// no new chat may join one.
+	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.

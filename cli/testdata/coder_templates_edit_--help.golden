@@ -19,11 +19,11 @@ OPTIONS:
 
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
-          This can only be disabled in enterprise.
+          This can only be disabled with a Premium license.
 
       --allow-user-autostop bool (default: true)
           Allow users to customize the autostop TTL for workspaces on this
-          template. This can only be disabled in enterprise.
+          template. This can only be disabled with a Premium license.
 
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
@@ -93,9 +93,9 @@ OPTIONS:
 
       --require-active-version bool (default: false)
           Requires workspace builds to use the active template version. This
-          setting does not apply to template admins. This is an enterprise-only
-          feature. See
-          https://coder.com/docs/admin/templates/managing-templates#require-automatic-updates-enterprise
+          setting does not apply to template admins. This is a Premium feature.
+          See
+          https://coder.com/docs/admin/templates/managing-templates#template-update-policies
           for more details.
 
   -y, --yes bool

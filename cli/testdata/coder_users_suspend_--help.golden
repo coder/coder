@@ -4,13 +4,17 @@ USAGE:
   coder users suspend [flags] <username|user_id>
 
   Update a user's status to 'suspended'. A suspended user cannot log into the
-  platform
+  platform. Suspending a user stops their running workspaces; activating the
+  user again does not restart them.
 
    $ coder users suspend example_user
 
 OPTIONS:
   -c, --column [username|email|created at|status] (default: username,email,created at,status)
           Specify a column to filter in the table.
+
+  -y, --yes bool
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

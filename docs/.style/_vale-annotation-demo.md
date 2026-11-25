@@ -3,7 +3,8 @@
 > [!NOTE]
 > This page exists only to verify how GitHub renders Vale annotations at each severity level.
 > The three `Coder.Demo*` rules under [`docs/.style/styles/Coder/`](styles/Coder/) fire on the marker strings below.
-> This page and its rules disappear in a follow-up commit on the same PR once the rendering check completes; see DOCS-426.
+> This page and its rules disappear in a follow-up commit on the same PR once the rendering check completes.
+> See DOCS-426.
 
 ## Markers
 

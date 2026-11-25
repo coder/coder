@@ -227,6 +227,15 @@ textarea:focus-visible {
 	transform: none;
 }
 
+.highlight.at-right .highlight-label {
+	left: auto;
+	right: 24px;
+}
+
+.highlight.at-top.at-right .highlight-label {
+	right: 30px;
+}
+
 .highlight.at-right .highlight-badge {
 	top: auto;
 	bottom: 100%;
@@ -533,6 +542,8 @@ textarea:focus-visible {
 	z-index: 2147483647;
 	width: 24rem;
 	max-width: calc(100vw - 16px);
+	max-height: calc(100dvh - 16px);
+	overflow: auto;
 	padding: 1.25rem;
 	display: flex;
 	flex-direction: column;
@@ -573,6 +584,16 @@ textarea:focus-visible {
 
 .popup textarea::placeholder {
 	color: var(--content-secondary);
+}
+
+.popup-limit {
+	color: var(--content-secondary);
+	font-size: 0.75rem;
+	line-height: 1rem;
+}
+
+.popup-limit:empty {
+	display: none;
 }
 
 .popup-actions {

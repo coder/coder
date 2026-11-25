@@ -1,59 +1,113 @@
 import type { ChatStoreState } from "../components/ChatConversation/chatStore";
 import { parseArgs } from "../components/ChatElements/tools/utils";
 
-// Reads the paths a file-editing tool call targets without validating or
-// normalising the edits themselves: the selector runs on every stream
-// update, so it only does the work it needs.
-function pathsFromToolCall(name: string | undefined, args: unknown): string[] {
-	if (name !== "edit_files" && name !== "write_file") {
+// Completed edit_files results report which files actually changed and
+// include the caller's path, so neither encoding of the files input needs
+// parsing. write_file only reports success; its path comes from the input.
+function editedPaths(
+	name: string | undefined,
+	args: unknown,
+	output: unknown,
+): string[] {
+	const result = parseArgs(output);
+	if (result?.ok !== true) {
 		return [];
 	}
-	const parsed = parseArgs(args);
-	const entries = name === "edit_files" ? parsed?.files : [parsed];
-	if (!Array.isArray(entries)) {
-		return [];
+	if (name === "edit_files") {
+		return Array.isArray(result.files)
+			? result.files.flatMap((file: unknown) => {
+					if (typeof file !== "object" || file === null) {
+						return [];
+					}
+					const path = "path" in file ? file.path : undefined;
+					const diff = "diff" in file ? file.diff : undefined;
+					return typeof path === "string" &&
+						path !== "" &&
+						typeof diff === "string" &&
+						diff !== ""
+						? [path]
+						: [];
+				})
+			: [];
 	}
-	return entries.flatMap((entry: unknown) => {
-		const path =
-			typeof entry === "object" && entry !== null && "path" in entry
-				? entry.path
-				: undefined;
+	if (name === "write_file") {
+		const path = parseArgs(args)?.path;
 		return typeof path === "string" && path !== "" ? [path] : [];
-	});
+	}
+	return [];
 }
 
 /**
- * Files the agent has edited or written during the current turn: tool
- * calls in assistant messages after the latest user message, plus calls
- * still streaming. Returned newline-joined so the selector yields a stable
- * primitive for `useSyncExternalStore` and re-renders only on change.
+ * Files the agent successfully edited or wrote during the current turn:
+ * completed tool results for calls after the latest user message, including
+ * results still in the stream. Returned newline-joined so the selector yields
+ * a stable primitive for `useSyncExternalStore` and re-renders only on change.
  */
 export function selectEditedFilesThisTurn(state: ChatStoreState): string {
-	const paths = new Set<string>();
+	const messages = [];
 	for (let i = state.orderedMessageIDs.length - 1; i >= 0; i--) {
 		const message = state.messagesByID.get(state.orderedMessageIDs[i]);
-		if (!message) {
-			continue;
-		}
-		if (message.role === "user") {
+		if (message?.role === "user") {
 			break;
 		}
+		if (message) {
+			messages.push(message);
+		}
+	}
+	messages.reverse();
+
+	const results = new Map<
+		string,
+		{ name?: string; output: unknown; isError?: boolean }
+	>();
+	for (const message of messages) {
 		for (const part of message.content ?? []) {
-			if (part.type !== "tool-call") {
-				continue;
+			if (part.type === "tool-result" && part.tool_call_id) {
+				results.set(part.tool_call_id, {
+					name: part.tool_name,
+					output: part.result,
+					isError: part.is_error,
+				});
 			}
-			for (const path of pathsFromToolCall(part.tool_name, part.args)) {
-				paths.add(path);
+		}
+	}
+
+	const paths = new Set<string>();
+	const collect = (
+		id: string | undefined,
+		name: string | undefined,
+		args: unknown,
+		result: { name?: string; output: unknown; isError?: boolean } | undefined,
+	) => {
+		if (!id || !result || result.isError || result.name !== name) {
+			return;
+		}
+		for (const path of editedPaths(name, args, result.output)) {
+			paths.add(path);
+		}
+	};
+	for (const message of messages) {
+		for (const part of message.content ?? []) {
+			if (part.type === "tool-call") {
+				collect(
+					part.tool_call_id,
+					part.tool_name,
+					part.args,
+					results.get(part.tool_call_id ?? ""),
+				);
 			}
 		}
 	}
 	for (const call of Object.values(state.streamState?.toolCalls ?? {})) {
-		for (const path of pathsFromToolCall(
-			call.name,
-			call.args ?? call.argsRaw,
-		)) {
-			paths.add(path);
+		const result = state.streamState?.toolResults[call.id];
+		if (!result || result.isStreaming) {
+			continue;
 		}
+		collect(call.id, call.name, call.args ?? call.argsRaw, {
+			name: result.name,
+			output: result.result ?? result.resultRaw,
+			isError: result.isError,
+		});
 	}
 	return [...paths].join("\n");
 }

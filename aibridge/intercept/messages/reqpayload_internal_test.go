@@ -7,6 +7,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	"github.com/coder/coder/v2/aibridge/config"
 )
 
 func TestNewRequestPayload(t *testing.T) {
@@ -126,6 +128,12 @@ func TestRequestPayloadModel(t *testing.T) {
 
 			payload := mustMessagesPayload(t, testCase.requestBody)
 			require.Equal(t, testCase.expectedModel, payload.model())
+			require.Equal(t, testCase.expectedModel, payload.InvocationModel(nil))
+			require.Equal(t, testCase.expectedModel, payload.InvocationModel(NewBedrockRuntime(config.AWSBedrock{
+				Protocol:       config.BedrockProtocolMantle,
+				Model:          "configured-primary",
+				SmallFastModel: "configured-small-fast",
+			}, nil)))
 		})
 	}
 }

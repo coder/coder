@@ -33,39 +33,60 @@ func TestShow(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		args := []string{
-			"show",
-			workspace.Name,
-		}
-		inv, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, member, root)
-		doneChan := make(chan struct{})
-		stdout := expecter.NewAttachedToInvocation(t, inv)
-		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		go func() {
-			defer close(doneChan)
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		}()
-		matches := []struct {
-			match string
-			write string
+		for _, tc := range []struct {
+			name       string
+			identifier string
+			wantSSH    string
 		}{
-			{match: fmt.Sprintf("%s/%s", workspace.OwnerName, workspace.Name)},
-			{match: fmt.Sprintf("(%s since ", build.Status)},
-			{match: fmt.Sprintf("%s:%s", workspace.TemplateName, workspace.LatestBuild.TemplateVersionName)},
-			{match: "compute.main"},
-			{match: "smith (linux, i386)"},
-			{match: "coder ssh " + workspace.Name},
+			{
+				name:       "Name",
+				identifier: workspace.Name,
+				wantSSH:    "coder ssh " + workspace.Name,
+			},
+			{
+				name:       "OwnerAndName",
+				identifier: workspace.OwnerName + "/" + workspace.Name,
+				wantSSH:    "coder ssh " + workspace.OwnerName + "/" + workspace.Name,
+			},
+			{
+				name:       "UUID",
+				identifier: workspace.ID.String(),
+				wantSSH:    "coder ssh " + workspace.OwnerName + "/" + workspace.Name,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				inv, root := clitest.New(t, "show", tc.identifier)
+				clitest.SetupConfig(t, member, root)
+				doneChan := make(chan struct{})
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				go func() {
+					defer close(doneChan)
+					err := inv.WithContext(ctx).Run()
+					assert.NoError(t, err)
+				}()
+				matches := []struct {
+					match string
+					write string
+				}{
+					{match: fmt.Sprintf("%s/%s", workspace.OwnerName, workspace.Name)},
+					{match: fmt.Sprintf("(%s since ", build.Status)},
+					{match: fmt.Sprintf("%s:%s", workspace.TemplateName, workspace.LatestBuild.TemplateVersionName)},
+					{match: "compute.main"},
+					{match: "smith (linux, i386)"},
+					{match: tc.wantSSH},
+				}
+				for _, m := range matches {
+					stdout.ExpectMatch(ctx, m.match)
+					if len(m.write) > 0 {
+						stdin.WriteLine(m.write)
+					}
+				}
+				_ = testutil.TryReceive(ctx, t, doneChan)
+			})
 		}
-		for _, m := range matches {
-			stdout.ExpectMatch(ctx, m.match)
-			if len(m.write) > 0 {
-				stdin.WriteLine(m.write)
-			}
-		}
-		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	// Regression test: workspace names that are valid dashless UUIDs

@@ -69,11 +69,15 @@ RETURNING *;
 
 -- name: InsertChatDebugStep :one
 -- The CTE atomically locks the parent run via UPDATE, bumps its
--- updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
--- call), and enforces the finalization guard: if the run is already
+-- updated_at, and enforces the finalization guard: if the run is already
 -- finished, the UPDATE returns zero rows, the INSERT gets no source
 -- rows, and sql.ErrNoRows is returned. The UPDATE also serializes
--- with concurrent FinalizeStale under READ COMMITTED isolation.
+-- with a concurrent run finalization under READ COMMITTED isolation.
+-- A zero @step_number numbers the step after the run's highest step.
+-- The row lock does not make that number unique, because the statement
+-- snapshot predates the lock wait. Callers hold LockIDChatDebugRunSteps
+-- from an earlier statement of the same transaction, so the snapshot
+-- includes every committed step.
 WITH locked_run AS (
     UPDATE chat_debug_runs
     SET updated_at = COALESCE(sqlc.narg('updated_at')::timestamptz, NOW())
@@ -103,7 +107,10 @@ INSERT INTO chat_debug_steps (
 SELECT
     @run_id::uuid,
     locked_run.chat_id,
-    @step_number::int,
+    COALESCE(
+        NULLIF(@step_number::int, 0),
+        (SELECT COALESCE(MAX(s.step_number), 0) + 1 FROM chat_debug_steps s WHERE s.run_id = @run_id::uuid)
+    ),
     @operation::text,
     @status::text,
     sqlc.narg('history_tip_message_id')::bigint,
@@ -125,8 +132,7 @@ RETURNING *;
 -- existing value." This is intentional: debug rows follow a
 -- write-once-finalize pattern where fields are set at creation
 -- or finalization and never cleared back to NULL. The @now
--- parameter keeps updated_at under the caller's clock, matching
--- the injectable quartz.Clock used by FinalizeStale sweeps.
+-- parameter keeps updated_at under the caller's clock.
 UPDATE chat_debug_steps
 SET
     status = COALESCE(sqlc.narg('status')::text, status),
@@ -143,50 +149,6 @@ SET
 WHERE id = @id::uuid
     AND chat_id = @chat_id::uuid
 RETURNING *;
-
--- name: TouchChatDebugRunUpdatedAt :exec
--- Overrides updated_at on the parent run without touching any
--- other column. Used by tests that need to stamp a run with a
--- specific timestamp after the InsertChatDebugStep CTE has
--- already bumped it to NOW(), so stale-row finalization paths
--- can be exercised deterministically. The chatdebug service
--- itself does not call this: heartbeats go through
--- TouchChatDebugStepAndRun, and step creation updates the parent
--- run via the InsertChatDebugStep CTE.
-UPDATE chat_debug_runs
-SET updated_at = @now::timestamptz
-WHERE id = @id::uuid
-    AND chat_id = @chat_id::uuid;
-
--- name: TouchChatDebugStepAndRun :exec
--- Atomically bumps updated_at on both the step and its parent run
--- in a single statement. This prevents FinalizeStale from
--- interleaving between the two touches and finalizing a run whose
--- step heartbeat was just written.
---
--- The step UPDATE joins through touched_run (via FROM) and reads
--- its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
--- is the only way to communicate values between a data-modifying
--- CTE and the main query, and consuming those rows forces the run
--- UPDATE to complete before the step UPDATE. That matches the
--- lock order used by FinalizeStaleChatDebugRows and avoids a
--- deadlock between concurrent heartbeats and stale sweeps. The
--- join also constrains the step update to the specified run so a
--- mismatched (run_id, step_id) pair cannot silently refresh an
--- unrelated step.
-WITH touched_run AS (
-    UPDATE chat_debug_runs
-    SET updated_at = @now::timestamptz
-    WHERE id = @run_id::uuid
-        AND chat_id = @chat_id::uuid
-    RETURNING id, chat_id
-)
-UPDATE chat_debug_steps
-SET updated_at = @now::timestamptz
-FROM touched_run
-WHERE chat_debug_steps.id = @step_id::uuid
-    AND chat_debug_steps.run_id = touched_run.id
-    AND chat_debug_steps.chat_id = touched_run.chat_id;
 
 -- name: GetChatDebugRunsByChatID :many
 -- Returns the most recent debug runs for a chat, ordered newest-first.
@@ -265,44 +227,3 @@ DELETE FROM chat_debug_runs
 USING deletable
 WHERE chat_debug_runs.id = deletable.id
     AND chat_debug_runs.chat_id = deletable.chat_id;
-
--- name: FinalizeStaleChatDebugRows :one
--- Marks orphaned in-progress rows as interrupted so they do not stay
--- in a non-terminal state forever. The NOT IN list must match the
--- terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
---
--- The steps CTE also catches steps whose parent run was just finalized
--- (via run_id IN), because PostgreSQL data-modifying CTEs share the
--- same snapshot and cannot see each other's row updates. Without this,
--- a step with a recent updated_at would survive its run's finalization
--- and remain in 'in_progress' state permanently.
---
--- @now is the caller's clock timestamp so that mock-clock tests stay
--- consistent with the @updated_before cutoff.
-WITH finalized_runs AS (
-    UPDATE chat_debug_runs
-    SET
-        status = 'interrupted',
-        updated_at = @now::timestamptz,
-        finished_at = @now::timestamptz
-    WHERE updated_at < @updated_before::timestamptz
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING id
-), finalized_steps AS (
-    UPDATE chat_debug_steps
-    SET
-        status = 'interrupted',
-        updated_at = @now::timestamptz,
-        finished_at = @now::timestamptz
-    WHERE (
-            updated_at < @updated_before::timestamptz
-            OR run_id IN (SELECT id FROM finalized_runs)
-        )
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING 1
-)
-SELECT
-    (SELECT COUNT(*) FROM finalized_runs)::bigint AS runs_finalized,
-    (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized;

@@ -29,6 +29,24 @@ func NewResponseError(status int, resp codersdk.Response) error {
 	}
 }
 
+// WrapResponseError returns an HTTP response error that unwraps to cause.
+func WrapResponseError(status int, resp codersdk.Response, cause error) error {
+	return &responseError{
+		status:   status,
+		response: resp,
+		cause:    cause,
+	}
+}
+
+// StatusCode returns the status that WriteResponseError writes for err.
+func StatusCode(err error) int {
+	if responseErr, ok := IsResponder(err); ok {
+		code, _ := responseErr.Response()
+		return code
+	}
+	return http.StatusInternalServerError
+}
+
 func WriteResponseError(ctx context.Context, rw http.ResponseWriter, err error) {
 	if responseErr, ok := IsResponder(err); ok {
 		code, resp := responseErr.Response()
@@ -46,6 +64,7 @@ func WriteResponseError(ctx context.Context, rw http.ResponseWriter, err error) 
 type responseError struct {
 	status   int
 	response codersdk.Response
+	cause    error
 }
 
 var (
@@ -55,6 +74,10 @@ var (
 
 func (e *responseError) Error() string {
 	return fmt.Sprintf("%s: %s", e.response.Message, e.response.Detail)
+}
+
+func (e *responseError) Unwrap() error {
+	return e.cause
 }
 
 func (e *responseError) Status() int {

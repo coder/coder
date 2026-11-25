@@ -3,7 +3,7 @@ import { isUnsetModelRef } from "../../../utils/modelOptions";
 import { asString } from "../../ChatElements/runtimeTypeUtils";
 
 export const getModelDisplayName = (
-	lastModelConfigID: Chat["last_model_config_id"] | undefined,
+	lastModelConfigID: Chat["last_model_config_id"],
 	modelConfigs: readonly ChatModel[],
 	isLoadingModelConfigs = false,
 ) => {
@@ -11,7 +11,7 @@ export const getModelDisplayName = (
 		return "Default model";
 	}
 
-	const normalizedModelConfigID = asString(lastModelConfigID).trim();
+	const normalizedModelConfigID = lastModelConfigID.trim();
 	const modelConfig = modelConfigs.find(
 		(config) => config.id === normalizedModelConfigID,
 	);

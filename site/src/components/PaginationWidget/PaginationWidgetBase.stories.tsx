@@ -31,3 +31,14 @@ export const MoreThan7PagesWithActivePageFarFromBoundaries: Story = {
 export const MoreThan7PagesWithActivePageCloseToEnd: Story = {
 	args: { currentPage: 17, pageSize: 12 },
 };
+
+export const NarrowContainer: Story = {
+	args: { currentPage: 4, pageSize: 12 },
+	decorators: [
+		(Story) => (
+			<div className="w-80">
+				<Story />
+			</div>
+		),
+	],
+};

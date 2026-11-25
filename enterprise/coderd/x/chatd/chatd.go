@@ -44,15 +44,11 @@ type StreamPartsDialerConfig struct {
 	ResolveReplicaAddress func(context.Context, uuid.UUID) (string, bool)
 	ReplicaHTTPClient     *http.Client
 	ReplicaIDFn           func() uuid.UUID
-	DialerFn              func(context.Context, osschatd.StreamPartsDialInput) (osschatd.StreamPartsSession, error)
 }
 
 // NewStreamPartsDialer returns a dialer for the owning replica's parts endpoint.
 func NewStreamPartsDialer(cfg StreamPartsDialerConfig) osschatd.StreamPartsDialer {
 	return func(ctx context.Context, input osschatd.StreamPartsDialInput) (osschatd.StreamPartsSession, error) {
-		if cfg.DialerFn != nil {
-			return cfg.DialerFn(ctx, input)
-		}
 		return dialRelayParts(ctx, input, cfg)
 	}
 }

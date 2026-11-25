@@ -13,7 +13,6 @@ import {
 	useNavigate,
 	unstable_usePrompt as usePrompt,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
@@ -35,6 +34,7 @@ import {
 	TopbarIconButton,
 } from "#/components/FullPageLayout/Topbar";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

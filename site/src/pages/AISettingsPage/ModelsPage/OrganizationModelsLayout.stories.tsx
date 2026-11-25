@@ -130,7 +130,7 @@ export const SwitchOrganizationPreservesAuxiliaryParameters: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		);
@@ -166,7 +166,7 @@ export const InvalidRequestedOrganizationFallsBackToDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		).toBeVisible();
@@ -315,7 +315,7 @@ export const DuplicateDisplayNamesAreDisambiguated: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", {
+			await canvas.findByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.name),
 			}),
 		);

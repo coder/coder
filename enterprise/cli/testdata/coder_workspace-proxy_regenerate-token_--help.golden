@@ -1,0 +1,20 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder workspace-proxy regenerate-token [flags] <name|id>
+
+  Regenerate a workspace proxy authentication token. This will invalidate the
+  existing authentication token.
+
+OPTIONS:
+  -c, --column [id|name|display name|icon url|healthy|url|wildcard hostname|derp enabled|derp only|proxy status|proxy report|proxy checked at|created at|updated at|deleted|version|proxy token] (default: name,url,proxy token)
+          Columns to display in table output.
+
+      --only-token bool
+          Only print the token. This is useful for scripting.
+
+  -o, --output text|json|table (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

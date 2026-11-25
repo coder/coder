@@ -146,7 +146,7 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 						)
 					)}
 
-					<div className="flex flex-row items-center gap-4">
+					<div className="flex items-center gap-4">
 						{isLoading ? (
 							<Button disabled={isLoading}>Test</Button>
 						) : (
@@ -206,7 +206,12 @@ const TestHelpPopover: React.FC = () => {
 				automatically create a workspace so that you have the opportunity to
 				inspect the parameters and check for errors.
 				<br />
-				<Link size="sm" href={docs("/admin/templates/open-in-coder")}>
+				<Link
+					size="sm"
+					href={docs("/templates/open-in-coder")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Templates &ndash; Open in Coder
 				</Link>
 			</TooltipMessage>
