@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import {
 	chatProjectACLKey,
@@ -171,6 +171,17 @@ export const WithoutDeletePermission: Story = {
 			...MockChatProject,
 			permissions: { update: true, delete: false, share: true, archive: false },
 		},
+	},
+};
+
+/** The header actions menu of an active project, with Archive project. */
+export const ProjectActionsMenu: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Project actions",
+			}),
+		);
 	},
 };
 

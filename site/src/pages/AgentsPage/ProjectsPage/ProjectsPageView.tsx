@@ -47,6 +47,7 @@ type ProjectsPageViewProps = {
 	 */
 	readonly pendingPinIds: ReadonlySet<string>;
 	readonly onEdit: ProjectAction;
+	readonly onArchive: ProjectAction;
 	readonly onDelete: ProjectAction;
 };
 
@@ -65,6 +66,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	onUnpin,
 	pendingPinIds,
 	onEdit,
+	onArchive,
 	onDelete,
 }) => {
 	const summaries = projects?.[tab];
@@ -87,6 +89,9 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 						onUnpin={() => onUnpin(summary.project)}
 						pinPending={pendingPinIds.has(summary.project.id)}
 						onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
+						onArchive={(returnFocusTo) =>
+							onArchive(summary.project, returnFocusTo)
+						}
 						onDelete={(returnFocusTo) =>
 							onDelete(summary.project, returnFocusTo)
 						}

@@ -20,8 +20,10 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { draftStorageKeys } from "../AgentCreateForm";
+import { returnFocusTo } from "../useDialogFocusReturn";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { getOrganizationLabels } from "./chats/projectGrouping";
+import { ArchiveProjectDialog } from "./dialogs/ArchiveProjectDialog";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -153,6 +155,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		organizationLabel?: string;
 		open: boolean;
 	}>({ project: null, open: false });
+	const [archiveDialog, setArchiveDialog] = useState<{
+		project: ChatProject | null;
+		trigger: HTMLButtonElement | null;
+		focusAfterRemoval?: () => void;
+		open: boolean;
+	}>({ project: null, trigger: null, open: false });
 
 	const openProjectDialog = (project: ChatProject) => {
 		updateProjectMutation.reset();
@@ -256,6 +264,9 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 					void summariesQuery.refetch();
 				}}
 				onEditProject={openProjectDialog}
+				onArchiveProject={(project, trigger, focusAfterRemoval) =>
+					setArchiveDialog({ project, trigger, focusAfterRemoval, open: true })
+				}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
@@ -331,6 +342,24 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				}
 				confirmLoading={deleteProjectMutation.isPending}
 				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's chats list."
+			/>
+			<ArchiveProjectDialog
+				project={archiveDialog.project}
+				open={archiveDialog.open}
+				onClose={() =>
+					setArchiveDialog((current) => ({ ...current, open: false }))
+				}
+				onCloseAutoFocus={(event) => {
+					if (archiveDialog.trigger) {
+						returnFocusTo(archiveDialog.trigger)(event);
+					}
+					// The archived project's folder, and its actions button,
+					// left the sidebar.
+					if (!event.defaultPrevented) {
+						event.preventDefault();
+						archiveDialog.focusAfterRemoval?.();
+					}
+				}}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -18,6 +18,7 @@ const renderCard = (
 		onPin: vi.fn(),
 		onUnpin: vi.fn(),
 		onEdit: vi.fn(),
+		onArchive: vi.fn(),
 		onDelete: vi.fn(),
 	};
 	renderComponent(
@@ -67,6 +68,7 @@ describe("ProjectCard", () => {
 	// loses focus to the menu.
 	it.each([
 		["Edit", "onEdit"],
+		["Archive", "onArchive"],
 		["Delete", "onDelete"],
 	] as const)("opens %s once the menu has closed", async (item, callback) => {
 		vi.useFakeTimers();

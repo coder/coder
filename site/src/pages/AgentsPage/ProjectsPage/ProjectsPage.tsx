@@ -31,6 +31,7 @@ import {
 import { pageTitle } from "#/utils/page";
 import { draftStorageKeys } from "../components/AgentCreateForm";
 import { AgentPageHeader } from "../components/AgentPageHeader";
+import { ArchiveProjectDialog } from "../components/ChatsSidebar/dialogs/ArchiveProjectDialog";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -104,6 +105,9 @@ const ProjectsPage: React.FC = () => {
 		open: false,
 	});
 	const [deleteDialog, setDeleteDialog] = useState<DialogState>({
+		open: false,
+	});
+	const [archiveDialog, setArchiveDialog] = useState<DialogState>({
 		open: false,
 	});
 
@@ -260,6 +264,10 @@ const ProjectsPage: React.FC = () => {
 					});
 				}}
 				onEdit={openProjectDialog}
+				onArchive={(project, returnFocusTo) => {
+					returnFocusRef.current = returnFocusTo;
+					setArchiveDialog({ project, open: true });
+				}}
 				onDelete={(project, returnFocusTo) => {
 					returnFocusRef.current = returnFocusTo;
 					setDeleteDialog({ project, open: true });
@@ -289,6 +297,25 @@ const ProjectsPage: React.FC = () => {
 				name={deleteDialog.project?.name ?? ""}
 				confirmLoading={deleteMutation.isPending}
 				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
+			/>
+			<ArchiveProjectDialog
+				project={archiveDialog.project ?? null}
+				open={archiveDialog.open}
+				onClose={() =>
+					setArchiveDialog((current) => ({ ...current, open: false }))
+				}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					// Archiving removes the project's card, so focus then moves
+					// to New project.
+					const target = returnFocusRef.current;
+					requestAnimationFrame(() =>
+						(target?.isConnected
+							? target
+							: newProjectButtonRef.current
+						)?.focus(),
+					);
+				}}
 			/>
 		</>
 	);

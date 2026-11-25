@@ -3584,6 +3584,23 @@ export const SameNamedProjects: Story = {
 	},
 };
 
+export const ProjectActions: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
 export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
