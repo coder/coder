@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
@@ -12,9 +13,12 @@ import {
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
-// The icon field renders external images, which read the active theme.
+// The icon field renders external images, which read the active theme, and
+// the organization picker shows tooltips, which need the app's provider.
 const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
-	<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+	<ThemeOverride theme={themes[DEFAULT_THEME]}>
+		<TooltipProvider>{children}</TooltipProvider>
+	</ThemeOverride>
 );
 
 type DialogProps = React.ComponentProps<typeof ChatProjectDialog>;

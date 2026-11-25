@@ -7,6 +7,8 @@ import (
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
 // RuntimeConfig configures a single advisor runtime instance.
@@ -20,6 +22,10 @@ type RuntimeConfig struct {
 	// MaxRetries is the maximum number of retries after a transient
 	// provider error within one advisor call. It must be positive.
 	MaxRetries int
+	// Stages records the advisor's model call as a chat span. Nil
+	// disables tracing.
+	Stages     *chatloop.StageTracer
+	StageModel chatloop.StageModel
 	// PriorUses is the number of successful advisor calls already made
 	// in the current turn. chatd builds a new Runtime for every model
 	// step, so the per-turn quota is seeded from history.
