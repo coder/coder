@@ -35,8 +35,8 @@ type ResponseResult struct {
 	Tools    []recorder.ToolUsageRecord
 	Thoughts []recorder.ModelThoughtRecord
 
-	// ResponseError is a failure reported by the response or detected in its
-	// protocol. It is not an extraction or persistence failure.
+	// ResponseError is a failure reported by the upstream response.
+	// Extraction failures are returned separately by ExtractResponse.
 	ResponseError error
 }
 

@@ -4,6 +4,7 @@ package sse
 import (
 	"bufio"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,18 +26,16 @@ type Event struct {
 	Retry int
 }
 
-// Parser collects server-sent events grouped by event type. It is safe for
+// Parser collects server-sent events in stream order. It is safe for
 // concurrent use.
 type Parser struct {
-	events map[string][]Event
+	events []Event
 	mu     sync.RWMutex
 }
 
 // NewParser returns an empty Parser.
 func NewParser() *Parser {
-	return &Parser{
-		events: make(map[string][]Event),
-	}
+	return &Parser{}
 }
 
 // maxLineBytes bounds a single line of the stream.
@@ -45,7 +44,7 @@ func NewParser() *Parser {
 // https://github.com/openai/openai-go/blob/v3.50.0/packages/ssestream/ssestream.go#L36
 const maxLineBytes = bufio.MaxScanTokenSize << 9
 
-// Parse reads events from reader until EOF and stores them by type.
+// Parse reads events from reader until EOF and appends them in stream order.
 // A trailing event without a terminating blank line is discarded.
 // Blocks without data lines, such as comment-only keepalives, a lone
 // event: line or repeated blank lines, do not produce events.
@@ -76,7 +75,7 @@ func (p *Parser) Parse(reader io.Reader) error {
 
 			// Store the event
 			p.mu.Lock()
-			p.events[currentEvent.Type] = append(p.events[currentEvent.Type], currentEvent)
+			p.events = append(p.events, currentEvent)
 			p.mu.Unlock()
 
 			// Reset for next event
@@ -118,15 +117,26 @@ func (p *Parser) Parse(reader io.Reader) error {
 	return scanner.Err()
 }
 
+// Events returns a copy of all parsed events in stream order.
+func (p *Parser) Events() []Event {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return slices.Clone(p.events)
+}
+
 // EventsByType returns a copy of the parsed events of the given type, in
 // stream order.
 func (p *Parser) EventsByType(eventType string) []Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	events := p.events[eventType]
-	result := make([]Event, len(events))
-	copy(result, events)
+	var result []Event
+	for _, event := range p.events {
+		if event.Type == eventType {
+			result = append(result, event)
+		}
+	}
 	return result
 }
 
@@ -135,16 +145,15 @@ func (p *Parser) MessageEvents() []Event {
 	return p.EventsByType(EventTypeMessage)
 }
 
-// AllEvents returns a copy of all parsed events keyed by event type.
+// AllEvents returns a copy of all parsed events keyed by event type, each in
+// stream order.
 func (p *Parser) AllEvents() map[string][]Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	result := make(map[string][]Event)
-	for eventType, events := range p.events {
-		eventsCopy := make([]Event, len(events))
-		copy(eventsCopy, events)
-		result[eventType] = eventsCopy
+	for _, event := range p.events {
+		result[event.Type] = append(result[event.Type], event)
 	}
 	return result
 }

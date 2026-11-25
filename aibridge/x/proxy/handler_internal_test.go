@@ -830,6 +830,19 @@ func TestForwardingExtraction(t *testing.T) {
 			wantTokens:  []recorder.TokenUsageRecord{{MsgID: "msg_1", ProviderModel: "claude-test-1", Input: 3, Output: 5}},
 		},
 		{
+			name:        "RetainsFactsOnExtractionError",
+			body:        blockingRequest,
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			response: "event: message_start\n" +
+				`data: {"type":"message_start","message":{"id":"msg_1","model":"claude-test","usage":{"output_tokens":1}}}` + "\n\n" +
+				"event: message_delta\n" + `data: {"type":"message_delta","usage":{"output_tokens":5}}` + "\n\n" +
+				strings.Repeat("event: message_stop\n"+`data: {"type":"message_stop"}`+"\n\n", 2),
+			wantModel:   "claude-test",
+			wantPrompts: []recorder.PromptUsageRecord{{MsgID: "msg_1", Prompt: "hi"}},
+			wantTokens:  []recorder.TokenUsageRecord{{MsgID: "msg_1", ProviderModel: "claude-test", Output: 5}},
+		},
+		{
 			name:        "Overloaded",
 			body:        blockingRequest,
 			status:      529,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -127,6 +128,66 @@ func TestMessagesExtractResponse(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(message), &response))
 
+	const messageStop = "event: message_stop\n" + `data: {"type":"message_stop"}` + "\n\n"
+	const messageEnd = "event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":2}}` + "\n\n" + messageStop
+	const overloadedEvent = "event: error\n" + `data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}` + "\n\n"
+	const unknownErrorEvent = "event: error\n" + `data: {"type":"error","error":{"type":"future_error","message":"Unexpected"}}` + "\n\n"
+
+	// stream carries the facts of message as SSE, with fragmented thinking and
+	// tool input, and blocks that are not recorded.
+	const stream = "event: message_start\n" +
+		`data: {"type":"message_start","message":{"id":"msg_1","model":"claude-test-1","content":[],` +
+		`"usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":3,"cache_creation_input_tokens":4,` +
+		`"cache_creation":{"ephemeral_1h_input_tokens":5,"ephemeral_5m_input_tokens":6},` +
+		`"server_tool_use":{"web_search_requests":7},"service_tier":"priority"}}}` + "\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ponder"}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ing"}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig"}}` + "\n\n" +
+		"event: content_block_stop\n" +
+		`data: {"type":"content_block_stop","index":0}` + "\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"redacted_thinking","data":"secret"}}` + "\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"reading"}}` + "\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":3,"content_block":{"type":"tool_use","id":"toolu_1","name":"Read","input":{}}}` + "\n\n" +
+		"event: ping\n" +
+		`data: {"type":"ping"}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\"path\":"}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"\"/a\"}"}}` + "\n\n" + messageEnd
+
+	// streamUntil returns stream cut before the first event of eventType,
+	// followed by suffix.
+	streamUntil := func(eventType, suffix string) []byte {
+		before, _, found := strings.Cut(stream, "event: "+eventType+"\n")
+		require.True(t, found)
+		return []byte(before + suffix)
+	}
+	// beforeMessageDelta holds the facts extracted before message_delta.
+	beforeMessageDelta := extracted
+	beforeMessageDelta.Tokens = slices.Clone(extracted.Tokens)
+	beforeMessageDelta.Tokens[0].Output = 1
+
+	deltaUsageStreamed := extracted
+	deltaUsageStreamed.Tokens = slices.Clone(extracted.Tokens)
+	deltaUsageStreamed.Tokens[0].Input = 10
+	deltaUsageStreamed.Tokens[0].CacheReadInputTokens = 0
+	deltaUsageStreamed.Tokens[0].ExtraTokenTypes = map[string]int64{
+		"cache_ephemeral_1h_input": 5,
+		"cache_ephemeral_5m_input": 6,
+		"web_search_requests":      8,
+	}
+
 	withoutToolInput := extracted
 	withoutToolInput.Tools = slices.Clone(extracted.Tools)
 	withoutToolInput.Tools[0].Args = json.RawMessage(nil)
@@ -151,7 +212,7 @@ func TestMessagesExtractResponse(t *testing.T) {
 		wantErr      string
 		wantLogErr   string
 		// wantErrorStatus and wantErrorMessage describe the decoded error
-		// response. Zero wantErrorStatus means none.
+		// response. Empty wantErrorMessage means none.
 		wantErrorStatus  int
 		wantErrorMessage string
 	}{
@@ -271,10 +332,11 @@ func TestMessagesExtractResponse(t *testing.T) {
 			wantLogErr: "missing response content type",
 		},
 		{
-			// TODO: extract streamed responses. https://linear.app/codercom/issue/AIGOV-616
 			name:       "MissingContentTypeStreamingRequest",
 			streaming:  true,
 			status:     http.StatusOK,
+			body:       []byte(stream),
+			want:       extracted,
 			wantLogErr: "missing response content type",
 		},
 		{
@@ -289,13 +351,130 @@ func TestMessagesExtractResponse(t *testing.T) {
 			streaming:   true,
 			status:      http.StatusOK,
 			contentType: "text/plain",
+			wantErr:     "message_start=0, message_stop=0",
 			wantLogErr:  `unsupported response content type "text/plain"`,
 		},
 		{
-			// TODO: extract streamed responses. https://linear.app/codercom/issue/AIGOV-616
+			// The response content type takes precedence over the request.
 			name:        "EventStream",
 			status:      http.StatusOK,
+			contentType: "text/event-stream; charset=utf-8",
+			body:        []byte(stream),
+			want:        extracted,
+		},
+		{
+			name:        "UnexpectedSecondMessage",
+			status:      http.StatusOK,
 			contentType: "text/event-stream",
+			body:        []byte(stream + stream),
+			want:        extracted,
+			wantErr:     "message_start=2, message_stop=2",
+		},
+		{
+			name:        "SecondStartBeforeStop",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body: streamUntil("message_stop", "event: message_start\n"+
+				`data: {"type":"message_start","message":{"id":"msg_2","usage":{"output_tokens":99}}}`+"\n\n"+messageStop+overloadedEvent),
+			want:             extracted,
+			wantErr:          "message_start=2, message_stop=1",
+			wantErrorMessage: "Overloaded",
+		},
+		{
+			name:        "DuplicateMessageStop",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body:        []byte(stream + messageStop),
+			want:        extracted,
+			wantErr:     "message_start=1, message_stop=2",
+		},
+		{
+			name:        "IgnoreContentButKeepErrorAfterStop",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body: []byte(stream + "event: content_block_delta\n" +
+				`data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"late"}}` + "\n\n" + overloadedEvent),
+			want:             extracted,
+			wantErrorMessage: "Overloaded",
+		},
+		{
+			name:        "StreamedServerAndMCPTools",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body: streamUntil("content_block_start", "event: content_block_start\n"+
+				`data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{}}}`+"\n\n"+
+				"event: content_block_delta\n"+`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"q\"}"}}`+"\n\n"+
+				"event: content_block_stop\n"+`data: {"type":"content_block_stop","index":0}`+"\n\n"+
+				"event: content_block_start\n"+`data: {"type":"content_block_start","index":1,"content_block":{"type":"mcp_tool_use","id":"mcp_1","name":"list_issues","server_name":"github","input":{}}}`+"\n\n"+
+				"event: content_block_delta\n"+`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}`+"\n\n"+
+				"event: content_block_stop\n"+`data: {"type":"content_block_stop","index":1}`+"\n\n"+messageEnd),
+			want: extractors.ResponseResult{
+				Prompt: extracted.Prompt,
+				Tokens: extracted.Tokens,
+				Tools: []recorder.ToolUsageRecord{
+					{MsgID: "msg_1", ToolCallID: "srv_1", Tool: "web_search", Args: json.RawMessage(`{"query":"q"}`)},
+					{MsgID: "msg_1", ToolCallID: "mcp_1", Tool: "list_issues", Args: json.RawMessage(`{}`)},
+				},
+			},
+		},
+		{
+			name:        "StopWithoutStart",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body:        []byte("event: message_stop\n" + `data: {"type":"message_stop"}` + "\n\n"),
+			wantErr:     "message_start=0, message_stop=1",
+		},
+		{
+			name:        "KeepaliveWithoutMessage",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body:        []byte(": keepalive\n\n"),
+			wantErr:     "message_start=0, message_stop=0",
+		},
+		{
+			name:        "StreamDeltaUsage",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body: streamUntil("message_delta", "event: message_delta\n"+
+				`data: {"type":"message_delta","delta":{},`+
+				`"usage":{"input_tokens":10,"cache_read_input_tokens":0,"output_tokens":1,`+
+				`"server_tool_use":{"web_search_requests":8}}}`+"\n\n"+
+				"event: message_delta\n"+`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},`+
+				`"usage":{"output_tokens":2,"server_tool_use":{"web_search_requests":0}}}`+"\n\n"+
+				"event: message_stop\n"+`data: {"type":"message_stop"}`+"\n\n"),
+			want: deltaUsageStreamed,
+		},
+		{
+			name:             "FirstStreamErrorPreservesPartialMessage",
+			status:           http.StatusOK,
+			contentType:      "text/event-stream",
+			body:             streamUntil("message_delta", overloadedEvent+unknownErrorEvent),
+			want:             beforeMessageDelta,
+			wantErrorStatus:  0,
+			wantErrorMessage: "Overloaded",
+		},
+		{
+			name:             "UnknownStreamErrorBeforeStart",
+			status:           http.StatusOK,
+			contentType:      "text/event-stream",
+			body:             []byte(unknownErrorEvent),
+			wantErrorMessage: "Unexpected",
+		},
+		{
+			name:        "MissingTerminalEvent",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body:        streamUntil("message_stop", ""),
+			want:        extracted,
+			wantErr:     "message_start=1, message_stop=0",
+		},
+		{
+			name:        "RecoverUsageAfterInvalidDelta",
+			status:      http.StatusOK,
+			contentType: "text/event-stream",
+			body:        streamUntil("message_delta", "event: message_delta\ndata: {\n\n"+messageEnd),
+			want:        extracted,
+			wantErr:     "decode message_delta event: invalid JSON",
 		},
 		{
 			name:        "InvalidJSON",
@@ -361,7 +540,7 @@ func TestMessagesExtractResponse(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			if tc.wantErrorStatus != 0 {
+			if tc.wantErrorMessage != "" {
 				var responseErr *messages.ResponseError
 				require.True(t, errors.As(got.ResponseError, &responseErr), "unexpected response error: %v", got.ResponseError)
 				require.Equal(t, tc.wantErrorStatus, responseErr.StatusCode)

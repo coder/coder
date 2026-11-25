@@ -1,11 +1,13 @@
 package extractors
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
@@ -15,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/sse"
 )
 
 const (
@@ -41,6 +44,18 @@ const (
 	messagesUsagePathWebSearchRequests     = "server_tool_use.web_search_requests"
 	messagesUsagePathEphemeral1hInput      = "cache_creation.ephemeral_1h_input_tokens"
 	messagesUsagePathEphemeral5mInput      = "cache_creation.ephemeral_5m_input_tokens"
+
+	// Paths relative to a stream event.
+	messagesEventPathMessage      = "message"
+	messagesEventPathIndex        = "index"
+	messagesEventPathContentBlock = "content_block"
+	messagesEventPathDelta        = "delta"
+	messagesEventPathUsage        = "usage"
+
+	// Fields relative to a content block delta.
+	messagesDeltaFieldType        = "type"
+	messagesDeltaFieldPartialJSON = "partial_json"
+	messagesDeltaFieldThinking    = "thinking"
 )
 
 // Content block types.
@@ -49,6 +64,18 @@ var (
 	messagesRespTypeToolUse       = string(constant.ValueOf[constant.ToolUse]())
 	messagesRespTypeServerToolUse = string(constant.ValueOf[constant.ServerToolUse]())
 	messagesRespTypeMCPToolUse    = string(constant.ValueOf[constant.MCPToolUse]())
+)
+
+// Stream event and content block delta types.
+var (
+	messagesEventMessageStart      = string(constant.ValueOf[constant.MessageStart]())
+	messagesEventMessageDelta      = string(constant.ValueOf[constant.MessageDelta]())
+	messagesEventMessageStop       = string(constant.ValueOf[constant.MessageStop]())
+	messagesEventContentBlockStart = string(constant.ValueOf[constant.ContentBlockStart]())
+	messagesEventContentBlockDelta = string(constant.ValueOf[constant.ContentBlockDelta]())
+
+	messagesDeltaTypeInputJSON = string(constant.ValueOf[constant.InputJSONDelta]())
+	messagesDeltaTypeThinking  = string(constant.ValueOf[constant.ThinkingDelta]())
 )
 
 // messagesExtractor extracts recording facts from Anthropic Messages API
@@ -105,8 +132,7 @@ func (e *messagesExtractor) ExtractResponse(ctx context.Context, statusCode int,
 		streaming = e.streaming
 	}
 	if streaming {
-		// TODO: extract streamed responses. https://linear.app/codercom/issue/AIGOV-616
-		return ResponseResult{}, nil
+		return e.extractStreaming(body)
 	}
 	return e.extractBlocking(body)
 }
@@ -128,7 +154,8 @@ func (e *messagesExtractor) extractBlocking(body []byte) (ResponseResult, error)
 	if e.prompt != nil && msgID != "" {
 		result.Prompt = &recorder.PromptUsageRecord{MsgID: msgID, Prompt: *e.prompt}
 	}
-	usage, usageErr := messagesTokenUsage(msgID, providerModel, msg.Get(messagesRespPathUsage))
+	usage := recorder.TokenUsageRecord{MsgID: msgID, ProviderModel: providerModel}
+	usageErr := updateMessagesTokenUsage(&usage, msg.Get(messagesRespPathUsage))
 	result.Tokens = []recorder.TokenUsageRecord{usage}
 	extractErr = errors.Join(extractErr, usageErr)
 
@@ -178,6 +205,267 @@ func (e *messagesExtractor) extractBlocking(body []byte) (ResponseResult, error)
 	return result, extractErr
 }
 
+// messagesStreamBlock holds the facts of one streamed content block.
+type messagesStreamBlock struct {
+	blockType  string
+	toolCallID string
+	toolName   string
+	// input is the tool input from the start event followed by its streamed
+	// fragments, possibly invalid JSON when the stream was truncated.
+	input    []byte
+	thinking strings.Builder
+}
+
+// messagesStream accumulates the facts of a Messages SSE stream as its events
+// are applied in stream order.
+type messagesStream struct {
+	msgID         string
+	usage         *recorder.TokenUsageRecord
+	responseError error
+	// blocks preserves start order; byIndex locates the block for each delta.
+	blocks  []*messagesStreamBlock
+	byIndex map[int64]*messagesStreamBlock
+}
+
+// extractStreaming extracts facts from a Messages SSE stream. It reads only the
+// event fields needed for recording; it does not rebuild the message.
+func (e *messagesExtractor) extractStreaming(body []byte) (ResponseResult, error) {
+	parser := sse.NewParser()
+	var extractErr error
+	if err := parser.Parse(bytes.NewReader(body)); err != nil {
+		extractErr = xerrors.Errorf("parse messages stream: %w", err)
+	}
+
+	events := parser.Events()
+	stream := &messagesStream{byIndex: make(map[int64]*messagesStreamBlock)}
+	var starts, stops int
+	for _, event := range events {
+		switch event.Type {
+		case messagesEventMessageStart:
+			starts++
+		case messagesEventMessageStop:
+			stops++
+			continue
+		}
+		// Don't merge another message's usage or tool calls into the first
+		// message's record. Upstream error events still apply to the request.
+		if (starts > 1 || stops > 0) && event.Type != sse.EventTypeError {
+			continue
+		}
+		var err error
+		switch event.Type {
+		case messagesEventMessageStart:
+			err = stream.messageStart(event)
+		case messagesEventMessageDelta:
+			err = stream.messageDelta(event)
+		case messagesEventContentBlockStart:
+			err = stream.contentBlockStart(event)
+		case messagesEventContentBlockDelta:
+			err = stream.contentBlockDelta(event)
+		case sse.EventTypeError:
+			err = stream.streamError(event)
+		}
+		extractErr = errors.Join(extractErr, err)
+	}
+
+	result := stream.result(e.prompt)
+	// An upstream error can terminate the stream before either boundary.
+	if result.ResponseError != nil && starts <= 1 && stops <= 1 {
+		return result, extractErr
+	}
+	if starts != 1 || stops != 1 {
+		extractErr = errors.Join(extractErr, xerrors.Errorf("expected one message_start and one message_stop: message_start=%d, message_stop=%d", starts, stops))
+	}
+	return result, extractErr
+}
+
+// messageStart captures the message identity and initial usage.
+func (s *messagesStream) messageStart(event sse.Event) error {
+	data, err := messagesEventData(event)
+	if err != nil {
+		return err
+	}
+	msg := data.Get(messagesEventPathMessage)
+	if !msg.IsObject() {
+		return xerrors.Errorf("unexpected %s message type: %s", event.Type, msg.Type)
+	}
+	var idErr error
+	s.msgID, idErr = messagesStringField(msg, messagesRespPathID)
+	model, modelErr := messagesStringField(msg, messagesRespPathModel)
+	s.usage = &recorder.TokenUsageRecord{MsgID: s.msgID, ProviderModel: model}
+	usageErr := updateMessagesTokenUsage(s.usage, msg.Get(messagesRespPathUsage))
+	return errors.Join(idErr, modelErr, usageErr)
+}
+
+// messageDelta updates the message's cumulative usage.
+func (s *messagesStream) messageDelta(event sse.Event) error {
+	data, err := messagesEventData(event)
+	if err != nil {
+		return err
+	}
+	if s.usage == nil {
+		return xerrors.New("message_delta without message_start")
+	}
+	return updateMessagesTokenUsage(s.usage, data.Get(messagesEventPathUsage))
+}
+
+// contentBlockStart adds a content block to the current message.
+func (s *messagesStream) contentBlockStart(event sse.Event) error {
+	data, index, err := messagesBlockEventData(event)
+	if err != nil {
+		return err
+	}
+	if _, ok := s.byIndex[index]; ok {
+		return xerrors.Errorf("duplicate content block at index %d", index)
+	}
+	content := data.Get(messagesEventPathContentBlock)
+	if !content.IsObject() {
+		return xerrors.Errorf("unexpected content block at index %d: expected object", index)
+	}
+	blockType, err := messagesStringField(content, messagesRespFieldType)
+	if err != nil {
+		return err
+	}
+	block := &messagesStreamBlock{blockType: blockType}
+	switch blockType {
+	case messagesRespTypeThinking:
+		thinking, thinkingErr := messagesStringField(content, messagesRespFieldThinking)
+		err = thinkingErr
+		_, _ = block.thinking.WriteString(thinking)
+	case messagesRespTypeToolUse, messagesRespTypeServerToolUse, messagesRespTypeMCPToolUse:
+		toolCallID, idErr := messagesStringField(content, messagesRespFieldID)
+		toolName, nameErr := messagesStringField(content, messagesRespFieldName)
+		err = errors.Join(idErr, nameErr)
+		if err == nil {
+			block.toolCallID = toolCallID
+			block.toolName = toolName
+		}
+		if input := content.Get(messagesRespFieldInput); input.Type != gjson.Null {
+			block.input = []byte(input.Raw)
+		}
+	}
+	s.byIndex[index] = block
+	s.blocks = append(s.blocks, block)
+	return err
+}
+
+// contentBlockDelta appends a fragment to a content block of the current
+// message.
+func (s *messagesStream) contentBlockDelta(event sse.Event) error {
+	data, index, err := messagesBlockEventData(event)
+	if err != nil {
+		return err
+	}
+	block, ok := s.byIndex[index]
+	if !ok {
+		return xerrors.Errorf("%s for unknown content block at index %d", event.Type, index)
+	}
+	delta := data.Get(messagesEventPathDelta)
+	deltaType, err := messagesStringField(delta, messagesDeltaFieldType)
+	if err != nil {
+		return err
+	}
+	switch deltaType {
+	case messagesDeltaTypeInputJSON:
+		partial, err := messagesStringField(delta, messagesDeltaFieldPartialJSON)
+		if partial == "" {
+			return err
+		}
+		// Like the SDK accumulator, the first fragment replaces the empty
+		// input object the start event carries.
+		if string(block.input) == "{}" {
+			block.input = nil
+		}
+		block.input = append(block.input, partial...)
+		return err
+	case messagesDeltaTypeThinking:
+		thinking, err := messagesStringField(delta, messagesDeltaFieldThinking)
+		_, _ = block.thinking.WriteString(thinking)
+		return err
+	}
+	return nil
+}
+
+// streamError decodes the first error event as the response's failure.
+func (s *messagesStream) streamError(event sse.Event) error {
+	if s.responseError != nil {
+		return nil
+	}
+	var envelope anthropic.ErrorResponse
+	if err := json.Unmarshal([]byte(event.Data), &envelope); err != nil {
+		return xerrors.Errorf("decode %s event: %w", event.Type, err)
+	}
+	s.responseError = &messages.ResponseError{ErrorResponse: &envelope}
+	return nil
+}
+
+// result returns the facts of the applied events. prompt is the request's
+// last user prompt, nil when absent.
+func (s *messagesStream) result(prompt *string) ResponseResult {
+	result := ResponseResult{ResponseError: s.responseError}
+	if s.usage != nil {
+		result.Tokens = []recorder.TokenUsageRecord{*s.usage}
+	}
+	if prompt != nil && s.msgID != "" {
+		result.Prompt = &recorder.PromptUsageRecord{MsgID: s.msgID, Prompt: *prompt}
+	}
+	for _, block := range s.blocks {
+		switch block.blockType {
+		case messagesRespTypeThinking:
+			if block.thinking.Len() > 0 {
+				result.Thoughts = append(result.Thoughts, recorder.ModelThoughtRecord{
+					Content:  block.thinking.String(),
+					Metadata: recorder.Metadata{"source": recorder.ThoughtSourceThinking},
+				})
+			}
+		case messagesRespTypeToolUse, messagesRespTypeServerToolUse, messagesRespTypeMCPToolUse:
+			if block.toolCallID == "" {
+				continue
+			}
+			// Truncated input is recorded as received rather than completed.
+			var args recorder.ToolArgs = json.RawMessage(block.input)
+			if len(block.input) > 0 && !json.Valid(block.input) {
+				args = string(block.input)
+			}
+			result.Tools = append(result.Tools, recorder.ToolUsageRecord{
+				MsgID:      s.msgID,
+				ToolCallID: block.toolCallID,
+				Tool:       block.toolName,
+				Args:       args,
+			})
+		}
+	}
+	return result
+}
+
+// messagesEventData decodes the JSON object an SSE event carries.
+func messagesEventData(event sse.Event) (gjson.Result, error) {
+	if !gjson.Valid(event.Data) {
+		return gjson.Result{}, xerrors.Errorf("decode %s event: invalid JSON", event.Type)
+	}
+	data := gjson.Parse(event.Data)
+	if !data.IsObject() {
+		return gjson.Result{}, xerrors.Errorf("decode %s event: expected object", event.Type)
+	}
+	return data, nil
+}
+
+// messagesBlockEventData decodes a content block event and its block index.
+func messagesBlockEventData(event sse.Event) (gjson.Result, int64, error) {
+	data, err := messagesEventData(event)
+	if err != nil {
+		return gjson.Result{}, 0, err
+	}
+	if !data.Get(messagesEventPathIndex).Exists() {
+		return gjson.Result{}, 0, xerrors.Errorf("decode %s event: missing %s", event.Type, messagesEventPathIndex)
+	}
+	index, err := messagesIntField(data, messagesEventPathIndex, 0)
+	if err != nil {
+		return gjson.Result{}, 0, xerrors.Errorf("decode %s event: %w", event.Type, err)
+	}
+	return data, index, nil
+}
+
 func messagesStringField(parent gjson.Result, path string) (string, error) {
 	field := parent.Get(path)
 	if field.Type != gjson.Null && field.Type != gjson.String {
@@ -186,12 +474,12 @@ func messagesStringField(parent gjson.Result, path string) (string, error) {
 	return field.Str, nil
 }
 
-// messagesTokenUsage converts usage reported for message msgID to a token
-// record, matching the record interception mode writes.
-func messagesTokenUsage(msgID, providerModel string, usage gjson.Result) (recorder.TokenUsageRecord, error) {
-	record := recorder.TokenUsageRecord{MsgID: msgID, ProviderModel: providerModel}
+// updateMessagesTokenUsage applies the reported counts as totals. Fields
+// omitted by a later stream event retain their last reported values. Only
+// positive counts update ExtraTokenTypes.
+func updateMessagesTokenUsage(record *recorder.TokenUsageRecord, usage gjson.Result) error {
 	if usage.Type != gjson.Null && !usage.IsObject() {
-		return record, xerrors.Errorf("unexpected usage type: %s", usage.Type)
+		return xerrors.Errorf("unexpected usage type: %s", usage.Type)
 	}
 	var usageErr error
 	for _, path := range []string{messagesUsagePathServerToolUse, messagesUsagePathCacheCreation} {
@@ -200,45 +488,48 @@ func messagesTokenUsage(msgID, providerModel string, usage gjson.Result) (record
 			usageErr = errors.Join(usageErr, xerrors.Errorf("unexpected %s type: %s", path, field.Type))
 		}
 	}
-	readInt := func(path string) int64 {
-		field := usage.Get(path)
-		if field.Type == gjson.Null {
-			return 0
-		}
-		if field.Type != gjson.Number {
-			usageErr = errors.Join(usageErr, xerrors.Errorf("unexpected %s type: %s", path, field.Type))
-			return 0
-		}
-		value, err := strconv.ParseInt(field.Raw, 10, 64)
-		if err != nil {
-			usageErr = errors.Join(usageErr, xerrors.Errorf("invalid integer in %s", path))
-			return 0
-		}
+	readInt := func(path string, previous int64) int64 {
+		value, err := messagesIntField(usage, path, previous)
+		usageErr = errors.Join(usageErr, err)
 		return value
 	}
-	record.Input = readInt(messagesUsagePathInputTokens)
-	record.Output = readInt(messagesUsagePathOutputTokens)
-	record.CacheReadInputTokens = readInt(messagesUsagePathCacheReadInputTokens)
-	record.CacheWriteInputTokens = readInt(messagesUsagePathCacheWriteInputTokens)
+	record.Input = readInt(messagesUsagePathInputTokens, record.Input)
+	record.Output = readInt(messagesUsagePathOutputTokens, record.Output)
+	record.CacheReadInputTokens = readInt(messagesUsagePathCacheReadInputTokens, record.CacheReadInputTokens)
+	record.CacheWriteInputTokens = readInt(messagesUsagePathCacheWriteInputTokens, record.CacheWriteInputTokens)
 	serviceTier, tierErr := messagesStringField(usage, messagesUsagePathServiceTier)
 	usageErr = errors.Join(usageErr, tierErr)
 	if serviceTier != "" {
 		record.Metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
 	}
-	extra := make(map[string]int64)
-	if count := readInt(messagesUsagePathWebSearchRequests); count != 0 {
-		extra["web_search_requests"] = count
+	updateExtra := func(key, path string) {
+		if count := readInt(path, 0); count > 0 {
+			if record.ExtraTokenTypes == nil {
+				record.ExtraTokenTypes = make(map[string]int64)
+			}
+			record.ExtraTokenTypes[key] = count
+		}
 	}
-	if count := readInt(messagesUsagePathEphemeral1hInput); count != 0 {
-		extra["cache_ephemeral_1h_input"] = count
+	updateExtra("web_search_requests", messagesUsagePathWebSearchRequests)
+	updateExtra("cache_ephemeral_1h_input", messagesUsagePathEphemeral1hInput)
+	updateExtra("cache_ephemeral_5m_input", messagesUsagePathEphemeral5mInput)
+	return usageErr
+}
+
+// messagesIntField retains the previous value if the field is absent or invalid.
+func messagesIntField(parent gjson.Result, path string, previous int64) (int64, error) {
+	field := parent.Get(path)
+	if field.Type == gjson.Null {
+		return previous, nil
 	}
-	if count := readInt(messagesUsagePathEphemeral5mInput); count != 0 {
-		extra["cache_ephemeral_5m_input"] = count
+	if field.Type != gjson.Number {
+		return previous, xerrors.Errorf("unexpected %s type: %s", path, field.Type)
 	}
-	if len(extra) > 0 {
-		record.ExtraTokenTypes = extra
+	value, err := strconv.ParseInt(field.Raw, 10, 64)
+	if err != nil {
+		return previous, xerrors.Errorf("invalid integer in %s", path)
 	}
-	return record, usageErr
+	return value, nil
 }
 
 // decodeMessagesError decodes the Messages API error envelope of an HTTP

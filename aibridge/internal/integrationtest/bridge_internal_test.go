@@ -96,6 +96,16 @@ func TestAnthropicMessages(t *testing.T) {
 				expectedCacheWriteInputTokens: 0,
 				expectedToolCallID:            "toolu_01AusGgY5aKFhzWrFBv9JfHq",
 			},
+			{
+				name:                          "streaming/proxy",
+				streaming:                     true,
+				proxy:                         true,
+				expectedInputTokens:           2,
+				expectedOutputTokens:          61,
+				expectedCacheReadInputTokens:  13993,
+				expectedCacheWriteInputTokens: 22,
+				expectedToolCallID:            "toolu_01RX68weRSquLx6HUTj65iBo",
+			},
 		}
 
 		for _, tc := range cases {
@@ -133,8 +143,8 @@ func TestAnthropicMessages(t *testing.T) {
 				bridgeServer.awaitRecordings(t)
 
 				expectedTokenRecordings := 1
-				if tc.streaming {
-					// One for message_start, one for message_delta.
+				if tc.streaming && !tc.proxy {
+					// Interception mode writes message_start and message_delta separately.
 					expectedTokenRecordings = 2
 				}
 				tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
@@ -167,6 +177,9 @@ func TestAnthropicMessages(t *testing.T) {
 					"PRM attribution should not be present on non-Bedrock requests")
 
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+				if tc.proxy {
+					requireInterceptionSucceeded(t, bridgeServer)
+				}
 			})
 		}
 	})
@@ -179,6 +192,7 @@ func TestAnthropicMessages(t *testing.T) {
 		cases := []struct {
 			name           string
 			fixture        []byte
+			proxy          bool
 			expectedEvents []string
 		}{
 			{
@@ -189,6 +203,18 @@ func TestAnthropicMessages(t *testing.T) {
 			{
 				name:           "without content_block_stop",
 				fixture:        fixtures.AntMaxTokensTruncatedToolNoBlockStop,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "message_delta", "message_stop"},
+			},
+			{
+				name:           "with content_block_stop/proxy",
+				fixture:        fixtures.AntMaxTokensTruncatedTool,
+				proxy:          true,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"},
+			},
+			{
+				name:           "without content_block_stop/proxy",
+				fixture:        fixtures.AntMaxTokensTruncatedToolNoBlockStop,
+				proxy:          true,
 				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "message_delta", "message_stop"},
 			},
 		}
@@ -202,7 +228,7 @@ func TestAnthropicMessages(t *testing.T) {
 
 				fix := fixtures.Parse(t, tc.fixture)
 				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
-				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProxyMode(tc.proxy))
 
 				reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
 				require.NoError(t, err)
@@ -212,6 +238,7 @@ func TestAnthropicMessages(t *testing.T) {
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 
 				require.Equal(t, tc.expectedEvents, sseEventTypes(readSSEEvents(t, resp)))
+				bridgeServer.awaitRecordings(t)
 
 				toolUsages := bridgeServer.Recorder.RecordedToolUsages()
 				require.Len(t, toolUsages, 1)
@@ -498,6 +525,37 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 			proxy:            true,
 			fixture:          fixtures.AntSingleInjectedTool,
 			expectedThoughts: nil,
+		},
+		{
+			name:             "single thinking block/streaming/proxy",
+			streaming:        true,
+			proxy:            true,
+			fixture:          fixtures.AntSingleBuiltinTool,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("The user wants me to read", recorder.ThoughtSourceThinking)},
+		},
+		{
+			name:      "multiple thinking blocks/streaming/proxy",
+			streaming: true,
+			proxy:     true,
+			fixture:   fixtures.AntMultiThinkingBuiltinTool,
+			expectedThoughts: []recorder.ModelThoughtRecord{
+				newModelThought("The user wants me to read", recorder.ThoughtSourceThinking),
+				newModelThought("I should use the Read tool", recorder.ThoughtSourceThinking),
+			},
+		},
+		{
+			name:             "parallel tool calls/streaming/proxy",
+			streaming:        true,
+			proxy:            true,
+			fixture:          fixtures.AntSingleBuiltinToolParallel,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("The user wants me to read two files", recorder.ThoughtSourceThinking)},
+		},
+		{
+			name:             "thoughts without tool calls/streaming/proxy",
+			streaming:        true,
+			proxy:            true,
+			fixture:          fixtures.AntSimple,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("This is a classic philosophical question about medieval scholasticism", recorder.ThoughtSourceThinking)},
 		},
 	}
 
@@ -1751,10 +1809,6 @@ func TestSimple(t *testing.T) {
 
 			for _, streaming := range []bool{true, false} {
 				t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
-					if tc.proxy && streaming {
-						// TODO: record streamed responses in proxy mode. https://linear.app/codercom/issue/AIGOV-616
-						t.Skip("AIGOV-616: proxy mode does not record streamed responses yet")
-					}
 					t.Parallel()
 
 					ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
@@ -2489,25 +2543,43 @@ func TestErrorHandling(t *testing.T) {
 
 	// Tests that errors which occur *during* a streaming response are handled as expected.
 	t.Run("mid-stream error", func(t *testing.T) {
+		anthropicResponseHandler := func(resp *http.Response) {
+			// Server responds first with 200 OK then starts streaming.
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			sp := sse.NewParser()
+			require.NoError(t, sp.Parse(resp.Body))
+			require.Len(t, sp.EventsByType("error"), 1)
+			require.Contains(t, sp.EventsByType("error")[0].Data, "Overloaded")
+		}
+
 		cases := []struct {
 			name              string
 			fixture           []byte
 			path              string
 			responseHandlerFn func(resp *http.Response)
+			proxy             bool
+			// expectedErrorType and expectedErrorMessage describe the recorded
+			// end in proxy mode.
+			expectedErrorType    recorder.ErrorType
+			expectedErrorMessage string
 		}{
 			{
-				name:    config.ProviderAnthropic,
-				fixture: fixtures.AntMidStreamError,
-				path:    pathAnthropicMessages,
-				responseHandlerFn: func(resp *http.Response) {
-					// Server responds first with 200 OK then starts streaming.
-					require.Equal(t, http.StatusOK, resp.StatusCode)
-
-					sp := sse.NewParser()
-					require.NoError(t, sp.Parse(resp.Body))
-					require.Len(t, sp.EventsByType("error"), 1)
-					require.Contains(t, sp.EventsByType("error")[0].Data, "Overloaded")
-				},
+				name:              config.ProviderAnthropic,
+				fixture:           fixtures.AntMidStreamError,
+				path:              pathAnthropicMessages,
+				responseHandlerFn: anthropicResponseHandler,
+			},
+			{
+				name:              config.ProviderAnthropic + "/proxy",
+				proxy:             true,
+				fixture:           fixtures.AntMidStreamError,
+				path:              pathAnthropicMessages,
+				responseHandlerFn: anthropicResponseHandler,
+				// The error event's api_error type, not the 200 response status,
+				// classifies the end.
+				expectedErrorType:    recorder.ErrorTypeServerError,
+				expectedErrorMessage: "Overloaded",
 			},
 			{
 				name:    config.ProviderOpenAI,
@@ -2542,14 +2614,22 @@ func TestErrorHandling(t *testing.T) {
 				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 				upstream.StatusCode = http.StatusInternalServerError
 
-				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProxyMode(tc.proxy))
 
 				resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, fix.Request())
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
 				tc.responseHandlerFn(resp)
+				bridgeServer.awaitRecordings(t)
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+				if tc.proxy {
+					intcs := bridgeServer.Recorder.RecordedInterceptions()
+					require.Len(t, intcs, 1)
+					ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+					require.Equal(t, tc.expectedErrorType, ended.ErrorType)
+					require.Equal(t, tc.expectedErrorMessage, ended.ErrorMessage)
+				}
 			})
 		}
 	})
