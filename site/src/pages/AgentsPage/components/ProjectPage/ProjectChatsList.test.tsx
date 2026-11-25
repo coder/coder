@@ -414,6 +414,7 @@ describe("ProjectChatsList", () => {
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat, otherChat]);
 		const update = createDeferred<undefined>();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(update.promise);
+		const errorToast = vi.spyOn(toast, "error");
 		renderList();
 		await user.click(
 			await screen.findByRole("button", {
@@ -434,7 +435,7 @@ describe("ProjectChatsList", () => {
 		update.reject(new Error("Pin update rejected"));
 
 		await waitFor(() =>
-			expect(screen.queryByRole("region", { name: "Pinned" })).toBeNull(),
+			expect(errorToast).toHaveBeenCalledWith("Pin update rejected"),
 		);
 		expect(otherChatLink).toHaveFocus();
 	});
