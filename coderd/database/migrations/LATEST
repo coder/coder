@@ -22,4 +22,4 @@
 #
 # After a rebase finishes, run fix_migration_numbers.sh once and commit
 # the result.
-000644_chat_project_templates
+000646_template_browser_only
