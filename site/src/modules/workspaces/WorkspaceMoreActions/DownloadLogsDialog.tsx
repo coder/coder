@@ -26,6 +26,7 @@ type DownloadLogsDialogProps = Pick<
 type DownloadableFile = {
 	name: string;
 	blob: Blob | undefined;
+	isLoading: boolean;
 };
 
 export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
@@ -61,14 +62,15 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 	const allFiles: readonly DownloadableFile[] = (() => {
 		const files = allUniqueAgents.map<DownloadableFile>((a, i) => {
 			const name = `${a.name}-logs.txt`;
-			const txt = agentLogQueries[i]?.data?.map((l) => l.output).join("\n");
+			const query = agentLogQueries[i];
+			const txt = query?.data?.map((l) => l.output).join("\n");
 
 			let blob: Blob | undefined;
 			if (txt) {
 				blob = new Blob([txt], { type: "text/plain" });
 			}
 
-			return { name, blob };
+			return { name, blob, isLoading: query?.isPending === true };
 		});
 
 		const buildLogsFile = {
@@ -78,6 +80,7 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 						type: "text/plain",
 					})
 				: undefined,
+			isLoading: buildLogsQuery.isPending,
 		};
 
 		files.unshift(buildLogsFile);
@@ -86,7 +89,8 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 
 	const [isDownloading, setIsDownloading] = useState(false);
 	const isWorkspaceHealthy = workspace.health.healthy;
-	const isLoadingFiles = allFiles.some((f) => f.blob === undefined);
+	const isLoadingFiles = allFiles.some((f) => f.isLoading);
+	const hasUnavailableFiles = allFiles.some((f) => f.blob === undefined);
 
 	const downloadTimeoutIdRef = useRef<number | undefined>(undefined);
 	useEffect(() => {
@@ -143,7 +147,7 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 						jobs in this workspace. This may take a while.
 					</p>
 
-					{!isWorkspaceHealthy && isLoadingFiles && (
+					{!isWorkspaceHealthy && hasUnavailableFiles && (
 						<Alert severity="warning" prominent>
 							Your workspace is unhealthy. Some logs may be unavailable for
 							download.
@@ -152,11 +156,7 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 
 					<ul className="list-none p-0 m-0 flex flex-col gap-2">
 						{allFiles.map((f) => (
-							<DownloadingItem
-								key={f.name}
-								file={f}
-								giveUpTimeMs={isWorkspaceHealthy ? undefined : 5_000}
-							/>
+							<DownloadingItem key={f.name} file={f} />
 						))}
 					</ul>
 				</div>
@@ -166,31 +166,11 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 };
 
 type DownloadingItemProps = Readonly<{
-	// A value of undefined indicates that the component will wait forever
-	giveUpTimeMs?: number;
 	file: DownloadableFile;
 }>;
 
-const DownloadingItem: React.FC<DownloadingItemProps> = ({
-	file,
-	giveUpTimeMs,
-}) => {
-	const [isWaiting, setIsWaiting] = useState(true);
-
-	useEffect(() => {
-		if (giveUpTimeMs === undefined || file.blob !== undefined) {
-			setIsWaiting(true);
-			return;
-		}
-
-		const timeoutId = window.setTimeout(
-			() => setIsWaiting(false),
-			giveUpTimeMs,
-		);
-
-		return () => window.clearTimeout(timeoutId);
-	}, [giveUpTimeMs, file]);
-
+const DownloadingItem: React.FC<DownloadingItemProps> = ({ file }) => {
+	const isUnavailable = file.blob === undefined && !file.isLoading;
 	const { baseName, fileExtension } = extractFileNameInfo(file.name);
 
 	return (
@@ -199,7 +179,7 @@ const DownloadingItem: React.FC<DownloadingItemProps> = ({
 				className={cn(
 					"font-medium text-content-primary",
 					"flex flex-row flex-nowrap gap-x-0 overflow-hidden",
-					!isWaiting && "text-content-disabled",
+					isUnavailable && "text-content-disabled",
 				)}
 			>
 				<span className="min-w-0 shrink overflow-hidden text-ellipsis">
@@ -211,7 +191,7 @@ const DownloadingItem: React.FC<DownloadingItemProps> = ({
 			<span className="shrink-0 text-sm whitespace-nowrap">
 				{file.blob ? (
 					humanBlobSize(file.blob.size)
-				) : isWaiting ? (
+				) : file.isLoading ? (
 					<Skeleton variant="text" width={48} height={12} />
 				) : (
 					<p

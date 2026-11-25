@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
+import { API } from "#/api/api";
 import { agentLogsKey, buildLogsKey } from "#/api/queries/workspaces";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { withDesktopViewport } from "#/testHelpers/storybook";
@@ -36,14 +37,24 @@ export const Ready: Story = {};
 
 export const Loading: Story = {
 	parameters: {
+		queries: [],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuildLogs").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getWorkspaceAgentLogs").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const EmptyAgentLogs: Story = {
+	parameters: {
 		queries: [
 			{
 				key: buildLogsKey(MockWorkspace.id),
-				data: undefined,
+				data: generateLogs(200),
 			},
 			{
 				key: agentLogsKey(MockWorkspaceAgent.id),
-				data: undefined,
+				data: [],
 			},
 		],
 	},
