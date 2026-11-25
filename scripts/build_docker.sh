@@ -113,6 +113,7 @@ cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 ln "$input_file" "$temp_dir/coder"
 ln ./scripts/Dockerfile.base "$temp_dir/"
+ln ./provisioner/terraform/terraform_SHA256SUMS "$temp_dir/"
 ln ./scripts/Dockerfile "$temp_dir/"
 
 cd "$temp_dir"
