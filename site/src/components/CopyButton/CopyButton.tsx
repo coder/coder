@@ -38,9 +38,22 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
 				</TooltipTrigger>
 				<TooltipContent side={tooltipSide}>{label}</TooltipContent>
 			</Tooltip>
-			<span role="status" className="sr-only">
-				{showCopiedSuccess && "Copied"}
-			</span>
+			<CopiedStatus show={showCopiedSuccess} />
 		</>
 	);
 };
+
+type CopiedStatusProps = {
+	show: boolean;
+};
+
+/**
+ * Announces a successful copy to screen readers. Render it alongside the copy
+ * control before the copy happens, so the live region already exists when its
+ * text changes.
+ */
+export const CopiedStatus: React.FC<CopiedStatusProps> = ({ show }) => (
+	<span role="status" className="sr-only">
+		{show && "Copied"}
+	</span>
+);

@@ -4134,8 +4134,16 @@ func TestWithStageIdentity(t *testing.T) {
 	t.Parallel()
 
 	tracer, recorder := newStageTestTracer(t)
-	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent)
-	_, span := tracer.Start(ctx, chatloop.StageCommit)
+	chat := database.Chat{
+		ID:             uuid.New(),
+		OwnerID:        uuid.New(),
+		OrganizationID: uuid.New(),
+		WorkspaceID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chat)
+	_, span := tracer.Start(ctx, chatloop.StageStream)
 	span.End(nil)
 
 	ended := recorder.Ended()
@@ -4143,5 +4151,11 @@ func TestWithStageIdentity(t *testing.T) {
 	require.Subset(t, ended[0].Attributes(), []attribute.KeyValue{
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)),
 		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)),
+		attribute.String("gen_ai.conversation.id", chat.ID.String()),
+		attribute.String("user.id", chat.OwnerID.String()),
+		attribute.String(chatloop.AttrOrganizationID, chat.OrganizationID.String()),
+		attribute.String(chatloop.AttrWorkspaceID, chat.WorkspaceID.UUID.String()),
+		attribute.String(chatloop.AttrParentChatID, chat.ParentChatID.UUID.String()),
+		attribute.String(chatloop.AttrRootChatID, chat.RootChatID.UUID.String()),
 	})
 }

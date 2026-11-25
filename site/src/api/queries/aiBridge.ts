@@ -40,19 +40,38 @@ export const paginatedSessions = (
 	};
 };
 
+export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+
 export const aiBridgeProviders = () => ({
-	queryKey: ["aiBridgeProviders"],
+	queryKey: aiBridgeProvidersKey,
 	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
 });
 
-export const aiBridgeModels = (options: Pagination & { model?: string }) => ({
-	queryKey: ["aiBridgeModels", options],
+type AIBridgeModelsOptions = Pagination & { model?: string };
+
+export const aiBridgeModelsKey = (options: AIBridgeModelsOptions) =>
+	["aiBridgeModels", options] as const;
+
+export const aiBridgeModels = (options: AIBridgeModelsOptions) => ({
+	queryKey: aiBridgeModelsKey(options),
 	queryFn: () => API.getAIBridgeModels(options),
 });
 
-export const aiBridgeClients = (options: Pagination & { q?: string }) => ({
-	queryKey: ["aiBridgeClients", options],
+type AIBridgeClientsOptions = Pagination & { q?: string };
+
+export const aiBridgeClientsKey = (options: AIBridgeClientsOptions) =>
+	["aiBridgeClients", options] as const;
+
+export const aiBridgeClients = (options: AIBridgeClientsOptions) => ({
+	queryKey: aiBridgeClientsKey(options),
 	queryFn: () => API.getAIBridgeClients(options),
+});
+
+// The retention only changes when the deployment restarts.
+export const aiGatewayRetention = () => ({
+	queryKey: ["aiGatewayRetention"],
+	queryFn: () => API.experimental.getAIGatewayRetention(),
+	staleTime: Number.POSITIVE_INFINITY,
 });
 
 // The spend endpoints authorize on reading the organization's group members,
@@ -62,44 +81,6 @@ export const aiSpendOrganizations = () =>
 		object: { resource_type: "group_member" },
 		action: "read",
 	});
-
-const organizationAISpendScopeKey = (
-	organizationId: string,
-	filter: OrganizationAISpendFilter,
-) => ["organizations", organizationId, "aiSpend", filter] as const;
-
-export const paginatedOrganizationAISpend = (
-	organizationId: string,
-	filter: OrganizationAISpendFilter,
-): UsePaginatedQueryOptions<
-	OrganizationAISpendReport,
-	OrganizationAISpendFilter
-> => {
-	return {
-		queryPayload: () => filter,
-		queryKey: ({ payload, pageNumber }) => [
-			...organizationAISpendScopeKey(organizationId, payload),
-			pageNumber,
-		],
-		queryFn: ({ payload, limit, offset }) =>
-			API.experimental.getOrganizationAISpendUsers(organizationId, {
-				...payload,
-				limit,
-				offset,
-			}),
-		// Every page aggregates the whole organization window.
-		prefetch: false,
-		// Rows from another organization or filter must not appear under the
-		// new selection while its report loads; only a page change keeps the
-		// previous rows behind the refresh overlay.
-		placeholderData: (previousData, previousQuery) =>
-			previousQuery &&
-			hashKey(previousQuery.queryKey.slice(0, -1)) ===
-				hashKey(organizationAISpendScopeKey(organizationId, filter))
-				? previousData
-				: undefined,
-	};
-};
 
 /**
  * Filters a detailed AI spend report by provider, model, client, user, and

@@ -8,6 +8,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -269,6 +270,7 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
 				Markdown
 			</Button>
+			<CopiedStatus show={clipboard.showCopiedSuccess} />
 		</div>
 	);
 };

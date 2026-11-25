@@ -26,6 +26,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -688,9 +689,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 													</TooltipContent>
 												</Tooltip>
-												<span role="status" className="sr-only">
-													{showCopiedSuccess && "Copied"}
-												</span>
+												<CopiedStatus show={showCopiedSuccess} />
 
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}

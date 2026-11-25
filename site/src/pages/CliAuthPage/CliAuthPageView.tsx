@@ -1,6 +1,7 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Welcome } from "#/components/Welcome/Welcome";
@@ -45,6 +46,7 @@ export const CliAuthPageView: React.FC<CliAuthPageViewProps> = ({
 						? "Session token copied!"
 						: "Copy session token"}
 				</Button>
+				<CopiedStatus show={clipboardState.showCopiedSuccess} />
 
 				<Button className="w-full" variant="subtle" asChild>
 					<RouterLink to="/workspaces">Go to workspaces</RouterLink>

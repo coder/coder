@@ -17,6 +17,7 @@ type DetailedReportTabProps = {
 	now: Date | undefined;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	minDay: string | undefined;
 	filter: string;
 	onFilterChange: (filter: string) => void;
 	/** The filter options and session logs need read access to every session. */
@@ -39,6 +40,7 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	now,
 	days,
 	onDaysChange,
+	minDay,
 	filter,
 	onFilterChange,
 	canViewSessions,
@@ -74,7 +76,12 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 						onChange={onFilterChange}
 					/>
 				)}
-				<SpendDaysPicker now={now} days={days} onDaysChange={onDaysChange} />
+				<SpendDaysPicker
+					now={now}
+					days={days}
+					onDaysChange={onDaysChange}
+					minDay={minDay}
+				/>
 				{isReportRunning ? (
 					<Button variant="outline" onClick={onCancelReport}>
 						<XIcon aria-hidden />

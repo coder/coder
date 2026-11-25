@@ -20,7 +20,10 @@ import {
 import { Alert } from "#/components/Alert/Alert";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import { extractFreeText } from "#/components/Filter/FilterCombobox/filterQuery";
+import {
+	extractFreeText,
+	filterOptionsByText,
+} from "#/components/Filter/FilterCombobox/filterQuery";
 import type {
 	FilterCategory,
 	FilterOption,
@@ -81,14 +84,14 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 				optionsKey: "connectionLogs.status",
 				label: "Status",
 				icon: <CircleDotIcon />,
-				getOptions: async () => statusOptions,
+				getOptions: async (query) => filterOptionsByText(statusOptions, query),
 			},
 			{
 				key: "method",
 				optionsKey: "connectionLogs.method",
 				label: "Method",
 				icon: <PlugIcon />,
-				getOptions: async () => methodOptions,
+				getOptions: async (query) => filterOptionsByText(methodOptions, query),
 			},
 		];
 		if (showOrganizations) {
@@ -112,7 +115,7 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 			inlineOptions: true,
 			inlineOptionsLabel: "Show…",
 			inlineOptionsIcons: true,
-			getOptions: async () => presets,
+			getOptions: async (query) => filterOptionsByText(presets, query),
 		});
 		return next.map((category) => ({ ...category, singleSelect: true }));
 	}, [me, permissions.viewAllUsers, queryClient, showOrganizations]);
