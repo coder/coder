@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import {
 	parseEditedFiles,
@@ -47,60 +48,88 @@ const result = (
 });
 
 describe("selectEditedFilesThisTurn", () => {
-	it("collects successful edits in this turn from results, with both files-arg encodings", () => {
-		const store = createChatStore();
-		store.replaceMessages([
-			message(1, "user", [{ type: "text", text: "earlier" }]),
-			message(2, "assistant", [editFiles("old", ["/repo/src/Old.tsx"])]),
-			message(3, "tool", [
-				result("old", "edit_files", {
-					ok: true,
-					files: [{ path: "/repo/src/Old.tsx", diff: "+old" }],
-				}),
-			]),
-			message(4, "user", [{ type: "text", text: "make it red" }]),
-			message(5, "assistant", [
-				{ type: "text", text: "Sure." },
-				editFiles("edit-array", ["/container/src/Button.tsx"]),
-				editFiles("edit-string", ["/container/src/theme.css"], true),
-				{
-					type: "tool-call",
-					tool_call_id: "write",
-					tool_name: "write_file",
-					args: { path: "/repo/src/New.tsx", content: "new file" },
-				},
-				{
-					type: "tool-call",
-					tool_name: "execute",
-					args: { command: "pnpm test" },
-				},
-			]),
-			message(6, "tool", [
-				result("edit-array", "edit_files", {
-					ok: true,
-					files: [
-						{ path: "/repo/src/Button.tsx", diff: "@@ -1 +1 @@\n-a\n+b" },
-					],
-				}),
-				result("edit-string", "edit_files", {
-					ok: true,
-					files: [{ path: "/repo/src/theme.css", diff: "@@ -1 +1 @@\n-a\n+b" }],
-				}),
-				result("write", "write_file", { ok: true }),
-			]),
-		]);
-		expect(
-			parseEditedFiles(selectEditedFilesThisTurn(store.getSnapshot())),
-		).toEqual([
-			"/repo/src/Button.tsx",
-			"/repo/src/theme.css",
-			"/repo/src/New.tsx",
-		]);
-	});
+	it.each(["edit", "send"] as const)(
+		"collects successful edits with both files-arg encodings until a pending %s starts a new turn",
+		async (kind) => {
+			const store = createChatStore();
+			store.upsertDurableMessages([
+				message(1, "user", [{ type: "text", text: "earlier" }]),
+				message(2, "assistant", [editFiles("old", ["/repo/src/Old.tsx"])]),
+				message(3, "tool", [
+					result("old", "edit_files", {
+						ok: true,
+						files: [{ path: "/repo/src/Old.tsx", diff: "+old" }],
+					}),
+				]),
+				message(4, "user", [{ type: "text", text: "make it red" }]),
+				message(5, "assistant", [
+					{ type: "text", text: "Sure." },
+					editFiles("edit-array", ["/container/src/Button.tsx"]),
+					editFiles("edit-string", ["/container/src/theme.css"], true),
+					{
+						type: "tool-call",
+						tool_call_id: "write",
+						tool_name: "write_file",
+						args: { path: "/repo/src/New.tsx", content: "new file" },
+					},
+					{
+						type: "tool-call",
+						tool_name: "execute",
+						args: { command: "pnpm test" },
+					},
+				]),
+				message(6, "tool", [
+					result("edit-array", "edit_files", {
+						ok: true,
+						files: [
+							{ path: "/repo/src/Button.tsx", diff: "@@ -1 +1 @@\n-a\n+b" },
+						],
+					}),
+					result("edit-string", "edit_files", {
+						ok: true,
+						files: [
+							{ path: "/repo/src/theme.css", diff: "@@ -1 +1 @@\n-a\n+b" },
+						],
+					}),
+					result("write", "write_file", { ok: true }),
+				]),
+			]);
+			expect(
+				parseEditedFiles(selectEditedFilesThisTurn(store.getSnapshot())),
+			).toEqual([
+				"/repo/src/Button.tsx",
+				"/repo/src/theme.css",
+				"/repo/src/New.tsx",
+			]);
+
+			const request = createDeferred<undefined>();
+			const pending = store.runPendingAction(
+				kind === "edit"
+					? {
+							kind,
+							editedMessageID: 4,
+							content: [{ type: "text", text: "make it blue" }],
+						}
+					: {
+							kind,
+							chatID: "chat-1",
+							busyBehavior: "steer",
+							content: [{ type: "text", text: "make it blue" }],
+						},
+				() => request.promise,
+			);
+			try {
+				expect(selectEditedFilesThisTurn(store.getSnapshot())).toBe("");
+			} finally {
+				request.resolve(undefined);
+				await pending;
+			}
+		},
+	);
 
 	it("does not acknowledge failed, incomplete, malformed, or no-op calls", () => {
 		const store = createChatStore();
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			message(1, "user", [{ type: "text", text: "update this" }]),
 			message(2, "assistant", [
 				editFiles("failed", ["/repo/src/Failed.tsx"]),
@@ -140,71 +169,89 @@ describe("selectEditedFilesThisTurn", () => {
 		expect(selectEditedFilesThisTurn(store.getSnapshot())).toBe("");
 	});
 
-	it("acknowledges only completed successful streaming results", () => {
+	it("acknowledges completed streaming results only while their turn is shown", async () => {
 		const store = createChatStore();
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			message(1, "user", [{ type: "text", text: "make it red" }]),
 		]);
-		store.setStreamState({
-			blocks: [],
-			toolCalls: {
-				edit: { id: "edit", name: "edit_files", args: { files: "[]" } },
-				write: {
-					id: "write",
-					name: "write_file",
-					argsRaw: '{"path":"/repo/src/Live.tsx","content":"x"}',
-				},
-				pending: {
-					id: "pending",
-					name: "write_file",
-					args: { path: "/repo/src/Pending.tsx" },
-				},
-				failed: {
-					id: "failed",
-					name: "write_file",
-					args: { path: "/repo/src/Failed.tsx" },
+		store.applyMessageParts([
+			{
+				type: "tool-call",
+				tool_call_id: "edit",
+				tool_name: "edit_files",
+				args: { files: "[]" },
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "write",
+				tool_name: "write_file",
+				args_delta: '{"path":"/repo/src/Live.tsx","content":"x"}',
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "pending",
+				tool_name: "write_file",
+				args: { path: "/repo/src/Pending.tsx" },
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "failed",
+				tool_name: "write_file",
+				args: { path: "/repo/src/Failed.tsx" },
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "edit",
+				tool_name: "edit_files",
+				result: {
+					ok: true,
+					files: [{ path: "/repo/src/App.tsx", diff: "@@ -0,0 +1 @@\n+x" }],
 				},
 			},
-			toolResults: {
-				edit: {
-					id: "edit",
-					name: "edit_files",
-					result: {
-						ok: true,
-						files: [{ path: "/repo/src/App.tsx", diff: "@@ -0,0 +1 @@\n+x" }],
-					},
-					isError: false,
-				},
-				write: {
-					id: "write",
-					name: "write_file",
-					resultRaw: '{"ok":true}',
-					isError: false,
-				},
-				pending: {
-					id: "pending",
-					name: "write_file",
-					result: { ok: true },
-					isError: false,
-					isStreaming: true,
-				},
-				failed: {
-					id: "failed",
-					name: "write_file",
-					result: { error: "denied" },
-					isError: true,
-				},
+			{
+				type: "tool-result",
+				tool_call_id: "write",
+				tool_name: "write_file",
+				result: '{"ok":true}',
 			},
-			sources: [],
-		});
+			{
+				type: "tool-result",
+				tool_call_id: "pending",
+				tool_name: "write_file",
+				result_delta: '{"ok":true}',
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "failed",
+				tool_name: "write_file",
+				result: { error: "denied" },
+				is_error: true,
+			},
+		]);
 		expect(
 			parseEditedFiles(selectEditedFilesThisTurn(store.getSnapshot())),
 		).toEqual(["/repo/src/App.tsx", "/repo/src/Live.tsx"]);
+
+		const request = createDeferred<undefined>();
+		const pending = store.runPendingAction(
+			{
+				kind: "edit",
+				editedMessageID: 1,
+				content: [{ type: "text", text: "make it blue" }],
+			},
+			() => request.promise,
+		);
+		try {
+			expect(selectEditedFilesThisTurn(store.getSnapshot())).toBe("");
+		} finally {
+			request.resolve(undefined);
+			await pending;
+		}
 	});
 
 	it("is empty with no edits", () => {
 		const store = createChatStore();
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			message(1, "user", [{ type: "text", text: "hello" }]),
 			message(2, "assistant", [{ type: "text", text: "hi" }]),
 		]);

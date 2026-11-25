@@ -1,4 +1,12 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	Dot,
+	type DotProps,
+	XAxis,
+	YAxis,
+} from "recharts";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -10,13 +18,21 @@ import { formatDate } from "#/utils/time";
 
 const chartConfig = {
 	amount: {
-		label: "Active Users",
+		label: "Active users",
 		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
 
+type ActiveUserDay = { date: string; amount: number };
+
+const formatDay = (date: string) =>
+	new Date(date).toLocaleString(undefined, {
+		month: "long",
+		day: "2-digit",
+	});
+
 type ActiveUserChartProps = {
-	data: { date: string; amount: number }[];
+	data: ActiveUserDay[];
 };
 
 export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
@@ -75,13 +91,7 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 								const item = p[0];
 								return `${item.value} active users`;
 							}}
-							formatter={(_v, _n, item) => {
-								const date = new Date(item.payload.date);
-								return date.toLocaleString(undefined, {
-									month: "long",
-									day: "2-digit",
-								});
-							}}
+							formatter={(_v, _n, item) => formatDay(item.payload.date)}
 						/>
 					)}
 				/>
@@ -108,6 +118,18 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 					fillOpacity={0.4}
 					stroke="var(--color-amount)"
 					stackId="a"
+					// Screen readers in browse mode reach the highlighted point
+					// directly, so it carries the same text as the tooltip.
+					activeDot={({
+						payload,
+						...props
+					}: DotProps & { payload: ActiveUserDay }) => (
+						<Dot
+							{...props}
+							role="img"
+							aria-label={`${payload.amount} active users, ${formatDay(payload.date)}`}
+						/>
+					)}
 				/>
 			</AreaChart>
 		</ChartContainer>

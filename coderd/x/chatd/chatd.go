@@ -206,6 +206,9 @@ type Server struct {
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -350,6 +353,8 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		Stages:               p.stages,
+		StageModel:           advisor.stageModel(),
 		PriorUses:            priorUses,
 	})
 	if err != nil {
@@ -1485,21 +1490,6 @@ func (p *Server) Start() *Server {
 	return p
 }
 
-func subscribeWithInitialError(chatID uuid.UUID, message string) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	events := make(chan codersdk.ChatStreamEvent)
-	close(events)
-	return []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error:  &codersdk.ChatError{Message: message},
-	}}, events, func() {}, true
-}
-
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
 func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
@@ -1624,14 +1614,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
@@ -2723,7 +2713,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chat)
 	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
 		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
@@ -2732,7 +2722,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chat), stop
 }
 
 func chatKind(chat database.Chat) chatloop.ChatKind {
@@ -2742,8 +2732,24 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+func chatIdentity(chat database.Chat) chatloop.ChatIdentity {
+	return chatloop.ChatIdentity{
+		ChatID:         chat.ID,
+		OwnerID:        chat.OwnerID,
+		OrganizationID: chat.OrganizationID,
+		WorkspaceID:    chat.WorkspaceID,
+		ParentChatID:   chat.ParentChatID,
+		RootChatID:     chat.RootChatID,
+	}
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, chat database.Chat) context.Context {
+	return stageIdentityContext(ctx, scope, chatKind(chat), chatIdentity(chat))
+}
+
+func stageIdentityContext(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, identity chatloop.ChatIdentity) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
+	ctx = chatloop.ContextWithChatIdentity(ctx, identity)
 	return chatloop.ContextWithChatKind(ctx, kind)
 }
 

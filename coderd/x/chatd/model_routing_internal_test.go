@@ -703,6 +703,98 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 	}
 }
 
+func TestAIGatewayModelChatCompletionsTokenLimitField(t *testing.T) {
+	t.Parallel()
+
+	const callLimit = int64(32000)
+	forceCompletions := false
+	tests := []struct {
+		name         string
+		providerType database.AIProviderType
+		model        string
+		callConfig   codersdk.ChatModelCallConfig
+		wantField    string
+		wantLimit    float64
+		absentField  string
+	}{
+		{
+			name:         "OpenAINonReasoningModel",
+			providerType: database.AIProviderTypeOpenai,
+			model:        "gpt-4o",
+			callConfig: codersdk.ChatModelCallConfig{
+				OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: &forceCompletions},
+			},
+			wantField:   "max_completion_tokens",
+			wantLimit:   float64(callLimit),
+			absentField: "max_tokens",
+		},
+		{
+			name:         "OpenAINonReasoningModelWithConfiguredMaxCompletionTokens",
+			providerType: database.AIProviderTypeOpenai,
+			model:        "gpt-4o",
+			callConfig: codersdk.ChatModelCallConfig{
+				OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: &forceCompletions},
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{MaxCompletionTokens: new(int64(16384))},
+				},
+			},
+			wantField:   "max_completion_tokens",
+			wantLimit:   16384,
+			absentField: "max_tokens",
+		},
+		{
+			name:         "OpenAICompatKeepsMaxTokens",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        "qwen/qwen3",
+			wantField:    "max_tokens",
+			wantLimit:    float64(callLimit),
+			absentField:  "max_completion_tokens",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			bodies := make(chan []byte, 1)
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				bodyBytes, err := io.ReadAll(req.Body)
+				if err != nil {
+					return nil, err
+				}
+				bodies <- bodyBytes
+				body := `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"test","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+			provider := aibridgeTestAIProvider(uuid.New(), "primary", tt.providerType)
+			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
+			req.CallConfig = tt.callConfig
+			model, err := server.newModel(t.Context(), req, aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+			require.NoError(t, err)
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+				MaxOutputTokens: new(callLimit),
+				ProviderOptions: chatprovider.ProviderOptionsForCall(model, req.CallConfig, nil),
+				Prompt: []fantasy.Message{{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(<-bodies, &body))
+			require.Equal(t, tt.wantLimit, body[tt.wantField])
+			require.NotContains(t, body, tt.absentField)
+		})
+	}
+}
+
 func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Parallel()
 

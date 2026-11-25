@@ -61,7 +61,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 	const formId = useId();
 
 	return (
-		<div className="border border-solid p-6 rounded-lg">
+		<div className="border p-6 rounded-lg">
 			<form
 				onSubmit={form.handleSubmit}
 				spellCheck={false}
@@ -149,7 +149,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 					</div>
 				</div>
 
-				<div className="overflow-hidden rounded-lg border border-solid border-border">
+				<div className="overflow-hidden rounded-lg border">
 					<CollapsibleSection
 						title="Details"
 						description="Optional description and icon shown to users."
@@ -187,7 +187,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 						description="How users authenticate with this MCP server."
 						open={showAuth}
 						onOpenChange={setShowAuth}
-						className="border-0 border-t border-solid border-border"
+						className="border-t"
 						contentClassName="space-y-5 pt-5 pl-6"
 					>
 						<MCPServerAuthSection
@@ -203,7 +203,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 						description="Availability, model intent, identity headers, and tool governance."
 						open={showBehavior}
 						onOpenChange={setShowBehavior}
-						className="border-0 border-t border-solid border-border"
+						className="border-t"
 						contentClassName="space-y-6 pt-5 pl-6"
 					>
 						<MCPServerBehaviorSection

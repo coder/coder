@@ -42,13 +42,13 @@ export const WorkspaceSettingsLayout: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle(workspaceName, "Workspace Settings")}</title>
+			<title>{pageTitle(workspaceName, "Workspace settings")}</title>
 
 			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbPage>Workspace Settings</BreadcrumbPage>
+							<BreadcrumbPage>Workspace settings</BreadcrumbPage>
 						</BreadcrumbItem>
 						{workspace && (
 							<>
@@ -65,19 +65,17 @@ export const WorkspaceSettingsLayout: React.FC = () => {
 								</BreadcrumbItem>
 								<BreadcrumbSeparator />
 								<BreadcrumbItem>
-									<BreadcrumbLink to="..">
-										<BreadcrumbPage className="flex items-center gap-2">
-											<Avatar
-												variant="icon"
-												size="sm"
-												fallback={
-													workspace.template_display_name ||
-													workspace.template_name
-												}
-												src={workspace.template_icon}
-											/>
-											{workspace.name}
-										</BreadcrumbPage>
+									<BreadcrumbLink to=".." className="flex items-center gap-2">
+										<Avatar
+											variant="icon"
+											size="sm"
+											fallback={
+												workspace.template_display_name ||
+												workspace.template_name
+											}
+											src={workspace.template_icon}
+										/>
+										{workspace.name}
 									</BreadcrumbLink>
 								</BreadcrumbItem>
 							</>

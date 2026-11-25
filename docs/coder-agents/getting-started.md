@@ -80,7 +80,7 @@ To limit Coder Agents to a subset of members in an organization (requires a Prem
 
 1. Remove **Coder Agents User** from the organization's default roles.
 
-   In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+   In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default roles**.
    From the CLI, run `coder organizations edit --org <organization> --default-org-member-roles organization-workspace-access`, keeping any other default roles in the list.
 1. Grant `agents-access` to the members who need it:
    - With [IdP organization role sync](../admin/users/idp-sync.md#role-sync), map an IdP group or role to `agents-access`.
@@ -232,11 +232,15 @@ This is useful for building automations such as:
 
 **Quick example — create a Coder Agent via the API:**
 
+Replace `<your-org-id>` with the ID of an organization you belong to.
+To find the ID, run `coder organizations list` and copy the value in the `id` column.
+
 ```sh
 curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "Fix the failing tests in the auth service"}
     ]

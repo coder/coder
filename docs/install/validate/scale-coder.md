@@ -204,8 +204,8 @@ Monitor these metrics to understand your connection pool behavior:
 - **Churn**:
   `sum(rate(go_sql_max_idle_closed_total[$__rate_interval]))` shows how many connections are being closed because the idle pool is full.
 
-If you see high churn, consider increasing `--pg-conn-max-idle` to keep more connections ready for reuse.
-If you see capacity consistently near zero, consider increasing `--pg-conn-max-open`.
+If you see high churn, consider increasing `--postgres-conn-max-idle` to keep more connections ready for reuse.
+If you see capacity consistently near zero, consider increasing `--postgres-conn-max-open`.
 
 ## Workspace proxies
 

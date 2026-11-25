@@ -177,7 +177,8 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// The first user can also be created via oidc, so if making changes to the flow,
-	// ensure that the oidc flow is also updated.
+	// ensure that the oidc flow is also updated. Both flows call
+	// lockFirstUserSetup so that only one request creates the first user.
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
@@ -200,6 +201,11 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "The initial user has already been created.",
 		})
+		return
+	}
+
+	if api.setupTokenRequired() && !api.setupTokenMatches(createUser.SetupToken) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, setupTokenRefused())
 		return
 	}
 
@@ -246,22 +252,44 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // needed to create first user
-	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
-		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-			Email:    createUser.Email,
-			Username: createUser.Username,
-			Name:     createUser.Name,
-			Password: createUser.Password,
-			// There's no reason to create the first user as dormant, since you have
-			// to login immediately anyways.
-			UserStatus:      new(codersdk.UserStatusActive),
-			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
-		},
-		LoginType:          database.LoginTypePassword,
-		RBACRoles:          []string{rbac.RoleOwner().String()},
-		accountCreatorName: "coder",
-	})
+	var user database.User
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Another request can pass the count above at the same time, so
+		// the count that decides is the one taken under the lock.
+		userCount, err := lockFirstUserSetup(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if userCount != 0 {
+			return errFirstUserExists
+		}
+
+		//nolint:gocritic // needed to create first user
+		user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
+			CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
+				Email:    createUser.Email,
+				Username: createUser.Username,
+				Name:     createUser.Name,
+				Password: createUser.Password,
+				// There's no reason to create the first user as dormant, since you have
+				// to login immediately anyways.
+				UserStatus:      new(codersdk.UserStatusActive),
+				OrganizationIDs: []uuid.UUID{defaultOrg.ID},
+			},
+			LoginType:          database.LoginTypePassword,
+			RBACRoles:          []string{rbac.RoleOwner().String()},
+			accountCreatorName: "coder",
+		})
+		return err
+	}, firstUserSetupTxOptions())
+	if errors.Is(err, errFirstUserExists) {
+		api.Logger.Warn(ctx, "refused a first user request because another request created the first user at the same time",
+			slog.F("remote_addr", r.RemoteAddr))
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The initial user has already been created.",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -403,6 +431,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		CreatedBefore:    params.CreatedBefore,
 		GithubComUserID:  params.GithubComUserID,
 		LoginType:        params.LoginType,
+		IncludeSystem:    params.IncludeSystem,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -1262,11 +1291,12 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 
 func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
 	return codersdk.UserAppearanceSettings{
-		ThemePreference: settings.ThemePreference,
-		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
-		ThemeLight:      settings.ThemeLight,
-		ThemeDark:       settings.ThemeDark,
-		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
+		ThemePreference:  settings.ThemePreference,
+		ThemeMode:        codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:       settings.ThemeLight,
+		ThemeDark:        settings.ThemeDark,
+		TerminalFont:     codersdk.TerminalFontName(settings.TerminalFont),
+		TerminalFontSize: settings.TerminalFontSize,
 	}
 }
 
@@ -1379,6 +1409,16 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		if err != nil {
 			return xerrors.Errorf("update user terminal font: %w", err)
+		}
+
+		if params.TerminalFontSize != 0 {
+			_, err = tx.UpdateUserTerminalFontSize(ctx, database.UpdateUserTerminalFontSizeParams{
+				UserID:           user.ID,
+				TerminalFontSize: params.TerminalFontSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user terminal font size: %w", err)
+			}
 		}
 
 		updatedSettings, err = tx.GetUserAppearanceSettings(ctx, user.ID)

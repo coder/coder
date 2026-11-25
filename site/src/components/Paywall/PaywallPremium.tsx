@@ -60,10 +60,7 @@ const PaywallPremium = ({
 }: PaywallProps) => {
 	return (
 		<div
-			className={cn(
-				"rounded-xl border border-solid border-border bg-surface-primary p-2",
-				className,
-			)}
+			className={cn("rounded-xl border bg-surface-primary p-2", className)}
 			{...props}
 		>
 			<PaywallPremiumHeader>

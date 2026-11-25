@@ -19,6 +19,7 @@
 		"@shadcn/lint",
 		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
+		"eslint-plugin-react-you-might-not-need-an-effect",
 		"tailwindcss",
 		"tw-animate-css",
 		"ts-proto"

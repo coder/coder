@@ -1,8 +1,4 @@
 import { cn } from "cn";
-export type BarColors = {
-	stroke: string;
-	fill: string;
-};
 
 type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 	/**
@@ -14,22 +10,16 @@ type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 	 * The X position of the bar component.
 	 */
 	offset: number;
-	/**
-	 * Color scheme for the bar. If not passed the default gray color will be
-	 * used.
-	 */
-	colors?: BarColors;
 };
 
 const barClassName = cn(
-	"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
+	"relative flex h-[inherit] min-w-6 rounded-lg border bg-surface-primary p-1.75",
 	"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
 );
 
 type BarProps = BaseBarProps<React.ComponentProps<"div">>;
 
 export const Bar: React.FC<BarProps> = ({
-	colors,
 	scale,
 	value,
 	offset,
@@ -41,7 +31,7 @@ export const Bar: React.FC<BarProps> = ({
 		<div
 			{...htmlProps}
 			className={cn(barClassName, className)}
-			style={barStyle({ colors, scale, value, offset, style })}
+			style={barStyle({ scale, value, offset, style })}
 		/>
 	);
 };
@@ -49,7 +39,6 @@ export const Bar: React.FC<BarProps> = ({
 type ClickableBarProps = BaseBarProps<React.ComponentProps<"button">>;
 
 export const ClickableBar: React.FC<ClickableBarProps> = ({
-	colors,
 	scale,
 	value,
 	offset,
@@ -60,12 +49,12 @@ export const ClickableBar: React.FC<ClickableBarProps> = ({
 			type="button"
 			{...htmlProps}
 			className={cn(
-				"relative flex h-inherit min-w-[34px] cursor-pointer rounded-lg border border-border bg-surface-primary p-[7px]",
-				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
+				"relative flex h-inherit min-w-8.5 cursor-pointer rounded-lg border bg-surface-primary p-1.75",
+				"after:absolute after:-inset-y-0.5 after:-left-2 after:-right-2 after:content-['']",
 				"outline-hidden hover:border-content-link focus-visible:border-content-link active:border-content-link",
 				htmlProps.className,
 			)}
-			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
+			style={barStyle({ scale, value, offset, style: htmlProps.style })}
 		/>
 	);
 };
@@ -79,7 +68,6 @@ type FocusableBarProps = BaseBarProps<React.ComponentProps<"button">> & {
  * open its tooltip.
  */
 export const FocusableBar: React.FC<FocusableBarProps> = ({
-	colors,
 	scale,
 	value,
 	offset,
@@ -96,7 +84,7 @@ export const FocusableBar: React.FC<FocusableBarProps> = ({
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}
-			style={barStyle({ colors, scale, value, offset, style })}
+			style={barStyle({ scale, value, offset, style })}
 		/>
 	);
 };
@@ -104,7 +92,6 @@ export const FocusableBar: React.FC<FocusableBarProps> = ({
 const barStyle = ({
 	scale,
 	value,
-	colors,
 	offset,
 	style,
 }: BaseBarProps<unknown> & {
@@ -112,8 +99,6 @@ const barStyle = ({
 }): React.CSSProperties => ({
 	width: `calc((var(--x-axis-width) * ${value}) / ${scale})`,
 	marginLeft: `calc((var(--x-axis-width) * ${offset}) / ${scale})`,
-	backgroundColor: colors?.fill,
-	borderColor: colors?.stroke,
 	borderStyle: "solid",
 	...style,
 });

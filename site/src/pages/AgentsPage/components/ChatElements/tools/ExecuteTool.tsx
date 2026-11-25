@@ -191,7 +191,7 @@ const ShellTranscriptBody: React.FC<{
 				<pre
 					key={block.kind}
 					className={cn(
-						"m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+						"m-0 whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs font-normal leading-5",
 						block.kind === "error" || isError
 							? "text-content-destructive"
 							: "text-content-secondary",

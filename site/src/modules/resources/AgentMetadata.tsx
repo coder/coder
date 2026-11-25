@@ -82,7 +82,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
 					toast.error(
-						"Unexpected disconnect while watching Metadata changes.",
+						"Unexpected disconnect while watching metadata changes.",
 						{
 							description: "Please try refreshing the page.",
 						},
@@ -90,7 +90,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 					return;
 				}
 
-				toast.error("Unexpected disconnect while watching Metadata changes.", {
+				toast.error("Unexpected disconnect while watching metadata changes.", {
 					description: "Creating new connection...",
 				});
 				timeoutId = window.setTimeout(() => {
@@ -182,7 +182,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 	// could be buggy. But, how common is that anyways?
 	const value =
 		status === "loading" ? (
-			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
+			<Skeleton width={65} height={12} variant="text" className="mt-1.5" />
 		) : status === "stale" ? (
 			<Tooltip>
 				<TooltipTrigger asChild>
@@ -227,11 +227,9 @@ const StaticWidth: React.FC<Omit<React.ComponentProps<"div">, "ref">> = ({
 			return;
 		}
 
-		const currentWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width = "auto";
-		const autoWidth = ref.current.getBoundingClientRect().width;
-		ref.current.style.width =
-			autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`;
+		// A min width keeps values from jittering as they change while still
+		// letting user text spacing overrides widen the text.
+		ref.current.style.minWidth = `${ref.current.getBoundingClientRect().width}px`;
 	}, [children]);
 
 	return (

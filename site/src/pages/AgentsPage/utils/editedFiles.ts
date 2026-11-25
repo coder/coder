@@ -1,4 +1,9 @@
-import type { ChatStoreState } from "../components/ChatConversation/chatStore";
+import {
+	type ChatStoreState,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	selectStreamState,
+} from "../components/ChatConversation/chatStore";
 import { parseArgs } from "../components/ChatElements/tools/utils";
 
 // Completed edit_files results report which files actually changed and
@@ -38,15 +43,17 @@ function editedPaths(
 }
 
 /**
- * Files the agent successfully edited or wrote during the current turn:
+ * Files the agent successfully edited or wrote during the visible current turn:
  * completed tool results for calls after the latest user message, including
  * results still in the stream. Returned newline-joined so the selector yields
  * a stable primitive for `useSyncExternalStore` and re-renders only on change.
  */
 export function selectEditedFilesThisTurn(state: ChatStoreState): string {
+	const messagesByID = selectMessagesByID(state);
+	const orderedMessageIDs = selectOrderedMessageIDs(state);
 	const messages = [];
-	for (let i = state.orderedMessageIDs.length - 1; i >= 0; i--) {
-		const message = state.messagesByID.get(state.orderedMessageIDs[i]);
+	for (let i = orderedMessageIDs.length - 1; i >= 0; i--) {
+		const message = messagesByID.get(orderedMessageIDs[i]);
 		if (message?.role === "user") {
 			break;
 		}
@@ -98,8 +105,9 @@ export function selectEditedFilesThisTurn(state: ChatStoreState): string {
 			}
 		}
 	}
-	for (const call of Object.values(state.streamState?.toolCalls ?? {})) {
-		const result = state.streamState?.toolResults[call.id];
+	const streamState = selectStreamState(state);
+	for (const call of Object.values(streamState?.toolCalls ?? {})) {
+		const result = streamState?.toolResults[call.id];
 		if (!result || result.isStreaming) {
 			continue;
 		}

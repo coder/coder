@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { VariableSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -23,15 +23,35 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
+const LogsViewport: React.FC<React.ComponentProps<"div">> = (props) => (
+	<div
+		{...props}
+		// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the logs from here.
+		tabIndex={0}
+		role="region"
+		aria-label="Agent logs"
+	/>
+);
+
+// tolerates fractional scroll positions at non-integer zoom levels
+const AT_BOTTOM_THRESHOLD_PX = 2;
+
 type AgentLogsProps = Omit<
 	React.ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount" | "itemKey"
+	| "children"
+	| "itemSize"
+	| "itemCount"
+	| "itemKey"
+	| "outerRef"
+	| "innerRef"
+	| "onScroll"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	ref?: React.Ref<List>;
+	// keeps the newest line in view while scrolled to the bottom
+	follow?: boolean;
 };
 
 export const AgentLogs: React.FC<AgentLogsProps> = ({
@@ -40,24 +60,67 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	overflowed,
 	className,
 	showSourceIcons = true,
-	ref,
+	follow = false,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
 	const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 	const listRef = useRef<List>(null);
-	const mergeListRef = useCallback(
-		(instance: List | null) => {
-			listRef.current = instance;
-			if (typeof ref === "function") {
-				ref(instance);
-			} else if (ref) {
-				ref.current = instance;
+	const outerRef = useRef<HTMLDivElement>(null);
+	const innerRef = useRef<HTMLDivElement>(null);
+
+	const followRef = useRef(true);
+	const lastScrollTopRef = useRef(0);
+
+	// not scrollToItem: react-window re-applies a requested offset on every re-render
+	const scrollToBottom = useCallback(() => {
+		const outer = outerRef.current;
+		if (outer) {
+			outer.scrollTop = outer.scrollHeight;
+			lastScrollTopRef.current = outer.scrollTop;
+		}
+	}, []);
+
+	useLayoutEffect(() => {
+		if (follow) {
+			followRef.current = true;
+			scrollToBottom();
+		}
+	}, [follow, scrollToBottom]);
+
+	// re-pins on any content height change; same-frame scroll events run first
+	useEffect(() => {
+		const outer = outerRef.current;
+		const inner = innerRef.current;
+		if (!follow || !outer || !inner) {
+			return;
+		}
+		const handleScroll = () => {
+			const { scrollTop, scrollHeight, clientHeight } = outer;
+			const atBottom =
+				scrollHeight - scrollTop - clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+			const scrolledUp = scrollTop < lastScrollTopRef.current;
+			lastScrollTopRef.current = scrollTop;
+
+			if (atBottom) {
+				followRef.current = true;
+			} else if (scrolledUp) {
+				followRef.current = false;
 			}
-		},
-		[ref],
-	);
+		};
+		const observer = new ResizeObserver(() => {
+			if (followRef.current) {
+				scrollToBottom();
+			}
+		});
+		outer.addEventListener("scroll", handleScroll);
+		observer.observe(inner);
+		return () => {
+			outer.removeEventListener("scroll", handleScroll);
+			observer.disconnect();
+		};
+	}, [follow, scrollToBottom]);
 
 	// A log line's real height depends on its content (long lines wrap, so a
 	// single log entry can span multiple visual rows). A fixed itemSize makes
@@ -108,8 +171,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	return (
 		<div className="bg-surface-secondary relative">
 			<List
+				outerElementType={LogsViewport}
 				{...listProps}
-				ref={mergeListRef}
+				ref={listRef}
+				outerRef={outerRef}
+				innerRef={innerRef}
 				itemCount={logs.length}
 				itemSize={getRowHeight}
 				estimatedItemSize={AGENT_LOG_LINE_HEIGHT}
@@ -117,7 +183,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"py-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary peer focus-visible:outline-hidden",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -165,6 +231,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					);
 				}}
 			</List>
+			{/* Drawn over the list so row backgrounds cannot hide the focus ring. */}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-content-link"
+			/>
 
 			{overflowed && (
 				<Tooltip>
@@ -178,7 +249,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					</TooltipTrigger>
 					<TooltipContent
 						asChild
-						className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+						className="w-full text-sm text-content-secondary bg-surface-primary max-w-[min(65ch,var(--radix-popper-available-width))] leading-relaxed m-0 p-4"
 					>
 						<p>
 							Startup logs exceeded the max size of{" "}

@@ -169,7 +169,7 @@ spec:
         - name: SOME_ENV
           value: some value
         - name: CODER_ACCESS_URL
-          value: https://dev.coder.com
+          value: https://coder.example.com
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
