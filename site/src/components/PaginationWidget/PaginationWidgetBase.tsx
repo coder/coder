@@ -39,48 +39,48 @@ export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div className="@container flex items-center justify-center px-5 gap-x-1.5">
-			<PaginationNavButton
-				disabled={isPrevDisabled}
-				aria-label="Previous page"
-				onClick={() => {
-					if (!isPrevDisabled) {
-						onPageChange(currentPage - 1);
-					}
-				}}
-			>
-				<ChevronLeftIcon />
-			</PaginationNavButton>
+		<nav aria-label="Pagination">
+			<ul className="@container flex items-center justify-center px-5 gap-x-1.5">
+				<li className="flex">
+					<PaginationNavButton
+						disabled={isPrevDisabled}
+						aria-label="Previous page"
+						onClick={() => {
+							if (!isPrevDisabled) {
+								onPageChange(currentPage - 1);
+							}
+						}}
+					>
+						<ChevronLeftIcon />
+					</PaginationNavButton>
+				</li>
 
-			{/* Show only the current page when the widget is too narrow for the
-			    full row of page blocks and both arrows. */}
-			<div className="contents @sm:hidden">
-				<NumberedPageButton
-					highlighted
-					pageNumber={currentPage}
-					totalPages={totalPages}
-				/>
-			</div>
-			<div className="hidden @sm:contents">
+				{/* Show only the current page when the widget is too narrow for the
+				    full row of page blocks and both arrows. */}
+				<li className="flex @sm:hidden">
+					<NumberedPageButton highlighted pageNumber={currentPage} />
+				</li>
 				<PaginationRow
 					currentPage={currentPage}
 					totalPages={totalPages}
 					onChange={onPageChange}
 				/>
-			</div>
 
-			<PaginationNavButton
-				disabled={isNextDisabled}
-				aria-label="Next page"
-				onClick={() => {
-					if (!isNextDisabled) {
-						onPageChange(currentPage + 1);
-					}
-				}}
-			>
-				<ChevronRightIcon />
-			</PaginationNavButton>
-		</div>
+				<li className="flex">
+					<PaginationNavButton
+						disabled={isNextDisabled}
+						aria-label="Next page"
+						onClick={() => {
+							if (!isNextDisabled) {
+								onPageChange(currentPage + 1);
+							}
+						}}
+					>
+						<ChevronRightIcon />
+					</PaginationNavButton>
+				</li>
+			</ul>
+		</nav>
 	);
 };
 
@@ -98,28 +98,17 @@ const PaginationRow: React.FC<PaginationRowProps> = ({
 	const pageInfo = buildPagedList(totalPages, currentPage);
 	const pagesOmitted = totalPages - pageInfo.length - 1;
 
-	return (
-		<>
-			{pageInfo.map((pageEntry) => {
-				if (pageEntry === "left" || pageEntry === "right") {
-					return (
-						<PlaceholderPageButton
-							key={pageEntry}
-							pagesOmitted={pagesOmitted}
-						/>
-					);
-				}
-
-				return (
-					<NumberedPageButton
-						key={pageEntry}
-						pageNumber={pageEntry}
-						totalPages={totalPages}
-						highlighted={pageEntry === currentPage}
-						onClick={() => onChange(pageEntry)}
-					/>
-				);
-			})}
-		</>
-	);
+	return pageInfo.map((pageEntry) => (
+		<li key={pageEntry} className="hidden @sm:flex">
+			{pageEntry === "left" || pageEntry === "right" ? (
+				<PlaceholderPageButton pagesOmitted={pagesOmitted} />
+			) : (
+				<NumberedPageButton
+					pageNumber={pageEntry}
+					highlighted={pageEntry === currentPage}
+					onClick={() => onChange(pageEntry)}
+				/>
+			)}
+		</li>
+	));
 };

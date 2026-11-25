@@ -149,9 +149,11 @@
           else
             throw "protobuf 23.4 is not defined for ${system}";
 
-        # Custom sqlc build from coder/sqlc fork to fix ambiguous column bug, see:
+        # Custom sqlc build from the coder/sqlc fork: upstream sqlc v1.31.1
+        # plus CTE scope tracking, which fixes false "column reference is
+        # ambiguous" errors for subqueries inside CTEs. See:
         # - https://github.com/coder/sqlc/pull/1
-        # - https://github.com/sqlc-dev/sqlc/pull/4159
+        # - https://github.com/sqlc-dev/sqlc/pull/4159 (upstream)
         #
         # To update hashes:
         # 1. Run: `nix --extra-experimental-features 'nix-command flakes' build .#devShells.x86_64-linux.default`
@@ -161,13 +163,13 @@
         # 5. Update the vendorHash
         sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
-          version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
+          version = "coder-fork-fb627c9c93f089ff1888f6799ca348986b2818e0";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "sqlc";
-            rev = "337309bfb9524f38466a5090e310040fc7af0203";
-            sha256 = "sha256-i8hZaaMlNJyW0hUWYcuNqUcwRdQU747055OknZsJ9Es=";
+            rev = "fb627c9c93f089ff1888f6799ca348986b2818e0";
+            sha256 = "sha256-50KkO+tqHMrMUUivwPcoyLtBmkewY7Vf0VLRSQJVgGA=";
           };
 
           subPackages = [ "cmd/sqlc" ];
@@ -195,28 +197,28 @@
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-RjhigFjnGlUhKxxWNxLqwDuQISj0B0Dz3IF03xITUGE=";
+                hash = "sha256-5vFrLwsTfuVynKqMTnmjuuTuJhrNGYofz6hYSmKWYFs=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-mI6VChwjBYCTsOZqstX7U/wYNF7PvVhxrPUduskyXt0=";
+                hash = "sha256-hY4IwYGna2siPox2eo6YOSLuvi0GLblJot5mzgQMNow=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-seyz/g0KApDBq2+D2WfUPyXaBdC2ce4Ps1UlImjc6Vo=";
+                hash = "sha256-2gx+8nipETR4YnWOdXOlkHNl5mSFwmN89cIXxeInmS4=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-/ekjh8+cDedCVQA8hSkfj77eVFhcENBjXKekNjPU0XE=";
+                hash = "sha256-ZrRy3MNs93DYN1ftTQAsR2F0hCwFxoY3tAp+mVGc8+E=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.17.1" {
+            pkgs.runCommand "terraform-1.17.2" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.17.2/terraform_1.17.2_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''

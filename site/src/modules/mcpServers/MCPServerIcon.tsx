@@ -8,7 +8,7 @@ const iconVariants = cva(
 	{
 		variants: {
 			variant: {
-				tile: "rounded border border-solid border-border",
+				tile: "rounded border",
 				circle: "rounded-full",
 			},
 		},

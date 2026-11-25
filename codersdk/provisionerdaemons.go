@@ -69,14 +69,14 @@ type ProvisionerDaemon struct {
 
 	// Optional fields.
 	KeyName     *string                  `json:"key_name" table:"key name"`
-	Status      *ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
+	Status      *ProvisionerDaemonStatus `json:"status" table:"status"`
 	CurrentJob  *ProvisionerDaemonJob    `json:"current_job" table:"current job,recursive"`
 	PreviousJob *ProvisionerDaemonJob    `json:"previous_job" table:"previous job,recursive"`
 }
 
 type ProvisionerDaemonJob struct {
 	ID                  uuid.UUID            `json:"id" format:"uuid" table:"id"`
-	Status              ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
+	Status              ProvisionerJobStatus `json:"status" table:"status"`
 	TemplateName        string               `json:"template_name" table:"template name"`
 	TemplateIcon        string               `json:"template_icon" table:"template icon"`
 	TemplateDisplayName string               `json:"template_display_name" table:"template display name"`
@@ -167,6 +167,7 @@ type JobErrorCode string
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 	InsufficientQuota         JobErrorCode = "INSUFFICIENT_QUOTA"
+	MissingTemplateParameter  JobErrorCode = "MISSING_TEMPLATE_PARAMETER"
 )
 
 // JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
@@ -190,27 +191,27 @@ func JobIsInsufficientQuotaErrorCode(code JobErrorCode) bool {
 
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
-	ID               uuid.UUID              `json:"id" format:"uuid" table:"id"`
-	CreatedAt        time.Time              `json:"created_at" format:"date-time" table:"created at"`
-	StartedAt        *time.Time             `json:"started_at,omitempty" format:"date-time" table:"started at"`
-	CompletedAt      *time.Time             `json:"completed_at,omitempty" format:"date-time" table:"completed at"`
-	CanceledAt       *time.Time             `json:"canceled_at,omitempty" format:"date-time" table:"canceled at"`
-	Error            string                 `json:"error,omitempty" table:"error"`
-	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES,INSUFFICIENT_QUOTA" table:"error code"`
-	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
-	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
+	ID               uuid.UUID              `json:"id" format:"uuid" table:"id" wsrelated:"latest_build.job"`
+	CreatedAt        time.Time              `json:"created_at" format:"date-time" table:"created at" wsrelated:"latest_build.job"`
+	StartedAt        *time.Time             `json:"started_at,omitempty" format:"date-time" table:"started at" wsrelated:"latest_build.job"`
+	CompletedAt      *time.Time             `json:"completed_at,omitempty" format:"date-time" table:"completed at" wsrelated:"latest_build.job"`
+	CanceledAt       *time.Time             `json:"canceled_at,omitempty" format:"date-time" table:"canceled at" wsrelated:"latest_build.job"`
+	Error            string                 `json:"error,omitempty" table:"error" wsrelated:"latest_build.job"`
+	ErrorCode        JobErrorCode           `json:"error_code,omitempty" table:"error code" wsrelated:"latest_build.job"`
+	Status           ProvisionerJobStatus   `json:"status" table:"status" wsrelated:"latest_build.job"`
+	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id" wsrelated:"latest_build.job"`
 	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`
-	FileID           uuid.UUID              `json:"file_id" format:"uuid" table:"file id"`
-	Tags             map[string]string      `json:"tags" table:"tags"`
-	QueuePosition    int                    `json:"queue_position" table:"queue position"`
-	QueueSize        int                    `json:"queue_size" table:"queue size"`
-	OrganizationID   uuid.UUID              `json:"organization_id" format:"uuid" table:"organization id"`
-	InitiatorID      uuid.UUID              `json:"initiator_id" format:"uuid" table:"initiator id"`
-	Input            ProvisionerJobInput    `json:"input" table:"input,recursive_inline"`
-	Type             ProvisionerJobType     `json:"type" table:"type"`
+	FileID           uuid.UUID              `json:"file_id" format:"uuid" table:"file id" wsrelated:"latest_build.job"`
+	Tags             map[string]string      `json:"tags" table:"tags" wsrelated:"latest_build.job"`
+	QueuePosition    int                    `json:"queue_position" table:"queue position" wsrelated:"latest_build.job.queue_position"`
+	QueueSize        int                    `json:"queue_size" table:"queue size" wsrelated:"latest_build.job.queue_position"`
+	OrganizationID   uuid.UUID              `json:"organization_id" format:"uuid" table:"organization id" wsrelated:"latest_build.job"`
+	InitiatorID      uuid.UUID              `json:"initiator_id" format:"uuid" table:"initiator id" wsrelated:"latest_build.job"`
+	Input            ProvisionerJobInput    `json:"input" table:"input,recursive_inline" wsrelated:"latest_build.job"`
+	Type             ProvisionerJobType     `json:"type" table:"type" wsrelated:"latest_build.job"`
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`
 	Metadata         ProvisionerJobMetadata `json:"metadata" table:"metadata,recursive_inline"`
-	LogsOverflowed   bool                   `json:"logs_overflowed" table:"logs overflowed"`
+	LogsOverflowed   bool                   `json:"logs_overflowed" table:"logs overflowed" wsrelated:"latest_build.job"`
 }
 
 // ProvisionerJobLog represents the provisioner log entry annotated with source and level.
@@ -218,7 +219,7 @@ type ProvisionerJobLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Source    LogSource `json:"log_source"`
-	Level     LogLevel  `json:"log_level" enums:"trace,debug,info,warn,error"`
+	Level     LogLevel  `json:"log_level"`
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
 }
@@ -472,10 +473,12 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// GetProvisionerKey returns the provisioner key.
+// GetProvisionerKey returns the provisioner key. The key is authenticated by
+// the header only; the path segment is a fixed placeholder (the server ignores
+// it) so the secret never appears in URLs or request logs.
 func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/provisionerkeys/%s", pk), nil,
+		"/api/v2/provisionerkeys/me", nil,
 		func(req *http.Request) {
 			req.Header.Add(ProvisionerDaemonKey, pk)
 		},

@@ -717,67 +717,73 @@ func TestProvision_CancelTimeout(t *testing.T) {
 // terraform-provider-coder
 // nolint: paralleltest
 func TestProvision_TextFileBusy(t *testing.T) {
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")
+	// Terraform 1.9 and later run init with -json and report the error on stdout.
+	// Older versions report it on stderr.
+	for _, tfVersion := range []string{"1.8.5", terraform.TerraformVersion.String()} {
+		t.Run(tfVersion, func(t *testing.T) {
+			cwd, err := os.Getwd()
+			require.NoError(t, err)
+			fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")
 
-	dir := t.TempDir()
-	binPath := filepath.Join(dir, "terraform")
+			dir := t.TempDir()
+			binPath := filepath.Join(dir, "terraform")
 
-	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
-	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
-	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
-	require.NoError(t, err)
+			// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
+			content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, tfVersion)
+			err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+			require.NoError(t, err)
 
-	workDir := t.TempDir()
+			workDir := t.TempDir()
 
-	err = os.Mkdir(filepath.Join(workDir, ".coder"), 0o700)
-	require.NoError(t, err)
-	l, err := net.Listen("unix", filepath.Join(workDir, ".coder", "pprof"))
-	require.NoError(t, err)
-	defer l.Close()
-	handlerCalled := 0
-	// nolint: gosec
-	srv := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
-			w.WriteHeader(http.StatusOK)
-			_, err := w.Write([]byte("thestacks\n"))
-			assert.NoError(t, err)
-			handlerCalled++
-		}),
+			err = os.Mkdir(filepath.Join(workDir, ".coder"), 0o700)
+			require.NoError(t, err)
+			l, err := net.Listen("unix", filepath.Join(workDir, ".coder", "pprof"))
+			require.NoError(t, err)
+			defer l.Close()
+			handlerCalled := 0
+			//nolint:gosec // Test server on a unix socket does not need timeouts.
+			srv := &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("thestacks\n"))
+					assert.NoError(t, err)
+					handlerCalled++
+				}),
+			}
+			srvErr := make(chan error, 1)
+			go func() {
+				srvErr <- srv.Serve(l)
+			}()
+
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath:  binPath,
+				exitTimeout: time.Second,
+				workDir:     workDir,
+				logger:      &logger,
+			})
+
+			sess := configure(ctx, t, api, &proto.Config{})
+
+			err = sendInit(sess, testutil.CreateTar(t, nil))
+			require.NoError(t, err)
+
+			found := false
+			for {
+				msg, err := sess.Recv()
+				require.NoError(t, err)
+
+				if c := msg.GetInit(); c != nil {
+					require.Contains(t, c.Error, "exit status 1")
+					found = true
+					break
+				}
+			}
+			require.True(t, found)
+			require.EqualValues(t, 1, handlerCalled)
+		})
 	}
-	srvErr := make(chan error, 1)
-	go func() {
-		srvErr <- srv.Serve(l)
-	}()
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{
-		binaryPath:  binPath,
-		exitTimeout: time.Second,
-		workDir:     workDir,
-		logger:      &logger,
-	})
-
-	sess := configure(ctx, t, api, &proto.Config{})
-
-	err = sendInit(sess, testutil.CreateTar(t, nil))
-	require.NoError(t, err)
-
-	found := false
-	for {
-		msg, err := sess.Recv()
-		require.NoError(t, err)
-
-		if c := msg.GetInit(); c != nil {
-			require.Contains(t, c.Error, "exit status 1")
-			found = true
-			break
-		}
-	}
-	require.True(t, found)
-	require.EqualValues(t, 1, handlerCalled)
 }
 
 func TestProvision(t *testing.T) {

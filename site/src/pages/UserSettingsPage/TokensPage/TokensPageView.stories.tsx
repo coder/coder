@@ -6,7 +6,7 @@ const meta: Meta<typeof TokensPageView> = {
 	title: "pages/UserSettingsPage/TokensPageView",
 	component: TokensPageView,
 	args: {
-		isLoading: false,
+		isFetching: false,
 		hasLoaded: true,
 		tokens: MockTokens,
 		onDelete: () => {
@@ -22,8 +22,15 @@ export const Example: Story = {};
 
 export const Loading: Story = {
 	args: {
-		isLoading: true,
+		isFetching: true,
 		hasLoaded: false,
+		tokens: undefined,
+	},
+};
+
+export const Refetching: Story = {
+	args: {
+		isFetching: true,
 	},
 };
 

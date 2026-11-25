@@ -130,6 +130,25 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[2].Action)
 	})
 
+	t.Run("BrowserOnlyNotEntitled", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.CreateTemplate(ctx, owner.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:        "browser-only",
+			VersionID:   version.ID,
+			BrowserOnly: new(true),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "browser_only", apiErr.Validations[0].Field)
+	})
+
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		ownerClient := coderdtest.New(t, nil)
@@ -1901,6 +1920,35 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.AllowWorkspaceRenames, "expected false")
+	})
+
+	t.Run("BrowserOnlyNotEntitled", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.BrowserOnly, "default is false")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(true),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "browser_only", apiErr.Validations[0].Field)
+
+		// Turning it off does not require the entitlement, so a lapsed license
+		// cannot strand a template with its connections refused.
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			BrowserOnly: new(false),
+		})
+		require.NoError(t, err)
+		assert.False(t, updated.BrowserOnly, "expected false")
 	})
 
 	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {

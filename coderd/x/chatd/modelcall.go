@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -85,6 +86,10 @@ func (r resolvedModelCall) stageModel() chatloop.StageModel {
 	}
 	if r.model.Valid() {
 		stageModel.Provider = r.model.Provider()
+	}
+	// Settings were validated when the provider was configured.
+	if settings, err := db2sdk.AIProviderSettings(r.route.Provider.Settings); err == nil {
+		stageModel.Bedrock = settings.Bedrock != nil
 	}
 	return stageModel
 }
@@ -178,7 +183,19 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
+	// Innermost, so each provider attempt of a fallback records its own span.
+	tracedModel := buildOpts.StageModel
+	tracedModel.Provider = model.Provider()
+	model = model.WithLanguageModel(p.stages.TraceModelCalls(model.LanguageModel(), chatloop.TracedModelOptions{
+		StageModel: tracedModel,
+		Identity:   chatIdentity(spec.chat),
+		// chatd builds every client with its default object mode, and only
+		// the native OpenAI client's default sends a JSON schema; the
+		// others force a tool call.
+		JSONObjects: model.Provider() == fantasyopenai.Name,
+	}))
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
+	model = p.withQuickgenParamFallback(model, out.route.Provider.ID)
 	out.reasoningRejected = &atomic.Bool{}
 	model = p.withEncryptedReasoningFallback(model, spec.chat.ID, out.reasoningRejected)
 

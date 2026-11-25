@@ -4,7 +4,7 @@ title: Additional clusters
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.
 
-![Region picker in "Create Workspace" screen](../../images/admin/integrations/kube-region-picker.png)
+![Region picker in "Create workspace" screen](../../images/admin/integrations/kube-region-picker.png)
 
 ## Option 1) Kubernetes contexts and kubeconfig
 
@@ -214,7 +214,7 @@ If you're on a Windows machine (or if one of the commands fail), try grabbing th
 kubectl cluster-info
 
 # Get cluster CA and token (base64 encoded)
-kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data}"
+kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data}"
 
 coder templates push \
     --variable host=API_ADDRESS \

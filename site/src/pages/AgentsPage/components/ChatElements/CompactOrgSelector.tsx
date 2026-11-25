@@ -84,7 +84,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 				align={dropdownAlign}
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
 			>
-				<Command loop>
+				<Command loop label="Find organization">
 					<CommandInput placeholder="Find organization…" className="text-xs" />
 					<CommandList>
 						<CommandEmpty className="text-xs">
@@ -96,6 +96,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 									className="text-xs font-normal"
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
+									aria-selected={value?.id === org.id}
 									onSelect={() => {
 										onChange(org);
 										setOpen(false);

@@ -4,6 +4,7 @@ import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -26,25 +27,28 @@ export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 const BranchCopyButton: React.FC<{ branch: string }> = ({ branch }) => {
 	const { copyToClipboard, showCopiedSuccess } = useClipboard();
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					onClick={() => copyToClipboard(branch)}
-					aria-label={`Copy branch name: ${branch}`}
-					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
-				>
-					{showCopiedSuccess ? (
-						<CheckIcon className="size-3" />
-					) : (
-						<CopyIcon className="size-3" />
-					)}
-				</button>
-			</TooltipTrigger>
-			<TooltipContent side="bottom">
-				{showCopiedSuccess ? "Copied" : "Copy branch name"}
-			</TooltipContent>
-		</Tooltip>
+		<>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						onClick={() => copyToClipboard(branch)}
+						aria-label={`Copy branch name: ${branch}`}
+						className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+					>
+						{showCopiedSuccess ? (
+							<CheckIcon className="size-3" />
+						) : (
+							<CopyIcon className="size-3" />
+						)}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">
+					{showCopiedSuccess ? "Copied" : "Copy branch name"}
+				</TooltipContent>
+			</Tooltip>
+			<CopiedStatus show={showCopiedSuccess} />
+		</>
 	);
 };
 
@@ -119,7 +123,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Compact PR/branch sub-header */}
 			{(pullRequestUrl || baseBranch || headBranch) && (
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
 							<>

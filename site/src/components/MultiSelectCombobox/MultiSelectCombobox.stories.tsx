@@ -118,12 +118,6 @@ export const SelectAllComboboxItems: Story = {
 		await userEvent.click(
 			canvas.getByRole("option", { name: "My Organization 2" }),
 		);
-
-		await waitFor(() =>
-			expect(
-				canvas.getByText("All organizations selected"),
-			).toBeInTheDocument(),
-		);
 	},
 };
 

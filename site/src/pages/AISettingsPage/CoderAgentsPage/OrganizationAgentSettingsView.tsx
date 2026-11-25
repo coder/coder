@@ -264,7 +264,7 @@ const OrganizationAgentSettingsView: React.FC<
 						This organization has no enabled chat models.
 					</p>
 				)}
-			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
+			<div className="flex flex-col gap-6 rounded-lg border px-6 py-7">
 				<DefaultModelSettings
 					defaultModelID={defaultModelID}
 					enabledModels={enabledModels}

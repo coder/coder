@@ -83,7 +83,7 @@ One Agent Relay process can serve pools for both providers.
 
 ## Requirements
 
-Agent Relay requires a Premium license, Coder 2.39 or later, Agent Relay v0.14.0 or later, and a plan with a [supported provider](#supported-providers).
+Agent Relay requires a Premium license, Coder 2.39 or later, Agent Relay v0.16.0 or later, and a plan with a [supported provider](#supported-providers).
 For the full list, refer to [Before you begin](./setup.md#before-you-begin).
 
 ## Known limitations

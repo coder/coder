@@ -55,6 +55,10 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 		return proxy.healthy && latency !== undefined && latency.at < refetchDate;
 	};
 
+	const isRefreshingLatencies = Boolean(
+		proxyContextValue.proxies?.some(proxyLatencyLoading),
+	);
+
 	// This endpoint returns a 404 when not using enterprise.
 	// If we don't return null, then it looks like this is
 	// loading forever!
@@ -88,6 +92,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									proxyLatencyLoading(selectedProxy)
 										? undefined
 										: latencies?.[selectedProxy.id]?.latencyMS,
+									"icon",
 								)}
 							/>
 
@@ -102,7 +107,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							/>
 						</>
 					) : (
-						"Select Proxy"
+						"Select proxy"
 					)}
 
 					<ChevronDownIcon className="text-content-primary" />
@@ -119,7 +124,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						</div>
 						<div className="text-xs text-content-secondary leading-relaxed">
 							Workspace proxies improve terminal and web app connections.{" "}
-							<Abbr title="Command-Line Interface" pronunciation="initialism">
+							<Abbr title="Command-line interface" pronunciation="initialism">
 								CLI
 							</Abbr>{" "}
 							connections are unaffected. If no region is selected, the primary
@@ -133,53 +138,51 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin">
-						<DropdownMenuRadioGroup value={selectedProxy?.id}>
-							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
-								(proxy) => (
-									<DropdownMenuRadioItem
-										value={proxy.id}
-										key={proxy.id}
-										onClick={(e) => {
-											e.preventDefault();
-											if (!proxy.healthy) {
-												toast.error(
-													`Failed to select proxy "${proxy.display_name}".`,
-													{
-														description:
-															"Please select a healthy workspace proxy.",
-													},
-												);
-												closeMenu();
-												return;
-											}
-
-											proxyContextValue.setProxy(proxy);
+					<DropdownMenuRadioGroup value={selectedProxy?.id}>
+						{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+							(proxy) => (
+								<DropdownMenuRadioItem
+									value={proxy.id}
+									key={proxy.id}
+									onClick={(e) => {
+										e.preventDefault();
+										if (!proxy.healthy) {
+											toast.error(
+												`Failed to select proxy "${proxy.display_name}".`,
+												{
+													description:
+														"Please select a healthy workspace proxy.",
+												},
+											);
 											closeMenu();
-										}}
-									>
-										<div className="flex gap-3 items-center w-full">
-											<div className="leading-none size-4">
-												<ExternalImage
-													src={proxy.icon_url}
-													alt=""
-													className="object-contain size-full"
-												/>
-											</div>
+											return;
+										}
 
-											{proxy.display_name}
-
-											<Latency
-												className="ml-auto"
-												latency={latencies?.[proxy.id]?.latencyMS}
-												isLoading={proxyLatencyLoading(proxy)}
+										proxyContextValue.setProxy(proxy);
+										closeMenu();
+									}}
+								>
+									<div className="flex gap-3 items-center w-full">
+										<div className="leading-none size-4">
+											<ExternalImage
+												src={proxy.icon_url}
+												alt=""
+												className="object-contain size-full"
 											/>
 										</div>
-									</DropdownMenuRadioItem>
-								),
-							)}
-						</DropdownMenuRadioGroup>
-					</div>
+
+										{proxy.display_name}
+
+										<Latency
+											className="ml-auto"
+											latency={latencies?.[proxy.id]?.latencyMS}
+											isLoading={proxyLatencyLoading(proxy)}
+										/>
+									</div>
+								</DropdownMenuRadioItem>
+							),
+						)}
+					</DropdownMenuRadioGroup>
 				)}
 
 				<DropdownMenuSeparator />
@@ -202,6 +205,13 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 					Refresh latencies
 				</DropdownMenuItem>
 			</DropdownMenuContent>
+			{/* Outside the menu content so it stays mounted while the menu closes. */}
+			<span role="status" className="sr-only">
+				{refetchDate &&
+					(isRefreshingLatencies
+						? "Refreshing latencies"
+						: "Latencies refreshed")}
+			</span>
 		</DropdownMenu>
 	);
 };

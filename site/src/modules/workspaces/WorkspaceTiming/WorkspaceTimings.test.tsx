@@ -19,7 +19,9 @@ describe("WorkspaceTimings", () => {
 			/>,
 		);
 		await user.click(
-			screen.getByRole("button", { name: "View run startup scripts details" }),
+			screen.getByRole("button", {
+				name: /^View run startup scripts details \d/,
+			}),
 		);
 
 		await user.click(screen.getByRole("textbox"));
@@ -27,5 +29,30 @@ describe("WorkspaceTimings", () => {
 
 		const scriptRow = screen.getByRole("row", { name: /^Git Clone / });
 		expect(within(scriptRow).getByRole("button")).toBe(document.activeElement);
+	});
+
+	it("exposes the stage breadcrumb as a navigation landmark", async () => {
+		const user = userEvent.setup();
+		renderComponent(
+			<WorkspaceTimings
+				defaultIsOpen
+				provisionerTimings={WorkspaceTimingsResponse.provisioner_timings}
+				agentScriptTimings={WorkspaceTimingsResponse.agent_script_timings}
+				agentConnectionTimings={
+					WorkspaceTimingsResponse.agent_connection_timings
+				}
+			/>,
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: /^View run startup scripts details \d/,
+			}),
+		);
+
+		const nav = screen.getByRole("navigation", { name: "breadcrumb" });
+		const list = within(nav).getByRole("list");
+		expect(
+			within(list).getByRole("listitem", { current: "location" }),
+		).toHaveTextContent(/^start$/);
 	});
 });

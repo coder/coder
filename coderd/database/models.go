@@ -5454,6 +5454,8 @@ type ChatContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 type ChatDebugRun struct {
@@ -5645,6 +5647,14 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	// When true, the project's chats can only use the templates in chat_project_templates, and none when it has no rows. When false, they can use every template their owner can use.
+	LimitTemplates bool `db:"limit_templates" json:"limit_templates"`
+	// Attached template recommended to the project's chats. Ignored while the template is not attached.
+	DefaultTemplateID uuid.NullUUID `db:"default_template_id" json:"default_template_id"`
+	// Preset applied when a chat creates a workspace from the default template without choosing one.
+	DefaultTemplateVersionPresetID uuid.NullUUID `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	// Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.
+	DefaultParameters json.RawMessage `db:"default_parameters" json:"default_parameters"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5667,6 +5677,14 @@ type ChatProjectMemory struct {
 	Body           string    `db:"body" json:"body"`
 	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.
+type ChatProjectTemplate struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	CreatedBy  uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {
@@ -5861,6 +5879,8 @@ type ExternalAuthLink struct {
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
 	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+	// The ID of the key used to encrypt the OAuth extra data. If this is NULL, the extra data is not encrypted.
+	OAuthExtraKeyID sql.NullString `db:"oauth_extra_key_id" json:"oauth_extra_key_id"`
 }
 
 type File struct {
@@ -6371,6 +6391,7 @@ type Skill struct {
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
 	Action         bool          `db:"action" json:"action"`
 	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+	DisplayName    string        `db:"display_name" json:"display_name"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -6445,6 +6466,7 @@ type Template struct {
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	BrowserOnly                   bool            `db:"browser_only" json:"browser_only"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -6501,6 +6523,8 @@ type TemplateTable struct {
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	// Whether coderd refuses non-browser client connections, such as SSH, port forwarding and desktop IDEs, to workspaces built from this template. The deployment-wide browser_only setting applies on top of this.
+	BrowserOnly bool `db:"browser_only" json:"browser_only"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -6931,6 +6955,8 @@ type WorkspaceAgentContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Agent Plugin name: the plugin's own name on an OK plugin row, the owning plugin's name on a skill or mcp_server row the plugin ships, and empty otherwise.
+	PluginName string `db:"plugin_name" json:"plugin_name"`
 }
 
 // Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.

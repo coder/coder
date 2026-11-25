@@ -2,39 +2,8 @@
 -- with empty tables. Only the schema comes back: deleted automations,
 -- webhook secrets, message provenance and automation-queued messages are not
 -- restored.
---
--- Take every table lock this migration needs before changing anything. See
--- 000609_chat_automations.up.sql for the reasoning. chat_automations does
--- not exist yet, so it is not locked here.
-DO $$
-DECLARE
-	previous_lock_timeout text := current_setting('lock_timeout');
-	deadline timestamptz := clock_timestamp() + interval '2 minutes';
-BEGIN
-	LOOP
-		BEGIN
-			-- Well below the default deadlock_timeout of 1s, so this
-			-- transaction gives up before PostgreSQL can choose an
-			-- application transaction as the deadlock victim.
-			PERFORM set_config('lock_timeout', '100ms', true);
-			-- chats_expanded is recreated below. DROP VIEW locks only the
-			-- view, while LOCK TABLE on the view would also lock users (via
-			-- visible_users) in ACCESS EXCLUSIVE mode.
-			DROP VIEW IF EXISTS chats_expanded;
-			LOCK TABLE chats, chat_messages, chat_queued_messages IN ACCESS EXCLUSIVE MODE;
-			-- The chat_automations foreign keys need these.
-			LOCK TABLE organizations, users, chat_model_configs IN SHARE ROW EXCLUSIVE MODE;
-			EXIT;
-		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
-			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration 000615 down could not lock the chat tables within 2 minutes';
-			END IF;
-		END;
-		PERFORM pg_sleep(0.1);
-	END LOOP;
-	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
-END;
-$$;
+
+DROP VIEW IF EXISTS chats_expanded;
 
 CREATE TYPE chat_automation_kind AS ENUM ('webhook', 'schedule');
 CREATE TYPE chat_automation_target_mode AS ENUM ('existing_chat', 'new_chat');

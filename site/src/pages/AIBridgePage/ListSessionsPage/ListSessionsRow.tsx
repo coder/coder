@@ -6,7 +6,6 @@ import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { clampContent } from "#/utils/text";
@@ -46,23 +45,21 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 			}}
 		>
 			<TableCell className="font-normal">
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<p className="m-0 line-clamp-2 wrap-anywhere">{promptPreview}</p>
-						</TooltipTrigger>
-						<TooltipContent
-							className="max-w-64 max-h-80 overflow-y-auto"
-							side="top"
-							align="start"
-							// The portal still bubbles React clicks up to the row.
-							onClick={(event) => event.stopPropagation()}
-						>
-							<div className="font-bold">Last prompt</div>
-							<div className="wrap-anywhere">{promptPreview}</div>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<p className="m-0 line-clamp-2 wrap-anywhere">{promptPreview}</p>
+					</TooltipTrigger>
+					<TooltipContent
+						className="max-w-64 max-h-80 overflow-y-auto"
+						side="top"
+						align="start"
+						// The portal still bubbles React clicks up to the row.
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className="font-bold">Last prompt</div>
+						<div className="wrap-anywhere">{promptPreview}</div>
+					</TooltipContent>
+				</Tooltip>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="flex items-center gap-3 min-w-0">

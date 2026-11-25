@@ -7,9 +7,8 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
-import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
 	AgentScriptTiming,
 	Template,
@@ -27,6 +26,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -48,7 +48,6 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -64,7 +63,6 @@ import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
-import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
@@ -109,7 +107,7 @@ const statusBorderClassByLifecycle: Partial<
 	shutdown_timeout: "border-border-warning",
 	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
-	off: "border-border",
+	off: "",
 };
 
 const getAgentBorderClass = (
@@ -117,17 +115,19 @@ const getAgentBorderClass = (
 	hasErrorState: boolean,
 ): string => {
 	if (hasErrorState) {
-		return "border-border";
+		return "";
 	}
 
 	// Lifecycle state is more specific than connection status, so it wins.
 	return (
 		statusBorderClassByLifecycle[agent.lifecycle_state] ??
 		statusBorderClassByStatus[agent.status] ??
-		"border-border"
+		""
 	);
 };
 
+// Matches the log source display name that coderd assigns to startup scripts.
+// sentence-case-expect: this is an API value, not UI text.
 const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 
 // A script is considered failed if it exited with a non-zero code, or if its
@@ -145,7 +145,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const features = useFeatureVisibility();
+	const { workspace_external_agent } = features;
+	const browser_only = features.browser_only || template.browser_only;
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -181,9 +183,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
-	const logListRef = useRef<List>(null);
-	const logListDivRef = useRef<HTMLDivElement>(null);
-	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
 		setShowLogs(
@@ -198,38 +197,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		hasScriptIssues,
 		hasStartupFeatures,
 	]);
-
-	// This is a layout effect to remove flicker when we're scrolling to the bottom.
-	useLayoutEffect(() => {
-		// If we're currently watching the bottom, we always want to stay at the bottom.
-		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
-		}
-	}, [showLogs, agentLogs, bottomOfLogs]);
-
-	// This is a bit of a hack on the react-window API to get the scroll position.
-	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
-	// This makes it feel similar to a terminal that auto-scrolls downwards!
-	const handleLogScroll = (props: ListOnScrollProps) => {
-		if (
-			props.scrollOffset === 0 ||
-			props.scrollUpdateWasRequested ||
-			!logListDivRef.current
-		) {
-			return;
-		}
-		// The parent holds the height of the list!
-		const parent = logListDivRef.current.parentElement;
-		if (!parent) {
-			return;
-		}
-		// Use the parent's scrollHeight (not the inner div's) so that
-		// any padding on the scroll container is included in the
-		// calculation and doesn't inflate the "at bottom" zone.
-		const distanceFromBottom =
-			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
-		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-	};
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -339,7 +306,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		error: boolean;
 	}[] = [
 		{
-			title: "All Logs",
+			title: "All logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 			error: false,
@@ -350,6 +317,8 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	const shouldExpandLogs =
 		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
 	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
+	const isLoadingLogs =
+		shouldExpandLogs && !(hasConnectivityIssues || shouldShowLogsTabs);
 	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
@@ -402,7 +371,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		<div
 			key={agent.id}
 			className={cn(
-				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md overflow-clip",
+				"flex max-w-full flex-col rounded-lg border bg-surface-primary text-sm shadow-md overflow-clip",
 				borderClass,
 			)}
 		>
@@ -410,7 +379,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
 					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
 						<AgentStatus agent={agent} />
-						<span className="block max-w-[260px] truncate text-base font-semibold text-content-primary">
+						<span className="block max-w-65 truncate text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
 					</div>
@@ -532,7 +501,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			<section className="border-0 border-t border-solid border-border">
+			<section className="border-t">
 				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
@@ -576,18 +545,21 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 							</Button>
 						</CollapsibleTrigger>
 					</div>
+					{/* Outside the collapsible content so it is mounted before logs load. */}
+					<span role="status" className="sr-only">
+						{isLoadingLogs && "Loading logs"}
+					</span>
 					<CollapsibleContent>
 						<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 							{/*
 								Gate the spinner on `shouldExpandLogs` so it does not flash while
 								CollapsibleContent is closing.
 							*/}
-							{shouldExpandLogs &&
-								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-[300px] flex items-center justify-center">
-										<Spinner size="lg" loading className="block mx-auto" />
-									</div>
-								)}
+							{isLoadingLogs && (
+								<div className="h-75 flex items-center justify-center">
+									<Spinner size="lg" loading className="block mx-auto" />
+								</div>
+							)}
 							{hasConnectivityIssues && (
 								<div className="mb-4 flex flex-col gap-3">
 									{connectivityIssues.map((issue) => (
@@ -600,7 +572,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 								</div>
 							)}
 							{shouldShowLogsTabs && (
-								<div className="border border-solid rounded-md overflow-clip">
+								<div className="border rounded-md overflow-clip">
 									<Tabs
 										className="-mx-px -mt-px"
 										value={selectedLogTab}
@@ -661,7 +633,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															</DropdownMenuTrigger>
 															<DropdownMenuContent
 																align="end"
-																className="max-h-56 overflow-y-auto"
+																className="max-h-[min(14rem,var(--radix-popper-available-height))]"
 															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
@@ -697,34 +669,28 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<div
 												className={cn(
 													"shrink-0 flex items-center gap-2 pl-2 pr-3",
-													"border-solid border-0 border-b border-l",
+													"border-b border-l",
 												)}
 											>
-												<TooltipProvider>
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<Button
-																variant="subtle"
-																size="sm"
-																className="min-w-0"
-																disabled={!hasSelectedLogs}
-																onClick={() =>
-																	copyToClipboard(selectedLogsText)
-																}
-															>
-																{showCopiedSuccess ? (
-																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-																<span className="sr-only">{copyLogsLabel}</span>
-															</Button>
-														</TooltipTrigger>
-														<TooltipContent>
-															{showCopiedSuccess ? "Copied!" : copyLogsLabel}
-														</TooltipContent>
-													</Tooltip>
-												</TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+															<span className="sr-only">{copyLogsLabel}</span>
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
+													</TooltipContent>
+												</Tooltip>
+												<CopiedStatus show={showCopiedSuccess} />
+
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}
 													logSets={downloadableLogSets}
@@ -735,17 +701,16 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 										</div>
 										{/*
 											Using a singular TabsContent is necessary to avoid scrolling
-											issues when the selected log tab changes.
+											issues when the selected log tab changes. It is not a tab stop
+											because the logs region inside already is.
 										*/}
-										<TabsContent value={selectedLogTab}>
+										<TabsContent value={selectedLogTab} tabIndex={-1}>
 											<AutoSizer disableHeight>
 												{({ width }) => (
 													<AgentLogs
-														ref={logListRef}
-														innerRef={logListDivRef}
 														height={256}
 														width={width}
-														onScroll={handleLogScroll}
+														follow
 														logs={selectedLogLines}
 														sources={agent.log_sources}
 														overflowed={agent.logs_overflowed}

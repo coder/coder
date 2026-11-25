@@ -1,0 +1,468 @@
+name: build
+
+# Builds, signs and publishes ghcr.io/coder/coder-preview for every commit to
+# main and release/*, through coder/ghcr-publisher (see "Build Linux Docker
+# images"). dogfood.cdr.dev pulls new main builds itself through Flux image
+# automation in coder/dogfood, so this workflow needs no cluster access.
+#
+# The build job signs exactly like release.yaml, through the same
+# ./.github/actions/build-coder action. This workflow has no pull_request or
+# workflow_dispatch trigger: the release-signer identity provider only accepts
+# this file on a push to main or release/X.Y, or the creation of a release/X.Y
+# branch, from the ci-signing environment.
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+    # Same as the docs filter in ci.yaml's changes job: commits that only
+    # touch these don't need a signed build.
+    paths-ignore:
+      - "docs/**"
+      - ".claude/docs/**"
+      - "*.md"
+      - "examples/web-server/**"
+      - "examples/monitoring/**"
+      - "examples/lima/**"
+
+  # GitHub Actions does not reliably trigger push-based runs when a new branch
+  # is created at a commit that already has a run (e.g. from main). The create
+  # event fires separately so newly cut release branches get an image. Other
+  # branch and tag creations are filtered out by the build job condition.
+  create:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    # Gates access to the signing secrets and identities. Both GCP signing
+    # service accounts only trust this environment and `release`.
+    environment: ci-signing
+    permissions:
+      contents: read
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
+      id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: GHCR Login
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The fat binaries embed every slim binary, so this builds and signs all
+      # of them (darwin, Windows and GPG), as release.yaml does. Notarization
+      # only applies to darwin archives, which main builds don't produce.
+      - name: Build and sign
+        id: build
+        uses: ./.github/actions/build-coder
+        with:
+          sign: "true"
+          extra-tools: "cosign syft"
+          # Enable React profiling build and discoverable source maps for the
+          # dogfood deployment (dogfood.cdr.dev). This also applies to
+          # release/* branch builds, but those still produce coder-preview
+          # images, not release images. Release images are built by
+          # release.yaml (no profiling).
+          react-profiling: "true"
+          targets: >-
+            build/coder_@VERSION@_linux_amd64
+            build/coder_@VERSION@_linux_arm64
+            build/coder_@VERSION@_linux_armv7
+            build/coder_@VERSION@_windows_amd64.zip
+            build/coder_@VERSION@_linux_amd64.tar.gz
+            build/coder_@VERSION@_linux_arm64.tar.gz
+            build/coder_@VERSION@_linux_armv7.tar.gz
+            build/coder_@VERSION@_linux_amd64.deb
+            build/coder_@VERSION@_linux_arm64.deb
+            build/coder_@VERSION@_linux_armv7.deb
+          ev-workload-identity-provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          ev-service-account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          ev-key: ${{ secrets.EV_KEY }}
+          ev-keystore: ${{ secrets.EV_KEYSTORE }}
+          ev-tsa-url: ${{ secrets.EV_TSA_URL }}
+          ev-signing-cert: ${{ secrets.EV_SIGNING_CERT }}
+          release-signer-workload-identity-provider: ${{ secrets.GPG_KMS_WORKLOAD_ID_PROVIDER }}
+          release-signer-service-account: ${{ secrets.GPG_KMS_SERVICE_ACCOUNT }}
+          gpg-release-key: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          gpg-kms-key: ${{ secrets.GPG_KMS_KEY }}
+          ac-certificate-pem: ${{ secrets.AC_CERTIFICATE_PEM }}
+          ac-kms-key-ring: ${{ secrets.AC_KMS_KEY_RING }}
+          ac-kms-key: ${{ secrets.AC_KMS_KEY }}
+
+      # The KMS key's OpenPGP form can only be made by CI. Publish it from main
+      # builds so its fingerprint can be checked and added to release.key.
+      - name: Print GPG KMS public key
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          if [[ -z "$GPG_KMS_KEY" ]]; then
+            echo "GPG_KMS_KEY is not set, skipping."
+            exit 0
+          fi
+          ./scripts/gpgkms.sh public-key -key "$GPG_KMS_KEY" > "$RUNNER_TEMP/gpg-kms-public.key"
+          gpg --show-keys --with-fingerprint "$RUNNER_TEMP/gpg-kms-public.key"
+          {
+            echo "### Cloud KMS release signing key"
+            echo '```'
+            gpg --show-keys --with-fingerprint "$RUNNER_TEMP/gpg-kms-public.key"
+            cat "$RUNNER_TEMP/gpg-kms-public.key"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GPG_KMS_KEY: ${{ secrets.GPG_KMS_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.build.outputs.release-signer-credentials-file }}
+
+      # Free up disk space before building Docker images. The preceding
+      # Build step produces ~2 GB of binaries and packages, the Go build
+      # cache is ~1.3 GB, and node_modules is ~500 MB. Docker image
+      # builds, pushes, and SBOM generation need headroom that isn't
+      # available without reclaiming some of that space.
+      - name: Clean up build cache
+        run: |
+          set -euxo pipefail
+          # Go caches are no longer needed; binaries are already compiled.
+          go clean -cache -modcache
+          # Remove .apk and .rpm packages that are not uploaded as
+          # artifacts and were only built as make prerequisites.
+          rm -f ./build/*.apk ./build/*.rpm
+
+      # Builds go to ghcr.io/coder/coder-preview-staging. coder/ghcr-publisher,
+      # the only repository that can write ghcr.io/coder/coder-preview, copies
+      # a build after verifying its preview attestation (below), and derives
+      # every public tag from the verified commit: the version,
+      # main-<commit time>-<sha> (which dogfood's Flux deploys), main, latest
+      # and release-X.Y.
+      #
+      # Anyone who can write the staging package can move its tags, so every
+      # digest here comes from the registry's response to our own push, and
+      # the multi-arch index is built from those digests. No staging tag is
+      # ever read back.
+      - name: Build Linux Docker images
+        id: build-docker
+        env:
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview-staging
+          DOCKER_CLI_EXPERIMENTAL: "enabled"
+          # Skip building .deb/.rpm/.apk/.tar.gz as prerequisites for
+          # the Docker image targets; they were already built above.
+          DOCKER_IMAGE_NO_PREREQUISITES: "true"
+        run: |
+          set -euxo pipefail
+
+          # build Docker images for each architecture
+          version="$(./scripts/version.sh)"
+          tag="${version//+/-}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          # build images for each architecture
+          # note: omitting the -j argument to avoid race conditions when pushing
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+          refs=()
+          for arch in amd64 arm64 armv7; do
+            image_tag="$(cat "build/coder_${version}_linux_${arch}.tag")"
+            push_output="$(docker push "$image_tag")"
+            echo "$push_output"
+            digest="$(sed -nE 's/^.*: digest: (sha256:[0-9a-f]{64}) size: [0-9]+$/\1/p' <<<"$push_output" | tail -n1)"
+            if [[ -z "$digest" ]]; then
+              echo "::error::docker push printed no digest for ${image_tag}"
+              exit 1
+            fi
+            refs+=("${CODER_IMAGE_BASE}@${digest}")
+          done
+
+          index="${CODER_IMAGE_BASE}:${tag}"
+          docker manifest create --amend "$index" "${refs[@]}"
+          push_output="$(docker manifest push "$index")"
+          echo "$push_output"
+          digest="$(grep -oE '^sha256:[0-9a-f]{64}$' <<<"$push_output" | tail -n1)"
+          if [[ -z "$digest" ]]; then
+            echo "::error::docker manifest push printed no digest for ${index}"
+            exit 1
+          fi
+          {
+            echo "digest=${digest}"
+            echo "ref=${CODER_IMAGE_BASE}@${digest}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: SBOM Generation and Attestation
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          COSIGN_EXPERIMENTAL: 1
+          # By digest (see "Build Linux Docker images"). The attestation is
+          # stored next to the digest; coder/ghcr-publisher copies it along.
+          IMAGE_REF: ${{ steps.build-docker.outputs.ref }}
+        run: |
+          set -euxo pipefail
+          syft "${IMAGE_REF}" -o spdx-json > coder_sbom.spdx.json
+          cosign clean --force=true "${IMAGE_REF}"
+          cosign attest --type spdxjson \
+            --predicate coder_sbom.spdx.json \
+            --yes \
+            "${IMAGE_REF}"
+
+      - name: GitHub Attestation for Docker image
+        id: attest_image
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder-preview-staging
+          subject-digest: ${{ steps.build-docker.outputs.digest }}
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: github.ref == 'refs/heads/main'
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+          if [[ "${{ steps.attest_image.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for the Docker image failed"
+          fi
+
+      # coder/ghcr-publisher promotes a build only with this attestation: this
+      # workflow, on this branch, at this commit, for coder-preview. It must
+      # succeed.
+      - name: Preview attestation predicate
+        id: preview_predicate
+        env:
+          VERSION_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          if [[ "$commit" != "$GITHUB_SHA" ]]; then
+            echo "::error::checked out ${commit}, but this run is for ${GITHUB_SHA}"
+            exit 1
+          fi
+          predicate="$(jq -nc --arg c "$commit" --arg v "$VERSION_TAG" \
+            '{commit: $c, version_tag: $v, target: "ghcr.io/coder/coder-preview"}')"
+          echo "predicate=${predicate}" >> "$GITHUB_OUTPUT"
+
+      - name: Preview attestation for Docker image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder-preview-staging
+          subject-digest: ${{ steps.build-docker.outputs.digest }}
+          predicate-type: https://coder.com/attestations/preview/v1
+          predicate: ${{ steps.preview_predicate.outputs.predicate }}
+
+      # coder-ghcr-dispatch has only contents: write, on coder/ghcr-publisher
+      # only: enough for a repository_dispatch and nothing else. The token is
+      # revoked right after.
+      - name: Generate coder-ghcr-dispatch token
+        id: dispatch_token
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.CODER_GHCR_DISPATCH_APP_ID }}
+          kms-key: ${{ secrets.CODER_GHCR_DISPATCH_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: ghcr-publisher
+          permissions: |
+            contents: write
+          skip-token-revoke: true
+
+      - name: Promote to ghcr.io/coder/coder-preview
+        env:
+          GH_TOKEN: ${{ steps.dispatch_token.outputs.token }}
+          DIGEST: ${{ steps.build-docker.outputs.digest }}
+          VERSION_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api repos/coder/ghcr-publisher/dispatches \
+            -f event_type=promote-preview \
+            -f "client_payload[digest]=${DIGEST}"
+          gh api -X DELETE installation/token || echo "::warning::could not revoke the dispatch token; it expires within an hour"
+          unset GH_TOKEN
+
+          # Wait until the public tags that never move show this build (or an
+          # earlier build of this commit, which the publisher keeps). The
+          # publisher's main-<commit time>-<sha> uses the commit's own time.
+          # Anonymous reads: the package is public.
+          remote_digest() {
+            local repo="coder/coder-preview" token
+            token="$(curl -fsS "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r .token)"
+            curl -fsS -o /dev/null -D - -I \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repo}/manifests/$1" |
+              tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" {print $2}'
+          }
+          tags=("$VERSION_TAG")
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tags+=("main-$(git log -1 --format=%ct HEAD)-$(git rev-parse --short=12 HEAD)")
+          fi
+          deadline=$((SECONDS + 1200))
+          for tag in "${tags[@]}"; do
+            until got="$(remote_digest "$tag" 2>/dev/null)" && [[ -n "$got" ]]; do
+              if ((SECONDS > deadline)); then
+                echo "::error::ghcr.io/coder/coder-preview:${tag} did not appear in 20 minutes; check https://github.com/coder/ghcr-publisher/actions/workflows/promote-preview.yaml"
+                exit 1
+              fi
+              sleep 15
+            done
+            if [[ "$got" != "$DIGEST" ]]; then
+              echo "::notice::ghcr.io/coder/coder-preview:${tag} is ${got}, an earlier build of this commit"
+            fi
+            echo "ghcr.io/coder/coder-preview:${tag} -> ${got}"
+          done
+
+      - name: GitHub Attestation for binaries
+        id: attest_binaries
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ./build/*.tar.gz
+            ./build/*.zip
+            ./build/*.deb
+
+      - name: Report binary attestation failure
+        if: github.ref == 'refs/heads/main' && steps.attest_binaries.outcome == 'failure'
+        run: echo "::warning::GitHub attestation for binaries failed"
+
+      - name: Upload build artifact (coder-linux-amd64.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-amd64.tar.gz
+          path: ./build/*_linux_amd64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-amd64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-amd64.deb
+          path: ./build/*_linux_amd64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-arm64.tar.gz
+          path: ./build/*_linux_arm64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-arm64.deb
+          path: ./build/*_linux_arm64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-armv7.tar.gz
+          path: ./build/*_linux_armv7.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-linux-armv7.deb
+          path: ./build/*_linux_armv7.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-windows-amd64.zip)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coder-windows-amd64.zip
+          path: ./build/*_windows_amd64.zip
+          retention-days: 7
+
+
+  # Runs separately from the signing job so this third-party action never runs
+  # in the same job as the signing credentials.
+  prune:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      # Prunes the staging package this workflow pushes to. Only
+      # coder/ghcr-publisher can write ghcr.io/coder/coder-preview, and public
+      # package storage is free, so the public builds are kept.
+      - name: Prune old staging images
+        uses: vlaurin/action-ghcr-prune@0cf7d39f88546edd31965acba78cdcb0be14d641 # v0.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          organization: coder
+          container: coder-preview-staging
+          keep-younger-than: 30 # days
+          prune-tags-regexes: |
+            ^
+          prune-untagged: true
+
+  notify-slack-on-failure:
+    needs:
+      - build
+      - prune
+    runs-on: ubuntu-latest
+    environment: main
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Send Slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Build failure in main",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+                }
+              }
+            ]
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

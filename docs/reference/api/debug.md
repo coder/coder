@@ -357,6 +357,18 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     ]
   },
+  "pubsub": {
+    "backend": "string",
+    "dismissed": true,
+    "error": "string",
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
   "websocket": {

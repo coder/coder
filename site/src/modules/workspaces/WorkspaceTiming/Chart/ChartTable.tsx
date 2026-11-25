@@ -105,7 +105,7 @@ export const ChartTableSection: React.FC<ChartTableSectionProps> = ({
 type ChartTableRowProps = {
 	/** Row header content, such as the stage or resource name. */
 	label: React.ReactNode;
-	/** Timeline content, usually a bar followed by the duration. */
+	/** Timeline content, usually a bar, its duration, and its category label. */
 	children: React.ReactNode;
 };
 

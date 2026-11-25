@@ -19,6 +19,7 @@ import (
 const (
 	reqPathBackground        = "background"
 	reqPathCallID            = "call_id"
+	reqPathID                = "id"
 	reqPathRole              = "role"
 	reqPathInput             = "input"
 	reqPathParallelToolCalls = "parallel_tool_calls"
@@ -27,9 +28,16 @@ const (
 )
 
 var (
+	constApplyPatchCallOutput = string(constant.ValueOf[constant.ApplyPatchCallOutput]())
+	constComputerCallOutput   = string(constant.ValueOf[constant.ComputerCallOutput]())
 	constCustomToolCallOutput = string(constant.ValueOf[constant.CustomToolCallOutput]())
+	constDeveloper            = string(constant.ValueOf[constant.Developer]())
 	constFunctionCallOutput   = string(constant.ValueOf[constant.FunctionCallOutput]())
 	constInputText            = string(constant.ValueOf[constant.InputText]())
+	constLocalShellCallOutput = string(constant.ValueOf[constant.LocalShellCallOutput]())
+	constReasoning            = string(constant.ValueOf[constant.Reasoning]())
+	constShellCallOutput      = string(constant.ValueOf[constant.ShellCallOutput]())
+	constSystem               = string(constant.ValueOf[constant.System]())
 	constUser                 = string(constant.ValueOf[constant.User]())
 
 	reqPathContent = string(constant.ValueOf[constant.Content]())
@@ -75,26 +83,50 @@ func (p RequestPayload) correlatingToolCallID() *string {
 	}
 
 	arr := items.Array()
-	if len(arr) == 0 {
-		return nil
+	for i := len(arr) - 1; i >= 0; i-- {
+		item := arr[i]
+
+		// Clients can append items that don't start a new turn after a tool
+		// result. For example, Codex appends a developer message recording an
+		// approved command prefix. Look past them to find the tool result.
+		role := item.Get(reqPathRole).String()
+		itemType := item.Get(reqPathType).String()
+		if role == constDeveloper || role == constSystem || itemType == constReasoning {
+			continue
+		}
+
+		// The first remaining item decides. Anything other than a tool result,
+		// such as a user message, means a new turn. Stopping here matters
+		// because the full history is resent on every request, so a new prompt
+		// always has older tool results earlier in the input.
+		//
+		// Results of tools the client runs reference the originating tool call
+		// by call_id. Codex sends custom_tool_call_output for custom tools such
+		// as apply_patch. Hosted tools (web search, file search, code
+		// interpreter, image generation, MCP) run within a single response and
+		// send no result back, so they never correlate.
+		switch itemType {
+		case constFunctionCallOutput, constCustomToolCallOutput,
+			constComputerCallOutput, constShellCallOutput,
+			constApplyPatchCallOutput, constLocalShellCallOutput:
+		default:
+			return nil
+		}
+
+		callID := item.Get(reqPathCallID).String()
+		// The API schema gives local_shell_call_output only an id field, which
+		// holds the call ID, but clients also send call_id.
+		if callID == "" && itemType == constLocalShellCallOutput {
+			callID = item.Get(reqPathID).String()
+		}
+		if callID == "" {
+			return nil
+		}
+
+		return &callID
 	}
 
-	// Both function and custom (freeform) tool results reference the
-	// originating tool call by call_id. Codex sends custom_tool_call_output
-	// for custom tools such as apply_patch.
-	last := arr[len(arr)-1]
-	switch last.Get(reqPathType).String() {
-	case constFunctionCallOutput, constCustomToolCallOutput:
-	default:
-		return nil
-	}
-
-	callID := last.Get(reqPathCallID).String()
-	if callID == "" {
-		return nil
-	}
-
-	return &callID
+	return nil
 }
 
 // LastUserPrompt returns input text with the "user" role from the last input
