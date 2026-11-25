@@ -1797,7 +1797,7 @@ func TestUserOIDC(t *testing.T) {
 			SetupToken: "0123456789abcdefghijklmnopqrstuv",
 			OIDCConfig: cfg,
 		})
-		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, client, map[string]any{
 			"email": "stranger@coder.com",
 			"sub":   uuid.NewString(),
 		})
