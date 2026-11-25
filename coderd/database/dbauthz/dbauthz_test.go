@@ -1394,6 +1394,27 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
+	s.Run("InsertChatProjectPin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.InsertChatProjectPinParams{UserID: uuid.New(), ProjectID: project.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().InsertChatProjectPin(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, project, policy.ActionRead)
+	}))
+	s.Run("PinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.PinChatProjectParams{UserID: uuid.New(), ProjectID: project.ID, PinOrder: sql.NullInt32{Int32: 2, Valid: true}}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().PinChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, project, policy.ActionRead)
+	}))
+	s.Run("UnpinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UnpinChatProjectParams{UserID: uuid.New(), ProjectID: project.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UnpinChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, project, policy.ActionRead)
+	}))
 	s.Run("IsChatProjectUsableByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.IsChatProjectUsableByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}
 		dbm.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), arg).Return(true, nil).AnyTimes()

@@ -285,6 +285,14 @@ type ChatProjectDefaultTemplate struct {
 	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
+// PinChatProjectRequest pins a chat project for the caller, or moves an
+// already pinned project.
+type PinChatProjectRequest struct {
+	// PinOrder is the 1-based position to pin at. When omitted, a new pin
+	// goes to the end and an existing pin keeps its position.
+	PinOrder *int32 `json:"pin_order,omitempty"`
+}
+
 // CreateChatProjectRequest creates a chat project in the organization named
 // by the route.
 type CreateChatProjectRequest struct {
@@ -2517,6 +2525,11 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
+	// ExcludeOwnProjectChats leaves out the caller's own unpinned chats in
+	// projects the caller can use. List those with ProjectID. Chats shared
+	// with the caller and chats in projects the caller can no longer use are
+	// still included.
+	ExcludeOwnProjectChats bool
 	Pagination
 }
 
@@ -2571,6 +2584,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("project_id", opts.ProjectID.String())
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.ExcludeOwnProjectChats {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("exclude_own_project_chats", "true")
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2670,6 +2690,16 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// PinChatProject pins a chat project for the caller or moves its pin.
+func (c *ExperimentalClient) PinChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req PinChatProjectRequest) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/pin", req)
+}
+
+// UnpinChatProject unpins a chat project for the caller.
+func (c *ExperimentalClient) UnpinChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	return requestNoContent(ctx, c.Client, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/pin", nil)
 }
 
 // ChatProjectACL returns who a chat project is shared with.

@@ -1832,6 +1832,16 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectPin authorizes a change to a user's pin on a project.
+// A pin is that user's personal preference, so the write is authorized on
+// the user, and the project only needs to be readable.
+func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)); err != nil {
+		return err
+	}
+	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -6648,6 +6658,13 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
+func (q *querier) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.InsertChatProjectPin(ctx, arg)
+}
+
 // InsertChatProjectTemplates requires use on every template as well as
 // update on the project, so attaching can never reach a template the actor
 // cannot use.
@@ -7690,6 +7707,13 @@ func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.PinChatByID(ctx, id)
 }
 
+func (q *querier) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.PinChatProject(ctx, arg)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -7877,6 +7901,13 @@ func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.UnpinChatByID(ctx, id)
+}
+
+func (q *querier) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.UnpinChatProject(ctx, arg)
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
