@@ -174,6 +174,18 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
+			// The build completes before Friday's quiet hours. The
+			// Saturday-only rule requires Saturday's 23:50 start.
+			name:                   "TemplateAutostopRequirement/SkipsPreviousDayQuietHours",
+			buildCompletedAt:       time.Date(2023, 1, 20, 12, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=UTC 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			expectedMaxDeadline: time.Date(2023, 1, 21, 23, 50, 0, 0, time.UTC),
+		},
+		{
 			name:                   "TemplateAutostopRequirement1HourSkip",
 			buildCompletedAt:       saturdayMidnightSydney.Add(-59 * time.Minute),
 			templateAllowAutostop:  true,
@@ -230,6 +242,18 @@ func TestCalculateAutoStop(t *testing.T) {
 			workspaceTTL: 0,
 			// expectedDeadline is copied from expectedMaxDeadline.
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
+		},
+		{
+			// January 21 is in an eligible week, after its Friday stop.
+			// January 27 falls in an off week.
+			name:                   "TemplateAutostopRequirementFortnightly/AfterLastRequiredDay",
+			buildCompletedAt:       time.Date(2023, 1, 21, 12, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=UTC 0 0 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00010000, // Friday
+				Weeks:      2,          // every 2 weeks
+			},
+			expectedMaxDeadline: time.Date(2023, 2, 3, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name:                   "TemplateAutostopRequirementTriweekly/Skip",
