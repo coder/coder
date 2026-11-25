@@ -290,6 +290,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
+	const movePinnedChat = (chatId: string, to: number) => {
+		const order = movePinnedId(pinnedChatIds, chatId, to);
+		if (order) {
+			setLocalPinOrder(order);
+			reorderMutation.mutate({ chatId, pinOrder: to + 1 });
+		}
+	};
+
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { source, target } = event.operation;
 		if (event.canceled) {
@@ -319,12 +327,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		) {
 			return;
 		}
-		const chatId = String(source.id);
-		const order = movePinnedId(pinnedChatIds, chatId, source.index);
-		if (order) {
-			setLocalPinOrder(order);
-			reorderMutation.mutate({ chatId, pinOrder: source.index + 1 });
-		}
+		movePinnedChat(String(source.id), source.index);
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -692,6 +695,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 												<PinnedSection
 													pinnedChats={sortedPinnedChats}
 													canReorderChats={!disablePinnedReordering}
+													onMovePinnedChat={movePinnedChat}
 													expanded={!collapsedSections[PINNED_SECTION_KEY]}
 													onToggle={() => toggleSection(PINNED_SECTION_KEY)}
 													projectFolders={

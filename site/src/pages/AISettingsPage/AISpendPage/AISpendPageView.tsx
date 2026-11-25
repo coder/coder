@@ -1,7 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	getOrganizationLabel,
@@ -20,8 +19,12 @@ import {
 } from "#/components/Tabs/Tabs";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
+import { DetailedReportTab } from "./DetailedReportTab";
+import type { DetailedReportQuery } from "./DetailedReportTable";
 import { OverviewTab } from "./OverviewTab";
 import type { SpendDays } from "./spendDays";
+
+export type AISpendTab = "overview" | "detailed-report";
 
 type AISpendPageViewProps = {
 	isEntitled: boolean;
@@ -30,13 +33,27 @@ type AISpendPageViewProps = {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
+	tab: AISpendTab;
+	onTabChange: (tab: string) => void;
 	isOrganizationsLoading: boolean;
 	organizationsError: Error | null;
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
+	minDay: string | undefined;
+	reportFilter: string;
+	onReportFilterChange: (filter: string) => void;
+	reportQuery: DetailedReportQuery;
+	hasRunReport: boolean;
+	isReportOutdated: boolean;
+	onRunReport: () => void;
+	onCancelReport: () => void;
+	canExportReport: boolean;
+	isExportingReport: boolean;
+	onExportReport: () => void;
+	onOpenDetailedReport: (username?: string) => void;
 	overview: TypesGen.OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
-	unpricedModels: readonly TypesGen.UnpricedAIModel[] | undefined;
+	unpricedModels: TypesGen.UnpricedAIModels | undefined;
 	isUnpricedModelsLoading: boolean;
 	topSpenderDetails: readonly TypesGen.OrganizationAISpendUser[] | undefined;
 	topSpenderDetailsError: Error | null;
@@ -50,10 +67,24 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,
+	tab,
+	onTabChange,
 	isOrganizationsLoading,
 	organizationsError,
 	days,
 	onDaysChange,
+	minDay,
+	reportFilter,
+	onReportFilterChange,
+	reportQuery,
+	hasRunReport,
+	isReportOutdated,
+	onRunReport,
+	onCancelReport,
+	canExportReport,
+	isExportingReport,
+	onExportReport,
+	onOpenDetailedReport,
 	overview,
 	overviewError,
 	unpricedModels,
@@ -107,9 +138,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					)
 				}
 			>
-				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
-					AI spend
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
@@ -121,19 +150,21 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					This organization is unavailable, or you don't have access to it.
 				</Alert>
 			) : (
-				<Tabs defaultValue="overview" className="flex flex-col gap-6">
+				<Tabs
+					value={tab}
+					onValueChange={onTabChange}
+					className="flex flex-col gap-6"
+				>
 					<TabsList>
 						<TabsTrigger value="overview">Overview</TabsTrigger>
-						{/* TODO(AIGOV-731): enable once the Detailed report tab is built. */}
-						<TabsTrigger value="detailed-report" disabled>
-							Detailed report
-						</TabsTrigger>
+						<TabsTrigger value="detailed-report">Detailed report</TabsTrigger>
 					</TabsList>
 					<TabsContent value="overview">
 						<OverviewTab
 							now={now}
 							days={days}
 							onDaysChange={onDaysChange}
+							minDay={minDay}
 							overview={overview}
 							overviewError={overviewError}
 							unpricedModels={unpricedModels}
@@ -145,6 +176,31 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 								organizations,
 							)}
 							canViewSessions={canViewSessions}
+							onOpenDetailedReport={onOpenDetailedReport}
+						/>
+					</TabsContent>
+					<TabsContent value="detailed-report">
+						<DetailedReportTab
+							organizationId={organization.id}
+							organizationName={getOrganizationLabel(
+								organization,
+								organizations,
+							)}
+							now={now}
+							days={days}
+							onDaysChange={onDaysChange}
+							minDay={minDay}
+							filter={reportFilter}
+							onFilterChange={onReportFilterChange}
+							canViewSessions={canViewSessions}
+							reportQuery={reportQuery}
+							hasRunReport={hasRunReport}
+							isReportOutdated={isReportOutdated}
+							onRunReport={onRunReport}
+							onCancelReport={onCancelReport}
+							canExportReport={canExportReport}
+							isExportingReport={isExportingReport}
+							onExportReport={onExportReport}
 						/>
 					</TabsContent>
 				</Tabs>

@@ -58,7 +58,7 @@ export const ClosedWithCustomRange: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByRole("combobox")).toHaveTextContent(/April 10-16/);
+		expect(canvas.getByRole("combobox")).toHaveTextContent(/Apr 10-16/);
 	},
 };
 
@@ -208,7 +208,7 @@ export const ApplyCustomRange: Story = {
 		await waitFor(() => {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
-		expect(canvas.getByRole("combobox")).toHaveTextContent(/April 10-16/);
+		expect(canvas.getByRole("combobox")).toHaveTextContent(/Apr 10-16/);
 	},
 };
 
@@ -242,7 +242,7 @@ export const SelectSingleDay: Story = {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
 		expect(canvas.getByRole("combobox")).toHaveTextContent(
-			/April 10, 12:00 AM - 11:59 PM/,
+			/Apr 10, 12:00 AM - 11:59 PM/,
 		);
 	},
 };
@@ -358,7 +358,7 @@ export const IntraDayTriggerLabel: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByRole("combobox")).toHaveTextContent(
-			/April 12, 9:00 AM - 11:00 AM/,
+			/Apr 12, 9:00 - 11:00 AM/,
 		);
 	},
 };

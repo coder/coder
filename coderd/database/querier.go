@@ -297,10 +297,11 @@ type sqlcQuerier interface {
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
 	// These were most likely created via 'coder login' as the prebuilds user.
 	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
-	// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
-	// @organization_id over the [period_start, period_end) window. Spend is
-	// attributed through the token usage's effective group, and rows are bucketed
-	// by the token usage created_at, matching how ai_user_daily_spend is derived.
+	// Returns per-user, per-group, per-model, per-provider, per-client aggregated
+	// AI spend for @organization_id over the [period_start, period_end) window.
+	// Spend is attributed through the token usage's effective group, and rows are
+	// bucketed by the token usage created_at, matching how ai_user_daily_spend is
+	// derived. Usage without a recorded client is reported as Unknown.
 	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
@@ -1069,6 +1070,10 @@ type sqlcQuerier interface {
 	// Filters to active, non-deleted, non-system users to match the canonical
 	// seat count query (GetActiveAISeatCount).
 	GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
+	// Total spend for user_id per effective group in @effective_group_ids on or
+	// after period_start until NOW. Groups with no spend return 0. The
+	// period_start parameter is normalized to its UTC calendar day.
+	GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg GetUserAISpendByEffectiveGroupsSinceParams) ([]GetUserAISpendByEffectiveGroupsSinceRow, error)
 	// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
 	// The period_start parameter is normalized to its UTC calendar day.
 	GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error)

@@ -14616,7 +14616,8 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			index = spanIndex{}
 			for _, span := range recorder.Ended() {
-				index[span.Name()] = append(index[span.Name()], span)
+				stage := chatd.SpanAttr(t, span, chatloop.AttrStage)
+				index[stage] = append(index[stage], span)
 			}
 			return len(index[string(chatloop.StageChatTurn)]) >= n
 		}, testutil.IntervalFast)
@@ -14733,6 +14734,11 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, turn, chatloop.AttrChatKind))
 		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, chatloop.AttrChatID))
 		require.False(t, turn.Parent().IsValid(), "chat_turn is a trace root")
+		require.Equal(t, "invoke_agent coder", turn.Name())
+		require.Equal(t, "invoke_agent", chatd.SpanAttr(t, turn, "gen_ai.operation.name"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, turn, "user.id"))
+		require.Equal(t, h.org.ID.String(), chatd.SpanAttr(t, turn, chatloop.AttrOrganizationID))
 
 		requireChild(t, single(t, index, chatloop.StageAcquisition), turn)
 		steps := index[string(chatloop.StageGenerationStep)]
@@ -14750,6 +14756,27 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		requireChild(t, single(t, index, chatloop.StageCommit), generate)
 		require.NotEmpty(t, chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
+		require.Equal(t, "chat "+h.model.Model, stream.Name())
+		require.Equal(t, chatd.SpanAttr(t, stream, "gen_ai.provider.name"), chatd.SpanAttr(t, turn, "gen_ai.provider.name"))
+		// Title generation is a non-streaming model call that runs outside
+		// the turn, so it must still be attributed to the chat owner.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		var modelCall sdktrace.ReadOnlySpan
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			for _, span := range h.recorder.Ended() {
+				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageModelCall) {
+					modelCall = span
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalFast)
+		require.Equal(t, "chat "+h.model.Model, modelCall.Name())
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, modelCall, "user.id"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, modelCall, "gen_ai.conversation.id"))
+		require.Equal(t, chatID.String(), chatd.SpanAttr(t, stream, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, stream, "user.id"))
+		require.Equal(t, h.model.Model, chatd.SpanAttr(t, stream, "gen_ai.request.model"))
 		require.Empty(t, index[string(chatloop.StageQueueWait)])
 		require.Empty(t, index[string(chatloop.StageRetryBackoff)])
 		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
@@ -14870,7 +14897,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			turns = nil
 			for _, span := range h.recorder.Ended() {
-				if span.Name() == string(chatloop.StageChatTurn) {
+				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageChatTurn) {
 					turns = append(turns, span)
 				}
 			}
