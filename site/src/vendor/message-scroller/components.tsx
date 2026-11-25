@@ -44,13 +44,9 @@ const noop = () => {}
 // LOCAL CHANGE
 /**
  * Returns a callback that reconciles the scroll position with the current
- * layout. The resize observers defer that to the next frame, so a commit or
- * an animation frame that shrinks the content can let the browser clamp the
- * view for a frame. Call it before paint, from a layout effect or the
- * animation frame that changes the layout; a later call cannot undo the
- * clamped frame. While it follows the end with autoScroll on, it scrolls to
- * the end, so a call in the commit that appends a prompt scrolls there before
- * the scroller anchors the prompt. A no-op outside a MessageScroller.
+ * layout. The resize observers defer that to the next frame, so call it before
+ * paint when the content shrinks. While following the end with autoScroll on,
+ * it scrolls to the end. A no-op outside a MessageScroller.
  */
 function useMessageScrollerLayoutSync() {
   return React.useContext(MessageScrollerContext)?.handleResize ?? noop

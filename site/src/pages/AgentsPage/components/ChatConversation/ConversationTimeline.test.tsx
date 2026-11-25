@@ -67,9 +67,8 @@ type TimelineStage = {
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
 /**
- * Renders the timeline in a MessageScroller. Each stage renders afterTimeline
- * after it in the scroller's content, so its layout effects run after the
- * timeline's.
+ * Renders the timeline in a MessageScroller, followed by afterTimeline, whose
+ * layout effects run after the timeline's.
  */
 function renderTimeline(
 	initial: TimelineStage = {},
@@ -756,8 +755,6 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-// Eight history rows, then MockWorkingMessages' turn with text before its
-// second step, renumbered from 11.
 const mockScrollHistory: ChatMessage[] = Array.from(
 	{ length: 8 },
 	(_, index) => ({
@@ -776,9 +773,7 @@ const historyRowIds = new Set(
 	mockScrollHistory.map((message) => `message:${message.id}`),
 );
 
-// History rows are 100px, the reply between the steps 200px, and the prompt,
-// blocks, answer, and live row 40px, so the running turn fits under its
-// prompt with room for the tail spacer.
+// message:14 is the reply between the steps.
 const scrollRowHeight = (messageId: string) => {
 	if (historyRowIds.has(messageId)) {
 		return 100;
@@ -786,8 +781,6 @@ const scrollRowHeight = (messageId: string) => {
 	return messageId === "message:14" ? 200 : 40;
 };
 
-// Reports the view's scroll position in each commit that renders it, before
-// the browser paints and before passive effects run.
 const CommitScrollTop: React.FC<{ onCommit: (scrollTop: number) => void }> = ({
 	onCommit,
 }) => {
@@ -844,8 +837,6 @@ describe("ConversationTimeline in a MessageScroller", () => {
 		const scrollTo = vi.mocked(Element.prototype.scrollTo);
 		scrollTo.mockClear();
 
-		// The commit only appends, so the scroller's anchor handling places the
-		// prompt without a resize pass first scrolling to the end.
 		rerenderStage({
 			messages: [...mockScrollHistory, mockSplitTurn[0]],
 			chatStatus: "running",
