@@ -46,7 +46,7 @@ function loadPersistedWidth(): number {
 		return DEFAULT_WIDTH;
 	}
 	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
+	if (Number.isNaN(parsed) || parsed < MIN_WIDTH) {
 		return DEFAULT_WIDTH;
 	}
 	return parsed;
@@ -243,27 +243,6 @@ export const RightPanel = ({
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
-
-	// Clamp width when the viewport or parent panel shrinks so the
-	// persisted width matches the rendered side-by-side panel width.
-	useEffect(() => {
-		const handleResize = () => {
-			setWidth((prev) =>
-				Math.min(prev, getSideBySideMaxWidth(panelRef.current)),
-			);
-		};
-		handleResize();
-		const parent = panelRef.current?.parentElement;
-		const resizeObserver = new ResizeObserver(handleResize);
-		if (parent) {
-			resizeObserver.observe(parent);
-		}
-		window.addEventListener("resize", handleResize);
-		return () => {
-			resizeObserver.disconnect();
-			window.removeEventListener("resize", handleResize);
-		};
-	}, []);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {

@@ -2152,7 +2152,7 @@ export const LunarLander: React.FC = () => {
 		}
 
 		// ---- sizing ----
-		function resize() {
+		function fitCanvas() {
 			const dpr = window.devicePixelRatio || 1;
 			const rect = ctr.getBoundingClientRect();
 			logicalW = rect.width;
@@ -2162,6 +2162,10 @@ export const LunarLander: React.FC = () => {
 			cvs.style.width = `${logicalW}px`;
 			cvs.style.height = `${logicalH}px`;
 			cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		}
+
+		function resize() {
+			fitCanvas();
 			// A resize regenerates the terrain, so older snapshots no
 			// longer fit the screen.
 			history = [];
@@ -2878,7 +2882,8 @@ export const LunarLander: React.FC = () => {
 		cvs.addEventListener("wheel", onWheel, { passive: false });
 		cvs.addEventListener("click", onClick);
 
-		resize();
+		fitCanvas();
+		startNewRound();
 		frameId = requestAnimationFrame(loop);
 
 		return () => {

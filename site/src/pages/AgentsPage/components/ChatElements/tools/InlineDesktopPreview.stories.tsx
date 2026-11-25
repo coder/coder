@@ -22,10 +22,10 @@ export const Idle: Story = {
 		connectionOverride: {
 			status: "idle",
 			hasConnected: false,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -43,10 +43,10 @@ export const Connected: Story = {
 		connectionOverride: {
 			status: "connected",
 			hasConnected: true,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -60,10 +60,10 @@ export const Disconnected: Story = {
 		connectionOverride: {
 			status: "disconnected",
 			hasConnected: true,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
@@ -77,10 +77,10 @@ export const ErrorState: Story = {
 		connectionOverride: {
 			status: "error",
 			hasConnected: false,
+			scaleViewport: false,
+			setScaleViewport: fn(),
 			reconnect: fn(),
 			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
 		},
 	},
 };
