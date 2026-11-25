@@ -1150,7 +1150,9 @@ jobs:
           "arm64_zip_url=${arm64_zip_url}" >> $env:GITHUB_OUTPUT
 
         env:
-          # For gh CLI:
+          # For gh CLI. This lookup is a separate step from the submission so
+          # the cdrci secret is exposed only to the step that writes to
+          # microsoft/winget-pkgs.
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.version }}
 
@@ -1189,6 +1191,8 @@ jobs:
           $errors = @()
           foreach ($package in $packages) {
             $id = $package.id
+            # Tee-Object -Variable keeps the previous package's output when
+            # wingetcreate prints nothing.
             $output = $null
             echo "Submitting ${id} ${version}"
             $rerun = "Fix the error printed after 'Submitting ${id} ${version}', then rerun this job. The rerun skips any package that already has an open or merged PR."
