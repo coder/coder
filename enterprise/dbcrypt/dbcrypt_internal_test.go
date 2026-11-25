@@ -879,6 +879,7 @@ func TestEncryptDecryptField(t *testing.T) {
 		digest := sql.NullString{String: ciphers[0].HexDigest(), Valid: true}
 		err := cryptDB.decryptField(&field, digest)
 		require.ErrorContains(t, err, "illegal base64 data")
+		require.NotContains(t, err.Error(), field)
 	})
 }
 

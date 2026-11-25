@@ -11,31 +11,66 @@ import {
 } from "storybook/test";
 import { API, type GetLicensesResponse } from "#/api/api";
 import { licensesKey } from "#/api/queries/licenses";
-import { meAISpendKey } from "#/api/queries/users";
+import { meAISpendKey, meOrganizationsAISpendKey } from "#/api/queries/users";
 import type {
 	Entitlements,
 	FeatureName,
 	UserAISpendStatus,
+	UserOrganizationsAISpendStatus,
 } from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
 	MockBuildInfo,
 	MockLicenseResponse,
+	MockMultiOrgExceededUserAISpendStatus,
+	MockMultiOrgExceededUserOrganizationsAISpendStatus,
+	MockMultiOrgUserOrganizationsAISpendStatus,
+	MockUserAISpendStatus,
+	MockUserOrganizationAISpend,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
-const mockAISpend: UserAISpendStatus = {
-	user_id: MockUserOwner.id,
-	effective_group_id: "grp-789",
-	effective_budget: {
-		spend_limit_micros: 1_200_000_000,
-		limit_source: "group",
-	},
-	current_spend_micros: 819_000_000,
-	period_start: "2026-06-01T00:00:00Z",
-	period_end: "2026-07-01T00:00:00Z",
+const mockWarningAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	current_spend_micros: 1_080_000_000,
+};
+
+const mockExceededAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	current_spend_micros: 1_500_000_000,
+};
+
+const mockAtLimitAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	current_spend_micros: 1_200_000_000,
+};
+
+const mockUnlimitedAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	effective_budget: null,
+};
+
+const mockZeroSpendAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	current_spend_micros: 0,
+};
+
+const mockZeroLimitAISpend: UserAISpendStatus = {
+	...MockUserAISpendStatus,
+	current_spend_micros: 0,
+	effective_budget: { spend_limit_micros: 0, limit_source: "group" },
+};
+
+// The shown organization reports a negative spend, so the menu keeps the
+// selector and says the spend is unavailable.
+const mockMultiOrgInvalidAISpend: UserOrganizationsAISpendStatus = {
+	...MockMultiOrgUserOrganizationsAISpendStatus,
+	organizations: [
+		{ ...MockUserOrganizationAISpend, current_spend_micros: -1 },
+		...MockMultiOrgUserOrganizationsAISpendStatus.organizations.slice(1),
+	],
 };
 
 const spendPeriodLabel = "Approximate AI spend June 1 - July 1, 2026";
@@ -90,7 +125,7 @@ const mockPlatform = (platform: string, maxTouchPoints = 0) => {
 
 const Example: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend without the aibridge feature", async () => {
@@ -103,7 +138,7 @@ const Example: Story = {
 export const WithAISpend: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows AI spend", async () => {
@@ -128,7 +163,7 @@ export const AISpendWarning: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: { ...mockAISpend, current_spend_micros: 1_080_000_000 },
+				data: mockWarningAISpend,
 			},
 		],
 	},
@@ -155,7 +190,7 @@ export const AISpendAtLimit: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: { ...mockAISpend, current_spend_micros: 1_200_000_000 },
+				data: mockAtLimitAISpend,
 			},
 		],
 	},
@@ -181,7 +216,7 @@ export const AISpendExceeded: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
+				data: mockExceededAISpend,
 			},
 		],
 	},
@@ -206,7 +241,10 @@ export const AISpendUnlimited: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, effective_budget: null } },
+			{
+				key: meAISpendKey,
+				data: mockUnlimitedAISpend,
+			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -230,7 +268,10 @@ export const AISpendZeroSpend: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, current_spend_micros: 0 } },
+			{
+				key: meAISpendKey,
+				data: mockZeroSpendAISpend,
+			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -255,19 +296,12 @@ export const AISpendZeroLimit: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: {
-					...mockAISpend,
-					current_spend_micros: 0,
-					effective_budget: {
-						spend_limit_micros: 0,
-						limit_source: "group",
-					},
-				},
+				data: mockZeroLimitAISpend,
 			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("shows a zero limit without exceeding", async () => {
+		await step("shows a zero limit as exceeded", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$0 / $0 USD"),
@@ -282,19 +316,83 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
+export const MultiOrgAISpend: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgUserOrganizationsAISpendStatus,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openDropdown(canvasElement);
+	},
+};
+
+export const MultiOrgAISpendPicker: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgUserOrganizationsAISpendStatus,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const menu = await openDropdown(canvasElement);
+		await userEvent.click(
+			await menu.findByRole("menuitem", { name: /^Organization:/ }),
+		);
+	},
+};
+
+export const MultiOrgAISpendExceeded: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [
+			{ key: meAISpendKey, data: MockMultiOrgExceededUserAISpendStatus },
+			{
+				key: meOrganizationsAISpendKey,
+				data: MockMultiOrgExceededUserOrganizationsAISpendStatus,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openDropdown(canvasElement);
+	},
+};
+
+export const MultiOrgAISpendUnavailable: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+			{ key: meOrganizationsAISpendKey, data: mockMultiOrgInvalidAISpend },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openDropdown(canvasElement);
+	},
+};
+
 // Dropdown closed to isolate the avatar and its severity badge, which
 // indicates AI spend limit severity.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 };
 
 export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows no severity indicator for normal spend", async () => {
@@ -312,7 +410,7 @@ export const AvatarBorderWarning: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: { ...mockAISpend, current_spend_micros: 1_080_000_000 },
+				data: mockWarningAISpend,
 			},
 		],
 	},
@@ -332,7 +430,7 @@ export const AvatarBorderExceeded: Story = {
 		queries: [
 			{
 				key: meAISpendKey,
-				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
+				data: mockExceededAISpend,
 			},
 		],
 	},
@@ -350,7 +448,10 @@ export const AISpendHiddenOnInvalidData: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
-			{ key: meAISpendKey, data: { ...mockAISpend, current_spend_micros: -1 } },
+			{
+				key: meAISpendKey,
+				data: { ...MockUserAISpendStatus, current_spend_micros: -1 },
+			},
 		],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -368,7 +469,7 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 			{
 				key: meAISpendKey,
 				data: {
-					...mockAISpend,
+					...MockUserAISpendStatus,
 					effective_budget: { spend_limit_micros: -1, limit_source: "group" },
 				},
 			},
@@ -384,7 +485,7 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 
 export const InstallCoderDesktopMacOS: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	beforeEach: () => mockPlatform("MacIntel"),
 	play: async ({ canvasElement, step }) => {
@@ -405,7 +506,7 @@ export const InstallCoderDesktopMacOS: Story = {
 
 export const InstallCoderDesktopWindows: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	beforeEach: () => mockPlatform("Win32"),
 	play: async ({ canvasElement, step }) => {
@@ -420,7 +521,7 @@ export const InstallCoderDesktopWindows: Story = {
 
 export const InstallCoderDesktopHiddenOnLinux: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	beforeEach: () => mockPlatform("Linux x86_64"),
 	play: async ({ canvasElement, step }) => {
@@ -441,7 +542,7 @@ export const InstallCoderDesktopHiddenOnLinux: Story = {
 
 export const InstallCoderDesktopHiddenOniPadOS: Story = {
 	parameters: {
-		queries: [{ key: meAISpendKey, data: mockAISpend }],
+		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
 	},
 	// iPadOS 13+ reports "MacIntel" but exposes a touchscreen.
 	beforeEach: () => mockPlatform("MacIntel", 5),

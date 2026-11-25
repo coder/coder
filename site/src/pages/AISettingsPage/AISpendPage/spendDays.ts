@@ -17,15 +17,37 @@ export type SpendDays = {
 	endDate: string;
 };
 
-/** The default range: the last 7 UTC days, including the current one. */
-export const defaultSpendDays = (now: Date): SpendDays => {
+/**
+ * The default range: the last 7 UTC days, including the current one, starting
+ * no earlier than `minDay`.
+ */
+export const defaultSpendDays = (now: Date, minDay?: string): SpendDays => {
 	const today = dayjs.utc(now);
+	const startDate = today
+		.subtract(DEFAULT_SPEND_DAY_COUNT - 1, "day")
+		.format(DATE_FORMAT.ISO_DATE);
 	return {
-		startDate: today
-			.subtract(DEFAULT_SPEND_DAY_COUNT - 1, "day")
-			.format(DATE_FORMAT.ISO_DATE),
+		startDate: minDay !== undefined && minDay > startDate ? minDay : startDate,
 		endDate: today.format(DATE_FORMAT.ISO_DATE),
 	};
+};
+
+/**
+ * The first UTC day whose data is fully retained, or undefined when data is
+ * never purged.
+ */
+export const firstRetainedDay = (
+	now: Date,
+	retentionMs: number,
+): string | undefined => {
+	if (retentionMs <= 0) {
+		return undefined;
+	}
+	const cutoff = dayjs.utc(now).subtract(retentionMs, "millisecond");
+	const day = cutoff.startOf("day");
+	return (day.isSame(cutoff) ? day : day.add(1, "day")).format(
+		DATE_FORMAT.ISO_DATE,
+	);
 };
 
 /**
@@ -40,13 +62,18 @@ const isDay = (value: string): boolean =>
 
 /**
  * Reads a range from URL values, or returns null when they are missing,
- * malformed, reversed, or longer than the server allows.
+ * malformed, reversed, longer than the server allows, or start before
+ * `minDay`.
  */
 export const parseSpendDays = (
 	startDate: string | null,
 	endDate: string | null,
+	minDay?: string,
 ): SpendDays | null => {
 	if (!startDate || !endDate || !isDay(startDate) || !isDay(endDate)) {
+		return null;
+	}
+	if (minDay !== undefined && startDate < minDay) {
 		return null;
 	}
 	const dayCount = dayjs.utc(endDate).diff(dayjs.utc(startDate), "day") + 1;

@@ -53,9 +53,8 @@ func TestPush(t *testing.T) {
 
 	t.Run("SuccessfulDelivery", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		msg := randomWebpushMessage(t)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
 		})
@@ -80,8 +79,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("ExpiredSubscription", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusGone)
 		})
@@ -108,8 +106,7 @@ func TestPush(t *testing.T) {
 		// 5xx responses are transient failures. The subscription should
 		// remain after a failed delivery so it can be retried later.
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Internal server error"))
@@ -175,8 +172,7 @@ func TestPush(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitShort)
-				manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+				ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 					assertWebpushPayload(t, r)
 					w.WriteHeader(tc.statusCode)
 					w.Write([]byte(tc.body))
@@ -215,9 +211,8 @@ func TestPush(t *testing.T) {
 	// the database.
 	t.Run("StaleAndFailedSubscriptions", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
-		manager, store, server500URL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, server500URL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("transient error"))
@@ -270,10 +265,9 @@ func TestPush(t *testing.T) {
 
 	t.Run("MultipleSubscriptions", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		var okEndpointCalled bool
 		var goneEndpointCalled bool
-		manager, store, serverOKURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, serverOKURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			okEndpointCalled = true
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
@@ -325,9 +319,8 @@ func TestPush(t *testing.T) {
 	t.Run("NotificationPayload", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		var requestReceived bool
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+		ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 			requestReceived = true
 			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
@@ -352,8 +345,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("NoSubscriptions", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, _ := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		ctx, manager, store, _ := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -374,9 +366,9 @@ func TestPush(t *testing.T) {
 	t.Run("CachesSubscriptionsWithinTTL", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
 		rawStore, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &countingWebpushStore{Store: rawStore}
 		var delivered atomic.Int32
 		manager, _, serverURL := setupPushTestWithOptions(ctx, t, store, func(w http.ResponseWriter, r *http.Request) {
@@ -408,9 +400,9 @@ func TestPush(t *testing.T) {
 	t.Run("RefreshesSubscriptionsAfterTTLExpires", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
 		rawStore, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &countingWebpushStore{Store: rawStore}
 		var delivered atomic.Int32
 		manager, _, serverURL := setupPushTestWithOptions(ctx, t, store, func(w http.ResponseWriter, r *http.Request) {
@@ -443,9 +435,9 @@ func TestPush(t *testing.T) {
 	t.Run("PrunesStaleSubscriptionsFromCache", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
 		rawStore, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &countingWebpushStore{Store: rawStore}
 		var okCalls atomic.Int32
 		var goneCalls atomic.Int32
@@ -512,9 +504,8 @@ func TestPush(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitShort)
 				var written atomic.Int64
-				manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+				ctx, manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, r *http.Request) {
 					assertWebpushPayload(t, r)
 					w.WriteHeader(tc.statusCode)
 					flusher, _ := w.(http.Flusher)
@@ -563,7 +554,6 @@ func TestPush(t *testing.T) {
 	// is read.
 	t.Run("HeaderFloodIsRejected", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
 			w.Header().Set("X-Padding", strings.Repeat("x", 1<<20))
@@ -576,6 +566,7 @@ func TestPush(t *testing.T) {
 		transport.MaxResponseHeaderBytes = 64 << 10
 
 		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		manager, err := webpush.New(ctx, &logger, db, "http://example.com", webpush.WithHTTPClient(client))
 		require.NoError(t, err)
@@ -602,7 +593,6 @@ func TestPush(t *testing.T) {
 	// connection and never responds. The client timeout must end the call.
 	t.Run("StalledServerTimesOut", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		release := make(chan struct{})
 		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			<-release
@@ -615,6 +605,7 @@ func TestPush(t *testing.T) {
 		client.Timeout = time.Second
 
 		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		manager, err := webpush.New(ctx, &logger, db, "http://example.com", webpush.WithHTTPClient(client))
 		require.NoError(t, err)
@@ -660,11 +651,14 @@ func assertWebpushPayload(t testing.TB, r *http.Request) {
 
 // setupPushTest creates a common test setup for webpush notification tests.
 // The test HTTP client bypasses SSRF protection so that httptest.Server
-// (bound to 127.0.0.1) can be reached.
-func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (webpush.Dispatcher, database.Store, string) {
+// (bound to 127.0.0.1) can be reached. It returns the context so that the
+// deadline starts after the database exists.
+func setupPushTest(t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (context.Context, webpush.Dispatcher, database.Store, string) {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)
-	return setupPushTestWithOptions(ctx, t, db, handlerFunc)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	manager, store, serverURL := setupPushTestWithOptions(ctx, t, db, handlerFunc)
+	return ctx, manager, store, serverURL
 }
 
 func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Store, handlerFunc func(w http.ResponseWriter, r *http.Request), opts ...webpush.Option) (webpush.Dispatcher, database.Store, string) {
@@ -707,8 +701,6 @@ func TestNoopWebpusher(t *testing.T) {
 func TestSSRFPrevention(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-
 	// Start a server that records whether it received a request.
 	var received atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -720,6 +712,7 @@ func TestSSRFPrevention(t *testing.T) {
 	// Create a dispatcher via New() WITHOUT WithHTTPClient so it
 	// uses the default SSRF-safe client that blocks loopback.
 	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	manager, err := webpush.New(ctx, &logger, db, "http://example.com")
 	require.NoError(t, err)

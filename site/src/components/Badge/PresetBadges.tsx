@@ -32,10 +32,6 @@ export const AlphaBadge: React.FC = () => {
 	return <Badge variant="purple">Alpha</Badge>;
 };
 
-export const ExperimentalBadge: React.FC = () => {
-	return <Badge variant="purple">Experimental</Badge>;
-};
-
 export const DeprecatedBadge: React.FC = () => {
 	return <Badge variant="warning">Deprecated</Badge>;
 };

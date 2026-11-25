@@ -307,19 +307,25 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
 
 ## Example: Running an external provisioner on a VM
 
+Replace `<your-provisioner-key>` with a [scoped key](#scoped-key-recommended) from `coder provisioner keys create`.
+To authenticate with a [user token](#user-tokens) instead, set `CODER_SESSION_TOKEN` in place of `CODER_PROVISIONER_DAEMON_KEY`.
+
 ```sh
 curl -fsSL https://coder.com/install.sh | sh
 export CODER_URL=https://coder.example.com
-export CODER_SESSION_TOKEN=your_token
+export CODER_PROVISIONER_DAEMON_KEY=<your-provisioner-key>
 coder provisioner start
 ```
 
 ## Example: Running an external provisioner via Docker
 
+Replace `<your-provisioner-key>` with a [scoped key](#scoped-key-recommended) from `coder provisioner keys create`.
+To authenticate with a [user token](#user-tokens) instead, set `CODER_SESSION_TOKEN` in place of `CODER_PROVISIONER_DAEMON_KEY`.
+
 ```sh
 docker run --rm -it \
   -e CODER_URL=https://coder.example.com/ \
-  -e CODER_SESSION_TOKEN=your_token \
+  -e CODER_PROVISIONER_DAEMON_KEY=<your-provisioner-key> \
   --entrypoint /opt/coder \
   ghcr.io/coder/coder:latest \
   provisioner start
