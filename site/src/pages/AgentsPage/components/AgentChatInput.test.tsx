@@ -1043,7 +1043,6 @@ describe("AgentChatInput", () => {
 		mockedUseSpeechRecognition.mockReturnValue({
 			isSupported: true,
 			isRecording: true,
-			transcript: "",
 			error: null,
 			start: vi.fn(),
 			stop,
@@ -1157,12 +1156,15 @@ describe("AgentChatInput", () => {
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
-		const speech = { isRecording: false, transcript: "" };
+		const speech = { isRecording: false };
+		let publishTranscript: (transcript: string) => void = () => {};
 		mockedUseSpeechRecognition.mockImplementation(() => ({
 			isSupported: true,
 			error: null,
 			...speech,
-			start: vi.fn(),
+			start: (onTranscript) => {
+				publishTranscript = onTranscript;
+			},
 			stop: vi.fn(),
 			cancel: vi.fn(),
 		}));
@@ -1181,8 +1183,9 @@ describe("AgentChatInput", () => {
 		};
 
 		await user.click(screen.getByRole("button", { name: "Voice input" }));
-		Object.assign(speech, { isRecording: true, transcript: "check this" });
+		Object.assign(speech, { isRecording: true });
 		rerender(input());
+		act(() => publishTranscript("check this"));
 		await waitFor(() =>
 			expect(inputRef.current?.getContentParts()).toEqual([
 				chip,
@@ -1192,7 +1195,7 @@ describe("AgentChatInput", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Cancel voice input" }),
 		);
-		Object.assign(speech, { isRecording: false, transcript: "" });
+		Object.assign(speech, { isRecording: false });
 		rerender(input());
 
 		await waitFor(() =>
@@ -1209,7 +1212,6 @@ describe("AgentChatInput", () => {
 		mockedUseSpeechRecognition.mockReturnValue({
 			isSupported: true,
 			isRecording: false,
-			transcript: "",
 			error: null,
 			start,
 			stop: vi.fn(),

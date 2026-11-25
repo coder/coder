@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import { useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -19,7 +18,7 @@ type ChatSearchResultsProps = {
 	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
-	readonly selectedChatIndex: number | undefined;
+	readonly selectedChatId: string | undefined;
 	readonly showLoading: boolean;
 	readonly isRefreshing: boolean;
 	readonly onDismiss: () => void;
@@ -44,7 +43,7 @@ export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 	hasSearchText,
 	location,
 	listboxId,
-	selectedChatIndex,
+	selectedChatId,
 	showLoading,
 	isRefreshing,
 	onDismiss,
@@ -66,7 +65,7 @@ export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 				recentChats={recentChats}
 				location={location}
 				listboxId={listboxId}
-				selectedChatIndex={selectedChatIndex}
+				selectedChatId={selectedChatId}
 				onDismiss={onDismiss}
 			/>
 		);
@@ -107,7 +106,7 @@ export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 						hasSearchText={hasSearchText}
 						location={location}
 						listboxId={listboxId}
-						selectedChatIndex={selectedChatIndex}
+						selectedChatId={selectedChatId}
 						showLoading={showLoading}
 						onDismiss={onDismiss}
 					/>
@@ -125,7 +124,7 @@ type DefaultViewProps = {
 	readonly recentChats: readonly Chat[];
 	readonly location: Location;
 	readonly listboxId: string;
-	readonly selectedChatIndex: number | undefined;
+	readonly selectedChatId: string | undefined;
 	readonly onDismiss: () => void;
 };
 
@@ -133,7 +132,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 	recentChats,
 	location,
 	listboxId,
-	selectedChatIndex,
+	selectedChatId,
 	onDismiss,
 }) => {
 	const visibleRecentChats = recentChats.slice(0, RECENT_CHATS_COUNT);
@@ -158,7 +157,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 										key={chat.id}
 										chat={chat}
 										id={`${listboxId}-option-${index}`}
-										isSelected={selectedChatIndex === index}
+										isSelected={selectedChatId === chat.id}
 										location={location}
 										onSelect={onDismiss}
 									/>
@@ -181,7 +180,7 @@ type ChatSearchResultsListProps = {
 	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
-	readonly selectedChatIndex: number | undefined;
+	readonly selectedChatId: string | undefined;
 	readonly showLoading: boolean;
 	readonly onDismiss: () => void;
 };
@@ -191,7 +190,7 @@ const ChatSearchResultsList: React.FC<ChatSearchResultsListProps> = ({
 	hasSearchText,
 	location,
 	listboxId,
-	selectedChatIndex,
+	selectedChatId,
 	showLoading,
 	onDismiss,
 }) => {
@@ -228,7 +227,7 @@ const ChatSearchResultsList: React.FC<ChatSearchResultsListProps> = ({
 					key={chat.id}
 					chat={chat}
 					id={`${listboxId}-option-${index}`}
-					isSelected={selectedChatIndex === index}
+					isSelected={selectedChatId === chat.id}
 					location={location}
 					onSelect={onDismiss}
 				/>
@@ -252,7 +251,6 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 	location,
 	onSelect,
 }) => {
-	const rowRef = useRef<HTMLAnchorElement | null>(null);
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
@@ -271,15 +269,8 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 		(additions > 0 || deletions > 0 || changedFiles > 0);
 	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
 
-	useEffect(() => {
-		if (isSelected) {
-			rowRef.current?.scrollIntoView({ block: "nearest" });
-		}
-	}, [isSelected]);
-
 	return (
 		<Link
-			ref={rowRef}
 			id={id}
 			role="option"
 			aria-selected={isSelected}

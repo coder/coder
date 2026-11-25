@@ -23,8 +23,7 @@ type ProviderConnectionFieldsProps = {
 	getFieldHelpers: FieldHelpersGetter;
 	baseUrlPlaceholder?: string;
 	apiKeyPlaceholder?: string;
-	onCredentialBlur: (field: "apiKey") => void;
-	onCredentialFocus: (field: "apiKey") => void;
+	savedApiKeyMask?: string;
 };
 
 export const ProviderConnectionFields: React.FC<
@@ -34,8 +33,7 @@ export const ProviderConnectionFields: React.FC<
 	getFieldHelpers,
 	baseUrlPlaceholder,
 	apiKeyPlaceholder,
-	onCredentialBlur,
-	onCredentialFocus,
+	savedApiKeyMask,
 }) => (
 	<>
 		<FormField
@@ -68,8 +66,7 @@ export const ProviderConnectionFields: React.FC<
 				required={providerType !== "anthropic"}
 				label="API key"
 				helpers={getFieldHelpers("apiKey")}
-				onBlur={() => onCredentialBlur("apiKey")}
-				onFocus={() => onCredentialFocus("apiKey")}
+				savedMask={savedApiKeyMask}
 				placeholder={apiKeyPlaceholder}
 				description={
 					providerType && apiKeyCreationUrls[providerType] ? (

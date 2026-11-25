@@ -72,7 +72,6 @@ const AgentPortsSubMenu: React.FC<{
 			portsData={portsData}
 			isRunning={isRunning}
 			isBelowMd={false}
-			focusOnMount={false}
 			onPortSelect={onPortSelect}
 		/>
 	);

@@ -217,6 +217,7 @@
 		"react-you-might-not-need-an-effect/no-initialize-state": "error",
 		"react-you-might-not-need-an-effect/no-pass-data-to-parent": "error",
 		"react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "error",
+		"react-you-might-not-need-an-effect/no-event-handler": "error",
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -250,9 +251,6 @@
 		"immutability": "off", // (small)
 		"vitest/valid-expect": "off", // (small)
 		"purity": "off", // (small)
-
-		// react-you-might-not-need-an-effect rules with existing violations.
-		"react-you-might-not-need-an-effect/no-event-handler": "off", // (xl)
 
 		"no-restricted-imports": [
 			"error",

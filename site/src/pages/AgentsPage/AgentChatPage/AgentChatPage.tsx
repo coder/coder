@@ -389,6 +389,13 @@ const AgentChatPage: React.FC = () => {
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { scrollToEnd } = useMessageScroller();
+	// Completed chat tool results keep sidebar data in sync with the server
+	// state those tools may have changed.
+	const invalidateForToolResults = useChatToolInvalidations({
+		chatID: agentId,
+		organizationName,
+		username: currentUser.username,
+	});
 	const {
 		store,
 		loadStatus,
@@ -402,6 +409,7 @@ const AgentChatPage: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
+		onToolResultsCompleted: invalidateForToolResults,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
@@ -418,15 +426,6 @@ const AgentChatPage: React.FC = () => {
 	const gitWatcher = useGitWatcher({
 		chatId: agentId,
 		agentStatus: workspaceAgent?.status,
-	});
-
-	// Detect completed chat tool results so sidebar data stays in sync
-	// with the server state those tools may have changed.
-	useChatToolInvalidations({
-		store,
-		chatID: agentId,
-		organizationName,
-		username: currentUser.username,
 	});
 
 	// Validate explicit and historical choices against organization options.

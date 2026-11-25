@@ -154,6 +154,38 @@ describe(usePaginatedQuery.name, () => {
 			await testPrefetch(3, 4, false);
 		});
 
+		it("Prefetches the next page again when the filters change", async () => {
+			const queryKey = vi.fn(
+				({
+					pageNumber,
+					searchParams,
+				}: {
+					pageNumber: number;
+					searchParams: URLSearchParams;
+				}) => ["query", searchParams.toString(), pageNumber],
+			);
+			const queryFn = vi.fn(mockQueryFnImplementation);
+			const nextPageFetches = () =>
+				queryFn.mock.calls.filter(([context]) => context.pageNumber === 3)
+					.length;
+			const { rerender } = await render({
+				queryKey,
+				queryFn,
+				searchParams: new URLSearchParams("page=2&q=a"),
+			});
+			await waitFor(() => expect(nextPageFetches()).toBe(1));
+
+			await rerender({
+				options: {
+					queryKey,
+					queryFn,
+					searchParams: new URLSearchParams("page=2&q=b"),
+				},
+			});
+
+			await waitFor(() => expect(nextPageFetches()).toBe(2));
+		});
+
 		it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
 			const startPage = 2;
 			const mockQueryFn = vi.fn(mockQueryFnImplementation);

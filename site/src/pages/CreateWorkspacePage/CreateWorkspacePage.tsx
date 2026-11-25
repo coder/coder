@@ -247,6 +247,7 @@ const CreateWorkspacePage: React.FC = () => {
 					if (ws.current === socket) {
 						setIsConnecting(false);
 						setWsError(error);
+						window.scrollTo(0, 0);
 					}
 				},
 				onClose: () => {
@@ -258,6 +259,7 @@ const CreateWorkspacePage: React.FC = () => {
 								"Refresh the page to reset the form.",
 							),
 						);
+						window.scrollTo(0, 0);
 					}
 				},
 			},
@@ -321,6 +323,7 @@ const CreateWorkspacePage: React.FC = () => {
 			onCreateWorkspace(newWorkspace);
 		} catch {
 			setMode("form");
+			window.scrollTo(0, 0);
 		}
 	});
 
@@ -391,6 +394,7 @@ const CreateWorkspacePage: React.FC = () => {
 	}
 
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Auto-creation starts once consent is given and the external auth and preset queries have resolved, which can happen in either order.
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
 		}
@@ -417,8 +421,8 @@ const CreateWorkspacePage: React.FC = () => {
 		autoCreateReady ||
 		(!latestResponse && !wsError) ||
 		(isInitializing && !wsError) ||
-		(effectivePresetName &&
-			!templateVersionPresetsQuery.isSuccess &&
+		// The form starts on the URL or default preset, so it waits for them.
+		(!templateVersionPresetsQuery.isSuccess &&
 			!templateVersionPresetsQuery.isError);
 
 	return (
@@ -494,11 +498,15 @@ const CreateWorkspacePage: React.FC = () => {
 								};
 							}
 
-							const workspace = await createWorkspaceMutation.mutateAsync({
-								...workspaceRequest,
-								userId: owner.id,
-							});
-							onCreateWorkspace(workspace);
+							try {
+								const workspace = await createWorkspaceMutation.mutateAsync({
+									...workspaceRequest,
+									userId: owner.id,
+								});
+								onCreateWorkspace(workspace);
+							} catch {
+								window.scrollTo(0, 0);
+							}
 						}}
 					/>
 				</RequirePermission>

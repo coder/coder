@@ -418,6 +418,32 @@ describe("OAuth2AppForm", () => {
 		expect(onSubmit).toHaveBeenCalledTimes(2);
 	});
 
+	it("keeps the edit unsaved when the save fails", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn().mockRejectedValue(new Error("Save failed."));
+
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				clientType={MockOAuth2ProviderApps[0].client_type}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.clear(screen.getByLabelText(/^name/i));
+		await user.type(screen.getByLabelText(/^name/i), "Renamed app");
+		const updateButton = screen.getByRole("button", {
+			name: /update application/i,
+		});
+		await user.click(updateButton);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+
+		await user.click(updateButton);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+	});
+
 	// A finished save resets the form to the untrimmed input. Comparing the
 	// trimmed submission against that input would resend the list on the next
 	// unrelated save and restore a URI another admin removed in between.

@@ -1,9 +1,10 @@
 import { isAxiosError } from "axios";
 import { ChevronLeftIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -418,24 +419,32 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	if (loaded?.ok && canEdit && !openedValues) {
 		setOpenedValues(loaded.values);
 	}
-	// A detail 404 does not refresh the separate list query, so invalidate it.
-	useEffect(() => {
-		if (!isSkillDeleted) {
-			return;
-		}
-		toast.info(`That ${NOUN} was deleted.`);
-		void queryClient.invalidateQueries({ ...scope.list, exact: true });
-		onBack();
-	}, [isSkillDeleted, onBack, queryClient, scope.list]);
-	if (isSkillDeleted) {
-		return null;
-	}
 	const title =
 		view.type === "create"
 			? "New skill"
 			: canEdit
 				? "Edit skill"
 				: "View skill";
+
+	if (isSkillDeleted) {
+		return (
+			<>
+				<ProjectSkillEditorHeader
+					title={title}
+					isSubmitting={isSubmitting}
+					backButtonRef={backButtonRef}
+					onBack={() => {
+						// A detail 404 does not refresh the separate list query.
+						void queryClient.invalidateQueries({ ...scope.list, exact: true });
+						onBack();
+					}}
+				/>
+				<div className="px-6 py-6">
+					<Alert severity="info">This {NOUN} was deleted.</Alert>
+				</div>
+			</>
+		);
+	}
 
 	if (!loaded?.ok) {
 		const loadError = loaded ? new Error(loaded.error) : skillQuery.error;

@@ -1,5 +1,4 @@
 import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -85,25 +84,6 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	const parsedFiles = parseDiffString(diffContent);
 
 	// ---------------------------------------------------------------
-	// Scroll-to-file from chat input chip clicks
-	// ---------------------------------------------------------------
-	const [scrollTarget, setScrollTarget] = useState<string | null>(null);
-
-	useEffect(() => {
-		const handler = (e: Event) => {
-			const { fileName } = (e as CustomEvent).detail ?? {};
-			if (typeof fileName !== "string") return;
-			setScrollTarget(fileName);
-		};
-		window.addEventListener("file-reference-click", handler);
-		return () => window.removeEventListener("file-reference-click", handler);
-	}, []);
-
-	const handleScrollComplete = () => {
-		setScrollTarget(null);
-	};
-
-	// ---------------------------------------------------------------
 	// Header content
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
@@ -160,8 +140,6 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 				isLoading={diffContentsQuery.isLoading}
 				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
 				chatInputRef={chatInputRef}
-				scrollToFile={scrollTarget}
-				onScrollToFileComplete={handleScrollComplete}
 			/>
 		</div>
 	);

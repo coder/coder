@@ -64,8 +64,10 @@ const FailedSubmitProviderForm = ({
 				args.onSubmit?.(values);
 				setIsLoading(true);
 				await deferred.promise;
-				setSubmitError(new Error(errorSubmitMessage));
+				const error = new Error(errorSubmitMessage);
+				setSubmitError(error);
 				setIsLoading(false);
+				throw error;
 			}}
 		/>
 	);

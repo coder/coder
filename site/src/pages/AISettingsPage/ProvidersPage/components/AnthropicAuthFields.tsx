@@ -73,15 +73,13 @@ export const AnthropicAuthMethodField: React.FC<
 type ClaudePlatformFieldsProps = {
 	getFieldHelpers: FieldHelpersGetter;
 	onRegionChange: (region: string) => void;
-	onCredentialBlur: (field: "apiKey") => void;
-	onCredentialFocus: (field: "apiKey") => void;
+	savedApiKeyMask?: string;
 };
 
 export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 	getFieldHelpers,
 	onRegionChange,
-	onCredentialBlur,
-	onCredentialFocus,
+	savedApiKeyMask,
 }) => (
 	<>
 		<div className="grid grid-cols-2 items-start gap-4">
@@ -121,8 +119,7 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 		<CredentialField
 			label="Workspace API key"
 			helpers={getFieldHelpers("apiKey")}
-			onBlur={() => onCredentialBlur("apiKey")}
-			onFocus={() => onCredentialFocus("apiKey")}
+			savedMask={savedApiKeyMask}
 			placeholder="sk-ant-..."
 			description={
 				<>

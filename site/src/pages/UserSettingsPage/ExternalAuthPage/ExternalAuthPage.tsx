@@ -18,10 +18,6 @@ import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const ExternalAuthPage: React.FC = () => {
 	const queryClient = useQueryClient();
-	// This is used to tell the child components something was unlinked and things
-	// need to be refetched
-	const [unlinked, setUnlinked] = useState(0);
-
 	const externalAuthsQuery = useQuery(externalAuths());
 	const [appToUnlink, setAppToUnlink] = useState<ExternalAuthLinkProvider>();
 	const unlinkAppMutation = useMutation(unlinkExternalAuths(queryClient));
@@ -37,7 +33,6 @@ const ExternalAuthPage: React.FC = () => {
 				isLoading={externalAuthsQuery.isLoading}
 				getAuthsError={externalAuthsQuery.error}
 				auths={externalAuthsQuery.data}
-				unlinked={unlinked}
 				onUnlinkExternalAuth={(provider) => {
 					setAppToUnlink(provider);
 				}}
@@ -89,9 +84,6 @@ const ExternalAuthPage: React.FC = () => {
 						setAppToUnlink(undefined);
 						// refetch repopulates the external auth data
 						await externalAuthsQuery.refetch();
-						// this tells our child components to refetch their data
-						// as at least 1 provider was unlinked.
-						setUnlinked(unlinked + 1);
 						toast.success(
 							unlinkResp.token_revoked
 								? "Successfully deleted external auth link and revoked token from the OAuth2 provider."

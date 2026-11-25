@@ -186,9 +186,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 		null,
 	);
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-	const [selectedChatIndex, setSelectedChatIndex] = useState<
-		number | undefined
-	>(undefined);
+	const [selectedChatId, setSelectedChatId] = useState<string>();
 	const listboxId = useId();
 
 	// Debounce as one snapshot so a committed incomplete-filter value cannot
@@ -216,23 +214,18 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	// Use search results count when a query is active, otherwise count
 	// recent chats so keyboard navigation works in the default view too.
 	const recentChatsSlice = (recentChats ?? []).slice(0, 10);
-	const resultCount = hasQuery
-		? (searchQuery.data?.length ?? 0)
-		: recentChatsSlice.length;
-	const safeSelectedChatIndex =
-		selectedChatIndex !== undefined && selectedChatIndex < resultCount
-			? selectedChatIndex
-			: undefined;
+	const shownChats = hasQuery ? (searchQuery.data ?? []) : recentChatsSlice;
+	const resultCount = shownChats.length;
+	// The selection follows the chat, so refreshed results that reorder the
+	// list keep the same chat selected.
+	const selectedIndex = shownChats.findIndex(
+		(chat) => chat.id === selectedChatId,
+	);
 	const selectedChat =
-		safeSelectedChatIndex !== undefined
-			? hasQuery
-				? searchQuery.data?.[safeSelectedChatIndex]
-				: recentChatsSlice[safeSelectedChatIndex]
-			: undefined;
-	const activeResultId =
-		safeSelectedChatIndex !== undefined
-			? `${listboxId}-option-${safeSelectedChatIndex}`
-			: undefined;
+		selectedIndex === -1 ? undefined : shownChats[selectedIndex];
+	const activeResultId = selectedChat
+		? `${listboxId}-option-${selectedIndex}`
+		: undefined;
 	const closeDialog = () => onOpenChange(false);
 
 	const showResultsLoading =
@@ -284,7 +277,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			setFreeText("");
 		}
 		setIsDropdownOpen(false);
-		setSelectedChatIndex(undefined);
+		setSelectedChatId(undefined);
 		requestAnimationFrame(() => inputRef.current?.focus());
 	};
 
@@ -295,13 +288,13 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 		} else {
 			setFilters((prev) => prev.filter((f) => f.key !== key));
 		}
-		setSelectedChatIndex(undefined);
+		setSelectedChatId(undefined);
 		requestAnimationFrame(() => inputRef.current?.focus());
 	};
 
 	const handleInputChange = (value: string) => {
 		setFreeText(value);
-		setSelectedChatIndex(undefined);
+		setSelectedChatId(undefined);
 	};
 
 	// Build the display filters for ChatSearchInput: completed filters plus
@@ -385,17 +378,18 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			}
 
 			event.preventDefault();
-			setSelectedChatIndex((previousIndex) => {
-				if (previousIndex === undefined || previousIndex >= resultCount) {
-					return event.key === "ArrowUp" ? resultCount - 1 : 0;
-				}
-
-				if (event.key === "ArrowDown") {
-					return Math.min(previousIndex + 1, resultCount - 1);
-				}
-
-				return Math.max(previousIndex - 1, 0);
-			});
+			let nextIndex: number;
+			if (selectedIndex === -1) {
+				nextIndex = event.key === "ArrowUp" ? resultCount - 1 : 0;
+			} else if (event.key === "ArrowDown") {
+				nextIndex = Math.min(selectedIndex + 1, resultCount - 1);
+			} else {
+				nextIndex = Math.max(selectedIndex - 1, 0);
+			}
+			setSelectedChatId(shownChats[nextIndex].id);
+			document
+				.getElementById(`${listboxId}-option-${nextIndex}`)
+				?.scrollIntoView({ block: "nearest" });
 			return;
 		}
 
@@ -449,7 +443,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 				hasSearchText={hasSearchText}
 				location={location}
 				listboxId={listboxId}
-				selectedChatIndex={safeSelectedChatIndex}
+				selectedChatId={selectedChat?.id}
 				showLoading={showResultsLoading}
 				isRefreshing={isRefreshing}
 				onDismiss={closeDialog}

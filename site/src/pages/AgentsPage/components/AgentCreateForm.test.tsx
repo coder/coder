@@ -493,6 +493,19 @@ describe("AgentCreateForm workspace file uploads", () => {
 		});
 	});
 
+	it("drops queued files when an organization change is confirmed", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		renderForm();
+
+		await attachZipFile();
+		await user().click(screen.getByRole("button", { name: /^Organization:/ }));
+		await user().click(await screen.findByText("My Organization 2"));
+		await user().click(await screen.findByRole("button", { name: "Continue" }));
+
+		expect(toast.warning).toHaveBeenCalledWith(removedQueuedFileMessage);
+	});
+
 	it("keeps queued files across an agent status flap on the same workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const { onCreateChat, rerender } = renderForm();

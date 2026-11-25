@@ -74,6 +74,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 											: "Failed to add provider.",
 									),
 								);
+								throw error;
 							}
 						}}
 					/>

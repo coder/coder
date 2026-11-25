@@ -313,6 +313,9 @@ describe("CreateWorkspacePage", () => {
 			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitForLoaderToBeRemoved();
+			const scrollTo = vi
+				.spyOn(window, "scrollTo")
+				.mockImplementation(() => {});
 
 			// Close the web socket.
 			await act(async () => {
@@ -328,6 +331,7 @@ describe("CreateWorkspacePage", () => {
 					}),
 				).toBeInTheDocument();
 			});
+			expect(scrollTo).toHaveBeenCalledWith(0, 0);
 		});
 
 		it("displays no parameters if none from init message", async () => {
@@ -1002,6 +1006,27 @@ describe("CreateWorkspacePage", () => {
 
 			expect(
 				screen.getByRole("button", { name: /gpu-large/i }),
+			).toBeInTheDocument();
+		});
+
+		it("selects the default preset in the form", async () => {
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				{ ...mockGpuPreset, Default: true },
+			]);
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({ id: 2, parameters, diagnostics: [] }),
+					}),
+				);
+			});
+			await waitForLoaderToBeRemoved();
+
+			expect(
+				screen.getByRole("button", { name: /gpu-large \(Default\)/i }),
 			).toBeInTheDocument();
 		});
 

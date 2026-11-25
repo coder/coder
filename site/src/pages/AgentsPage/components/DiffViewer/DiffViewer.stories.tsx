@@ -51,7 +51,6 @@ const meta: Meta<typeof DiffViewer> = {
 		onLineSelectionChange: fn(),
 		getLineAnnotations: () => [],
 		getSelectedLines: () => null,
-		onScrollToFileComplete: fn(),
 	},
 	decorators: [
 		(Story) => (

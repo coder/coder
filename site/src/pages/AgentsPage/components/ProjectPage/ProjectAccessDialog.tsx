@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import type { ChatProjectRole } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -112,6 +112,10 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 	mutationError,
 }) => {
 	const addTriggerRef = useRef<HTMLButtonElement>(null);
+	// Announces each change's result, since saving moves no focus.
+	const [savedStatus, setSavedStatus] = useState("");
+	const status =
+		pendingPrincipalId === undefined ? savedStatus : "Saving access changes…";
 
 	const focusAddTrigger = () => addTriggerRef.current?.focus();
 
@@ -133,7 +137,16 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 							organizationId={organizationId}
 							exclude={[...entries, { id: currentUserId }]}
 							pendingPrincipalId={pendingPrincipalId}
-							onAdd={onAdd}
+							onAdd={(principal, role, callbacks) => {
+								setSavedStatus("");
+								onAdd(principal, role, {
+									...callbacks,
+									onSuccess: () => {
+										callbacks.onSuccess?.();
+										setSavedStatus("Access added.");
+									},
+								});
+							}}
 							onSettled={focusAddTrigger}
 						/>
 					)}
@@ -194,9 +207,24 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 												entry.kind === "user" && entry.id === currentUserId
 											}
 											disabled={pendingPrincipalId !== undefined}
-											onChangeRole={onChangeRole}
-											onRemove={onRemove}
-											onRemoved={focusAddTrigger}
+											onChangeRole={(principal, role) => {
+												setSavedStatus("");
+												onChangeRole(principal, role, {
+													onSuccess: () =>
+														setSavedStatus(
+															`${entry.name} is now ${chatProjectRoleLabel[role]}.`,
+														),
+												});
+											}}
+											onRemove={(principal) => {
+												setSavedStatus("");
+												onRemove(principal, {
+													onSuccess: () => {
+														setSavedStatus(`${entry.name} was removed.`);
+														focusAddTrigger();
+													},
+												});
+											}}
 										/>
 									))
 								) : (
@@ -205,6 +233,9 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 							</TableBody>
 						</Table>
 					)}
+					<p role="status" className="sr-only">
+						{status}
+					</p>
 					<DialogDescription className="font-normal">
 						Chats in this project start private. Their creators can still share
 						them individually.
@@ -320,48 +351,61 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 	disabled,
 	onValueChange,
 	ref,
-}) => (
-	<Select
-		value={value}
-		disabled={disabled}
-		onValueChange={(role) => {
-			if (role === "admin" || role === "use") {
-				onValueChange(role);
-			}
-		}}
-	>
-		<SelectTrigger ref={ref} className="w-full sm:w-32" aria-label={label}>
-			<SelectValue placeholder="Role">
-				{value === "" ? undefined : chatProjectRoleLabel[value]}
-			</SelectValue>
-		</SelectTrigger>
-		<SelectContent align="end">
-			{(["use", "admin"] as const).map((role) => (
-				<SelectItem
-					key={role}
-					value={role}
-					className="w-64 flex-col items-start py-2"
-				>
-					<div className="font-medium text-content-primary">
-						{chatProjectRoleLabel[role]}
-					</div>
-					<div className="mt-0.5 text-xs leading-snug text-content-secondary">
-						{roleDescriptions[role]}
-					</div>
-				</SelectItem>
-			))}
-		</SelectContent>
-	</Select>
-);
+}) => {
+	const [open, setOpen] = useState(false);
+
+	// Disabled with aria-disabled, so the trigger keeps focus while saving.
+	return (
+		<Select
+			value={value}
+			open={open}
+			onOpenChange={(next) => setOpen(next && !disabled)}
+			onValueChange={(role) => {
+				if (!disabled && (role === "admin" || role === "use")) {
+					onValueChange(role);
+				}
+			}}
+		>
+			<SelectTrigger
+				ref={ref}
+				className="w-full sm:w-32 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+				aria-label={label}
+				aria-disabled={disabled || undefined}
+			>
+				<SelectValue placeholder="Role">
+					{value === "" ? undefined : chatProjectRoleLabel[value]}
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent align="end">
+				{(["use", "admin"] as const).map((role) => (
+					<SelectItem
+						key={role}
+						value={role}
+						className="w-64 flex-col items-start py-2"
+					>
+						<div className="font-medium text-content-primary">
+							{chatProjectRoleLabel[role]}
+						</div>
+						<div className="mt-0.5 text-xs leading-snug text-content-secondary">
+							{roleDescriptions[role]}
+						</div>
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+};
 
 type AccessRowProps = {
 	readonly entry: ProjectAccessEntry;
 	readonly canManage: boolean;
 	readonly isCurrentUser: boolean;
 	readonly disabled: boolean;
-	readonly onChangeRole: ProjectAccessDialogProps["onChangeRole"];
-	readonly onRemove: ProjectAccessDialogProps["onRemove"];
-	readonly onRemoved: () => void;
+	readonly onChangeRole: (
+		principal: ProjectAccessPrincipal,
+		role: AssignableRole,
+	) => void;
+	readonly onRemove: (principal: ProjectAccessPrincipal) => void;
 };
 
 const AccessRow: React.FC<AccessRowProps> = ({
@@ -371,20 +415,10 @@ const AccessRow: React.FC<AccessRowProps> = ({
 	disabled,
 	onChangeRole,
 	onRemove,
-	onRemoved,
 }) => {
 	const editableEntry =
 		canManage && entry.kind !== "owner" && !isCurrentUser ? entry : undefined;
-	const roleTriggerRef = useRef<HTMLButtonElement>(null);
-	const menuTriggerRef = useRef<HTMLButtonElement>(null);
-	// Saving disables the row; refocus the control that started the change.
-	const focusAfterSave = useRef<HTMLButtonElement | null>(null);
-	useEffect(() => {
-		if (!disabled) {
-			focusAfterSave.current?.focus();
-			focusAfterSave.current = null;
-		}
-	}, [disabled]);
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 	return (
 		<TableRow>
@@ -403,11 +437,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 						value={editableEntry.role}
 						label={`Role for ${editableEntry.name}`}
 						disabled={disabled}
-						ref={roleTriggerRef}
-						onValueChange={(role) => {
-							focusAfterSave.current = roleTriggerRef.current;
-							onChangeRole(editableEntry, role, {});
-						}}
+						onValueChange={(role) => onChangeRole(editableEntry, role)}
 					/>
 				) : entry.kind === "owner" ? (
 					<Badge variant="info">Owner</Badge>
@@ -420,14 +450,17 @@ const AccessRow: React.FC<AccessRowProps> = ({
 			{canManage && (
 				<TableCell>
 					{editableEntry && (
-						<DropdownMenu>
+						<DropdownMenu
+							open={isMenuOpen}
+							onOpenChange={(next) => setIsMenuOpen(next && !disabled)}
+						>
 							<DropdownMenuTrigger asChild>
 								<Button
 									size="icon-lg"
 									variant="subtle"
-									ref={menuTriggerRef}
 									aria-label={`Open menu for ${editableEntry.name}`}
-									disabled={disabled}
+									// Keeps focus on the button while a change saves.
+									aria-disabled={disabled || undefined}
 								>
 									<EllipsisVerticalIcon aria-hidden="true" />
 								</Button>
@@ -435,10 +468,7 @@ const AccessRow: React.FC<AccessRowProps> = ({
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
-									onClick={() => {
-										focusAfterSave.current = menuTriggerRef.current;
-										onRemove(editableEntry, { onSuccess: onRemoved });
-									}}
+									onClick={() => onRemove(editableEntry)}
 								>
 									Remove
 								</DropdownMenuItem>

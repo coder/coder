@@ -183,7 +183,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const listRef = useRef<HTMLDivElement>(null);
+	// Set when focus opens the dropdown. cmdk reattaches the list's ref on
+	// every render, so the list scrolls only on the first attach after opening.
+	const scrollOnOpenRef = useRef(false);
 
 	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
 	const options = transitionToGroupOption(
@@ -263,15 +265,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			document.removeEventListener("mousedown", handleClickOutside);
 			document.removeEventListener("touchend", handleClickOutside);
 		};
-	}, [open]);
-
-	// Scroll dropdown into view on open
-	useEffect(() => {
-		if (!open || !listRef.current) {
-			return;
-		}
-
-		listRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}, [open]);
 
 	const CreatableItem = () => {
@@ -438,6 +431,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 								inputProps?.onBlur?.(event);
 							}}
 							onFocus={(event) => {
+								if (!open) {
+									scrollOnOpenRef.current = true;
+								}
 								setOpen(true);
 								inputProps?.onFocus?.(event);
 							}}
@@ -494,7 +490,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			<div className="relative">
 				{open && (
 					<CommandList
-						ref={listRef}
+						ref={(list) => {
+							if (!list || !scrollOnOpenRef.current) {
+								return;
+							}
+							scrollOnOpenRef.current = false;
+							list.scrollIntoView({ block: "nearest", behavior: "smooth" });
+						}}
 						className={cn(
 							"absolute top-1 z-10 w-full rounded-md",
 							"border",

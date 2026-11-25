@@ -75,6 +75,7 @@ export const CreateOAuth2AppPageView: React.FC = () => {
 									),
 									{ description: getErrorDetail(error) },
 								);
+								throw error;
 							}
 						}}
 						isUpdating={postAppMutation.isPending}

@@ -37,7 +37,6 @@ import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 type ExternalAuthPageViewProps = {
 	isLoading: boolean;
 	getAuthsError?: unknown;
-	unlinked: number;
 	auths?: ListUserExternalAuthResponse;
 	onUnlinkExternalAuth: (provider: ExternalAuthLinkProvider) => void;
 	onValidateExternalAuth: (provider: string) => void;
@@ -47,7 +46,6 @@ export const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 	isLoading,
 	getAuthsError,
 	auths,
-	unlinked,
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
 }) => {
@@ -81,7 +79,6 @@ export const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 						<ExternalAuthRow
 							key={app.id}
 							app={app}
-							unlinked={unlinked}
 							link={auths.links.find((l) => l.provider_id === app.id)}
 							onUnlinkExternalAuth={() => {
 								onUnlinkExternalAuth(app);
@@ -100,14 +97,12 @@ export const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 type ExternalAuthRowProps = {
 	app: ExternalAuthLinkProvider;
 	link?: ExternalAuthLink;
-	unlinked: number;
 	onUnlinkExternalAuth: () => void;
 	onValidateExternalAuth: () => void;
 };
 
 const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 	app,
-	unlinked,
 	link,
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
@@ -120,7 +115,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 		externalAuthPollingState,
 		refetch,
 		startPollingExternalAuth,
-	} = useExternalAuth(app.id, unlinked);
+	} = useExternalAuth(app.id);
 
 	const authenticated = externalAuth
 		? externalAuth.authenticated
@@ -207,7 +202,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 };
 
 // useExternalAuth handles the polling of the auth to update the button.
-const useExternalAuth = (providerID: string, unlinked: number) => {
+const useExternalAuth = (providerID: string) => {
 	const [externalAuthPollingState, setExternalAuthPollingState] =
 		useState<ExternalAuthPollingState>("idle");
 
@@ -221,12 +216,6 @@ const useExternalAuth = (providerID: string, unlinked: number) => {
 	});
 
 	const signedIn = externalAuth?.authenticated;
-
-	useEffect(() => {
-		if (unlinked > 0) {
-			void refetch();
-		}
-	}, [refetch, unlinked]);
 
 	useEffect(() => {
 		if (signedIn) {

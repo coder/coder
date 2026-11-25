@@ -226,6 +226,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 									),
 									{ description: getErrorDetail(error) },
 								);
+								throw error;
 							}
 						}}
 						isUpdating={putAppMutation.isPending}

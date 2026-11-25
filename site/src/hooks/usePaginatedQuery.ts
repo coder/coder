@@ -1,6 +1,7 @@
 import clamp from "lodash/clamp";
 import { useEffect, useEffectEvent } from "react";
 import {
+	hashKey,
 	keepPreviousData,
 	type QueryFunctionContext,
 	type QueryKey,
@@ -149,9 +150,10 @@ export function usePaginatedQuery<
 	// Not using infinite query right now because that requires a fair bit of list
 	// virtualization as the lists get bigger (especially for the audit logs).
 	// Keeping initial implementation simple.
+	const currentPageOptions = getQueryOptionsFromPage(currentPage);
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
-		...getQueryOptionsFromPage(currentPage),
+		...currentPageOptions,
 		placeholderData: extraOptions.placeholderData ?? keepPreviousData,
 	});
 
@@ -204,21 +206,31 @@ export function usePaginatedQuery<
 		return queryClient.prefetchQuery(options);
 	});
 
-	// Have to split hairs and sync on both the current page and the hasXPage
-	// variables, because the page can change immediately client-side, but the
-	// hasXPage values are derived from the server and won't always be immediately
-	// ready on the initial render
+	// Prefetch the neighbouring pages once the server returns this page, for
+	// every page and filter. Until then, hasXPage comes from the previous
+	// query's data.
+	const currentQueryHash = hashKey(currentPageOptions.queryKey);
+	const isPlaceholderData = query.isPlaceholderData;
 	useEffect(() => {
+		if (isPlaceholderData) {
+			return;
+		}
+
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Fetching for the page on screen: the server's count arrives after the page or filters change.
 		if (hasNextPage) {
 			void prefetchPage(currentPage + 1);
 		}
-	}, [currentPage, hasNextPage]);
-
-	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above.
 		if (hasPreviousPage) {
 			void prefetchPage(currentPage - 1);
 		}
-	}, [currentPage, hasPreviousPage]);
+	}, [
+		currentQueryHash,
+		currentPage,
+		hasNextPage,
+		hasPreviousPage,
+		isPlaceholderData,
+	]);
 
 	// Mainly here to catch user if they navigate to a page directly via URL;
 	// totalPages parameterized to insulate function from fetch status changes

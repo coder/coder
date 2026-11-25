@@ -366,14 +366,6 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	]);
 
 	useEffect(() => {
-		if (!isVisible) {
-			return;
-		}
-
-		refit();
-	}, [isVisible, refit]);
-
-	useEffect(() => {
 		if (!terminal || !isVisible || !autoFocus || loading) {
 			return;
 		}

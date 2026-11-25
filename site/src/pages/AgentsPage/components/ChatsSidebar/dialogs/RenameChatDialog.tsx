@@ -168,15 +168,6 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 		};
 	}, []);
 
-	useEffect(() => {
-		if (!isTypingGeneratedTitle) return;
-		const input = inputRef.current;
-		if (!input) return;
-		input.focus();
-		const end = renameTitle.length;
-		input.setSelectionRange(end, end);
-	}, [isTypingGeneratedTitle, renameTitle]);
-
 	const handleGenerate = async () => {
 		if (!chat || !onPropose) return;
 		const requestedSession = sessionRef.current;
@@ -293,7 +284,8 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 									setGenerateTitleError(null);
 								}
 							}}
-							disabled={isRenamingChat || isGeneratingTitle}
+							disabled={isRenamingChat}
+							readOnly={isGeneratingTitle}
 							maxLength={MaxChatTitleRunes}
 							aria-label="Chat title"
 							aria-invalid={generateTitleError ? true : undefined}

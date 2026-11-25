@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 const collapsibleSummaryVariants = cva(
 	cn(
@@ -61,15 +61,16 @@ export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 
-	const lastState = useRef<boolean>(defaultOpen);
-	const ref = useRef<HTMLDivElement>(null);
+	// Set by a click that opens the section, so children that mount already
+	// open are not scrolled to.
+	const scrollOnAttachRef = useRef(false);
 
-	useEffect(() => {
-		if (lastState.current !== isOpen && isOpen && scrollIntoViewOnOpen) {
-			ref.current?.scrollIntoView({ behavior: "smooth" });
+	const scrollIntoViewOnAttach = (node: HTMLDivElement | null) => {
+		if (node && scrollOnAttachRef.current) {
+			scrollOnAttachRef.current = false;
+			node.scrollIntoView({ behavior: "smooth" });
 		}
-		lastState.current = isOpen;
-	}, [isOpen, scrollIntoViewOnOpen]);
+	};
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -81,6 +82,7 @@ export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 				)}
 				type="button"
 				onClick={() => {
+					scrollOnAttachRef.current = !isOpen && scrollIntoViewOnOpen === true;
 					setIsOpen((v) => !v);
 				}}
 			>
@@ -104,7 +106,7 @@ export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 			</button>
 
 			{isOpen && (
-				<div className="flex flex-col gap-4" ref={ref}>
+				<div className="flex flex-col gap-4" ref={scrollIntoViewOnAttach}>
 					{children}
 				</div>
 			)}

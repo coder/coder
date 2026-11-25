@@ -183,10 +183,6 @@ type CommentableDiffViewerProps = {
 	diffStyle: DiffStyle;
 	/** Ref to the chat message input for inserting comments. */
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
-	/** Scroll to a specific file. */
-	scrollToFile?: string | null;
-	/** Called after scrollToFile has been processed. */
-	onScrollToFileComplete?: () => void;
 };
 
 /**

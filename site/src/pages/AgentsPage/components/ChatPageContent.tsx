@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import isEqual from "lodash/isEqual";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
@@ -541,28 +542,16 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		handleRemoveAttachment,
 	} = modeAttachments;
 
-	// Edit attachments are scoped to the chat being edited, not the compose
-	// draft. Clear them when navigation changes the chat scope.
-	const editScopeRef = useRef({ organizationId, chatId });
-
 	const { reset: resetEditWorkspaceUploads } = editWorkspaceUploads;
-
-	useEffect(() => {
-		const previous = editScopeRef.current;
-		const scopeChanged =
-			previous.organizationId !== organizationId || previous.chatId !== chatId;
-		editScopeRef.current = { organizationId, chatId };
-		if (scopeChanged) {
-			resetEditAttachments();
-		}
-	}, [organizationId, chatId, resetEditAttachments]);
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The edited message also changes when the queue updates or a send rolls back, not only on click. Filling the edit box must wait until useFileAttachments switches to the chat's organization, which it does in an effect.
 		if (!isEditing) {
 			return;
 		}
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above.
 		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
@@ -591,6 +580,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- False positive: the rule reads this loop guard as event logic.
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
@@ -624,22 +614,25 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			).filter((upload) => !removedPreservedIds.includes(upload.id))
 		: [];
 
-	// Uploads added while editing one message are dropped when another
-	// message is edited. A failed edit restores the same blocks, so its
-	// uploads survive for retry.
-	const editUploadsBlocksRef = useRef(editingFileBlocks);
-	useEffect(() => {
-		if (!isEditing || editUploadsBlocksRef.current === editingFileBlocks) {
-			return;
+	// The edit that the edit uploads were added for. Uploads from editing
+	// another message are hidden, and the next attach drops them. A failed
+	// edit restores the same target, so its uploads survive for retry.
+	const [editUploadsTarget, setEditUploadsTarget] = useState(editingTarget);
+	const editUploads = isEqual(editUploadsTarget, editingTarget)
+		? editWorkspaceUploads.uploads
+		: [];
+	const attachEditWorkspaceUploads = (files: File[]) => {
+		if (!isEqual(editUploadsTarget, editingTarget)) {
+			resetEditWorkspaceUploads();
+			setEditUploadsTarget(editingTarget);
 		}
-
-		editUploadsBlocksRef.current = editingFileBlocks;
-		resetEditWorkspaceUploads();
-	}, [isEditing, editingFileBlocks, resetEditWorkspaceUploads]);
+		editWorkspaceUploads.attach(files);
+	};
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- Edits also end from queue updates and rollbacks, and the resets abort in-flight uploads.
 		if (isEditing) {
 			wasEditingRef.current = true;
 			return;
@@ -651,6 +644,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		// settles and restore it on failure. Defer cleanup until the
 		// submission resolves so a failed edit keeps its uploads and
 		// attachments for retry.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- As above.
 		if (isSendPending) {
 			return;
 		}
@@ -684,6 +678,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	const attachWorkspaceUploads = isEditing
+		? attachEditWorkspaceUploads
+		: composeWorkspaceUploads.attach;
 	// The attachments of a send in flight. Until the send settles, the composer
 	// hides them and all workspace uploads, and shows attachments added since.
 	// An edit sets none, because the composer shows the compose draft during it.
@@ -691,7 +688,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		readonly File[] | null
 	>(null);
 	const visibleWorkspaceUploads = isEditing
-		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
+		? [...preservedWorkspaceUploads, ...editUploads]
 		: composeWorkspaceUploads.uploads;
 	const handleRemoveWorkspaceUpload = (id: string) => {
 		if (
@@ -835,9 +832,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
-					? modeWorkspaceUploads.attach
-					: undefined,
+				onAttach: canUploadWorkspaceFiles ? attachWorkspaceUploads : undefined,
 				onRemove: handleRemoveWorkspaceUpload,
 			}}
 			inputRef={inputRef}

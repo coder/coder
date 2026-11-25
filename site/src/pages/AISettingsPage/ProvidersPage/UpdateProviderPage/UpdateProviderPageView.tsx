@@ -221,6 +221,7 @@ const UpdateProviderPageView: React.FC = () => {
 										`Failed to update provider "${provider.display_name || provider.name}".`,
 									),
 								);
+								throw error;
 							}
 						}}
 					/>

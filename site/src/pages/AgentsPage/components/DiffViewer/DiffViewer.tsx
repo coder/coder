@@ -11,7 +11,7 @@ import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { cn } from "cn";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useEffectEvent, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -50,8 +50,6 @@ type DiffViewerProps = {
 	renderAnnotation?: (
 		annotation: DiffLineAnnotation<string>,
 	) => React.ReactNode;
-	scrollToFile?: string | null;
-	onScrollToFileComplete?: () => void;
 };
 
 export type DiffStyle = "unified" | "split";
@@ -293,11 +291,13 @@ function DiffFileTree({
 	// highlighted unless its selection is cleared. Replace the whole
 	// selection with just the active file, suppressing the echoed events.
 	useEffect(() => {
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- The file tree model keeps its own selection, so it is synchronised to the active file here.
 		if (!activePath || selectedPathRef.current === activePath) return;
 		const item = model.getItem(activePath);
 		if (!item) return;
 		isSyncingSelectionRef.current = true;
 		for (const path of model.getSelectedPaths()) {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-event-handler -- False positive: the rule reads this loop guard as event logic.
 			if (path !== activePath) {
 				model.getItem(path)?.deselect();
 			}
@@ -418,8 +418,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	getLineAnnotations,
 	getSelectedLines,
 	renderAnnotation,
-	scrollToFile,
-	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
@@ -504,22 +502,24 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		return null;
 	})();
 
-	const canScroll = !isLoading && !error && items.length > 0;
-
-	useEffect(() => {
-		if (!scrollToFile) return;
-		// CodeView is not mounted while loading/erroring/empty, so the ref is
-		// null. Skip the scroll without signalling completion so the parent
-		// keeps the pending target and retries once the view is ready.
-		if (!canScroll || !codeViewRef.current) return;
-		codeViewRef.current.scrollTo({
+	// File reference chips in the chat input scroll the diff to their file.
+	const scrollToFileReference = useEffectEvent((event: Event) => {
+		const { fileName } = (event as CustomEvent).detail ?? {};
+		if (!items.some((item) => item.id === fileName)) {
+			return;
+		}
+		codeViewRef.current?.scrollTo({
 			type: "item",
-			id: scrollToFile,
+			id: fileName,
 			align: "start",
 			behavior: "instant",
 		});
-		onScrollToFileComplete?.();
-	}, [scrollToFile, onScrollToFileComplete, canScroll]);
+	});
+	useEffect(() => {
+		window.addEventListener("file-reference-click", scrollToFileReference);
+		return () =>
+			window.removeEventListener("file-reference-click", scrollToFileReference);
+	}, []);
 
 	if (isLoading) {
 		return <DiffViewerSkeleton />;

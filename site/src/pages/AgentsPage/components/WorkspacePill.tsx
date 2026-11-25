@@ -6,7 +6,7 @@ import {
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
@@ -99,7 +99,16 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 
 	// Flyout sub-menus clip on mobile.
 	const [view, setView] = useState<"main" | "ports">("main");
-	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
+	// Set when leaving the ports view, so focus returns to the Ports item
+	// once the main view mounts it.
+	const focusPortsItemOnAttachRef = useRef(false);
+	const focusPortsItemOnAttach = (node: HTMLDivElement | null) => {
+		if (node && focusPortsItemOnAttachRef.current) {
+			focusPortsItemOnAttachRef.current = false;
+			node.focus();
+		}
+	};
+
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
 
@@ -117,7 +126,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 				setOpen(next);
 				if (!next) {
 					setView("main");
-					setFocusPortsOnMain(false);
 				}
 			}}
 		>
@@ -179,7 +187,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							host={host}
 							portsData={portsData}
 							onBack={() => {
-								setFocusPortsOnMain(true);
+								focusPortsItemOnAttachRef.current = true;
 								setView("main");
 							}}
 						/>
@@ -236,12 +244,8 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 									portsData={portsData}
 									isRunning={isRunning}
 									isBelowMd={isBelowMd}
-									focusOnMount={focusPortsOnMain}
-									onFocusApplied={() => setFocusPortsOnMain(false)}
-									onSelectInline={() => {
-										setFocusPortsOnMain(false);
-										setView("ports");
-									}}
+									ref={focusPortsItemOnAttach}
+									onSelectInline={() => setView("ports")}
 								/>
 							)}
 							{hasItemsAboveSeparator && (

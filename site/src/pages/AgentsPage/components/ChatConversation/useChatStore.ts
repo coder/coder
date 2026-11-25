@@ -51,6 +51,29 @@ type UseChatStoreOptions = {
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
+	/** Receives the names of the tools whose results finished streaming. */
+	onToolResultsCompleted?: (toolNames: readonly string[]) => void;
+};
+
+// Names of the tools whose final result is among the parts, read after the
+// parts are applied so results without a tool name take it from their call.
+const getCompletedToolNames = (
+	parts: readonly TypesGen.ChatMessagePart[],
+	state: ChatStoreState,
+): string[] => {
+	const toolResults = selectStreamState(state)?.toolResults;
+	return parts.flatMap((part) => {
+		if (
+			part.type !== "tool-result" ||
+			(part.result === undefined && !part.is_error)
+		) {
+			return [];
+		}
+		const name =
+			(part.tool_call_id && toolResults?.[part.tool_call_id]?.name) ||
+			part.tool_name;
+		return name ? [name] : [];
+	});
 };
 
 export const useChatStore = (
@@ -70,6 +93,7 @@ export const useChatStore = (
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled = false,
+		onToolResultsCompleted,
 	} = options;
 
 	const queryClient = useQueryClient();
@@ -99,6 +123,9 @@ export const useChatStore = (
 	// them without including them in its dependency array.
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
+	const onToolResultsCompletedEvent = useEffectEvent(
+		(toolNames: readonly string[]) => onToolResultsCompleted?.(toolNames),
+	);
 
 	const invalidatePromptAndSearchQueries = useEffectEvent(
 		(messages: readonly TypesGen.ChatMessage[]) => {
@@ -171,6 +198,15 @@ export const useChatStore = (
 
 		const shouldKeepMessagePart = (): boolean => !streamReportedTurnCompleted;
 
+		const applyBufferedParts = () => {
+			const parts = partsBuf.splice(0);
+			store.applyMessageParts(parts);
+			const toolNames = getCompletedToolNames(parts, store.getSnapshot());
+			if (toolNames.length > 0) {
+				onToolResultsCompletedEvent(toolNames);
+			}
+		};
+
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
 				return;
@@ -184,7 +220,7 @@ export const useChatStore = (
 					partsBuf.length = 0;
 					return;
 				}
-				store.applyMessageParts(partsBuf.splice(0));
+				applyBufferedParts();
 			}, 0);
 		};
 
@@ -203,7 +239,7 @@ export const useChatStore = (
 				partsBuf.length = 0;
 				return;
 			}
-			store.applyMessageParts(partsBuf.splice(0));
+			applyBufferedParts();
 		};
 
 		// Discard buffered parts without applying them. Used when
@@ -424,7 +460,7 @@ export const useChatStore = (
 							partsFlushTimer = null;
 						}
 						if (shouldKeepMessagePart()) {
-							store.applyMessageParts(partsBuf.splice(0));
+							applyBufferedParts();
 						}
 					}
 				}

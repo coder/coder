@@ -11,7 +11,6 @@ const meta: Meta<typeof ExternalAuthPageView> = {
 	args: {
 		isLoading: false,
 		getAuthsError: undefined,
-		unlinked: 0,
 		auths: {
 			providers: [],
 			links: [],

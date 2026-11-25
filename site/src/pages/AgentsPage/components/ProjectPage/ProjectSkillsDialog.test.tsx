@@ -394,7 +394,7 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
-	it("returns to a refreshed list when the edited skill was deleted", async () => {
+	it("says the edited skill was deleted and refreshes the list on Back", async () => {
 		const queryClient = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
@@ -413,6 +413,10 @@ describe("ProjectSkillsDialog", () => {
 
 		await openSkillMenu(user);
 		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		expect(
+			await screen.findByText("This project skill was deleted."),
+		).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Back" }));
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 		// Escape closes the dialog from the list, while the editor keeps it open.
