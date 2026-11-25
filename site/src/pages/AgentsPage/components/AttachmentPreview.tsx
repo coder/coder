@@ -139,7 +139,7 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							// Not `group-focus-within`: descendant `:focus-within` rules slow focus changes in WebKit.
+							// Not `group-focus-within`, which slows WebKit focus changes.
 							className="relative [--actions-opacity:0] [--actions-pointer-events:none] hover:[--actions-opacity:1] hover:[--actions-pointer-events:auto] focus-within:[--actions-opacity:1] focus-within:[--actions-pointer-events:auto] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-pointer-events:auto]"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (

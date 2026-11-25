@@ -170,7 +170,7 @@ export const getAttachmentDownload = (
 const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
-		// Blur only while shown: WebKit gives even a hidden blurred link a compositing layer.
+		// Blur only while shown: a hidden link with a backdrop filter still gets a compositing layer.
 		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs [backdrop-filter:var(--download-backdrop-filter)] transition-[opacity,backdrop-filter] [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
