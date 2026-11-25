@@ -311,6 +311,9 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 		// fails all.
 		succeedDial   int
 		unrecoverable bool
+		// closedBuffer accepts every dial over a closed message part buffer,
+		// so each session closes after its selection.
+		closedBuffer bool
 		// closeSessionAt is the time since start at which the test closes the
 		// connected session's parts channel. Zero never closes; a nonzero
 		// value needs succeedDial to have connected by then.
@@ -346,19 +349,28 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 			),
 		},
 		{
-			name: "UnrecoverableRecovery",
-			configures: []configure{
-				{at: 50 * time.Millisecond, generationAttempt: 1},
-				{at: time.Second, generationAttempt: 1},
-			},
+			name:          "UnrecoverableNoUpdates",
+			unrecoverable: true,
+			wantDials:     dialsAt(0, 0),
+		},
+		{
+			// The configuration during the backoff is the last one, and is
+			// dialed when the backoff ends.
+			name:          "UnrecoverableRecovery",
+			configures:    []configure{{at: 50 * time.Millisecond, generationAttempt: 1}},
 			succeedDial:   2,
 			unrecoverable: true,
-			wantDials:     dialsAt(0, 0, 1000),
+			wantDials:     dialsAt(0, 0, 100),
 			connects:      true,
 		},
 		{
-			// The successful connection resets the backoff, so the first
-			// redial after the session closes waits 100 ms. Configurations
+			name:         "AcceptThenClose",
+			closedBuffer: true,
+			wantDials:    backoff,
+		},
+		{
+			// The session delivers a part before it closes, which resets the
+			// backoff, so the first redial waits 100 ms. Configurations
 			// every 100 ms from 1.1 s must not redial sooner.
 			name:           "SessionClose",
 			configures:     sameWorkerEvery(100*time.Millisecond, attemptOne)[10:],
@@ -377,6 +389,9 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 				start := clock.Now()
 				buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 				defer buffer.Close()
+				if tc.closedBuffer {
+					buffer.Close()
+				}
 				chatID := uuid.New()
 				workers := []uuid.UUID{uuid.New(), uuid.New()}
 
@@ -388,7 +403,7 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 				)
 				dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
 					dials = append(dials, dial{at: clock.Since(start), worker: slices.Index(workers, input.WorkerID)})
-					if len(dials) != tc.succeedDial {
+					if !tc.closedBuffer && len(dials) != tc.succeedDial {
 						return nil, fakeDialError{unrecoverable: tc.unrecoverable}
 					}
 					connected, err := local(ctx, input)
@@ -413,6 +428,7 @@ func TestStreamRelayForwarderDialBackoff(t *testing.T) {
 					synctest.Wait()
 					clock.Advance(step).MustWait(ctx)
 					if elapsed == tc.closeSessionAt {
+						session.parts <- StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 1}
 						close(session.parts)
 					}
 					if len(configures) > 0 && configures[0].at == elapsed {
