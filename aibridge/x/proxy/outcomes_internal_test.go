@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -192,14 +194,14 @@ func TestForwardingTransportOutcomes(t *testing.T) {
 	}
 }
 
+// Request body read failures reject the request before recording or forwarding
+// it.
 func TestForwardingBodyFailures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		// source returns the request body. read counts what it produces.
-		source func(read *atomic.Int64) io.Reader
-		// isWantErr reports whether forwarding and replay failed as expected.
-		isWantErr  func(error) bool
+		source     func(read *atomic.Int64) io.Reader
 		wantStatus int
 		maxRead    int64
 	}{
@@ -207,10 +209,6 @@ func TestForwardingBodyFailures(t *testing.T) {
 			name: "UnknownLengthOversize",
 			source: func(read *atomic.Int64) io.Reader {
 				return readerFunc(func(p []byte) (int, error) { clear(p); read.Add(int64(len(p))); return len(p), nil })
-			},
-			isWantErr: func(err error) bool {
-				_, ok := errors.AsType[*http.MaxBytesError](err)
-				return ok
 			},
 			wantStatus: http.StatusRequestEntityTooLarge,
 			maxRead:    routing.MaxRequestBodyBytes + 1,
@@ -220,8 +218,7 @@ func TestForwardingBodyFailures(t *testing.T) {
 			source: func(read *atomic.Int64) io.Reader {
 				return readerFunc(func([]byte) (int, error) { read.Add(1); return 0, io.ErrUnexpectedEOF })
 			},
-			isWantErr:  func(err error) bool { return errors.Is(err, io.ErrUnexpectedEOF) },
-			wantStatus: http.StatusBadGateway,
+			wantStatus: http.StatusBadRequest,
 			maxRead:    1,
 		},
 	} {
@@ -230,29 +227,85 @@ func TestForwardingBodyFailures(t *testing.T) {
 			var read atomic.Int64
 			response := httptest.NewRecorder()
 			req := requestWithAuth(t, nil)
-			// Trigger a body limit error mid-stream to check how the handler reports it.
 			req.Body = http.MaxBytesReader(response, io.NopCloser(tc.source(&read)), routing.MaxRequestBodyBytes)
 			req.ContentLength = -1
 			h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
-			calls := 0
-			h.transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				calls++
-				_, err := io.Copy(io.Discard, r.Body)
-				return nil, err
+			rec := &testutil.MockRecorder{}
+			h.recorder = rec
+			h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Error("rejected requests must not call upstream")
+				return nil, io.ErrUnexpectedEOF
 			})
 			call := &forwardedRequest{handler: h}
 			call.serve(response, req)
+			require.NoError(t, h.inflight.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+
 			require.Equal(t, tc.wantStatus, response.Code)
-			require.Equal(t, 1, calls)
-			require.Nil(t, call.responseBody)
-			require.True(t, tc.isWantErr(call.err), "unexpected forwarding error: %v", call.err)
-			readBefore := read.Load()
-			_, replayErr := call.requestBody.Wait(codertestutil.Context(t, codertestutil.WaitLong))
-			require.Equal(t, readBefore, read.Load(), "replay must not read failed input again")
-			require.True(t, tc.isWantErr(replayErr), "unexpected replay error: %v", replayErr)
+			require.Empty(t, rec.RecordedInterceptions(), "rejected requests must not record a start")
+			require.Nil(t, call.requestBody, "rejected requests must not keep the capture")
 			require.LessOrEqual(t, read.Load(), tc.maxRead, "failure must stop reading input")
 		})
 	}
+}
+
+// signalReadBody closes read once the first bytes arrive from the client.
+type signalReadBody struct {
+	io.ReadCloser
+	read chan struct{}
+	once sync.Once
+}
+
+func (b *signalReadBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.once.Do(func() { close(b.read) })
+	}
+	return n, err
+}
+
+// Closing the inflight gate unblocks a request whose body stalls mid-read, so
+// shutdown does not wait for the client to finish sending.
+func TestForwardingStalledBodyShutdown(t *testing.T) {
+	t.Parallel()
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
+	rec := &testutil.MockRecorder{}
+	h.recorder = rec
+	h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Error("stalled requests must not call upstream")
+		return nil, io.ErrUnexpectedEOF
+	})
+	reading, served := make(chan struct{}), make(chan struct{})
+	// The handler response is recorded here, the stalled client cannot read it.
+	response := httptest.NewRecorder()
+	gateway := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		defer close(served)
+		r.Body = &signalReadBody{ReadCloser: r.Body, read: reading}
+		ctx := aibcontext.AsActor(r.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
+		h.ServeHTTP(response, r.WithContext(ctx))
+	}))
+	t.Cleanup(gateway.Close)
+	// The client sends one byte, then stalls until cleanup ends the body.
+	body, stall := io.Pipe()
+	t.Cleanup(func() { _ = stall.Close() })
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/openai/v1/chat/completions", body)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+userSecretKey)
+	go func() {
+		resp, err := gateway.Client().Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	_, err = stall.Write([]byte("{"))
+	require.NoError(t, err)
+
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	codertestutil.TryReceive(ctx, t, reading)
+	h.inflight.Close()
+	require.NoError(t, h.inflight.Shutdown(ctx), "a stalled body must not hold admission after close")
+	codertestutil.TryReceive(ctx, t, served)
+	require.Equal(t, http.StatusServiceUnavailable, response.Code, "cancellation is not a client error")
+	require.Empty(t, rec.RecordedInterceptions(), "canceled requests must not record a start")
 }
 
 // Key failover retries with the next pooled key, and an exhausted pool returns
@@ -455,7 +508,6 @@ func TestForwardingCircuitBreaker(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, response.Code)
 	require.ErrorIs(t, rejected.err, circuitbreaker.ErrCircuitOpen)
 	require.Nil(t, rejected.responseBody)
-	require.Nil(t, rejected.requestBody, "open circuit must skip request preparation")
 
 	require.EqualValues(t, 1, calls.Load(), "the 503 must trip the breaker")
 }
