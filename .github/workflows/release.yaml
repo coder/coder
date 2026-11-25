@@ -1173,24 +1173,25 @@ jobs:
       # wingetcreate opens a new PR on every run, even for a version that
       # already has one, so this step skips a package that already has an open
       # or merged cdrci PR for the version. That makes a rerun of this job safe.
-      # A failed package doesn't stop the others.
       - name: Submit manifests to winget-pkgs
         run: |
           $version = $env:VERSION.Trim('v')
           echo "Package version: ${version}"
           $cc = "🤖 cc: @deansheather @matifali"
-          $rerun = "Fix the error above, then rerun this job. The rerun skips any package that already has an open or merged PR."
 
           $packages = @(
             @{ id = 'Coder.Coder'; urls = @($env:AMD64_INSTALLER_URL, $env:AMD64_ZIP_URL, $env:ARM64_ZIP_URL) }
           )
-          if ($env:RELEASE_CHANNEL -eq 'stable') {
+          if ($env:CODER_RELEASE_CHANNEL -eq 'stable') {
             $packages += @{ id = 'Coder.Coder.Stable'; urls = @($env:AMD64_ZIP_URL, $env:ARM64_ZIP_URL) }
           }
 
           $errors = @()
           foreach ($package in $packages) {
             $id = $package.id
+            $output = $null
+            echo "Submitting ${id} ${version}"
+            $rerun = "Fix the error printed after 'Submitting ${id} ${version}', then rerun this job. The rerun skips any package that already has an open or merged PR."
 
             # wingetcreate titles its PRs "New version: <ID> version <version>",
             # "Add version: ..." or "Update version: ...". Matching the end of
@@ -1220,10 +1221,10 @@ jobs:
               $errors += "wingetcreate submitted ${id} ${version} but didn't print a PR URL. Find the PR in microsoft/winget-pkgs and comment '${cc}' on it by hand."
               continue
             }
-            $pr = $match.Groups[1].Value
-            gh pr comment --repo microsoft/winget-pkgs $pr --body $cc
+            $pr_number = $match.Groups[1].Value
+            gh pr comment --repo microsoft/winget-pkgs $pr_number --body $cc
             if ($LASTEXITCODE -ne 0) {
-              $errors += "Couldn't comment on microsoft/winget-pkgs#${pr}. Comment '${cc}' on it by hand."
+              $errors += "Couldn't comment on microsoft/winget-pkgs#${pr_number}. Comment '${cc}' on it by hand."
             }
           }
 
@@ -1232,16 +1233,13 @@ jobs:
           }
 
         env:
-          # For gh CLI, to search for and comment on microsoft/winget-pkgs PRs
-          # as cdrci. github.token can only comment in this repository.
+          # For gh CLI. github.token can't comment on microsoft/winget-pkgs PRs.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          # For wingetcreate. We need a real token since we're pushing a commit
-          # to GitHub and then making a PR in a different repo.
-          # wingetcreate will read the token from the environment variable defined below.
+          # For wingetcreate. github.token can't push to the cdrci fork or open
+          # a PR in microsoft/winget-pkgs.
           # Reference: https://aka.ms/winget-create-token
           WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
-          RELEASE_CHANNEL: ${{ inputs.release_channel }}
           AMD64_INSTALLER_URL: ${{ steps.winget_urls.outputs.amd64_installer_url }}
           AMD64_ZIP_URL: ${{ steps.winget_urls.outputs.amd64_zip_url }}
           ARM64_ZIP_URL: ${{ steps.winget_urls.outputs.arm64_zip_url }}
