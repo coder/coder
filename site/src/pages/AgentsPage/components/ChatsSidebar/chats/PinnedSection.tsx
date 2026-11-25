@@ -13,6 +13,8 @@ type PinnedSectionProps = {
 	/** The user's pinned chats, in pin order. */
 	readonly pinnedChats: readonly Chat[];
 	readonly canReorderChats: boolean;
+	/** Moves a pinned chat to the given index without a drag. */
+	readonly onMovePinnedChat: (chatId: string, to: number) => void;
 	/** The pinned project folders, or undefined while projects are off. */
 	readonly projectFolders: ProjectFoldersProps | undefined;
 	readonly expanded: boolean;
@@ -23,6 +25,7 @@ type PinnedSectionProps = {
 export const PinnedSection: React.FC<PinnedSectionProps> = ({
 	pinnedChats,
 	canReorderChats,
+	onMovePinnedChat,
 	projectFolders,
 	expanded,
 	onToggle,
@@ -42,7 +45,13 @@ export const PinnedSection: React.FC<PinnedSectionProps> = ({
 					<div className="flex flex-col gap-0.5">
 						{pinnedChats.map((chat, index) =>
 							canReorderChats ? (
-								<SortableChatTreeNode key={chat.id} chat={chat} index={index} />
+								<SortableChatTreeNode
+									key={chat.id}
+									chat={chat}
+									index={index}
+									pinCount={pinnedChats.length}
+									onMovePin={(to) => onMovePinnedChat(chat.id, to)}
+								/>
 							) : (
 								<ChatTreeNode key={chat.id} chat={chat} />
 							),

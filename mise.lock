@@ -433,52 +433,52 @@ checksum = "sha256:e1245a0a760a45b236e7a25bf118c1defc8447734bdeb4260ea3ec15d1797
 url = "https://github.com/digitalocean/doctl/releases/download/v1.158.0/doctl-1.158.0-windows-amd64.zip"
 
 [[tools.go]]
-version = "1.26.10"
+version = "1.26.11"
 backend = "core:go"
 
 [tools.go."platforms.linux-arm64"]
-checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
-url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
+checksum = "sha256:6c2f29b458b5add0835f18b776f69c8881a6d88428f1484a6da55755e620757e"
+url = "https://dl.google.com/go/go1.26.11.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-arm64-musl"]
-checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
-url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
+checksum = "sha256:6c2f29b458b5add0835f18b776f69c8881a6d88428f1484a6da55755e620757e"
+url = "https://dl.google.com/go/go1.26.11.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-x64"]
-checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
-url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+checksum = "sha256:9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec"
+url = "https://dl.google.com/go/go1.26.11.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-baseline"]
-checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
-url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+checksum = "sha256:9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec"
+url = "https://dl.google.com/go/go1.26.11.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl"]
-checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
-url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+checksum = "sha256:9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec"
+url = "https://dl.google.com/go/go1.26.11.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
-url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+checksum = "sha256:9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec"
+url = "https://dl.google.com/go/go1.26.11.linux-amd64.tar.gz"
 
 [tools.go."platforms.macos-arm64"]
-checksum = "sha256:0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3"
-url = "https://dl.google.com/go/go1.26.10.darwin-arm64.tar.gz"
+checksum = "sha256:e3a42e67a7a8acf450ebada2b074c7ca863000ca514907b7185b45e8f5cdff57"
+url = "https://dl.google.com/go/go1.26.11.darwin-arm64.tar.gz"
 
 [tools.go."platforms.macos-x64"]
-checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
-url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
+checksum = "sha256:394baae971332f2bc783d6e2004ae57101479bd3b06ed8209a3fe3570d4ce498"
+url = "https://dl.google.com/go/go1.26.11.darwin-amd64.tar.gz"
 
 [tools.go."platforms.macos-x64-baseline"]
-checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
-url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
+checksum = "sha256:394baae971332f2bc783d6e2004ae57101479bd3b06ed8209a3fe3570d4ce498"
+url = "https://dl.google.com/go/go1.26.11.darwin-amd64.tar.gz"
 
 [tools.go."platforms.windows-x64"]
-checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
-url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
+checksum = "sha256:71ae086f0137e665f855a811cc119152b6a783e0bbc1b906e709f46d80141eb0"
+url = "https://dl.google.com/go/go1.26.11.windows-amd64.zip"
 
 [tools.go."platforms.windows-x64-baseline"]
-checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
-url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
+checksum = "sha256:71ae086f0137e665f855a811cc119152b6a783e0bbc1b906e709f46d80141eb0"
+url = "https://dl.google.com/go/go1.26.11.windows-amd64.zip"
 
 [[tools."go:github.com/coder/paralleltestctx/cmd/paralleltestctx"]]
 version = "95009df793fb85bcbe71628e6dded30e5cfdb3c3"

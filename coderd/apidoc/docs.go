@@ -64,6 +64,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/ai-gateway/retention": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Get AI Gateway data retention",
+                "operationId": "get-ai-gateway-data-retention",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayRetention"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/ai/model-prices": {
             "get": {
                 "produces": [
@@ -8668,7 +8696,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns per-user, per-group, per-model, per-provider, per-client aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage. Usage without a recorded client is reported as Unknown. New columns are only added at the end.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -8724,6 +8752,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Model name",
                         "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client name, or Unknown for usage without a recorded client",
+                        "name": "client",
                         "in": "query"
                     }
                 ],
@@ -10325,6 +10359,47 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/members/{user}/ai/spend": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization member AI spend",
+                "operationId": "get-organization-member-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMemberAISpendStatus"
+                        }
                     }
                 },
                 "security": [
@@ -12053,7 +12128,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provisioner Key",
+                        "description": "Provisioner key placeholder (ignored; the key is read from the Coder-Provisioner-Daemon-Key header)",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -14735,6 +14810,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/spend": {
             "get": {
+                "description": "Returns the user's site-wide effective AI budget and spend in the current budget period.\nThe effective group is resolved across all of the user's organizations, the same way AI Gateway resolves a budget for a request that is not scoped to an organization.\nThe response does not depend on which organizations the caller can read.\nTo see spend per organization, use GET /users/{user}/ai/spend/organizations.",
                 "produces": [
                     "application/json"
                 ],
@@ -14757,6 +14833,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserAISpendStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai/spend/organizations": {
+            "get": {
+                "description": "Returns the user's effective AI budget and current-period spend in each organization that the user is a current member of and that the caller can read.\nOrganizations the caller cannot read are omitted, so the response for a given user can differ between callers.\nEach organization's effective group is resolved the same way AI Gateway resolves a budget for a request in that organization, falling back to the organization's Everyone group.\norganization_id is the organization of the user's site-wide effective group, as reported by GET /users/{user}/ai/spend, and is null when that organization is not in organizations.\nAccess requires permission to read the user, as for GET /users/{user}/ai/spend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI spend by organization",
+                "operationId": "get-user-ai-spend-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserOrganizationsAISpendStatus"
                         }
                     }
                 },
@@ -20847,6 +20958,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIGatewayRetention": {
+            "type": "object",
+            "properties": {
+                "retention_ms": {
+                    "description": "RetentionMillis is the retention duration in milliseconds. Zero means\ndata is never purged.",
+                    "type": "integer"
                 }
             }
         },
@@ -29987,11 +30107,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "retention_start": {
-                    "description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "totals": {
                     "$ref": "#/definitions/codersdk.OrganizationAISpendTotals"
                 },
@@ -30151,6 +30266,46 @@ const docTemplate = `{
                     }
                 },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OrganizationMemberAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+                    "type": "integer"
+                },
+                "effective_budget": {
+                    "description": "EffectiveBudget is the spend limit that applies to the user in this\norganization. Null when no budget applies, leaving the user's spend\nunlimited.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the group inside this organization that the spend\nis attributed to, falling back to the organization's Everyone group\nwhen no budget applies.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -35284,6 +35439,58 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserOrganizationAISpend": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the spend on EffectiveGroupID over the current\nbudget period, the same value the budget check compares.",
+                    "type": "integer"
+                },
+                "effective_budget": {
+                    "description": "EffectiveBudget is null when no budget applies in Organization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the user's effective group inside Organization,\nfalling back to its Everyone group.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
+                }
+            }
+        },
+        "codersdk.UserOrganizationsAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "OrganizationID is the organization of the user's site-wide effective\ngroup, as reported by UserAISpendStatus. Null when no group resolves or\nwhen that organization is not in Organizations.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organizations": {
+                    "description": "Organizations is the spend per organization the user is a current\nmember of and the caller can read, ordered by organization name.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserOrganizationAISpend"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the applied period.",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

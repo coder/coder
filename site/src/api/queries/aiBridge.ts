@@ -1,5 +1,6 @@
 import {
 	hashKey,
+	type QueryClient,
 	queryOptions,
 	type UseInfiniteQueryOptions,
 } from "react-query";
@@ -11,10 +12,13 @@ import type {
 	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
+	Pagination,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { group } from "./groups";
 import { permittedOrganizations } from "./organizations";
+import { user } from "./users";
 
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
 
@@ -36,9 +40,38 @@ export const paginatedSessions = (
 	};
 };
 
+export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+
 export const aiBridgeProviders = () => ({
-	queryKey: ["aiBridgeProviders"],
+	queryKey: aiBridgeProvidersKey,
 	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
+});
+
+type AIBridgeModelsOptions = Pagination & { model?: string };
+
+export const aiBridgeModelsKey = (options: AIBridgeModelsOptions) =>
+	["aiBridgeModels", options] as const;
+
+export const aiBridgeModels = (options: AIBridgeModelsOptions) => ({
+	queryKey: aiBridgeModelsKey(options),
+	queryFn: () => API.getAIBridgeModels(options),
+});
+
+type AIBridgeClientsOptions = Pagination & { q?: string };
+
+export const aiBridgeClientsKey = (options: AIBridgeClientsOptions) =>
+	["aiBridgeClients", options] as const;
+
+export const aiBridgeClients = (options: AIBridgeClientsOptions) => ({
+	queryKey: aiBridgeClientsKey(options),
+	queryFn: () => API.getAIBridgeClients(options),
+});
+
+// The retention only changes when the deployment restarts.
+export const aiGatewayRetention = () => ({
+	queryKey: ["aiGatewayRetention"],
+	queryFn: () => API.experimental.getAIGatewayRetention(),
+	staleTime: Number.POSITIVE_INFINITY,
 });
 
 // The spend endpoints authorize on reading the organization's group members,
@@ -49,39 +82,118 @@ export const aiSpendOrganizations = () =>
 		action: "read",
 	});
 
-const organizationAISpendScopeKey = (
-	organizationId: string,
-	filter: OrganizationAISpendFilter,
-) => ["organizations", organizationId, "aiSpend", filter] as const;
+/**
+ * Filters a detailed AI spend report by provider, model, client, user, and
+ * group. Users and groups are given by name, which the report resolves to the
+ * IDs the endpoint filters by.
+ */
+export type AISpendReportFilter = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "model" | "client"
+> & {
+	username?: string;
+	group_name?: string;
+};
 
-export const paginatedOrganizationAISpend = (
+/** Resolves the username and group name to the IDs the spend endpoints filter by. */
+const resolveAISpendReportFilter = async (
+	queryClient: QueryClient,
 	organizationId: string,
-	filter: OrganizationAISpendFilter,
+	{ username, group_name, ...dimensions }: AISpendReportFilter,
+): Promise<OrganizationAISpendFilter> => {
+	const [resolvedUser, resolvedGroup] = await Promise.all([
+		username ? queryClient.fetchQuery(user(username)) : undefined,
+		group_name
+			? queryClient.fetchQuery(
+					group(organizationId, group_name, { exclude_members: true }),
+				)
+			: undefined,
+	]);
+	return {
+		...dimensions,
+		user_ids: resolvedUser && [resolvedUser.id],
+		group_id: resolvedGroup?.id,
+	};
+};
+
+/** Exports the organization's AI spend for the period as CSV. */
+export const exportOrganizationAISpend = (queryClient: QueryClient) => ({
+	mutationFn: async ({
+		organizationId,
+		period,
+		filter,
+	}: {
+		organizationId: string;
+		period: AISpendPeriodWindow;
+		filter: AISpendReportFilter;
+	}): Promise<Blob> => {
+		// TODO(AIGOV-733): export the client filter once the endpoint supports it.
+		const { user_ids, group_id, provider_name, model } =
+			await resolveAISpendReportFilter(queryClient, organizationId, filter);
+		return API.getOrganizationAISpendExport(organizationId, {
+			...period,
+			user_id: user_ids?.[0],
+			group_id,
+			provider_name,
+			model,
+		});
+	},
+});
+
+export const organizationAISpendReportsScopeKey = (organizationId: string) =>
+	["organizations", organizationId, "aiSpendReport"] as const;
+
+const organizationAISpendReportKey = (
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
+) =>
+	[
+		...organizationAISpendReportsScopeKey(organizationId),
+		period,
+		filter,
+	] as const;
+
+export const paginatedOrganizationAISpendReport = (
+	queryClient: QueryClient,
+	organizationId: string,
+	period: AISpendPeriodWindow,
+	filter: AISpendReportFilter,
 ): UsePaginatedQueryOptions<
 	OrganizationAISpendReport,
-	OrganizationAISpendFilter
+	AISpendReportFilter,
+	Error
 > => {
 	return {
 		queryPayload: () => filter,
 		queryKey: ({ payload, pageNumber }) => [
-			...organizationAISpendScopeKey(organizationId, payload),
+			...organizationAISpendReportKey(organizationId, period, payload),
 			pageNumber,
 		],
-		queryFn: ({ payload, limit, offset }) =>
-			API.experimental.getOrganizationAISpendUsers(organizationId, {
-				...payload,
-				limit,
-				offset,
-			}),
-		// Every page aggregates the whole organization window.
+		queryFn: async ({ payload, limit, offset, signal }) =>
+			API.experimental.getOrganizationAISpendUsers(
+				organizationId,
+				{
+					...period,
+					...(await resolveAISpendReportFilter(
+						queryClient,
+						organizationId,
+						payload,
+					)),
+					limit,
+					offset,
+				},
+				signal,
+			),
+		// Each page totals the whole period on the server, so skip loading the
+		// neighbouring pages in the background.
 		prefetch: false,
-		// Rows from another organization or filter must not appear under the
-		// new selection while its report loads; only a page change keeps the
-		// previous rows behind the refresh overlay.
+		// While the next page loads, keep the current rows. A different filter,
+		// period, or organization is a new report, so it shows the loading state.
 		placeholderData: (previousData, previousQuery) =>
 			previousQuery &&
 			hashKey(previousQuery.queryKey.slice(0, -1)) ===
-				hashKey(organizationAISpendScopeKey(organizationId, filter))
+				hashKey(organizationAISpendReportKey(organizationId, period, filter))
 				? previousData
 				: undefined,
 	};
@@ -137,15 +249,29 @@ export const organizationAISpendUsers = (
 			}),
 	});
 
-/** The models used in the period that still have no price. */
+/**
+ * The models used in the period that still have no price, most unpriced tokens
+ * first, up to the given limit.
+ */
 export const organizationUnpricedAIModels = (
 	organizationId: string,
 	period: AISpendPeriodWindow,
+	limit: number,
 ) =>
 	queryOptions({
-		queryKey: ["organizations", organizationId, "unpricedAIModels", period],
+		queryKey: [
+			"organizations",
+			organizationId,
+			"unpricedAIModels",
+			period,
+			limit,
+		],
 		queryFn: () =>
-			API.experimental.getOrganizationUnpricedAIModels(organizationId, period),
+			API.experimental.getOrganizationUnpricedAIModels(
+				organizationId,
+				period,
+				limit,
+			),
 	});
 
 export const infiniteSessionThreads = (sessionId: string) => {

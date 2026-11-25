@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,10 @@ type executor struct {
 	files         tfpath.Layout
 	// used to capture execution times at various stages
 	timings *timingAggregator
+	// sensitiveVars holds the names of template variables flagged sensitive.
+	// It is replaced (never mutated) by plan, which holds mut, and read by the
+	// command logging helpers; the values of these variables are redacted.
+	sensitiveVars map[string]bool
 }
 
 func (e *executor) basicEnv() []string {
@@ -80,7 +85,7 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 			// that is not read yet.
 			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
 				err := cmd.Process.Kill()
-				e.logger.Debug(killCtx, "killed command", slog.F("args", cmd.Args), slog.Error(err))
+				e.logger.Debug(killCtx, "killed command", slog.F("args", redactArgs(cmd.Args, e.sensitiveVars)), slog.Error(err))
 			})
 			return cmd.Process.Signal(os.Interrupt)
 		}
@@ -92,8 +97,9 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
-	e.logger.Debug(ctx, "starting command", slog.F("args", args))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
+	e.logger.Debug(ctx, "starting command", slog.F("args", logArgs))
 
 	defer func() {
 		e.logger.Debug(ctx, "closing writers", slog.Error(err))
@@ -107,7 +113,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		}
 	}()
 	if ctx.Err() != nil {
-		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", args))
+		e.logger.Debug(ctx, "context canceled before command started", slog.F("args", logArgs))
 		return ctx.Err()
 	}
 
@@ -130,17 +136,17 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 	e.server.logger.Debug(ctx, "executing terraform command",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", logArgs),
 	)
 	err = cmd.Start()
 	if err != nil {
-		e.logger.Debug(ctx, "failed to start command", slog.F("args", args))
+		e.logger.Debug(ctx, "failed to start command", slog.F("args", logArgs))
 		return err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
 	err = waitCommand(killCtx, cmd)
-	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
+	e.logger.Debug(ctx, "command done", slog.F("args", logArgs), slog.Error(err))
 	return err
 }
 
@@ -148,7 +154,8 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
 	defer span.End()
-	span.SetAttributes(attribute.StringSlice("args", args))
+	logArgs := redactArgs(args, e.sensitiveVars)
+	span.SetAttributes(attribute.StringSlice("args", logArgs))
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -163,13 +170,13 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 
 	e.server.logger.Debug(ctx, "executing terraform command with JSON result",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", args),
+		slog.F("args", logArgs),
 	)
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
 	err = waitCommand(killCtx, cmd)
 	if err != nil {
@@ -317,12 +324,13 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, sensitiveVars map[string]bool, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	e.mut.Lock()
 	defer e.mut.Unlock()
+	e.sensitiveVars = sensitiveVars
 
 	metadata := req.Metadata
 
@@ -535,7 +543,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, killCtx, e.logger, e.sensitiveVars, cmd)
 
 	err = waitCommand(killCtx, cmd)
 	if err != nil {
@@ -604,7 +612,7 @@ func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	return state, nil
 }
 
-func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, cmd *exec.Cmd) {
+func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, sensitiveVars map[string]bool, cmd *exec.Cmd) {
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -616,10 +624,10 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 			default:
 				err = cmd.Process.Signal(os.Interrupt)
 			}
-			logger.Debug(ctx, "interrupted command", slog.F("args", cmd.Args), slog.Error(err))
+			logger.Debug(ctx, "interrupted command", slog.F("args", redactArgs(cmd.Args, sensitiveVars)), slog.Error(err))
 
 		case <-killCtx.Done():
-			logger.Debug(ctx, "kill context ended", slog.F("args", cmd.Args))
+			logger.Debug(ctx, "kill context ended", slog.F("args", redactArgs(cmd.Args, sensitiveVars)))
 		}
 	}()
 }
@@ -861,4 +869,23 @@ func (b *bufferedWriteCloser) Write(p []byte) (int, error) {
 
 func (b *bufferedWriteCloser) Close() error {
 	return b.wc.Close()
+}
+
+// redactArgs returns a copy of args that is safe to log or attach to spans: the
+// value of every `-var name=value` whose name is in sensitive is replaced,
+// keeping the name. Only variables flagged sensitive are redacted; the value of
+// an unflagged variable is logged as is, so authors must mark secrets
+// `sensitive = true`. The args passed to terraform are not modified.
+func redactArgs(args []string, sensitive map[string]bool) []string {
+	out := slices.Clone(args)
+	for i := 1; i < len(args); i++ {
+		// plan passes each variable as a separate `-var` `name=value` pair.
+		if args[i-1] != "-var" {
+			continue
+		}
+		if name, _, _ := strings.Cut(args[i], "="); sensitive[name] {
+			out[i] = name + "=[REDACTED]"
+		}
+	}
+	return out
 }
