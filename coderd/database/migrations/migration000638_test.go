@@ -254,3 +254,23 @@ func requireNoDeadlockVictim(ctx context.Context, t *testing.T, who string, done
 	}
 	require.NoError(t, err, who)
 }
+
+// async runs fn in a goroutine and returns a channel that receives its
+// result.
+func async(fn func() error) <-chan error {
+	done := make(chan error, 1)
+	go func() { done <- fn() }()
+	return done
+}
+
+// dedicatedConn returns a connection that stays checked out for the test and
+// its backend PID.
+func dedicatedConn(ctx context.Context, t *testing.T, db *sql.DB) (*sql.Conn, int) {
+	t.Helper()
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	var pid int
+	require.NoError(t, conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+	return conn, pid
+}
