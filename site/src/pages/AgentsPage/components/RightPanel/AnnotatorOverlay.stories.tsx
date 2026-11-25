@@ -104,15 +104,13 @@ async function holdComment(target: HTMLElement, text: string) {
 		text,
 	);
 	// Storybook's userEvent does not carry held modifiers into shadow-root clicks.
-	controls
-		.getByRole("button", { name: /^Send/ })
-		.dispatchEvent(
-			new MouseEvent("click", {
-				bubbles: true,
-				cancelable: true,
-				shiftKey: true,
-			}),
-		);
+	controls.getByRole("button", { name: /^Send/ }).dispatchEvent(
+		new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			shiftKey: true,
+		}),
+	);
 }
 
 export const HoldingComments: Story = {
