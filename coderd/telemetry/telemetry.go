@@ -106,6 +106,13 @@ func New(options Options) (Reporter, error) {
 		startedAt:     dbtime.Time(options.Clock.Now()).UTC(),
 		client:        &http.Client{},
 	}
+	// Give the client its own connection pool. On http.DefaultTransport the pool
+	// is shared with the whole process, and any call to its CloseIdleConnections
+	// (httptest.Server.Close makes one) can fail a request while net/http hands
+	// it a response that has no body.
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		reporter.client.Transport = transport.Clone()
+	}
 	go reporter.runSnapshotter()
 	return reporter, nil
 }
@@ -192,6 +199,9 @@ func (r *remoteReporter) Close() {
 		r.reportWithDeployment()
 	}
 	r.closeFunc()
+	// Only this reporter uses the pool, and the canceled context stops any
+	// later request from adding a connection to it.
+	r.client.CloseIdleConnections()
 }
 
 func (r *remoteReporter) isClosed() bool {

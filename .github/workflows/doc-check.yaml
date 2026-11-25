@@ -207,12 +207,9 @@ jobs:
               - ".github/scripts/doc-check-reviewed-head.test.sh"
               - ".github/scripts/doc-check-stop-review.sh"
               - ".github/scripts/doc-check-stop-review.test.sh"
-              - ".github/workflows/deploy-docs.yaml"
               - ".github/workflows/docs-preview.yaml"
               - ".github/workflows/audit-docs-paths.yaml"
               - ".github/workflows/weekly-docs.yaml"
-              - ".github/workflows/test-deploy-docs-diff.sh"
-              - ".github/workflows/test-deploy-docs-release.sh"
               - ".github/workflows/test-docs-preview-mapper.sh"
 
       - name: Decide whether to review

@@ -332,10 +332,9 @@ const MembersTableBody: React.FC<MembersTableBodyProps> = ({
 									<Button
 										size="icon-lg"
 										variant="subtle"
-										aria-label="Open menu"
+										aria-label={`Open menu for ${group.display_name || group.name}`}
 									>
 										<EllipsisVerticalIcon aria-hidden="true" />
-										<span className="sr-only">Open menu</span>
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
@@ -382,10 +381,9 @@ const MembersTableBody: React.FC<MembersTableBodyProps> = ({
 									<Button
 										size="icon-lg"
 										variant="subtle"
-										aria-label="Open menu"
+										aria-label={`Open menu for ${user.username}`}
 									>
 										<EllipsisVerticalIcon aria-hidden="true" />
-										<span className="sr-only">Open menu</span>
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">

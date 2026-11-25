@@ -217,6 +217,17 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				agt, found := findAgent(agentName, ws.LatestBuild.Resources)
 				if !found {
 					cliLog.Warn(inv.Context(), "could not find agent in workspace", slog.F("agent_name", agentName))
+					var agentNames []string
+					for _, res := range ws.LatestBuild.Resources {
+						for _, a := range res.Agents {
+							agentNames = append(agentNames, a.Name)
+						}
+					}
+					if len(agentNames) == 0 {
+						cliui.Warnf(inv.Stderr, "Workspace %q has no agents in its latest build (status: %s). Agent diagnostics will be skipped.", ws.Name, ws.LatestBuild.Status)
+					} else {
+						cliui.Warnf(inv.Stderr, "Could not find workspace agent %q. Available agents: %s. Agent diagnostics will be skipped.", agentName, strings.Join(agentNames, ", "))
+					}
 				} else {
 					cliLog.Debug(inv.Context(), "found workspace agent",
 						slog.F("agent_name", agt.Name),

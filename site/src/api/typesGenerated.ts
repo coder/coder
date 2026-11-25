@@ -453,6 +453,19 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGatewayRetention is how long AI Gateway data, such as interceptions and
+ * token usage, is kept before it is purged.
+ */
+export interface AIGatewayRetention {
+	/**
+	 * RetentionMillis is the retention duration in milliseconds. Zero means
+	 * data is never purged.
+	 */
+	readonly retention_ms: number;
+}
+
 // From codersdk/aimodelprices.go
 /**
  * AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -8246,6 +8259,7 @@ export interface OrganizationAISpendDetailsFilter {
 	readonly group_id?: string;
 	readonly provider_name?: string;
 	readonly model?: string;
+	readonly client?: string;
 }
 
 // From codersdk/aibridge.go
@@ -8445,12 +8459,6 @@ export interface OrganizationAISpendProvider {
  */
 export interface OrganizationAISpendReport extends AISpendPeriodWindow {
 	/**
-	 * RetentionStart is the oldest instant for which token usage is still
-	 * retained. An explicit period must not start before it. Omitted when the
-	 * deployment does not purge AI Gateway data.
-	 */
-	readonly retention_start?: string;
-	/**
 	 * Count is the number of users with token usage matching the filter.
 	 */
 	readonly count: number;
@@ -8571,6 +8579,34 @@ export interface OrganizationMember {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly roles: readonly SlimRole[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationMemberAISpendStatus is a user's AI spend snapshot inside a
+ * single organization, resolved the same way AI Gateway resolves a request
+ * made in that organization.
+ */
+export interface OrganizationMemberAISpendStatus extends AISpendPeriodWindow {
+	readonly organization_id: string;
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the group inside this organization that the spend
+	 * is attributed to, falling back to the organization's Everyone group
+	 * when no budget applies.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is the spend limit that applies to the user in this
+	 * organization. Null when no budget applies, leaving the user's spend
+	 * unlimited.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the user's spend on their effective group over
+	 * the current budget period.
+	 */
+	readonly current_spend_micros: number;
 }
 
 // From codersdk/organizations.go
@@ -12578,6 +12614,48 @@ export interface UserLatencyInsightsResponse {
 // From codersdk/users.go
 export interface UserLoginType {
 	readonly login_type: LoginType;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationAISpend is a user's AI spend inside one organization in
+ * the active budget period.
+ */
+export interface UserOrganizationAISpend {
+	readonly organization: MinimalOrganization;
+	/**
+	 * EffectiveGroupID is the user's effective group inside Organization,
+	 * falling back to its Everyone group.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is null when no budget applies in Organization.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	 * budget period, the same value the budget check compares.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationsAISpendStatus is a user's AI spend in each of their
+ * organizations that the caller can read, within the active budget period.
+ */
+export interface UserOrganizationsAISpendStatus extends AISpendPeriodWindow {
+	/**
+	 * OrganizationID is the organization of the user's site-wide effective
+	 * group, as reported by UserAISpendStatus. Null when no group resolves or
+	 * when that organization is not in Organizations.
+	 */
+	readonly organization_id: string | null;
+	/**
+	 * Organizations is the spend per organization the user is a current
+	 * member of and the caller can read, ordered by organization name.
+	 */
+	readonly organizations: readonly UserOrganizationAISpend[];
 }
 
 // From codersdk/users.go
