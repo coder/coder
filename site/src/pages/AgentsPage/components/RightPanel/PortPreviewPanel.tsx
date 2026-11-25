@@ -233,6 +233,7 @@ export const PortPreviewPanel: React.FC<{
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
+	const { highlight, clearHighlights } = bridge;
 	const canSendMessage = onSendToolMessage !== undefined;
 	const stopAnnotating = useEffectEvent(() => {
 		if (bridge.requested) {
@@ -269,14 +270,14 @@ export const PortPreviewPanel: React.FC<{
 			return;
 		}
 		if (isAgentWorking) {
-			bridge.highlight(workingOn.items);
+			highlight(workingOn.items);
 			if (!workingOn.started) {
 				setWorkingOn({ ...workingOn, started: true });
 			}
 			return;
 		}
 		if (workingOn.started) {
-			bridge.clearHighlights();
+			clearHighlights();
 			setWorkingOn(undefined);
 			return;
 		}
@@ -284,13 +285,7 @@ export const PortPreviewPanel: React.FC<{
 		// no-op, or the turn ended before the status reached us), drop it.
 		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
 		return () => clearTimeout(timer);
-	}, [
-		workingOn,
-		isAgentWorking,
-		bridge.ready,
-		bridge.highlight,
-		bridge.clearHighlights,
-	]);
+	}, [workingOn, isAgentWorking, bridge.ready, highlight, clearHighlights]);
 
 	// Everything the control shows about annotate mode comes from what the
 	// dashboard asked for, never from what the overlay reports: the page
