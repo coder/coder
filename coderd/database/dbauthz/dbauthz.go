@@ -3114,18 +3114,6 @@ func (q *querier) GetAIProviderByName(ctx context.Context, name string) (databas
 	return q.db.GetAIProviderByName(ctx, name)
 }
 
-func (q *querier) GetAIProviderFilterOptions(ctx context.Context) ([]database.GetAIProviderFilterOptionsRow, error) {
-	// This query returns display metadata only (name, type, display name,
-	// icon), never configuration or secrets. It exists so callers who can
-	// read AI Gateway interceptions deployment-wide (owners and auditors)
-	// can label the provider_name values they already see on those
-	// interceptions, so it is gated on interception read, not AIProvider read.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
-		return nil, err
-	}
-	return q.db.GetAIProviderFilterOptions(ctx)
-}
-
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceAIProvider); err != nil {
 		return database.AIProviderKey{}, err
@@ -3165,11 +3153,11 @@ func (q *querier) GetAIProviderKeysByProviderIDs(ctx context.Context, providerID
 	return q.db.GetAIProviderKeysByProviderIDs(ctx, providerIDs)
 }
 
-func (q *querier) GetAIProviderSummaries(ctx context.Context) ([]database.GetAIProviderSummariesRow, error) {
+func (q *querier) GetAIProviderSummaries(ctx context.Context, includeDeleted bool) ([]database.GetAIProviderSummariesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
-	return q.db.GetAIProviderSummaries(ctx)
+	return q.db.GetAIProviderSummaries(ctx, includeDeleted)
 }
 
 func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {

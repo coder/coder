@@ -595,26 +595,6 @@ title: Schemas
 | `model`             | string  | false    |              | Model is the priced model, either the requested model or the model reported by the provider. |
 | `output_price`      | integer | false    |              |                                                                                              |
 
-## codersdk.AIBridgeProvider
-
-```json
-{
-  "display_name": "string",
-  "icon": "string",
-  "name": "string",
-  "type": "openai"
-}
-```
-
-### Properties
-
-| Name           | Type                                               | Required | Restrictions | Description |
-|----------------|----------------------------------------------------|----------|--------------|-------------|
-| `display_name` | string                                             | false    |              |             |
-| `icon`         | string                                             | false    |              |             |
-| `name`         | string                                             | false    |              |             |
-| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
-
 ## codersdk.AIBridgeProxyConfig
 
 ```json

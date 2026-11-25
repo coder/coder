@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -674,10 +675,14 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 	return validations
 }
 
-// AIProviders lists all (non-deleted) AI providers. Callers who cannot
-// read provider configuration get rows without base URL, keys or settings.
-func (c *Client) AIProviders(ctx context.Context) ([]AIProvider, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai/providers", nil)
+type AIProvidersFilter struct {
+	IncludeDeleted bool `json:"include_deleted,omitempty"`
+}
+
+// AIProviders lists providers, omitting configuration the caller cannot read.
+func (c *Client) AIProviders(ctx context.Context, filter AIProvidersFilter) ([]AIProvider, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai/providers", nil,
+		WithQueryParam("include_deleted", strconv.FormatBool(filter.IncludeDeleted)))
 	if err != nil {
 		return nil, err
 	}

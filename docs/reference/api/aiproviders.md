@@ -20,6 +20,12 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
 
+### Parameters
+
+| Name              | In    | Type    | Required | Description                                                                                                                                                                    |
+|-------------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `include_deleted` | query | boolean | false    | Include deleted providers, which are returned without configuration. Each name appears once: its live provider if one exists, otherwise the most recently updated deleted one. |
+
 ### Example responses
 
 > 200 Response

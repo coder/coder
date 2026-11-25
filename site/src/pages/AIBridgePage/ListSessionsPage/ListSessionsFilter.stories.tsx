@@ -1,17 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, screen, userEvent, within } from "storybook/test";
-import {
-	aiBridgeClientsKey,
-	aiBridgeModelsKey,
-	aiBridgeProvidersKey,
-} from "#/api/queries/aiBridge";
+import { aiBridgeClientsKey, aiBridgeModelsKey } from "#/api/queries/aiBridge";
+import { aiProvidersIncludingDeletedKey } from "#/api/queries/aiProviders";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { usersKey } from "#/api/queries/users";
-import type { AIBridgeProvider } from "#/api/typesGenerated";
+import type { AIProvider } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
+	MockAIProviderAnthropic,
+	MockAIProviderOpenAI,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockPermissions,
@@ -25,14 +24,17 @@ import {
 } from "#/testHelpers/storybook";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 
-const mockProviders: AIBridgeProvider[] = [
+const mockProviders: AIProvider[] = [
 	{
+		...MockAIProviderAnthropic,
 		name: "anthropic-prod",
-		type: "anthropic",
 		display_name: "Anthropic (prod)",
-		icon: "",
 	},
-	{ name: "openai-prod", type: "openai", display_name: "", icon: "" },
+	{
+		...MockAIProviderOpenAI,
+		name: "openai-prod",
+		display_name: "openai-prod",
+	},
 ];
 
 const timeRange: DateTimeRangeValue = {
@@ -83,7 +85,7 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		queries: [
-			{ key: aiBridgeProvidersKey, data: mockProviders },
+			{ key: aiProvidersIncludingDeletedKey, data: mockProviders },
 			{
 				key: aiBridgeClientsKey({ q: "", limit: 25 }),
 				data: ["claude-code", "cursor"],

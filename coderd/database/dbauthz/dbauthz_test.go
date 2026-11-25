@@ -7985,15 +7985,8 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIProviderSummaries", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		summaryA := testutil.Fake(s.T(), faker, database.GetAIProviderSummariesRow{})
 		summaryB := testutil.Fake(s.T(), faker, database.GetAIProviderSummariesRow{})
-		dbm.EXPECT().GetAIProviderSummaries(gomock.Any()).Return([]database.GetAIProviderSummariesRow{summaryA, summaryB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.GetAIProviderSummariesRow{summaryA, summaryB})
-	}))
-	s.Run("GetAIProviderFilterOptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		options := []database.GetAIProviderFilterOptionsRow{
-			testutil.Fake(s.T(), faker, database.GetAIProviderFilterOptionsRow{}),
-		}
-		dbm.EXPECT().GetAIProviderFilterOptions(gomock.Any()).Return(options, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(options)
+		dbm.EXPECT().GetAIProviderSummaries(gomock.Any(), false).Return([]database.GetAIProviderSummariesRow{summaryA, summaryB}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.GetAIProviderSummariesRow{summaryA, summaryB})
 	}))
 	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})

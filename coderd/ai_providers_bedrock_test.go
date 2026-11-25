@@ -180,7 +180,7 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		// The write is rejected: a stored ARN with no resolution would be
 		// served as its own identity.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		providers, err := client.AIProviders(ctx)
+		providers, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Empty(t, providers)
 	})

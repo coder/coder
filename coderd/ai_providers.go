@@ -51,12 +51,23 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Providers
+// @Param include_deleted query bool false "Include deleted providers, which are returned without configuration. Each name appears once: its live provider if one exists, otherwise the most recently updated deleted one."
 // @Success 200 {array} codersdk.AIProvider
 // @Router /api/v2/ai/providers [get]
 func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	summaries, err := api.Database.GetAIProviderSummaries(ctx)
+	parser := httpapi.NewQueryParamParser()
+	includeDeleted := parser.Boolean(r.URL.Query(), false, "include_deleted")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
+	summaries, err := api.Database.GetAIProviderSummaries(ctx, includeDeleted)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return

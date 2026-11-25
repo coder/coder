@@ -7,7 +7,6 @@ import {
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
-	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
 	AISpendPeriodWindow,
 	OrganizationAISpendFilter,
@@ -39,13 +38,6 @@ export const paginatedSessions = (
 			}),
 	};
 };
-
-export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
-
-export const aiBridgeProviders = () => ({
-	queryKey: aiBridgeProvidersKey,
-	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
-});
 
 type AIBridgeModelsOptions = Pagination & { model?: string };
 
