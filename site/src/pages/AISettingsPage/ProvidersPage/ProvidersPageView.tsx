@@ -98,7 +98,11 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table className="table-fixed" aria-label="AI providers">
+			<Table
+				className="table-fixed"
+				aria-label="AI providers"
+				aria-busy={isFetching}
+			>
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
@@ -112,7 +116,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody size="lg">
-					{isLoading || isFetching ? (
+					{isLoading ? (
 						<TableLoader />
 					) : providers.length === 0 ? (
 						<TableEmpty
