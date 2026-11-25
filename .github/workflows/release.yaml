@@ -1150,9 +1150,8 @@ jobs:
           "arm64_zip_url=${arm64_zip_url}" >> $env:GITHUB_OUTPUT
 
         env:
-          # For gh CLI. This lookup is a separate step from the submission so
-          # the cdrci secret is exposed only to the step that writes to
-          # microsoft/winget-pkgs.
+          # For gh CLI. This lookup is a separate step so gh release view runs
+          # with github.token and the cdrci secret stays out of this step.
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.version }}
 
