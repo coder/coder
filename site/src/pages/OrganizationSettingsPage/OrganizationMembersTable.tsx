@@ -135,10 +135,9 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 										<Button
 											size="icon-lg"
 											variant="subtle"
-											aria-label="Open menu"
+											aria-label={`Open menu for ${member.name || member.username}`}
 										>
 											<EllipsisVerticalIcon aria-hidden="true" />
-											<span className="sr-only">Open menu</span>
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">

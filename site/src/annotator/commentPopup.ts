@@ -52,6 +52,7 @@ export function createCommentPopup(
 	cancel.textContent = "Cancel";
 	cancel.addEventListener("click", options.onCancel);
 
+	// sentence-case-expect: Shift is the keyboard key name.
 	const limitMessage = `Up to ${maxAnnotations} comments per send. Send without Shift to submit this batch.`;
 	const limit = el(doc, "div", "popup-limit", {
 		id: "comment-limit",
@@ -73,6 +74,7 @@ export function createCommentPopup(
 		const hold = shift && !atLimit;
 		send.innerHTML = hold ? plusIcon : sendIcon;
 		if (shift) {
+			// sentence-case-expect: Shift is the keyboard key name.
 			send.append(atLimit ? "Release Shift" : "Add");
 			return;
 		}

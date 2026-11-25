@@ -1,5 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { shortRelativeTime } from "./time";
+import { parseDate, shortRelativeTime } from "./time";
+
+describe("parseDate", () => {
+	it("parses an ISO string", () => {
+		expect(parseDate("2026-03-12T12:00:00.000Z")).toEqual(
+			new Date("2026-03-12T12:00:00.000Z"),
+		);
+	});
+
+	it.each([undefined, "", "not a date"])(
+		"returns undefined for %j",
+		(value) => {
+			expect(parseDate(value)).toBeUndefined();
+		},
+	);
+});
 
 describe("shortRelativeTime", () => {
 	// Pin "now" so tests are deterministic.

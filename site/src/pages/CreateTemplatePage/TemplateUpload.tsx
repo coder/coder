@@ -25,7 +25,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
 				}}
 				asChild
 				showExternalIcon={false}
-				className="p-0"
+				className="pl-0"
 			>
 				<RouterLink to="/starter-templates">starter templates</RouterLink>
 			</Link>{" "}

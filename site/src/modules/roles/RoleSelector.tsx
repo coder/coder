@@ -55,12 +55,14 @@ export const RoleSelector: React.FC<RoleSelectorProps> = ({
 	}
 
 	const impliedRoleNames = new Set(additionalImpliedRoles.map((r) => r.name));
-	const { selectableRoles = [], advancedRoles = [] } = Object.groupBy(
-		availableRoles.filter(
-			(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
-		),
-		(it) =>
-			advancedRoleNames.includes(it.name) ? "advancedRoles" : "selectableRoles",
+	const assignableRoles = availableRoles.filter(
+		(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
+	);
+	const selectableRoles = assignableRoles.filter(
+		(r) => !advancedRoleNames.includes(r.name),
+	);
+	const advancedRoles = assignableRoles.filter((r) =>
+		advancedRoleNames.includes(r.name),
 	);
 
 	if (selectableRoles.length === 0) {
@@ -110,7 +112,7 @@ const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
 	disabledReason,
 }) => {
 	return (
-		<div className="border border-border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
+		<div className="border rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
 			{selectableRoles.map((role) => (
 				<RoleCheckbox
 					key={role.name}
@@ -170,9 +172,7 @@ const RoleCheckbox: React.FC<RoleCheckboxProps> = ({
 				className="mt-1 shrink-0"
 			/>
 			<div className="flex flex-col">
-				<span className="text-sm font-medium">
-					{role.display_name || role.name}
-				</span>
+				<span className="text-sm">{role.display_name || role.name}</span>
 				<span className="text-sm text-content-secondary">
 					{roleDescriptions[role.name] ?? ""}
 				</span>
@@ -197,9 +197,12 @@ const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
 	hideLabel,
 	children,
 }) => {
+	const labelId = useId();
 	return (
-		<div className="flex flex-col gap-2">
-			{!hideLabel && <span className="text-sm font-medium">Roles</span>}
+		<div role="group" aria-labelledby={labelId} className="flex flex-col gap-2">
+			<span id={labelId} className={cn("text-sm", hideLabel && "sr-only")}>
+				Roles
+			</span>
 			{children}
 		</div>
 	);
@@ -261,7 +264,7 @@ const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 
 const RoleSelectorSkeleton: React.FC = () => {
 	return (
-		<div className="border border-border border-solid rounded-md">
+		<div className="border rounded-md">
 			<div className="p-3 flex flex-col gap-2">
 				{Array.from({ length: 4 }, (_, i) => (
 					<div key={i} className="flex items-start gap-2">

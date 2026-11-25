@@ -37,7 +37,6 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 				<ChatMessageScroller
 					hasMoreMessages={false}
 					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows={true}
 					onFetchMoreMessages={async () => {}}
@@ -1873,11 +1872,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/**
- * Regression: sources-only assistant messages must have consistent
- * bottom spacing before the next user bubble. A spacer div fills the
- * gap that would normally come from the hidden action bar.
- */
+/** Citations remain accessible even when the assistant sends no answer text. */
 export const SourcesOnlyAssistantSpacing: Story = {
 	args: {
 		...defaultArgs,
@@ -1912,10 +1907,6 @@ export const SourcesOnlyAssistantSpacing: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
 	},
 };
 
@@ -1986,7 +1977,7 @@ export const ProviderWebSearchWithCitations: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /searched for coder release notes/i }),
 		);
-		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
+		await userEvent.click(canvas.getByRole("button", { name: "Sources (1)" }));
 	},
 };
 

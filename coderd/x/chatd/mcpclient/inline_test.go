@@ -289,6 +289,11 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken + " and " + pathToken + " and " + cookieToken + " and " + signatureToken)
 			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
+			// The resource filename is the last URI path segment, here the
+			// path token.
+			result.Content = append(result.Content, &mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+				URI: serverURL, MIMEType: "application/pdf", Blob: []byte("pdf-data"),
+			}})
 			return result, nil
 		},
 	}
@@ -369,6 +374,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NotContains(t, resp.Content, cookieToken)
 	require.NotContains(t, resp.Content, signatureToken)
 	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
+	require.Equal(t, "[REDACTED].pdf", resp.Filename)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})
 	require.NoError(t, err)

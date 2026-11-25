@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -49,22 +51,29 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey                   = xerrors.New("invalid key")
-	ErrUnknownKey                   = xerrors.New("unknown key")
-	ErrExpired                      = xerrors.New("expired")
-	ErrUnknownUser                  = xerrors.New("unknown user")
-	ErrDeletedUser                  = xerrors.New("deleted user")
-	ErrInactiveUser                 = xerrors.New("inactive user")
-	ErrSystemUser                   = xerrors.New("system user")
-	ErrAmbiguousAuth                = xerrors.New("direct and delegated authentication are mutually exclusive")
-	ErrInvalidDelegatedOrganization = xerrors.New("invalid delegated_organization_id")
-	ErrWorkspaceAttribution         = xerrors.New("invalid workspace attribution")
-	ErrUnknownWorkspace             = xerrors.New("unknown workspace")
-	ErrUnknownOrganizationMember    = xerrors.New("user is not a member of the request organization")
-	ErrNoOrganization               = xerrors.New("no organization could be resolved for the user")
+	ErrInvalidKey                   = rejectionError("invalid key")
+	ErrUnknownKey                   = rejectionError("unknown key")
+	ErrExpired                      = rejectionError("expired")
+	ErrUnknownUser                  = rejectionError("unknown user")
+	ErrDeletedUser                  = rejectionError("deleted user")
+	ErrInactiveUser                 = rejectionError("inactive user")
+	ErrSystemUser                   = rejectionError("system user")
+	ErrAmbiguousAuth                = rejectionError("direct and delegated authentication are mutually exclusive")
+	ErrInvalidDelegatedOrganization = rejectionError("invalid delegated_organization_id")
+	ErrWorkspaceAttribution         = rejectionError("invalid workspace attribution")
+	ErrUnknownWorkspace             = rejectionError("unknown workspace")
+	ErrUnknownOrganizationMember    = rejectionError("user is not a member of the request organization")
+	ErrNoOrganization               = rejectionError("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
+
+// rejectionError is an IsAuthorized error that refuses the request. The gateway
+// answers it with a 403. Every other IsAuthorized error is a failure of coderd
+// itself and carries [proto.ErrCodeInternal], so the gateway answers a 500.
+type rejectionError string
+
+func (r rejectionError) Error() string { return string(r) }
 
 var _ aibridged.DRPCServer = &Server{}
 
@@ -788,7 +797,8 @@ externalAuthLoop:
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
 // It also returns the organization the request resolves to, as determined by [Server.resolveOrganization], and
-// rejects the request when that resolution fails.
+// rejects the request when that resolution fails. An error caused by coderd itself, such as a failed database
+// query, carries [proto.ErrCodeInternal] so the gateway can tell it from a rejected request.
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
 // caller's claim of identity and skips the key-secret check. This DRPCServer is
@@ -811,6 +821,15 @@ externalAuthLoop:
 //
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
 func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+	resp, err := s.authorize(ctx, in)
+	var r rejectionError
+	if err != nil && !errors.As(err, &r) {
+		return nil, drpcerr.WithCode(err, proto.ErrCodeInternal)
+	}
+	return resp, err
+}
+
+func (s *Server) authorize(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -848,9 +867,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// Key exists.
 	key, err := s.store.GetAPIKeyByID(ctx, keyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrUnknownKey
+	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
-		return nil, ErrUnknownKey
+		return nil, xerrors.Errorf("get API key %s: %w", keyID, err)
 	}
 
 	// Key has not expired.
@@ -866,9 +888,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// User exists.
 	user, err := s.store.GetUserByID(ctx, key.UserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrUnknownUser
+	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrUnknownUser
+		return nil, xerrors.Errorf("get user %s: %w", key.UserID, err)
 	}
 
 	// User is active, not deleted, and not a system user.
