@@ -282,7 +282,12 @@ describe("theme CSS variables", () => {
 					[themeName, "--content-warning", surface, 4.5] as const,
 					[themeName, "--border-warning", surface, 3] as const,
 				]),
-				...["--surface-primary", "--surface-secondary", "--surface-red"].map(
+				...[
+					"--surface-primary",
+					"--surface-secondary",
+					"--surface-tertiary",
+					"--surface-red",
+				].map(
 					(surface) =>
 						[themeName, "--content-destructive", surface, 4.5] as const,
 				),
