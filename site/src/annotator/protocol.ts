@@ -1,6 +1,16 @@
-import { isUUID } from "../utils/uuid";
+/**
+ * Message contract between the annotator overlay injected into a proxied
+ * workspace app and the dashboard that embeds it in an iframe. Both sides
+ * import this file, so keep it free of DOM or React imports.
+ */
 
-/** Bounded element context for locating the selected UI in source code. */
+/**
+ * Query parameter the dashboard appends to the preview URL. The app proxy
+ * strips it before forwarding the request and injects the overlay script
+ * into the HTML response. It is request-only: no cookie or other state.
+ */
+export const annotatorQueryParam = "coder_annotate";
+
 export type AnnotatedElement = {
 	tag: string;
 	selector: string;
@@ -10,63 +20,42 @@ export type AnnotatedElement = {
 	role?: string;
 	ariaLabel?: string;
 	text?: string;
-	// Rebuilt from an attribute allowlist, never copied from raw page markup.
+	// Opening tag rebuilt from an attribute allowlist; never raw markup.
 	openingTag: string;
 	rect: { x: number; y: number; width: number; height: number };
 	reactComponents?: string[];
 	sourceLocation?: string;
 };
 
-/** A user-authored comment and its page context, sent on each submission. */
-export type AnnotationSubmission = {
-	page: {
-		url: string;
-		title: string;
-		viewport: { width: number; height: number };
-	};
-	annotations: {
-		id: string;
-		comment: string;
-		element: AnnotatedElement;
-		// Explicitly selected by the user, unlike automatically captured text.
-		selectedText?: string;
-	}[];
+export type Annotation = {
+	id: string;
+	comment: string;
+	element: AnnotatedElement;
+	// Text the user had highlighted when picking. Unlike captured text it is
+	// not filtered for form state because the user chose it deliberately.
+	selectedText?: string;
 };
 
-/** A comment and captured element from an annotation submission. */
-export type Annotation = AnnotationSubmission["annotations"][number];
+type AnnotatedPage = {
+	url: string;
+	title: string;
+	viewport: { width: number; height: number };
+};
 
-/** Lifecycle, picking state, and submissions sent to the embedding dashboard. */
+export type AnnotationSubmission = {
+	page: AnnotatedPage;
+	annotations: Annotation[];
+};
+
 export type AnnotatorToHostMessage =
 	| { type: "coder-annotator:ready" }
 	| { type: "coder-annotator:state"; picking: boolean }
 	| ({ type: "coder-annotator:submit" } & AnnotationSubmission);
 
-/** Picking commands issued by the embedding dashboard. */
 export type HostToAnnotatorMessage = {
 	type: "coder-annotator:set-picking";
 	picking: boolean;
 };
-
-/** Limit page-controlled strings before cloning them into the dashboard. */
-export const maxFieldLength = 300;
-
-/** Accept only the dashboard command supported by the overlay. */
-export function isHostToAnnotatorMessage(
-	value: unknown,
-): value is HostToAnnotatorMessage {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"type" in value &&
-		value.type === "coder-annotator:set-picking" &&
-		"picking" in value &&
-		typeof value.picking === "boolean"
-	);
-}
-
-/** Marker consumed and stripped by the app proxy to request script injection. */
-export const annotatorQueryParam = "coder_annotate";
 
 const messagePrefix = "coder-annotator:";
 
@@ -83,6 +72,10 @@ function hasMessageType(value: unknown): value is { type: string } {
 // The overlay sends one annotation per save; a handful is plenty of slack.
 const maxAnnotations = 5;
 const maxCommentLength = 2000;
+// Cap on every other string field. Exported so the overlay can trim what
+// it reads from the page before posting, rather than cloning an
+// arbitrarily large value into the dashboard for the parser to cut down.
+export const maxFieldLength = 300;
 const maxClasses = 20;
 const maxComponents = 10;
 // Coordinates well past any real screen are meaningless and only make
@@ -99,8 +92,13 @@ function optionalString(
 	return typeof value === "string" ? value.slice(0, limit) : undefined;
 }
 
+// Ids are minted by the overlay as 32 hex digits. Holding the page to that
+// alphabet keeps ids safe to use as object keys and attribute selectors on
+// the dashboard side: no prototype names, nothing to escape.
+const idPattern = /^[0-9a-f]{1,64}$/;
+
 function annotationId(value: unknown): string | undefined {
-	return typeof value === "string" && isUUID(value) ? value : undefined;
+	return typeof value === "string" && idPattern.test(value) ? value : undefined;
 }
 
 function finiteNumber(value: unknown): number {
@@ -240,7 +238,6 @@ function parseAnnotationSubmission(
 	return submission;
 }
 
-/** Validate and bound messages received from the untrusted preview frame. */
 export function parseAnnotatorToHostMessage(
 	value: unknown,
 ): AnnotatorToHostMessage | undefined {
@@ -260,5 +257,19 @@ export function parseAnnotatorToHostMessage(
 		}
 		default:
 			return undefined;
+	}
+}
+
+export function isHostToAnnotatorMessage(
+	value: unknown,
+): value is HostToAnnotatorMessage {
+	if (!hasMessageType(value)) {
+		return false;
+	}
+	switch (value.type) {
+		case "coder-annotator:set-picking":
+			return "picking" in value && typeof value.picking === "boolean";
+		default:
+			return false;
 	}
 }

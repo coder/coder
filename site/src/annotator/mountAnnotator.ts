@@ -1,4 +1,3 @@
-import { generateUUID } from "../utils/random";
 import { type CommentPopup, createCommentPopup } from "./commentPopup";
 import { describeElement } from "./describeElement";
 import { el } from "./dom";
@@ -7,6 +6,7 @@ import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
 import { isOwnEvent, pickTarget } from "./pickTarget";
 import { type AnnotationSubmission, maxFieldLength } from "./protocol";
+import { randomId } from "./randomId";
 import annotatorStyles from "./styles.css?inline";
 
 type AnnotatorState = {
@@ -143,7 +143,7 @@ export function mountAnnotator(
 			page: pageInfo(),
 			annotations: [
 				{
-					id: generateUUID(),
+					id: randomId(),
 					comment,
 					selectedText,
 					element: describeElement(target),

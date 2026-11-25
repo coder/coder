@@ -2,6 +2,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
+import { randomId } from "#/annotator/randomId";
 import { toast } from "#/components/Toaster/toast";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -11,7 +12,6 @@ import {
 } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { portForwardURL } from "#/utils/portForward";
-import { generateUUID } from "#/utils/random";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 import { PortPreviewPanel } from "./PortPreviewPanel";
@@ -97,7 +97,7 @@ const submission: AnnotatorToHostMessage = {
 	},
 	annotations: [
 		{
-			id: generateUUID(),
+			id: randomId(),
 			comment: "Make this red",
 			element: {
 				tag: "button",
@@ -263,7 +263,7 @@ describe("PortPreviewPanel annotations", () => {
 		for (let index = 0; index < 6; index++) {
 			receive({
 				...submission,
-				annotations: [{ ...submission.annotations[0], id: generateUUID() }],
+				annotations: [{ ...submission.annotations[0], id: randomId() }],
 			});
 		}
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
@@ -291,7 +291,7 @@ describe("PortPreviewPanel annotations", () => {
 			receive({ type: "coder-annotator:ready" });
 			receive({ type: "coder-annotator:state", picking: true });
 		});
-		for (const id of Array.from({ length: 3 }, generateUUID)) {
+		for (const id of Array.from({ length: 3 }, randomId)) {
 			receive({
 				...submission,
 				annotations: [{ ...submission.annotations[0], id }],
@@ -335,7 +335,7 @@ describe("PortPreviewPanel annotations", () => {
 		await waitFor(() => expect(originalSend).toHaveBeenCalledTimes(1));
 		receive({
 			...submission,
-			annotations: [{ ...submission.annotations[0], id: generateUUID() }],
+			annotations: [{ ...submission.annotations[0], id: randomId() }],
 		});
 		setSender(nextSend);
 		first.resolve("sent");
@@ -493,7 +493,7 @@ describe("PortPreviewPanel annotations", () => {
 			annotations: [
 				{
 					...submission.annotations[0],
-					id: generateUUID(),
+					id: randomId(),
 					comment: "Then this",
 				},
 			],

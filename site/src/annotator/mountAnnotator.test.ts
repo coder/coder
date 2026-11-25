@@ -2,7 +2,11 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { annotatorHostId, mountAnnotator } from "./mountAnnotator";
-import { type AnnotationSubmission, maxFieldLength } from "./protocol";
+import {
+	type AnnotationSubmission,
+	maxFieldLength,
+	parseAnnotatorToHostMessage,
+} from "./protocol";
 
 const handles: ReturnType<typeof mountAnnotator>[] = [];
 
@@ -111,6 +115,17 @@ describe("mountAnnotator", () => {
 		expect(JSON.stringify(onSubmit.mock.calls)).not.toMatch(
 			/page-secret|link-secret|form-secret|private-notes|private-draft/,
 		);
+		for (const [submission] of onSubmit.mock.calls) {
+			expect(
+				parseAnnotatorToHostMessage({
+					type: "coder-annotator:submit",
+					...submission,
+				}),
+			).toMatchObject({
+				type: "coder-annotator:submit",
+				annotations: submission.annotations,
+			});
+		}
 	});
 
 	it("intercepts page clicks while picking but lets its own controls work", async () => {
@@ -121,7 +136,16 @@ describe("mountAnnotator", () => {
 		pageButton.addEventListener("click", pageClick);
 		pageButton.addEventListener("pointerdown", pagePointerDown);
 		const onSubmit = vi.fn();
-		const handle = mount({ onSubmit });
+		const onStateChange = vi.fn();
+		const handle = mount({ onSubmit, onStateChange });
+		await userEvent.click(
+			within(overlayRegion("toolbar")).getByRole("button", {
+				name: "Stop annotating",
+				hidden: true,
+			}),
+		);
+		expect(handle.getState()).toEqual({ picking: false });
+		expect(onStateChange).not.toHaveBeenCalledWith({ picking: true });
 		handle.setPicking(true);
 
 		await userEvent.click(pageButton);

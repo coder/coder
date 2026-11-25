@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { generateUUID } from "../utils/random";
 import {
 	type AnnotationSubmission,
 	type AnnotatorToHostMessage,
@@ -24,7 +23,7 @@ const submission: AnnotatorToHostMessage = {
 		title: "App",
 		viewport: { width: 800, height: 600 },
 	},
-	annotations: [{ id: generateUUID(), comment: "Make it red", element }],
+	annotations: [{ id: "a", comment: "Make it red", element }],
 };
 
 // Most cases exercise the submit branch, so narrow once here and let them
@@ -71,11 +70,7 @@ describe("parseAnnotatorToHostMessage", () => {
 			parseAnnotatorToHostMessage({
 				...submission,
 				annotations: [
-					{
-						id: generateUUID(),
-						comment: "x",
-						element: { ...element, selector: "" },
-					},
+					{ id: "a", comment: "x", element: { ...element, selector: "" } },
 				],
 			}),
 		).toBeUndefined();
@@ -93,7 +88,9 @@ describe("parseAnnotatorToHostMessage", () => {
 				...submission,
 				annotations: [{ id, comment: "x", element }],
 			});
-		expect(withId(generateUUID())).toBeDefined();
+		expect(withId("0".repeat(32))).toBeDefined();
+		expect(withId("a")).toBeDefined();
+		// Ids key dashboard-side maps: prototype names must not get through.
 		for (const id of [
 			"__proto__",
 			"constructor",
@@ -101,9 +98,7 @@ describe("parseAnnotatorToHostMessage", () => {
 			"a b",
 			'x"]',
 			"",
-			"a",
-			"0".repeat(32),
-			"00000000-0000-4000-8000-00000000000z",
+			"3b241101-e2bb-4255-8caf-4136c566a962",
 			"f".repeat(65),
 		]) {
 			expect(withId(id), id).toBeUndefined();
@@ -115,7 +110,7 @@ describe("parseAnnotatorToHostMessage", () => {
 			...submission,
 			annotations: [
 				{
-					id: generateUUID(),
+					id: "a",
 					comment: "c".repeat(5000),
 					element: {
 						...element,
@@ -140,8 +135,8 @@ describe("parseAnnotatorToHostMessage", () => {
 	it("caps the number of annotations and the total size", () => {
 		const many = parseSubmission({
 			...submission,
-			annotations: Array.from({ length: 50 }, () => ({
-				id: generateUUID(),
+			annotations: Array.from({ length: 50 }, (_, i) => ({
+				id: String(i),
 				comment: "x",
 				element,
 			})),
@@ -150,8 +145,8 @@ describe("parseAnnotatorToHostMessage", () => {
 
 		const huge = parseAnnotatorToHostMessage({
 			...submission,
-			annotations: Array.from({ length: 5 }, () => ({
-				id: generateUUID(),
+			annotations: Array.from({ length: 5 }, (_, i) => ({
+				id: String(i),
 				comment: "x".repeat(2000),
 				element: {
 					...element,
