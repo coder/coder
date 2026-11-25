@@ -19,7 +19,11 @@ cdroot
 
 migrations_dir="coderd/database/migrations"
 latest_file="${migrations_dir}/LATEST"
-fix_hint="Run ./${migrations_dir}/fix_migration_numbers.sh to renumber your migrations and update LATEST."
+# Without duplicate numbers, a wrong LATEST only needs rewriting. This also
+# covers branches that add no migration, where fix_migration_numbers.sh exits
+# early without touching LATEST.
+write_hint="Run ./scripts/check_migrations_latest.sh --write, then git add and commit ${latest_file}."
+renumber_hint="Run ./${migrations_dir}/fix_migration_numbers.sh to renumber your migrations and update LATEST. If that script reports this error itself, rename your migration to the next free number with git mv and run it again."
 
 write=0
 if [[ $# -gt 0 ]]; then
@@ -77,10 +81,8 @@ if [[ $write -eq 1 ]]; then
 	exit 0
 fi
 
-failed=0
-
-# Two migrations with the same number break every database migration, so
-# report them even though LATEST would also be wrong.
+# Two migrations with the same number break every database migration. Report
+# them first, because rewriting LATEST alone does not fix them.
 duplicates=$(
 	printf '%s\n' "${migrations[@]}" |
 		sed -nE 's/^([0-9]{6})_.*\.(up|down)\.sql$/\1 \2/p' |
@@ -91,7 +93,8 @@ if [[ -n "$duplicates" ]]; then
 	while read -r num direction; do
 		printf '%s\n' "${migrations[@]}" | grep "^${num}_.*\.${direction}\.sql$" | sed "s|^|  ${migrations_dir}/|" >&2
 	done <<<"$duplicates"
-	failed=1
+	log "$renumber_hint"
+	exit 1
 fi
 
 if [[ ! -f "$latest_file" ]]; then
@@ -102,7 +105,7 @@ fi
 mapfile -t entries < <(grep -Ev '^[[:space:]]*(#|$)' "$latest_file" || true)
 if [[ ${#entries[@]} -ne 1 ]]; then
 	log "ERROR: ${latest_file} must name exactly one migration, found ${#entries[@]}."
-	log "$fix_hint"
+	log "$write_hint"
 	exit 1
 fi
 
@@ -111,11 +114,7 @@ fi
 entry="${entries[0]//[[:space:]]/}"
 if [[ "$entry" != "$newest" ]]; then
 	log "ERROR: ${latest_file} names ${entry}, but the newest migration is ${newest}."
-	log "$fix_hint"
-	failed=1
-fi
-
-if [[ $failed -ne 0 ]]; then
+	log "$write_hint"
 	exit 1
 fi
 

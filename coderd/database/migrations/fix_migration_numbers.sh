@@ -117,6 +117,14 @@ main() {
 		done <<<"${diff_files}"
 	fi
 
+	# Renumbering maps each old number to one new number, so it cannot split
+	# two migrations that already share a number. That happens when the upper
+	# PR of a stack merges a lower PR that was renumbered onto its number. Fail
+	# before staging rather than report success.
+	if ! ../../../scripts/check_migrations_latest.sh; then
+		exit 1
+	fi
+
 	git add "${git_add_files[@]}"
 	git status
 	echo "Run 'git commit' to commit the changes."

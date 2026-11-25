@@ -183,10 +183,12 @@ the rebase finishes, run `fix_migration_numbers.sh` once and commit the result.
 Every pair of open PRs that add migrations conflicts on `LATEST`, even when
 their numbers don't collide. This includes stacked PRs: once the lower PR
 squash-merges, the next PR conflicts. Running `fix_migration_numbers.sh` keeps
-numbers that are still free and only rewrites `LATEST`. When a cherry-pick,
-backport, or revert conflicts on `LATEST`, resolve it with
-`./scripts/check_migrations_latest.sh --write`, which names the newest
-migration on the current branch.
+numbers that are still free and only rewrites `LATEST`. If the lower PR was
+renumbered onto your migration's number, the script fails and lists both
+migrations. Rename yours to the next free number with `git mv` and run it again.
+When a cherry-pick, backport, or revert conflicts on `LATEST`, resolve it with
+`./scripts/check_migrations_latest.sh --write`, which names the newest migration
+on the current branch.
 
 Run `make gen` to generate models.
 
