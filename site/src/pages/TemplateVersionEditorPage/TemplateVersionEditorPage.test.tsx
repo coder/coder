@@ -317,6 +317,43 @@ test("Patch request is not send when there are no changes", async () => {
 	expect(patchTemplateVersion).toBeCalledTimes(0);
 });
 
+test("Edits made while a build runs stay unsaved after it succeeds", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	// Pending versions are polled, so flipping the mocked status finishes the build.
+	const pendingVersion: TemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+		job: { ...MockTemplateVersion.job, status: "pending" },
+	};
+	vi.spyOn(API, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValue(pendingVersion);
+	const getVersion = vi
+		.spyOn(API, "getTemplateVersionByName")
+		.mockResolvedValue(pendingVersion);
+	vi.spyOn(apiModule, "watchBuildLogsByTemplateVersionId").mockImplementation(
+		() => ({ close: vi.fn() }) as unknown as WebSocket,
+	);
+
+	await typeOnEditor("built content", user);
+	await user.click(within(topbar).getByRole("button", { name: "Build" }));
+	await within(topbar).findByText("Pending");
+
+	await typeOnEditor(" unbuilt", user);
+	getVersion.mockResolvedValue({
+		...pendingVersion,
+		job: { ...pendingVersion.job, status: "succeeded" },
+	});
+	await within(topbar).findByText("Success", undefined, { timeout: 3000 });
+
+	expect(
+		within(topbar).getByRole("button", { name: "Publish" }),
+	).toBeDisabled();
+});
+
 test("The file is uploaded with the correct content type", async () => {
 	const user = userEvent.setup();
 	renderTemplateEditorPage();
@@ -519,6 +556,10 @@ describe.each([
 			const dialogSelector = /template variables/i;
 			if (askForVariables) {
 				await screen.findByText(dialogSelector);
+				await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+				await waitFor(() =>
+					expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument(),
+				);
 			} else {
 				expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
 			}

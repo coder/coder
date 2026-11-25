@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -66,7 +66,9 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
-	const [values, setValues] = useState(() => toFormValues(initialValues));
+	// The latest choice, shown while saves are in flight. A save can wait
+	// behind another one, so the cache may not hold it yet.
+	const [submitted, setSubmitted] = useState<AppearanceFormValues>();
 	const themeModeId = useId();
 	const fontGroupId = useId();
 	const fontFamilyId = `${fontGroupId}-family`;
@@ -74,42 +76,13 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
-	const {
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		terminal_font,
-		terminal_font_size,
-	} = initialValues;
-
-	useEffect(() => {
-		if (isUpdating) {
-			return;
-		}
-		const next = toFormValues({
-			theme_preference,
-			theme_mode,
-			theme_light,
-			theme_dark,
-			terminal_font,
-			terminal_font_size,
-		});
-		setValues(next);
-	}, [
-		isUpdating,
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		terminal_font,
-		terminal_font_size,
-	]);
+	const values =
+		isUpdating && submitted ? submitted : toFormValues(initialValues);
 
 	const { draft, terminalFont, terminalFontSize } = values;
 
 	const submit = (next: AppearanceFormValues) => {
-		setValues(next);
+		setSubmitted(next);
 		onSubmit(toUpdateRequest(next, activeScheme));
 	};
 

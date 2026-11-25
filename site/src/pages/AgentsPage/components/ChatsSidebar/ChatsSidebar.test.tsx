@@ -814,6 +814,48 @@ describe("ChatsSidebar search dialog", () => {
 });
 
 describe("ChatsSidebar sections", () => {
+	it("expands the parent of a sub-chat opened before the chat list loads", async () => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			title: "Simple task",
+			parent_chat_id: "c1",
+		});
+		const Harness: React.FC = () => {
+			const [chats, setChats] = useState<Chat[]>([]);
+			return (
+				<>
+					<button
+						type="button"
+						onClick={() =>
+							setChats([
+								buildChat({
+									id: "c1",
+									title: "Spawner chat",
+									children: [child],
+								}),
+							])
+						}
+					>
+						Load chats
+					</button>
+					<ChatsSidebar {...defaultProps} chats={chats} />
+				</>
+			);
+		};
+		render(
+			<Wrapper initialEntry="/agents/c2">
+				<Routes>
+					<Route path="/agents/:agentId" element={<Harness />} />
+				</Routes>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Load chats" }));
+
+		await screen.findByRole("link", { name: /Simple task/ });
+	});
+
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
 			<Wrapper>

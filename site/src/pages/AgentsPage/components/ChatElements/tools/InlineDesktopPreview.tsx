@@ -59,6 +59,7 @@ export const InlineDesktopPreview: React.FC<{
 			return false;
 		};
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- The canvas is created by noVNC after mount, so its size can only be measured here.
 		if (!readDimensions()) {
 			// The canvas dimensions may not be set immediately after
 			// the status transitions to "connected". Retry once after

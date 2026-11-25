@@ -54,11 +54,18 @@ describe("DeploymentBannerView", () => {
 			collected_at: new Date(now.getTime() - 40_000).toISOString(),
 			next_update_at: new Date(now.getTime() + 60_000).toISOString(),
 		};
-		render(<DeploymentBannerView stats={stats} fetchStats={vi.fn()} />);
+		render(
+			<DeploymentBannerView
+				stats={stats}
+				fetchStats={vi.fn()}
+				refreshAt={now.getTime() + 60_000}
+			/>,
+		);
 
 		expect(
 			screen.getByRole("button", { name: "a few seconds ago" }),
 		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "60s" })).toBeInTheDocument();
 
 		act(() => {
 			vi.advanceTimersByTime(10_000);
@@ -67,6 +74,7 @@ describe("DeploymentBannerView", () => {
 		expect(
 			screen.getByRole("button", { name: "a minute ago" }),
 		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "50s" })).toBeInTheDocument();
 	});
 	it("exposes stat tooltips to keyboard and screen reader users", async () => {
 		const user = userEvent.setup();

@@ -550,6 +550,7 @@ export function useChatDraftAttachments(
 		for (const view of previousViews) {
 			revokeBlobPreview(view);
 		}
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- This is the initial snapshot of the upload registry for the new scope, taken while subscribing to it.
 		setViews(nextViews);
 		queueTextContentReads(
 			nextViews,
