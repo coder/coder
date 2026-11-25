@@ -1,9 +1,6 @@
 import type { ViewportBox } from "./geometry";
 
-/**
- * Creates an element with a class and attributes in one call, since the
- * overlay builds its UI by hand.
- */
+/** Creates overlay markup in the supplied page document, not the caller's realm. */
 export function el<K extends keyof HTMLElementTagNameMap>(
 	doc: Document,
 	tag: K,
@@ -20,9 +17,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 	return node;
 }
 
-/**
- * Lays an absolutely positioned node over a viewport box.
- */
+/** Positions an overlay node in viewport coordinates. */
 export function placeOver(node: HTMLElement, box: ViewportBox): void {
 	node.style.left = `${box.left}px`;
 	node.style.top = `${box.top}px`;
@@ -31,11 +26,8 @@ export function placeOver(node: HTMLElement, box: ViewportBox): void {
 }
 
 /**
- * Decorations hang above a box's top-left corner and off its top-right
- * corner. Flags the edges where a child would leave the viewport so the
- * stylesheet can move it above the box or inside it. Call once the node
- * is placed and in the document; the box itself being clamped is not the
- * same test, since decorations reach further than the outline inset.
+ * Flags overflowing decorations after the node is placed in the document.
+ * The decorations can extend beyond an already-clamped outline.
  */
 export function flagCutEdges(
 	node: HTMLElement,

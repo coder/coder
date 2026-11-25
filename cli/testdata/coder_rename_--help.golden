@@ -5,6 +5,10 @@ USAGE:
 
   Rename a workspace
 
+    - Rename a workspace without a confirmation prompt:
+  
+       $ coder rename <workspace> <new name> --yes
+
 OPTIONS:
   -y, --yes bool
           Bypass confirmation prompts.

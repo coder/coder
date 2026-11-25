@@ -6,6 +6,7 @@ import {
 	MockTemplate,
 } from "#/testHelpers/entities";
 import {
+	render,
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
@@ -13,6 +14,7 @@ import {
 	getValidationSchema,
 	type TemplateScheduleFormValues,
 } from "./formHelpers";
+import { TemplateScheduleForm } from "./TemplateScheduleForm";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
@@ -144,6 +146,96 @@ describe("TemplateSchedulePage", () => {
 		}
 		expect(updateCall[1]).not.toHaveProperty("agents_allowed");
 	}, 15_000);
+
+	it.each([
+		{
+			name: "disables default autostop while preserving activity bump",
+			defaultHours: "0",
+			bumpHours: "1",
+			allowUserAutostop: true,
+			expectedDefault: 0,
+			expectedBump: 1000 * 60 * 60,
+		},
+		{
+			name: "disables activity bump while preserving default autostop",
+			defaultHours: "8",
+			bumpHours: "0",
+			allowUserAutostop: true,
+			expectedDefault: 8 * 1000 * 60 * 60,
+			expectedBump: 0,
+		},
+		{
+			name: "disables both default autostop and activity bump",
+			defaultHours: "0",
+			bumpHours: "0",
+			allowUserAutostop: true,
+			expectedDefault: 0,
+			expectedBump: 0,
+		},
+		{
+			name: "clears stale activity bump when autostop customization is disabled",
+			defaultHours: "0",
+			bumpHours: "1",
+			allowUserAutostop: false,
+			expectedDefault: 0,
+			expectedBump: 0,
+		},
+		{
+			name: "converts nonzero autostop and activity bump hours to milliseconds",
+			defaultHours: "2",
+			bumpHours: "3",
+			allowUserAutostop: true,
+			expectedDefault: 2 * 1000 * 60 * 60,
+			expectedBump: 3 * 1000 * 60 * 60,
+		},
+	])(
+		"$name",
+		async ({
+			defaultHours,
+			bumpHours,
+			allowUserAutostop,
+			expectedDefault,
+			expectedBump,
+		}) => {
+			const template = {
+				...MockTemplate,
+				default_ttl_ms: 8 * 1000 * 60 * 60,
+				activity_bump_ms: 1000 * 60 * 60,
+				allow_user_autostop: allowUserAutostop,
+			};
+			const onSubmit = vi.fn();
+			render(
+				<TemplateScheduleForm
+					template={template}
+					onSubmit={onSubmit}
+					onCancel={() => {}}
+					isSubmitting={false}
+					allowAdvancedScheduling
+				/>,
+			);
+			const user = userEvent.setup();
+			const bumpField = screen.getByRole("spinbutton", {
+				name: "Activity bump (hours)",
+			});
+			await user.clear(bumpField);
+			await user.type(bumpField, bumpHours);
+			const defaultField = screen.getByRole("spinbutton", {
+				name: "Default autostop (hours)",
+			});
+			await user.clear(defaultField);
+			await user.type(defaultField, defaultHours);
+			await user.click(screen.getByRole("button", { name: "Save" }));
+
+			await waitFor(() => {
+				expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
+					expect.objectContaining({
+						default_ttl_ms: expectedDefault,
+						activity_bump_ms: expectedBump,
+					}),
+				);
+			});
+		},
+	);
 
 	test("default is converted to and from hours", async () => {
 		await renderTemplateSchedulePage();

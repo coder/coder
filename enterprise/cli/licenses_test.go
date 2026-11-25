@@ -111,6 +111,25 @@ func TestLicensesAddFake(t *testing.T) {
 		require.NoError(t, <-errC)
 		stdout.ExpectMatch(ctx, "\"f2\": 2")
 	})
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		inv := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "-o", "json")
+		stdout := new(bytes.Buffer)
+		inv.Stdout = stdout
+		errC := make(chan error)
+		go func() {
+			errC <- inv.WithContext(ctx).Run()
+		}()
+		require.NoError(t, <-errC)
+
+		var license codersdk.License
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &license))
+		require.NotContains(t, stdout.String(), fakeLicenseJWT)
+		assert.Equal(t, int32(1), license.ID)
+		assert.Equal(t, "claim1", license.Claims["h1"])
+	})
 }
 
 func TestLicensesAddReal(t *testing.T) {
@@ -206,6 +225,25 @@ func TestLicensesDeleteFake(t *testing.T) {
 		clitest.Start(t, inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		stdout.ExpectMatch(ctx, "License with ID 55 deleted")
+	})
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		inv := setupFakeLicenseServerTest(t, "licenses", "delete", "55", "-o", "json")
+		stdout := new(bytes.Buffer)
+		inv.Stdout = stdout
+		errC := make(chan error)
+		go func() {
+			errC <- inv.WithContext(ctx).Run()
+		}()
+		require.NoError(t, <-errC)
+
+		var deleted struct {
+			ID int32 `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &deleted))
+		assert.Equal(t, int32(55), deleted.ID)
 	})
 }
 

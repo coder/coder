@@ -18,7 +18,7 @@ const meta: Meta<EssentialComponent> = {
 	title: "components/PaginationContainer",
 	component: PaginationContainer,
 	args: {
-		paginationUnitLabel: "puppies",
+		paginationUnitLabel: { singular: "puppy", plural: "puppies" },
 		children: <div>Put any content here</div>,
 	},
 };
@@ -57,6 +57,32 @@ export const FirstPageWithLittleData: Story = {
 			totalPages: 1,
 			hasPreviousPage: false,
 			hasNextPage: false,
+			isPlaceholderData: false,
+		},
+	},
+};
+
+export const SingleResult: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentOffsetStart: 1,
+			totalRecords: 1,
+			totalPages: 1,
+			isPlaceholderData: false,
+		},
+	},
+};
+
+export const LastPageWithOneResult: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 2,
+			currentOffsetStart: 26,
+			totalRecords: 26,
+			totalPages: 2,
+			hasPreviousPage: true,
 			isPlaceholderData: false,
 		},
 	},
@@ -121,6 +147,20 @@ export const SecondPageWithData: Story = {
 			isPlaceholderData: false,
 		},
 		children: <div>New data for page 2</div>,
+	},
+};
+
+export const CappedCountOfOne: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentOffsetStart: 1,
+			totalRecords: 1,
+			totalPages: 1,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
 	},
 };
 

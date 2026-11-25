@@ -124,8 +124,8 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 															/>
 														}
 														title={
-															<div className="flex w-full flex-row items-center justify-between gap-2">
-																<div className="flex flex-row items-center gap-2">
+															<div className="flex w-full items-center justify-between gap-2">
+																<div className="flex items-center gap-2">
 																	{option.name}
 																	{option.message && (
 																		<InfoIcon

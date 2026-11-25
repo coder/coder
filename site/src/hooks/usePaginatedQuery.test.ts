@@ -228,6 +228,21 @@ describe(usePaginatedQuery.name, () => {
 			await waitFor(() => expect(result.current.currentPage).toBe(1));
 		});
 
+		it("No custom callback: uses the first page's count when an overshot page reports a count of 0", async () => {
+			const mockQueryFn = vi.fn(({ pageNumber }: { pageNumber: number }) =>
+				Promise.resolve({ data: [], count: pageNumber === 1 ? 100 : 0 }),
+			);
+			const { result } = await render(
+				{
+					queryKey: ({ pageNumber }) => ["overshoot", pageNumber],
+					queryFn: mockQueryFn,
+				},
+				"/?page=35",
+			);
+
+			await waitFor(() => expect(result.current.currentPage).toBe(4));
+		});
+
 		it("With custom callback: Calls callback and does not update search params automatically", async () => {
 			const testControl = new URLSearchParams({
 				page: "1000",

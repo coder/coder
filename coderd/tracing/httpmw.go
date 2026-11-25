@@ -28,6 +28,17 @@ import (
 // 32-character hexadecimal string.
 const SessionIDBaggageKey = "client_session_id"
 
+type clientSessionIDContextKey struct{}
+
+// ClientSessionID returns the client session ID tracing middleware handler.
+func ClientSessionID(r *http.Request) string {
+	user, ok := r.Context().Value(clientSessionIDContextKey{}).(string)
+	if !ok {
+		panic("developer error: tracing middleware not provided")
+	}
+	return user
+}
+
 // DefaultRoutePatterns are the route patterns coderd and wsproxy trace. The
 // middleware runs high in the stack so it can capture the entire request, but
 // only acts on these patterns.
@@ -66,6 +77,7 @@ func Middleware(
 			// context. This is done even when tracing is disabled so that logs can
 			// always be correlated by client_session_id.
 			sessionID := sessionIDFromRequest(r)
+			r = r.WithContext(context.WithValue(r.Context(), clientSessionIDContextKey{}, sessionID))
 			if sessionID != "" {
 				r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
 			}

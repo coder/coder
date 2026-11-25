@@ -1,6 +1,7 @@
 package agentcontext_test
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -63,6 +64,37 @@ func TestManager_MCPCatalogSurfacesResources(t *testing.T) {
 		return got != nil && len(got.Tools) == 2
 	}, testutil.WaitShort, testutil.IntervalMedium,
 		"catalog change should re-resolve into the snapshot")
+}
+
+// TestManager_ResyncReconnectsMCP verifies Resync runs the injected MCP
+// reconnect before resolving, so the returned snapshot reflects servers
+// it brought back.
+func TestManager_ResyncReconnectsMCP(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	servers := []agentcontext.MCPServerStatus{{Name: "srv", Err: "failed to connect"}}
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+		MCPCatalog: func() []agentcontext.MCPServerStatus { return servers },
+		MCPReconnect: func(context.Context) error {
+			servers = []agentcontext.MCPServerStatus{{
+				Name:      "srv",
+				Connected: true,
+				Tools:     []agentcontext.MCPTool{{Name: "echo"}},
+			}}
+			return nil
+		},
+	})
+	require.Equal(t, agentcontext.StatusUnreadable, findMCPServerResource(m.Snapshot(), "srv").Status)
+
+	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	got := findMCPServerResource(snap, "srv")
+	require.NotNil(t, got)
+	require.Equal(t, agentcontext.StatusOK, got.Status)
+	require.Len(t, got.Tools, 1)
 }
 
 // findMCPServerResource returns the KindMCPServer resource for the named

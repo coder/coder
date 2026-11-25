@@ -8,8 +8,8 @@ import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 export const NetworkMonitoringDisabled: React.FC = () => (
 	<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
 		Disabled
-		<InfoTooltip size="small">
-			<TooltipMessage>
+		<InfoTooltip size="small" side="top">
+			<TooltipMessage className="max-w-52">
 				Network request monitoring was not active for this session.
 			</TooltipMessage>
 		</InfoTooltip>

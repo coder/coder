@@ -171,9 +171,10 @@ func TestLockRollsBackCallbackError(t *testing.T) {
 	sentinel := xerrors.New("lock callback error")
 	err := m.Lock(ctx, func(store database.Store) error {
 		// Try a write that should be rolled back.
-		_, werr := store.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-			ID:    created.Chat.ID,
-			Title: "rollback-me",
+		_, werr := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:          created.Chat.ID,
+			Title:       "rollback-me",
+			TitleSource: database.ChatTitleSourceUser,
 		})
 		require.NoError(t, werr)
 		return sentinel
@@ -216,4 +217,59 @@ func TestConcurrentUpdatesSerializeOnChatRow(t *testing.T) {
 	after := f.readChat(ctx, t, created.Chat.ID)
 	require.Equal(t, before.SnapshotVersion+int64(updates), after.SnapshotVersion,
 		"snapshot_version advanced by exactly one per update")
+}
+
+// TestReadSnapshotNotBlockedByRowLock verifies that a ReadSnapshot
+// completes while another transaction holds the chat row's FOR UPDATE
+// lock. The former FOR SHARE read would have queued behind it.
+func TestReadSnapshotNotBlockedByRowLock(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	created := createTestChat(t, f)
+	locker := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	reader := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	lockEntered := make(chan struct{})
+	releaseLock := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseLock:
+		default:
+			close(releaseLock)
+		}
+	})
+
+	// Goroutine A: hold the row lock and block.
+	var lockErr error
+	var lockWG sync.WaitGroup
+	lockWG.Go(func() {
+		lockErr = locker.Lock(ctx, func(_ database.Store) error {
+			close(lockEntered)
+			if !waitForChan(ctx, releaseLock) {
+				return ctx.Err()
+			}
+			return nil
+		})
+	})
+	require.True(t, waitForChan(ctx, lockEntered), "Lock callback never started")
+
+	// The read must complete without the lock being released.
+	var read database.Chat
+	var readErr error
+	var readWG sync.WaitGroup
+	readWG.Go(func() {
+		readErr = reader.ReadSnapshot(func(store database.Store) error {
+			var err error
+			read, err = store.GetChatByID(ctx, created.Chat.ID)
+			return err
+		})
+	})
+	require.True(t, waitForWaitGroup(ctx, &readWG), "ReadSnapshot blocked behind the row lock")
+	require.NoError(t, readErr)
+	require.Equal(t, created.Chat.ID, read.ID)
+
+	close(releaseLock)
+	require.True(t, waitForWaitGroup(ctx, &lockWG), "Lock did not finish")
+	require.NoError(t, lockErr)
 }

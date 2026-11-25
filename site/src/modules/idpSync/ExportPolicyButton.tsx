@@ -1,7 +1,6 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import type {
 	GroupSyncSettings,
@@ -9,6 +8,7 @@ import type {
 	RoleSyncSettings,
 } from "#/api/typesGenerated";
 import { Button, type ButtonProps } from "#/components/Button/Button";
+import { toast } from "#/components/Toaster/toast";
 
 type ExportableSyncSettings =
 	| GroupSyncSettings

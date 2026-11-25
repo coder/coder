@@ -139,35 +139,6 @@ func TestRefreshMCPTokenPermanentFailure(t *testing.T) {
 		require.Empty(t, result.OauthRefreshFailureReason)
 	})
 
-	t.Run("PersistFailureStillClearsAuth", func(t *testing.T) {
-		t.Parallel()
-		tokenSrv := invalidGrantServer(t, nil)
-
-		cfg := database.MCPServerConfig{
-			ID:             uuid.New(),
-			Slug:           "db-down",
-			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2TokenURL: tokenSrv.URL,
-		}
-		tok := expiredMCPToken(cfg.ID)
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		db.EXPECT().
-			MarkMCPServerUserTokenRefreshFailure(gomock.Any(), gomock.Any()).
-			Return(database.MCPServerUserToken{}, sql.ErrConnDone)
-
-		server := loopbackMCPServer(db)
-		result, err := server.refreshMCPTokenIfNeeded(
-			context.Background(), slogtest.Make(t, nil), cfg, tok,
-		)
-		require.NoError(t, err)
-		require.Empty(t, result.AccessToken)
-		require.Empty(t, result.RefreshToken)
-		require.NotEmpty(t, result.OauthRefreshFailureReason)
-	})
-
 	t.Run("TransientFailureKeepsToken", func(t *testing.T) {
 		t.Parallel()
 		tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -191,11 +162,100 @@ func TestRefreshMCPTokenPermanentFailure(t *testing.T) {
 		result, err := server.refreshMCPTokenIfNeeded(
 			context.Background(), slogtest.Make(t, nil), cfg, tok,
 		)
-		require.Error(t, err)
+		require.NoError(t, err)
 		require.Equal(t, tok.AccessToken, result.AccessToken)
 		require.Equal(t, tok.RefreshToken, result.RefreshToken)
 		require.Empty(t, result.OauthRefreshFailureReason)
 	})
+}
+
+func TestRefreshMCPTokenDatabaseError(t *testing.T) {
+	t.Parallel()
+
+	refreshed := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"fresh-refresh","token_type":"Bearer","expires_in":3600}`))
+	}
+	invalidGrant := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	}
+
+	for _, tc := range []struct {
+		name     string
+		provider http.HandlerFunc
+		expect   func(db *dbmock.MockStore)
+	}{
+		{
+			name:     "PersistRefresh",
+			provider: refreshed,
+			expect: func(db *dbmock.MockStore) {
+				db.EXPECT().
+					UpdateMCPServerUserTokenFromRefresh(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrConnDone)
+			},
+		},
+		{
+			name:     "ReadAfterRefreshConflict",
+			provider: refreshed,
+			expect: func(db *dbmock.MockStore) {
+				db.EXPECT().
+					UpdateMCPServerUserTokenFromRefresh(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrNoRows)
+				db.EXPECT().
+					GetMCPServerUserToken(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrConnDone)
+			},
+		},
+		{
+			name:     "MarkRefreshFailure",
+			provider: invalidGrant,
+			expect: func(db *dbmock.MockStore) {
+				db.EXPECT().
+					MarkMCPServerUserTokenRefreshFailure(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrConnDone)
+			},
+		},
+		{
+			name:     "ReadAfterMarkConflict",
+			provider: invalidGrant,
+			expect: func(db *dbmock.MockStore) {
+				db.EXPECT().
+					MarkMCPServerUserTokenRefreshFailure(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrNoRows)
+				db.EXPECT().
+					GetMCPServerUserToken(gomock.Any(), gomock.Any()).
+					Return(database.MCPServerUserToken{}, sql.ErrConnDone)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tokenSrv := httptest.NewServer(tc.provider)
+			t.Cleanup(tokenSrv.Close)
+
+			cfg := database.MCPServerConfig{
+				ID:             uuid.New(),
+				Slug:           "db-down",
+				AuthType:       "oauth2",
+				OAuth2ClientID: "cid",
+				OAuth2TokenURL: tokenSrv.URL,
+			}
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			tc.expect(db)
+
+			server := loopbackMCPServer(db)
+			_, err := server.refreshExpiredMCPTokens(
+				context.Background(), slogtest.Make(t, nil),
+				[]database.MCPServerConfig{cfg},
+				[]database.MCPServerUserToken{expiredMCPToken(cfg.ID)},
+			)
+			require.ErrorIs(t, err, sql.ErrConnDone)
+		})
+	}
 }
 
 func TestRefreshMCPTokenDeletedDuringRefresh(t *testing.T) {
@@ -262,11 +322,12 @@ func TestRefreshExpiredMCPTokensSkipsFailedTokens(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	server := loopbackMCPServer(db)
-	result := server.refreshExpiredMCPTokens(
+	result, err := server.refreshExpiredMCPTokens(
 		context.Background(), slogtest.Make(t, nil),
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{tok},
 	)
+	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, tok, result[0])
 	require.EqualValues(t, 0, hits.Load(), "provider must not be called for failed tokens")

@@ -1,22 +1,33 @@
 package proxy_test
 
 import (
+	"context"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type keyPoolProvider struct {
@@ -25,6 +36,18 @@ type keyPoolProvider struct {
 }
 
 func (p keyPoolProvider) KeyPool() *keypool.Pool { return p.pool }
+
+func newRouterGate(t *testing.T) *aibridge.InflightGate {
+	t.Helper()
+	gate := aibridge.NewInflightGate(slogtest.Make(t, nil))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalSlow)
+		defer cancel()
+		defer gate.Close()
+		require.NoError(t, gate.Shutdown(ctx))
+	})
+	return gate
+}
 
 func TestNewRouterValidatesProviders(t *testing.T) {
 	t.Parallel()
@@ -36,23 +59,23 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 	}{
 		{
 			name:      "ValidNames",
-			providers: []provider.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "anthropic-eu-1"}},
+			providers: []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}, &aibtestutil.MockProvider{NameStr: "anthropic-eu-1"}},
 		},
 		{
 			name:        "InvalidName",
-			providers:   []provider.Provider{&testutil.MockProvider{NameStr: "OpenAI_1"}},
+			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "OpenAI_1"}},
 			errContains: `invalid provider name "OpenAI_1"`,
 		},
 		{
 			name:        "DuplicateName",
-			providers:   []provider.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "openai"}},
+			providers:   []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}, &aibtestutil.MockProvider{NameStr: "openai"}},
 			errContains: `duplicate provider name: "openai"`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil))
+			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{})
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -64,48 +87,224 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 	}
 }
 
-// TestRouterDisabledProvider asserts that every path under a disabled
-// provider's name serves the 503 sentinel, while a sibling enabled provider
-// has no routes yet and falls through to the catch-all.
-func TestRouterDisabledProvider(t *testing.T) {
+func TestNewRouterRequiresRecorder(t *testing.T) {
 	t.Parallel()
 
-	// Any upstream call would fail loudly: the base URL points nowhere and
-	// the mock provider has no interceptor.
-	enabled := &testutil.MockProvider{
-		NameStr:     "openai",
-		URL:         "http://127.0.0.1:1",
-		Bridged:     []string{"/v1/chat/completions"},
-		Passthrough: []string{"/v1/models"},
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	require.ErrorContains(t, err, `configure provider "openai" bridged handler: recorder is required`)
+	require.Nil(t, router)
+}
+
+//nolint:paralleltest,tparallel // Sequential subtests verify connection reuse.
+func TestRouterRoutes(t *testing.T) {
+	t.Parallel()
+
+	var calls, connections atomic.Int32
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		_, _ = io.WriteString(w, r.URL.Path)
+	}))
+	upstream.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			connections.Add(1)
+		}
 	}
+	upstream.Start()
+	t.Cleanup(upstream.Close)
+	enabled := &aibtestutil.MockProvider{
+		NameStr:     "openai",
+		URL:         upstream.URL,
+		Bridged:     []string{"/bridged/exact/path", "/bridged/whole/subtree/", "/passthrough/whole/subtree/bridged"},
+		Passthrough: []string{"/passthrough/exact/path", "/passthrough/whole/subtree/"},
+	}
+	m := metrics.NewMetrics(prometheus.NewRegistry())
 	router, err := proxy.NewRouter(
-		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil),
+		t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
+		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{},
 	)
 	require.NoError(t, err)
 
+	const bridgedBody = "bridged routes are not yet implemented in proxy mode\n"
+	const disabledBody = routing.ErrorCodeProviderDisabled + ": AI provider \"disabled-openai\" is disabled\n"
+	var passthroughPaths []string
 	for _, tc := range []struct {
 		name       string
 		path       string
+		noActor    bool
 		wantStatus int
 		wantBody   string
 	}{
-		{name: "DisabledBridgedRoute", path: "/disabled-openai/v1/chat/completions", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
-		{name: "DisabledPassthroughRoute", path: "/disabled-openai/v1/models", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
-		{name: "DisabledUnknownRoute", path: "/disabled-openai/anything/else", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
-		{name: "EnabledBridgedRoute", path: "/openai/v1/chat/completions", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
-		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
-		{name: "UnknownProvider", path: "/unknown/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
-		{name: "Root", path: "/", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
+		{
+			name:       "DisabledProvider_Bridged_ExactPath",
+			path:       "/disabled-openai/bridged/exact/path",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
+		},
+		{
+			name:       "DisabledProvider_Bridged_SubtreePath",
+			path:       "/disabled-openai/bridged/whole/subtree/nested",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
+		},
+		{
+			name:       "DisabledProvider_Passthrough_ExactPath",
+			path:       "/disabled-openai/passthrough/exact/path",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
+		},
+		{
+			name:       "DisabledProvider_Passthrough_SubtreePath",
+			path:       "/disabled-openai/passthrough/whole/subtree/nested",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
+		},
+		{
+			name:       "DisabledProvider_UnknownPath",
+			path:       "/disabled-openai/unknown/path",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
+		},
+		{
+			name:       "EnabledProvider_Bridged_ExactPath",
+			path:       "/openai/bridged/exact/path",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "EnabledProvider_Bridged_SubtreePath",
+			path:       "/openai/bridged/whole/subtree/nested",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "BridgedRouteWithoutActor",
+			path:       "/openai/bridged/exact/path",
+			noActor:    true,
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "no actor found\n",
+		},
+		{
+			name:       "EnabledProvider_Bridged_ExactPathOverridesPassthroughSubtree",
+			path:       "/openai/passthrough/whole/subtree/bridged",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "EnabledProvider_Passthrough_ExactPath",
+			path:       "/openai/passthrough/exact/path",
+			wantStatus: http.StatusOK,
+			wantBody:   "/passthrough/exact/path",
+		},
+		{
+			name:       "EnabledProvider_Passthrough_SubtreePath",
+			path:       "/openai/passthrough/whole/subtree/nested",
+			wantStatus: http.StatusOK,
+			wantBody:   "/passthrough/whole/subtree/nested",
+		},
+		{
+			name:       "EnabledProvider_UnknownPath",
+			path:       "/openai/unknown/path",
+			wantStatus: http.StatusNotFound,
+			wantBody:   "route not supported: GET /openai/unknown/path\n",
+		},
+		{
+			name:       "UnknownProvider",
+			path:       "/unknown/path",
+			wantStatus: http.StatusNotFound,
+			wantBody:   "route not supported: GET /unknown/path\n",
+		},
+		{
+			name:       "EncodedTraversal",
+			path:       "/openai/v1/models/%2e%2e/files",
+			wantStatus: http.StatusBadRequest,
+			wantBody:   routing.InvalidPathMessage + "\n",
+		},
+		{
+			name:       "DisabledEncodedTraversal",
+			path:       "/disabled-openai/v1/models/..%2F..%2Fadmin",
+			wantStatus: http.StatusBadRequest,
+			wantBody:   routing.InvalidPathMessage + "\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.wantStatus == http.StatusOK {
+				passthroughPaths = append(passthroughPaths, tc.wantBody)
+			}
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil).WithContext(t.Context())
+			if !tc.noActor {
+				req = req.WithContext(aibcontext.AsActor(req.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
+			}
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+			assert.Equal(t, tc.wantStatus, resp.Code, "path: %s", tc.path)
+			assert.Equal(t, tc.wantBody, resp.Body.String(), "path: %s", tc.path)
+		})
+	}
+
+	require.EqualValues(t, len(passthroughPaths), calls.Load(), "only passthrough routes must reach upstream")
+	require.EqualValues(t, min(len(passthroughPaths), 1), connections.Load(), "passthrough routes must share the provider transport")
+	require.Equal(t, len(passthroughPaths), promtestutil.CollectAndCount(m.PassthroughCount))
+	for _, path := range passthroughPaths {
+		require.Equal(t, float64(1), promtestutil.ToFloat64(m.PassthroughCount.WithLabelValues("openai", path, http.MethodGet)), "path: %s", path)
+	}
+}
+
+// TestRouterRefusesAfterGateShutdown asserts every route kind is admitted
+// through the supplied gate, so none is served once it shuts down.
+func TestRouterRefusesAfterGateShutdown(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("refused requests must not reach upstream")
+	}))
+	t.Cleanup(upstream.Close)
+	gate := newRouterGate(t)
+	router, err := proxy.NewRouter(
+		t.Context(), []provider.Provider{
+			&aibtestutil.MockProvider{
+				NameStr:     "openai",
+				URL:         upstream.URL,
+				Bridged:     []string{"/v1/chat/completions"},
+				Passthrough: []string{"/v1/models"},
+			},
+			provider.NewDisabledStub("disabled-openai", "openai"),
+		},
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()),
+		gate,
+		&aibtestutil.MockRecorder{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, gate.Shutdown(testutil.Context(t, testutil.WaitShort)))
+
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{
+			name: "BridgedRoute",
+			path: "/openai/v1/chat/completions",
+		},
+		{
+			name: "PassthroughRoute",
+			path: "/openai/v1/models",
+		},
+		{
+			name: "DisabledProvider",
+			path: "/disabled-openai/v1/models",
+		},
+		{
+			name: "UnknownRoute",
+			path: "/unknown/v1/models",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, tc.path, nil))
-
-			assert.Equal(t, tc.wantStatus, resp.Code)
-			assert.Contains(t, resp.Body.String(), tc.wantBody)
+			router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, tc.path, nil).WithContext(ctx))
+			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+			assert.Equal(t, "AI Gateway is shutting down\n", resp.Body.String())
 		})
 	}
 }
@@ -116,16 +315,16 @@ func TestRouterDisabledProvider(t *testing.T) {
 func TestRouterSnapshotsProviders(t *testing.T) {
 	t.Parallel()
 
-	pool := testutil.SingleKeyPool(config.ProviderOpenAI, "test-key")
+	pool := aibtestutil.SingleKeyPool(config.ProviderOpenAI, "test-key")
 	providers := []provider.Provider{
 		keyPoolProvider{Provider: provider.NewDisabledStub("disabled-openai", "openai"), pool: pool},
 	}
 
-	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil))
+	router, err := proxy.NewRouter(t.Context(), providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
-	providers[0] = &testutil.MockProvider{NameStr: "swapped"}
+	providers[0] = &aibtestutil.MockProvider{NameStr: "swapped"}
 
 	require.NoError(t, promtestutil.CollectAndCompare(keypool.NewStateCollector(router.KeyPools), strings.NewReader(`
 # HELP key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
@@ -149,8 +348,8 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 	t.Parallel()
 
 	router, err := proxy.NewRouter(
-		[]provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil),
+		t.Context(), []provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
 	)
 	require.NoError(t, err)
 

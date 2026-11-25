@@ -435,8 +435,9 @@ WHERE
 -- GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 -- workspace agent and its associated build. During normal operation, this is
 -- the latest build. During shutdown, this may be the previous START build while
--- the STOP build is executing, allowing shutdown scripts to authenticate (see
--- issue #19467).
+-- the STOP or DELETE build is executing, allowing shutdown scripts and final
+-- connection reports to authenticate (see issue #19467). The agent connection
+-- monitor in coderd/workspaceagentsrpc.go applies the same rule.
 -- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
 SELECT
 	sqlc.embed(workspaces),
@@ -474,11 +475,12 @@ WHERE
 			WHERE
 				workspace_id = workspace_build_with_user.workspace_id
 		) THEN TRUE
-		-- Shutdown case: Agent from previous START build during STOP build execution.
+		-- Shutdown case: Agent from previous START build during STOP or DELETE
+		-- build execution.
 		WHEN workspace_build_with_user.transition = 'start'
 			-- Agent's START build job succeeded.
 			AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
-			-- Latest build is a STOP build whose job is still active,
+			-- Latest build is a STOP or DELETE build whose job is still active,
 			-- and agent's build is immediately previous.
 			AND EXISTS (
 				SELECT 1
@@ -491,7 +493,7 @@ WHERE
 					FROM workspace_builds l2
 					WHERE l2.workspace_id = latest.workspace_id
 				)
-				AND latest.transition = 'stop'
+				AND latest.transition IN ('stop', 'delete')
 				AND pj.job_status IN ('pending', 'running')
 			) THEN TRUE
 		ELSE FALSE

@@ -58,7 +58,7 @@ export const SingleUser: Story = {
 		await step("activate hover trigger", async () => {
 			await hoverTrigger(canvasElement);
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent("alice"),
+				expect(screen.getByRole("dialog")).toHaveTextContent("alice"),
 			);
 		});
 	},
@@ -72,7 +72,7 @@ export const SingleAdmin: Story = {
 		await step("activate hover trigger", async () => {
 			await hoverTrigger(canvasElement);
 			await waitFor(() => {
-				const tooltip = screen.getByRole("tooltip");
+				const tooltip = screen.getByRole("dialog");
 				expect(tooltip).toHaveTextContent("alice");
 				expect(tooltip).toHaveTextContent("Admin");
 			});
@@ -88,7 +88,7 @@ export const SingleGroup: Story = {
 		await step("activate hover trigger", async () => {
 			await hoverTrigger(canvasElement);
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent("Engineering"),
+				expect(screen.getByRole("dialog")).toHaveTextContent("Engineering"),
 			);
 		});
 	},
@@ -107,7 +107,7 @@ export const UsersAndGroups: Story = {
 		await step("activate hover trigger", async () => {
 			await hoverTrigger(canvasElement);
 			await waitFor(() => {
-				const tooltip = screen.getByRole("tooltip");
+				const tooltip = screen.getByRole("dialog");
 				expect(tooltip).toHaveTextContent("alice");
 				expect(tooltip).toHaveTextContent("bob");
 				expect(tooltip).toHaveTextContent("Engineering");
@@ -145,7 +145,7 @@ export const ManyActors: Story = {
 		await step("activate hover trigger", async () => {
 			await hoverTrigger(canvasElement);
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					"Workspace permissions",
 				),
 			);

@@ -27,7 +27,8 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
-		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
+		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform. " +
+			"Suspending a user stops their running workspaces; activating the user again does not restart them."
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
@@ -96,6 +97,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+		cliui.SkipPromptOption(),
 		{
 			Flag:          "column",
 			FlagShorthand: "c",

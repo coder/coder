@@ -1,0 +1,82 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_script.optional (expand)" [label = "coder_script.optional", shape = "box"]
+		"[root] coder_script.shutdown (expand)" [label = "coder_script.shutdown", shape = "box"]
+		"[root] coder_script.unordered (expand)" [label = "coder_script.unordered", shape = "box"]
+		"[root] coder_script.work (expand)" [label = "coder_script.work", shape = "box"]
+		"[root] data.coder_script_order.main (expand)" [label = "data.coder_script_order.main", shape = "box"]
+		"[root] data.coder_script_order.overlapping (expand)" [label = "data.coder_script_order.overlapping", shape = "box"]
+		"[root] module.bootstrap.coder_script.start (expand)" [label = "module.bootstrap.coder_script.start", shape = "box"]
+		"[root] module.bootstrap.coder_script.stop (expand)" [label = "module.bootstrap.coder_script.stop", shape = "box"]
+		"[root] module.bootstrap.data.coder_script_order.nested (expand)" [label = "module.bootstrap.data.coder_script_order.nested", shape = "box"]
+		"[root] module.bootstrap.module.nested.coder_script.configure (expand)" [label = "module.bootstrap.module.nested.coder_script.configure", shape = "box"]
+		"[root] module.empty.coder_script.start (expand)" [label = "module.empty.coder_script.start", shape = "box"]
+		"[root] module.empty.coder_script.stop (expand)" [label = "module.empty.coder_script.stop", shape = "box"]
+		"[root] module.empty.data.coder_script_order.nested (expand)" [label = "module.empty.data.coder_script_order.nested", shape = "box"]
+		"[root] module.empty.module.nested.coder_script.configure (expand)" [label = "module.empty.module.nested.coder_script.configure", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"terraform.io/builtin/terraform\"]" [label = "provider[\"terraform.io/builtin/terraform\"]", shape = "diamond"]
+		"[root] terraform_data.workspace (expand)" [label = "terraform_data.workspace", shape = "box"]
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_script.optional (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.shutdown (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.unordered (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.work (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] data.coder_script_order.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_script_order.overlapping (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.bootstrap (close)" -> "[root] module.bootstrap.coder_script.start (expand)"
+		"[root] module.bootstrap (close)" -> "[root] module.bootstrap.coder_script.stop (expand)"
+		"[root] module.bootstrap (close)" -> "[root] module.bootstrap.data.coder_script_order.nested (expand)"
+		"[root] module.bootstrap (close)" -> "[root] module.bootstrap.module.nested (close)"
+		"[root] module.bootstrap.coder_script.start (expand)" -> "[root] module.bootstrap.var.agent_id (expand)"
+		"[root] module.bootstrap.coder_script.stop (expand)" -> "[root] module.bootstrap.var.agent_id (expand)"
+		"[root] module.bootstrap.data.coder_script_order.nested (expand)" -> "[root] module.bootstrap (expand)"
+		"[root] module.bootstrap.data.coder_script_order.nested (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.bootstrap.module.nested (close)" -> "[root] module.bootstrap.module.nested.coder_script.configure (expand)"
+		"[root] module.bootstrap.module.nested (expand)" -> "[root] module.bootstrap (expand)"
+		"[root] module.bootstrap.module.nested.coder_script.configure (expand)" -> "[root] module.bootstrap.module.nested.var.agent_id (expand)"
+		"[root] module.bootstrap.module.nested.var.agent_id (expand)" -> "[root] module.bootstrap.module.nested (expand)"
+		"[root] module.bootstrap.module.nested.var.agent_id (expand)" -> "[root] module.bootstrap.var.agent_id (expand)"
+		"[root] module.bootstrap.var.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.bootstrap.var.agent_id (expand)" -> "[root] module.bootstrap (expand)"
+		"[root] module.empty (close)" -> "[root] module.empty.coder_script.start (expand)"
+		"[root] module.empty (close)" -> "[root] module.empty.coder_script.stop (expand)"
+		"[root] module.empty (close)" -> "[root] module.empty.data.coder_script_order.nested (expand)"
+		"[root] module.empty (close)" -> "[root] module.empty.module.nested (close)"
+		"[root] module.empty.coder_script.start (expand)" -> "[root] module.empty.var.agent_id (expand)"
+		"[root] module.empty.coder_script.stop (expand)" -> "[root] module.empty.var.agent_id (expand)"
+		"[root] module.empty.data.coder_script_order.nested (expand)" -> "[root] module.empty (expand)"
+		"[root] module.empty.data.coder_script_order.nested (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.empty.module.nested (close)" -> "[root] module.empty.module.nested.coder_script.configure (expand)"
+		"[root] module.empty.module.nested (expand)" -> "[root] module.empty (expand)"
+		"[root] module.empty.module.nested.coder_script.configure (expand)" -> "[root] module.empty.module.nested.var.agent_id (expand)"
+		"[root] module.empty.module.nested.var.agent_id (expand)" -> "[root] module.empty.module.nested (expand)"
+		"[root] module.empty.module.nested.var.agent_id (expand)" -> "[root] module.empty.var.agent_id (expand)"
+		"[root] module.empty.var.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.empty.var.agent_id (expand)" -> "[root] module.empty (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.optional (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.shutdown (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.unordered (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.work (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_script_order.main (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_script_order.overlapping (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.bootstrap.coder_script.start (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.bootstrap.coder_script.stop (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.bootstrap.data.coder_script_order.nested (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.bootstrap.module.nested.coder_script.configure (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.empty.coder_script.start (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.empty.coder_script.stop (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.empty.data.coder_script_order.nested (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.empty.module.nested.coder_script.configure (expand)"
+		"[root] provider[\"terraform.io/builtin/terraform\"] (close)" -> "[root] terraform_data.workspace (expand)"
+		"[root] root" -> "[root] module.bootstrap (close)"
+		"[root] root" -> "[root] module.empty (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"terraform.io/builtin/terraform\"] (close)"
+		"[root] terraform_data.workspace (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] terraform_data.workspace (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+	}
+}

@@ -1,3 +1,7 @@
+---
+review-personas: [language]
+---
+
 # Voice and tone
 
 Coder documentation addresses the reader directly, uses active voice, and describes the product in the present tense.
@@ -52,7 +56,7 @@ Do not use first-person plural for:
 
 **Do**:
 
-> For more information about enterprise licensing, [contact us](https://coder.com/contact/sales).
+> For more information about Premium licensing, [contact us](https://coder.com/contact/sales).
 >
 > Coder Technologies, Inc. publishes a new agent binary in each release.
 >
@@ -119,15 +123,39 @@ Use plain present tense for behavior the product already exhibits.
 *Documentation-only.
 No Vale rule.*
 
+## Describe conditions, not moments in time
+
+Words that place the reader in time, such as `now`, `new`, `currently`, `recently`, `soon`, and `no longer`, go stale when the next release ships.
+They also give the reader nothing to act on.
+State the condition that makes the behavior true instead: a version, a setting, a role, or a step the reader completes first.
+
+**Do**:
+
+> After you turn on the experiment, you can turn off automatic use for a skill.
+>
+> Starting in Coder v2.24, the agent reconnects automatically.
+
+**Don't**:
+
+> You can now turn off automatic use for a skill.
+>
+> The agent currently reconnects automatically.
+
+In a sequenced tutorial, `now` can mark a point in the reader's own progress ("Now that you added a language, install your tools"), because it refers to the steps, not to a release.
+For version history, refer to [Describe the current version, for the end user](../content-guidelines.md#describe-the-current-version-for-the-end-user).
+
+*Documentation-only.
+No Vale rule.*
+
 ## Keep sentences and paragraphs short
 
 Aim for 25 words or fewer per sentence in body prose.
-Step sentences in a procedure get a tighter budget: refer to [Keep steps short](./procedural-writing.md#keep-steps-short).
+Steps in a procedure have a firm 20-word limit: refer to [Keep steps short](./procedural-writing.md#keep-steps-short).
 
 Give each paragraph one topic and open with the sentence that states it.
 Split a paragraph when it grows past roughly 6 sentences.
 
-The budgets are targets, not ceilings.
+The body-prose budgets are targets, not ceilings.
 A sentence that needs 30 words to be precise beats two vague short ones.
 
 **Do**:
@@ -142,6 +170,26 @@ A sentence that needs 30 words to be precise beats two vague short ones.
 *Adapted from ASD-STE100 Issue 9, rules 6.1 to 6.6.
 Documentation-only.
 No Vale rule.*
+
+### How to count words
+
+The sentence budget on this page and the step limit in [Keep steps short](./procedural-writing.md#keep-steps-short) count words the same way:
+
+- An inline code span counts as one word, whatever it contains.
+  Code spans hold commands, identifiers, and text the reader copies or types, and the reader handles each span as one unit.
+- A bold UI label counts as one word, for the same reason: `**Create workspace**` is one word.
+- A number and its unit count as one word: `30&nbsp;seconds`.
+- A hyphenated compound counts as one word: `long-running`.
+- Link text counts word by word, because the reader reads it as prose.
+
+**Example**:
+
+> Run `coder templates push --yes my-template` to publish the template.
+
+The sentence has 6 words: `Run`, the code span, `to`, `publish`, `the`, and `template`.
+
+*Not a rule.
+This section defines how the word budgets in this guide count words.*
 
 ## Prefer verbs over noun forms
 
@@ -198,19 +246,19 @@ No Vale rule.*
 
 Contractions match how a reader's internal voice sounds.
 Prefer them in body prose for the same reason the docs use second person and present tense.
-Expand a contraction only when one of the following exceptions applies.
+Expand a contraction only when one of the following exceptions applies, or when the sentence is a negative instruction (refer to [Spell out negative instructions](#spell-out-negative-instructions)).
 
 **Do**:
 
 > Coder doesn't restart workspaces on minor template updates.
 >
-> If you're using PostgreSQL, set the connection string before starting `coder server`.
+> If you're using PostgreSQL, set the connection string before you start `coder server`.
 
 **Don't**:
 
 > Coder does not restart workspaces on minor template updates.
 >
-> If you are using PostgreSQL, set the connection string before starting `coder server`.
+> If you are using PostgreSQL, set the connection string before you start `coder server`.
 
 **Auxiliary contractions need a complement.**
 `you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
@@ -268,6 +316,55 @@ The high-stakes exception earlier in this section applies the STE logic exactly 
 
 *Documentation-only.
 No Vale rule.*
+
+## Spell out negative instructions
+
+A contraction is fine in a statement, but not in an instruction.
+When the sentence tells the reader not to do something, write `do not`.
+A reader who skims past the `n't` in `don't` reads the opposite instruction.
+
+The rule follows the mood of the sentence, not the topic.
+A statement about what the product does or doesn't do keeps the contraction default from [Contractions are the default](#contractions-are-the-default).
+
+**Do**:
+
+> Do not delete the production database.
+>
+> If the Terraform files have a syntax error, Coder won't push the new version of the template.
+>
+> You don't need a license to start a workspace.
+
+**Don't**:
+
+> Don't delete the production database.
+>
+> Run `make gen`, and don't edit the generated file.
+
+*Enforced by `Coder.ImperativeNegation` (`warning`).
+The rule flags `don't` only where it opens an imperative, so declaratives such as "You don't need" stay clean.*
+
+## Leave out "please"
+
+Documentation gives instructions, not requests.
+"Please" adds a word to every instruction and makes a required step read as optional.
+Write the instruction directly.
+
+When you quote product text that contains "please", such as an error message, put the quoted text in a code span, as [Code font](./formatting.md#code-font) describes for literal product text.
+
+**Do**:
+
+> Restart the server after you change the configuration.
+>
+> If the build fails with `Please try again later`, wait 5&nbsp;minutes and run the build again.
+
+**Don't**:
+
+> Please restart the server after you change the configuration.
+>
+> For more information, please contact your administrator.
+
+*Enforced by `Coder.Please` (`warning`).
+The rule skips code spans and fenced code blocks, so quoted product text in code font isn't flagged.*
 
 ## Trailing prepositions are a judgment call
 

@@ -44,8 +44,10 @@ type MountAnnotatorOptions = {
 type CommentSession = {
 	target: Element;
 	popup: CommentPopup;
+	previousFocus: Element | null;
 };
 
+/** Identifies the overlay host, which may coexist with a page-owned matching ID. */
 export const annotatorHostId = "coder-annotator-host";
 
 // The mount each document currently has, so a remount (Storybook, tests)
@@ -62,16 +64,17 @@ const swallowedEvents = ["mousedown", "mouseup", "pointerdown", "pointerup"];
 // linger.
 const sentFlashMs = 1600;
 
+function focusedElement(doc: Document): Element | null {
+	let active = doc.activeElement;
+	while (active?.shadowRoot?.activeElement) {
+		active = active.shadowRoot.activeElement;
+	}
+	return active;
+}
+
 /**
- * Mounts the annotation overlay into the given document. Everything lives
- * inside a shadow root so the host page's styles cannot leak in and ours
- * cannot leak out. Returns a handle used by the postMessage bridge and by
- * Storybook.
- *
- * While picking, capturing listeners on the window run ahead of anything
- * the page registered on its document or elements: the pointer moves the
- * outline and a click opens the comment popup for the element under it
- * instead of reaching the page.
+ * Isolates the overlay in a shadow root and intercepts page clicks in the
+ * capture phase while picking. Remounting replaces only our previous overlay.
  */
 export function mountAnnotator(
 	options: MountAnnotatorOptions,
@@ -81,8 +84,6 @@ export function mountAnnotator(
 	if (!win) {
 		throw new Error("annotator requires a document attached to a window");
 	}
-	// Replace an earlier mount of ours, listeners included, so two overlays
-	// never compete for the same clicks.
 	mounted.get(doc)?.destroy();
 
 	const host = el(doc, "div");
@@ -132,15 +133,27 @@ export function mountAnnotator(
 	let hovered: Element | null = null;
 	let session: CommentSession | null = null;
 	let layoutFrame = 0;
+	let focusBeforePicking: Element | null = null;
+
+	const restoreFocus = (element: Element | null): boolean => {
+		if (
+			!element?.isConnected ||
+			element === doc.body ||
+			!("focus" in element) ||
+			typeof element.focus !== "function"
+		) {
+			return false;
+		}
+		element.focus({ preventScroll: true });
+		return focusedElement(doc) === element;
+	};
 
 	const notify = () => {
 		options.onStateChange?.({ picking });
 	};
 
-	// Origin and path only: query strings and fragments routinely carry
-	// tokens, and the dashboard strips them again on receipt. Both fields
-	// are host-controlled, so they are trimmed here rather than cloned into
-	// the dashboard in full for its parser to cut down.
+	// Query strings and fragments routinely carry tokens. Bound the remaining
+	// page-controlled fields before cloning them into the dashboard.
 	const pageInfo = () => ({
 		url: `${win.location.origin}${win.location.pathname}`.slice(
 			0,
@@ -150,7 +163,6 @@ export function mountAnnotator(
 		viewport: { width: win.innerWidth, height: win.innerHeight },
 	});
 
-	// Every saved comment is its own submission; there is no batching.
 	const submitComment = (
 		target: Element,
 		comment: string,
@@ -201,6 +213,7 @@ export function mountAnnotator(
 	// otherwise follows the pointer.
 	const layout = () => {
 		outline.follow(picking ? (session?.target ?? hovered) : null);
+		session?.popup.reposition();
 	};
 
 	const scheduleLayout = () => {
@@ -214,8 +227,16 @@ export function mountAnnotator(
 	};
 
 	const closePopup = () => {
-		session?.popup.element.remove();
+		if (!session) {
+			return;
+		}
+		const { popup, previousFocus } = session;
+		const hadFocus = popup.element.contains(shadow.activeElement);
+		popup.element.remove();
 		session = null;
+		if (hadFocus && !restoreFocus(previousFocus) && picking) {
+			stopButton.focus({ preventScroll: true });
+		}
 		scheduleLayout();
 	};
 
@@ -229,7 +250,7 @@ export function mountAnnotator(
 				closePopup();
 			},
 		});
-		session = { target, popup };
+		session = { target, popup, previousFocus: focusedElement(doc) };
 		shadow.append(popup.element);
 		layout();
 		popup.focus();
@@ -273,9 +294,7 @@ export function mountAnnotator(
 		openPopup(target, selection ? selection.slice(0, 500) : undefined);
 	};
 
-	// Escape closes an open comment first and leaves annotate mode
-	// otherwise, wherever focus is. The dashboard mirrors the latter for
-	// when focus is outside the preview.
+	// Escape dismisses the draft before leaving annotate mode, wherever focus is.
 	const onKeyDown = (event: KeyboardEvent) => {
 		if (event.key !== "Escape") {
 			return;
@@ -297,6 +316,10 @@ export function mountAnnotator(
 		if (next === picking) {
 			return;
 		}
+		const restorePageFocus = !next && doc.activeElement === host;
+		if (next) {
+			focusBeforePicking = focusedElement(doc);
+		}
 		picking = next;
 		toolbar.style.display = next ? "flex" : "none";
 		if (next) {
@@ -317,6 +340,9 @@ export function mountAnnotator(
 			}
 			hovered = null;
 			closePopup();
+			if (restorePageFocus) {
+				restoreFocus(focusBeforePicking);
+			}
 		}
 		scheduleLayout();
 		notify();

@@ -11,8 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
+	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -132,6 +135,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			var (
 				wg                = new(sync.WaitGroup)
 				listeners         = make([]net.Listener, 0, len(specs)*2)
+				usage             = new(portForwardUsage)
 				closeAllListeners = func() {
 					logger.Debug(ctx, "closing all listeners")
 					for _, l := range listeners {
@@ -149,7 +153,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 					// first, opportunistically try to listen on IPv6
 					spec6 := spec
 					spec6.listenHost = ipv6Loopback
-					l6, err6 := listenAndPortForward(ctx, inv, conn, wg, spec6, logger)
+					l6, err6 := listenAndPortForward(ctx, inv, conn, wg, spec6, logger, usage)
 					if err6 != nil {
 						logger.Info(ctx, "failed to opportunistically listen on IPv6", slog.F("spec", spec), slog.Error(err6))
 					} else {
@@ -157,7 +161,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 					}
 					spec.listenHost = ipv4Loopback
 				}
-				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger, usage)
 				if err != nil {
 					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
 					return err
@@ -165,7 +169,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 				listeners = append(listeners, l)
 			}
 
-			stopUpdating := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
+			stopUpdating := reportPortForwardUsage(ctx, client, workspace.ID, workspaceAgent.ID, usage)
 
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
@@ -219,6 +223,67 @@ func (r *RootCmd) portForward() *serpent.Command {
 	return cmd
 }
 
+// portForwardUsage counts forwarded TCP connections for usage reporting.
+type portForwardUsage struct {
+	active atomic.Int64
+	seen   atomic.Bool // Set when a connection opens, cleared by inUse.
+}
+
+// track records an open connection. Call the returned func when it closes.
+func (u *portForwardUsage) track() func() {
+	u.active.Add(1)
+	u.seen.Store(true)
+	return func() { u.active.Add(-1) }
+}
+
+// inUse reports whether a connection is open or opened since the last call.
+func (u *portForwardUsage) inUse() bool {
+	// Swap first so a connection that opened and closed between calls counts.
+	return u.seen.Swap(false) || u.active.Load() > 0
+}
+
+// reportPortForwardUsage reports usage now, every minute, and once more on
+// stop. Call the returned func to stop and wait for the final report.
+func reportPortForwardUsage(ctx context.Context, client *codersdk.Client, workspaceID, agentID uuid.UUID, usage *portForwardUsage) func() {
+	report := func(ctx context.Context) {
+		var req codersdk.PostWorkspaceUsageRequest
+		if usage.inUse() {
+			req = codersdk.PostWorkspaceUsageRequest{
+				AgentID: agentID,
+				AppName: string(codersdk.UsageAppNamePortForwarding),
+			}
+		}
+		if err := client.PostWorkspaceUsageWithBody(ctx, workspaceID, req); err != nil {
+			client.Logger().Warn(ctx, "failed to post workspace usage", slog.Error(err))
+		}
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	report(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				report(ctx)
+			case <-ctx.Done():
+				// ctx is canceled, so send the final report on a detached one.
+				finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				report(finalCtx)
+				finalCancel()
+				return
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
@@ -226,6 +291,7 @@ func listenAndPortForward(
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,
+	usage *portForwardUsage,
 ) (net.Listener, error) {
 	logger = logger.With(
 		slog.F("network", spec.network),
@@ -275,6 +341,12 @@ func listenAndPortForward(
 				defer remoteConn.Close()
 				logger.Debug(ctx,
 					"dialed remote", slog.F("remote_addr", netConn.RemoteAddr()))
+
+				// UDP forwards never see EOF, so they would count as active
+				// until exit.
+				if spec.network == "tcp" {
+					defer usage.track()()
+				}
 
 				agentssh.Bicopy(ctx, netConn, remoteConn)
 				logger.Debug(ctx,

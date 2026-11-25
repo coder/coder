@@ -98,3 +98,4 @@ Vanilla TypeScript that Coder injects into third-party web apps shown in agent c
 - Visually inspect affected component stories before handoff.
 - Before handoff, run `pnpm check`, `pnpm lint`, and `pnpm format`, plus affected tests.
 - For changes under `site/src/`, run the repository `frontend-review` skill at `.claude/skills/frontend-review/SKILL.md` and fix each applicable FE1 through FE10 failure.
+- For changes under `site/`, also run the `frontend-deep-review` skill at `.claude/skills/frontend-deep-review/SKILL.md` and fix every `blocking` and `should-fix` finding before handoff.

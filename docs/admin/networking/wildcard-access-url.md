@@ -2,29 +2,39 @@
 title: Wildcard access URLs
 ---
 
-Wildcard access URLs unlock Coder's full potential for modern development workflows. While optional for basic SSH usage, this feature becomes essential when teams need web applications, development previews, or browser-based tools. **Wildcard access URLs are essential for many development workflows in Coder** - Web IDEs (code-server, VS Code Web, JupyterLab) and some development frameworks work significantly better with subdomain-based access rather than path-based URLs.
+Wildcard access URLs unlock Coder's full potential for modern development workflows.
+While optional for basic SSH usage, this feature becomes essential when teams need web applications, development previews, or browser-based tools.
+**Wildcard access URLs are essential for many development workflows in Coder** - Web IDEs (code-server, VS Code Web, JupyterLab) and some development frameworks work significantly better with subdomain-based access rather than path-based URLs.
 
 ## Why configure wildcard access URLs?
 
 ### Key benefits
 
-- **Enables port access**: Each application gets a unique subdomain with [port support](https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard) (e.g. `8080--main--myworkspace--john.coder.example.com`).
-- **Enhanced security**: Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
-- **Better compatibility**: Most applications are designed to work at the root of a hostname rather than at a subpath, making subdomain access more reliable
+- **Enables port access**:
+  Each application gets a unique subdomain with [port support](../../workspaces/workspace-access/port-forwarding.md#dashboard) (for example, `8080--main--myworkspace--john.coder.example.com`).
+- **Enhanced security**:
+  Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
+- **Better compatibility**:
+  Most applications are designed to work at the root of a hostname rather than at a subpath, making subdomain access more reliable
 
 ### Applications that require subdomain access
 
 The following tools require wildcard access URL:
 
-- **Vite dev server**: Hot module replacement and asset serving issues with path-based routing
-- **React dev server**: Similar issues with hot reloading and absolute path references
-- **Next.js development server**: Asset serving and routing conflicts with path-based access
-- **JupyterLab**: More complex template configuration and security risks when using path-based routing
-- **RStudio**: More complex template configuration and security risks when using path-based routing
+- **Vite dev server**:
+  Hot module replacement and asset serving issues with path-based routing
+- **React dev server**:
+  Similar issues with hot reloading and absolute path references
+- **Next.js development server**:
+  Asset serving and routing conflicts with path-based access
+- **JupyterLab**:
+  More complex template configuration and security risks when using path-based routing
+- **RStudio**:
+  More complex template configuration and security risks when using path-based routing
 
 ## Configuration
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../../templates/index.md) on an absolute path.
 Set it to a wildcard hostname that resolves to Coder.
 The value must contain exactly one `*` at the beginning of the hostname.
 Coder replaces `*` with the generated application name, which stays within a single DNS label.
@@ -47,7 +57,8 @@ This configuration serves the dashboard from `https://apps.example.com` and a wo
 
 ### TLS Certificate Setup
 
-Wildcard access URLs require a TLS certificate that covers the wildcard domain. You have several options:
+Wildcard access URLs require a TLS certificate that covers the wildcard domain.
+You have several options:
 
 > [!TIP]
 > You can use a single certificate for both the access URL and wildcard access URL.
@@ -70,31 +81,26 @@ See [TLS & Reverse Proxy](../setup/index.md#tls--reverse-proxy) for detailed con
 
 Use a reverse proxy to handle TLS termination with automatic certificate management:
 
-- [NGINX with Let's Encrypt](../../tutorials/reverse-proxy-nginx.md)
-- [Apache with Let's Encrypt](../../tutorials/reverse-proxy-apache.md)
-- [Caddy reverse proxy](../../tutorials/reverse-proxy-caddy.md)
+- [NGINX with Let's Encrypt](reverse-proxy-nginx.md)
+- [Apache with Let's Encrypt](reverse-proxy-apache.md)
+- [Caddy reverse proxy](reverse-proxy-caddy.md)
 
-If your reverse proxy rewrites the request `Host` and forwards the original
-host in `X-Forwarded-Host`, configure
-[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server/index.md#--proxy-trusted-origins)
-to trust that proxy's address. Otherwise Coder will ignore `X-Forwarded-Host`
-for subdomain app routing.
+If your reverse proxy rewrites the request `Host` and forwards the original host in `X-Forwarded-Host`, configure [`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server/index.md#--proxy-trusted-origins) to trust that proxy's address.
+Otherwise Coder will ignore `X-Forwarded-Host` for subdomain app routing.
 
 ### DNS Setup
 
 You'll need to configure DNS to point wildcard subdomains to your control plane:
 
 > [!NOTE]
-> We do not recommend using a top-level-domain for Coder wildcard access
-> (for example `*.workspaces`), even on private networks with split-DNS. Some
-> browsers consider these "public" domains and will refuse Coder's cookies,
-> which are vital to the proper operation of this feature.
+> We do not recommend using a top-level-domain for Coder wildcard access (for example `*.workspaces`), even on private networks with split-DNS.
+> Some browsers consider these "public" domains and will refuse Coder's cookies, which are vital to the proper operation of this feature.
 
 ```txt
 *.coder.example.com    A    <your-coder-server-ip>
 ```
 
-Or alternatively, using a CNAME record:
+Or alternatively, using a canonical name (CNAME) record:
 
 ```txt
 *.coder.example.com    CNAME    coder.example.com
@@ -107,7 +113,7 @@ For a suffix pattern such as `*-apps.example.com`, DNS and TLS wildcards must co
 ```
 
 DNS providers and certificate authorities don't interpret `*-apps.example.com` as a wildcard record or certificate name.
-Configure `*.example.com` instead, and ensure routing that wildcard to Coder doesn't conflict with other services under `example.com`.
+Configure `*.example.com` instead, and make sure routing that wildcard to Coder doesn't conflict with other services under `example.com`.
 
 ### Workspace Proxies
 
@@ -155,7 +161,7 @@ If workspace applications are not working:
 
 1. Verify the `CODER_WILDCARD_ACCESS_URL` environment variable is configured correctly:
    - Check the deployment settings in the Coder dashboard (Settings > Deployment)
-   - Ensure it matches your wildcard domain (e.g., `*.coder.example.com`)
+   - Make sure it matches your wildcard domain (for example, `*.coder.example.com`)
    - Restart the control plane if you made changes to the environment variable
 2. Check DNS resolution for wildcard subdomains:
 
@@ -164,7 +170,7 @@ If workspace applications are not working:
    nslookup test.coder.example.com
    ```
 
-3. Ensure TLS certificates cover the wildcard domain
+3. Make sure TLS certificates cover the wildcard domain
 4. Confirm template `coder_app` resources have `subdomain = true`
 
 ## See also

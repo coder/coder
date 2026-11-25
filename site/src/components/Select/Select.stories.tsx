@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	Select,
 	SelectContent,
@@ -54,5 +55,15 @@ export const SelectedOpen: Story = {
 	args: {
 		value: "apple",
 		open: true,
+	},
+};
+
+export const KeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("combobox").focus();
+		await userEvent.keyboard("{Enter}");
+		await screen.findByRole("listbox");
+		await userEvent.keyboard("{ArrowDown}");
 	},
 };

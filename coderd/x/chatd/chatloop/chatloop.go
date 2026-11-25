@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,7 +19,11 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -26,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
@@ -127,6 +133,9 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
+	Stages             *StageTracer
+	// StageModel should match the model identity on provider_attempt stages.
+	StageModel StageModel
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -146,7 +155,9 @@ type ExecuteLocalToolsOptions struct {
 	// ObservedToolCalls optionally carries the step's full assistant
 	// tool-call batch, including calls denied before execution, so
 	// step observers account for denied siblings that derivation will
-	// still count. Defaults to ToolCalls.
+	// still count, and halting tools skip the calls after a denied
+	// call. Calls missing from ToolCalls count as denied. Defaults to
+	// ToolCalls.
 	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
@@ -160,19 +171,19 @@ type ExecuteLocalToolsOptions struct {
 	// case a default budget applies.
 	ContextLimit int64
 
-	// ToolNameAliases maps a non-advertised tool name to the canonical
-	// tool it dispatches to. Used for backward compatibility when a tool
-	// is renamed but old chat histories still reference the old name.
-	ToolNameAliases map[string]string
-
 	// UnbilledToolNames lists called tool names excluded from the batch
-	// window. Include deprecated aliases.
+	// window.
 	UnbilledToolNames map[string]bool
 	// BillingRecorder observes each local call's start and completion
 	// for interrupt billing. Serial calls may start after concurrent
 	// siblings settle, so interrupts bill actual starts and skip calls
 	// that never run. Optional.
 	BillingRecorder ToolBillingRecorder
+	// ToolCallContext returns the context to run tc with. Optional.
+	ToolCallContext func(ctx context.Context, tc fantasy.ToolCallContent) context.Context
+
+	Stages     *StageTracer
+	StageModel StageModel
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -215,8 +226,10 @@ type GenerateCompactionOptions struct {
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
-	ToolCallID          string
-	ToolName            string
+	// ToolCallID and ToolName identify the synthetic tool call
+	// used to represent compaction in the message stream.
+	ToolCallID string
+	ToolName   string
 
 	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
 	// summary model, which can differ from the chat model when a
@@ -224,6 +237,12 @@ type GenerateCompactionOptions struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
+	// SummaryContextLimit is the summary model's window. When positive, it
+	// bounds the summary cap instead of the trigger's limit.
+	SummaryContextLimit int64
+	// ChatContextLimit is the chat model's window, recorded for chat usage
+	// display.
+	ChatContextLimit int64
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
 	// prompt and prepared tool definitions.
@@ -232,6 +251,9 @@ type GenerateCompactionOptions struct {
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
 
+	// PublishMessagePart publishes streaming parts to connected
+	// clients so they see "Summarizing..." / "Summarized" UI
+	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	// Clock measures the summary call duration. Required.
@@ -244,9 +266,13 @@ type GenerateCompactionOptions struct {
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()
+
+	// Logger records summary requests the model rejects for their size.
+	Logger slog.Logger
 }
 
-// ProviderTool pairs a provider-native tool definition with an
+// ProviderTool pairs a tool definition that chatd builds for one
+// provider, either provider-native or a plain function tool, with an
 // optional local executor. When Runner is nil the tool is fully
 // provider-executed (e.g. web search). When Runner is non-nil
 // the definition is sent to the API but execution is handled
@@ -267,6 +293,7 @@ type ProviderTool struct {
 type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
+	responseBytes        int
 	providerMetadata     fantasy.ProviderMetadata
 	providerResponseID   string
 	finishReason         fantasy.FinishReason
@@ -275,6 +302,9 @@ type stepResult struct {
 	toolResultCreatedAt  map[string]time.Time
 	reasoningStartedAt   []time.Time
 	reasoningCompletedAt []time.Time
+	// unfinishedToolCalls holds local calls whose input started streaming
+	// but never completed into a ToolCall.
+	unfinishedToolCalls []fantasy.ToolCallContent
 }
 
 // reasoningState accumulates reasoning content and provider
@@ -285,9 +315,15 @@ type reasoningState struct {
 	startedAt time.Time
 }
 
+type textState struct {
+	text      string
+	options   fantasy.ProviderMetadata
+	narration bool
+}
+
 // GenerateAssistant performs one assistant model stream and returns the
 // durable assistant-side content. It does not execute tools, retry, or persist.
-func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (AssistantOutcome, error) {
+func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ AssistantOutcome, retErr error) {
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
@@ -331,8 +367,10 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
+	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
+	streamSpan.SetModel(opts.StageModel)
 	attempt, streamErr := guardedStream(
-		stepCtx,
+		streamCtx,
 		provider,
 		modelName,
 		opts.Clock,
@@ -341,18 +379,28 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
+		opts.Stages,
+		opts.StageModel,
 	)
 	if streamErr != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		streamSpan.End(wrappedErr)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	defer attempt.release()
+	// release closes the time_to_first_token window, so it must run
+	// before the stream stage ends.
+	defer func() {
+		attempt.release()
+		streamSpan.End(retErr)
+	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	// Observe before error handling so failed or rejected responses are still counted.
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -367,6 +415,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	if result.finishReason == fantasy.FinishReasonLength {
+		resolveOutputLimitToolCalls(&result, call.MaxOutputTokens, opts.Clock, publishMessagePart)
+	}
 	// A content-filter finish without user-visible output means the
 	// provider's safety classifiers blocked the whole response (e.g.
 	// Anthropic stop_reason "refusal"). The refusal can arrive after
@@ -397,6 +448,62 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
 		FinishReason: result.finishReason,
 	}, nil
+}
+
+// resolveOutputLimitToolCalls gives every call whose input the output token
+// limit cut off an error result, so the model learns why the call failed
+// instead of retrying the same oversized input or silently losing the call.
+func resolveOutputLimitToolCalls(
+	result *stepResult,
+	maxOutputTokens *int64,
+	clock quartz.Clock,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	limit := "the output token limit"
+	if maxOutputTokens != nil && *maxOutputTokens > 0 {
+		limit = fmt.Sprintf("the output token limit (%d tokens)", *maxOutputTokens)
+	}
+	message := "This tool call was not executed because the response reached " + limit +
+		" while writing its input. Split the content into smaller tool calls."
+	appendResult := func(toolCall fantasy.ToolCallContent) {
+		toolResult := fantasy.ToolResultContent{
+			ToolCallID: toolCall.ToolCallID,
+			ToolName:   toolCall.ToolName,
+			Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(message)},
+		}
+		result.content = append(result.content, toolResult)
+		now := clockNow(clock)
+		if result.toolResultCreatedAt == nil {
+			result.toolResultCreatedAt = make(map[string]time.Time)
+		}
+		result.toolResultCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolResult)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleTool, part)
+	}
+
+	var truncated []fantasy.ToolCallContent
+	for _, block := range result.content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && !toolCall.ProviderExecuted && !json.Valid([]byte(toolCall.Input)) {
+			truncated = append(truncated, toolCall)
+		}
+	}
+	for _, toolCall := range truncated {
+		appendResult(toolCall)
+	}
+	for _, toolCall := range result.unfinishedToolCalls {
+		result.content = append(result.content, toolCall)
+		now := clockNow(clock)
+		if result.toolCallCreatedAt == nil {
+			result.toolCallCreatedAt = make(map[string]time.Time)
+		}
+		result.toolCallCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolCall)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, part)
+		appendResult(toolCall)
+	}
 }
 
 func wrapProviderStreamError(provider string, err error) error {
@@ -534,27 +641,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		}, nil
 	}
 
-	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
-	toolExecutions := executeTools(
-		ctx,
-		opts.Clock,
-		opts.Tools,
-		opts.ActiveTools,
-		opts.AllowInactiveTools,
-		opts.ProviderTools,
-		localCalls,
-		opts.ObservedToolCalls,
-		opts.Metrics,
-		opts.Logger,
-		provider,
-		modelName,
-		opts.BuiltinToolNames,
-		maxResultBytes,
-		opts.ToolNameAliases,
-		batchStart,
-		opts.BillingRecorder,
-	)
+	toolExecutions := newToolBatch(opts, provider, modelName).run(ctx, localCalls, batchStart)
 	for _, execution := range toolExecutions {
 		tr := execution.content
 		completedAt := execution.interval.End
@@ -562,6 +650,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 		ssePart.CreatedAt = &completedAt
+		userResult, projectionErr := chattool.UserResultFromMetadata(tr.ClientMetadata)
+		if projectionErr != nil {
+			return PersistedStep{}, projectionErr
+		}
+		if len(userResult) > 0 {
+			ssePart.Result = userResult
+		}
 		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
@@ -669,8 +764,8 @@ func prepareMessagesForRequest(
 		)
 		return nil, err
 	}
-	if shouldApplyAnthropicPromptCaching(model) {
-		addAnthropicPromptCaching(prompt)
+	if applyPromptCaching := promptCachingStrategyFor(model, modelName); applyPromptCaching != nil {
+		applyPromptCaching(prompt)
 	}
 	return prompt, nil
 }
@@ -776,6 +871,8 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
+var errNoFirstToken = xerrors.New("stream ended before the first token")
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -783,6 +880,8 @@ func guardedStream(
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 	metrics *Metrics,
+	stages *StageTracer,
+	stageModel StageModel,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
@@ -791,34 +890,60 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
+	// A nil tracer still times the window for TTFTSeconds.
+	if stages == nil {
+		stages = NewStageTracer(nil, nil, WithClock(clock))
+	}
+	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
+	ttftSpan.SetModel(stageModel)
+	var ttftOnce sync.Once
+	// A silence guard cancellation surfaces as a context error, so it is
+	// replaced with the classified timeout.
+	finishTTFT := func(err error) {
+		ttftOnce.Do(func() {
+			if err != nil {
+				if errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
+					err = classifyStreamSilenceTimeout(attemptCtx, provider, nil)
+				}
+				ttftSpan.EndWithoutObservation(err)
+				return
+			}
+			elapsed := ttftSpan.End(nil)
+			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(elapsed.Seconds())
+		})
+	}
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
 			guard.Disarm()
 			cancelAttempt(nil)
+			finishTTFT(errNoFirstToken)
 		})
 	}
 
-	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
+		finishTTFT(err)
 		release()
 		return guardedAttempt{}, err
 	}
 
-	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
-			clock.Since(streamStart).Seconds(),
-		)
-	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
 				kick(timeout)
-				recordTTFT()
+				switch part.Type {
+				case fantasy.StreamPartTypeError:
+					finishTTFT(part.Error)
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeKeepalive, fantasy.StreamPartTypeFinish:
+					// None is model output, so the window stays open.
+				default:
+					// Start markers such as text_start count as output.
+					finishTTFT(nil)
+				}
 				if !yield(part) {
 					return
 				}
@@ -848,27 +973,44 @@ func processStepStream(
 	var result stepResult
 
 	providerExecutedCalls := make(map[string]bool)
-	activeTextContent := make(map[string]string)
+	activeTextContent := make(map[string]textState)
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
+	var startedToolInputIDs []string
 
 	for part := range stream {
+		// Counts Delta on every part type. This relies on providers keeping
+		// summary data, such as ToolCall input, out of Delta. Only
+		// TestGenerateAssistant_ResponseSizeBytesByPartType checks this, so
+		// update it when adding new part types.
+		result.responseBytes += len(part.Delta)
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
-			activeTextContent[part.ID] = ""
+			// OpenAI labels narration when the text starts, so every delta
+			// can carry the label before the text ends.
+			activeTextContent[part.ID] = textState{
+				options:   part.ProviderMetadata,
+				narration: chatprompt.IsNarration(part.ProviderMetadata),
+			}
 
 		case fantasy.StreamPartTypeTextDelta:
-			if _, exists := activeTextContent[part.ID]; exists {
-				activeTextContent[part.ID] += part.Delta
+			textPart := codersdk.ChatMessageText(part.Delta)
+			if active, exists := activeTextContent[part.ID]; exists {
+				active.text += part.Delta
+				activeTextContent[part.ID] = active
+				textPart.Narration = active.narration
 			}
-			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(part.Delta))
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, textPart)
 
 		case fantasy.StreamPartTypeTextEnd:
-			if text, exists := activeTextContent[part.ID]; exists {
+			if active, exists := activeTextContent[part.ID]; exists {
+				if len(part.ProviderMetadata) > 0 {
+					active.options = part.ProviderMetadata
+				}
 				result.content = append(result.content, fantasy.TextContent{
-					Text:             text,
-					ProviderMetadata: part.ProviderMetadata,
+					Text:             active.text,
+					ProviderMetadata: active.options,
 				})
 				delete(activeTextContent, part.ID)
 			}
@@ -910,6 +1052,9 @@ func processStepStream(
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
+			if _, exists := providerExecutedCalls[part.ID]; !exists {
+				startedToolInputIDs = append(startedToolInputIDs, part.ID)
+			}
 			providerExecutedCalls[part.ID] = part.ProviderExecuted
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
@@ -967,6 +1112,7 @@ func processStepStream(
 				ID:               part.ID,
 				URL:              part.URL,
 				Title:            part.Title,
+				ToolCallID:       part.SourceToolCallID,
 				ProviderMetadata: part.ProviderMetadata,
 			}
 			result.content = append(result.content, sourceContent)
@@ -986,6 +1132,9 @@ func processStepStream(
 					ToolName:         part.ToolCallName,
 					ProviderExecuted: part.ProviderExecuted,
 					ProviderMetadata: part.ProviderMetadata,
+				}
+				if err := providerToolResultError(part.ProviderMetadata); err != nil {
+					tr.Result = fantasy.ToolResultOutputContentError{Error: err}
 				}
 				result.content = append(result.content, tr)
 
@@ -1013,6 +1162,17 @@ func processStepStream(
 		}
 	}
 
+	for _, id := range startedToolInputIDs {
+		providerExecuted, unfinished := providerExecutedCalls[id]
+		if !unfinished || providerExecuted {
+			continue
+		}
+		result.unfinishedToolCalls = append(result.unfinishedToolCalls, fantasy.ToolCallContent{
+			ToolCallID: id,
+			ToolName:   toolNames[id],
+		})
+	}
+
 	return result, nil
 }
 
@@ -1037,57 +1197,28 @@ type toolExecutionResult struct {
 	interval BilledInterval
 }
 
-// executeTools runs non-serial calls concurrently, then SerialToolCalls in
-// call order. Results are returned in original order after all tools finish.
-// recorder, if set, receives live start and completion timestamps.
-func executeTools(
-	ctx context.Context,
-	clock quartz.Clock,
-	allTools []fantasy.AgentTool,
-	activeTools []string,
-	allowInactiveTools map[string]bool,
-	providerTools []ProviderTool,
-	toolCalls []fantasy.ToolCallContent,
-	observedToolCalls []fantasy.ToolCallContent,
-	metrics *Metrics,
-	logger slog.Logger,
-	provider, model string,
-	builtinToolNames map[string]bool,
-	maxResultBytes int,
-	toolNameAliases map[string]string,
-	batchStart time.Time,
-	recorder ToolBillingRecorder,
-) []toolExecutionResult {
-	if len(toolCalls) == 0 {
-		return nil
-	}
+type toolBatch struct {
+	opts            ExecuteLocalToolsOptions
+	provider, model string
+	maxResultBytes  int
+	tools           map[string]fantasy.AgentTool
+	providerRunners map[string]struct{}
+	resultMetadata  map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata
+}
 
-	// Filter out provider-executed tool calls. These were
-	// handled server-side by the LLM provider (e.g., web
-	// search) and their results are already in the stream
-	// content.
-	localToolCalls := make([]fantasy.ToolCallContent, 0, len(toolCalls))
-	for _, tc := range toolCalls {
-		if !tc.ProviderExecuted {
-			localToolCalls = append(localToolCalls, tc)
-		}
-	}
-	if len(localToolCalls) == 0 {
-		return nil
-	}
-
-	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
-	for _, t := range allTools {
+func newToolBatch(opts ExecuteLocalToolsOptions, provider, model string) *toolBatch {
+	toolMap := make(map[string]fantasy.AgentTool, len(opts.Tools))
+	for _, t := range opts.Tools {
 		toolMap[t.Info().Name] = t
 	}
-	providerRunnerNames := make(map[string]struct{}, len(providerTools))
+	providerRunnerNames := make(map[string]struct{}, len(opts.ProviderTools))
 	resultProviderMetadata := make(
 		map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
-		len(providerTools),
+		len(opts.ProviderTools),
 	)
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
-	for _, pt := range providerTools {
+	for _, pt := range opts.ProviderTools {
 		if pt.Runner == nil {
 			continue
 		}
@@ -1099,57 +1230,71 @@ func executeTools(
 			resultProviderMetadata[name] = pt.ResultProviderMetadata
 		}
 	}
+	return &toolBatch{
+		opts:            opts,
+		provider:        provider,
+		model:           model,
+		maxResultBytes:  ToolResultByteBudget(opts.ContextLimit),
+		tools:           toolMap,
+		providerRunners: providerRunnerNames,
+		resultMetadata:  resultProviderMetadata,
+	}
+}
 
-	observed := observedToolCalls
+func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallContent, batchStart time.Time) []toolExecutionResult {
+	observed := b.opts.ObservedToolCalls
 	if observed == nil {
 		observed = localToolCalls
 	}
-	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
+	b.notifyStepToolCallObservers(observed)
 
+	recorder := b.opts.BillingRecorder
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
+		// Started only if the tool runs, so rejected calls record no stage.
+		var toolSpan *StageSpan
+		startRun := func(ctx context.Context) context.Context {
+			var toolCtx context.Context
+			toolCtx, toolSpan = b.opts.Stages.Start(ctx, StageToolCall,
+				attribute.String(AttrToolName, tc.ToolName),
+			)
+			toolSpan.SetModel(b.opts.StageModel)
+			return toolCtx
+		}
+		var execErr error
 		defer func() {
 			if r := recover(); r != nil {
+				execErr = xerrors.Errorf("tool panicked: %v", r)
 				executions[i].content = fantasy.ToolResultContent{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result: fantasy.ToolResultOutputContentError{
-						Error: xerrors.Errorf("tool panicked: %v", r),
+						Error: execErr,
 					},
 				}
 			}
 			// Record when this tool completed (or panicked).
 			// Captured per call so parallel tools get
 			// accurate individual completion times.
-			completedAt := clockNow(clock)
+			completedAt := clockNow(b.opts.Clock)
 			executions[i].interval.End = completedAt
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
+			toolSpan.End(execErr)
 		}()
-		executions[i].content = executeSingleTool(
-			ctx,
-			toolMap,
-			tc,
-			metrics,
-			logger,
-			provider,
-			model,
-			builtinToolNames,
-			activeTools,
-			allowInactiveTools,
-			providerRunnerNames,
-			resultProviderMetadata,
-			maxResultBytes,
-			toolNameAliases,
-		)
+		callCtx := ctx
+		if b.opts.ToolCallContext != nil {
+			callCtx = b.opts.ToolCallContext(ctx, tc)
+		}
+		executions[i].content, execErr = b.runOne(callCtx, tc, startRun)
 	}
 	// SerialToolCalls run in call order after concurrent siblings settle, so
 	// order-sensitive state observes final sibling outcomes.
 	var serialIndexes []int
 	var wg sync.WaitGroup
 	for i, tc := range localToolCalls {
-		if isSerialToolCall(toolMap, toolNameAliases, tc.ToolName) {
+		if b.isSerialToolCall(tc.ToolName) {
 			serialIndexes = append(serialIndexes, i)
 			continue
 		}
@@ -1172,16 +1317,36 @@ func executeTools(
 			settled = append(settled, executions[i].content)
 		}
 	}
-	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
+	b.notifyStepToolResultObservers(localToolCalls, observed, settled)
 
+	// failed holds the halting tools with a call that failed in this batch.
+	failed := make(map[string]bool)
+	afterRejection := callsAfterRejection(localToolCalls, observed)
 	for _, i := range serialIndexes {
+		tc := localToolCalls[i]
+		name := tc.ToolName
+		haltedText, halts := b.haltedCallError(name)
+		if halts && (failed[name] || afterRejection[tc.ToolCallID]) {
+			// The call never runs, so it records no start and is not billed.
+			executions[i].content = fantasy.ToolResultContent{
+				ToolCallID: tc.ToolCallID,
+				ToolName:   tc.ToolName,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(haltedText)},
+			}
+			executions[i].interval.End = clockNow(b.opts.Clock)
+			recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, executions[i].content)
+			continue
+		}
 		// Stamp serial calls at launch, not batch start.
-		startedAt := clockNow(clock)
+		startedAt := clockNow(b.opts.Clock)
 		executions[i].interval.Start = startedAt
 		if recorder != nil {
 			recorder.RecordStart(i, startedAt)
 		}
-		runCall(i, localToolCalls[i])
+		runCall(i, tc)
+		if _, isErr := executions[i].content.Result.(fantasy.ToolResultOutputContentError); halts && isErr {
+			failed[name] = true
+		}
 	}
 
 	return executions
@@ -1210,11 +1375,6 @@ func applyExclusiveToolPolicy(
 	return results, true
 }
 
-// recordToolResultMetrics observes tool result size and increments
-// tool_errors_total when the result carries an error output. Mirrors
-// the metric-recording defer in executeSingleTool so that synthetic
-// results (e.g. exclusive-tool policy errors) contribute to operator
-// visibility.
 func recordToolResultMetrics(metrics *Metrics, provider, model string, tr fantasy.ToolResultContent) {
 	if metrics == nil {
 		return
@@ -1278,75 +1438,50 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 	return "this tool was skipped because " + toolName + " must run alone in its batch. Retry your tool calls without " + toolName + ", or call " + toolName + " separately first."
 }
 
-// executeSingleTool executes one tool call and converts the
-// response into a ToolResultContent.
-func executeSingleTool(
+// runOne returns an error only when tool.Run fails, so stage tracing
+// can tell those failures from other model-facing error results.
+func (b *toolBatch) runOne(
 	ctx context.Context,
-	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
-	metrics *Metrics,
-	logger slog.Logger,
-	provider, model string,
-	builtinToolNames map[string]bool,
-	activeTools []string,
-	allowInactiveTools map[string]bool,
-	providerRunnerNames map[string]struct{},
-	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
-	maxResultBytes int,
-	toolNameAliases map[string]string,
-) fantasy.ToolResultContent {
+	startRun func(context.Context) context.Context,
+) (fantasy.ToolResultContent, error) {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
 		ToolName:         tc.ToolName,
 		ProviderExecuted: false,
 	}
 	defer func() {
-		metricLabel := tc.ToolName
-		if metricLabel == "" {
-			metricLabel = "unknown"
-		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
-			float64(ToolResultSize(result)),
-		)
-		if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
-			metrics.RecordToolError(provider, model, metricLabel)
-		}
+		recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, result)
 	}()
 
-	// Resolve backward-compatible tool aliases (for example a renamed
-	// tool whose old name still appears in chat history) to the canonical
-	// tool before the active-tool and dispatch lookups.
-	resolvedName := tc.ToolName
-	if alias, ok := toolNameAliases[tc.ToolName]; ok {
-		resolvedName = alias
-	}
-
-	_, isProviderRunner := providerRunnerNames[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, activeTools) && !allowInactiveTools[resolvedName] {
+	_, isProviderRunner := b.providerRunners[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[tc.ToolName] {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
+			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
-		return result
+		return result, nil
 	}
 
-	tool, exists := toolMap[resolvedName]
+	tool, exists := b.tools[tc.ToolName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not found: " + resolvedName),
+			Error: xerrors.New("Tool not found: " + tc.ToolName),
 		}
-		return result
+		return result, nil
 	}
 
-	logger.Debug(ctx, "tool execution",
+	b.opts.Logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
-		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", builtinToolNames[resolvedName]),
+		slog.F("builtin", b.opts.BuiltinToolNames[tc.ToolName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
+	if startRun != nil {
+		ctx = startRun(ctx)
+	}
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
-		Name:  resolvedName,
+		Name:  tc.ToolName,
 		Input: tc.Input,
 	})
 	if err != nil {
@@ -1354,12 +1489,12 @@ func executeSingleTool(
 			Error: err,
 		}
 		result.ClientMetadata = resp.Metadata
-		logger.Error(ctx, "tool execution failed",
+		b.opts.Logger.Error(ctx, "tool execution failed",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.Error(err),
 		)
-		return result
+		return result, err
 	}
 
 	result.ClientMetadata = resp.Metadata
@@ -1367,13 +1502,13 @@ func executeSingleTool(
 	// Bound text so one tool result cannot overflow the model's context window.
 	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
-	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
-		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
-		logger.Warn(ctx, "tool result truncated to fit model context",
+	if truncated, didTruncate := TruncateToolResultText(content, b.maxResultBytes); didTruncate {
+		b.opts.Metrics.RecordToolResultTruncated(b.provider, b.model, tc.ToolName)
+		b.opts.Logger.Warn(ctx, "tool result truncated to fit model context",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.F("original_bytes", len(content)),
-			slog.F("max_bytes", maxResultBytes),
+			slog.F("max_bytes", b.maxResultBytes),
 		)
 		content = truncated
 	}
@@ -1383,7 +1518,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New(content),
 		}
-		logger.Info(ctx, "tool returned error result",
+		b.opts.Logger.Info(ctx, "tool returned error result",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.F("tool_error", content),
@@ -1391,7 +1526,7 @@ func executeSingleTool(
 	case resp.Type == "image" || resp.Type == "media":
 		text := strings.ToValidUTF8(content, "\uFFFD")
 		if note, rejected := normalizeToolMedia(&resp); rejected {
-			logger.Warn(ctx, "tool result media rejected, keeping text only",
+			b.opts.Logger.Warn(ctx, "tool result media rejected, keeping text only",
 				slog.F("tool_name", tc.ToolName),
 				slog.F("tool_call_id", tc.ToolCallID),
 				slog.F("media_type", resp.MediaType),
@@ -1415,17 +1550,17 @@ func executeSingleTool(
 	}
 
 	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
-		return result
+		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
-		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
+		if callback := b.resultMetadata[tc.ToolName]; callback != nil {
 			metadata := callback(resp)
 			if len(metadata) > 0 {
 				result.ProviderMetadata = metadata
 			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 // normalizeToolMedia bounds persisted payloads and corrects image MIME types
@@ -1459,21 +1594,59 @@ func isToolActive(name string, activeTools []string) bool {
 // must execute in tool-call order because they claim from shared state.
 type serialToolCaller interface{ SerialToolCalls() bool }
 
+// haltingToolCaller is implemented by serial tools whose calls in one step
+// build on each other, for example computer actions that the model plans
+// against one screen. After a call of the tool fails, or is rejected before
+// it runs, no later call of the tool runs in the step. Each later call gets
+// an error result with the returned text. ok is false if the tool does not
+// halt.
+type haltingToolCaller interface {
+	HaltedToolCallError() (text string, ok bool)
+}
+
+// haltedCallError returns the error text for the calls of the tool name that
+// follow a failed call, and false if the tool does not halt.
+func (b *toolBatch) haltedCallError(name string) (string, bool) {
+	halting, ok := b.tools[name].(haltingToolCaller)
+	if !ok {
+		return "", false
+	}
+	return halting.HaltedToolCallError()
+}
+
+// callsAfterRejection returns the IDs of the calls that follow, in observed
+// order, a rejected call of the same tool. Observed calls missing from calls
+// were rejected before execution.
+func callsAfterRejection(calls, observed []fantasy.ToolCallContent) map[string]bool {
+	executed := make(map[string]bool, len(calls))
+	for _, tc := range calls {
+		executed[tc.ToolCallID] = true
+	}
+	rejectedTools := make(map[string]bool)
+	after := make(map[string]bool)
+	for _, tc := range observed {
+		name := tc.ToolName
+		switch {
+		case !executed[tc.ToolCallID]:
+			rejectedTools[name] = true
+		case rejectedTools[name]:
+			after[tc.ToolCallID] = true
+		}
+	}
+	return after
+}
+
 // stepToolCallObserver is implemented by tools that need to see every
 // tool-call name in the step before any call executes, for example so
 // find_tools can charge same-step direct calls against its budget.
 type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
 
-// notifyStepToolCallObservers passes the step's resolved tool-call
-// names to each distinct called tool that observes them.
-func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent) {
+// notifyStepToolCallObservers passes the step's tool-call names to
+// each distinct called tool that observes them.
+func (b *toolBatch) notifyStepToolCallObservers(calls []fantasy.ToolCallContent) {
 	names := make([]string, 0, len(calls))
 	for _, tc := range calls {
-		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
-		names = append(names, name)
+		names = append(names, tc.ToolName)
 	}
 	notified := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -1481,11 +1654,7 @@ func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameA
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolCallObserver); ok {
+		if observer, ok := b.tools[name].(stepToolCallObserver); ok {
 			observer.ObserveStepToolCalls(names)
 		}
 	}
@@ -1509,13 +1678,7 @@ type stepToolResultObserver interface {
 // results always carry IsError. Serial calls have not run yet, so
 // their own outcomes are reported as not errored; observers only need
 // the concurrent siblings they share state with.
-func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
-	resolve := func(name string) string {
-		if alias, ok := toolNameAliases[name]; ok {
-			return alias
-		}
-		return name
-	}
+func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
 	erroredByID := make(map[string]bool, len(settled))
 	for _, tr := range settled {
 		_, isErr := tr.Result.(fantasy.ToolResultOutputContentError)
@@ -1528,7 +1691,7 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	names := make([]string, 0, len(observed))
 	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		names = append(names, resolve(tc.ToolName))
+		names = append(names, tc.ToolName)
 		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
 			errored = append(errored, isErr)
 			continue
@@ -1539,40 +1702,49 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
 		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
 		if _, dup := notified[name]; dup {
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolResultObserver); ok {
+		if observer, ok := b.tools[name].(stepToolResultObserver); ok {
 			observer.ObserveStepToolResults(names, errored)
 		}
 	}
 }
 
-func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
-	if alias, ok := toolNameAliases[name]; ok {
-		name = alias
-	}
-	tool, ok := toolMap[name]
-	if !ok {
-		return false
-	}
-	serial, ok := tool.(serialToolCaller)
+func (b *toolBatch) isSerialToolCall(name string) bool {
+	serial, ok := b.tools[name].(serialToolCaller)
 	return ok && serial.SerialToolCalls()
 }
 
-func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
+// promptCachingStrategy marks prompt cache breakpoints on a prepared
+// prompt in the shape the model's fantasy client serializes.
+type promptCachingStrategy func(messages []fantasy.Message)
+
+// promptCachingStrategyFor returns the breakpoint marker for Claude models
+// on transports that forward Anthropic prompt caching, or nil.
+func promptCachingStrategyFor(model fantasy.LanguageModel, modelName string) promptCachingStrategy {
 	if model == nil {
-		return false
+		return nil
 	}
-	return model.Provider() == fantasyanthropic.Name
+	switch model.Provider() {
+	case fantasyanthropic.Name:
+		return addAnthropicPromptCaching
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		// Both clients translate Anthropic-keyed cache options into
+		// cache_control on the OpenAI-compatible wire.
+		if chatprovider.IsAnthropicFamilyModelID(modelName) {
+			return addAnthropicPromptCaching
+		}
+	case fantasyopenaicompat.Name:
+		// The client only knows ContentExtraFields, and the AI Gateway
+		// re-applies client-sent cache_control when it rebuilds the
+		// upstream body, so the marker reaches OpenRouter-style upstreams.
+		if chatprovider.IsAnthropicFamilyModelID(modelName) {
+			return addOpenAICompatPromptCaching
+		}
+	}
+	return nil
 }
 
 // addAnthropicPromptCaching mutates messages in-place, setting
@@ -1602,6 +1774,56 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+// addOpenAICompatPromptCaching marks breakpoints on the last text part
+// of the last system message and of the final two text-bearing user or
+// assistant messages; tool messages have no text block on the
+// OpenAI-compatible wire. Markers are part-level because message-level
+// ContentExtraFields shares a key with openaicompat.ProviderOptions.
+func addOpenAICompatPromptCaching(messages []fantasy.Message) {
+	marker := &fantasyopenaicompat.ContentExtraFields{
+		Fields: map[string]any{"cache_control": map[string]string{"type": "ephemeral"}},
+	}
+	lastSystemIdx := -1
+	for i := range messages {
+		// Content slices are shared with the canonical messages.
+		messages[i].Content = slices.Clone(messages[i].Content)
+		if messages[i].Role == fantasy.MessageRoleSystem {
+			lastSystemIdx = i
+		}
+	}
+	if lastSystemIdx >= 0 {
+		markLastTextPart(messages[lastSystemIdx].Content, marker)
+	}
+	remaining := 2
+	for i := len(messages) - 1; i >= 0 && remaining > 0; i-- {
+		if messages[i].Role != fantasy.MessageRoleUser && messages[i].Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		if markLastTextPart(messages[i].Content, marker) {
+			remaining--
+		}
+	}
+}
+
+func markLastTextPart(content []fantasy.MessagePart, marker fantasy.ProviderOptionsData) bool {
+	for j := len(content) - 1; j >= 0; j-- {
+		textPart, ok := content[j].(fantasy.TextPart)
+		if !ok || strings.TrimSpace(textPart.Text) == "" {
+			continue
+		}
+		// The options map is shared with the canonical part; never mutate it.
+		options := maps.Clone(textPart.ProviderOptions)
+		if options == nil {
+			options = fantasy.ProviderOptions{}
+		}
+		options[fantasyopenaicompat.Name] = marker
+		textPart.ProviderOptions = options
+		content[j] = textPart
+		return true
+	}
+	return false
 }
 
 // recordToolResultTimestamp lazily initializes the
@@ -1826,4 +2048,17 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// providerToolResultError returns the failure a provider reported for a
+// provider-executed web search, or nil. Anthropic reports an error code and
+// OpenAI a failed item status, both only in the result's metadata.
+func providerToolResultError(metadata fantasy.ProviderMetadata) error {
+	if meta, ok := metadata[fantasyanthropic.Name].(*fantasyanthropic.WebSearchResultMetadata); ok && meta != nil && meta.ErrorCode != "" {
+		return xerrors.Errorf("web search failed: %s", meta.ErrorCode)
+	}
+	if meta, ok := metadata[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata); ok && meta != nil && meta.Status == "failed" {
+		return xerrors.New("web search failed")
+	}
+	return nil
 }

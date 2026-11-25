@@ -1,9 +1,8 @@
 import { cn } from "cn";
-import { UserIcon } from "lucide-react";
 import { useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { AssignableRoles } from "#/api/typesGenerated";
-import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -215,7 +214,7 @@ const ImpliedRolesList: React.FC<ImpliedRolesListProps> = ({
 }) => {
 	return (
 		<>
-			<ImpliedRoleRow title="Member" description={roleDescriptions.member} />
+			<ImpliedRoleRow description={roleDescriptions.member} />
 			{additionalImpliedRoles.map((role) => (
 				<ImpliedRoleRow
 					key={role.name}
@@ -229,7 +228,7 @@ const ImpliedRolesList: React.FC<ImpliedRolesListProps> = ({
 };
 
 type ImpliedRoleRowProps = {
-	title: string;
+	title?: string;
 	description: string;
 	caption?: string;
 };
@@ -240,14 +239,23 @@ const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 	caption,
 }) => {
 	return (
-		<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
-			<UserIcon className="size-4 mt-1 shrink-0" />
-			<div className="flex flex-col">
-				<span className="text-sm font-medium">{title}</span>
-				{description && <span className="text-sm">{description}</span>}
-				{caption && <span className="text-xs italic">{caption}</span>}
-			</div>
-		</div>
+		<Alert severity="info">
+			{title && (
+				<AlertTitle className="font-normal text-content-secondary">
+					{title}
+				</AlertTitle>
+			)}
+			{description && (
+				<AlertDescription className="font-normal text-content-secondary">
+					{description}
+				</AlertDescription>
+			)}
+			{caption && (
+				<p className="m-0 mt-1 text-xs font-normal italic text-content-secondary">
+					{caption}
+				</p>
+			)}
+		</Alert>
 	);
 };
 

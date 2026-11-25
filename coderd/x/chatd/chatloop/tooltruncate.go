@@ -38,7 +38,7 @@ const (
 	// truncationMarkerReserve is the number of bytes reserved for the
 	// truncation marker when splitting output into a head and tail. It
 	// is comfortably larger than the longest marker
-	// truncateToolResultText can produce, so the assembled result never
+	// TruncateToolResultText can produce, so the assembled result never
 	// exceeds the budget.
 	truncationMarkerReserve = 256
 )
@@ -46,12 +46,12 @@ const (
 // maxIntValue is the largest value of the platform int type.
 const maxIntValue = int(^uint(0) >> 1)
 
-// toolResultByteBudget converts a model context-window size (in
+// ToolResultByteBudget converts a model context-window size (in
 // tokens) into the maximum number of bytes a single tool result may
 // contribute to the prompt. A context limit <= 0 means the window is
 // unknown and the default budget is used. The result is never below
 // minToolResultBytes.
-func toolResultByteBudget(contextLimitTokens int64) int {
+func ToolResultByteBudget(contextLimitTokens int64) int {
 	if contextLimitTokens <= 0 {
 		return defaultToolResultBytes
 	}
@@ -66,14 +66,14 @@ func toolResultByteBudget(contextLimitTokens int64) int {
 	return int(budgetBytes)
 }
 
-// truncateToolResultText caps text to at most maxBytes using a
+// TruncateToolResultText caps text to at most maxBytes using a
 // head-and-tail strategy: it keeps the start and end of the output and
 // replaces the middle with a marker noting how many bytes were
 // removed. This preserves the most useful context (a tool's leading
 // summary and trailing status) while bounding size. The returned
 // string is always valid UTF-8 and never exceeds maxBytes. It returns
 // (text, false) unchanged when maxBytes <= 0 or the text already fits.
-func truncateToolResultText(text string, maxBytes int) (string, bool) {
+func TruncateToolResultText(text string, maxBytes int) (string, bool) {
 	if maxBytes <= 0 || len(text) <= maxBytes {
 		return text, false
 	}

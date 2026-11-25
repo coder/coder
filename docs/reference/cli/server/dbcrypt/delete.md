@@ -22,7 +22,7 @@ coder server dbcrypt delete [flags]
 
 ### --postgres-url
 
-|             |                                                            |
+| Property    | Value                                                      |
 |-------------|------------------------------------------------------------|
 | Type        | <code>string</code>                                        |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL</code> |
@@ -31,7 +31,7 @@ The connection URL for the Postgres database.
 
 ### --postgres-connection-auth
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
@@ -41,8 +41,8 @@ Type of auth to use when connecting to postgres.
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.

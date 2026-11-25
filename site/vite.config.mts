@@ -8,6 +8,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
+import { annotatorDevServer } from "./vite.annotator.config.mjs";
 
 // We enable profiling and source maps for internal deployments (e.g. dogfood).
 // The profiling build uses react-dom/profiling, which keeps optimizations but
@@ -29,6 +30,7 @@ compilerPreset.rolldown.filter = {
 };
 
 const plugins: PluginOption[] = [
+	annotatorDevServer(),
 	tailwindcss(),
 	react(),
 	babel({ presets: [compilerPreset] }),
@@ -55,7 +57,9 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(import.meta.dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
-		sourcemap: isProfilingBuild ? true : "hidden",
+		// Source maps are roughly 100 MB and are embedded in the coder binary,
+		// so only profiling builds include them.
+		sourcemap: isProfilingBuild,
 		rolldownOptions: {
 			input: {
 				index: path.resolve(import.meta.dirname, "./index.html"),
@@ -74,7 +78,7 @@ export default defineConfig({
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },
 						{ name: "xterm", test: /@xterm/ },
-						{ name: "emoji-mart", test: /emoji-mart/ },
+						{ name: "emoji-picker", test: /frimousse|emojibase-data/ },
 						{ name: "radix-ui", test: /radix-ui/ },
 					],
 				},
@@ -176,13 +180,11 @@ export default defineConfig({
 		],
 	},
 	resolve: {
-		alias: {
-			// In profiling builds, swap the usual reconciler for the profiling
-			// variant so that <Profiler> receives actual timing data.
-			...(isProfilingBuild
-				? { "react-dom/client": "react-dom/profiling" }
-				: {}),
-		},
+		// In profiling builds, swap the usual reconciler for the profiling
+		// variant so that <Profiler> receives actual timing data.
+		alias: isProfilingBuild
+			? { "react-dom/client": "react-dom/profiling" }
+			: {},
 	},
 	test: {
 		silent: "passed-only",

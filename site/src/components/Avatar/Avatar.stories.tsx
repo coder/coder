@@ -23,6 +23,10 @@ export const ImageSmSize: Story = {
 	args: { size: "sm" },
 };
 
+export const ImageXsSize: Story = {
+	args: { size: "xs" },
+};
+
 export const IconLgSize: Story = {
 	args: {
 		size: "lg",
@@ -42,6 +46,14 @@ export const IconSmSize: Story = {
 	args: {
 		variant: "icon",
 		size: "sm",
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
+	},
+};
+
+export const IconXsSize: Story = {
+	args: {
+		variant: "icon",
+		size: "xs",
 		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
@@ -73,6 +85,13 @@ export const BuiltInEmojiSmSize: Story = {
 	},
 };
 
+export const BuiltInEmojiXsSize: Story = {
+	args: {
+		size: "xs",
+		src: "/emojis/1f64c.png",
+	},
+};
+
 export const FallbackLgSize: Story = {
 	args: {
 		src: "",
@@ -94,6 +113,31 @@ export const FallbackSmSize: Story = {
 		size: "sm",
 		fallback: "Adriana Rodrigues",
 	},
+};
+
+export const FallbackXsSize: Story = {
+	args: {
+		src: "",
+		size: "xs",
+		fallback: "Adriana Rodrigues",
+	},
+};
+
+export const UnicodeFallbacks: Story = {
+	render: () => (
+		<div className="flex flex-wrap gap-4">
+			{[
+				"A🚀 Research",
+				"👩🏽‍💻 Developers",
+				"E\u0301lodie",
+				"東京",
+				"Jo",
+				"J",
+			].map((fallback) => (
+				<Avatar key={fallback} size="lg" fallback={fallback} />
+			))}
+		</div>
+	),
 };
 
 export const WithAlt: Story = {

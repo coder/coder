@@ -140,7 +140,6 @@ export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 							<IconField
 								{...getFieldHelpers("icon")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								onPickEmoji={(value) => form.setFieldValue("icon", value)}
 							/>
 						</FormFields>
