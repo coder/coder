@@ -485,7 +485,8 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 											/>
 										</div>
 									</TooltipTrigger>
-									<TooltipContent>
+									{/* A scroll container would clip the arrow and flash a scrollbar while it animates. */}
+									<TooltipContent className="overflow-visible">
 										{percentageLabel} of active time
 										<TooltipArrow className="fill-border" />
 									</TooltipContent>

@@ -257,7 +257,7 @@ const stopScrollLockPropagation = (event: React.SyntheticEvent) =>
 
 /** Surface styles shared by plain and interactive tooltips. */
 const tooltipContentClassName = cn(
-	"z-50 max-h-(--radix-popper-available-height) max-w-(--radix-popper-available-width) wrap-break-word overflow-x-hidden overflow-y-auto rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
+	"z-50 max-h-(--radix-popper-available-height) max-w-(--radix-popper-available-width) wrap-break-word overflow-x-hidden overflow-y-auto overscroll-contain rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
 	"border animate-in fade-in-0 duration-150",
 	"data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
 );
