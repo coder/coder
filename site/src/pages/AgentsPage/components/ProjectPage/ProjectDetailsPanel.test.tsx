@@ -72,12 +72,10 @@ const refetchWith = async (
 	);
 };
 
-/** Opens the delete confirmation and confirms it. */
-const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
-	await user.click(screen.getByRole("button", { name: "Delete" }));
-	await user.click(
-		await screen.findByRole("button", { name: "Delete instructions" }),
-	);
+/** Clears the draft and saves it, which removes the instructions. */
+const clearAndSave = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(screen.getByRole("button", { name: "Clear" }));
+	await user.click(screen.getByRole("button", { name: "Save" }));
 };
 
 const renderPanel = (initialProject: ChatProject = MockChatProject) => {
@@ -215,7 +213,7 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Edit instructions" }),
 		);
-		await confirmDelete(user);
+		await clearAndSave(user);
 
 		expect(deleteInstructions).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
@@ -287,7 +285,7 @@ describe("ProjectDetailsPanel", () => {
 		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
-		await confirmDelete(user);
+		await clearAndSave(user);
 
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to delete."));
 		expect(dialog).not.toHaveTextContent("Failed to save.");
@@ -399,7 +397,7 @@ describe("ProjectDetailsPanel", () => {
 		{
 			action: "Delete",
 			result: MockUnsetChatProjectInstructions,
-			submit: confirmDelete,
+			submit: clearAndSave,
 		},
 	])(
 		"keeps the result of $action when a stale refetch finishes after it",
