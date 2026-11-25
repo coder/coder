@@ -979,8 +979,7 @@ export const groupWorkingBlocks = (
 			liveWorkOrdinal: draft.slices.find(
 				({ rowIndex }) => rowIndex === liveRowIndex,
 			)?.workOrdinals[0],
-			stepCount:
-				draft.assistantIds.size + (draft.containsLiveOutput ? 1 : 0),
+			stepCount: draft.assistantIds.size + (draft.containsLiveOutput ? 1 : 0),
 			isLive,
 			isPartial: draft.isPartial,
 			startedAt: draft.times.length > 0 ? Math.min(...draft.times) : undefined,
