@@ -320,7 +320,8 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1},
 		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1},
 		{name: "SaveFails", refresh: "refresh-0", wantAccess: "expired-access", wantGrants: 1, saveFails: true},
-		{name: "CallerCanceled", refresh: "down", wantAccess: "expired-access", cancelFirst: true},
+		{name: "CallerCanceled", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1, cancelFirst: true},
+		{name: "CallerCanceledProviderDown", refresh: "down", wantAccess: "expired-access", cancelFirst: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

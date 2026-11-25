@@ -1800,9 +1800,10 @@ func refreshClaimedUserToken(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
-	result, err := RefreshOAuth2Token(ctx, httpClient, cfg, tok)
-	// The save outlives a canceled caller: the provider may have spent
-	// the refresh token, and only the saved response keeps the grant.
+	// The provider call and the save outlive a canceled caller: the
+	// provider may have spent the refresh token, and only the saved
+	// response keeps the grant. RefreshOAuth2Token bounds the call.
+	result, err := RefreshOAuth2Token(context.WithoutCancel(ctx), httpClient, cfg, tok)
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), refreshSaveTimeout)
 	defer cancel()
 	var out database.MCPServerUserToken
