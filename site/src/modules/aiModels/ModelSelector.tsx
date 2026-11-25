@@ -162,7 +162,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							: triggerLabel
 					}
 					aria-expanded={open}
-					aria-haspopup="listbox"
 					aria-controls={open ? contentId : undefined}
 					disabled={isDisabled}
 					role="combobox"

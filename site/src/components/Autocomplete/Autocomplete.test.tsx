@@ -166,7 +166,7 @@ it("points the inline search input at the highlighted option", async () => {
 
 it.each([
 	["the highlighted option", "{ArrowUp}", "man", "Mango"],
-	["options before the highlighted one", "", "pe", "Pear"],
+	["options ahead of the match, shifting its position", "", "pe", "Pear"],
 ])(
 	"keeps a match highlighted after typing filters out %s",
 	async (_, keys, query, expected) => {
