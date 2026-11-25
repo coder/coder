@@ -13,8 +13,6 @@ type UserTabPanelProps = {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
-	// Port tabs show the annotate control when the chat-ui-annotations
-	// experiment is on and the chat accepts messages from this user.
 	canAnnotate: boolean;
 	isAgentWorking: boolean;
 	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
