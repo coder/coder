@@ -1,5 +1,5 @@
 import { CoinsIcon } from "lucide-react";
-import type { UnpricedAIModel } from "#/api/typesGenerated";
+import type { UnpricedAIModels } from "#/api/typesGenerated";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { formatCostMicros } from "#/utils/currency";
@@ -9,7 +9,7 @@ import { UnpricedModelsPopover } from "./UnpricedModelsPopover";
 type TotalSpendCardProps = {
 	spendMicros: number | undefined;
 	/** Undefined while loading, or when the first load fails (including a 403). */
-	unpricedModels: readonly UnpricedAIModel[] | undefined;
+	unpricedModels: UnpricedAIModels | undefined;
 	isUnpricedModelsLoading: boolean;
 };
 
@@ -34,8 +34,11 @@ export const TotalSpendCard: React.FC<TotalSpendCardProps> = ({
 				</div>
 			) : (
 				unpricedModels !== undefined &&
-				unpricedModels.length > 0 && (
-					<UnpricedModelsPopover models={unpricedModels} />
+				unpricedModels.count > 0 && (
+					<UnpricedModelsPopover
+						models={unpricedModels.models}
+						count={unpricedModels.count}
+					/>
 				)
 			)}
 		</StatCard>

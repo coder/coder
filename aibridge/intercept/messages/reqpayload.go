@@ -116,7 +116,9 @@ func (p RequestPayload) Stream() bool {
 	return v.Bool()
 }
 
-func (p RequestPayload) model() string {
+// Model returns the model requested in the payload, or an empty string if it
+// is absent or not a string.
+func (p RequestPayload) Model() string {
 	return gjson.GetBytes(p, messagesReqPathModel).Str
 }
 
@@ -126,7 +128,7 @@ func (p RequestPayload) model() string {
 // InvokeModel uses the configured primary or small/fast model, which may be an
 // inference profile ARN. Other protocols use the model from the request body.
 func (p RequestPayload) InvocationModel(bedrock *BedrockRuntime) string {
-	model := p.model()
+	model := p.Model()
 	if bedrock != nil && bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel {
 		if isSmallFastModel(model) {
 			return bedrock.ConfiguredSmallFastModel()
@@ -136,7 +138,9 @@ func (p RequestPayload) InvocationModel(bedrock *BedrockRuntime) string {
 	return model
 }
 
-func (p RequestPayload) correlatingToolCallID() *string {
+// CorrelatingToolCallID returns the tool use ID of the last tool_result block
+// in the final message, or nil if that message carries no tool result.
+func (p RequestPayload) CorrelatingToolCallID() *string {
 	messages := gjson.GetBytes(p, messagesReqPathMessages)
 	if !messages.IsArray() {
 		return nil
@@ -170,10 +174,10 @@ func (p RequestPayload) correlatingToolCallID() *string {
 	return nil
 }
 
-// lastUserPrompt returns the prompt text from the last user message. If no prompt
+// LastUserPrompt returns the prompt text from the last user message. If no prompt
 // is found, it returns empty string, false, nil. Unexpected shapes are treated as
 // unsupported and do not fail the request path.
-func (p RequestPayload) lastUserPrompt() (string, bool, error) {
+func (p RequestPayload) LastUserPrompt() (string, bool, error) {
 	messages := gjson.GetBytes(p, messagesReqPathMessages)
 	if !messages.Exists() || messages.Type == gjson.Null {
 		return "", false, nil

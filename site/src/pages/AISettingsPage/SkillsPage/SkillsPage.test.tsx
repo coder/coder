@@ -70,7 +70,9 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 		),
 	);
 
-	await user.click(screen.getByRole("button", { name: "Open menu" }));
+	await user.click(
+		screen.getByRole("button", { name: "Open menu for review-sql" }),
+	);
 	await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 	await waitFor(() =>
 		expect(screen.getByRole("textbox", { name: "Body" })).toHaveValue("Body"),

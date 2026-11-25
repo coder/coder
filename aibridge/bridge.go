@@ -145,6 +145,24 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		ctx, span := tracer.Start(r.Context(), "Intercept")
 		defer span.End()
 
+		// Decode the body before anything reads it, including client/session detection.
+		if err := routing.DecodeRequestBody(r); err != nil {
+			span.SetStatus(codes.Error, fmt.Sprintf("failed to decode request body: %v", err))
+			maxBytesErr, _ := errors.AsType[*http.MaxBytesError](err)
+			switch {
+			case maxBytesErr != nil:
+				routing.WriteRequestBodyTooLarge(ctx, w)
+			case errors.Is(err, routing.ErrUnsupportedContentEncoding):
+				// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
+				http.Error(w, "unsupported content encoding", http.StatusUnsupportedMediaType)
+			default:
+				logger.Warn(ctx, "failed to decode request body", slog.Error(err))
+				// TODO: Return this error in the provider's JSON format. https://linear.app/codercom/issue/AIGOV-810
+				http.Error(w, "invalid compressed request body", http.StatusBadRequest)
+			}
+			return
+		}
+
 		// We execute this before CreateInterceptor since the interceptors
 		// read the request body and don't reset them.
 		client := aibclient.GuessClient(r)
