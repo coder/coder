@@ -79,7 +79,9 @@ describe("SkillsTable row menu dialogs", () => {
 	it("returns focus to the row menu button when a dialog closes", async () => {
 		const { user } = renderTable();
 
-		const menuButton = await screen.findByRole("button", { name: "Open menu" });
+		const menuButton = await screen.findByRole("button", {
+			name: "Open menu for review-sql",
+		});
 		await user.click(menuButton);
 		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
 		await screen.findByRole("dialog");
@@ -125,7 +127,9 @@ describe("SkillsTable automatic use", () => {
 				'---\nname: review-sql\ndescription: "Review SQL."\nallowed-tools: Bash\n---\nCheck the queries.\n',
 		});
 
-		const menuButton = await screen.findByRole("button", { name: "Open menu" });
+		const menuButton = await screen.findByRole("button", {
+			name: "Open menu for review-sql",
+		});
 		await user.click(menuButton);
 		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		await user.click(

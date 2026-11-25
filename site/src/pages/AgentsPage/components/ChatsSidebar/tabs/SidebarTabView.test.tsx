@@ -53,3 +53,34 @@ describe("SidebarTabView focus requests", () => {
 		expect(openSummary).toHaveFocus();
 	});
 });
+
+describe("SidebarTabView tab scrolling", () => {
+	// jsdom's :focus-visible inside a focus handler depends on earlier focus
+	// changes in the file, so the CloseableTabLabelFocusedWithKeyboard story
+	// covers keyboard focus.
+	it("does not scroll a tab into view on pointer focus", async () => {
+		const user = userEvent.setup();
+		const onActiveTabChange = vi.fn();
+		renderComponent(
+			<SidebarTabView
+				activeTabId="git"
+				onActiveTabChange={onActiveTabChange}
+				isPanelOpen
+				isExpanded={false}
+				onToggleExpanded={vi.fn()}
+			>
+				<SidebarTab id="git" label="Git">
+					{null}
+				</SidebarTab>
+				<SidebarTab id="terminal" label="Terminal" onClose={vi.fn()}>
+					{null}
+				</SidebarTab>
+			</SidebarTabView>,
+		);
+
+		await user.click(screen.getByRole("tab", { name: "Terminal" }));
+
+		expect(onActiveTabChange).toHaveBeenCalledWith("terminal");
+		expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+	});
+});

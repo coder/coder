@@ -22,6 +22,7 @@ import {
 } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import { filterOptionsByText } from "#/components/Filter/FilterCombobox/filterQuery";
 import type {
 	FilterCategory,
 	FilterOption,
@@ -105,14 +106,15 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 				label: "Resource type",
 				aliases: ["resource"],
 				icon: <BoxIcon />,
-				getOptions: async () => resourceOptions,
+				getOptions: async (query) =>
+					filterOptionsByText(resourceOptions, query),
 			},
 			{
 				key: "action",
 				optionsKey: "audit.action",
 				label: "Action",
 				icon: <ActivityIcon />,
-				getOptions: async () => actionOptions,
+				getOptions: async (query) => filterOptionsByText(actionOptions, query),
 			},
 			{
 				key: "username",
@@ -129,11 +131,14 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 				optionsKey: "audit.build_reason",
 				label: "Build reason",
 				icon: <HammerIcon />,
-				getOptions: async () =>
-					BuildReasons.map((reason) => ({
-						value: reason,
-						label: getBuildReasonLabel(reason) ?? reason,
-					})),
+				getOptions: async (query) =>
+					filterOptionsByText(
+						BuildReasons.map((reason) => ({
+							value: reason,
+							label: getBuildReasonLabel(reason) ?? reason,
+						})),
+						query,
+					),
 			},
 		];
 		if (showOrganizations) {
@@ -157,7 +162,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			inlineOptions: true,
 			inlineOptionsLabel: "Show…",
 			inlineOptionsIcons: true,
-			getOptions: async () => presets,
+			getOptions: async (query) => filterOptionsByText(presets, query),
 		});
 		return next.map((category) => ({ ...category, singleSelect: true }));
 	}, [me, permissions.viewAllUsers, queryClient, showOrganizations]);

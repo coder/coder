@@ -42,7 +42,12 @@ import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
-	Table,
+	SelectableTable,
+	SelectableTableCheckbox,
+	SelectableTableRow,
+	SelectableTableSelectAll,
+} from "#/components/Table/SelectableTable";
+import {
 	TableBody,
 	TableCell,
 	TableHead,
@@ -114,11 +119,20 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
-	const checkableWorkspaces =
-		workspaces?.filter((workspace) => !cantBeChecked(workspace)) ?? [];
-
 	return (
-		<Table>
+		<SelectableTable
+			aria-label="Workspaces"
+			rows={(workspaces ?? []).map((workspace) => ({
+				id: workspace.id,
+				disabled: cantBeChecked(workspace),
+			}))}
+			selectedIds={new Set(checkedWorkspaces.map((workspace) => workspace.id))}
+			onSelectionChange={(ids) => {
+				onCheckChange(
+					(workspaces ?? []).filter((workspace) => ids.has(workspace.id)),
+				);
+			}}
+		>
 			<TableHeader>
 				<TableRow>
 					{/* A td, not a th: the select-all control does not label the column. */}
@@ -127,24 +141,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<div className="flex">
-										<Checkbox
-											disabled={
-												checkableWorkspaces.length === 0 &&
-												checkedWorkspaces.length === 0
-											}
-											checked={
-												checkedWorkspaces.length > 0 &&
-												checkableWorkspaces.every((workspace) =>
-													checkedWorkspaces.some((w) => w.id === workspace.id),
-												)
-											}
-											onCheckedChange={(checked) => {
-												if (!checked) {
-													onCheckChange([]);
-												} else {
-													onCheckChange(checkableWorkspaces);
-												}
-											}}
+										<SelectableTableSelectAll
 											aria-label="Select all workspaces"
 											className="my-0"
 										/>
@@ -184,7 +181,6 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					</TableRow>
 				)}
 				{workspaces?.map((workspace) => {
-					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
@@ -195,28 +191,11 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							workspace={workspace}
 							workspacePageLink={workspacePageLink}
 							key={workspace.id}
-							checked={checked}
 						>
 							<TableCell>
 								<div className="flex">
-									<Checkbox
+									<SelectableTableCheckbox
 										data-testid={`checkbox-${workspace.id}`}
-										disabled={cantBeChecked(workspace)}
-										checked={checked}
-										onClick={(e) => {
-											e.stopPropagation();
-										}}
-										onCheckedChange={(checked) => {
-											if (checked) {
-												onCheckChange([...checkedWorkspaces, workspace]);
-											} else {
-												onCheckChange(
-													checkedWorkspaces.filter(
-														(w) => w.id !== workspace.id,
-													),
-												);
-											}
-										}}
 										aria-label={`Select workspace ${workspace.name}`}
 									/>
 								</div>
@@ -321,7 +300,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					);
 				})}
 			</TableBody>
-		</Table>
+		</SelectableTable>
 	);
 };
 
@@ -329,14 +308,12 @@ type WorkspacesRowProps = {
 	workspace: Workspace;
 	workspacePageLink: string;
 	children?: React.ReactNode;
-	checked: boolean;
 };
 
 const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	workspace,
 	workspacePageLink,
 	children,
-	checked,
 }) => {
 	const navigate = useNavigate();
 
@@ -361,17 +338,15 @@ const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	});
 
 	return (
-		<TableRow
+		<SelectableTableRow
+			rowId={workspace.id}
 			onClick={onClick}
 			onAuxClick={onAuxClick}
 			data-testid={`workspace-${workspace.id}`}
-			className={cn([
-				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
-				className,
-			])}
+			className={className}
 		>
 			{children}
-		</TableRow>
+		</SelectableTableRow>
 	);
 };
 

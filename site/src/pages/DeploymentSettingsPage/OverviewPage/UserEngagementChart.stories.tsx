@@ -40,8 +40,14 @@ export const Loaded: Story = {
 		chart.focus();
 		expect(chart).toHaveFocus();
 		await waitFor(() => expect(liveRegion).toHaveTextContent(/^140 users /));
+		expect(
+			canvas.getByRole("img", { name: /^140 users, / }),
+		).toBeInTheDocument();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => expect(liveRegion).toHaveTextContent(/^175 users /));
+		expect(
+			canvas.getByRole("img", { name: /^175 users, / }),
+		).toBeInTheDocument();
 	},
 };
 
