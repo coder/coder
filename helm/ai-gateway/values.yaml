@@ -249,6 +249,12 @@ networkPolicy:
     # When true, only DNS (port 53), the Coder server, and extraEgress rules
     # are allowed, so you must also allow the AI providers.
     enable: false
+    dns:
+      # Peers (NetworkPolicyPeer objects) for the DNS server. Empty allows any
+      # destination on the ports below.
+      to: []
+      # UDP and TCP DNS ports. Some platforms, such as OpenShift, use 5353.
+      ports: [53]
     coderServer:
       # Peers (NetworkPolicyPeer objects) for the Coder server. The default
       # matches the Coder chart's pods in any namespace. Change this if
@@ -259,7 +265,7 @@ networkPolicy:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: coder
-      # TCP ports of the Coder server.
+      # TCP ports of the Coder server. An empty list removes the rule.
       ports: [8080, 8443]
   # NetworkPolicyEgressRule objects appended to spec.egress. Only used if
   # egress.enable is true.

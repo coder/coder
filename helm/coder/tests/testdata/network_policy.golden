@@ -30,8 +30,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
-    # HA replicas reach each other for the embedded DERP relay (8080) and
-    # NATS pubsub (6222). Neither port is configurable.
     - ports:
         - port: 8080
           protocol: TCP
@@ -42,7 +40,6 @@ spec:
             matchLabels:
               app.kubernetes.io/name: coder
               app.kubernetes.io/instance: release-name
-    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
         - port: 2113
           protocol: TCP
@@ -59,7 +56,6 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # HA replicas reach each other on the same fixed ports as the ingress rule.
     - ports:
         - port: 8080
           protocol: TCP

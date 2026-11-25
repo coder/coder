@@ -597,6 +597,13 @@ coder:
       # allow the Kubernetes API, workspaces, and any external services Coder
       # uses (OIDC, git providers, etc.).
       enable: false
+      dns:
+        # coder.networkPolicy.egress.dns.to -- NetworkPolicyPeer objects for the
+        # DNS server. Empty allows any destination on the ports below.
+        to: []
+        # coder.networkPolicy.egress.dns.ports -- UDP and TCP DNS ports. Some
+        # platforms, such as OpenShift, use 5353.
+        ports: [53]
       postgres:
         # coder.networkPolicy.egress.postgres.to -- NetworkPolicyPeer objects
         # for PostgreSQL. PostgreSQL is required and its address varies, so
@@ -604,7 +611,8 @@ coder:
         # below. Restrict it to your database with a podSelector or ipBlock.
         to: []
         # coder.networkPolicy.egress.postgres.ports -- TCP ports of PostgreSQL.
-        # Change this if CODER_PG_CONNECTION_URL uses a non-default port.
+        # Change this if CODER_PG_CONNECTION_URL uses a non-default port. An
+        # empty list removes the rule.
         ports: [5432]
     # coder.networkPolicy.extraEgress -- Additional NetworkPolicyEgressRule
     # objects appended to spec.egress. Only used if egress.enable is true.

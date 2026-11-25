@@ -21,7 +21,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
         - port: 2112
           protocol: TCP

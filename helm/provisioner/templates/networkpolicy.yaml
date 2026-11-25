@@ -1,4 +1,5 @@
 {{- if .Values.coder.networkPolicy.enable }}
+{{- $e := .Values.coder.networkPolicy.egress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -17,14 +18,13 @@ spec:
       {{- include "coder.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
-    {{- if .Values.coder.networkPolicy.egress.enable }}
+    {{- if $e.enable }}
     - Egress
     {{- end }}
   {{- $metricsPort := include "libcoder.prometheusPort" (list . false) }}
   {{- if or $metricsPort .Values.coder.networkPolicy.extraIngress }}
   ingress:
     {{- if $metricsPort }}
-    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
         - port: {{ $metricsPort }}
           protocol: TCP
@@ -37,31 +37,43 @@ spec:
     {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
-  {{- if .Values.coder.networkPolicy.egress.enable }}
+  {{- if $e.enable }}
   egress:
+    {{- with $e.dns.ports }}
     - ports:
-        - port: 53
+        {{- range . }}
+        - port: {{ . }}
           protocol: UDP
-        - port: 53
-          protocol: TCP
-    - ports:
-        {{- range .Values.coder.networkPolicy.egress.coderServer.ports }}
         - port: {{ . }}
           protocol: TCP
         {{- end }}
-      {{- with .Values.coder.networkPolicy.egress.coderServer.to }}
+      {{- with $e.dns.to }}
       to:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+    {{- end }}
+    {{- with $e.coderServer.ports }}
     - ports:
-        {{- range .Values.coder.networkPolicy.egress.kubernetesAPI.ports }}
+        {{- range . }}
         - port: {{ . }}
           protocol: TCP
         {{- end }}
-      {{- with .Values.coder.networkPolicy.egress.kubernetesAPI.to }}
+      {{- with $e.coderServer.to }}
       to:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+    {{- end }}
+    {{- with $e.kubernetesAPI.ports }}
+    - ports:
+        {{- range . }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with $e.kubernetesAPI.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- with .Values.coder.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

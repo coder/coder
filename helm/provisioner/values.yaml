@@ -217,9 +217,16 @@ coder:
     #           kubernetes.io/metadata.name: monitoring
     egress:
       # coder.networkPolicy.egress.enable -- Whether to restrict egress. When
-      # true, only DNS (port 53), the Coder server, the Kubernetes API, and
-      # extraEgress rules are allowed. Set to false to leave egress open.
+      # true, only DNS, the Coder server, the Kubernetes API, and extraEgress
+      # rules are allowed. Set to false to leave egress open.
       enable: true
+      dns:
+        # coder.networkPolicy.egress.dns.to -- NetworkPolicyPeer objects for the
+        # DNS server. Empty allows any destination on the ports below.
+        to: []
+        # coder.networkPolicy.egress.dns.ports -- UDP and TCP DNS ports. Some
+        # platforms, such as OpenShift, use 5353.
+        ports: [53]
       coderServer:
         # coder.networkPolicy.egress.coderServer.to -- NetworkPolicyPeer objects
         # for the Coder server. The default matches the Coder chart's pods in
@@ -235,13 +242,15 @@ coder:
         ports: [8080, 8443]
       kubernetesAPI:
         # coder.networkPolicy.egress.kubernetesAPI.to -- NetworkPolicyPeer
-        # objects for the Kubernetes API server. Control plane addresses vary
-        # by cluster, so the default is empty, which allows any destination on
-        # the ports below, including the internet. Restrict it with an ipBlock
-        # for your API server (see `kubectl get endpoints kubernetes`).
+        # objects for the Kubernetes API server, used by templates with the
+        # Kubernetes provider. Control plane addresses vary by cluster, so the
+        # default is empty, which allows any destination on the ports below,
+        # including the internet. If you restrict it with an ipBlock (see
+        # `kubectl get endpoints kubernetes`), allow an external CODER_URL and
+        # template registries through coderServer or extraEgress.
         to: []
         # coder.networkPolicy.egress.kubernetesAPI.ports -- TCP ports of the
-        # Kubernetes API server.
+        # Kubernetes API server. An empty list removes the rule.
         ports: [443, 6443]
     # coder.networkPolicy.extraEgress -- NetworkPolicyEgressRule objects to
     # allow, such as the cloud APIs and registries your templates use. Only

@@ -69,7 +69,7 @@ Set `coder.networkPolicy.enable` to create a `NetworkPolicy` for the provisioner
 pods. Your CNI must enforce NetworkPolicy for it to have any effect.
 
 The provisioner only makes outbound connections, so ingress is limited to
-Prometheus metrics when `CODER_PROMETHEUS_ENABLE` is set in `coder.env`, with no
+Prometheus metrics when `CODER_PROMETHEUS_ENABLE` is `true` in `coder.env`, with no
 extra toggle. The chart does not detect `CODER_PROMETHEUS_ENABLE` set through
 `valueFrom`, so set it as a literal value in `coder.env`; otherwise the port is
 never added to the NetworkPolicy and scrapes are blocked. Restrict who can scrape with `coder.networkPolicy.prometheus.from`,
@@ -83,8 +83,11 @@ API ports are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
   Override `to` and `ports` if `CODER_URL` points elsewhere, such as an external
   address. An empty `to` allows any destination on those ports.
 - `egress.kubernetesAPI` defaults to any destination on ports 443 and 6443,
-  because control plane addresses vary by cluster. That includes the internet, so
-  set `to` to an `ipBlock` for your API server to tighten it.
+  because control plane addresses vary by cluster. That includes the internet and
+  an external `CODER_URL`, so if you set `to` to your API server, allow those
+  through `coderServer` or `extraEgress`.
+- `egress.dns.ports` defaults to 53; use 5353 on OpenShift. Setting any built-in
+  `ports` list to `[]` removes that rule.
 
 Your templates probably reach other services during builds, such as cloud APIs
 and registries. Allow them with `extraEgress`. This example opens HTTPS to any destination;
@@ -94,11 +97,6 @@ narrow `cidr` to the ranges you need:
 coder:
   networkPolicy:
     enable: true
-    egress:
-      kubernetesAPI:
-        to:
-          - ipBlock:
-              cidr: 10.0.0.1/32
     extraEgress:
       - to:
           - ipBlock:

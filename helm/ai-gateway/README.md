@@ -141,7 +141,9 @@ Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
 case only DNS, the Coder server, and your `networkPolicy.extraEgress` rules are
 allowed, so you must also allow your AI providers. The Coder server defaults to
 the Coder chart's pods in any namespace; set `egress.coderServer.to` and
-`ports` if `CODER_URL` points elsewhere.
+`ports` if `CODER_URL` points elsewhere. DNS defaults to port 53; set
+`egress.dns.ports` to `[5353]` on OpenShift. Setting a built-in `ports` list to
+`[]` removes that rule.
 
 ```yaml
 networkPolicy:

@@ -46,6 +46,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "network_policy_empty_ports",
+		expectedError: "",
+	},
+	{
 		name:          "sa",
 		expectedError: "",
 	},

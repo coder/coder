@@ -1,4 +1,5 @@
 {{- if .Values.coder.networkPolicy.enable }}
+{{- $e := .Values.coder.networkPolicy.egress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -17,7 +18,7 @@ spec:
       {{- include "coder.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
-    {{- if .Values.coder.networkPolicy.egress.enable }}
+    {{- if $e.enable }}
     - Egress
     {{- end }}
   ingress:
@@ -32,8 +33,6 @@ spec:
       from:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-    # HA replicas reach each other for the embedded DERP relay (8080) and
-    # NATS pubsub (6222). Neither port is configurable.
     - ports:
         - port: 8080
           protocol: TCP
@@ -44,7 +43,6 @@ spec:
             matchLabels:
               {{- include "coder.selectorLabels" . | nindent 14 }}
     {{- with include "libcoder.prometheusPort" (list . false) }}
-    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
         - port: {{ . }}
           protocol: TCP
@@ -56,14 +54,21 @@ spec:
     {{- with .Values.coder.networkPolicy.extraIngress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- if .Values.coder.networkPolicy.egress.enable }}
+  {{- if $e.enable }}
   egress:
+    {{- with $e.dns.ports }}
     - ports:
-        - port: 53
+        {{- range . }}
+        - port: {{ . }}
           protocol: UDP
-        - port: 53
+        - port: {{ . }}
           protocol: TCP
-    # HA replicas reach each other on the same fixed ports as the ingress rule.
+        {{- end }}
+      {{- with $e.dns.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
     - ports:
         - port: 8080
           protocol: TCP
@@ -73,15 +78,17 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "coder.selectorLabels" . | nindent 14 }}
+    {{- with $e.postgres.ports }}
     - ports:
-        {{- range .Values.coder.networkPolicy.egress.postgres.ports }}
+        {{- range . }}
         - port: {{ . }}
           protocol: TCP
         {{- end }}
-      {{- with .Values.coder.networkPolicy.egress.postgres.to }}
+      {{- with $e.postgres.to }}
       to:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+    {{- end }}
     {{- with .Values.coder.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

@@ -86,10 +86,14 @@ coder:
       - ports:
           - port: 6060
             protocol: TCP
+        from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: debug
 ```
 
 Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics (when
-`CODER_PROMETHEUS_ENABLE` is set in `coder.env`, on the port from
+`CODER_PROMETHEUS_ENABLE` is `true` in `coder.env`, on the port from
 `CODER_PROMETHEUS_ADDRESS`), and ports 8080 and
 6222 between Coder replicas for high availability. Variables set through
 `valueFrom` or `envFrom` are not detected; open the port with `extraIngress`.
@@ -100,4 +104,6 @@ your `extraEgress` rules are allowed, so you
 must also allow the Kubernetes API, workspaces, and any external services Coder
 uses. PostgreSQL defaults to any destination on port 5432, because its address
 varies. Restrict it with `coder.networkPolicy.egress.postgres.to`, and change
-`postgres.ports` if your connection URL uses another port.
+`postgres.ports` if your connection URL uses another port. DNS defaults to
+port 53; set `egress.dns.ports` to `[5353]` on OpenShift. Setting any built-in
+`ports` list to `[]` removes that rule.

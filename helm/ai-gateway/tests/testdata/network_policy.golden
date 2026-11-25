@@ -28,7 +28,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
-    # Prometheus metrics, unless CODER_PROMETHEUS_ENABLE is false in coder.env.
     - ports:
         - port: 2112
           protocol: TCP
@@ -42,7 +41,6 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # The gateway must reach Coder.
     - ports:
         - port: 8080
           protocol: TCP
