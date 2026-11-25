@@ -179,7 +179,6 @@ func (f *streamRelayForwarder) loop() {
 				return
 			}
 			connected = target
-			resetBackoff()
 			return
 		}
 		if !sameNullUUID(backoffWorker, target.workerID) {
@@ -222,7 +221,6 @@ func (f *streamRelayForwarder) loop() {
 			return
 		}
 		connected = target
-		resetBackoff()
 	}
 
 	for {
@@ -242,6 +240,9 @@ func (f *streamRelayForwarder) loop() {
 				scheduleRetry(true)
 				continue
 			}
+			// A selection only writes a frame, so a worker that accepts and
+			// then closes keeps backing off until a part arrives.
+			resetBackoff()
 			if !connected.sameEpisode(target) ||
 				part.HistoryVersion != target.historyVersion ||
 				part.GenerationAttempt != target.generationAttempt {
