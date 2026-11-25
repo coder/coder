@@ -118,11 +118,9 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const pinOptions = pinChatProject(queryClient);
 	const pinMutation = useMutation({
-		...pinOptions,
-		onError: (error, variables, context) => {
-			pinOptions.onError?.(error, variables, context);
+		...pinChatProject(queryClient),
+		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to pin project."));
 		},
 	});

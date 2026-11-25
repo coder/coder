@@ -244,6 +244,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects/pins/order": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Reorder pinned chat projects",
+                "operationId": "reorder-chat-project-pins",
+                "parameters": [
+                    {
+                        "description": "Reorder chat project pins request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ReorderChatProjectPinsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects/summaries": {
             "get": {
                 "produces": [
@@ -1306,9 +1342,6 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/chats/projects/{project}/pin": {
             "put": {
-                "consumes": [
-                    "application/json"
-                ],
                 "tags": [
                     "Chats"
                 ],
@@ -1330,14 +1363,6 @@ const docTemplate = `{
                         "name": "project",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "Pin chat project request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PinChatProjectRequest"
-                        }
                     }
                 ],
                 "responses": {
@@ -24492,7 +24517,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "pin_order": {
-                    "description": "PinOrder is the 1-based position among pinned projects, or 0.",
+                    "description": "PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.",
                     "type": "integer"
                 },
                 "pinned": {
@@ -30696,15 +30721,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PinChatProjectRequest": {
-            "type": "object",
-            "properties": {
-                "pin_order": {
-                    "description": "PinOrder is the 1-based position to pin at. When omitted, a new pin\ngoes to the end and an existing pin keeps its position.",
-                    "type": "integer"
-                }
-            }
-        },
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
@@ -31831,6 +31847,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                    }
+                }
+            }
+        },
+        "codersdk.ReorderChatProjectPinsRequest": {
+            "type": "object",
+            "properties": {
+                "project_ids": {
+                    "description": "ProjectIDs are the pinned projects in their new order. Pins that are\nleft out follow the listed ones in their current order, and IDs the\ncaller has not pinned are ignored.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 }
             }

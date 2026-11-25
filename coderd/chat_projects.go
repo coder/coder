@@ -164,7 +164,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// New projects start pinned for their creator.
-		return tx.InsertChatProjectPin(ctx, database.InsertChatProjectPinParams{UserID: apiKey.UserID, ProjectID: project.ID})
+		return tx.PinChatProject(ctx, database.PinChatProjectParams{
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+			Source:    database.ChatProjectPinSourceDefault,
+		})
 	}, nil)
 	if errors.Is(err, errChatProjectLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{

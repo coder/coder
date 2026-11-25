@@ -1,14 +1,12 @@
 package coderd_test
 
 import (
+	"cmp"
 	"context"
-	"database/sql"
 	"fmt"
-	"io"
 	"maps"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,51 +33,46 @@ func TestChatProjectPins(t *testing.T) {
 	client, _ := newChatProjectClient(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	orgID := firstUser.OrganizationID
+	reorder := func(client *codersdk.ExperimentalClient, projectIDs ...uuid.UUID) error {
+		return client.ReorderChatProjectPins(ctx, codersdk.ReorderChatProjectPinsRequest{ProjectIDs: projectIDs})
+	}
 
 	// New projects start pinned at the end of the creator's list.
 	a := createChatProject(t, client, orgID, "Pin A")
 	b := createChatProject(t, client, orgID, "Pin B")
 	c := createChatProject(t, client, orgID, "Pin C")
-	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{a.ID: 1, b.ID: 2, c.ID: 3})
+	requirePinnedProjects(ctx, t, client, a.ID, b.ID, c.ID)
 
-	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
-	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, a.ID: 2, b.ID: 3})
+	require.NoError(t, reorder(client, c.ID, a.ID, b.ID))
+	requirePinnedProjects(ctx, t, client, c.ID, a.ID, b.ID)
+	// Pins left out of the list follow the listed ones in their order.
+	require.NoError(t, reorder(client, b.ID))
+	requirePinnedProjects(ctx, t, client, b.ID, c.ID, a.ID)
 
-	// Unpinning compacts the remaining pins, and repeating it changes nothing.
-	require.NoError(t, client.UnpinChatProject(ctx, orgID, a.ID))
-	require.NoError(t, client.UnpinChatProject(ctx, orgID, a.ID))
-	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, b.ID: 2, a.ID: 0})
+	// Unpinning keeps the other pins in order, and repeating it changes
+	// nothing.
+	require.NoError(t, client.UnpinChatProject(ctx, orgID, c.ID))
+	require.NoError(t, client.UnpinChatProject(ctx, orgID, c.ID))
+	requirePinnedProjects(ctx, t, client, b.ID, a.ID)
+	// A reorder skips a project that is not pinned, such as one another
+	// tab just unpinned, and does not pin it.
+	require.NoError(t, reorder(client, c.ID, a.ID, b.ID))
+	requirePinnedProjects(ctx, t, client, a.ID, b.ID)
 
-	// Without an order, a re-pinned project goes to the end and an
-	// existing pin keeps its place.
-	require.NoError(t, client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}))
-	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID, codersdk.PinChatProjectRequest{}))
-	requirePinOrders(ctx, t, client, map[uuid.UUID]int32{c.ID: 1, b.ID: 2, a.ID: 3})
-
-	err := client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(0))})
-	requireSDKError(t, err, http.StatusBadRequest)
-	putPin := func(body io.Reader, opts ...codersdk.RequestOption) int {
-		res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/organizations/%s/chats/projects/%s/pin", orgID, b.ID), body, opts...)
-		require.NoError(t, err)
-		_ = res.Body.Close()
-		return res.StatusCode
-	}
-	// The body is optional, also in a chunked request that cannot announce
-	// its empty length.
-	require.Equal(t, http.StatusNoContent, putPin(nil))
-	require.Equal(t, http.StatusNoContent, putPin(nil, func(req *http.Request) {
-		req.Body, req.ContentLength, req.TransferEncoding = io.NopCloser(strings.NewReader("")), -1, []string{"chunked"}
-	}))
-	require.Equal(t, http.StatusBadRequest, putPin(strings.NewReader("{")))
+	// A re-pinned project goes to the end and an existing pin keeps its
+	// place.
+	require.NoError(t, client.PinChatProject(ctx, orgID, c.ID))
+	require.NoError(t, client.PinChatProject(ctx, orgID, a.ID))
+	requirePinnedProjects(ctx, t, client, a.ID, b.ID, c.ID)
 
 	// Pins need read access. Sharing does not pin, and a pin that outlives
 	// access stays hidden.
 	other, otherUser := newChatProjectMember(t, client, orgID)
-	requireSDKError(t, other.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
+	requireSDKError(t, other.PinChatProject(ctx, orgID, a.ID), http.StatusNotFound)
 	// Role-based read access is not enough: the project would be missing
 	// from the site owner's summaries.
 	otherOwn := createChatProject(t, other, orgID, "Pin Other")
-	requireSDKError(t, client.PinChatProject(ctx, orgID, otherOwn.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
+	requireSDKError(t, client.PinChatProject(ctx, orgID, otherOwn.ID), http.StatusNotFound)
 	requireSDKError(t, client.UnpinChatProject(ctx, orgID, otherOwn.ID), http.StatusNotFound)
 	setRole := func(role codersdk.ChatProjectRole) {
 		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, a.ID, codersdk.UpdateChatProjectACL{
@@ -87,18 +80,19 @@ func TestChatProjectPins(t *testing.T) {
 		}))
 	}
 	setRole(codersdk.ChatProjectRoleUse)
-	require.False(t, chatProjectSummariesByID(ctx, t, other)[a.ID].Pinned)
-	require.NoError(t, other.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
-	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{a.ID: 1, otherOwn.ID: 2})
+	requirePinnedProjects(ctx, t, other, otherOwn.ID)
+	require.NoError(t, other.PinChatProject(ctx, orgID, a.ID))
+	requirePinnedProjects(ctx, t, other, otherOwn.ID, a.ID)
 	setRole(codersdk.ChatProjectRoleDeleted)
 	require.NotContains(t, chatProjectSummariesByID(ctx, t, other), a.ID)
 	requireSDKError(t, other.UnpinChatProject(ctx, orgID, a.ID), http.StatusNotFound)
-	// The hidden pin takes no position, either in summaries or in
-	// requested positions.
-	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{otherOwn.ID: 1})
+	// The caller cannot list a pin they no longer see, so a reorder keeps
+	// it after the listed pins, where it shows again with the access.
 	otherNew := createChatProject(t, other, orgID, "Pin Other New")
-	require.NoError(t, other.PinChatProject(ctx, orgID, otherOwn.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(2))}))
-	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{otherNew.ID: 1, otherOwn.ID: 2})
+	require.NoError(t, reorder(other, otherNew.ID, otherOwn.ID))
+	requirePinnedProjects(ctx, t, other, otherNew.ID, otherOwn.ID)
+	setRole(codersdk.ChatProjectRoleUse)
+	requirePinnedProjects(ctx, t, other, otherNew.ID, otherOwn.ID, a.ID)
 }
 
 // TestChatProjectPinsTokenScope checks that a pin, as the caller's personal
@@ -124,15 +118,18 @@ func TestChatProjectPinsTokenScope(t *testing.T) {
 		return codersdk.NewExperimentalClient(scoped)
 	}
 
+	order := codersdk.ReorderChatProjectPinsRequest{ProjectIDs: []uuid.UUID{project.ID}}
 	readOnly := newScopedClient("chat_project:read")
-	requireSDKError(t, readOnly.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}), http.StatusForbidden)
+	requireSDKError(t, readOnly.PinChatProject(ctx, orgID, project.ID), http.StatusForbidden)
 	requireSDKError(t, readOnly.UnpinChatProject(ctx, orgID, project.ID), http.StatusForbidden)
+	requireSDKError(t, readOnly.ReorderChatProjectPins(ctx, order), http.StatusForbidden)
 
-	// The same key with user:update_personal may change the pin, so that
+	// The same key with user:update_personal may change the pins, so that
 	// scope is the one the read-only key lacks.
 	personal := newScopedClient("chat_project:read", "user:update_personal")
 	require.NoError(t, personal.UnpinChatProject(ctx, orgID, project.ID))
-	require.NoError(t, personal.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{}))
+	require.NoError(t, personal.PinChatProject(ctx, orgID, project.ID))
+	require.NoError(t, personal.ReorderChatProjectPins(ctx, order))
 
 	// Creating a project pins it for its creator, so a key that may create
 	// projects also needs both of the pin's permissions.
@@ -145,16 +142,11 @@ func TestChatProjectPinsTokenScope(t *testing.T) {
 	require.NoError(t, err)
 
 	// Summaries carry the caller's pins, so listing them needs
-	// user:read_personal. So does pinning at a position, which reads the
-	// caller's other pins.
+	// user:read_personal.
 	_, err = readOnly.ListChatProjectSummaries(ctx)
 	requireSDKError(t, err, http.StatusForbidden)
-	first := codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}
-	requireSDKError(t, personal.PinChatProject(ctx, orgID, project.ID, first), http.StatusForbidden)
-	reader := newScopedClient("chat_project:read", "user:read_personal", "user:update_personal")
-	_, err = reader.ListChatProjectSummaries(ctx)
+	_, err = newScopedClient("chat_project:read", "user:read_personal").ListChatProjectSummaries(ctx)
 	require.NoError(t, err)
-	require.NoError(t, reader.PinChatProject(ctx, orgID, project.ID, first))
 }
 
 func TestChatProjectPinsConcurrentWrites(t *testing.T) {
@@ -163,29 +155,51 @@ func TestChatProjectPinsConcurrentWrites(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, _ := newChatProjectClient(t)
 	orgID := coderdtest.CreateFirstUser(t, client.Client).OrganizationID
-	// Eight projects make overlapping writes collide reliably.
-	projects := make([]codersdk.ChatProject, 8)
-	for i := range projects {
-		projects[i] = createChatProject(t, client, orgID, fmt.Sprintf("Concurrent %d", i))
+	// Sixteen projects make overlapping writes collide reliably.
+	projectIDs := make([]uuid.UUID, 16)
+	want := make([]int32, len(projectIDs))
+	for i := range projectIDs {
+		projectIDs[i] = createChatProject(t, client, orgID, fmt.Sprintf("Concurrent %d", i)).ID
+		want[i] = int32(i + 1) //nolint:gosec // Bounded by the number of projects.
+	}
+	// Every pin holds its own position, with none skipped.
+	requireDistinctPositions := func() {
+		t.Helper()
+		summaries, err := client.ListChatProjectSummaries(ctx)
+		require.NoError(t, err)
+		require.ElementsMatch(t, want, slice.List(summaries, func(summary codersdk.ChatProjectSummary) int32 {
+			return summary.PinOrder
+		}))
 	}
 
-	// Each round pins half of the projects at the top and unpins the other
-	// half at the same time, so the writes renumber the same rows.
 	for round := range 10 {
-		var eg errgroup.Group
-		for i, project := range projects {
-			eg.Go(func() error {
+		// Overlapping reorders rewrite the same rows in different orders.
+		var reorders errgroup.Group
+		for i := range projectIDs {
+			reorders.Go(func() error {
+				order := append(slices.Clone(projectIDs[i:]), projectIDs[:i]...)
 				if (i+round)%2 == 0 {
-					return client.UnpinChatProject(ctx, orgID, project.ID)
+					slices.Reverse(order)
 				}
-				return client.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))})
+				return client.ReorderChatProjectPins(ctx, codersdk.ReorderChatProjectPinsRequest{ProjectIDs: order})
 			})
 		}
-		require.NoError(t, eg.Wait())
-		summaries := chatProjectSummariesByID(ctx, t, client)
-		for i, project := range projects {
-			require.Equal(t, (i+round)%2 != 0, summaries[project.ID].Pinned, project.Name)
+		require.NoError(t, reorders.Wait())
+		requireDistinctPositions()
+
+		// Overlapping pins each read the last position before taking the
+		// next one.
+		for _, projectID := range projectIDs {
+			require.NoError(t, client.UnpinChatProject(ctx, orgID, projectID))
 		}
+		var pins errgroup.Group
+		for _, projectID := range projectIDs {
+			pins.Go(func() error {
+				return client.PinChatProject(ctx, orgID, projectID)
+			})
+		}
+		require.NoError(t, pins.Wait())
+		requireDistinctPositions()
 	}
 }
 
@@ -325,17 +339,6 @@ func TestChatProjectSummaries(t *testing.T) {
 		ownerOnly[row.ProjectID] = row.MemberCount
 	}
 	require.EqualValues(t, 1, ownerOnly[busy.ID])
-
-	// Alice keeps a pin on stopping, whose grant lacks read, so it is not
-	// returned and leaves no gap in the pin orders she sees.
-	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{}))
-	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: alice.ID, ProjectID: stopping.ID})
-	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, everyone.ID, codersdk.PinChatProjectRequest{}))
-	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{busy.ID: 1, everyone.ID: 2})
-	// Requested positions count only the pins she sees, so the hidden pin
-	// stored between busy and everyone does not absorb the move.
-	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(2))}))
-	requirePinOrders(ctx, t, aliceClient, map[uuid.UUID]int32{everyone.ID: 1, busy.ID: 2})
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.
@@ -376,29 +379,22 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, chatIDs(memberChats), chat.ID)
 
-	// A pin from before sharing was disabled takes no visible position.
-	require.NoError(t, db.PinChatProject(ctx, database.PinChatProjectParams{
-		UserID: memberUser.ID, ProjectID: project.ID, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
-	}))
-	x := createChatProject(t, member, orgID, "Hidden Pin X")
-	y := createChatProject(t, member, orgID, "Hidden Pin Y")
-	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{x.ID: 1, y.ID: 2})
+	memberProject := createChatProject(t, member, orgID, "Member Project")
 	require.NotContains(t, chatProjectSummariesByID(ctx, t, member), project.ID)
 	requireSummariesMatchList(ctx, t, member)
-	require.NoError(t, member.PinChatProject(ctx, orgID, y.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
-	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
-	require.NoError(t, member.UnpinChatProject(ctx, orgID, x.ID))
-	require.NoError(t, member.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}))
-	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
 
-	// The owner role still reads a project that keeps a grant for its
-	// holder, so the summaries list it, as the project list does.
+	// Only the owner can pin a project, even when a role reads it and a
+	// grant from before sharing was disabled names the caller.
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
-		ID:       x.ID,
+		ID:       memberProject.ID,
 		UserACL:  database.ChatACL{firstUser.UserID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 		GroupACL: database.ChatACL{},
 	}))
-	require.Contains(t, chatProjectSummariesByID(ctx, t, client), x.ID)
+	requireSDKError(t, client.PinChatProject(ctx, orgID, memberProject.ID), http.StatusNotFound)
+	require.NoError(t, member.PinChatProject(ctx, orgID, memberProject.ID))
+	// The owner role still reads such a project, so the summaries list it,
+	// as the project list does.
+	require.Contains(t, chatProjectSummariesByID(ctx, t, client), memberProject.ID)
 	requireSummariesMatchList(ctx, t, client)
 }
 
@@ -449,7 +445,7 @@ func TestListChatsExcludeOwnProjectChats(t *testing.T) {
 	memberOpts := &codersdk.ListChatsOptions{ExcludeOwnProjectChats: true}
 	for _, pin := range []bool{false, true} {
 		if pin {
-			require.NoError(t, member.PinChatProject(ctx, orgID, unpinned.ID, codersdk.PinChatProjectRequest{}))
+			require.NoError(t, member.PinChatProject(ctx, orgID, unpinned.ID))
 		}
 		memberChats, err := member.ListChats(ctx, memberOpts)
 		require.NoError(t, err)
@@ -565,14 +561,13 @@ func requireSummariesMatchList(ctx context.Context, t testing.TB, client *coders
 	require.ElementsMatch(t, projectIDs, slices.Collect(maps.Keys(chatProjectMemberCountsByID(ctx, t, client))))
 }
 
-// requirePinOrders checks each project's pin order; 0 means not pinned.
-func requirePinOrders(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, want map[uuid.UUID]int32) {
+// requirePinnedProjects checks which projects the summaries report as
+// pinned for the caller, in pin order.
+func requirePinnedProjects(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, want ...uuid.UUID) {
 	t.Helper()
-	summaries := chatProjectSummariesByID(ctx, t, client)
-	got := make(map[uuid.UUID]int32, len(want))
-	for id := range want {
-		require.Equal(t, summaries[id].PinOrder > 0, summaries[id].Pinned)
-		got[id] = summaries[id].PinOrder
-	}
-	require.Equal(t, want, got)
+	summaries, err := client.ListChatProjectSummaries(ctx)
+	require.NoError(t, err)
+	pinned := slice.Filter(summaries, func(summary codersdk.ChatProjectSummary) bool { return summary.Pinned })
+	slices.SortFunc(pinned, func(a, b codersdk.ChatProjectSummary) int { return cmp.Compare(a.PinOrder, b.PinOrder) })
+	require.Equal(t, want, slice.List(pinned, func(summary codersdk.ChatProjectSummary) uuid.UUID { return summary.ProjectID }))
 }
