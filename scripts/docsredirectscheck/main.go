@@ -28,7 +28,7 @@
 // when the change leaves docs/manifest.json and docs/redirects.json as they are
 // on the base branch, because the change cannot affect the result then, and
 // when the target branch's docs version is not published yet. Pass -offline to
-// skip it locally.
+// skip it, as make lint/docs-redirects does.
 //
 // A missing docs/redirects.json passes. Everything it checks about routes is
 // derived from docs/manifest.json the same way the websites derive it.
@@ -301,7 +301,7 @@ func checkRemovedRoutes(ctx context.Context, o options, head docsFiles, live rou
 		}
 		if err != nil {
 			_, _ = fmt.Fprintf(o.stderr, "cannot read the live page list, so the removed-route check could not run: %v\n", err)
-			_, _ = fmt.Fprintln(o.stderr, "Re-run the job. Use -offline to skip the live page list when running locally.")
+			_, _ = fmt.Fprintln(o.stderr, "Try again, or pass -offline to skip the live page list.")
 			return 2
 		}
 		endpoints := 0

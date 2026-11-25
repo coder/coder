@@ -78,7 +78,8 @@ Each route in the inventory must be a live route in the head manifest, or be res
 The inventory is the union of:
 
 - The routes in `docs/manifest.json` on the base branch.
-- The routes in the live production page list for the target branch.
+- The routes in the live production page list for the target branch, when the run reads the list.
+  `make lint/docs-redirects` does not read it.
   The list is `https://coder.com/beta-docs/@main/llms.txt` for `main` and `https://coder.com/beta-docs/vX.Y/llms.txt` for `release/X.Y`.
   Only links under that version count.
   The version served at the unversioned `/beta-docs` path links its pages without a version segment, so when a list has no links under its own segment, the unversioned links count instead.
@@ -105,8 +106,9 @@ Both ends of the check can be missing, and the check says so and skips that part
   A branch other than `main` or `release/X.Y`, or no known branch, skips the list with a note.
   A list that answers 404 skips the list with a note, because a new `release/X.Y` branch has no published docs version yet.
   When `docs/manifest.json` and `docs/redirects.json` are the same as on the base branch, the list is skipped with a note, because the change cannot affect the result.
-  On a pull request, a coder.com outage only blocks changes to those two files.
-  Pass `-offline` to skip the list on purpose, for example without network access.
+  Pass `-offline` to skip the list on purpose.
+  `make lint/docs-redirects` passes it, so that lint depends only on the repository and not on what the docs site serves at the time.
+  Run the command without `-offline` to compare against the live site as well.
 
 A live page list that cannot be read for any other reason is an infrastructure failure and exits 2, not a pass.
 The request has a descriptive `User-Agent`, because the site answers 403 to some default clients, and it retries a few times before it gives up.
