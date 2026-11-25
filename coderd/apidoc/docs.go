@@ -213,6 +213,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects/member-counts": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project member counts",
+                "operationId": "list-chat-project-member-counts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMemberCount"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects/summaries": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project summaries",
+                "operationId": "list-chat-project-summaries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectSummary"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -24331,6 +24393,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProjectMemberCount": {
+            "type": "object",
+            "properties": {
+                "member_count": {
+                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatProjectMemory": {
             "type": "object",
             "properties": {
@@ -24394,6 +24469,40 @@ const docTemplate = `{
                 "ChatProjectRoleAdmin",
                 "ChatProjectRoleDeleted"
             ]
+        },
+        "codersdk.ChatProjectSummary": {
+            "type": "object",
+            "properties": {
+                "last_activity_at": {
+                    "description": "LastActivityAt is the latest update to one of the caller's chats.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "own_chat_count": {
+                    "type": "integer"
+                },
+                "own_needs_attention": {
+                    "description": "OwnNeedsAttention reports a chat that requires action, failed, or is paused.",
+                    "type": "boolean"
+                },
+                "own_running": {
+                    "type": "boolean"
+                },
+                "own_unread_count": {
+                    "type": "integer"
+                },
+                "pin_order": {
+                    "description": "PinOrder is the 1-based position among pinned projects, or 0.",
+                    "type": "integer"
+                },
+                "pinned": {
+                    "type": "boolean"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.ChatProjectTemplate": {
             "type": "object",

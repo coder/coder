@@ -1,23 +1,102 @@
 package coderd
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// @Summary List chat project summaries
+// @ID list-chat-project-summaries
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProjectSummary
+// @Router /api/experimental/chats/projects/summaries [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	// Summaries carry the caller's pins, which are personal data. dbauthz
+	// refuses the read for an API key scoped without user:read_personal,
+	// so answer 403 here instead of failing the query.
+	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat project summaries.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	compactChatProjectPinOrders(rows)
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectSummary))
+}
+
+// @Summary List chat project member counts
+// @ID list-chat-project-member-counts
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProjectMemberCount
+// @Router /api/experimental/chats/projects/member-counts [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatProjectMemberCounts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	rows, err := api.Database.GetChatProjectMemberCountsByUserID(ctx, database.GetChatProjectMemberCountsByUserIDParams{
+		UserID:             httpmw.APIKey(r).UserID,
+		CountSharedMembers: api.chatProjectSharingAvailable(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat project member counts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, db2sdk.ChatProjectMemberCount))
+}
+
+// compactChatProjectPinOrders renumbers the pinned rows 1..N in their
+// current order. The query numbers pins before authorization drops rows,
+// such as a project whose grant lacks read, which would leave gaps.
+func compactChatProjectPinOrders(rows []database.GetChatProjectSummariesByUserIDRow) {
+	pinned := make([]*database.GetChatProjectSummariesByUserIDRow, 0, len(rows))
+	for i := range rows {
+		if rows[i].Pinned {
+			pinned = append(pinned, &rows[i])
+		}
+	}
+	slices.SortFunc(pinned, func(a, b *database.GetChatProjectSummariesByUserIDRow) int {
+		return cmp.Compare(a.PinOrder, b.PinOrder)
+	})
+	for i, row := range pinned {
+		row.PinOrder = int32(i + 1) //nolint:gosec // Bounded by the number of projects.
+	}
+}
 
 // @Summary Pin chat project
 // @ID pin-chat-project
@@ -56,6 +135,11 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			writeChatProjectFieldError(ctx, rw, "pin_order", "Pin order must be at least 1.")
 			return
 		}
+		// Placing a pin reads the caller's other pins from the summaries.
+		if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		pinOrder = sql.NullInt32{Int32: *req.PinOrder, Valid: true}
 	}
 
@@ -63,11 +147,17 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
+		if pinOrder.Valid {
+			rows, err := tx.GetChatProjectSummariesByUserID(ctx, apiKey.UserID)
+			if err != nil {
+				return xerrors.Errorf("list visible chat project pins: %w", err)
+			}
+			pinOrder.Int32 = chatProjectPinPosition(rows, project.ID, pinOrder.Int32)
+		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
-			UserID:     apiKey.UserID,
-			ProjectID:  project.ID,
-			ACLEnabled: !api.chatSharingDisabled(),
-			PinOrder:   pinOrder,
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+			PinOrder:  pinOrder,
 		})
 	}, nil)
 	if err != nil {
@@ -78,6 +168,45 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectPinPosition translates a requested position among the pins
+// the user sees into a position for PinChatProject. That query counts
+// every pin its access predicate matches, but authorization can still
+// hide some of them, such as a project whose grant lacks read or any
+// granted project while chat sharing is disabled. A hidden pin between
+// two visible ones would otherwise absorb the move.
+// rows must be the authorized summaries: their pin orders number the
+// matched pins, target included, in the order PinChatProject uses.
+func chatProjectPinPosition(rows []database.GetChatProjectSummariesByUserIDRow, projectID uuid.UUID, requested int32) int32 {
+	var targetOrder int32
+	visible := make([]int32, 0, len(rows))
+	for _, row := range rows {
+		switch {
+		case !row.Pinned:
+		case row.ProjectID == projectID:
+			targetOrder = row.PinOrder
+		default:
+			visible = append(visible, row.PinOrder)
+		}
+	}
+	if len(visible) == 0 {
+		return 1
+	}
+	slices.Sort(visible)
+	// PinChatProject numbers the other pins without the target.
+	position := func(order int32) int32 {
+		if targetOrder != 0 && targetOrder < order {
+			return order - 1
+		}
+		return order
+	}
+	if int(requested) <= len(visible) {
+		// Take the place of the visible pin now shown at that position.
+		return position(visible[requested-1])
+	}
+	// Go right after the last visible pin.
+	return position(visible[len(visible)-1]) + 1
 }
 
 // @Summary Unpin chat project
@@ -102,9 +231,8 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-			UserID:     apiKey.UserID,
-			ProjectID:  project.ID,
-			ACLEnabled: !api.chatSharingDisabled(),
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
 		})
 	}, nil)
 	if err != nil {
@@ -117,10 +245,18 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// chatProjectSharingAvailable reports whether member counts include the
+// users a project is shared with. It matches the gate on the project ACL
+// routes. Which projects are listed does not depend on it: as in GET
+// /chats/projects, grant keys select candidates and RBAC decides.
+func (api *API) chatProjectSharingAvailable() bool {
+	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
+}
+
 // authorizeChatProjectPin writes a 404 and returns false unless the caller
 // owns the project or holds a grant on it that RBAC honors.
-// The project list shows only those projects, so role-based read access
-// alone would leave the pin invisible.
+// Summaries list only those projects, so role-based read access alone would
+// leave the pin invisible.
 func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
 	ctx := r.Context()
 	userID := httpmw.APIKey(r).UserID

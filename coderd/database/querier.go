@@ -564,9 +564,31 @@ type sqlcQuerier interface {
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
 	GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error)
+	// Returns how many users can use each project from
+	// GetChatProjectsOwnedOrSharedWithUserID: the owner and the users its read
+	// grants reach (chat_project_read_grant_members). Grants are counted only
+	// while project sharing is available; otherwise every project counts its
+	// owner alone. Suspended users cannot sign in, so they are not counted. The
+	// project columns only serve authorization: callers must authorize each
+	// row.
+	// A read grant to the Everyone group of the project's organization reaches
+	// every member, and the other grants reach only members, so such a project
+	// counts its organization's members once per organization instead of
+	// expanding the group into a row per member for every project.
+	GetChatProjectMemberCountsByUserID(ctx context.Context, arg GetChatProjectMemberCountsByUserIDParams) ([]GetChatProjectMemberCountsByUserIDRow, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Returns the user's pin and aggregates over the user's own top-level,
+	// non-archived chats for each project from
+	// GetChatProjectsOwnedOrSharedWithUserID. The project columns only serve
+	// authorization: entries match regardless of the actions they grant, so
+	// callers must authorize each row. Pins on projects the user can no longer
+	// see are never returned.
+	// Grant keys select candidates even while chat sharing is disabled, as in
+	// GetChatProjectsOwnedOrSharedWithUserID: a role can still let the caller
+	// read the project.
+	GetChatProjectSummariesByUserID(ctx context.Context, userID uuid.UUID) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Lists the templates attached to the given projects, oldest attachment
 	// first. Deleted, deprecated, and agent-disabled templates are left out
 	// because no chat can use them, whoever asks. The rows are not filtered by
@@ -1549,9 +1571,10 @@ type sqlcQuerier interface {
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	// Pins a project, or moves an already pinned project, to pin_order. Without
 	// pin_order a new pin goes to the end and an existing pin keeps its place.
-	// Positions count only pins the user can still see and are clamped to
-	// [1, count]. Pins on projects the user can no longer see move
-	// after the visible ones. Callers must hold the per-user pin lock so
+	// Positions count the pins GetChatProjectSummariesByUserID matches and are
+	// clamped to [1, count], so callers must translate a position the user sees
+	// past matched pins that authorization hides. Pins the summaries no longer
+	// match move after the others. Callers must hold the per-user pin lock so
 	// concurrent writes cannot interleave.
 	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
@@ -1625,8 +1648,8 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	// Deletes a pin and compacts the remaining pins to 1..N.
 	// Unpinning a project that is not pinned changes nothing. Like
-	// PinChatProject, pins the user can still see come first, and callers must
-	// hold the per-user pin lock.
+	// PinChatProject, pins the summaries still match come first, and callers
+	// must hold the per-user pin lock.
 	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
