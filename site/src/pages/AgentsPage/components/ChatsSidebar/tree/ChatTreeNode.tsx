@@ -48,6 +48,10 @@ type ChatTreeNodeProps = {
 	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
+	/** When omitted, the "Move up" item is hidden. */
+	readonly onMovePinUp?: () => void;
+	/** When omitted, the "Move down" item is hidden. */
+	readonly onMovePinDown?: () => void;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -56,6 +60,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
 	dragHandleProps,
+	onMovePinUp,
+	onMovePinDown,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -222,6 +228,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => pinMutation.mutate(chat.id),
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onMovePinUp,
+		onMovePinDown,
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
 		onMarkRead: isActiveChat
@@ -248,15 +256,15 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			<ChatActionsMenu
 				{...sharedMenuItemProps}
 				variant="context"
-				contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
+				contentClassName="max-w-72 **:[[role=menuitem]]:text-[13px]"
 			>
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
 						"group relative -mx-2 flex min-w-0 select-none items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
 						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
-						// pl-[11px] is pl-3 minus the active border, so content does not shift.
-						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+						// pl-2.75 is pl-3 minus the active border, so content does not shift.
+						"has-aria-[current=page]:border-l has-aria-[current=page]:border-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:pl-2.75 has-aria-[current=page]:text-content-primary data-[state=open]:has-aria-[current=page]:bg-surface-quaternary/50 has-data-[state=open]:has-aria-[current=page]:bg-surface-quaternary/50 [@media(hover:hover)]:has-aria-[current=page]:hover:bg-surface-quaternary/50",
 					)}
 				>
 					<div
@@ -392,7 +400,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{!isArchivingThisChat && (
 							<ChatActionsMenu
 								{...sharedMenuItemProps}
-								contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
+								contentClassName="max-w-72 **:[[role=menuitem]]:text-[13px]"
 							>
 								<Button
 									size="icon"

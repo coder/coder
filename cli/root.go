@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -404,14 +405,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	// Add the PrintDeprecatedOptions and client session ID middleware to all
-	// commands. clientSessionIDMiddleware runs first so the resolved ID is on
-	// the invocation context for every downstream middleware and handler.
+	// clientSessionIDMiddleware runs first so the resolved ID is on the invocation
+	// context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions(), WarnConflictingOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions(), WarnConflictingOptions())
 		}
 	})
 
@@ -551,9 +551,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. This flag is ignored and file-based storage is used when " +
-				"--global-config is set or keyring usage is not supported on the current " +
-				"platform. Set to false to force file-based storage on supported platforms.",
+				"keyring. File-based storage is used when keyring usage is not supported " +
+				"on the current platform, or when --global-config is set and this option " +
+				"is not. Set to false to force file-based storage on supported platforms.",
 			Default: "true",
 			Value:   serpent.BoolOf(&r.useKeyring),
 			Group:   globalGroup,
@@ -605,13 +605,12 @@ type RootCmd struct {
 	disableDirect      bool
 	debugHTTP          bool
 
-	disableNetworkTelemetry    bool
-	noVersionCheck             bool
-	noFeatureWarning           bool
-	allowRedirects             bool
-	useKeyring                 bool
-	keyringServiceName         string
-	useKeyringWithGlobalConfig bool
+	disableNetworkTelemetry bool
+	noVersionCheck          bool
+	noFeatureWarning        bool
+	allowRedirects          bool
+	useKeyring              bool
+	keyringServiceName      string
 
 	// clock is used for time-dependent operations. Initialized to
 	// quartz.NewReal() in Command() if unset.
@@ -737,7 +736,7 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 		return nil, err
 	}
 	if r.token == "" {
-		tok, err := r.ensureTokenBackend().Read(r.clientURL)
+		tok, err := r.ensureTokenBackend(inv).Read(r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
 		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
@@ -806,7 +805,7 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 		}
 	}
 	if r.token == "" {
-		tok, err := r.ensureTokenBackend().Read(r.clientURL)
+		tok, err := r.ensureTokenBackend(inv).Read(r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
 		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
@@ -982,24 +981,19 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 // ensureTokenBackend returns the session token storage backend, creating it if necessary.
 // This must be called after flags are parsed so we can respect the value of the --use-keyring
 // flag.
-func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
-	if r.tokenBackend == nil {
-		// Checking for the --global-config directory being set is a bit wonky but necessary
-		// to allow extensions that invoke the CLI with this flag (e.g. VS code) to continue
-		// working without modification. In the future we should modify these extensions to
-		// either access the credential in the keyring (like Coder Desktop) or some other
-		// approach that doesn't rely on the session token being stored on disk.
-		assumeExtensionInUse := r.globalConfig != config.DefaultDir() && !r.useKeyringWithGlobalConfig
-		keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
-		if r.useKeyring && !assumeExtensionInUse && keyringSupported {
-			serviceName := sessionstore.DefaultServiceName
-			if r.keyringServiceName != "" {
-				serviceName = r.keyringServiceName
-			}
-			r.tokenBackend = sessionstore.NewKeyringWithService(serviceName)
-		} else {
-			r.tokenBackend = sessionstore.NewFile(r.createConfig)
-		}
+func (r *RootCmd) ensureTokenBackend(inv *serpent.Invocation) sessionstore.Backend {
+	if r.tokenBackend != nil {
+		return r.tokenBackend
+	}
+	keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	// Callers that pass --global-config without --use-keyring, such as older
+	// editor extensions, expect the session token in <global-config>/session.
+	_, envSet := inv.Environ.Lookup(envUseKeyring)
+	explicit := envSet || inv.ParsedFlags().Changed(varUseKeyring)
+	if keyringSupported && r.useKeyring && (explicit || r.globalConfig == config.DefaultDir()) {
+		r.tokenBackend = sessionstore.NewKeyringWithService(cmp.Or(r.keyringServiceName, sessionstore.DefaultServiceName))
+	} else {
+		r.tokenBackend = sessionstore.NewFile(r.createConfig)
 	}
 	return r.tokenBackend
 }
@@ -1009,13 +1003,6 @@ func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 // genuine storage backend selection logic in ensureTokenBackend().
 func (r *RootCmd) WithKeyringServiceName(serviceName string) {
 	r.keyringServiceName = serviceName
-}
-
-// UseKeyringWithGlobalConfig enables the use of the keyring storage backend
-// when the --global-config directory is set. This is only intended as an override
-// for tests, which require specifying the global config directory for test isolation.
-func (r *RootCmd) UseKeyringWithGlobalConfig() {
-	r.useKeyringWithGlobalConfig = true
 }
 
 type AgentAuth struct {
@@ -1955,6 +1942,46 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+// WarnConflictingOptions warns to stderr for each check in
+// conflictingOptionChecks that finds explicitly set options in a combination
+// where one of them has no effect. The command still runs normally.
+func WarnConflictingOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			for _, check := range conflictingOptionChecks {
+				if warning := check(inv); warning != "" {
+					cliui.Warn(inv.Stderr, warning)
+				}
+			}
+			return next(inv)
+		}
+	}
+}
+
+// conflictingOptionChecks are run by WarnConflictingOptions. Each check returns
+// a warning when it finds conflicting options, or an empty string otherwise.
+// Add new conflicting-option checks here.
+var conflictingOptionChecks = []func(inv *serpent.Invocation) string{
+	columnWithoutTableOutput,
+}
+
+// columnWithoutTableOutput reports --column/-c passed explicitly when the
+// resolved --output format is not "table", since --column only affects table
+// rendering.
+func columnWithoutTableOutput(inv *serpent.Invocation) string {
+	columnFlag := inv.ParsedFlags().Lookup("column")
+	if columnFlag == nil || !columnFlag.Changed {
+		return ""
+	}
+
+	outputFlag := inv.ParsedFlags().Lookup("output")
+	if outputFlag == nil || outputFlag.Value.String() == "table" {
+		return ""
+	}
+
+	return "--column only applies to table output; add -o table to use it"
 }
 
 // PrintDeprecatedOptions loops through all command options, and

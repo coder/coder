@@ -2,10 +2,14 @@ package chatloop
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -63,6 +67,10 @@ func histogramTotals(t *testing.T, registry *prometheus.Registry, name string) (
 	return count, sum
 }
 
+func spanStage(span sdktrace.ReadOnlySpan) Stage {
+	return Stage(chattest.SpanStage(span))
+}
+
 func metricLabel(metric *dto.Metric, name string) string {
 	for _, label := range metric.GetLabel() {
 		if label.GetName() == name {
@@ -76,7 +84,7 @@ func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrac
 	t.Helper()
 	var found sdktrace.ReadOnlySpan
 	for _, span := range spans.Ended() {
-		if span.Name() != string(stage) {
+		if spanStage(span) != stage {
 			continue
 		}
 		require.Nil(t, found, "more than one %s span was recorded", stage)
@@ -92,8 +100,8 @@ func requireEndedBefore(t *testing.T, spans *tracetest.SpanRecorder, first, seco
 	t.Helper()
 	var names []string
 	for _, span := range spans.Ended() {
-		if span.Name() == string(first) || span.Name() == string(second) {
-			names = append(names, span.Name())
+		if stage := spanStage(span); stage == first || stage == second {
+			names = append(names, string(stage))
 		}
 	}
 	require.Equal(t, []string{string(first), string(second)}, names)
@@ -113,6 +121,51 @@ func recordedErrorMessage(t *testing.T, span sdktrace.ReadOnlySpan) string {
 	}
 	t.Fatalf("span %s recorded no error", span.Name())
 	return ""
+}
+
+func requireNoAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		require.NotEqual(t, key, string(attr.Key), "span %s has %s", span.Name(), key)
+	}
+}
+
+func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == key {
+			return attr.Value.AsString()
+		}
+	}
+	t.Fatalf("span %s has no %s attribute", span.Name(), key)
+	return ""
+}
+
+// recordingSampler records what the sampler sees when each span starts.
+type recordingSampler struct {
+	mu     sync.Mutex
+	params []sdktrace.SamplingParameters
+}
+
+func (s *recordingSampler) ShouldSample(p sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p.Attributes = slices.Clone(p.Attributes)
+	s.params = append(s.params, p)
+	return sdktrace.SamplingResult{Decision: sdktrace.RecordAndSample}
+}
+
+func (*recordingSampler) Description() string { return "recording" }
+
+func (s *recordingSampler) find(name string) (sdktrace.SamplingParameters, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.params {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return sdktrace.SamplingParameters{}, false
 }
 
 type stageMetricsFixture struct {
@@ -416,11 +469,30 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 
 		err := generate(t, fixture, []fantasy.StreamPart{
 			{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"},
-			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				ID:           "msg_1",
+				FinishReason: fantasy.FinishReasonStop,
+				Usage:        fantasy.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 3, CacheCreationTokens: 2},
+			},
 		})
 		require.NoError(t, err)
 
 		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, "chat claude", stream.Name())
+		require.Equal(t, trace.SpanKindClient, stream.SpanKind())
+		require.Subset(t, stream.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "aws.bedrock"),
+			attribute.String("gen_ai.request.model", "claude"),
+			attribute.Bool("gen_ai.request.stream", true),
+			attribute.String("gen_ai.response.id", "msg_1"),
+			attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}),
+			attribute.Int("gen_ai.usage.input_tokens", 15),
+			attribute.Int("gen_ai.usage.output_tokens", 5),
+			attribute.Int("gen_ai.usage.cache_read.input_tokens", 3),
+			attribute.Int("gen_ai.usage.cache_creation.input_tokens", 2),
+		})
 		ttft := endedSpan(t, fixture.spans, StageTimeToFirstToken)
 		require.Equal(t, codes.Unset, stream.Status().Code)
 		require.Equal(t, codes.Unset, ttft.Status().Code)
@@ -433,6 +505,49 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			attribute.String(AttrReasoningEffort, stageModel.Effort),
 		})
 		requireStreamObserved(t, fixture)
+	})
+
+	t.Run("SamplerSeesModelAtCreation", func(t *testing.T) {
+		t.Parallel()
+		sampler := &recordingSampler{}
+		provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sampler))
+		t.Cleanup(func() {
+			require.NoError(t, provider.Shutdown(context.Background()))
+		})
+		fixture := newStageMetricsFixture(t)
+		fixture.tracer = NewStageTracer(provider, fixture.metrics, WithClock(fixture.clock))
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		})
+		require.NoError(t, err)
+
+		params, ok := sampler.find("chat claude")
+		require.True(t, ok, "no chat span was sampled under its final name")
+		require.Equal(t, trace.SpanKindClient, params.Kind)
+		require.Subset(t, params.Attributes, []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "aws.bedrock"),
+			attribute.String("gen_ai.request.model", "claude"),
+		})
+	})
+
+	t.Run("CleanCloseWithoutFinishRecordsNoReason", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "t"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "t"},
+		})
+		require.NoError(t, err)
+
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, codes.Unset, stream.Status().Code)
+		// The provider gave no reason, so none is claimed.
+		requireNoAttribute(t, stream, "gen_ai.response.finish_reasons")
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {
@@ -481,6 +596,8 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
+		requireNoAttribute(t, stream, "gen_ai.response.finish_reasons")
+		require.NotEmpty(t, spanAttribute(t, stream, "error.type"))
 		requireStreamObserved(t, fixture)
 	})
 
@@ -520,23 +637,28 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 	t.Parallel()
 
 	stageModel := StageModel{Provider: "openai", ProviderType: "openai", Model: "gpt-test", Effort: "high"}
-	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
+	executeWithBuiltins := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool, builtins map[string]bool) PersistedStep {
 		t.Helper()
 		ctx := ContextWithScope(t.Context(), ScopeTurn)
 		ctx, step := fixture.tracer.Start(ctx, StageGenerationStep)
 		defer step.End(nil)
 		result, err := ExecuteLocalTools(ctx, ExecuteLocalToolsOptions{
-			Tools:         []fantasy.AgentTool{tool},
-			ActiveTools:   []string{tool.Info().Name},
-			ToolCalls:     []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: tool.Info().Name, Input: "{}"}},
-			ModelProvider: "openai",
-			ModelName:     "gpt-test",
-			Stages:        fixture.tracer,
-			StageModel:    stageModel,
-			Clock:         fixture.clock,
+			Tools:            []fantasy.AgentTool{tool},
+			ActiveTools:      []string{tool.Info().Name},
+			ToolCalls:        []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: tool.Info().Name, Input: "{}"}},
+			BuiltinToolNames: builtins,
+			ModelProvider:    "openai",
+			ModelName:        "gpt-test",
+			Stages:           fixture.tracer,
+			StageModel:       stageModel,
+			Clock:            fixture.clock,
 		})
 		require.NoError(t, err)
 		return result
+	}
+	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
+		t.Helper()
+		return executeWithBuiltins(t, fixture, tool, nil)
 	}
 
 	t.Run("RunsToolOnStageContext", func(t *testing.T) {
@@ -560,12 +682,45 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrProvider, "openai"))
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrModel, "gpt-test"))
 		require.Contains(t, toolCall.Attributes(), attribute.String(AttrScope, string(ScopeTurn)))
+		require.Equal(t, "execute_tool read_file", toolCall.Name())
+		require.Subset(t, toolCall.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", "read_file"),
+			attribute.String("gen_ai.tool.call.id", "call-1"),
+			attribute.String("gen_ai.tool.type", "extension"),
+		})
 		count, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.True(t, ok)
 		require.Equal(t, uint64(1), count)
 	})
 
-	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {
+	t.Run("SamplerSeesToolAtCreation", func(t *testing.T) {
+		t.Parallel()
+		sampler := &recordingSampler{}
+		provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sampler))
+		t.Cleanup(func() {
+			require.NoError(t, provider.Shutdown(context.Background()))
+		})
+		fixture := newStageMetricsFixture(t)
+		fixture.tracer = NewStageTracer(provider, fixture.metrics, WithClock(fixture.clock))
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			})
+
+		executeWithBuiltins(t, fixture, tool, map[string]bool{"read_file": true})
+
+		params, ok := sampler.find("execute_tool read_file")
+		require.True(t, ok, "no tool span was sampled under its final name")
+		require.Subset(t, params.Attributes, []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", "read_file"),
+			attribute.String("gen_ai.tool.call.id", "call-1"),
+			attribute.String("gen_ai.tool.type", "function"),
+		})
+	})
+
+	t.Run("ErrorResultEndsWithToolError", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 		tool := fantasy.NewAgentTool("read_file", "reads a file",
@@ -579,7 +734,12 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		toolResult, ok := result.Content[0].(fantasy.ToolResultContent)
 		require.True(t, ok)
 		require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
-		require.Equal(t, codes.Unset, endedSpan(t, fixture.spans, StageToolCall).Status().Code)
+		// Tools such as MCP clients report failures, including an
+		// unreachable server, as error results rather than Run errors.
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		require.Equal(t, codes.Error, toolCall.Status().Code)
+		require.Equal(t, "tool_error", spanAttribute(t, toolCall, "error.type"))
+		require.NotContains(t, toolCall.Status().Description, "file not found")
 	})
 
 	t.Run("ExecutionFailureEndsWithError", func(t *testing.T) {
@@ -596,6 +756,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		toolCall := endedSpan(t, fixture.spans, StageToolCall)
 		require.Equal(t, codes.Error, toolCall.Status().Code)
 		require.Equal(t, runErr.Error(), recordedErrorMessage(t, toolCall))
+		require.NotEmpty(t, spanAttribute(t, toolCall, "error.type"))
 	})
 
 	t.Run("PanicEndsWithError", func(t *testing.T) {
@@ -644,9 +805,146 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 			require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
 		}
 		for _, span := range fixture.spans.Ended() {
-			require.NotEqual(t, string(StageToolCall), span.Name())
+			require.NotEqual(t, StageToolCall, spanStage(span))
 		}
 		_, ok := stageSampleCount(t, fixture.registry, StageToolCall)
 		require.False(t, ok)
+	})
+}
+
+func TestModelCallStage(t *testing.T) {
+	t.Parallel()
+
+	stageModel := StageModel{Provider: "anthropic", ProviderType: "anthropic", Model: "claude"}
+	usage := fantasy.Usage{InputTokens: 10, OutputTokens: 5}
+	requireModelCallSpan := func(t *testing.T, span sdktrace.ReadOnlySpan, stream bool) {
+		t.Helper()
+		require.Equal(t, "chat claude", span.Name())
+		require.Equal(t, trace.SpanKindClient, span.SpanKind())
+		require.Subset(t, span.Attributes(), []attribute.KeyValue{
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.provider.name", "anthropic"),
+			attribute.Bool("gen_ai.request.stream", stream),
+			attribute.Int("gen_ai.usage.input_tokens", 10),
+			attribute.Int("gen_ai.usage.output_tokens", 5),
+		})
+	}
+
+	t.Run("GenerateObjectRecordsUsage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		// The context has no identity, as for manual title proposals, so
+		// the wrapper's identity attributes the call.
+		chatID := uuid.New()
+		model := fixture.tracer.TraceModelCalls(&chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return &fantasy.ObjectResponse{
+					FinishReason: fantasy.FinishReasonStop,
+					Usage:        usage,
+					ProviderMetadata: fantasy.ProviderMetadata{
+						fantasyopenai.Name: &fantasyopenai.ResponsesProviderMetadata{ResponseID: "resp_1"},
+					},
+				}, nil
+			},
+		}, TracedModelOptions{StageModel: stageModel, Identity: ChatIdentity{ChatID: chatID}, JSONObjects: true})
+
+		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
+		require.NoError(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, false)
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.conversation.id", chatID.String()))
+		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"stop"}))
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.response.id", "resp_1"))
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.output.type", "json"))
+		// The usage reports no cache breakdown, so none is claimed.
+		requireNoAttribute(t, span, "gen_ai.usage.cache_creation.input_tokens")
+		_, observed := stageSampleCount(t, fixture.registry, StageModelCall)
+		require.False(t, observed, "model calls have no stage histogram")
+	})
+
+	t.Run("UnparsedObjectRecordsUsageAndError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := fixture.tracer.TraceModelCalls(&chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return nil, &fantasy.NoObjectGeneratedError{Usage: usage, FinishReason: fantasy.FinishReasonLength}
+			},
+		}, TracedModelOptions{StageModel: stageModel})
+
+		_, err := model.GenerateObject(t.Context(), fantasy.ObjectCall{})
+		require.Error(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, false)
+		require.Equal(t, codes.Error, span.Status().Code)
+		// The model's own reason survives the parse failure.
+		require.Contains(t, span.Attributes(), attribute.StringSlice("gen_ai.response.finish_reasons", []string{"length"}))
+		// A client that forces a tool call does not request JSON output.
+		requireNoAttribute(t, span, "gen_ai.output.type")
+	})
+
+	t.Run("EmptyCompactionSummaryEndsWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+				}), nil
+			},
+		}
+
+		summary, _, err := generateCompactionSummary(t.Context(), model,
+			[]fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+			GenerateCompactionOptions{SummaryPrompt: "summarize", Clock: fixture.clock, Stages: fixture.tracer, StageModel: stageModel},
+		)
+		require.NoError(t, err)
+		require.Empty(t, summary)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		require.Equal(t, codes.Error, span.Status().Code)
+		require.Contains(t, span.Attributes(), attribute.Int("gen_ai.usage.output_tokens", 5))
+	})
+
+	t.Run("CompactionSummaryRecordsChatSpan", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		model := &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					{Type: fantasy.StreamPartTypeFinish, ID: "msg_summary", FinishReason: fantasy.FinishReasonStop, Usage: usage},
+				}), nil
+			},
+		}
+
+		ctx, compaction := fixture.tracer.Start(t.Context(), StageCompaction)
+		_, _, err := generateCompactionSummary(ctx, model,
+			[]fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+			GenerateCompactionOptions{
+				SummaryPrompt: "summarize",
+				Clock:         fixture.clock,
+				Stages:        fixture.tracer,
+				StageModel:    stageModel,
+			},
+		)
+		compaction.End(err)
+		require.NoError(t, err)
+
+		span := endedSpan(t, fixture.spans, StageModelCall)
+		requireModelCallSpan(t, span, true)
+		require.Equal(t, endedSpan(t, fixture.spans, StageCompaction).SpanContext().SpanID(), span.Parent().SpanID())
+		require.Contains(t, span.Attributes(), attribute.String("gen_ai.response.id", "msg_summary"))
 	})
 }

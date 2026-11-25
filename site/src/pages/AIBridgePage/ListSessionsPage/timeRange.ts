@@ -1,7 +1,9 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import { extractFreeText } from "#/components/Filter/FilterCombobox/filterQuery";
 import {
+	FILTER_TOKEN_RE,
 	parseFilterQuery,
 	stringifyFilter,
 } from "#/components/Filter/filterQuery";
@@ -15,6 +17,21 @@ export type TimeRange = Pick<DateTimeRangeValue, "start" | "end">;
 export const toRFC3339 = (date: Date): string => {
 	return dayjs(date).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 };
+
+const TIME_RANGE_KEYS = ["started_after", "started_before"];
+
+const joinQuery = (...parts: string[]): string =>
+	parts
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0)
+		.join(" ");
+
+// Unquoted colons split values in the backend query parser.
+const rangeTokens = (range: TimeRange): string =>
+	stringifyFilter({
+		started_after: toRFC3339(range.start),
+		started_before: toRFC3339(range.end),
+	});
 
 /** The default sessions window: the 24 hours ending at now. */
 export const defaultTimeRange = (now: Date): TimeRange => ({
@@ -39,29 +56,41 @@ export const withDefaultTimeRange = (
 	) {
 		return query;
 	}
-	const suffix = stringifyFilter({
-		...values,
-		started_after: toRFC3339(range.start),
-		started_before: toRFC3339(range.end),
-	});
-	return suffix;
+	return joinQuery(query, rangeTokens(range));
+};
+
+/** Renames the page's `user` filter to the API's `initiator` key. */
+export const toSessionsAPIQuery = (query: string): string =>
+	query.replace(FILTER_TOKEN_RE, (match, quotedKey, _quoted, bareKey) =>
+		(quotedKey ?? bareKey) === "user"
+			? `initiator${match.slice("user".length)}`
+			: match,
+	);
+
+/** Removes the time bounds from a filter query. */
+export const withoutTimeRange = (query: string): string => {
+	return extractFreeText(query, TIME_RANGE_KEYS);
+};
+
+/** Sets both time bounds of a filter query to the given range. */
+export const queryWithTimeRange = (query: string, range: TimeRange): string => {
+	return joinQuery(withoutTimeRange(query), rangeTokens(range));
 };
 
 /**
- * Builds a filter query string that replaces any existing time range in
- * values with the given range while preserving all other filters.
- * stringifyFilter quotes the RFC 3339 values because the backend query
- * parser treats unquoted colons as key/value separators.
+ * Swaps the search part of a filter query, keeping its time bounds.
+ * A bound typed in `search` wins.
  */
-export const queryWithTimeRange = (
-	values: Record<string, string | undefined>,
-	range: TimeRange,
-): string => {
-	return stringifyFilter({
-		...values,
-		started_after: toRFC3339(range.start),
-		started_before: toRFC3339(range.end),
-	});
+export const queryWithSearch = (query: string, search: string): string => {
+	const values = parseFilterQuery(query);
+	const searchValues = parseFilterQuery(search);
+	return joinQuery(
+		withoutTimeRange(search),
+		stringifyFilter({
+			started_after: searchValues.started_after ?? values.started_after,
+			started_before: searchValues.started_before ?? values.started_before,
+		}),
+	);
 };
 
 /** Extracts an explicit time range from filter values, or null if absent. */

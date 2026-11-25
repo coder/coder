@@ -16,7 +16,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
-import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -45,6 +44,7 @@ import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
+import { GroupsFilter } from "./GroupsFilter";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";

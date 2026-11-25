@@ -9,6 +9,7 @@ import {
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -108,7 +109,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 			</DropdownMenuItem>
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
-				<span>Sign Out</span>
+				<span>Sign out</span>
 			</DropdownMenuItem>
 			{supportLinks && supportLinks.length > 0 && (
 				<>
@@ -173,6 +174,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							) : (
 								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
+							<CopiedStatus show={showCopiedSuccess} />
 						</DropdownMenuItem>
 					</TooltipTrigger>
 					<TooltipContent side="left">

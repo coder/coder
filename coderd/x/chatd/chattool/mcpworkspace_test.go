@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -118,6 +119,7 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 
 	image := []byte{0x89, 'P', 'N', 'G', 1, 2, 3}
 	audio := []byte("wav-bytes")
+	pdf := []byte("%PDF-1.7 report")
 	encoded := func(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 	text := func(s string) workspacesdk.MCPToolContent { return workspacesdk.MCPToolContent{Type: "text", Text: s} }
 	png := workspacesdk.MCPToolContent{Type: "image", Data: encoded(image), MediaType: "image/png"}
@@ -163,6 +165,27 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{text("boom"), png}},
 			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "boom", IsError: true},
 		},
+		{
+			// Agents that predate IncludeResult replace embedded resources
+			// with a placeholder and drop structured content.
+			name: "LegacyEmbeddedResourcePlaceholderStaysText",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				text("Report ready"),
+				{Type: "resource", Text: "[embedded resource: *mcp.ResourceContents]"},
+			}},
+			want: fantasy.ToolResponse{Type: "text", Content: "Report ready\n[embedded resource: *mcp.ResourceContents]"},
+		},
+		{
+			name: "ResultKeepsEmbeddedPDFAndStructuredContent",
+			resp: workspacesdk.CallMCPToolResponse{Result: json.RawMessage(`{
+				"content": [
+					{"type": "text", "text": "Report ready"},
+					{"type": "resource", "resource": {"uri": "file:///report.pdf", "mimeType": "application/pdf", "blob": "` + encoded(pdf) + `"}}
+				],
+				"structuredContent": {"pages": 2}
+			}`)},
+			want: fantasy.ToolResponse{Type: "media", Data: pdf, MediaType: "application/pdf", Filename: "report.pdf", Content: "Report ready\n{\"pages\":2}"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -171,7 +194,8 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 				[]workspacesdk.MCPToolInfo{{Name: "browser__take_screenshot"}},
 				func(context.Context) (workspacesdk.AgentConn, error) {
 					return &fakeAgentConn{
-						callMCPToolFunc: func(context.Context, workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+						callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+							assert.True(t, req.IncludeResult, "coderd must ask for the MCP result")
 							return tc.resp, nil
 						},
 					}, nil

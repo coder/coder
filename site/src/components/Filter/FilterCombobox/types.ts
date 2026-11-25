@@ -3,6 +3,8 @@ export type FilterOption = {
 	/** Label used once the option is applied; defaults to `label`. */
 	appliedLabel?: string;
 	value: string;
+	/** Selecting this option replaces the entire filter query, as a preset. */
+	query?: string;
 	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/**
@@ -16,8 +18,12 @@ export type FilterOption = {
 
 export type FilterCategory = {
 	key: string;
+	/** Cache identity when pages offer different options for the same query key. */
+	optionsKey: string;
 	label: string;
-	getOptions: (query: string) => Promise<FilterOption[]>;
+	/** Picking a value replaces other values in this category. */
+	singleSelect?: boolean;
+	getOptions: (query: string) => Promise<readonly FilterOption[]>;
 	icon?: React.ReactNode;
 	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];
