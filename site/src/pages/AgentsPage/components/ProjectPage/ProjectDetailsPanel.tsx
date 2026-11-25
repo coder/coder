@@ -44,6 +44,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
+	// The server refuses every edit to an archived project.
+	const isArchived = Boolean(project.archived_at);
+	const canUpdate = project.permissions.update && !isArchived;
+	const canShare = project.permissions.share && !isArchived;
 	const aclQuery = useQuery(chatProjectACL(project));
 	const owner = aclQuery.data?.owner;
 	const ownerLabel = isOwner
@@ -125,10 +129,11 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 					skillsFocusReturn.rememberTrigger(event);
 					setIsSkillsDialogOpen(true);
 				}}
+				canEditSkills={canUpdate}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
-				onEditInstructions={project.permissions.update ? openEditor : undefined}
+				onEditInstructions={canUpdate ? openEditor : undefined}
 				members={
 					isSharingDisabled
 						? undefined
@@ -137,7 +142,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 								error: aclQuery.error,
 								isRetrying: aclQuery.isFetching,
 								onRetry: retryACL,
-								canManage: project.permissions.share,
+								canManage: canShare,
 								onOpenAccess: (event) => {
 									accessFocusReturn.rememberTrigger(event);
 									if (roleMutation.error) {
@@ -179,7 +184,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				project={project}
 				open={isSkillsDialogOpen}
 				onOpenChange={setIsSkillsDialogOpen}
-				canEdit={project.permissions.update}
+				canEdit={canUpdate}
 				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
 			/>
 			<ProjectAccessDialog
@@ -190,7 +195,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				isRetrying={aclQuery.isFetching}
 				onRetry={retryACL}
 				onCloseAutoFocus={accessFocusReturn.restoreFocus}
-				canManage={project.permissions.share}
+				canManage={canShare}
 				organizationId={project.organization_id}
 				currentUserId={me.id}
 				onAdd={setAccessRole}

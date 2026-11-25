@@ -20,13 +20,16 @@ export const ProjectChatsList: React.FC<ProjectChatsListProps> = ({
 	// Absent when the page renders outside the agents layout, which hides the
 	// row actions.
 	const outletContext = useOutletContext<AgentsPageOutletContext | undefined>();
-	const chatsQuery = useInfiniteQuery(projectChats(project.id));
+	const isArchived = Boolean(project.archived_at);
+	const chatsQuery = useInfiniteQuery(projectChats(project.id, isArchived));
 	// Watch events and moves update cached rows in place, so a chat archived
 	// or moved away after the page loads stays in the cache until the next
 	// refetch.
 	const chats = chatsQuery.data?.pages
 		.flat()
-		.filter((chat) => !chat.archived && chat.project_id === project.id);
+		.filter(
+			(chat) => chat.archived === isArchived && chat.project_id === project.id,
+		);
 
 	return (
 		<ProjectChatsListView
@@ -39,6 +42,7 @@ export const ProjectChatsList: React.FC<ProjectChatsListProps> = ({
 			currentUser={user}
 			actions={outletContext}
 			showCost={showCost}
+			isArchived={isArchived}
 		/>
 	);
 };
