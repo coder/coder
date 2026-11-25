@@ -44,7 +44,7 @@ func TestTunnel_StopConcurrentSenders(t *testing.T) {
 		synctest.Wait()
 
 		// Queue another RPC behind Stop. The writer is still blocked, so
-		// this send is in flight when requestLoop shuts down the protocol.
+		// this send is in flight when the writer exits after Stop.
 		lateRPCDone := make(chan error, 1)
 		go func() {
 			lateRPCDone <- tun.ApplyNetworkSettings(ctx, &NetworkSettingsRequest{})

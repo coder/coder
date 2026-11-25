@@ -313,8 +313,8 @@ func TestWorkspaceUpdatesClose(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				// A canceled context and a closed send are both selectable.
-				// Repeat to exercise either selection without scheduler timing.
+				// If Close closed the channel, a send would race the canceled
+				// context. Repeat so either selection is exercised.
 				for range 32 {
 					ownerID := uuid.New()
 					db := &mockWorkspaceStore{}
