@@ -1814,7 +1814,7 @@ func refreshClaimedUserToken(
 			ID:        tok.ID,
 			UpdatedAt: tok.UpdatedAt,
 		})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			logger.Warn(ctx, "failed to release MCP oauth2 token refresh claim", slog.Error(err))
 		}
 		return tok, nil
