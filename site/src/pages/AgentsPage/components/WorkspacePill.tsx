@@ -6,7 +6,7 @@ import {
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
@@ -108,13 +108,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 		agent,
 		open && agent.status === "connected" && portForwardingEnabled,
 	);
-
-	useEffect(() => {
-		if (!isBelowMd && view === "ports") {
-			setView("main");
-			setFocusPortsOnMain(false);
-		}
-	}, [isBelowMd, view]);
 
 	return (
 		<DropdownMenu

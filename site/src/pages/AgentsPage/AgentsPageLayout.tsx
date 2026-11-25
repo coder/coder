@@ -82,7 +82,8 @@ export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
-	navigateAfterArchive: (chatId: string) => void;
+	/** Leaves the chat when the user archives the one they are viewing. */
+	navigateOnArchive: (chatId: string) => void;
 	/**
 	 * The active chat's children from the chat list cache, which watch
 	 * events keep fresh. The entity cache's embedded children are only a
@@ -246,27 +247,17 @@ const AgentsPageLayout: React.FC = () => {
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const sidebarFiltersForWatch = useEffectEvent(() => sidebarFilters);
-	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
-	// Completion must outlive the initiating row, but not this layout.
-	const navigateAfterArchive = (chatId: string) => {
-		setCompletedArchives((completed) => [...completed, chatId]);
-	};
-	useEffect(() => {
-		if (completedArchives.length === 0) return;
+
+	const navigateOnArchive = (chatId: string) => {
 		const activeChat = agentId
 			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(agentId))
 			: undefined;
-		if (
-			completedArchives.some((chatId) =>
-				shouldNavigateAfterArchive(agentId, chatId, activeChat?.root_chat_id),
-			)
-		) {
+
+		if (shouldNavigateAfterArchive(agentId, chatId, activeChat?.root_chat_id)) {
 			void navigate({ pathname: "/agents", search: location.search });
 		}
-		setCompletedArchives((completed) =>
-			completed.slice(completedArchives.length),
-		);
-	}, [agentId, completedArchives, location.search, navigate, queryClient]);
+	};
+
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
@@ -509,7 +500,7 @@ const AgentsPageLayout: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		navigateAfterArchive,
+		navigateOnArchive,
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
@@ -544,7 +535,7 @@ const AgentsPageLayout: React.FC = () => {
 					modelConfigs={organizationModels.models}
 					isLoadingModelConfigs={organizationModels.isLoading}
 					onArchiveSuccess={clearChatErrorReason}
-					navigateAfterArchive={navigateAfterArchive}
+					navigateOnArchive={navigateOnArchive}
 					onRenameTitle={requestRenameTitle}
 					onProposeTitle={requestProposeTitle}
 					chatPendingRename={chatPendingRename}

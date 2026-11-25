@@ -213,6 +213,7 @@
 		"react-you-might-not-need-an-effect/no-reset-all-state-on-prop-change": "error",
 		"react-you-might-not-need-an-effect/no-external-store-subscription": "error",
 		"react-you-might-not-need-an-effect/no-derived-state": "error",
+		"react-you-might-not-need-an-effect/no-chain-state-updates": "error",
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -252,7 +253,6 @@
 		"react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "off", // (large)
 		"react-you-might-not-need-an-effect/no-pass-data-to-parent": "off", // (medium)
 		"react-you-might-not-need-an-effect/no-initialize-state": "off", // (medium)
-		"react-you-might-not-need-an-effect/no-chain-state-updates": "off", // (medium)
 
 		"no-restricted-imports": [
 			"error",

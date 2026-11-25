@@ -69,7 +69,7 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	chatErrorReasons: {},
 	setChatErrorReason: vi.fn(),
 	clearChatErrorReason: vi.fn(),
-	navigateAfterArchive: vi.fn(),
+	navigateOnArchive: vi.fn(),
 	activeChatChildren: undefined,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: vi.fn(),
@@ -333,9 +333,7 @@ describe("ProjectChatsList", () => {
 
 			await waitFor(() => {
 				expect(API.deleteWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
-				expect(outletContext.navigateAfterArchive).toHaveBeenCalledWith(
-					chat.id,
-				);
+				expect(outletContext.navigateOnArchive).toHaveBeenCalledWith(chat.id);
 			});
 			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
 				archived: true,
@@ -437,7 +435,7 @@ describe("ProjectChatsList", () => {
 			expect(errorToast).toHaveBeenCalledWith("Archive failed"),
 		);
 		expect(outletContext.clearChatErrorReason).not.toHaveBeenCalled();
-		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+		expect(outletContext.navigateOnArchive).not.toHaveBeenCalled();
 	});
 
 	it.each(["dropdown", "context", "right-clicked dropdown"])(
@@ -477,7 +475,7 @@ describe("ProjectChatsList", () => {
 					"chat-0",
 				);
 			});
-			expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+			expect(outletContext.navigateOnArchive).not.toHaveBeenCalled();
 		},
 	);
 
