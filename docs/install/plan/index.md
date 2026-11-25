@@ -3,7 +3,9 @@ title: Plan your deployment
 ---
 
 Planning decides the shape of your deployment: which components run where, how large they need to be, and which choices are expensive to change later.
-Work through this phase before you pick a platform in [Install the control plane](../server/index.md).
+Planning is recommended, not required, before you install.
+Work through this phase before you deploy Coder for other people to depend on, ideally before you pick a platform in [Install the control plane](../server/index.md).
+For an evaluation, or when you've already chosen a platform, you can install the control plane first and come back to this phase.
 
 ## What you decide here
 
