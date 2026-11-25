@@ -13,21 +13,19 @@ type WebpushNotifications = {
 	unsubscribe(): Promise<void>;
 };
 
+const isPushSupported = () =>
+	"Notification" in window && "serviceWorker" in navigator;
+
 export const useWebpushNotifications = (): WebpushNotifications => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const [subscribed, setSubscribed] = useState<boolean>(false);
-	const [loading, setLoading] = useState<boolean>(true);
+	const [loading, setLoading] = useState<boolean>(isPushSupported);
 	const enabled =
-		"Notification" in window &&
-		"serviceWorker" in navigator &&
-		!!buildInfoQuery.data?.webpush_public_key;
+		isPushSupported() && Boolean(buildInfoQuery.data?.webpush_public_key);
 
 	useEffect(() => {
-		// Check if browser supports push notifications
-		if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-			setSubscribed(false);
-			setLoading(false);
+		if (!isPushSupported()) {
 			return;
 		}
 
@@ -44,7 +42,7 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 			}
 		};
 
-		checkSubscription();
+		void checkSubscription();
 	}, []);
 
 	const subscribe = async (): Promise<void> => {

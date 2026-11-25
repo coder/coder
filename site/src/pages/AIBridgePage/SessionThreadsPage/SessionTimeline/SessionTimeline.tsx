@@ -69,6 +69,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 		if (!el) return;
 
 		const measure = () => setFullHeight(el.scrollHeight);
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- The ref is null during render, so the height can only be measured after mount.
 		measure();
 
 		const observer = new ResizeObserver(measure);
