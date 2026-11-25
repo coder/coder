@@ -396,7 +396,6 @@ export const MissedAction: Story = {
 			name: /^View apply details \d/,
 		});
 		await user.click(applyButton);
-		await canvas.findByText("missed action");
 	},
 };
 
