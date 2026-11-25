@@ -4584,14 +4584,6 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
-	start := time.Now()
-	r0 := m.s.InsertChatProjectPin(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatProjectPin").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectPin").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) InsertChatProjectTemplates(ctx context.Context, arg database.InsertChatProjectTemplatesParams) ([]database.ChatProjectTemplate, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatProjectTemplates(ctx, arg)
@@ -5526,6 +5518,14 @@ func (m queryMetricsStore) RenewChatHeartbeats(ctx context.Context, arg database
 	m.queryLatencies.WithLabelValues("RenewChatHeartbeats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenewChatHeartbeats").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) ReorderChatProjectPins(ctx context.Context, arg database.ReorderChatProjectPinsParams) error {
+	start := time.Now()
+	r0 := m.s.ReorderChatProjectPins(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReorderChatProjectPins").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatProjectPins").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
