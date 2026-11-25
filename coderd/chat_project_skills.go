@@ -86,6 +86,7 @@ func (api *API) postChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 			Content:        create.Content,
 			Action:         create.Action,
 			ModelInvocable: create.ModelInvocable,
+			DisplayName:    create.DisplayName,
 		})
 	})
 	if !ok {
@@ -175,6 +176,7 @@ func (api *API) patchChatProjectSkill(rw http.ResponseWriter, r *http.Request) {
 			Enabled:        update.Enabled,
 			Action:         update.Action,
 			ModelInvocable: update.ModelInvocable,
+			DisplayName:    update.DisplayName,
 			ProjectID:      project.ID,
 			Name:           locked.Name,
 		})

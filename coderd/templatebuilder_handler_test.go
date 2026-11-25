@@ -514,11 +514,42 @@ func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "name", sdkErr.Validations[0].Field)
 
 		event := receiveTemplateBuilderSession(ctx, t, reporter)
 		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
 		require.Equal(t, telemetry.TemplateBuilderFailureNameConflict, event.FailureReason)
 		require.Equal(t, "docker", event.BaseTemplateID)
+	})
+
+	t.Run("OrganizationNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: reporter,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      uuid.New(),
+			BaseTemplateID: "docker",
+			OrganizationID: uuid.New(),
+			Name:           "missing-org",
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "organization_id", sdkErr.Validations[0].Field)
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureInvalidRequest, event.FailureReason)
 	})
 }
 

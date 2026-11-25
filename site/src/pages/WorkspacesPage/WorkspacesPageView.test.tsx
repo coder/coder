@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { API } from "#/api/api";
@@ -188,6 +188,18 @@ describe("WorkspacesPageView", () => {
 		expect(onCheckChange).not.toHaveBeenCalled();
 	});
 
+	it("keeps selection checkboxes out of header cells", async () => {
+		renderSelection([stoppedWorkspace]);
+
+		const nameHeader = await screen.findByRole("columnheader", {
+			name: "Name",
+		});
+		const rowHeader = screen.getByRole("rowheader", { name: /stopped/ });
+
+		expect(within(nameHeader).queryByRole("checkbox")).toBeNull();
+		expect(within(rowHeader).queryByRole("checkbox")).toBeNull();
+	});
+
 	it("hides the New workspace button and explains the missing permission", async () => {
 		renderWithAuth(
 			<WorkspacesPageView {...defaultProps} canCreateWorkspace={false} />,
@@ -240,6 +252,33 @@ describe("WorkspacesPageView", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("opens a workspace from its name link, not the row, with the keyboard", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				workspaces={[MockWorkspace]}
+				count={1}
+			/>,
+		);
+
+		const checkbox = await screen.findByRole("checkbox", {
+			name: `Select workspace ${MockWorkspace.name}`,
+		});
+		screen.getByRole("checkbox", { name: "Select all workspaces" }).focus();
+		await user.tab();
+		expect(checkbox).toHaveFocus();
+		await user.tab();
+		expect(
+			screen.getByRole("link", { name: MockWorkspace.name }),
+		).toHaveFocus();
+
+		await user.keyboard("{Enter}");
+		expect(router.state.location.pathname).toBe(
+			`/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+		);
+	});
+
 	it("restarts a running workspace from the overflow menu", async () => {
 		const user = userEvent.setup();
 		const restartSpy = vi
@@ -290,5 +329,151 @@ describe("WorkspacesPageView", () => {
 		expect(
 			screen.queryByRole("menuitem", { name: /restart/i }),
 		).not.toBeInTheDocument();
+	});
+
+	describe("range selection", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		const mockAlpha = { ...MockWorkspace, id: "ws-alpha", name: "alpha" };
+		const mockBravo = {
+			...MockPendingWorkspace,
+			id: "ws-bravo",
+			name: "bravo",
+		};
+		const mockCharlie = {
+			...MockStoppedWorkspace,
+			id: "ws-charlie",
+			name: "charlie",
+		};
+		const mockDelta = { ...MockWorkspace, id: "ws-delta", name: "delta" };
+		const mockEcho = { ...MockDeletingWorkspace, id: "ws-echo", name: "echo" };
+		const mockFoxtrot = { ...MockWorkspace, id: "ws-foxtrot", name: "foxtrot" };
+		const workspaces = [
+			mockAlpha,
+			mockBravo,
+			mockCharlie,
+			mockDelta,
+			mockEcho,
+			mockFoxtrot,
+		];
+
+		const renderWorkspaces = (
+			checkedWorkspaces: readonly Workspace[] = [],
+			refetchedWorkspaces?: readonly Workspace[],
+		) => {
+			const onCheckChange = vi.fn();
+			const View = () => {
+				const [checked, setChecked] = useState(checkedWorkspaces);
+				const [items, setItems] = useState<readonly Workspace[]>(workspaces);
+				return (
+					<>
+						{refetchedWorkspaces && (
+							<button
+								type="button"
+								onClick={() => setItems(refetchedWorkspaces)}
+							>
+								Refetch workspaces
+							</button>
+						)}
+						<WorkspacesPageView
+							{...defaultProps}
+							workspaces={items}
+							count={items.length}
+							checkedWorkspaces={checked}
+							onCheckChange={(selection) => {
+								setChecked(selection);
+								onCheckChange(selection);
+							}}
+						/>
+					</>
+				);
+			};
+			return {
+				...renderWithAuth(<View />, {
+					path: "/workspaces",
+					route: "/workspaces",
+					extraRoutes: [{ path: "/@:owner/:workspace", element: null }],
+				}),
+				onCheckChange,
+			};
+		};
+
+		const checkboxFor = (workspace: Workspace) =>
+			screen.getByRole("checkbox", {
+				name: `Select workspace ${workspace.name}`,
+			});
+
+		it("maps Shift-click selection to eligible workspaces without opening their pages", async () => {
+			const user = userEvent.setup();
+			const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+			const { onCheckChange, router } = renderWorkspaces();
+			await screen.findByText(mockAlpha.name);
+			await user.click(checkboxFor(mockAlpha));
+			await user.keyboard("{Shift>}");
+			await user.click(checkboxFor(mockFoxtrot));
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				mockAlpha,
+				mockCharlie,
+				mockDelta,
+				mockFoxtrot,
+			]);
+			expect(router.state.location.pathname).toBe("/workspaces");
+			expect(openWindow).not.toHaveBeenCalled();
+		});
+
+		it("does not navigate when a drag ends on its starting row, but allows a subsequent click", async () => {
+			const user = userEvent.setup();
+			const { onCheckChange, router } = renderWorkspaces();
+			const link = await screen.findByRole("link", { name: mockAlpha.name });
+
+			await user.keyboard("{Shift>}");
+			await user.pointer([
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+				{ target: checkboxFor(mockDelta) },
+				{ target: link },
+				{ keys: "[/MouseLeft]" },
+			]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha]);
+			expect(router.state.location.pathname).toBe("/workspaces");
+
+			await user.keyboard("{/Shift}");
+			await user.click(link);
+			expect(router.state.location.pathname).toBe(
+				`/@${mockAlpha.owner_name}/${mockAlpha.name}`,
+			);
+		});
+
+		it("maps the anchored range to refreshed workspace objects after reorder", async () => {
+			const user = userEvent.setup();
+			const mockRefreshedAlpha = { ...mockAlpha, name: "refreshed-alpha" };
+			const mockRefreshedCharlie = {
+				...mockCharlie,
+				name: "refreshed-charlie",
+			};
+			const { onCheckChange } = renderWorkspaces(
+				[],
+				[mockDelta, mockRefreshedAlpha, mockBravo, mockRefreshedCharlie],
+			);
+			await screen.findByText(mockAlpha.name);
+			await user.keyboard("{Shift>}");
+			await user.pointer({
+				keys: "[MouseLeft>]",
+				target: checkboxFor(mockAlpha),
+			});
+
+			fireEvent.click(
+				screen.getByRole("button", { name: "Refetch workspaces" }),
+			);
+			await user.pointer([
+				{ target: checkboxFor(mockRefreshedCharlie) },
+				{ keys: "[/MouseLeft]" },
+			]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				mockRefreshedAlpha,
+				mockRefreshedCharlie,
+			]);
+		});
 	});
 });

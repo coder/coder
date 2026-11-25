@@ -50,9 +50,12 @@ export const AnnouncementBannerItem: React.FC<AnnouncementBannerItemProps> = ({
 			<TableCell>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+						<Button
+							size="icon-lg"
+							variant="subtle"
+							aria-label={`Open menu for ${message || "No message"}`}
+						>
 							<EllipsisVerticalIcon aria-hidden="true" />
-							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">

@@ -288,6 +288,13 @@ export const ACPHarnessesWithOtherContext: Story = {
 	},
 };
 
+export const ACPHarnessesCollapsed: Story = {
+	...ACPHarnessesWithOtherContext,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
 export const ACPHarnessIssue: Story = {
 	...ACPHarnesses,
 	args: {
@@ -610,7 +617,7 @@ export const ResourceFailuresOnlyExpanded: Story = {
 	...ResourceFailuresOnly,
 	play: async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByRole("button"));
-		for (const name of [/Context files/, /Skills/, /MCP Servers/, /^ACP/]) {
+		for (const name of [/Context files/, /Skills/, /MCP servers/, /^ACP/]) {
 			await userEvent.click(screen.getByRole("button", { name }));
 		}
 	},

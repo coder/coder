@@ -44,3 +44,55 @@ export const OpenWithHover: Story = {
 		await user.hover(menuItem);
 	},
 };
+
+export const OpenTallerThanViewport: Story = {
+	args: {
+		children: (
+			<>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline">Admin Settings</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					{Array.from({ length: 40 }, (_, i) => (
+						<DropdownMenuItem key={i}>Item {i + 1}</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(canvas.getByText("Admin Settings"));
+	},
+};
+
+export const NarrowViewport: Story = {
+	args: {
+		children: (
+			<>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline">Filters</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					<DropdownMenuItem>Created workspaces</DropdownMenuItem>
+					<DropdownMenuItem>
+						Builds started by a user, including scheduled and prebuilt workspace
+						builds across every organization
+					</DropdownMenuItem>
+					<DropdownMenuItem>
+						View advanced filtering options in the Coder documentation
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</>
+		),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		await user.click(within(canvasElement).getByText("Filters"));
+	},
+};

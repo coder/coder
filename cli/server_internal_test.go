@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -14,10 +16,50 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
+
+func TestStartBuiltinPostgresRejectsUnknownVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		version string
+		wantErr string
+	}{
+		{name: "Future19", version: "19\n", wantErr: "unsupported built-in PostgreSQL version"},
+		{name: "MissingMarker", wantErr: "Do not create PG_VERSION manually"},
+		{name: "Malformed13", version: "13 \n", wantErr: "unsupported built-in PostgreSQL version"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Root(t.TempDir())
+			dataDir := filepath.Join(cfg.PostgresPath(), "data")
+			require.NoError(t, os.MkdirAll(dataDir, 0o700))
+			if tc.version != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dataDir, "PG_VERSION"), []byte(tc.version), 0o600))
+			}
+			keepPath := filepath.Join(dataDir, "keep")
+			require.NoError(t, os.WriteFile(keepPath, []byte("existing data"), 0o600))
+			require.NoError(t, cfg.PostgresPort().Write("59999"))
+
+			_, stopPG, err := startBuiltinPostgres(t.Context(), cfg, testutil.Logger(t), "")
+			if stopPG != nil {
+				require.NoError(t, stopPG())
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+			contents, readErr := os.ReadFile(keepPath)
+			require.NoError(t, readErr)
+			require.Equal(t, "existing data", string(contents))
+			_, readErr = cfg.PostgresPassword().Read()
+			require.ErrorIs(t, readErr, os.ErrNotExist)
+		})
+	}
+}
 
 func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()

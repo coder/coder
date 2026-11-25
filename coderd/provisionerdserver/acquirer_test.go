@@ -608,9 +608,11 @@ func TestAcquirer_MatchTags(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
 			// NOTE: explicitly not using fake store for this test.
 			db, ps := dbtestutil.NewDB(t)
+			// Creating the database can take longer than the deadline on a
+			// busy runner, so the deadline starts after it.
+			ctx := testutil.Context(t, testutil.WaitShort)
 			log := testutil.Logger(t)
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:                    uuid.New(),

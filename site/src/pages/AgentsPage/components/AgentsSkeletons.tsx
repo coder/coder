@@ -2,7 +2,16 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { getPersistedOverviewCardOpen } from "../utils/overviewCardStorage";
+import {
+	ChatOverviewCardLoadingRows,
+	ChatOverviewCardShell,
+	chatOverviewCardPositionClassName,
+	chatOverviewContainerClassName,
+	chatOverviewReserveClassName,
+} from "./ChatOverviewCardShell";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
+import { useEmbedContext } from "./EmbedContext";
 import {
 	RIGHT_PANEL_OPEN_KEY,
 	RIGHT_PANEL_WIDTH_KEY,
@@ -39,11 +48,11 @@ export const AgentsPageLayoutSkeleton: React.FC = () => {
 				style={{
 					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
 				}}
-				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+				className="order-2 sm:order-0 flex-1 min-h-0 border-t sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-60 sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
-				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
+				<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
-						<div className="hidden border-b border-border px-2 pb-3 pt-1.5 sm:block">
+						<div className="hidden border-b px-2 pb-3 pt-1.5 sm:block">
 							<div className="mb-2.5 flex items-center justify-between">
 								<Skeleton className="size-6 rounded" />
 								<div className="flex items-center gap-0.5 -mr-1.5">
@@ -120,7 +129,7 @@ export const ChatConversationSkeleton: React.FC = () => (
 export const RightPanelSkeleton: React.FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
+		<div className="flex shrink-0 items-center gap-2 border-b px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />
 			<div className="flex-1" />
 		</div>
@@ -133,18 +142,28 @@ export const RightPanelSkeleton: React.FC = () => (
 	</div>
 );
 
+export const ChatOverviewCardSkeleton: React.FC<{ id?: string }> = ({ id }) => (
+	<ChatOverviewCardShell
+		id={id}
+		isLoading
+		className={chatOverviewCardPositionClassName}
+	>
+		<ChatOverviewCardLoadingRows />
+	</ChatOverviewCardShell>
+);
+
 /**
  * Skeleton placeholder for the chat input area. Matches the layout of
  * the real AgentChatInput so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
 const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
-	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
+	<div className="shrink-0 overflow-y-auto pl-4 pr-[calc(1rem+var(--chat-overview-reserve,0px))] scrollbar-gutter-stable scrollbar-thin">
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
 			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-xs">
-				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
+				<div className="min-h-15 sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<Skeleton className="h-6 w-24 rounded" />
 					<Skeleton className="size-7 rounded-full" />
@@ -162,18 +181,35 @@ const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 export const AgentChatPageSkeleton: React.FC = () => {
 	const rightPanel = getRightPanelState();
 	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	const isOverviewCardShown =
+		!rightPanel.open &&
+		!chatFullWidth &&
+		!isEmbedded &&
+		getPersistedOverviewCardOpen();
 
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1">
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-				<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1",
+				chatOverviewContainerClassName,
+			)}
+		>
+			<div
+				className={cn(
+					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
+					isOverviewCardShown && chatOverviewReserveClassName,
+				)}
+			>
+				<div className="relative z-10 flex shrink-0 items-center gap-2 px-4 py-1.5">
 					<Skeleton className="size-7 rounded" />
 					<Skeleton className="h-4 w-32" />
 					<div className="flex-1" />
 					<Skeleton className="size-7 rounded" />
 					<Skeleton className="size-7 rounded" />
+					{isOverviewCardShown && <ChatOverviewCardSkeleton />}
 				</div>
-				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden pr-[var(--chat-overview-reserve,0px)] scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(
@@ -192,7 +228,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 					style={{
 						"--panel-width": `${rightPanel.width}px`,
 					}}
-					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
+					className="relative flex h-full w-screen min-w-0 flex-col border-l sm:w-(--panel-width) sm:min-w-90 sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />
 				</div>

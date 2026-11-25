@@ -331,6 +331,14 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it("keeps single tildes in headings and strikes only double tildes", () => {
+		expect(
+			getThinkingDisclosureDisplay("### Estimating ~5 min, ~~not~~ 10~15 min", {
+				isStreaming: false,
+			}).title,
+		).toBe("Thinking about estimating ~5 min, not 10~15 min");
+	});
+
 	it("preserves acronym and mixed-case heading starts", () => {
 		expect(
 			getThinkingDisclosureDisplay("### API configuration", {

@@ -3,20 +3,17 @@ import { FolderIcon, type LucideIcon, TriangleAlertIcon } from "lucide-react";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
 type ContextResourceTreeProps = { children: React.ReactNode };
 
-/** Shares spacing and tooltip timing across context resource branches. */
+/**
+ * Read-only resource hierarchy. Description tooltips require an ancestor TooltipProvider.
+ */
 export const ContextResourceTree: React.FC<ContextResourceTreeProps> = ({
 	children,
-}) => (
-	<TooltipProvider delayDuration={300}>
-		<div className="flex min-w-0 w-full flex-col gap-2">{children}</div>
-	</TooltipProvider>
-);
+}) => <div className="flex min-w-0 w-full flex-col gap-2">{children}</div>;
 
 type ContextResourceRowProps = {
 	className?: string;
@@ -57,7 +54,7 @@ const ContextResourceRow: React.FC<ContextResourceRowProps> = ({
 		</div>
 	);
 	return description ? (
-		<Tooltip>
+		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>{row}</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={4} className="max-w-48 text-xs">
 				{description}

@@ -55,8 +55,7 @@ describe("UserDropdownContent", () => {
 	});
 
 	it("keeps focus on the version item when the pointer leaves it", async () => {
-		// The modal menu sets pointer-events: none on the body.
-		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const user = userEvent.setup();
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
 
@@ -67,11 +66,26 @@ describe("UserDropdownContent", () => {
 		expect(item).toHaveFocus();
 	});
 
+	it("announces when the deployment ID is copied", async () => {
+		const user = userEvent.setup();
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const status = screen.getByRole("status");
+		expect(status).toBeEmptyDOMElement();
+		await user.click(
+			screen.getByRole("menuitem", {
+				name: new RegExp(MockBuildInfo.deployment_id),
+			}),
+		);
+		expect(status).toHaveTextContent("Copied");
+	});
+
 	it("calls the onSignOut function", async () => {
 		const onSignOut = vi.fn();
 		renderUserDropdownContent({ onSignOut });
 		await waitForLoaderToBeRemoved();
-		screen.getByText("Sign Out").click();
+		screen.getByText("Sign out").click();
 		expect(onSignOut).toBeCalledTimes(1);
 	});
 

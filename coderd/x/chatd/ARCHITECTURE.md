@@ -862,7 +862,7 @@ A chat worker is identified by a **worker ID**, which is regenerated on worker s
 
 A chat may use model configs only from its own organization. Chat creation, message sends, and message edits reject an explicit config that is disabled, unavailable to the caller, or belongs to another organization.
 
-Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When those checks make the stored model unavailable, the path selects that organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
+Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When the queued row's model fails promotion's checks, promotion uses the chat's last model if that model passes the same checks, and otherwise the organization's enabled default. When the chat's last model fails generation preparation's checks, generation preparation selects the organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
 
 ## Acquisition loop
 
@@ -1062,7 +1062,7 @@ Live stages wrap a section of code and end when it returns:
 - `stream`: the provider stream, from opening the request to consuming the last part.
 - `time_to_first_token`: nested in `stream`, from opening the request to the first streamed output part, including block start markers such as `text_start`; warnings and finish parts do not close it. The span is emitted for every attempt, but only a window closed by an output part is observed on the histograms. A failed attempt, including one whose first part is an error part, ends the span with the error and records no observation, as does a stream released before any output part arrives. A silence timeout before the first part is recorded as the span's error.
 - `retry_backoff`: the wait before retrying a failed LLM API call.
-- `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error only when the tool fails to execute (a `Run` error or panic), not when it returns an error result to the model. The `advisor` tool's nested model call runs inside its `tool_call` and is not instrumented as `stream` or `time_to_first_token`; the tool call is its only stage.
+- `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error when the tool fails to execute (a `Run` error or panic) or returns an error result to the model. The `advisor` tool's nested model call runs through `GenerateAssistant` with `ModelCallStage` inside its `tool_call`, so it records a `model_call` stage, not `stream` or `time_to_first_token`.
 - `commit`: the `CommitStep` transaction.
 - `compaction`: a compaction pass.
 
@@ -1070,6 +1070,19 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 
 - `acquisition` and `queue_wait`: described above.
 - `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
+
+#### GenAI semantic conventions
+
+Three stages are also GenAI operations, and their spans follow the OpenTelemetry GenAI semantic conventions (semconv v1.41.0, the last core release that ships them) so tracing backends can attribute model usage without custom mapping. `genai.go` in `chatloop` owns the mapping.
+
+- `chat_turn` is named `invoke_agent coder` and carries `gen_ai.operation.name=invoke_agent` and `gen_ai.agent.name=coder`. It starts before the turn resolves a model, so `gen_ai.provider.name` is added through `runnerTurnSpan.SetProvider` as soon as `prepare` resolves the turn model, before later preparation steps that can fail.
+- `stream` is named `chat {model}`, has span kind `CLIENT`, and carries `gen_ai.request.stream=true`. It is started with `StartWithModel`, so the name, `gen_ai.provider.name`, and `gen_ai.request.model` are set at creation, where head samplers see them. Before the stream opens it records the request's output token limit and temperature. After the stream is consumed, it records the response ID, the finish reason the provider reported (omitted when it sent none or an unclassified one, and kept when the loop rejects the response, since the span status and `error.type` describe the failure), and token usage. `gen_ai.usage.input_tokens` adds cache reads and cache writes to fantasy's `InputTokens`, which excludes them, because the conventions count them as input. `gen_ai.provider.name` maps the configured provider type to the conventions' well-known values, reports `aws.bedrock` for an anthropic provider with Bedrock settings, and passes other types through. The cache breakdown is recorded only when nonzero, because the OpenAI-compatible client never reports cache writes. For Anthropic, fantasy reports the first internal iteration's input counts (context occupancy), so responses that ran provider tools undercount billed input; the docs page states this.
+- `tool_call` is named `execute_tool {tool}` and carries the tool name, call ID, and `gen_ai.tool.type`: `function` for built-in tools and `extension` for every other tool. It is started with `StartTool`, so the name and these attributes are set at creation. A tool that returns an error result instead of a `Run` error, as MCP clients do for an unreachable server, ends its span with `error.type=tool_error`; the result text is not recorded.
+- `model_call` covers model calls outside the assistant stream and is also named `chat {model}`. `StageTracer.TraceModelCalls` wraps every model from `resolveModelCall`, innermost, so each non-streaming `Generate` or `GenerateObject` attempt (titles, status labels, chat summaries) records one span, including the usage of an object that fails to parse. It reads the response ID from OpenAI Responses metadata and sets `gen_ai.output.type=json` on `GenerateObject` only for the native OpenAI client, the one client whose default object mode sends a JSON schema rather than forcing a tool call. Compaction records one per summary stream through `GenerateCompactionOptions.Stages`. It has no histogram, so the `stream` histogram still measures assistant streams only. The advisor's `GenerateAssistant` call sets `ModelCallStage`, so it records a `model_call` span under the advisor tool span instead of `stream`.
+
+The span name follows the operation, so every stage span carries a `stage` attribute with its stage name, the same value as the histogram's `stage` label. Read the stage from that attribute, not from the span name. The pre-existing attributes (`chat_id`, `provider`, `model`, `tool_name`, ...) stay on the spans.
+
+`withStageIdentity` also puts a `chatloop.ChatIdentity` on the context, built from the chat row: the chat, owner, organization, workspace, parent chat, and root chat IDs. The three GenAI spans record it as `gen_ai.conversation.id`, `user.id`, and `coder.*` attributes, so each model call can be attributed to a user without joining other data. A turn takes the identity when it opens, so a workspace the turn creates appears on spans from the next turn. A failed stage span also records `error.type`, the classified error kind.
 
 ### Event shape
 
@@ -1233,8 +1246,6 @@ Subagent model and effort resolution follows this precedence:
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
-`applyReasoningEffort` clamps `none` and `minimal` to `low` for GPT-6 Astra and its dated snapshots (`chatopenai.IsGPT6Astra`, a case-insensitive prefix match on `gpt-6-astra`), because that model rejects `none` with HTTP 400 and lists no `minimal` effort.
-
 ##### OpenAI transport selection
 
 OpenAI models speak either the Responses API or Chat Completions. The provider SDK picks per model from a static known-model list, so a newly released model absent from that list falls back to Chat Completions. Model configs may override the choice with `openai_config.use_responses_api` inside `chat_model_configs.options`: unset keeps the known-model list, true forces Responses, false forces Chat Completions. It sits in `openai_config` rather than `provider_options.openai` because it is applied once when the client is built, while `provider_options` holds per-request parameters.
@@ -1247,7 +1258,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 - Provider option conversion chooses between the Responses and Chat Completions option structs. The SDK type-asserts the concrete struct, so a mismatch discards every OpenAI provider option rather than failing.
 - Reasoning effort injection creates those option structs when a config has no OpenAI options of its own.
-- File part conversion (`Model.AcceptsFilePartMediaType`) gates attachments, because the Responses API natively accepts only images and PDFs. A mismatch here drops text attachments.
+- File part conversion (`Model.AcceptsFilePartMediaType`) gates user attachments and tool-result media, because the Responses API natively accepts only images and PDFs. A mismatch here loses audio, the only media type that the two transports treat differently.
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
@@ -1305,7 +1316,7 @@ Details that follow from the override:
   Failure to read the override row or load provider credentials stops preparation.
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
-- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
+- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts and tool-result media the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine
@@ -1394,8 +1405,10 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
-- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the ID of the edited message. The edit deleted that message and every message after it, so the client deletes its messages with that ID or higher. On other streams, the `message` events that follow replace the whole history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
+
+On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
 ## Endpoint lifecycle
 
@@ -1411,6 +1424,8 @@ When a client connects, the endpoint:
     - updating local state;
 
 When the endpoint exits, it deregisters from the sync poller, unsubscribes from pubsub, stops the stream loop, stops the relay forwarder, and closes request resources.
+
+If the pubsub subscription or the initial database fetch fails, the endpoint responds with 500 instead of upgrading the connection.
 
 ## Local stream state
 
@@ -1442,6 +1457,8 @@ Initial null state:
 - action-required cursor is `0`;
 - preview part sequence is `0`;
 - `attempt_retired` is false;
+
+When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync sends the messages and the queue that last changed at that version or later. The stream then ignores `after_id`.
 
 ## Stream loop operations
 
@@ -1481,7 +1498,7 @@ The loop processes one operation at a time. It must not process another input ha
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
-The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
+The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except the messages and the queue that last changed before the version in the client's `snapshot_version` parameter.
 
 Applying the database result means, in deterministic order:
 
@@ -1495,6 +1512,8 @@ Applying the database result means, in deterministic order:
 8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+
+On a stream opened with `snapshot_version`, the events of steps 1 and 2 are sorted by `snapshot_version` before step 3. Within one version, `history_reset` comes first, then `message` events by ID, then `queue_update`.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1560,11 +1579,17 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
 
+On a stream opened with `snapshot_version`, the stream does not fetch or resend the full history. Instead:
+
+1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`.
+2. Emit `message` events for the rows that are not soft-deleted.
+
 TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
-Required invariant:
+Required invariants:
 
 - every client-visible message-history change advances the changed row revision and chat `history_version`.
+- only an edit soft-deletes messages, it soft-deletes the edited message and every later one, and a soft-deleted row keeps the revision of that edit.
 
 ### Queue synchronization
 
