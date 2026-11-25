@@ -473,10 +473,12 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// GetProvisionerKey returns the provisioner key.
+// GetProvisionerKey returns the provisioner key. The key is authenticated by
+// the header only; the path segment is a fixed placeholder (the server ignores
+// it) so the secret never appears in URLs or request logs.
 func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/provisionerkeys/%s", pk), nil,
+		"/api/v2/provisionerkeys/me", nil,
 		func(req *http.Request) {
 			req.Header.Add(ProvisionerDaemonKey, pk)
 		},
