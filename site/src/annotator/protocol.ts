@@ -90,8 +90,8 @@ function hasMessageType(value: unknown): value is { type: string } {
 	);
 }
 
-// The overlay sends one annotation per save; a handful is plenty of slack.
-const maxAnnotations = 5;
+/** Maximum annotations accepted in one dashboard submission. */
+export const maxAnnotations = 5;
 const maxCommentLength = 2000;
 // Cap on every other string field. Exported so the overlay can trim what
 // it reads from the page before posting, rather than cloning an

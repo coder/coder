@@ -1,0 +1,26 @@
+# Coder.Semicolons - ban the semicolon in prose, so two related thoughts become
+# two sentences or one sentence with a connecting word.
+#
+# The scope list covers paragraphs, list items, headings, and blockquotes. It
+# leaves out table cells, where space is tight. Code spans and fenced code
+# blocks never reach a prose scope. A `&nbsp;` entity and an HTML `style`
+# attribute don't match. Vale can report a match on the wrong line of a
+# paragraph that holds an entity or raw HTML, so look for the real semicolon
+# in the whole paragraph.
+#
+# `TL;DR` is an abbreviation, not punctuation, so the lookarounds skip it.
+#
+# Level: warning. The ban is a style choice with rare legitimate uses, such as
+# a list whose items already contain commas.
+extends: existence
+message: "Avoid the semicolon in '%s'. Refer to capitalization-and-punctuation.md#no-semicolons-in-prose."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/capitalization-and-punctuation.md#no-semicolons-in-prose
+level: warning
+scope:
+  - paragraph
+  - list
+  - heading
+  - blockquote
+nonword: true
+tokens:
+  - '(?<!TL);(?!DR)'

@@ -596,6 +596,75 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, json.Unmarshal(job.Input, &metadata))
 		require.Equal(t, metadata.PrebuiltWorkspaceBuildStage, proto.PrebuiltWorkspaceBuildStage_CLAIM)
 	})
+
+	// A prebuild's secrets belong to the prebuilds system user and must not
+	// carry forward to the claimant. Secrets the claimant sends still apply.
+	t.Run("ClaimPrebuildSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspacePrebuilds: 1,
+				},
+			},
+		})
+
+		presetID := uuid.New()
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Preset(database.TemplateVersionPreset{
+			ID: presetID,
+		}).Do()
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  presetID,
+				Valid: true,
+			},
+		}).WithAgent().Do()
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      r.Workspace.ID,
+			WorkspaceBuildID: r.Build.ID,
+			Name:             "prebuild-token",
+			EnvName:          "PREBUILD_TOKEN",
+		})
+
+		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+		agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
+		require.NoError(t, err)
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.WorkspaceAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+		require.NoError(t, err)
+
+		claimed, err := client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:       tv.TemplateVersion.ID,
+			TemplateVersionPresetID: presetID,
+			Name:                    "claimed-workspace",
+			Secrets: []codersdk.WorkspaceSecretInput{
+				{Name: "my-token", Value: ptr.Ref("mine"), EnvName: "MY_TOKEN"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, r.Workspace.ID, claimed.ID, "the prebuild was claimed")
+
+		//nolint:gocritic // Only the workspace secret manager reads values.
+		secrets, err := db.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), claimed.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1, "only the claimant's secret is on the claim build")
+		require.Equal(t, "my-token", secrets[0].Name)
+		require.Equal(t, database.WorkspaceSecretSourceRequest, secrets[0].Source)
+	})
 }
 
 func TestWorkspaceAutobuild(t *testing.T) {
@@ -3133,6 +3202,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		10,
 		nil,
 	)
+	go reconciler.Run(ctx)
+	t.Cleanup(func() {
+		reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
+	})
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 

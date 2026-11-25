@@ -497,14 +497,16 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					Scripts: []*proto.Script{
 						{
-							DisplayName: "Foobar Script 1",
-							Script:      "echo foobar 1",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 1",
+							Script:          "echo foobar 1",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script1",
 						},
 						{
-							DisplayName: "Foobar Script 2",
-							Script:      "echo foobar 2",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 2",
+							Script:          "echo foobar 2",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script2",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -522,9 +524,10 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					Scripts: []*proto.Script{
 						{
-							DisplayName: "Foobar Script 3",
-							Script:      "echo foobar 3",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 3",
+							Script:          "echo foobar 3",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script3",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -1006,10 +1009,11 @@ func TestConvertResources(t *testing.T) {
 								},
 								Scripts: []*proto.Script{
 									{
-										DisplayName: "Devcontainer Script",
-										Script:      "echo devcontainer",
-										RunOnStart:  true,
-										RunOnStop:   false,
+										DisplayName:     "Devcontainer Script",
+										Script:          "echo devcontainer",
+										RunOnStart:      true,
+										RunOnStop:       false,
+										ResourceAddress: "coder_script.devcontainer-script",
 									},
 								},
 								Envs: []*proto.Env{
@@ -1228,6 +1232,36 @@ func TestConvertResources(t *testing.T) {
 				require.ElementsMatch(t, expected.Presets, state.Presets)
 			})
 		})
+	}
+}
+
+func TestConvertState_LegacyInlineScriptsHaveNoAddress(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-agents")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	require.NoError(t, json.Unmarshal(tfPlanRaw, &tfPlan))
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.dot"))
+	require.NoError(t, err)
+
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+	require.NoError(t, err)
+
+	var scripts []*proto.Script
+	for _, resource := range state.Resources {
+		for _, agent := range resource.Agents {
+			scripts = append(scripts, agent.Scripts...)
+		}
+	}
+	require.NotEmpty(t, scripts)
+	for _, script := range scripts {
+		require.Empty(t, script.ResourceAddress, "script %q", script.DisplayName)
+		require.Empty(t, script.Dependencies, "script %q", script.DisplayName)
 	}
 }
 

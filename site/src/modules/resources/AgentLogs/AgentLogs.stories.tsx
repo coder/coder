@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, within } from "storybook/test";
 import type { Line } from "#/components/Logs/LogLine";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
@@ -22,6 +23,15 @@ export default meta;
 type Story = StoryObj<typeof AgentLogs>;
 
 export const Default: Story = {};
+
+export const SourceIconFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getAllByRole("button", { name: "Coder Login" })[0]
+			.focus();
+		await screen.findByRole("tooltip");
+	},
+};
 
 export const Overflowed: Story = {
 	args: {

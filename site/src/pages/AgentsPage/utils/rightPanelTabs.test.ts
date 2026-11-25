@@ -366,13 +366,6 @@ describe("singleton right-panel tab storage", () => {
 
 		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
 	});
-
-	it("ignores undefined chat IDs", () => {
-		savePersistedVisibleSingletonTabs(undefined, ["browser"]);
-
-		expect(getPersistedVisibleSingletonTabs(undefined)).toEqual([]);
-		expect(localStorage.length).toBe(0);
-	});
 });
 
 describe("default terminal hidden storage", () => {
@@ -393,13 +386,6 @@ describe("default terminal hidden storage", () => {
 		savePersistedDefaultTerminalHidden("chat-1", false);
 
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
-		expect(localStorage.length).toBe(0);
-	});
-
-	it("ignores undefined chat IDs", () => {
-		savePersistedDefaultTerminalHidden(undefined, true);
-
-		expect(getPersistedDefaultTerminalHidden(undefined)).toBe(false);
 		expect(localStorage.length).toBe(0);
 	});
 

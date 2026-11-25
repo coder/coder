@@ -72,7 +72,7 @@ OPTIONS:
           Specify a template name.
 
       --template-version string, $CODER_TEMPLATE_VERSION
-          Specify a template version name.
+          Specify a template version name or ID.
 
       --use-parameter-defaults bool, $CODER_WORKSPACE_USE_PARAMETER_DEFAULTS
           Automatically accept parameter defaults when no value is provided.

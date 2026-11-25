@@ -43,6 +43,20 @@ export enum AppSharingLevel {
   UNRECOGNIZED = -1,
 }
 
+/**
+ * ScriptDependencyRequirement is the outcome a prerequisite must reach
+ * before the dependent may run. It mirrors the `requires` attribute of
+ * coder_script_order. The provisioner never emits UNSPECIFIED.
+ */
+export enum ScriptDependencyRequirement {
+  SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED = 0,
+  /** SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS - The prerequisite must exit successfully. */
+  SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS = 1,
+  /** SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION - The prerequisite must finish with any result other than canceled. */
+  SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION = 2,
+  UNRECOGNIZED = -1,
+}
+
 export enum AppOpenIn {
   /** @deprecated */
   WINDOW = 0,
@@ -306,6 +320,31 @@ export interface Script {
   runOnStop: boolean;
   timeoutSeconds: number;
   logPath: string;
+  /**
+   * Terraform address of the coder_script resource, such as
+   * "module.git_clone.coder_script.clone". Empty for legacy agent
+   * startup and shutdown scripts.
+   */
+  resourceAddress: string;
+  /**
+   * Direct prerequisites from coder_script_order rules, sorted by
+   * prerequisite_resource_address. Empty when the script has no prerequisites.
+   */
+  dependencies: ScriptDependency[];
+}
+
+/**
+ * ScriptDependency names one prerequisite script and the outcome required
+ * from it.
+ */
+export interface ScriptDependency {
+  /**
+   * Full Terraform address of the prerequisite script, equal to that
+   * script's resource_address, such as
+   * "module.git_clone.coder_script.clone". Never module-relative.
+   */
+  prerequisiteResourceAddress: string;
+  requirement: ScriptDependencyRequirement;
 }
 
 export interface Devcontainer {
@@ -1071,6 +1110,24 @@ export const Script = {
     }
     if (message.logPath !== "") {
       writer.uint32(74).string(message.logPath);
+    }
+    if (message.resourceAddress !== "") {
+      writer.uint32(82).string(message.resourceAddress);
+    }
+    for (const v of message.dependencies) {
+      ScriptDependency.encode(v!, writer.uint32(90).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const ScriptDependency = {
+  encode(message: ScriptDependency, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.prerequisiteResourceAddress !== "") {
+      writer.uint32(10).string(message.prerequisiteResourceAddress);
+    }
+    if (message.requirement !== 0) {
+      writer.uint32(16).int32(message.requirement);
     }
     return writer;
   },

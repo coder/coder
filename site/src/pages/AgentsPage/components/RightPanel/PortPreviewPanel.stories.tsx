@@ -1,8 +1,7 @@
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import { ComposerContext } from "../../context/ComposerContext";
 import {
 	type TabPopoutMessage,
 	tabPopoutChannelName,
@@ -68,12 +67,6 @@ export const InvalidWildcardHost: Story = {
 	parameters: { pixel: { exclude: false } },
 };
 
-const withComposer: Decorator = (Story) => (
-	<ComposerContext value={{ send: () => Promise.resolve("sent") }}>
-		<Story />
-	</ComposerContext>
-);
-
 // What the overlay inside the preview would post to the dashboard.
 function postFromPreview(
 	canvasElement: HTMLElement,
@@ -91,13 +84,11 @@ function postFromPreview(
 }
 
 export const CanAnnotate: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 };
 
 export const AnnotateLoading: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -112,8 +103,7 @@ export const AnnotateLoading: Story = {
 };
 
 export const AnnotatePicking: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -128,8 +118,11 @@ export const AnnotatePicking: Story = {
 };
 
 export const AnnotateUnavailable: Story = {
-	args: { canAnnotate: true, annotatorReadyTimeoutMs: 0 },
-	decorators: [withComposer],
+	args: {
+		canAnnotate: true,
+		annotatorReadyTimeoutMs: 0,
+		onSendToolMessage: async () => "sent",
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -139,22 +132,13 @@ export const AnnotateUnavailable: Story = {
 			.getByTitle<HTMLIFrameElement>("Preview :3000")
 			.dispatchEvent(new Event("load"));
 		await new Promise((resolve) => setTimeout(resolve, 50));
-		// The disabled button has pointer-events: none; its wrapper span is
-		// the tooltip trigger.
-		const wrapper = canvas.getByRole("button", {
-			name: "Annotate elements",
-		}).parentElement;
-		if (wrapper) {
-			await userEvent.hover(wrapper);
-		}
 	},
 };
 
 // The chat page steps aside while the tab is shown in its own window; the
 // window announces itself over the tab's channel.
 export const PoppedOut: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const channel = new BroadcastChannel(tabPopoutChannelName(previewTab.id));
@@ -168,6 +152,9 @@ export const PoppedOut: Story = {
 // The same panel as rendered by the tab's own window: annotate mode is on
 // from the start and the app can be opened directly instead of popped out.
 export const InPopoutWindow: Story = {
-	args: { canAnnotate: true, isPopoutWindow: true },
-	decorators: [withComposer],
+	args: {
+		canAnnotate: true,
+		isPopoutWindow: true,
+		onSendToolMessage: async () => "sent",
+	},
 };

@@ -104,9 +104,7 @@ export const NotEntitled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Disabled/,
-			}),
+			canvas.getByRole("heading", { name: "Browser-Only Connections" }),
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /Start trial for free/ }),

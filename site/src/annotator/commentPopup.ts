@@ -1,52 +1,29 @@
 import { el } from "./dom";
 import { elementLabel } from "./elementLabel";
 import { plusIcon, sendIcon } from "./icons";
+import { maxAnnotations } from "./protocol";
 
 type CommentPopupOptions = {
 	target: Element;
 	// Comments already held back, which the next plain Send includes.
 	heldCount: number;
-	// `hold` is Shift+Send: keep the comment and pick more first.
-	onSubmit(comment: string, hold: boolean): void;
+	// `hold` is Shift+Send. Returns false when the batch cannot hold more.
+	onSubmit(comment: string, hold: boolean): boolean;
 	onCancel(): void;
 };
 
+/** Controls a comment dialog mounted in the overlay's shadow root. */
 export type CommentPopup = {
 	element: HTMLDivElement;
 	focus(): void;
+	reposition(): void;
 };
 
-const popupWidth = 384;
-// Tall enough for the title, three rows and the actions; the popup flips
-// above the target when this would not fit below it.
-const popupHeight = 220;
 const popupGap = 8;
 
 /**
- * Where to put the popup so it sits just below the target, or above it
- * when there is no room, and stays inside the viewport horizontally.
- */
-export function popupPosition(
-	target: DOMRect,
-	viewport: Pick<Window, "innerWidth" | "innerHeight">,
-): { left: number; top: number } {
-	const left = Math.max(
-		popupGap,
-		Math.min(target.left, viewport.innerWidth - popupWidth - popupGap),
-	);
-	const below = target.bottom + popupGap;
-	const fitsBelow = below + popupHeight <= viewport.innerHeight;
-	const top = fitsBelow
-		? below
-		: Math.max(popupGap, target.top - popupHeight - popupGap);
-	return { left, top };
-}
-
-/**
- * The comment box for a picked element: a title naming the element, a
- * textarea, Cancel and Send. Enter sends, Shift+Enter makes a new line,
- * Shift+Send holds the comment for a later Send and an empty comment
- * cannot be sent. Positioned for the caller to append into the overlay.
+ * Creates a non-modal comment dialog. Append it before repositioning so
+ * placement uses its rendered size rather than an assumed viewport or font.
  */
 export function createCommentPopup(
 	win: Window,
@@ -55,10 +32,10 @@ export function createCommentPopup(
 	const doc = win.document;
 	const element = el(doc, "div", "popup", {
 		role: "dialog",
-		"aria-label": "Annotate element",
+		"aria-labelledby": "comment-title",
 	});
 
-	const title = el(doc, "div", "popup-title");
+	const title = el(doc, "div", "popup-title", { id: "comment-title" });
 	title.textContent = "Comment";
 	const targetName = el(doc, "span", "popup-target");
 	targetName.textContent = `(${elementLabel(options.target)})`;
@@ -74,10 +51,22 @@ export function createCommentPopup(
 	cancel.textContent = "Cancel";
 	cancel.addEventListener("click", options.onCancel);
 
+	const limitMessage = `Up to ${maxAnnotations} comments per send. Send without Shift to submit this batch.`;
+	const limit = el(doc, "div", "popup-limit", {
+		id: "comment-limit",
+		role: "status",
+	});
+	const atLimit = options.heldCount >= maxAnnotations - 1;
+	if (atLimit) {
+		limit.textContent = limitMessage;
+	}
 	const send = el(doc, "button", "button", {
 		type: "button",
 		disabled: "",
-		"data-tip": "Shift+click to hold this comment and pick more",
+		"aria-describedby": "comment-limit",
+		"data-tip": atLimit
+			? limitMessage
+			: "Shift+click to hold this comment and pick more",
 	});
 	const setSendLabel = (hold: boolean) => {
 		send.innerHTML = hold ? plusIcon : sendIcon;
@@ -92,7 +81,10 @@ export function createCommentPopup(
 			textarea.focus();
 			return;
 		}
-		options.onSubmit(comment, hold);
+		if (!options.onSubmit(comment, hold)) {
+			limit.textContent = limitMessage;
+			textarea.focus({ preventScroll: true });
+		}
 	};
 	send.addEventListener("click", (event) => submit(event.shiftKey));
 	textarea.addEventListener("input", () => {
@@ -111,14 +103,31 @@ export function createCommentPopup(
 
 	const actions = el(doc, "div", "popup-actions");
 	actions.append(cancel, send);
-	element.append(title, textarea, actions);
+	element.append(title, textarea, limit, actions);
 
-	const { left, top } = popupPosition(
-		options.target.getBoundingClientRect(),
-		win,
-	);
-	element.style.left = `${left}px`;
-	element.style.top = `${top}px`;
-
-	return { element, focus: () => textarea.focus() };
+	return {
+		element,
+		focus: () => textarea.focus({ preventScroll: true }),
+		reposition: () => {
+			const target = options.target.getBoundingClientRect();
+			const { width, height } = element.getBoundingClientRect();
+			const left = Math.max(
+				popupGap,
+				Math.min(target.left, win.innerWidth - width - popupGap),
+			);
+			const below = target.bottom + popupGap;
+			const top =
+				below + height <= win.innerHeight - popupGap
+					? below
+					: Math.max(
+							popupGap,
+							Math.min(
+								target.top - height - popupGap,
+								win.innerHeight - height - popupGap,
+							),
+						);
+			element.style.left = `${left}px`;
+			element.style.top = `${top}px`;
+		},
+	};
 }

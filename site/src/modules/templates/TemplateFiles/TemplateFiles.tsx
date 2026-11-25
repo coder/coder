@@ -126,18 +126,10 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 										</div>
 									</header>
 									<SyntaxHighlighter
+										filename={filename}
 										language={getLanguage(filename)}
 										value={info.value}
 										compareWith={info.previousValue}
-										editorProps={{
-											// 18 is the editor line height
-											height: Math.min(numberOfLines(info.value) * 18, 560),
-											onMount: (editor) => {
-												editor.updateOptions({
-													scrollBeyondLastLine: false,
-												});
-											},
-										}}
 									/>
 								</div>
 							);
@@ -148,27 +140,11 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 	);
 };
 
-const languageByExtension: Record<string, string> = {
-	tf: "hcl",
-	hcl: "hcl",
-	md: "markdown",
-	mkd: "markdown",
-	sh: "shell",
-	tpl: "tpl",
-	protobuf: "protobuf",
-	nix: "dockerfile",
-	json: "json",
-};
-
+// Everything else is inferred from the file extension by the highlighter.
 const getLanguage = (filename: string) => {
 	// Dockerfile can be like images/Dockerfile or Dockerfile.java
 	if (filename.includes("Dockerfile")) {
 		return "dockerfile";
 	}
-	const extension = filename.split(".").pop();
-	return languageByExtension[extension ?? ""];
-};
-
-const numberOfLines = (content: string) => {
-	return content.split("\n").length;
+	return undefined;
 };

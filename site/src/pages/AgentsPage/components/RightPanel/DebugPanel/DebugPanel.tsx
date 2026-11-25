@@ -7,7 +7,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatDebugRun,
@@ -19,6 +18,8 @@ import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
+import { useTabPanelState } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugRunList } from "./DebugRunList";
 import {
 	buildChatDebugExport,
@@ -30,7 +31,6 @@ import {
 
 type DebugPanelProps = {
 	chatId: string;
-	isVisible?: boolean;
 	download?: DownloadDebugFile;
 };
 
@@ -100,9 +100,11 @@ const fetchDebugRunDetailsForExport = async (
 
 export const DebugPanel: React.FC<DebugPanelProps> = ({
 	chatId,
-	isVisible = false,
 	download = saveAs,
 }) => {
+	const { isActive, isPanelOpen } = useTabPanelState();
+	const isVisible = isPanelOpen && isActive;
+
 	const runsQuery = useQuery({
 		...chatDebugRuns(chatId),
 		enabled: isVisible,

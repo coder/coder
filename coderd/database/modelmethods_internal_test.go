@@ -1,9 +1,11 @@
 package database
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -182,6 +184,78 @@ func TestChatACLDisabled(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestChatProjectRBACObjects(t *testing.T) {
+	readUser, updateUser, wildcardUser, noReadUser, updateOnlyUser := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	readGroup, updateGroup := uuid.NewString(), uuid.NewString()
+	project := ChatProject{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: ChatACL{
+			readUser:       {Permissions: []policy.Action{policy.ActionRead}},
+			updateUser:     {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}},
+			wildcardUser:   {Permissions: []policy.Action{policy.WildcardSymbol}},
+			noReadUser:     {Permissions: []policy.Action{policy.ActionShare}},
+			updateOnlyUser: {Permissions: []policy.Action{policy.ActionUpdate}},
+		},
+		GroupACL: ChatACL{
+			readGroup:   {Permissions: []policy.Action{policy.ActionRead}},
+			updateGroup: {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}},
+		},
+	}
+	readWrite := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
+
+	t.Run("Enabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+
+		obj := project.RBACObject()
+		require.Equal(t, project.UserACL.RBACACL(), obj.ACLUserList)
+		require.Equal(t, project.GroupACL.RBACACL(), obj.ACLGroupList)
+
+		memory := ChatProjectMemoryRBACObject(project)
+		require.Equal(t, map[string][]policy.Action{
+			readUser:     readWrite,
+			updateUser:   readWrite,
+			wildcardUser: readWrite,
+		}, memory.ACLUserList)
+		require.Equal(t, map[string][]policy.Action{
+			readGroup:   readWrite,
+			updateGroup: readWrite,
+		}, memory.ACLGroupList)
+
+		memoryID := uuid.New()
+		withID := ChatProjectMemory{ID: memoryID}.RBACObject(project)
+		require.Equal(t, memoryID.String(), withID.ID)
+		require.Equal(t, memory.ACLUserList, withID.ACLUserList)
+
+		auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+		orgRole := rbac.Role{
+			Identifier: rbac.ScopedRoleOrgMember(project.OrganizationID),
+			ByOrgID:    map[string]rbac.OrgPermissions{project.OrganizationID.String(): {}},
+		}
+		subject := rbac.Subject{ID: readUser, Roles: rbac.Roles{orgRole}, Scope: rbac.ScopeAll}
+		ctx := context.Background()
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, obj))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, memory))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionCreate, memory))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionDelete, withID))
+		require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(true)
+		t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+		obj := project.RBACObject()
+		require.Empty(t, obj.ACLUserList)
+		require.Empty(t, obj.ACLGroupList)
+		memory := ChatProjectMemoryRBACObject(project)
+		require.Empty(t, memory.ACLUserList)
+		require.Empty(t, memory.ACLGroupList)
+	})
+}
+
 //nolint:tparallel,paralleltest
 func TestWorkspaceACLDisabled(t *testing.T) {
 	uid := uuid.NewString()
@@ -269,4 +343,49 @@ func requireAllowAll(t *testing.T, s rbac.Scope) {
 	require.Len(t, s.AllowIDList, 1)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].ID)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].Type)
+}
+
+func TestSkillRBACObjectProjectRowsDenied(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	skill := Skill{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	for name, roles := range map[string]rbac.RoleIdentifiers{
+		"SiteOwner": {rbac.RoleOwner(), rbac.RoleMember()},
+		"OrgAdmin":  {rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)},
+		"Member":    {rbac.RoleMember(), rbac.ScopedRoleAgentsAccess(orgID)},
+	} {
+		subject := rbac.Subject{ID: uuid.NewString(), Roles: roles, Scope: rbac.ScopeAll}
+		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+			err := authz.Authorize(context.Background(), subject, action, skill.RBACObject())
+			require.Error(t, err, "%s %s", name, action)
+		}
+	}
+}
+
+func TestSkillRBACObjectOrganizationACL(t *testing.T) {
+	t.Parallel()
+
+	orgID, groupID, userID := uuid.New(), uuid.New(), uuid.New()
+	read := ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	for name, tc := range map[string]struct {
+		skill  Skill
+		groups []string
+	}{
+		"UserGrant":  {skill: Skill{UserACL: ChatACL{userID.String(): read}}},
+		"GroupGrant": {skill: Skill{GroupACL: ChatACL{groupID.String(): read}}, groups: []string{groupID.String()}},
+	} {
+		tc.skill.ID = uuid.New()
+		tc.skill.OrganizationID = uuid.NullUUID{UUID: orgID, Valid: true}
+		subject := rbac.Subject{
+			ID:     userID.String(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleAgentsAccess(orgID)},
+			Groups: tc.groups,
+			Scope:  rbac.ScopeAll,
+		}
+		require.NoError(t, authz.Authorize(context.Background(), subject, policy.ActionRead, tc.skill.RBACObject()), name)
+		require.Error(t, authz.Authorize(context.Background(), subject, policy.ActionUpdate, tc.skill.RBACObject()), name)
+	}
 }

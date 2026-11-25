@@ -11,7 +11,6 @@ import {
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { toast } from "sonner";
 import { ParameterValidationError } from "#/api/api";
 import {
 	type ApiError,
@@ -33,6 +32,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
@@ -120,8 +120,10 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
 	const [open, setOpen] = useState(false);
 	useEffect(() => {
-		setOpen((open) => (disabled ? false : open));
-	});
+		if (disabled) {
+			setOpen(false);
+		}
+	}, [disabled]);
 
 	return (
 		<>

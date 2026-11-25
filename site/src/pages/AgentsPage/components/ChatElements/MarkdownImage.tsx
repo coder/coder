@@ -30,7 +30,7 @@ export const MarkdownImage = ({ src, alt }: { src?: string; alt?: string }) => {
 	// placeholder without a load affordance.
 	if (!host) {
 		return (
-			<span className="inline-flex items-center gap-1.5 rounded-md border border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+			<span className="inline-flex items-center gap-1.5 rounded-md border border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
 				<ImageIcon aria-hidden className="size-3.5 shrink-0" />
 				Blocked image{alt ? `: ${alt}` : ""}
 			</span>
@@ -44,7 +44,7 @@ export const MarkdownImage = ({ src, alt }: { src?: string; alt?: string }) => {
 			aria-label={`Load external image from ${host}`}
 			className={cn(
 				"inline-flex max-w-full cursor-pointer items-center gap-1.5",
-				"rounded-md border border-solid border-border-default bg-surface-secondary",
+				"rounded-md border border-solid border-border bg-surface-secondary",
 				"px-2 py-1 text-xs text-content-secondary",
 				"hover:bg-surface-tertiary hover:text-content-primary",
 			)}

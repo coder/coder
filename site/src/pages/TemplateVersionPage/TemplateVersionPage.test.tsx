@@ -7,6 +7,12 @@ import * as CreateDayString from "#/utils/createDayString";
 import * as templateVersionUtils from "#/utils/templateVersion";
 import TemplateVersionPage from "./TemplateVersionPage";
 
+// jsdom's stylesheet parser throws on the highlighter's shadow-DOM styles, and
+// the highlighting itself is not under test here.
+vi.mock("#/components/SyntaxHighlighter/SyntaxHighlighter", () => ({
+	SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
+}));
+
 const TEMPLATE_NAME = "coder-ts";
 const VERSION_NAME = "12345";
 const TERRAFORM_FILENAME = "main.tf";

@@ -52,6 +52,7 @@ export type ConfirmDialogProps = {
 	 * Defaults to shown for "delete", hidden for "info"/"success".
 	 */
 	readonly hideCancel?: boolean;
+	readonly onOpenAutoFocus?: (event: Event) => void;
 	/**
 	 * Forwarded to Radix. This dialog renders no `DialogTrigger`, so Radix has
 	 * nothing to return focus to on close and it lands on `<body>`. Callers that
@@ -72,6 +73,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 	disabled = false,
 	hideCancel,
 	onClose,
+	onOpenAutoFocus,
 	onCloseAutoFocus,
 	onConfirm,
 	open = false,
@@ -95,6 +97,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
+				onOpenAutoFocus={onOpenAutoFocus}
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogHeader>

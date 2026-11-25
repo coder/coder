@@ -220,3 +220,20 @@ it.each([
 		);
 	},
 );
+
+it.each([
+	{ type: "azure", labels: [/^API key/i] },
+	{ type: "bedrock", labels: [/^Access key$/i, /^Access key secret/i] },
+] as const)(
+	"sets autofill ignore attributes on $type credentials",
+	({ type, labels }) => {
+		render(<ProviderForm initialValues={{ type }} />);
+		for (const label of labels) {
+			const input = screen.getByLabelText(label);
+			expect(input).toHaveAttribute("autocomplete", "off");
+			expect(input).toHaveAttribute("data-1p-ignore", "true");
+			expect(input).toHaveAttribute("data-lpignore", "true");
+			expect(input).toHaveAttribute("data-bwignore", "true");
+		}
+	},
+);

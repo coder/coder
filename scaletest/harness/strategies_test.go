@@ -176,7 +176,6 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
 	runs, fns := strategyTestData(100000, func(_ context.Context, i int, _ io.Writer) error {
-		// t.Logf("run %d", i)
 		return nil
 	})
 	strategy := harness.ShuffleExecutionStrategyWrapper{

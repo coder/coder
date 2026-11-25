@@ -4,7 +4,7 @@ title: Install your own command-line tools
 
 Now that you [launched your first workspace](../index.md), you can add your favorite command-line tools to every workspace.
 
-The Quickstart template installs system languages through the **Programming Languages** parameter, but it doesn't carry the small command-line tools you may often use, such as [`bat`](https://github.com/sharkdp/bat) or [`ripgrep`](https://github.com/BurntSushi/ripgrep).
+The Quickstart template installs system languages through the **Programming Languages** parameter, but it doesn't carry the small command-line tools you often use, such as [`bat`](https://github.com/sharkdp/bat) or [`ripgrep`](https://github.com/BurntSushi/ripgrep).
 You can install those yourself with a package manager like [Homebrew](https://brew.sh/) or [mise](https://mise.jdx.dev/).
 
 In this guide, you install both Homebrew and mise, install a tool with each, and learn which installs survive a workspace restart and why.
@@ -83,7 +83,7 @@ mise --version
 ```
 
 > [!NOTE]
-> If you manage `~/.bashrc` with [dotfiles](../../user-guides/workspace-dotfiles.md), add the `brew shellenv` and `mise activate` lines to the `.bashrc` in your dotfiles repository instead, so applying your dotfiles doesn't overwrite them.
+> If you manage `~/.bashrc` with [dotfiles](../../workspaces/workspace-dotfiles.md), add the `brew shellenv` and `mise activate` lines to the `.bashrc` in your dotfiles repository instead, so applying your dotfiles doesn't overwrite them.
 
 ## Step 2: Install a tool with each manager
 
@@ -381,13 +381,12 @@ To keep a tool, choose the approach that matches who needs it:
 
 - For a tool that's yours alone, install it with mise.
   It persists through restarts with no template change.
-- To keep your Homebrew tools, mount `/home/linuxbrew` on a persistent volume, as you did in Step 4.
-  This is a template change, so it affects everyone who uses the template.
+- To keep your Homebrew tools, mount `/home/linuxbrew` on a persistent volume, as you did in Step 4. This is a template change, so it affects everyone who uses the template.
 - To preinstall a tool in every new workspace, add it to the template's startup script, as you did in Step 5 with mise.
   You can also install system packages with `apt-get`, as in [Add a programming language](./add-a-language.md), or bake the tool into the workspace image.
 
 The rule underneath all of these: a tool persists when it lives in a part of the workspace that persists.
-Refer to [Resource persistence](../../admin/templates/extending-templates/resource-persistence.md) for how Coder decides what survives a restart.
+Refer to [Resource persistence](../../templates/extending-templates/resource-persistence.md) for how Coder decides what survives a restart.
 
 ## Final code
 
@@ -885,5 +884,5 @@ Now that you can install your own tools, [clone private repositories](./authenti
 
 - [Homebrew documentation](https://brew.sh/) for the package manager
 - [mise documentation](https://mise.jdx.dev/) for the version manager
-- [Resource persistence](../../admin/templates/extending-templates/resource-persistence.md) in the Coder documentation
-- [Dotfiles](../../user-guides/workspace-dotfiles.md) in the Coder documentation
+- [Resource persistence](../../templates/extending-templates/resource-persistence.md) in the Coder documentation
+- [Dotfiles](../../workspaces/workspace-dotfiles.md) in the Coder documentation

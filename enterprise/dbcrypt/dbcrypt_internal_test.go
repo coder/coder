@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -1118,23 +1119,24 @@ func TestMCPServerConfigs(t *testing.T) {
 			newSigningSecret = "updated-signing-secret"
 		)
 		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-			ID:                 cfg.ID,
-			DisplayName:        cfg.DisplayName,
-			Slug:               cfg.Slug,
-			Description:        cfg.Description,
-			Url:                cfg.Url,
-			Transport:          cfg.Transport,
-			AuthType:           cfg.AuthType,
-			OAuth2ClientID:     cfg.OAuth2ClientID,
-			OAuth2ClientSecret: newSecret,
-			APIKeyValue:        newAPIKey,
-			CustomHeaders:      newHeaders,
-			SigningSecret:      newSigningSecret,
-			ToolAllowList:      cfg.ToolAllowList,
-			ToolDenyList:       cfg.ToolDenyList,
-			Availability:       cfg.Availability,
-			Enabled:            cfg.Enabled,
-			UpdatedBy:          cfg.CreatedBy.UUID,
+			ID:                       cfg.ID,
+			DisplayName:              cfg.DisplayName,
+			Slug:                     cfg.Slug,
+			Description:              cfg.Description,
+			Url:                      cfg.Url,
+			Transport:                cfg.Transport,
+			AuthType:                 cfg.AuthType,
+			OAuth2ClientID:           cfg.OAuth2ClientID,
+			OAuth2ClientSecret:       newSecret,
+			OAuth2ClientRegistration: cfg.OAuth2ClientRegistration,
+			APIKeyValue:              newAPIKey,
+			CustomHeaders:            newHeaders,
+			SigningSecret:            newSigningSecret,
+			ToolAllowList:            cfg.ToolAllowList,
+			ToolDenyList:             cfg.ToolDenyList,
+			Availability:             cfg.Availability,
+			Enabled:                  cfg.Enabled,
+			UpdatedBy:                cfg.CreatedBy.UUID,
 		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
@@ -2324,5 +2326,68 @@ func TestGitSSHKey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, initialPrivate, rawKey.PrivateKey)
 		require.False(t, rawKey.PrivateKeyKeyID.Valid)
+	})
+}
+
+func TestWorkspaceSecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	//nolint:gosec // test credentials
+	const value = "super-secret-value"
+
+	seedBuild := func(t *testing.T, db database.Store) dbfake.WorkspaceResponse {
+		t.Helper()
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			OwnerID:        dbgen.User(t, db, database.User{}).ID,
+		}).Do()
+	}
+
+	t.Run("InsertEncryptsAndReadsDecrypt", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		ws := seedBuild(t, db)
+
+		secret := dbgen.WorkspaceSecret(t, crypt, database.WorkspaceSecret{
+			WorkspaceID:      ws.Workspace.ID,
+			WorkspaceBuildID: ws.Build.ID,
+			Value:            sql.NullString{String: value, Valid: true},
+		})
+		require.Equal(t, value, secret.Value.String)
+		require.Equal(t, ciphers[0].HexDigest(), secret.ValueKeyID.String)
+
+		raw, err := db.ListActiveWorkspaceSecrets(ctx, ws.Build.ID)
+		require.NoError(t, err)
+		require.Len(t, raw, 1)
+		requireEncryptedEquals(t, ciphers[0], raw[0].Value.String, value)
+
+		active, err := crypt.ListActiveWorkspaceSecrets(ctx, ws.Build.ID)
+		require.NoError(t, err)
+		require.Len(t, active, 1)
+		require.Equal(t, value, active[0].Value.String)
+
+		all, err := crypt.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{LimitCount: 10})
+		require.NoError(t, err)
+		require.Len(t, all, 1)
+		require.Equal(t, value, all[0].Value.String)
+	})
+
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		ws := seedBuild(t, db)
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.Workspace.ID,
+			WorkspaceBuildID: ws.Build.ID,
+			Value:            sql.NullString{String: fakeBase64RandomData(t, 32), Valid: true},
+			ValueKeyID:       sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		var derr *DecryptFailedError
+		_, err := crypt.ListActiveWorkspaceSecrets(ctx, ws.Build.ID)
+		require.ErrorAs(t, err, &derr)
+		_, err = crypt.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{LimitCount: 10})
+		require.ErrorAs(t, err, &derr)
 	})
 }

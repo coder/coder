@@ -9,12 +9,8 @@ import {
 export const rightPanelTabStorageKeyPrefix = "agents.right-panel-tabs.";
 
 export function getPersistedRightPanelTabs(
-	chatID: string | undefined,
+	chatID: string,
 ): UserRightPanelTab[] {
-	if (!chatID) {
-		return [];
-	}
-
 	const value = localStorage.getItem(
 		`${rightPanelTabStorageKeyPrefix}${chatID}`,
 	);
@@ -34,12 +30,9 @@ export function getPersistedRightPanelTabs(
 }
 
 export function savePersistedRightPanelTabs(
-	chatID: string | undefined,
+	chatID: string,
 	tabs: readonly UserRightPanelTab[],
 ): void {
-	if (!chatID) {
-		return;
-	}
 	localStorage.setItem(
 		`${rightPanelTabStorageKeyPrefix}${chatID}`,
 		JSON.stringify(tabs),
@@ -54,12 +47,8 @@ export const visibleSingletonTabsStorageKeyPrefix =
  * singleton tab is shown.
  */
 export function getPersistedVisibleSingletonTabs(
-	chatID: string | undefined,
+	chatID: string,
 ): SingletonRightPanelTabId[] {
-	if (!chatID) {
-		return [];
-	}
-
 	const value = localStorage.getItem(
 		`${visibleSingletonTabsStorageKeyPrefix}${chatID}`,
 	);
@@ -82,12 +71,9 @@ export function getPersistedVisibleSingletonTabs(
 }
 
 export function savePersistedVisibleSingletonTabs(
-	chatID: string | undefined,
+	chatID: string,
 	tabIds: readonly SingletonRightPanelTabId[],
 ): void {
-	if (!chatID) {
-		return;
-	}
 	localStorage.setItem(
 		`${visibleSingletonTabsStorageKeyPrefix}${chatID}`,
 		JSON.stringify(tabIds),
@@ -96,12 +82,7 @@ export function savePersistedVisibleSingletonTabs(
 
 const defaultTerminalHiddenStorageKeyPrefix = "agents.default-terminal-hidden.";
 
-export function getPersistedDefaultTerminalHidden(
-	chatID: string | undefined,
-): boolean {
-	if (!chatID) {
-		return false;
-	}
+export function getPersistedDefaultTerminalHidden(chatID: string): boolean {
 	return (
 		localStorage.getItem(
 			`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`,
@@ -110,12 +91,9 @@ export function getPersistedDefaultTerminalHidden(
 }
 
 export function savePersistedDefaultTerminalHidden(
-	chatID: string | undefined,
+	chatID: string,
 	hidden: boolean,
 ): void {
-	if (!chatID) {
-		return;
-	}
 	const key = `${defaultTerminalHiddenStorageKeyPrefix}${chatID}`;
 	if (hidden) {
 		localStorage.setItem(key, "true");
@@ -124,12 +102,7 @@ export function savePersistedDefaultTerminalHidden(
 	}
 }
 
-export function clearPersistedRightPanelState(
-	chatID: string | undefined,
-): void {
-	if (!chatID) {
-		return;
-	}
+export function clearPersistedRightPanelState(chatID: string): void {
 	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${visibleSingletonTabsStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);

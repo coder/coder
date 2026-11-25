@@ -108,7 +108,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 	return (
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
-				<div className="flex flex-row gap-4">
+				<div className="flex gap-4">
 					<BuildIcon
 						avatar
 						transition={build.transition}

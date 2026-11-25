@@ -742,6 +742,17 @@ func TestWriteWorkspaceAgentUploadError(t *testing.T) {
 		require.Contains(t, rw.Body.String(), "too many existing files")
 	})
 
+	t.Run("AgentUnauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "agent says unauthorized"}))
+
+		require.Equal(t, http.StatusBadGateway, rw.Code)
+		require.Contains(t, rw.Body.String(), "Failed to upload file to workspace agent")
+	})
+
 	t.Run("OutdatedAgent", func(t *testing.T) {
 		t.Parallel()
 

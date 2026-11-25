@@ -2,6 +2,8 @@ package prices_test
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 
@@ -19,6 +21,19 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// getAIModelPrice returns the site-wide price in effect for one provider type
+// and model, or sql.ErrNoRows when it has none.
+func getAIModelPrice(ctx context.Context, db database.Store, key database.GetAIModelPricesParams) (database.AIModelPrice, error) {
+	matches, err := db.GetAIModelPrices(ctx, key)
+	if err != nil {
+		return database.AIModelPrice{}, err
+	}
+	if len(matches) == 0 {
+		return database.AIModelPrice{}, sql.ErrNoRows
+	}
+	return matches[0], nil
+}
 
 // testSeedJSON is a synthetic seed used by tests instead of the embedded
 // one, so assertions don't depend on whatever values currently live in the
@@ -53,7 +68,7 @@ func TestSeedFromBytes(t *testing.T) {
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
 		// Spot-check a fully-populated row.
-		opus, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		opus, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "anthropic",
 			Model:    "claude-opus-4-7",
 		})
@@ -66,7 +81,7 @@ func TestSeedFromBytes(t *testing.T) {
 
 		// Spot-check a row where the seed has a NULL price (OpenAI does not
 		// publish a cache_write_price). The column should land as SQL NULL.
-		gpt, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		gpt, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai",
 			Model:    "gpt-4o",
 		})
@@ -85,7 +100,7 @@ func TestSeedFromBytes(t *testing.T) {
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
-		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -102,13 +117,13 @@ func TestSeedFromBytes(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
-		first, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		first, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
-		second, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		second, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -140,14 +155,14 @@ func TestSeedFromBytes(t *testing.T) {
 			}]`),
 			Source: database.AIModelPriceSourceDefault,
 		}))
-		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		before, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
-		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -181,7 +196,7 @@ func TestSeedFromBytes(t *testing.T) {
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
-		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "test-provider", Model: "test-model-not-in-seed",
 		})
 		require.NoError(t, err)
@@ -211,7 +226,7 @@ func TestSeedFromBytes(t *testing.T) {
 		}}))
 		require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
 
-		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "test-provider", Model: "tag-contract",
 		})
 		require.NoError(t, err)
@@ -238,7 +253,7 @@ func TestSeedFromBytes(t *testing.T) {
 			}]`),
 			Source: database.AIModelPriceSourceCustom,
 		}))
-		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		before, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -251,7 +266,7 @@ func TestSeedFromBytes(t *testing.T) {
 		// Re-applying the price book writes its own row and leaves this one be.
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
-		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -276,7 +291,7 @@ func TestSeedFromBytes(t *testing.T) {
 		require.NoError(t, prices.SeedFromBytes(dbauthz.AsAIBridged(ctx), authzDB, []byte(testSeedJSON)))
 
 		// Read back via the raw DB.
-		got, err := rawDB.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+		got, err := getAIModelPrice(ctx, rawDB, database.GetAIModelPricesParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
@@ -289,7 +304,7 @@ func TestSeedFromBytes(t *testing.T) {
 	t.Run("UpdatedAtTracksPriceChanges", func(t *testing.T) {
 		t.Parallel()
 
-		key := database.GetAIModelPriceByProviderModelParams{Provider: "openai", Model: "gpt-4o"}
+		key := database.GetAIModelPricesParams{Provider: "openai", Model: "gpt-4o"}
 		seed := func(priceFields string) []byte {
 			return fmt.Appendf(nil, `[{"provider": %q, "model": %q, %s}]`, key.Provider, key.Model, priceFields)
 		}
@@ -367,11 +382,11 @@ func TestSeedFromBytes(t *testing.T) {
 				db, _ := dbtestutil.NewDB(t)
 
 				require.NoError(t, prices.SeedFromBytes(ctx, db, seed(tt.initial)))
-				before, err := db.GetAIModelPriceByProviderModel(ctx, key)
+				before, err := getAIModelPrice(ctx, db, key)
 				require.NoError(t, err)
 
 				require.NoError(t, prices.SeedFromBytes(ctx, db, seed(tt.updated)))
-				after, err := db.GetAIModelPriceByProviderModel(ctx, key)
+				after, err := getAIModelPrice(ctx, db, key)
 				require.NoError(t, err)
 
 				require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at should advance when a price changes")

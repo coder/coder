@@ -1,10 +1,10 @@
 import { RefreshCwIcon } from "lucide-react";
 import { useMutation } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import type { InvalidatePresetsResponse } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { toast } from "#/components/Toaster/toast";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
 

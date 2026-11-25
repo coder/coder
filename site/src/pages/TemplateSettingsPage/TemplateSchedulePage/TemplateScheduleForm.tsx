@@ -228,11 +228,9 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 			? form.values.autostop_requirement_weeks
 			: 1;
 
-		// on submit, convert from hours => ms
+		// Send explicit zero values to disable settings; omitted fields are preserved.
 		onSubmit({
-			default_ttl_ms: form.values.default_ttl_ms
-				? form.values.default_ttl_ms * MS_HOUR_CONVERSION
-				: undefined,
+			default_ttl_ms: (form.values.default_ttl_ms ?? 0) * MS_HOUR_CONVERSION,
 			// Activity bump has no effect without a scheduled stop time, so
 			// discard any stale value when there is no default TTL AND users
 			// cannot customize autostop on their workspaces.
@@ -240,7 +238,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 				(form.values.default_ttl_ms || form.values.allow_user_autostop) &&
 				form.values.activity_bump_ms
 					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
-					: undefined,
+					: 0,
 			// 0 disables the reminder, so always send an explicit value.
 			time_til_autostop_notify_ms: form.values.time_til_autostop_notify_ms
 				? form.values.time_til_autostop_notify_ms * MS_HOUR_CONVERSION

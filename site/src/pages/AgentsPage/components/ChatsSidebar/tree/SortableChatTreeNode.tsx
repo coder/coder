@@ -1,47 +1,40 @@
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import type { Chat } from "#/api/typesGenerated";
+import type { ChatDragData } from "../chats/projectDrag";
+import { useChatTree } from "./ChatTreeContext";
 import { ChatTreeNode } from "./ChatTreeNode";
 
-export const SortableChatTreeNode: React.FC<{
-	chat: Chat;
-}> = ({ chat }) => {
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({
+/** The dnd-kit type of a pinned row drag, which only reorders the pins. */
+const PIN_DRAG_TYPE = "pin";
+
+type SortableChatTreeNodeProps = {
+	readonly chat: Chat;
+	readonly index: number;
+};
+
+export const SortableChatTreeNode: React.FC<SortableChatTreeNodeProps> = ({
+	chat,
+	index,
+}) => {
+	const { dragInstructionsId } = useChatTree();
+	const { ref, handleRef, isDragging } = useSortable({
 		id: chat.id,
-		// Skip the derived-transform measurement after drop.
-		// localPinOrder already repositions items in the DOM,
-		// so the two-frame snap-back dance produces stale deltas
-		// and a visible jitter. This makes items snap directly.
-		animateLayoutChanges: () => false,
+		index,
+		type: PIN_DRAG_TYPE,
+		accept: PIN_DRAG_TYPE,
+		data: { chat } satisfies ChatDragData,
 	});
 
-	// Strip scaleX/scaleY that dnd-kit adds by default.
-	const adjustedTransform = transform
-		? { ...transform, scaleX: 1, scaleY: 1 }
-		: null;
-
-	const style = {
-		transform: CSS.Transform.toString(adjustedTransform),
-		transition: isDragging ? "opacity 200ms" : transition,
-	};
-
 	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			className={cn(isDragging && "opacity-50")}
-			{...attributes}
-			{...listeners}
-		>
-			<ChatTreeNode chat={chat} />
+		<div ref={ref} className={cn(isDragging && "opacity-50")}>
+			<ChatTreeNode
+				chat={chat}
+				dragHandleProps={{
+					ref: handleRef,
+					"aria-describedby": dragInstructionsId,
+				}}
+			/>
 		</div>
 	);
 };

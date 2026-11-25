@@ -17,42 +17,80 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// budgetedGroup creates a regular group in the org, adds the user to it, and
+// sets a group AI budget. Returns the group ID.
+func budgetedGroup(ctx context.Context, t *testing.T, db database.Store, orgID, userID uuid.UUID, groupName string, spendLimit int64) uuid.UUID {
+	t.Helper()
+	g := dbgen.Group(t, db, database.Group{OrganizationID: orgID, Name: groupName})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: userID, GroupID: g.ID})
+	_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          g.ID,
+		SpendLimitMicros: spendLimit,
+	})
+	require.NoError(t, err)
+	return g.ID
+}
+
+// budgetedEveryoneGroup creates the org's "Everyone" group (id == org id),
+// which is not auto-created for orgs built via dbgen, makes the user an org
+// member so membership flows through organization_members, and sets a group
+// AI budget. Returns the group ID.
+func budgetedEveryoneGroup(ctx context.Context, t *testing.T, db database.Store, orgID, userID uuid.UUID, spendLimit int64) uuid.UUID {
+	t.Helper()
+	g := dbgen.Group(t, db, database.Group{ID: orgID, OrganizationID: orgID, Name: "Everyone"})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: userID})
+	_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          g.ID,
+		SpendLimitMicros: spendLimit,
+	})
+	require.NoError(t, err)
+	return g.ID
+}
+
+// overrideGroup creates a group in the org, adds the user to it, and sets the
+// user's AI budget override on it. Returns the group ID.
+func overrideGroup(ctx context.Context, t *testing.T, db database.Store, orgID, userID uuid.UUID, spendLimit int64) uuid.UUID {
+	t.Helper()
+	g := dbgen.Group(t, db, database.Group{OrganizationID: orgID, Name: "override-group"})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: userID, GroupID: g.ID})
+	_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+		UserID:           userID,
+		GroupID:          g.ID,
+		SpendLimitMicros: spendLimit,
+	})
+	require.NoError(t, err)
+	return g.ID
+}
+
+func deleteOrg(ctx context.Context, t *testing.T, db database.Store, orgID uuid.UUID) {
+	t.Helper()
+	err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        orgID,
+		UpdatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+}
+
+func groupLimit(micros int64) *budget.Limit {
+	return &budget.Limit{SpendLimitMicros: micros, Source: codersdk.AIBudgetLimitSourceGroup}
+}
+
+func overrideLimit(micros int64) *budget.Limit {
+	return &budget.Limit{SpendLimitMicros: micros, Source: codersdk.AIBudgetLimitSourceUserOverride}
+}
+
 func TestResolveUserAIBudget(t *testing.T) {
 	t.Parallel()
 
-	// budgetedGroup creates a regular group in the org, adds the user to it, and
-	// sets a group AI budget. Returns the group ID.
-	budgetedGroup := func(t *testing.T, ctx context.Context, db database.Store, orgID, userID uuid.UUID, groupName string, spendLimit int64) uuid.UUID {
-		t.Helper()
-		g := dbgen.Group(t, db, database.Group{OrganizationID: orgID, Name: groupName})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: userID, GroupID: g.ID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          g.ID,
-			SpendLimitMicros: spendLimit,
-		})
-		require.NoError(t, err)
-		return g.ID
-	}
-
-	// budgetedEveryoneGroup creates the org's "Everyone" group (id == org id),
-	// which is not auto-created for orgs built via dbgen, makes the user an org
-	// member so membership flows through organization_members, and sets a group
-	// AI budget. Returns the group ID.
-	budgetedEveryoneGroup := func(t *testing.T, ctx context.Context, db database.Store, orgID, userID uuid.UUID, spendLimit int64) uuid.UUID {
-		t.Helper()
-		g := dbgen.Group(t, db, database.Group{ID: orgID, OrganizationID: orgID, Name: "Everyone"})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: userID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          g.ID,
-			SpendLimitMicros: spendLimit,
-		})
-		require.NoError(t, err)
-		return g.ID
-	}
+	// Each subtest uses its own database, so the cases can share these IDs.
+	// orgA is the organization passed in by the org-scoped cases.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
 
 	tests := []struct {
 		name    string
 		policy  codersdk.AIBudgetPolicy
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want budget.EffectiveGroup, wantOK bool)
 		wantErr string
 	}{
@@ -63,7 +101,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				// A higher group budget that the override must still beat.
-				budgetedGroup(t, ctx, db, org.ID, user.ID, "rich-group", 9_000_000)
+				budgetedGroup(ctx, t, db, org.ID, user.ID, "rich-group", 9_000_000)
 				// The override names a group the user must be a member of.
 				og := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "override-group"})
 				dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: og.ID})
@@ -73,7 +111,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 1_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, budget.EffectiveGroup{GroupID: og.ID, Limit: &budget.Limit{SpendLimitMicros: 1_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}}, true
+				return user.ID, budget.EffectiveGroup{GroupID: og.ID, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 1_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}}, true
 			},
 		},
 		{
@@ -83,8 +121,8 @@ func TestResolveUserAIBudget(t *testing.T) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-				gid := budgetedGroup(t, ctx, db, org.ID, user.ID, "only", 8_000_000)
-				return user.ID, budget.EffectiveGroup{GroupID: gid, Limit: &budget.Limit{SpendLimitMicros: 8_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				gid := budgetedGroup(ctx, t, db, org.ID, user.ID, "only", 8_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: gid, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 8_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -94,10 +132,10 @@ func TestResolveUserAIBudget(t *testing.T) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-				budgetedGroup(t, ctx, db, org.ID, user.ID, "low", 5_000_000)
-				budgetedGroup(t, ctx, db, org.ID, user.ID, "mid", 20_000_000)
-				high := budgetedGroup(t, ctx, db, org.ID, user.ID, "high", 50_000_000)
-				return user.ID, budget.EffectiveGroup{GroupID: high, Limit: &budget.Limit{SpendLimitMicros: 50_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				budgetedGroup(ctx, t, db, org.ID, user.ID, "low", 5_000_000)
+				budgetedGroup(ctx, t, db, org.ID, user.ID, "mid", 20_000_000)
+				high := budgetedGroup(ctx, t, db, org.ID, user.ID, "high", 50_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: high, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 50_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -111,9 +149,9 @@ func TestResolveUserAIBudget(t *testing.T) {
 				lateOrg := dbgen.Organization(t, db, database.Organization{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
-				winner := budgetedGroup(t, ctx, db, earlyOrg.ID, user.ID, "dup", 10_000_000)
-				budgetedGroup(t, ctx, db, lateOrg.ID, user.ID, "dup", 10_000_000)
-				return user.ID, budget.EffectiveGroup{GroupID: winner, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				winner := budgetedGroup(ctx, t, db, earlyOrg.ID, user.ID, "dup", 10_000_000)
+				budgetedGroup(ctx, t, db, lateOrg.ID, user.ID, "dup", 10_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: winner, OrganizationID: earlyOrg.ID, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -125,13 +163,13 @@ func TestResolveUserAIBudget(t *testing.T) {
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 				// Both groups are in the same org, so both resolve to the same
 				// organization membership and the tie falls to the lowest group ID.
-				groupA := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
-				groupB := budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
+				groupA := budgetedGroup(ctx, t, db, org.ID, user.ID, "alpha", 10_000_000)
+				groupB := budgetedGroup(ctx, t, db, org.ID, user.ID, "beta", 10_000_000)
 				winner := groupA
 				if bytes.Compare(groupB[:], groupA[:]) < 0 {
 					winner = groupB
 				}
-				return user.ID, budget.EffectiveGroup{GroupID: winner, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				return user.ID, budget.EffectiveGroup{GroupID: winner, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -153,8 +191,8 @@ func TestResolveUserAIBudget(t *testing.T) {
 				user := dbgen.User(t, db, database.User{})
 				// Membership is via organization_members only (no group_members row),
 				// exercising the org-members half of group_members_expanded.
-				everyoneID := budgetedEveryoneGroup(t, ctx, db, org.ID, user.ID, 7_000_000)
-				return user.ID, budget.EffectiveGroup{GroupID: everyoneID, Limit: &budget.Limit{SpendLimitMicros: 7_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				everyoneID := budgetedEveryoneGroup(ctx, t, db, org.ID, user.ID, 7_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: everyoneID, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 7_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -163,7 +201,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
-				everyoneID := budgetedEveryoneGroup(t, ctx, db, org.ID, user.ID, 7_000_000)
+				everyoneID := budgetedEveryoneGroup(ctx, t, db, org.ID, user.ID, 7_000_000)
 				// Override attributed to the Everyone group. The user is a member
 				// via organization_members, satisfying the membership trigger.
 				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
@@ -172,7 +210,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 2_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, budget.EffectiveGroup{GroupID: everyoneID, Limit: &budget.Limit{SpendLimitMicros: 2_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}}, true
+				return user.ID, budget.EffectiveGroup{GroupID: everyoneID, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 2_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}}, true
 			},
 		},
 		{
@@ -181,6 +219,211 @@ func TestResolveUserAIBudget(t *testing.T) {
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				// No override, so resolution reaches the policy switch and errors.
 				user := dbgen.User(t, db, database.User{})
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+			wantErr: "unsupported AI budget policy",
+		},
+		{
+			// With no organization, an override in a non-default org reports
+			// that org, and still beats a higher budget in another org.
+			name:   "SiteWideOverrideReportsGroupOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				orgOther := dbgen.Organization(t, db, database.Organization{})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgOther.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgOther.ID, user.ID, "rich", 9_000_000)
+				og := overrideGroup(ctx, t, db, orgB.ID, user.ID, 1_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: og, OrganizationID: orgB.ID, Limit: overrideLimit(1_000_000)}, true
+			},
+		},
+		{
+			// With no organization, an override in a deleted org is ignored,
+			// so the budget in the user's live org applies.
+			name:   "SiteWideOverrideInDeletedOrgIgnored",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				orgDeleted := dbgen.Organization(t, db, database.Organization{})
+				orgLive := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgDeleted.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgLive.ID, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgDeleted.ID, user.ID, 9_000_000)
+				live := budgetedGroup(ctx, t, db, orgLive.ID, user.ID, "live", 1_000_000)
+				deleteOrg(ctx, t, db, orgDeleted.ID)
+				return user.ID, budget.EffectiveGroup{GroupID: live, OrganizationID: orgLive.ID, Limit: groupLimit(1_000_000)}, true
+			},
+		},
+		{
+			// With no organization, the highest budget across orgs wins and
+			// reports the org of the winning group.
+			name:   "SiteWideHighestReportsGroupOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				orgLow := dbgen.Organization(t, db, database.Organization{})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgLow.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgLow.ID, user.ID, "low", 1_000_000)
+				high := budgetedGroup(ctx, t, db, orgB.ID, user.ID, "high", 2_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: high, OrganizationID: orgB.ID, Limit: groupLimit(2_000_000)}, true
+			},
+		},
+		{
+			// An override in the given org wins over a higher group budget in
+			// that org.
+			name:   "OrgOverrideInOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgA, user.ID, "rich", 9_000_000)
+				og := overrideGroup(ctx, t, db, orgA, user.ID, 1_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: og, OrganizationID: orgA, Limit: overrideLimit(1_000_000)}, true
+			},
+		},
+		{
+			// An override in another org is ignored, so the user's budgeted
+			// group in the given org applies.
+			name:   "OrgOverrideOtherOrgFallsToGroup",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				gid := budgetedGroup(ctx, t, db, orgA, user.ID, "group-a", 3_000_000)
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 9_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: gid, OrganizationID: orgA, Limit: groupLimit(3_000_000)}, true
+			},
+		},
+		{
+			// An override in another org is ignored, and with no budget in the
+			// given org there is no budget.
+			name:   "OrgOverrideOtherOrgNoBudget",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 9_000_000)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			// The given org's Everyone budget applies to a user with no other
+			// groups there, even when another org has a higher budget.
+			name:   "OrgEveryoneBudget",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "rich", 9_000_000)
+				everyoneID := budgetedEveryoneGroup(ctx, t, db, orgA, user.ID, 4_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: everyoneID, OrganizationID: orgA, Limit: groupLimit(4_000_000)}, true
+			},
+		},
+		{
+			// With no budget in the given org, budgets in other orgs do not
+			// apply.
+			name:   "OrgNoEveryoneBudgetIgnoresOtherOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				// budgetedEveryoneGroup also makes the user a member of orgB.
+				budgetedEveryoneGroup(ctx, t, db, orgB.ID, user.ID, 8_000_000)
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "group-b", 9_000_000)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			name:   "OrgNotMember",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "group-b", 9_000_000)
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 1_000_000)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			// A soft-deleted org yields no budget, even for an override and a
+			// group budget in it.
+			name:   "OrgDeleted",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				gid := budgetedGroup(ctx, t, db, orgA, user.ID, "group-a", 3_000_000)
+				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+					UserID:           user.ID,
+					GroupID:          gid,
+					SpendLimitMicros: 1_000_000,
+				})
+				require.NoError(t, err)
+				deleteOrg(ctx, t, db, orgA)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			// Inside one org, equal limits break by group ID. A higher budget in
+			// another org does not count.
+			name:   "OrgHighestTieByGroupID",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "rich", 9_000_000)
+				groupA := budgetedGroup(ctx, t, db, orgA, user.ID, "alpha", 5_000_000)
+				groupB := budgetedGroup(ctx, t, db, orgA, user.ID, "beta", 5_000_000)
+				budgetedGroup(ctx, t, db, orgA, user.ID, "low", 1_000_000)
+				winner := groupA
+				if bytes.Compare(groupB[:], groupA[:]) < 0 {
+					winner = groupB
+				}
+				return user.ID, budget.EffectiveGroup{GroupID: winner, OrganizationID: orgA, Limit: groupLimit(5_000_000)}, true
+			},
+		},
+		{
+			// An override in another org does not apply, so resolution reaches
+			// the policy switch and errors.
+			name:   "OrgUnsupportedPolicy",
+			policy: codersdk.AIBudgetPolicy("unsupported"),
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 1_000_000)
 				return user.ID, budget.EffectiveGroup{}, false
 			},
 			wantErr: "unsupported AI budget policy",
@@ -195,18 +438,14 @@ func TestResolveUserAIBudget(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			userID, want, wantOK := tt.setup(t, ctx, db)
-			got, ok, err := budget.ResolveUserAIBudget(ctx, db, userID, tt.policy)
+			got, ok, err := budget.ResolveUserAIBudget(ctx, db, userID, tt.org, tt.policy)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, wantOK, ok)
-			if !wantOK {
-				return
-			}
-			require.Equal(t, want.GroupID, got.GroupID)
-			require.Equal(t, want.Limit, got.Limit)
+			require.Equal(t, want, got)
 		})
 	}
 }
@@ -214,9 +453,15 @@ func TestResolveUserAIBudget(t *testing.T) {
 func TestResolveUserEffectiveGroup(t *testing.T) {
 	t.Parallel()
 
+	// Each subtest uses its own database, so the cases can share these IDs.
+	// orgA is the organization passed in by the org-scoped cases.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
+
 	tests := []struct {
 		name    string
 		policy  codersdk.AIBudgetPolicy
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want budget.EffectiveGroup, wantOK bool)
 		wantErr string
 	}{
@@ -236,7 +481,7 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 					SpendLimitMicros: 7_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, budget.EffectiveGroup{GroupID: group.ID, Limit: &budget.Limit{SpendLimitMicros: 7_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+				return user.ID, budget.EffectiveGroup{GroupID: group.ID, OrganizationID: org.ID, Limit: &budget.Limit{SpendLimitMicros: 7_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
 		{
@@ -248,7 +493,7 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-				return user.ID, budget.EffectiveGroup{GroupID: org.ID}, true
+				return user.ID, budget.EffectiveGroup{GroupID: org.ID, OrganizationID: org.ID}, true
 			},
 		},
 		{
@@ -263,7 +508,7 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 				user := dbgen.User(t, db, database.User{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID})
-				return user.ID, budget.EffectiveGroup{GroupID: defaultOrg.ID}, true
+				return user.ID, budget.EffectiveGroup{GroupID: defaultOrg.ID, OrganizationID: defaultOrg.ID}, true
 			},
 		},
 		{
@@ -277,7 +522,7 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 				lateOrg := dbgen.Organization(t, db, database.Organization{})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
-				return user.ID, budget.EffectiveGroup{GroupID: earlyOrg.ID}, true
+				return user.ID, budget.EffectiveGroup{GroupID: earlyOrg.ID, OrganizationID: earlyOrg.ID}, true
 			},
 		},
 		{
@@ -299,6 +544,129 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 			},
 			wantErr: "unsupported AI budget policy",
 		},
+		{
+			// With no organization and no budget, the fallback picks the default
+			// org's Everyone group and reports the default org.
+			name:   "SiteWideFallbackReportsDefaultOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				otherOrg := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID})
+				return user.ID, budget.EffectiveGroup{GroupID: defaultOrg.ID, OrganizationID: defaultOrg.ID}, true
+			},
+		},
+		{
+			// An override in another org is ignored, so attribution falls back
+			// to the given org's Everyone group with no limit.
+			name:   "OrgOverrideOtherOrgNoBudget",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 9_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: orgA, OrganizationID: orgA}, true
+			},
+		},
+		{
+			// With no budget in the given org, budgets in other orgs do not
+			// apply, and attribution falls back to the given org's Everyone
+			// group with no limit.
+			name:   "OrgNoEveryoneBudgetIgnoresOtherOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				// budgetedEveryoneGroup also makes the user a member of orgB.
+				budgetedEveryoneGroup(ctx, t, db, orgB.ID, user.ID, 8_000_000)
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "group-b", 9_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: orgA, OrganizationID: orgA}, true
+			},
+		},
+		{
+			// A user who is not a member of the given org has no effective
+			// group there, even with a budget elsewhere.
+			name:   "OrgNotMember",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				budgetedGroup(ctx, t, db, orgB.ID, user.ID, "group-b", 9_000_000)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			// A soft-deleted org has no effective group, not even the Everyone
+			// fallback.
+			name:   "OrgDeleted",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgA, user.ID, 1_000_000)
+				deleteOrg(ctx, t, db, orgA)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			name:   "OrgDoesNotExist",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+		},
+		{
+			// An override in another org does not apply, so the policy error
+			// surfaces.
+			name:   "OrgUnsupportedPolicy",
+			policy: codersdk.AIBudgetPolicy("unsupported"),
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				overrideGroup(ctx, t, db, orgB.ID, user.ID, 1_000_000)
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+			wantErr: "unsupported AI budget policy",
+		},
+		{
+			// The given org wins over the default org the user also belongs
+			// to.
+			name:   "OrgFallbackNonDefaultOrg",
+			policy: codersdk.AIBudgetPolicyHighest,
+			org:    scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				return user.ID, budget.EffectiveGroup{GroupID: orgA, OrganizationID: orgA}, true
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -309,19 +677,14 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			userID, want, wantOK := tt.setup(t, ctx, db)
-			got, ok, err := budget.ResolveUserEffectiveGroup(ctx, db, userID, tt.policy)
+			got, ok, err := budget.ResolveUserEffectiveGroup(ctx, db, userID, tt.org, tt.policy)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, wantOK, ok)
-			if !wantOK {
-				return
-			}
-
-			require.Equal(t, want.GroupID, got.GroupID)
-			require.Equal(t, want.Limit, got.Limit)
+			require.Equal(t, want, got)
 		})
 	}
 }
