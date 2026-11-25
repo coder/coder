@@ -245,6 +245,7 @@ export const CreateWorkspacePageView: React.FC<
 			return;
 		}
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 		const defaultPreset = presets.find((p) => p.Default);
 		setFieldValue("template_version_preset_id", defaultPreset?.ID);
 	}, [presets, setFieldValue, urlPreset]);
@@ -317,6 +318,7 @@ export const CreateWorkspacePageView: React.FC<
 		}> = [];
 
 		for (const presetParameter of selectedPreset.Parameters) {
+			// oxlint-disable-next-line react-you-might-not-need-an-effect/no-pass-data-to-parent -- False positive: the rule reads this array method as a parent callback.
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
 			);

@@ -12,6 +12,7 @@ import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Link } from "#/components/Link/Link";
@@ -29,13 +30,12 @@ import {
 	iconValidator,
 	nameValidator,
 } from "#/utils/formUtils";
+import { StepFrame } from "./StepFrame";
 import type {
 	CustomizationsFormValues,
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
-
-export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -58,7 +58,7 @@ const validationSchema = Yup.object({
 type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
 	onCreate: (values: CustomizationsFormValues) => void;
-	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
+	onBack: () => void;
 	/**
 	 * Replaces the defaults derived from `state`. Formik reads it only on
 	 * mount, which works because the wizard remounts this step after a failed
@@ -71,13 +71,7 @@ type TemplateCustomizationsStepProps = {
 
 export const TemplateCustomizationsStep: React.FC<
 	TemplateCustomizationsStepProps
-> = ({
-	state,
-	onCreate,
-	onProvisionerStatusChange,
-	initialValues,
-	createError,
-}) => {
+> = ({ state, onCreate, onBack, initialValues, createError }) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -129,12 +123,6 @@ export const TemplateCustomizationsStep: React.FC<
 	const hasProvisioners = provisioners ? provisioners.length > 0 : undefined;
 	const showProvisionerWarning = hasProvisioners === false;
 
-	// Notify parent when provisioner status changes so the wizard can
-	// disable the create button when no provisioners are available.
-	useEffect(() => {
-		onProvisionerStatusChange(hasProvisioners);
-	}, [hasProvisioners, onProvisionerStatusChange]);
-
 	const { setFieldValue } = form;
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
@@ -158,120 +146,132 @@ export const TemplateCustomizationsStep: React.FC<
 	};
 
 	return (
-		<form
-			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
-			onSubmit={form.handleSubmit}
-			noValidate
-			className="min-w-163.5"
-		>
-			{showCreateErrorAlert && (
-				<ErrorAlert error={createError} className="mb-6" />
-			)}
-			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
-			<TemplateBuilderSubtitle>
-				Add additional configurations.
-			</TemplateBuilderSubtitle>
-
-			{showProvisionerWarning && <ProvisionerWarning />}
-
-			<div className="flex gap-8">
-				{/* Base template card */}
-				{state.selectedBase && <BaseTemplateCard base={state.selectedBase} />}
-
-				{/* Two-column form grid */}
-				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
-					{/* Left column */}
-					<FormField
-						field={displayNameField}
-						label="Display name"
-						id="template-display-name"
-						placeholder="My template"
-					/>
-
-					{/* Right column */}
-					{showOrgsError ? (
-						<ErrorAlert
-							error={permittedOrgsQuery.error}
-							showDebugDetail={false}
-							actions={
-								<RetryButton
-									size="sm"
-									variant="outline"
-									isRetrying={permittedOrgsQuery.isFetching}
-									onRetry={() => void permittedOrgsQuery.refetch()}
-								/>
-							}
-						/>
-					) : (
-						<FormField
-							field={organizationField}
-							label="Organization"
-							required
-							id="organization"
-							control={(props) => (
-								<OrganizationAutocomplete
-									{...props}
-									required
-									autoFocus={fieldsShowingCreateError.includes(
-										"organization_id",
-									)}
-									disabled={permittedOrgsQuery.isPending}
-									value={selectedOrg}
-									onChange={handleOrgChange}
-									options={orgOptions}
-								/>
-							)}
-						/>
+		<form onSubmit={form.handleSubmit} noValidate>
+			<StepFrame
+				footer={
+					<>
+						<Button variant="outline" onClick={onBack}>
+							Back
+						</Button>
+						<Button type="submit" disabled={hasProvisioners === false}>
+							Create template
+						</Button>
+					</>
+				}
+			>
+				<div className="min-w-163.5">
+					{showCreateErrorAlert && (
+						<ErrorAlert error={createError} className="mb-6" />
 					)}
+					<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
+					<TemplateBuilderSubtitle>
+						Add additional configurations.
+					</TemplateBuilderSubtitle>
 
-					{/* Left column */}
-					<div className="flex flex-col gap-2">
-						<FormField
-							field={descriptionField}
-							label="Description"
-							id="template-description"
-							control={(props) => (
-								<Textarea
-									{...props}
-									{...form.getFieldProps("description")}
-									placeholder="Describe what this template is for"
-									rows={3}
-									className={cn(
-										descriptionField.error && "border-border-destructive",
+					{showProvisionerWarning && <ProvisionerWarning />}
+
+					<div className="flex gap-8">
+						{/* Base template card */}
+						{state.selectedBase && (
+							<BaseTemplateCard base={state.selectedBase} />
+						)}
+
+						{/* Two-column form grid */}
+						<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
+							{/* Left column */}
+							<FormField
+								field={displayNameField}
+								label="Display name"
+								id="template-display-name"
+								placeholder="My template"
+							/>
+
+							{/* Right column */}
+							{showOrgsError ? (
+								<ErrorAlert
+									error={permittedOrgsQuery.error}
+									showDebugDetail={false}
+									actions={
+										<RetryButton
+											size="sm"
+											variant="outline"
+											isRetrying={permittedOrgsQuery.isFetching}
+											onRetry={() => void permittedOrgsQuery.refetch()}
+										/>
+									}
+								/>
+							) : (
+								<FormField
+									field={organizationField}
+									label="Organization"
+									required
+									id="organization"
+									control={(props) => (
+										<OrganizationAutocomplete
+											{...props}
+											required
+											autoFocus={fieldsShowingCreateError.includes(
+												"organization_id",
+											)}
+											disabled={permittedOrgsQuery.isPending}
+											value={selectedOrg}
+											onChange={handleOrgChange}
+											options={orgOptions}
+										/>
 									)}
 								/>
 							)}
-						/>
-						<p className="text-xs text-content-secondary">
-							{/* sentence-case-expect: Agents is the product name. */}
-							Used by both humans and Agents to identify templates.
-						</p>
 
-						<IconField
-							value={form.values.icon}
-							error={iconField.error}
-							helperText={iconField.helperText}
-							onChange={(e) => {
-								const target = e.target as HTMLInputElement;
-								void form.setFieldValue("icon", target.value);
-							}}
-							onPickEmoji={(value) => {
-								void form.setFieldValue("icon", value);
-							}}
-						/>
+							{/* Left column */}
+							<div className="flex flex-col gap-2">
+								<FormField
+									field={descriptionField}
+									label="Description"
+									id="template-description"
+									control={(props) => (
+										<Textarea
+											{...props}
+											{...form.getFieldProps("description")}
+											placeholder="Describe what this template is for"
+											rows={3}
+											className={cn(
+												descriptionField.error && "border-border-destructive",
+											)}
+										/>
+									)}
+								/>
+								<p className="text-xs text-content-secondary">
+									{/* sentence-case-expect: Agents is the product name. */}
+									Used by both humans and Agents to identify templates.
+								</p>
+
+								<IconField
+									value={form.values.icon}
+									error={iconField.error}
+									helperText={iconField.helperText}
+									onChange={(e) => {
+										const target = e.target as HTMLInputElement;
+										void form.setFieldValue("icon", target.value);
+									}}
+									onPickEmoji={(value) => {
+										void form.setFieldValue("icon", value);
+									}}
+								/>
+							</div>
+
+							{/* Right column */}
+							<FormField
+								field={nameField}
+								label="ID"
+								required
+								autoFocus={fieldsShowingCreateError.includes("name")}
+								id="template-name"
+								placeholder="my-template"
+							/>
+						</div>
 					</div>
-
-					{/* Right column */}
-					<FormField
-						field={nameField}
-						label="ID"
-						required
-						autoFocus={fieldsShowingCreateError.includes("name")}
-						id="template-name"
-						placeholder="my-template"
-					/>
 				</div>
-			</div>
+			</StepFrame>
 		</form>
 	);
 };
