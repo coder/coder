@@ -1,0 +1,96 @@
+{{- if .Values.coder.networkPolicy.enable }}
+{{- $e := .Values.coder.networkPolicy.egress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coder
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.coder.networkPolicy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $e.enable }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+        {{- if eq (include "coder.tlsEnabled" .) "true" }}
+        - port: https
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.ingress.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 6222
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "coder.selectorLabels" . | nindent 14 }}
+    {{- with include "libcoder.prometheusPort" (list . false) }}
+    - ports:
+        - port: {{ . }}
+          protocol: TCP
+      {{- with $.Values.coder.networkPolicy.prometheus.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.coder.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if $e.enable }}
+  egress:
+    {{- with $e.dns.ports }}
+    - ports:
+        {{- range . }}
+        - port: {{ . }}
+          protocol: UDP
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with $e.dns.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 6222
+          protocol: TCP
+      to:
+        - podSelector:
+            matchLabels:
+              {{- include "coder.selectorLabels" . | nindent 14 }}
+    {{- with $e.postgres.ports }}
+    - ports:
+        {{- range . }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with $e.postgres.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.coder.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

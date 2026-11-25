@@ -1,0 +1,17 @@
+coder:
+  image:
+    tag: latest
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "True"
+  networkPolicy:
+    enable: true
+    prometheus:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+    extraEgress:
+      - ports:
+          - port: 443
+            protocol: TCP
