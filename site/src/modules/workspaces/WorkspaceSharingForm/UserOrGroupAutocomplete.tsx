@@ -22,13 +22,12 @@ type UserOrGroupAutocompleteProps = {
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
 	organizationId: string;
 	exclude: ExcludableOption[];
+	label?: string;
 	className?: string;
 	id?: string;
 	triggerAriaLabelledBy?: string;
 	triggerRef?: React.Ref<HTMLButtonElement>;
 };
-
-const label = "Search for user or group";
 
 const normalizeMember = (
 	member: OrganizationMemberWithUserData,
@@ -44,6 +43,7 @@ export const UserOrGroupAutocomplete: React.FC<
 	onChange,
 	organizationId,
 	exclude,
+	label = "Search for user or group",
 	className = "w-full sm:w-80",
 	id,
 	triggerAriaLabelledBy,
