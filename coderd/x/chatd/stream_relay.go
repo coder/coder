@@ -145,6 +145,11 @@ func (f *streamRelayForwarder) loop() {
 			return
 		}
 		if session != nil && connected.workerID.Valid && sameNullUUID(connected.workerID, target.workerID) {
+			// runStreamSync configures after every newer snapshot; a selection resends
+			// from seq 1. Skipping relies on messagepartbuffer keeping open-episode subscribers.
+			if connected.sameEpisode(target) {
+				return
+			}
 			if err := session.SelectEpisode(ctx, target.historyVersion, target.generationAttempt); err != nil {
 				f.logger.Warn(ctx, "failed to select stream parts episode",
 					slog.F("chat_id", f.chatID),
