@@ -57,9 +57,6 @@ type responsesInterceptionBase struct {
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
 
-	// dumpSeq numbers the API dump files of each upstream call.
-	dumpSeq atomic.Int64
-
 	logger slog.Logger
 	tracer trace.Tracer
 
@@ -119,7 +116,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, &i.dumpSeq, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 

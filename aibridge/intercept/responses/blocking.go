@@ -120,8 +120,8 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		}()
 	}
 
+	srv := i.newResponsesService(ctx)
 	for shouldLoop {
-		srv := i.newResponsesService(ctx)
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)

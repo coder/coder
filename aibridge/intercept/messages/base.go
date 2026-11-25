@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -142,9 +141,6 @@ type interceptionBase struct {
 	// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
 	// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
 	isSmallFastModel bool
-
-	// dumpSeq numbers the API dump files of each upstream call.
-	dumpSeq atomic.Int64
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -375,7 +371,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, &i.dumpSeq, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 

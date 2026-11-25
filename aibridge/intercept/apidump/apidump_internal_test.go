@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -37,7 +36,7 @@ func TestBridgedMiddleware_RedactsSensitiveRequestHeaders(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{"test": true}`)))
@@ -95,7 +94,7 @@ func TestBridgedMiddleware_RedactsSensitiveResponseHeaders(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{}`)))
@@ -156,7 +155,7 @@ func TestBridgedMiddleware_WritesErrorFile_WhenNextFails(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{}`)))
@@ -180,7 +179,7 @@ func TestBridgedMiddleware_EmptyBaseDir_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-	middleware := NewBridgeMiddleware("", "openai", "gpt-4", uuid.New(), new(atomic.Int64), logger, quartz.NewMock(t))
+	middleware := NewBridgeMiddleware("", "openai", "gpt-4", uuid.New(), logger, quartz.NewMock(t))
 	require.Nil(t, middleware)
 }
 
@@ -192,7 +191,7 @@ func TestBridgedMiddleware_PreservesRequestBody(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	originalBody := `{"messages": [{"role": "user", "content": "hello"}]}`
@@ -227,7 +226,7 @@ func TestBridgedMiddleware_ModelWithSlash(t *testing.T) {
 	interceptionID := uuid.New()
 
 	// Model with slash should have it replaced with dash
-	middleware := NewBridgeMiddleware(tmpDir, "google", "gemini/1.5-pro", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "google", "gemini/1.5-pro", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.google.com/v1/chat", bytes.NewReader([]byte(`{}`)))
@@ -254,9 +253,7 @@ func TestBridgedMiddleware_ModelWithSlash(t *testing.T) {
 
 // TestBridgedMiddleware_SeparateFilesPerCall verifies that upstream calls in
 // one interception, such as key failover attempts, do not overwrite each
-// other's dumps. The calls go through two middlewares that share a sequence
-// counter, as when an interceptor rebuilds its SDK service per iteration, at
-// the same clock instant.
+// other's dumps, even at the same clock instant.
 func TestBridgedMiddleware_SeparateFilesPerCall(t *testing.T) {
 	t.Parallel()
 
@@ -264,7 +261,8 @@ func TestBridgedMiddleware_SeparateFilesPerCall(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
-	seq := new(atomic.Int64)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
+	require.NotNil(t, middleware)
 
 	calls := []struct {
 		reqBody  string
@@ -275,9 +273,6 @@ func TestBridgedMiddleware_SeparateFilesPerCall(t *testing.T) {
 		{reqBody: `{"attempt":2}`, status: http.StatusOK, respBody: `{"ok":true}`},
 	}
 	for _, c := range calls {
-		middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, seq, logger, clk)
-		require.NotNil(t, middleware)
-
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", strings.NewReader(c.reqBody))
 		require.NoError(t, err)
 
@@ -373,7 +368,7 @@ func TestBridgedMiddleware_AllSensitiveRequestHeaders(t *testing.T) {
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
-	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, new(atomic.Int64), logger, clk)
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
 	require.NotNil(t, middleware)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(`{}`)))

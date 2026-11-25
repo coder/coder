@@ -37,18 +37,16 @@ type MiddlewareNext = func(*http.Request) (*http.Response, error)
 // Middleware is an HTTP middleware function compatible with SDK WithMiddleware options.
 type Middleware = func(*http.Request, MiddlewareNext) (*http.Response, error)
 
-// NewBridgeMiddleware returns a middleware function that dumps requests and responses to files.
-// If baseDir is empty, returns nil (no middleware).
-//
-// Each upstream call gets its own dump files, numbered by seq. An interception
-// can make several upstream calls (key failover attempts, agentic loop
-// iterations, SDK retries), so seq must be shared by every middleware built
-// for the same interception to keep the file names unique.
-func NewBridgeMiddleware(baseDir string, provider string, model string, interceptionID uuid.UUID, seq *atomic.Int64, logger slog.Logger, clk quartz.Clock) Middleware {
+// NewBridgeMiddleware returns a middleware that dumps each upstream request and
+// response to its own numbered files, so key failover attempts and agentic loop
+// iterations within one interception do not overwrite each other. Callers must
+// build one middleware per interception. If baseDir is empty, it returns nil.
+func NewBridgeMiddleware(baseDir string, provider string, model string, interceptionID uuid.UUID, logger slog.Logger, clk quartz.Clock) Middleware {
 	if baseDir == "" {
 		return nil
 	}
 
+	var seq atomic.Int64
 	return func(req *http.Request, next MiddlewareNext) (*http.Response, error) {
 		d := &Dumper{
 			dumpPath: interceptDumpPath(baseDir, provider, model, interceptionID, seq.Add(1), clk),
@@ -234,8 +232,7 @@ func (*Dumper) writeRedactedHeaders(w io.Writer, headers http.Header, sensitive 
 }
 
 // interceptDumpPath returns the base file path (without req/resp suffix) for
-// one upstream call of an interception. seq is the call's position within the
-// interception.
+// one upstream call of an interception.
 func interceptDumpPath(baseDir string, provider string, model string, interceptionID uuid.UUID, seq int64, clk quartz.Clock) string {
 	safeModel := strings.ReplaceAll(model, "/", "-")
 	return filepath.Join(baseDir, provider, safeModel, fmt.Sprintf("%d-%s-%03d", clk.Now().UTC().UnixMilli(), interceptionID, seq))
