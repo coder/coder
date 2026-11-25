@@ -10,6 +10,11 @@ excludedDirs:
   # coder.com/docs; chasing external links here is overkill.
   - docs/.style
 ignorePatterns:
+  # The docs site renders the REST API reference pages, other than index.md
+  # and authentication.md, from coderd/apidoc/swagger.json, so they have no
+  # file here to check. The docs site's own build fails on a link to a page it
+  # does not render.
+  - pattern: "reference/api/(?!index\\.md|authentication\\.md)[a-z0-9]+\\.md"
   - pattern: "localhost"
   - pattern: "example.com"
   - pattern: "mailto:"

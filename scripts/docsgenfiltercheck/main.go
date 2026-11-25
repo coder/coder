@@ -6,7 +6,7 @@
 // docs-gen matches every generated file that docs matches. The generated files
 // are the arguments plus every tracked Markdown file the docs filter matches
 // whose body opens with docgenenv.GeneratedContentBanner, which covers pages
-// GEN_FILES doesn't list, such as the nested CLI and REST API reference pages.
+// GEN_FILES doesn't list, such as the nested CLI reference pages.
 // The check fails when a generated file matches docs but not docs-gen, and
 // when a docs-gen pattern matches no tracked file, so stale entries don't
 // accumulate.

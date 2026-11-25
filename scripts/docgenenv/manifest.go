@@ -42,7 +42,7 @@ type Manifest struct {
 // title in the path has no match). The returned pointer aliases the manifest,
 // so mutating it (for example, replacing Children) updates the manifest in place.
 //
-// Both documentation generators resolve their target route through this single
+// The doc generators resolve their target route through this single
 // traversal so the route they read metadata from and the route they rewrite
 // cannot drift apart.
 func (m *Manifest) FindRoute(titles ...string) *Route {

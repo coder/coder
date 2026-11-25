@@ -396,3 +396,49 @@ func TestBuildManifestFrontMatterDescription(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildManifestRenderedAPIPages covers the REST API reference pages the
+// docs site renders from swagger.json: they need no file, a committed copy is
+// an error because the site never shows it, and the hand-written pages must
+// still exist.
+func TestBuildManifestRenderedAPIPages(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		pages   []string
+		wantErr string
+	}{
+		{name: "RenderedPageAbsent", pages: []string{"index.md", "authentication.md"}},
+		{
+			name:    "RenderedPageCommitted",
+			pages:   []string{"index.md", "authentication.md", "users.md"},
+			wantErr: `REST API > Users: the docs site renders "./reference/api/users.md" from coderd/apidoc/swagger.json`,
+		},
+		{
+			name:    "HandWrittenPageAbsent",
+			pages:   []string{"index.md"},
+			wantErr: `REST API > Authentication: path "./reference/api/authentication.md" does not exist`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			docsDir, sourcesDir := writeTree(t, map[string]string{
+				"index.yml":          "versions: [main]\nsections:\n  - api.yml\n",
+				"api.yml":            "title: REST API\npath: ./reference/api/index.md\nchildren_from: generated/api.json\n",
+				"generated/api.json": `[{"title": "Authentication", "path": "./reference/api/authentication.md"}, {"title": "Users", "path": "./reference/api/users.md"}]`,
+			})
+			for _, page := range tc.pages {
+				p := filepath.Join(docsDir, "reference", "api", page)
+				require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+				require.NoError(t, os.WriteFile(p, []byte("# page\n"), 0o600))
+			}
+			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}

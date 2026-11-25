@@ -20,7 +20,7 @@ The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
 A page doesn't jump from H2 to H4.
-Raw HTML headings, such as the `<h3>` headings in the generated API reference, sit in the same outline and follow the same rule.
+Raw HTML headings sit in the same outline and follow the same rule.
 Every heading has text.
 An empty heading still appears in the outline a screen reader offers, as an entry with no name.
 

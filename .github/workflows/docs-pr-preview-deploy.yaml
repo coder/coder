@@ -1,4 +1,5 @@
-# Builds a pull request's docs/ tree with docs-engine's offline export and
+# Builds a pull request's docs/ tree and the coderd/apidoc/swagger.json the
+# REST API reference is rendered from with docs-engine's offline export and
 # publishes it as its own site on the preview-only domain in the repository
 # variable DOCS_PREVIEW_DOMAIN (docs.cdr-preview.dev, so PR 123's head is
 # https://pr-123.docs.cdr-preview.dev):
@@ -38,6 +39,7 @@ on:
     paths:
       - "docs/**"
       - "!docs/.style/**"
+      - "coderd/apidoc/swagger.json"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -169,12 +171,16 @@ jobs:
           mkdir engine
           tar -C engine -xzf "${ARTIFACT_DIR}/engine.tgz"
 
-      - name: Check out the pull request's docs/ tree
+      - name: Check out the pull request's docs/ tree and Swagger document
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: content
-          sparse-checkout: docs
+          # The engine renders the REST API reference from
+          # coderd/apidoc/swagger.json, which it reads beside docs/.
+          sparse-checkout: |
+            docs
+            coderd/apidoc
           persist-credentials: false
 
       - name: Install pnpm
@@ -192,17 +198,23 @@ jobs:
         working-directory: engine
         run: pnpm install --frozen-lockfile
 
-      # docs/ holds no symbolic links. One added by a PR could pull files
-      # from elsewhere on this runner, such as the private engine source,
-      # into a public preview, whatever the pinned engine does with it.
+      # docs/ and coderd/apidoc/ hold no symbolic links. One added by a PR
+      # could pull files from elsewhere on this runner, such as the private
+      # engine source, into a public preview, whatever the pinned engine does
+      # with it.
       - name: Build the static export
         working-directory: engine
         env:
           DOCS_ROOT: ${{ github.workspace }}/content/docs
+          API_DOC_DIR: ${{ github.workspace }}/content/coderd/apidoc
         run: |
           set -euo pipefail
           if [ -L "$DOCS_ROOT" ] || [ ! -d "$DOCS_ROOT" ] || [ -n "$(find "$DOCS_ROOT" -type l -print -quit)" ]; then
             echo "::error::docs/ must be a directory with no symbolic links in it." >&2
+            exit 1
+          fi
+          if [ -L "$(dirname "$API_DOC_DIR")" ] || [ -L "$API_DOC_DIR" ] || [ ! -d "$API_DOC_DIR" ] || [ -n "$(find "$API_DOC_DIR" -type l -print -quit)" ]; then
+            echo "::error::coderd/apidoc/ must be a directory with no symbolic links in or above it." >&2
             exit 1
           fi
           pnpm turbo run build --filter=@coder/offlinedocs

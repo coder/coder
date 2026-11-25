@@ -16,7 +16,6 @@
 		"**/*.gen.json": true,
 		"**/testdata/*": true,
 		"coderd/apidoc/**": true,
-		"docs/reference/api/*.md": true,
 		"docs/reference/cli/*.md": true,
 		"docs/templates/*.md": true,
 		"LICENSE": true,

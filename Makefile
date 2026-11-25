@@ -615,10 +615,6 @@ site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-wo
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml scripts/apidocgen/pnpm-workspace.yaml
-	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
-	touch "$@"
-
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/appFamiliesGenerated.ts \
@@ -1507,9 +1503,6 @@ docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/sco
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/.gen: \
-	node_modules/.installed \
-	site/node_modules/.installed \
-	scripts/apidocgen/node_modules/.installed \
 	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
@@ -1519,30 +1512,23 @@ coderd/apidoc/.gen: \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	.swaggo \
-	scripts/apidocgen/generate.sh \
-	scripts/apidocgen/swaginit/main.go \
-	$(wildcard scripts/apidocgen/postprocess/*) \
-	$(wildcard scripts/apidocgen/markdown-template/*) | _gen
-	tmpdir=$$(mktemp -d -p _gen) && swagtmp=$$(mktemp -d -p _gen) && \
-		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
-		mkdir -p "$$tmpdir/reference/api" && \
-		cp -R docs/manifest "$$tmpdir/manifest" && \
-		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
-		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
+	scripts/apidocgen/swaginit/main.go | _gen
+	swagtmp=$$(mktemp -d -p _gen) && swagtmp=$$(realpath "$$swagtmp") && \
+		SWAG_OUTPUT_DIR="$$swagtmp" go run ./scripts/apidocgen/swaginit && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
-		./scripts/biome_format.sh "$$tmpdir/manifest/generated/rest-api.json" && \
-		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
-		mv "$$tmpdir/manifest/generated/rest-api.json" docs/manifest/generated/rest-api.json && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
 		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
-		rm -rf "$$tmpdir" "$$swagtmp"
+		rm -rf "$$swagtmp"
 	touch "$@"
 
-# apidocgen writes the REST API sidebar fragment named by children_from in
-# docs/manifest; the rule above moves it into place.
-docs/manifest/generated/rest-api.json: coderd/apidoc/.gen
-	touch "$@"
+# docsmanifestgen writes the REST API sidebar fragment named by children_from
+# in docs/manifest from the tags in swagger.json. The docs site renders the
+# pages the fragment lists from the same document.
+docs/manifest/generated/rest-api.json: coderd/apidoc/swagger.json site/node_modules/.installed _gen/bin/docsmanifestgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/docsmanifestgen rest-api -out "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 # clidocgen writes the "Command Line" sidebar fragment named by children_from
 # in docs/manifest, built from the command tree.
