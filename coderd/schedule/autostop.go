@@ -43,12 +43,15 @@ type CalculateAutostopParams struct {
 	Workspace                 database.WorkspaceTable
 
 	// AutostopRequirementNotBefore is the earliest required stop when
-	// recalculating an existing build. Build startup leeway still applies.
+	// recalculating an existing build. Include any leeway for the change in
+	// this value. Build startup leeway still applies.
 	//
-	// E.g. if a build completes on Friday and an admin adds a weekly Sunday
-	//      requirement the following Wednesday, pass the template save time
-	//      to select the upcoming Sunday's quiet hours. A zero value starts
-	//      from build completion plus startup leeway and selects the previous
+	// E.g. when saving a template, pass the template save time (plus
+	//      AutostopRequirementLeeway to give owners time to see the new
+	//      stop time). If a build completes on Friday and an admin adds a
+	//      weekly Sunday requirement the following Wednesday, the upcoming
+	//      Sunday's quiet hours will be selected. A zero value starts from
+	//      build completion plus startup leeway and selects the previous
 	//      Sunday's quiet hours. That past deadline can cause an unexpected
 	//      stop on Wednesday, outside quiet hours.
 	AutostopRequirementNotBefore time.Time
