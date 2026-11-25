@@ -41,7 +41,7 @@ type OrganizationAutocompleteProps = Pick<
 	ariaLabel?: string;
 	/**
 	 * Visible label shown before the value. Unless ariaLabel is set, it also
-	 * names the trigger as "Label: value".
+	 * names the trigger "Label: value", or "Label" when nothing is selected.
 	 */
 	label?: string;
 	required?: boolean;
@@ -136,7 +136,7 @@ export const OrganizationAutocomplete: React.FC<
 							<span className="truncate">{valueLabel}</span>
 						</>
 					) : (
-						<span className="text-content-secondary">
+						<span className="truncate text-content-secondary">
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
