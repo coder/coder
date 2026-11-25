@@ -1154,47 +1154,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.version }}
 
-      # wingetcreate doesn't check for an existing PR, so each submission
-      # step skips the package if cdrci already has an open or merged PR for
-      # this version. That makes a rerun of this job safe. The step sets
-      # `submitted=true` only when it opens a new PR.
-      - name: Submit Coder.Coder manifest to winget-pkgs
-        id: winget_coder
-        run: |
-          $package = 'Coder.Coder'
-          $version = $env:VERSION.Trim('v')
-          echo "Package version: ${version}"
-
-          $prs = gh pr list --repo microsoft/winget-pkgs --state all --search "author:cdrci ${package} version ${version}" --limit 10 --json number,title,state
-          if ($LASTEXITCODE -ne 0) { throw "Couldn't search microsoft/winget-pkgs for an existing ${package} ${version} PR." }
-          $existing = $prs | ConvertFrom-Json | `
-            Where-Object { $_.state -ne 'CLOSED' -and $_.title.EndsWith(": ${package} version ${version}") } | `
-            Select-Object -First 1
-          if ($existing) {
-            echo "microsoft/winget-pkgs#$($existing.number) already submits ${package} ${version}. Skipping."
-            exit 0
-          }
-
-          .\wingetcreate.exe update $package `
-            --submit `
-            --version "${version}" `
-            --urls "${env:AMD64_INSTALLER_URL}" "${env:AMD64_ZIP_URL}" "${env:ARM64_ZIP_URL}"
-          if ($LASTEXITCODE -ne 0) { throw "wingetcreate couldn't submit ${package} ${version}." }
-          "submitted=true" >> $env:GITHUB_OUTPUT
-
-        env:
-          # For gh CLI, the same PR search as the comment step uses.
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          # For wingetcreate. We need a real token since we're pushing a commit
-          # to GitHub and then making a PR in a different repo.
-          # wingetcreate will read the token from the environment variable defined below.
-          # Reference: https://aka.ms/winget-create-token
-          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          VERSION: ${{ needs.release.outputs.version }}
-          AMD64_INSTALLER_URL: ${{ steps.winget_urls.outputs.amd64_installer_url }}
-          AMD64_ZIP_URL: ${{ steps.winget_urls.outputs.amd64_zip_url }}
-          ARM64_ZIP_URL: ${{ steps.winget_urls.outputs.arm64_zip_url }}
-
       # winget has no release channels, and `winget install Coder.Coder`
       # installs the highest version, which is always mainline. Stable releases
       # also go to Coder.Coder.Stable, so stable can be installed and upgraded
@@ -1211,88 +1170,78 @@ jobs:
       # create a package, so Coder.Coder.Stable must already exist in
       # winget-pkgs with these two.
       #
-      # This needs only the asset URLs, so it still runs if the Coder.Coder
-      # submission fails.
-      - name: Submit Coder.Coder.Stable manifest to winget-pkgs
-        id: winget_stable
-        if: ${{ !cancelled() && inputs.release_channel == 'stable' && steps.winget_urls.outcome == 'success' }}
+      # wingetcreate opens a new PR on every run, even for a version that
+      # already has one, so this step skips a package that already has an open
+      # or merged cdrci PR for the version. That makes a rerun of this job safe.
+      # A failed package doesn't stop the others.
+      - name: Submit manifests to winget-pkgs
         run: |
-          $package = 'Coder.Coder.Stable'
           $version = $env:VERSION.Trim('v')
           echo "Package version: ${version}"
-
-          $prs = gh pr list --repo microsoft/winget-pkgs --state all --search "author:cdrci ${package} version ${version}" --limit 10 --json number,title,state
-          if ($LASTEXITCODE -ne 0) { throw "Couldn't search microsoft/winget-pkgs for an existing ${package} ${version} PR." }
-          $existing = $prs | ConvertFrom-Json | `
-            Where-Object { $_.state -ne 'CLOSED' -and $_.title.EndsWith(": ${package} version ${version}") } | `
-            Select-Object -First 1
-          if ($existing) {
-            echo "microsoft/winget-pkgs#$($existing.number) already submits ${package} ${version}. Skipping."
-            exit 0
-          }
-
-          .\wingetcreate.exe update $package `
-            --submit `
-            --version "${version}" `
-            --urls "${env:AMD64_ZIP_URL}" "${env:ARM64_ZIP_URL}"
-          if ($LASTEXITCODE -ne 0) { throw "wingetcreate couldn't submit ${package} ${version}." }
-          "submitted=true" >> $env:GITHUB_OUTPUT
-
-        env:
-          # For gh CLI, the same PR search as the comment step uses.
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          # For wingetcreate. github.token can't push to the cdrci fork or open
-          # a PR in microsoft/winget-pkgs.
-          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          VERSION: ${{ needs.release.outputs.version }}
-          AMD64_ZIP_URL: ${{ steps.winget_urls.outputs.amd64_zip_url }}
-          ARM64_ZIP_URL: ${{ steps.winget_urls.outputs.arm64_zip_url }}
-
-      - name: Comment on PRs
-        if: ${{ !cancelled() && (steps.winget_coder.outputs.submitted == 'true' || steps.winget_stable.outputs.submitted == 'true') }}
-        run: |
-          $version = $env:VERSION.Trim('v')
           $cc = "🤖 cc: @deansheather @matifali"
-          $packages = @()
-          if ($env:CODER_SUBMITTED -eq 'true') { $packages += 'Coder.Coder' }
-          if ($env:STABLE_SUBMITTED -eq 'true') { $packages += 'Coder.Coder.Stable' }
+          $rerun = "Fix the error above, then rerun this job. The rerun skips any package that already has an open or merged PR."
 
-          # wait 30 seconds
-          Start-Sleep -Seconds 30.0
-          # wingetcreate titles its PRs "New version: <ID> version <version>",
-          # "Add version: ..." or "Update version: ...". The title check keeps
-          # Coder.Coder from matching the Coder.Coder.Stable PR.
-          $missing = @()
-          $failed = @()
-          foreach ($package in $packages) {
-            $prs = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci ${package} version ${version}" --limit 10 --json number,title | `
-              ConvertFrom-Json
-            $pr = $prs | `
-              Where-Object { $_.title.EndsWith(": ${package} version ${version}") } | `
-              Select-Object -First 1
-            if (-not $pr) {
-              $missing += $package
-              continue
-            }
-            gh pr comment --repo microsoft/winget-pkgs "$($pr.number)" --body $cc
-            if ($LASTEXITCODE -ne 0) { $failed += "microsoft/winget-pkgs#$($pr.number)" }
+          $packages = @(
+            @{ id = 'Coder.Coder'; urls = @($env:AMD64_INSTALLER_URL, $env:AMD64_ZIP_URL, $env:ARM64_ZIP_URL) }
+          )
+          if ($env:RELEASE_CHANNEL -eq 'stable') {
+            $packages += @{ id = 'Coder.Coder.Stable'; urls = @($env:AMD64_ZIP_URL, $env:ARM64_ZIP_URL) }
           }
 
           $errors = @()
-          if ($missing) {
-            $errors += "No open microsoft/winget-pkgs PR by cdrci found for $($missing -join ', ') version ${version}. Find the PR and comment '${cc}' on it by hand."
+          foreach ($package in $packages) {
+            $id = $package.id
+
+            # wingetcreate titles its PRs "New version: <ID> version <version>",
+            # "Add version: ..." or "Update version: ...". Matching the end of
+            # the title keeps Coder.Coder from matching Coder.Coder.Stable.
+            $prs = gh pr list --repo microsoft/winget-pkgs --state all --search "author:cdrci ${id} version ${version}" --limit 10 --json number,title,state
+            if ($LASTEXITCODE -ne 0) {
+              $errors += "Couldn't search microsoft/winget-pkgs for an existing ${id} ${version} PR. ${rerun}"
+              continue
+            }
+            $existing = $prs | ConvertFrom-Json | `
+              Where-Object { $_.state -ne 'CLOSED' -and $_.title.EndsWith(": ${id} version ${version}") } | `
+              Select-Object -First 1
+            if ($existing) {
+              echo "microsoft/winget-pkgs#$($existing.number) already submits ${id} ${version}. Skipping."
+              continue
+            }
+
+            .\wingetcreate.exe update $id --submit --version "${version}" --urls $package.urls | Tee-Object -Variable output
+            if ($LASTEXITCODE -ne 0) {
+              $errors += "wingetcreate couldn't submit ${id} ${version}. ${rerun}"
+              continue
+            }
+
+            # wingetcreate prints "Pull request can be found here: <URL>".
+            $match = [regex]::Match(($output -join "`n"), 'github\.com/microsoft/winget-pkgs/pull/(\d+)')
+            if (-not $match.Success) {
+              $errors += "wingetcreate submitted ${id} ${version} but didn't print a PR URL. Find the PR in microsoft/winget-pkgs and comment '${cc}' on it by hand."
+              continue
+            }
+            $pr = $match.Groups[1].Value
+            gh pr comment --repo microsoft/winget-pkgs $pr --body $cc
+            if ($LASTEXITCODE -ne 0) {
+              $errors += "Couldn't comment on microsoft/winget-pkgs#${pr}. Comment '${cc}' on it by hand."
+            }
           }
-          if ($failed) {
-            $errors += "Couldn't comment on $($failed -join ', '). Comment '${cc}' on it by hand."
-          }
+
           if ($errors) {
-            throw (($errors -join ' ') + " The submissions succeeded, so there's no need to rerun this job.")
+            throw ($errors -join "`n")
           }
 
         env:
-          # For gh CLI. We need a real token since we're commenting on a PR in a
-          # different repo.
+          # For gh CLI, to search for and comment on microsoft/winget-pkgs PRs
+          # as cdrci. github.token can only comment in this repository.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          # For wingetcreate. We need a real token since we're pushing a commit
+          # to GitHub and then making a PR in a different repo.
+          # wingetcreate will read the token from the environment variable defined below.
+          # Reference: https://aka.ms/winget-create-token
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
-          CODER_SUBMITTED: ${{ steps.winget_coder.outputs.submitted }}
-          STABLE_SUBMITTED: ${{ steps.winget_stable.outputs.submitted }}
+          RELEASE_CHANNEL: ${{ inputs.release_channel }}
+          AMD64_INSTALLER_URL: ${{ steps.winget_urls.outputs.amd64_installer_url }}
+          AMD64_ZIP_URL: ${{ steps.winget_urls.outputs.amd64_zip_url }}
+          ARM64_ZIP_URL: ${{ steps.winget_urls.outputs.arm64_zip_url }}

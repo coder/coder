@@ -70,6 +70,8 @@ See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-hel
 
 Download the latest Windows installer or binary from the [Coder downloads page](https://coder.com/downloads), or upgrade from Winget.
 
+To check which package you installed, run `winget list --name Coder` and check the `Id` column.
+
 If you installed Coder with the `Coder.Coder` package, upgrade to the latest mainline release:
 
 ```ps1
@@ -82,7 +84,10 @@ If you installed Coder with the `Coder.Coder.Stable` package, upgrade to the lat
 winget install --id Coder.Coder.Stable --exact --source winget
 ```
 
-To switch from `Coder.Coder` to `Coder.Coder.Stable`, refer to [Install stable](../../reference/releases.md#install-stable).
-To switch from `Coder.Coder.Stable` to `Coder.Coder`, run `winget uninstall --id Coder.Coder.Stable --exact` first, then the `Coder.Coder` command.
+Switching between the packages installs `coder.exe` in a different folder.
+Before you switch, find any Windows service, scheduled task, or script that runs `coder.exe` by its full path, so you can update it after the switch.
+
+- To switch from `Coder.Coder` to `Coder.Coder.Stable`, follow [Install stable](../../reference/releases.md#install-stable).
+- To switch from `Coder.Coder.Stable` to `Coder.Coder`, run `winget uninstall --id Coder.Coder.Stable --exact`, then the `Coder.Coder` command.
 
 </div>

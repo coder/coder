@@ -55,6 +55,8 @@ sudo rm /usr/local/bin/coder
 
 ## Windows
 
+To check which package you installed, run `winget list --name Coder` and check the `Id` column.
+
 If you installed Coder with the `Coder.Coder` package:
 
 ```ps1
