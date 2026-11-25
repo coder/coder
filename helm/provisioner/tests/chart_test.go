@@ -46,6 +46,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "prometheus_annotations",
+		expectedError: "",
+	},
+	{
 		name:          "command",
 		expectedError: "",
 	},

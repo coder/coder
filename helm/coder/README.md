@@ -55,3 +55,21 @@ coder:
     secretNames:
       - my-tls-secret-name
 ```
+
+### Prometheus scraping
+
+To let annotation-based scrapers (Grafana Alloy, the Prometheus Helm chart, the
+Coder observability chart) discover Coder pods, enable metrics and set
+`coder.prometheus.scrapeAnnotations`. The chart then adds the
+`prometheus.io/scrape`, `prometheus.io/port` and `prometheus.io/path`
+annotations to the pods. Set `coder.prometheus.port` if you change the port in
+`CODER_PROMETHEUS_ADDRESS`.
+
+```yaml
+coder:
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+  prometheus:
+    scrapeAnnotations: true
+```
