@@ -54,11 +54,13 @@ type DeleteConfirmationFieldProps = {
 	confirmation: ReturnType<typeof useDeleteConfirmation>;
 	label: React.ReactNode;
 	entity: string;
+	/** Defaults to true. Turn it off when the field appears mid-form. */
+	autoFocus?: boolean;
 };
 
 export const DeleteConfirmationField: React.FC<
 	DeleteConfirmationFieldProps
-> = ({ confirmation, label, entity }) => {
+> = ({ confirmation, label, entity, autoFocus = true }) => {
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
 	const { name, value, showError, inputProps } = confirmation;
@@ -72,7 +74,7 @@ export const DeleteConfirmationField: React.FC<
 				className="text-content-primary"
 				name="confirmation"
 				autoComplete="off"
-				autoFocus
+				autoFocus={autoFocus}
 				placeholder={name}
 				aria-invalid={showError}
 				aria-describedby={showError ? errorId : undefined}

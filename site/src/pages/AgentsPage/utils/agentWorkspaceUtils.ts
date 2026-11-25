@@ -1,15 +1,31 @@
-import type { QueryClient } from "react-query";
+import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
-import { ArchiveAndDeleteError } from "#/api/queries/chats";
-import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
-import { workspaceById } from "#/api/queries/workspaces";
 import {
+	listOwnProjectChats,
+	projectChatWorkspacesKey,
+} from "#/api/queries/chatProjects";
+import {
+	ArchiveAndDeleteError,
+	chatsByWorkspace,
+	invalidateChatsByWorkspace,
+} from "#/api/queries/chats";
+import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
+import { workspaceQuotaKey } from "#/api/queries/workspaceQuota";
+import {
+	invalidateWorkspaceListQueries,
+	workspaceById,
+	workspaceByIdKey,
+} from "#/api/queries/workspaces";
+import {
+	type ChatProject,
 	PrebuildsSystemUserID,
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import { toast } from "#/components/Toaster/toast";
+import { isWorkspaceOn } from "#/utils/workspace";
 
 /**
  * Returns the moment a workspace's identity transferred to its
@@ -238,3 +254,172 @@ export function notifyArchiveAndDeleteFailed(
 		},
 	);
 }
+
+/** A workspace behind one of the user's own chats in a project. */
+export type ProjectChatWorkspace = {
+	readonly workspace: Workspace;
+	/** True when the workspace existed before the chats that use it. */
+	readonly existedBeforeChat: boolean;
+};
+
+/** "leave" is a UI choice; only stop and delete reach the workspace mutation. */
+export type ProjectWorkspaceAction = "leave" | "stop" | "delete";
+
+// Workspace lookups and actions run this many at a time, since each one
+// costs at least one request per workspace.
+const workspaceBatchSize = 5;
+
+/**
+ * Lists the workspaces behind the user's own unarchived chats in a project,
+ * by name. Workspaces that no longer exist are left out.
+ */
+export const projectChatWorkspaces = (
+	queryClient: QueryClient,
+	project: ChatProject,
+) =>
+	queryOptions({
+		queryKey: projectChatWorkspacesKey(project.id),
+		queryFn: async ({ signal }): Promise<ProjectChatWorkspace[]> => {
+			const chats = await listOwnProjectChats(project.id, signal);
+			// A workspace counts as created by a chat when it appeared after the
+			// first chat that uses it.
+			const firstChatCreatedAt = new Map<string, string>();
+			for (const chat of chats.flatMap((root) => [
+				root,
+				...(root.children ?? []),
+			])) {
+				if (!chat.workspace_id) {
+					continue;
+				}
+				const current = firstChatCreatedAt.get(chat.workspace_id);
+				if (!current || new Date(chat.created_at) < new Date(current)) {
+					firstChatCreatedAt.set(chat.workspace_id, chat.created_at);
+				}
+			}
+			const classify = async ([workspaceId, chatCreatedAt]: [
+				string,
+				string,
+			]): Promise<ProjectChatWorkspace[]> => {
+				const action = await fetchArchiveAndDeleteAction(
+					queryClient,
+					workspaceId,
+					chatCreatedAt,
+				);
+				const workspace = queryClient.getQueryData<Workspace>(
+					workspaceByIdKey(workspaceId),
+				);
+				if (action === "archive-only" || !workspace) {
+					return [];
+				}
+				return [{ workspace, existedBeforeChat: action === "confirm" }];
+			};
+			const entries = [...firstChatCreatedAt];
+			const results: ProjectChatWorkspace[] = [];
+			for (let i = 0; i < entries.length; i += workspaceBatchSize) {
+				const batch = entries.slice(i, i + workspaceBatchSize);
+				results.push(...(await Promise.all(batch.map(classify))).flat());
+			}
+			return results.sort((a, b) =>
+				a.workspace.name.localeCompare(b.workspace.name),
+			);
+		},
+	});
+
+// GET /chats/by-workspace accepts at most one page of workspace IDs.
+const findWorkspacesInUse = async (
+	queryClient: QueryClient,
+	workspaceIds: readonly string[],
+) => {
+	const inUse = new Set<string>();
+	for (let i = 0; i < workspaceIds.length; i += DEFAULT_RECORDS_PER_PAGE) {
+		const chatByWorkspace = await queryClient.fetchQuery({
+			...chatsByWorkspace(workspaceIds.slice(i, i + DEFAULT_RECORDS_PER_PAGE)),
+			staleTime: 0,
+		});
+		for (const workspaceId of Object.keys(chatByWorkspace)) {
+			inUse.add(workspaceId);
+		}
+	}
+	return inUse;
+};
+
+/** What a stop or delete left undone, for the toast that reports it. */
+export type ProjectWorkspaceActionResult = {
+	readonly failed: ReadonlyArray<{
+		readonly workspace: Workspace;
+		readonly error: unknown;
+	}>;
+	/** Workspaces another unarchived chat still uses. */
+	readonly skipped: readonly Workspace[];
+};
+
+/**
+ * Stops or deletes the workspaces behind the user's chats once their project
+ * is archived. Workspaces another unarchived chat still uses are skipped, and
+ * only workspaces running at that moment are stopped. A failed in-use check rejects
+ * before any workspace changes.
+ */
+export const projectWorkspaceAction = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: async ({
+			action,
+			workspaces,
+		}: {
+			action: Exclude<ProjectWorkspaceAction, "leave">;
+			workspaces: readonly Workspace[];
+			/** The caller's toast for the outcome; the requests ignore it. */
+			toastId?: string | number;
+		}): Promise<ProjectWorkspaceActionResult> => {
+			const inUse = await findWorkspacesInUse(
+				queryClient,
+				workspaces.map(({ id }) => id),
+			);
+			const failed: Array<{ workspace: Workspace; error: unknown }> = [];
+			const apply = async (workspace: Workspace) => {
+				try {
+					if (action === "delete") {
+						notifyDeleteQueueState(
+							workspace,
+							await API.deleteWorkspace(workspace.id),
+						);
+					} else {
+						// The dialog's copy can be stale: the workspace may have
+						// started or stopped while the dialog was open.
+						const current = await queryClient.fetchQuery({
+							...workspaceById(workspace.id),
+							staleTime: 0,
+						});
+						if (isWorkspaceOn(current)) {
+							await API.stopWorkspace(workspace.id);
+						}
+					}
+				} catch (error) {
+					if (!isWorkspaceNotFound(error)) {
+						failed.push({ workspace, error });
+					}
+				}
+			};
+			const candidates = workspaces.filter(({ id }) => !inUse.has(id));
+			for (let i = 0; i < candidates.length; i += workspaceBatchSize) {
+				await Promise.all(
+					candidates.slice(i, i + workspaceBatchSize).map(apply),
+				);
+			}
+			return {
+				failed,
+				skipped: workspaces.filter(({ id }) => inUse.has(id)),
+			};
+		},
+		onSettled: (_result, _error, { action, workspaces }) => {
+			void invalidateWorkspaceListQueries(queryClient);
+			void invalidateChatsByWorkspace(queryClient);
+			for (const workspace of workspaces) {
+				void queryClient.invalidateQueries({
+					queryKey: workspaceByIdKey(workspace.id),
+				});
+			}
+			if (action === "delete") {
+				void queryClient.invalidateQueries({ queryKey: workspaceQuotaKey });
+			}
+		},
+	});

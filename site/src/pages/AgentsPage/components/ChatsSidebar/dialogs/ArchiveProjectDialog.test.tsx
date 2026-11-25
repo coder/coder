@@ -1,22 +1,62 @@
-import { screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProjectArchivePreview } from "#/api/typesGenerated";
+import { projectChatWorkspacesKey } from "#/api/queries/chatProjects";
+import type {
+	Chat,
+	ChatProjectArchivePreview,
+	Workspace,
+} from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockArchivedChatProject,
 	MockChatProject,
+	MockStoppedWorkspace,
+	MockWorkspace,
+	MockWorkspaceBuildDelete,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
+const chatCreatedAt = "2026-10-01T00:00:00Z";
+// Created after the chats, so each counts as created by its chat.
+const workspaceCreatedAt = "2026-10-02T00:00:00Z";
+
+const mockWorkspace = (id: string): Workspace => ({
+	...MockWorkspace,
+	id,
+	name: id,
+	created_at: workspaceCreatedAt,
+});
+const mockRunningWorkspace = mockWorkspace("running");
+const mockInUseWorkspace = mockWorkspace("in-use");
+const mockStoppedWorkspace: Workspace = {
+	...mockWorkspace("stopped"),
+	latest_build: MockStoppedWorkspace.latest_build,
+};
+const mockDeletableWorkspace = mockWorkspace("deletable");
+const mockFailingWorkspace = mockWorkspace("failing");
+
 const mockApi = ({
 	preview = { chat_count: 2, active_chat_count: 0 },
+	workspaces = [],
+	workspacesInUse = [],
 }: {
 	preview?: ChatProjectArchivePreview;
+	workspaces?: Workspace[];
+	workspacesInUse?: string[];
 } = {}) => {
 	vi.spyOn(API.experimental, "getChatProjectArchivePreview").mockResolvedValue(
 		preview,
@@ -24,20 +64,53 @@ const mockApi = ({
 	vi.spyOn(API.experimental, "getChatRetentionDays").mockResolvedValue({
 		retention_days: 30,
 	});
+	vi.spyOn(API.experimental, "getChats").mockResolvedValue(
+		workspaces.map((ws, index) => ({
+			...MockChat,
+			id: `chat-${index}`,
+			created_at: chatCreatedAt,
+			project_id: MockChatProject.id,
+			workspace_id: ws.id,
+		})),
+	);
+	vi.spyOn(API, "getWorkspace").mockImplementation(async (id) => {
+		const found = workspaces.find((ws) => ws.id === id);
+		if (!found) {
+			throw new Error(`unexpected workspace ${id}`);
+		}
+		return found;
+	});
+	vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+	vi.spyOn(API.experimental, "getChatsByWorkspace").mockResolvedValue(
+		Object.fromEntries(workspacesInUse.map((id) => [id, "other-chat"])),
+	);
 	const archive = vi
 		.spyOn(API.experimental, "archiveChatProject")
 		.mockResolvedValue(MockArchivedChatProject);
-	return { archive };
+	const stop = vi
+		.spyOn(API, "stopWorkspace")
+		.mockResolvedValue(MockWorkspaceBuildDelete);
+	const remove = vi
+		.spyOn(API, "deleteWorkspace")
+		.mockResolvedValue(MockWorkspaceBuildDelete);
+	return { archive, stop, remove };
 };
 
 const renderDialog = async () => {
 	const onClose = vi.fn();
-	renderWithAuth(
+	const { router, queryClient } = renderWithAuth(
 		<ArchiveProjectDialog project={MockChatProject} open onClose={onClose} />,
 	);
-	// The confirm button waits for the preview.
+	// The confirm button waits for the preview and the workspace list.
 	await screen.findByText(/will be archived/);
-	return { onClose };
+	await waitFor(() =>
+		expect(
+			screen.getByRole("button", {
+				name: /^(Archive project|Stop chats? and archive)$/,
+			}),
+		).toBeEnabled(),
+	);
+	return { onClose, router, queryClient };
 };
 
 afterEach(() => {
@@ -69,6 +142,7 @@ describe("ArchiveProjectDialog", () => {
 			expect(
 				API.experimental.getChatProjectArchivePreview,
 			).toHaveBeenCalledTimes(1);
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(1);
 		},
 	);
 
@@ -85,7 +159,9 @@ describe("ArchiveProjectDialog", () => {
 		);
 		await screen.findByText(/has no chats to archive/);
 		await waitFor(() =>
-			expect(API.experimental.getChatRetentionDays).toHaveBeenCalled(),
+			expect(
+				screen.getByRole("button", { name: "Archive project" }),
+			).toBeEnabled(),
 		);
 
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
@@ -146,5 +222,248 @@ describe("ArchiveProjectDialog", () => {
 			),
 		);
 		expect(errorToast).not.toHaveBeenCalled();
+		// The new chat may use a workspace the first list didn't have.
+		expect(API.experimental.getChats).toHaveBeenCalledTimes(2);
+	});
+
+	it("stops workspaces running at archive time that no other chat uses", async () => {
+		const user = userEvent.setup();
+		const { stop } = mockApi({
+			workspaces: [
+				mockRunningWorkspace,
+				mockInUseWorkspace,
+				mockStoppedWorkspace,
+			],
+			workspacesInUse: [mockInUseWorkspace.id],
+		});
+		const successToast = vi.spyOn(toast, "success");
+		const warningToast = vi.spyOn(toast, "warning");
+		const { router } = await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		// Both workspaces change state while the dialog is open: the running
+		// one stops and the stopped one starts. Only the one running at
+		// archive time is stopped.
+		vi.mocked(API.getWorkspace).mockImplementation(async (id) => {
+			switch (id) {
+				case mockRunningWorkspace.id:
+					return {
+						...mockRunningWorkspace,
+						latest_build: mockStoppedWorkspace.latest_build,
+					};
+				case mockStoppedWorkspace.id:
+					return {
+						...mockStoppedWorkspace,
+						latest_build: mockRunningWorkspace.latest_build,
+					};
+				case mockInUseWorkspace.id:
+					return mockInUseWorkspace;
+				default:
+					throw new Error(`unexpected workspace ${id}`);
+			}
+		});
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(warningToast).toHaveBeenCalled());
+		expect(stop.mock.calls).toEqual([[mockStoppedWorkspace.id]]);
+		// The skip replaces the archived toast instead of stacking under it.
+		expect(successToast).toHaveBeenCalledWith("Project archived");
+		expect(warningToast).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				id: successToast.mock.results[0]?.value,
+				duration: Number.POSITIVE_INFINITY,
+			}),
+		);
+		const description = warningToast.mock.calls[0]?.[1]?.description;
+		const toastContent = render(
+			typeof description === "function" ? description() : description,
+		);
+		const link = within(toastContent.container).getByRole("link", {
+			name: mockInUseWorkspace.name,
+		});
+		// A modified click opens the link natively instead of navigating here.
+		expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+		expect(fireEvent.click(link)).toBe(false);
+		expect(router.state.location.pathname).toBe(
+			`/@${mockInUseWorkspace.owner_name}/${mockInUseWorkspace.name}`,
+		);
+	});
+
+	it("waits for the workspace list before archiving", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi();
+		const chats = createDeferred<Chat[]>();
+		vi.mocked(API.experimental.getChats).mockReturnValue(chats.promise);
+		renderWithAuth(
+			<ArchiveProjectDialog project={MockChatProject} open onClose={vi.fn()} />,
+		);
+		await screen.findByText(/will be archived/);
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		expect(archive).not.toHaveBeenCalled();
+
+		chats.resolve([]);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Archive project" }),
+			).toBeEnabled(),
+		);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
+	});
+
+	it("reports each archive's skipped workspaces in that archive's toast", async () => {
+		const user = userEvent.setup();
+		mockApi({
+			workspaces: [mockInUseWorkspace],
+			workspacesInUse: [mockInUseWorkspace.id],
+		});
+		const usageLookup = createDeferred<Record<string, string>>();
+		vi.mocked(API.experimental.getChatsByWorkspace).mockReturnValue(
+			usageLookup.promise,
+		);
+		const successToast = vi.spyOn(toast, "success");
+		const warningToast = vi.spyOn(toast, "warning");
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "Other",
+		};
+		// Archiving the first project opens the dialog for the second.
+		const Harness: React.FC = () => {
+			const [project, setProject] = useState(MockChatProject);
+			return (
+				<ArchiveProjectDialog
+					project={project}
+					open
+					onClose={() => setProject(mockOtherProject)}
+				/>
+			);
+		};
+		const archiveWithStop = async () => {
+			await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Archive project" }),
+				).toBeEnabled(),
+			);
+			await user.click(screen.getByRole("button", { name: "Archive project" }));
+		};
+		renderWithAuth(<Harness />);
+
+		await archiveWithStop();
+		await waitFor(() => expect(successToast).toHaveBeenCalledTimes(1));
+		await archiveWithStop();
+		await waitFor(() => expect(successToast).toHaveBeenCalledTimes(2));
+		usageLookup.resolve({ [mockInUseWorkspace.id]: "other-chat" });
+
+		await waitFor(() => expect(warningToast).toHaveBeenCalledTimes(2));
+		expect(warningToast.mock.calls.map(([, data]) => data?.id)).toEqual(
+			successToast.mock.results.map(({ value }) => value),
+		);
+	});
+
+	it("moves focus to Retry when a workspace refresh fails under a focused option", async () => {
+		const user = userEvent.setup();
+		mockApi({ workspaces: [mockRunningWorkspace] });
+		const { queryClient } = await renderDialog();
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+
+		vi.mocked(API.experimental.getChats).mockRejectedValue(
+			mockApiError({ message: "Failed to list chats." }),
+		);
+		// Reopening the dialog refetches the cached workspace list the same way.
+		act(() => {
+			void queryClient.invalidateQueries({
+				queryKey: projectChatWorkspacesKey(MockChatProject.id),
+			});
+		});
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus(),
+		);
+	});
+
+	it("archives once and still stops workspaces when confirm is double-clicked", async () => {
+		// Without a delay, the second click lands before the button disables.
+		const user = userEvent.setup({ delay: null });
+		const { archive, stop } = mockApi({ workspaces: [mockRunningWorkspace] });
+		const successToast = vi.spyOn(toast, "success");
+		const { onClose } = await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		await user.dblClick(
+			screen.getByRole("button", { name: "Archive project" }),
+		);
+
+		await waitFor(() => expect(stop).toHaveBeenCalled());
+		expect(archive).toHaveBeenCalledTimes(1);
+		expect(onClose).toHaveBeenCalled();
+		expect(successToast).toHaveBeenCalledWith("Project archived");
+	});
+
+	it("keeps focus in the options when Delete is chosen with the keyboard", async () => {
+		const user = userEvent.setup();
+		mockApi({ workspaces: [mockRunningWorkspace] });
+		await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		// Radix moves focus in a timeout and checks the option only while
+		// the arrow key is still down.
+		await user.keyboard("{ArrowDown>}");
+		await user.keyboard("{/ArrowDown}");
+
+		const deleteOption = screen.getByRole("radio", { name: "Delete them" });
+		await waitFor(() => expect(deleteOption).toBeChecked());
+		expect(screen.getByRole("textbox")).not.toHaveFocus();
+		expect(deleteOption).toHaveFocus();
+	});
+
+	it("leaves every workspace alone when it can't tell which are still in use", async () => {
+		const user = userEvent.setup();
+		const { stop } = mockApi({ workspaces: [mockRunningWorkspace] });
+		vi.mocked(API.experimental.getChatsByWorkspace).mockRejectedValue(
+			mockApiError({ message: "Lookup failed" }),
+		);
+		const errorToast = vi.spyOn(toast, "error");
+		await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(errorToast).toHaveBeenCalled());
+		expect(stop).not.toHaveBeenCalled();
+	});
+
+	it("deletes workspaces only once the project name is typed, and reports failures", async () => {
+		const user = userEvent.setup();
+		const { archive, remove } = mockApi({
+			workspaces: [mockDeletableWorkspace, mockFailingWorkspace],
+		});
+		remove.mockImplementation(async (id) => {
+			if (id === mockFailingWorkspace.id) {
+				throw mockApiError({ message: "Delete refused" });
+			}
+			return MockWorkspaceBuildDelete;
+		});
+		const errorToast = vi.spyOn(toast, "error");
+		await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Delete them" }));
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		expect(archive).not.toHaveBeenCalled();
+
+		await user.type(screen.getByRole("textbox"), MockChatProject.name);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(errorToast).toHaveBeenCalled());
+		expect(remove.mock.calls.map(([id]) => id).sort()).toEqual([
+			mockDeletableWorkspace.id,
+			mockFailingWorkspace.id,
+		]);
+		expect(errorToast.mock.calls[0][0]).toMatch(
+			/1 workspace could not be deleted/,
+		);
 	});
 });
