@@ -155,7 +155,7 @@ curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 
 On Windows, use the `Coder.Coder.Stable` [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package to install the latest stable release.
-If `winget list --name Coder` shows that `Coder.Coder` is installed, switch packages with the steps in this section instead.
+If `winget list --name Coder` shows `Coder.Coder` in the `Id` column, switch packages with the steps in this section instead.
 Otherwise, run:
 
 ```ps1
