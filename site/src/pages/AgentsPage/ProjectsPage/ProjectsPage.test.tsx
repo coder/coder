@@ -114,7 +114,6 @@ describe("ProjectsPage", () => {
 			expect(pin).toHaveBeenCalledWith(
 				MockChatProject.organization_id,
 				"India",
-				undefined,
 			),
 		);
 		await openActions("India");

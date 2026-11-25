@@ -42,8 +42,8 @@ const tabSearchParam = "tab";
 
 type DialogState = { readonly project?: ChatProject; readonly open: boolean };
 
-// Pins and unpins share a mutation key, and only a pin's variables wrap the
-// project.
+// Pins, unpins and reorders share a mutation key, and only a pin's variables
+// wrap the project.
 const isPinVariables = (
 	variables: unknown,
 ): variables is { readonly project: ChatProject } =>
@@ -134,8 +134,7 @@ const ProjectsPage: React.FC = () => {
 	const pinOptions = pinChatProject(queryClient);
 	const pinMutation = useMutation({
 		...pinOptions,
-		onError: (error, variables, context) => {
-			pinOptions.onError?.(error, variables, context);
+		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to pin project."));
 		},
 	});
