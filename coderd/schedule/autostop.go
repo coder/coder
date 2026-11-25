@@ -22,18 +22,6 @@ const (
 	//      will skip the autostop requirement and use the next scheduled
 	//      stop time instead.
 	autostopRequirementLeeway = 2 * time.Hour
-
-	// autostopRequirementBuffer is the duration of time we subtract from the
-	// time when calculating the next scheduled stop time. This is necessary
-	// because Schedule.Next returns occurrences strictly after its input, so
-	// a lookup from midnight skips quiet hours that start exactly then.
-	//
-	// E.g. If the workspace is started Friday at noon, and the required day
-	//      is Saturday, and quiet hours start at 00:00,
-	//      Schedule.Next(Saturday 00:00) will skip that valid occurrence and
-	//      return Sunday at 00:00. Starting the lookup at Friday 23:45 lets
-	//      it return Saturday at 00:00.
-	autostopRequirementBuffer = -15 * time.Minute
 )
 
 type CalculateAutostopParams struct {
@@ -205,8 +193,20 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 	}
 	requirementDays := requirement.DaysMap()
 
+	// A rollback across midnight can bring back the previous date after
+	// the cutoff. Include it if a quiet-hours start still qualifies.
+	searchStart := notBefore
+	previousDate := notBefore.AddDate(0, 0, -1)
+	if requirementDays[previousDate.Weekday()] &&
+		(requirement.Weeks <= 1 || !previousDate.Before(TemplateAutostopRequirementEpoch(loc))) {
+		if quietStart, _ := userQuietHoursSchedule.Schedule.FirstOnDate(previousDate, notBefore); !quietStart.IsZero() {
+			searchStart = previousDate
+		}
+	}
+
 	var prevStopDay time.Time
-	for stopDay := notBefore; ; stopDay = stopDay.AddDate(0, 0, 1) {
+	useNextQuietHours := false
+	for stopDay := searchStart; ; stopDay = stopDay.AddDate(0, 0, 1) {
 		// If a clock change returns the cursor to an earlier date,
 		// recover by finding the next quiet-hours start on a later
 		// date (if a stop is required, a late one is better than
@@ -225,7 +225,7 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 		}
 		// Recovery can move the cursor into a different week. Apply
 		// the cadence to the recovered date before checking its weekday.
-		if requirement.Weeks > 1 {
+		if !useNextQuietHours && requirement.Weeks > 1 {
 			stopDay, err = GetNextApplicableMondayOfNWeeks(stopDay, requirement.Weeks)
 			if err != nil {
 				return time.Time{}, xerrors.Errorf("determine start of stop week: %w", err)
@@ -245,46 +245,20 @@ func calculateMaxDeadline(ctx context.Context, params CalculateAutostopParams, r
 			return time.Time{}, xerrors.Errorf("required stop date search did not advance past %q", prevStopDay)
 		}
 		prevStopDay = stopDay
-		if !requirementDays[stopDay.Weekday()] {
+		if !useNextQuietHours && !requirementDays[stopDay.Weekday()] {
 			continue
 		}
 
-		startOfStopDay := truncateMidnight(stopDay)
-		quietStart := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(autostopRequirementBuffer))
-
-		// The buffered lookup can return quiet hours from the previous day.
-		// E.g. a Saturday lookup starting at Friday 23:45 can find Friday's
-		// quiet hours at 23:50. A rollback across midnight can repeat it.
-		for !quietStart.IsZero() && truncateMidnight(quietStart).Before(startOfStopDay) {
-			quietStart = userQuietHoursSchedule.Schedule.Next(quietStart)
-		}
-		firstQuietStart := quietStart
-		// When clocks move backward, quiet hours can repeat on this date.
-		// E.g. in Seattle, 01:30 can occur in PDT and again in PST. The
-		// second occurrence can qualify when the first is too early.
-		// And a cutoff at 01:45 PST requires skipping both.
-		for !quietStart.IsZero() && quietStart.Before(notBefore) {
-			quietStart = userQuietHoursSchedule.Schedule.Next(quietStart)
+		quietStart, skippedQuietHours := userQuietHoursSchedule.Schedule.FirstOnDate(stopDay, notBefore)
+		if !quietStart.IsZero() {
+			return quietStart, nil
 		}
 
-		if quietStart.IsZero() {
-			return time.Time{}, xerrors.Errorf("could not find next quiet hours from %q", startOfStopDay)
+		// Use the next quiet-hours start on any date when a clock jump
+		// at or after the cutoff skips the selected date's quiet hours.
+		if skippedQuietHours {
+			useNextQuietHours = true
 		}
-
-		// A template save or startup leeway can skip the first quiet-hours
-		// start and move the lookup to a date outside the requirement.
-		// E.g. if a build completes shortly before Saturday's quiet hours,
-		// startup leeway can move the lookup to Sunday. A Saturday-only
-		// rule still requires the next eligible Saturday.
-		if !firstQuietStart.Equal(quietStart) {
-			// When clocks move backward, the later quiet-hours start can
-			// still fall on the selected date.
-			if !truncateMidnight(quietStart).Equal(startOfStopDay) {
-				continue
-			}
-		}
-
-		return quietStart, nil
 	}
 }
 
@@ -306,16 +280,6 @@ func workspaceTTL(workspace database.WorkspaceTable, templateSchedule TemplateSc
 		return time.Duration(workspace.Ttl.Int64)
 	}
 	return 0
-}
-
-// truncateMidnight truncates a time to midnight in the time object's timezone.
-// t.Truncate(24 * time.Hour) truncates based on the internal time and doesn't
-// factor daylight savings properly.
-//
-// See: https://github.com/golang/go/issues/10894
-func truncateMidnight(t time.Time) time.Time {
-	yy, mm, dd := t.Date()
-	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
 }
 
 // WeeksSinceEpoch gets the weeks since the epoch for a given time. This is a

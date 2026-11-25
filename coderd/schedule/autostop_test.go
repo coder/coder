@@ -379,6 +379,20 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: dstInQuietHoursExpectedTime,
 		},
 		{
+			// Saving at 04:00 in Chatham (UTC+13:45) is after the clock
+			// jump skipped that Sunday's 02:45 quiet-hours start.
+			name:                   "DaylightSavings/ChathamSaveAfterSpringForwardUsesNextWeek",
+			buildCompletedAt:       time.Date(2025, time.September, 27, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.September, 27, 14, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 2 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// October 5 at 02:45 in Chatham (UTC+13:45).
+			expectedMaxDeadline: time.Date(2025, time.October, 4, 13, 0, 0, 0, time.UTC),
+		},
+		{
 			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/Out",
 			buildCompletedAt:       beforeDstOut.Add(-24 * time.Hour),
 			templateAllowAutostop:  true,
@@ -407,8 +421,63 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: time.Date(2025, time.November, 2, 9, 30, 0, 0, time.UTC),
 		},
 		{
+			// The build completes Sunday at 04:00 in Chatham (UTC+12:45),
+			// after the real 03:45 quiet-hours start on the rollback day.
+			name:                   "DaylightSavings/ChathamBuildAfterQuietHoursUsesNextWeek",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 15, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 13 at 03:45 in Chatham.
+			expectedMaxDeadline: time.Date(2025, time.April, 12, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Saving at the second 03:15 in Chatham still leaves today's
+			// 03:45 quiet-hours start available.
+			name:                   "DaylightSavings/RecoversQuietHoursOnSameDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 14, 30, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 03:45 in Chatham (UTC+12:45).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Saving at the first 03:15 in Chatham (UTC+13:45) precedes
+			// the rollback. Cron can then report an early 02:45 start.
+			name:                   "DaylightSavings/ChathamSaveBeforeRollbackUsesSameDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 13, 30, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 03:45 in Chatham (UTC+12:45).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Lord Howe rolls back from 02:00 to 01:30. Saving at the
+			// second 01:45 still leaves that Sunday's 02:00 available.
+			name:                   "DaylightSavings/LordHoweUsesQuietHoursOnRollbackDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 15, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Australia/Lord_Howe 0 2 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 02:00 in Lord Howe (UTC+10:30).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 30, 0, 0, time.UTC),
+		},
+		{
 			// Goose Bay rolled back from Sunday 00:01 to Saturday 22:01,
-			// so the buffered Sunday lookup finds two Saturday starts.
+			// so Saturday 23:50 occurs twice.
 			name:                   "DaylightSavings/SkipsBothPreviousDayOccurrences",
 			buildCompletedAt:       time.Date(1988, time.October, 30, 0, 0, 0, 0, time.UTC),
 			userQuietHoursSchedule: "CRON_TZ=America/Goose_Bay 50 23 * * *",
@@ -418,6 +487,20 @@ func TestCalculateAutoStop(t *testing.T) {
 			},
 			// October 30 at 23:50 in Goose Bay.
 			expectedMaxDeadline: time.Date(1988, time.October, 31, 3, 50, 0, 0, time.UTC),
+		},
+		{
+			// The cutoff is the first Sunday 00:00:30 in Goose Bay
+			// (UTC-02:00). The rollback makes Saturday 23:50 recur later.
+			name:                   "DaylightSavings/UsesRepeatedPreviousDayAfterCutoff",
+			buildCompletedAt:       time.Date(1988, time.October, 30, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(1988, time.October, 30, 2, 0, 30, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Goose_Bay 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			// October 29 at 23:50 in Goose Bay (UTC-04:00).
+			expectedMaxDeadline: time.Date(1988, time.October, 30, 3, 50, 0, 0, time.UTC),
 		},
 		{
 			// Manila skipped December 31, 1844. Adding one calendar day at
