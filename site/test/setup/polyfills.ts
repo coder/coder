@@ -16,10 +16,6 @@ globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = ResizeObserver;
 
-if (typeof globalThis.CSS === "undefined") {
-	globalThis.CSS = { escape: cssEscape } as typeof CSS;
-}
-
 // JSDOM does not implement the CSS Font Loading API. The web terminal listens
 // for document.fonts loadingdone events. document.fonts is read-only in the
 // DOM types, so it is defined rather than assigned.
