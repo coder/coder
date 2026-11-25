@@ -218,6 +218,16 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 	require.NoError(t, member.UnpinChatProject(ctx, orgID, x.ID))
 	require.NoError(t, member.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}))
 	requirePinOrders(ctx, t, sqlDB, memberUser.ID, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
+
+	// Only the owner can pin a project, even when a role reads it and a
+	// grant from before sharing was disabled names the caller.
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       x.ID,
+		UserACL:  database.ChatACL{firstUser.UserID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{},
+	}))
+	requireSDKError(t, client.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
+	require.NoError(t, member.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}))
 }
 
 func TestListChatsExcludeOwnProjectChats(t *testing.T) {

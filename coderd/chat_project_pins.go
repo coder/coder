@@ -126,8 +126,7 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	userID := httpmw.APIKey(r).UserID
 	// A pin is a personal preference, so the project only needs to be
 	// readable.
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
-		(project.OwnerID != userID && api.chatSharingDisabled()) {
+	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return false
 	}
