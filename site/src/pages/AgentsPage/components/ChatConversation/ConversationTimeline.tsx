@@ -505,9 +505,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 
 		// Removing an item, as when a turn's blocks merge at its end, can shrink
-		// the timeline and clamp the view a frame before the scroller's resize
-		// pass; run it before paint. Appends skip it, since in following mode it
-		// scrolls to the end before the scroller anchors a new prompt.
+		// the timeline, so the scroller syncs before paint. Only removals: an
+		// append cannot shrink it, and the sync must not run when a prompt is
+		// appended.
 		const itemSignature = layout.items
 			.map((item) =>
 				item.type === "block"
