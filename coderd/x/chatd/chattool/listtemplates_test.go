@@ -829,9 +829,9 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 			createCalled := false
 			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
 				OwnerID: user.ID,
-				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+				CreateFn: func(_ context.Context, _, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 					createCalled = true
-					return codersdk.Workspace{}, nil
+					return codersdk.Workspace{}, database.Chat{}, nil
 				},
 			})
 
@@ -855,10 +855,10 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 			var createCalled bool
 			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
 				OwnerID: user.ID,
-				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+				CreateFn: func(_ context.Context, _, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 					createCalled = true
 					t.Fatal("CreateFn should not be called for a blocked template")
-					return codersdk.Workspace{}, nil
+					return codersdk.Workspace{}, database.Chat{}, nil
 				},
 			})
 

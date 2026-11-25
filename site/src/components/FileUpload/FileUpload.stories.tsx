@@ -35,3 +35,20 @@ export const WithFile: Story = {
 		file: new File([], "template.zip"),
 	},
 };
+
+export const LongFilename: Story = {
+	args: {
+		file: new File(
+			[],
+			"northwind-infrastructure-development-environment-terraform-kubernetes-production-eu-west-1.zip",
+		),
+		removeLabel: "Remove file",
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-full max-w-[480px]">
+				<Story />
+			</div>
+		),
+	],
+};

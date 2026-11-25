@@ -2,8 +2,7 @@
 title: Deploy Coder on Rancher
 ---
 
-You can deploy Coder on Rancher as a
-[Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
+You can deploy Coder on Rancher as a [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
 
 ## Requirements
 
@@ -22,7 +21,8 @@ Installing Coder on Rancher involves four key steps:
 
 ## Create a namespace
 
-Create a namespace for the Coder control plane. In this tutorial, we call it `coder`:
+Create a namespace for the Coder control plane.
+In this tutorial, we call it `coder`:
 
 ```sh
 kubectl create namespace coder
@@ -40,11 +40,11 @@ We recommend that you use a managed PostgreSQL service, but you can use an in-cl
 For production deployments, we recommend using a managed PostgreSQL service:
 
 - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/)
-- [AWS RDS for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
+- [AWS Relational Database Service (RDS) for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
 - [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/)
 - [DigitalOcean Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql)
 
-Ensure that your PostgreSQL service:
+Make sure that your PostgreSQL service:
 
 - Is running and accessible from your cluster
 - Is in the same network/project as your cluster
@@ -71,8 +71,7 @@ After installation, the cluster-internal database URL will be:
 postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
-For more advanced PostgreSQL management, consider using the
-[Postgres operator](https://github.com/zalando/postgres-operator).
+For more advanced PostgreSQL management, consider using the [Postgres operator](https://github.com/zalando/postgres-operator).
 
 </div>
 
@@ -129,15 +128,16 @@ kubectl create secret generic coder-db-url -n coder \
      #    - my-tls-secret-name
    ```
 
-   For available configuration options, refer to the [Helm chart documentation](../../../helm)
-   or [values.yaml file](../../../helm/coder/values.yaml).
+   For available configuration options, refer to the [Helm chart documentation](../../../helm) or [values.yaml file](../../../helm/coder/values.yaml).
 
    </details>
 
 1. Select a Coder version:
 
-   - **Mainline**: `2.37.1`
-   - **Stable**: `2.36.5`
+   - **Mainline**:
+     `2.39.0`
+   - **Stable**:
+     `2.38.6`
 
    Learn more about release channels in the [Releases documentation](../../reference/releases.md).
 
@@ -160,5 +160,5 @@ To update or manage your Coder deployment later:
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

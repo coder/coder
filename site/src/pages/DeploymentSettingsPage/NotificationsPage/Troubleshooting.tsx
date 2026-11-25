@@ -1,9 +1,9 @@
 import { useMutation } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 
 type TroubleshootingProps = {
 	canEdit?: boolean;

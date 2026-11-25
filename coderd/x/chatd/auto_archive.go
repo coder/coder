@@ -27,6 +27,11 @@ import (
 
 const chatAutoArchiveDigestMaxChats = 25
 
+// errAutoArchiveCandidateIneligible reports that a candidate stopped
+// qualifying for auto-archive between the unlocked candidate read and
+// the locked recheck, for example because a new message landed.
+var errAutoArchiveCandidateIneligible = xerrors.New("chat no longer qualifies for auto-archive")
+
 type autoArchivedChat struct {
 	Chat           database.Chat
 	LastActivityAt time.Time
@@ -92,7 +97,7 @@ func (w *chatWorker) archiveOnce(ctx context.Context, start time.Time) {
 
 	archived := make([]autoArchivedChat, 0, len(rows))
 	for _, row := range rows {
-		family, err := w.archiveCandidateSafely(ctx, row)
+		family, err := w.archiveCandidateSafely(ctx, row, archiveCutoff)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -124,22 +129,43 @@ func (w *chatWorker) archiveOnce(ctx context.Context, start time.Time) {
 func (w *chatWorker) archiveCandidateSafely(
 	ctx context.Context,
 	row database.GetAutoArchiveInactiveChatCandidatesRow,
+	archiveCutoff time.Time,
 ) (family []autoArchivedChat, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = xerrors.Errorf("chatworker auto-archive panic: %v", recovered)
 		}
 	}()
-	return w.archiveCandidate(ctx, row)
+	return w.archiveCandidate(ctx, row, archiveCutoff)
 }
 
 func (w *chatWorker) archiveCandidate(
 	ctx context.Context,
 	row database.GetAutoArchiveInactiveChatCandidatesRow,
+	archiveCutoff time.Time,
 ) ([]autoArchivedChat, error) {
+	lastActivityAt := row.LastActivityAt
 	familyChats, err := chatstate.SetFamilyArchived(ctx, w.opts.Store, w.opts.Pubsub, chatstate.SetFamilyArchivedInput{
 		RootID:   row.ID,
 		Archived: true,
+		// The candidate list is read without locks, so recheck the
+		// candidate filters once the family rows are locked. Activity
+		// that committed after the candidate read, such as a new
+		// message in the root or a child, makes the chat skip this tick.
+		Precondition: func(ctx context.Context, tx database.Store) error {
+			current, err := tx.GetAutoArchiveInactiveChatCandidateByID(ctx, database.GetAutoArchiveInactiveChatCandidateByIDParams{
+				ID:            row.ID,
+				ArchiveCutoff: archiveCutoff,
+			})
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return errAutoArchiveCandidateIneligible
+				}
+				return xerrors.Errorf("recheck auto-archive candidate: %w", err)
+			}
+			lastActivityAt = current.LastActivityAt
+			return nil
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -152,13 +178,13 @@ func (w *chatWorker) archiveCandidate(
 
 	archived := make([]autoArchivedChat, 0, len(familyChats))
 	for _, chat := range familyChats {
-		lastActivityAt := row.LastActivityAt
-		if lastActivityAt.IsZero() {
-			lastActivityAt = chat.CreatedAt
+		chatLastActivityAt := lastActivityAt
+		if chatLastActivityAt.IsZero() {
+			chatLastActivityAt = chat.CreatedAt
 		}
 		archived = append(archived, autoArchivedChat{
 			Chat:           chat,
-			LastActivityAt: lastActivityAt,
+			LastActivityAt: chatLastActivityAt,
 		})
 	}
 	return archived, nil
@@ -166,6 +192,7 @@ func (w *chatWorker) archiveCandidate(
 
 func isExpectedAutoArchiveError(err error) bool {
 	return errors.Is(err, sql.ErrNoRows) ||
+		errors.Is(err, errAutoArchiveCandidateIneligible) ||
 		errors.Is(err, chatstate.ErrChatNotFound) ||
 		errors.Is(err, chatstate.ErrChatNotRoot) ||
 		errors.Is(err, chatstate.ErrInvalidState) ||

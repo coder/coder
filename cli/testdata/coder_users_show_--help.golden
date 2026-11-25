@@ -8,6 +8,9 @@ USAGE:
    $ coder users show me
 
 OPTIONS:
+  -c, --column [id|username|name|email|status|created at|roles|organizations] (default: id,username,name,email,status,created at,roles,organizations)
+          Columns to display in table output.
+
   -o, --output table|json (default: table)
           Output format.
 

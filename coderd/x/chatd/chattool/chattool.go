@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -110,13 +109,12 @@ func latestWorkspaceBuildAndJob(
 func publishBuildBinding(
 	ctx context.Context,
 	db database.Store,
-	logger slog.Logger,
 	chatID uuid.UUID,
 	workspaceID uuid.UUID,
 	buildID uuid.UUID,
 	onChatUpdated func(database.Chat),
-) {
-	updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+) error {
+	updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 		ID:          chatID,
 		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		BuildID: uuid.NullUUID{
@@ -125,17 +123,13 @@ func publishBuildBinding(
 		},
 		AgentID: uuid.NullUUID{},
 	})
-	if bindErr != nil {
-		logger.Error(ctx, "failed to persist build ID on chat binding",
-			slog.F("chat_id", chatID),
-			slog.F("build_id", buildID),
-			slog.Error(bindErr),
-		)
-		return
+	if err != nil {
+		return xerrors.Errorf("bind chat to build: %w", err)
 	}
 	if onChatUpdated != nil {
 		onChatUpdated(updatedChat)
 	}
+	return nil
 }
 
 func provisionerJobTerminal(status database.ProvisionerJobStatus) bool {

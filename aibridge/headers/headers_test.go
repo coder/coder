@@ -4,14 +4,18 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/headers"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
+
+// actorID is the authenticated actor in tests. Client and SDK values use
+// distinct strings so a forwarded spoofed value cannot match it.
+var actorID = uuid.MustParse("6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b")
 
 func TestActorHeaders(t *testing.T) {
 	t.Parallel()
@@ -539,14 +543,14 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				names: map[string]string{"id": headers.ActorIDHeader},
 				want: http.Header{
 					"Authorization":        {"Bearer provider-key"},
-					"X-Ai-Bridge-Actor-Id": {"user-123"},
+					"X-Ai-Bridge-Actor-Id": {actorID.String()},
 					"X-Unrelated":          {"preserved"},
 				},
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
+				actor := &context.Actor{ID: actorID, APIKeyID: "api-key-id", Username: "alice"}
 				result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", tc.names, actor)
 				require.Equal(t, tc.want, result)
 				require.Equal(t, sdkCopy, sdkHeaders)
@@ -565,18 +569,23 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}{
 			{
 				name:  "configured actor",
-				actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}, "X-Downstream-Email": {"alice@example.com"}},
+				actor: &context.Actor{ID: actorID, APIKeyID: "api-key-id", Username: "alice", Email: "alice@example.com"},
+				want:  http.Header{"X-Downstream-User-Id": {actorID.String()}, "X-Downstream-Username": {"alice"}, "X-Downstream-Email": {"alice@example.com"}},
 			},
 			{
 				name:  "missing email",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
+				actor: &context.Actor{ID: actorID, Username: "alice"},
+				want:  http.Header{"X-Downstream-User-Id": {actorID.String()}, "X-Downstream-Username": {"alice"}},
 			},
 			{
 				name:  "empty username",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": ""}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+				actor: &context.Actor{ID: actorID},
+				want:  http.Header{"X-Downstream-User-Id": {actorID.String()}},
+			},
+			{
+				name:  "nil id",
+				actor: &context.Actor{Username: "alice"},
+				want:  http.Header{"X-Downstream-Username": {"alice"}},
 			},
 			{
 				name: "nil actor",
@@ -622,9 +631,9 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		clientHeaders.Set("X-Unrelated", "preserved")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
-		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{"id": "X-Downstream-User-Id"}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}})
+		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{"id": "X-Downstream-User-Id"}, &context.Actor{ID: actorID, Username: "alice"})
 
-		require.Equal(t, "user-123", result.Get("X-Downstream-User-Id"))
+		require.Equal(t, actorID.String(), result.Get("X-Downstream-User-Id"))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorIDHeader))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Email")))
@@ -637,7 +646,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 	t.Run("missing actor email does not reuse stale header", func(t *testing.T) {
 		t.Parallel()
 
-		result := headers.BuildUpstreamHeaders(http.Header{"X-Email": {"sdk-email"}}, http.Header{"X-Email": {"client-email"}}, "Authorization", map[string]string{"email": "X-Email"}, &context.Actor{ID: "user-123"})
+		result := headers.BuildUpstreamHeaders(http.Header{"X-Email": {"sdk-email"}}, http.Header{"X-Email": {"client-email"}}, "Authorization", map[string]string{"email": "X-Email"}, &context.Actor{ID: actorID})
 		require.NotContains(t, result, "X-Email")
 	})
 
@@ -655,14 +664,14 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}
 		clientHeaders.Set(headers.ActorMetadataHeader("Custom"), "client-custom")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
-		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
+		actor := &context.Actor{ID: actorID, Username: "alice"}
 
 		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{
 			"id":       headers.ActorIDHeader,
 			"username": headers.ActorMetadataHeader("Username"),
 		}, actor)
 
-		require.Equal(t, []string{"user-123"}, result.Values(headers.ActorIDHeader))
+		require.Equal(t, []string{actorID.String()}, result.Values(headers.ActorIDHeader))
 		require.Equal(t, []string{"alice"}, result.Values(headers.ActorMetadataHeader("Username")))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Custom")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
@@ -673,14 +682,14 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 	t.Run("actor forwarding with nil client headers", func(t *testing.T) {
 		t.Parallel()
 
-		actor := &context.Actor{ID: "user-123"}
+		actor := &context.Actor{ID: actorID}
 		for _, tc := range []struct {
 			name  string
 			actor *context.Actor
 			names map[string]string
 			want  string
 		}{
-			{name: "enabled", names: map[string]string{"id": headers.ActorIDHeader}, actor: actor, want: actor.ID},
+			{name: "enabled", names: map[string]string{"id": headers.ActorIDHeader}, actor: actor, want: actorID.String()},
 			{name: "disabled", actor: actor},
 			{name: "nil actor", names: map[string]string{"id": headers.ActorIDHeader}},
 		} {

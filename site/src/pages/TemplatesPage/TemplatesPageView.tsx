@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
@@ -37,7 +36,6 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { createDayString } from "#/utils/createDayString";
@@ -89,13 +87,12 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						"/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
 				>
 					How to upgrade
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
 		</Alert>
@@ -110,7 +107,12 @@ const TemplateHelpPopover: React.FC = () => {
 				With templates you can create a common configuration for your workspaces
 				using Terraform.
 				<br />
-				<Link size="sm" href={docs("/admin/templates")}>
+				<Link
+					size="sm"
+					href={docs("/templates")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Manage templates
 				</Link>
 			</TooltipMessage>
@@ -181,32 +183,38 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const organizationLabel =
+		template.organization_display_name || template.organization_name;
 	const developerCount = formatTemplateActiveDevelopersLabel(
 		template.active_user_count,
 	);
-
-	const clickableRow = useClickableTableRow({
-		onClick: () => navigate(templatePageLink),
-	});
 
 	return (
 		<TableRow
 			key={template.id}
 			data-testid={`template-${template.id}`}
-			{...clickableRow}
-			className={cn("group", clickableRow.className)}
+			hover
+			onClick={() => navigate(templatePageLink)}
+			className="group"
 		>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={
-						<span className="flex flex-row items-center gap-2">
-							{template.display_name || template.name}
-							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
+						<span className="flex items-center gap-2">
+							<Link
+								asChild
+								showExternalIcon={false}
+								className="pl-0 font-semibold text-inherit visited:text-inherit"
+							>
+								<RouterLink
+									to={templatePageLink}
+									onClick={(e) => e.stopPropagation()}
 								>
+									{template.display_name || template.name}
+								</RouterLink>
+							</Link>
+							{canUpdateTemplate && template.use_classic_parameter_flow && (
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>
@@ -223,14 +231,20 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 						/>
 					}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
-						title={template.organization_display_name}
+						title={organizationLabel}
 						subtitle={`Used by ${developerCount}`}
-						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={template.organization_icon}
+								fallback={organizationLabel}
+							/>
+						}
 					/>
 				) : (
 					developerCount
@@ -316,7 +330,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
+					<div className="flex gap-2 items-center">
 						Templates
 						<TemplateHelpPopover />
 					</div>

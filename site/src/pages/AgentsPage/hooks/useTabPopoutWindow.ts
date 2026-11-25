@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { generateUUID } from "#/utils/random";
-import type { ComposerSendResult } from "../context/ComposerContext";
+import type { SubmitChatTurnResult } from "../components/ChatConversation/submitChatTurn";
 import {
 	isTabPopoutMessage,
 	type TabPopoutMessage,
@@ -20,7 +20,7 @@ type TabPopoutWindow = {
 	chatState: ChatState;
 	// Sends a message through the chat page's composer. Rejects when no
 	// chat page answers, so the caller can tell the user.
-	send: (message: string) => Promise<ComposerSendResult>;
+	send: (message: string) => Promise<SubmitChatTurnResult>;
 };
 
 /**
@@ -87,35 +87,32 @@ export function useTabPopoutWindow(tabId: string): TabPopoutWindow {
 		};
 	}, [tabId]);
 
-	const send = useCallback(
-		(message: string) =>
-			new Promise<ComposerSendResult>((resolve, reject) => {
-				const channel = channelRef.current;
-				if (!channel) {
-					reject(new Error("The chat is not open, so nothing was sent."));
-					return;
+	const send = (message: string) =>
+		new Promise<SubmitChatTurnResult>((resolve, reject) => {
+			const channel = channelRef.current;
+			if (!channel) {
+				reject(new Error("The chat is not open, so nothing was sent."));
+				return;
+			}
+			const id = generateUUID();
+			const timer = setTimeout(() => {
+				pendingSendsRef.current.delete(id);
+				reject(new Error("The chat did not answer, so nothing was sent."));
+			}, sendTimeoutMs);
+			pendingSendsRef.current.set(id, ({ result }) => {
+				clearTimeout(timer);
+				if (typeof result === "string") {
+					resolve(result);
+				} else {
+					reject(new Error(result.error));
 				}
-				const id = generateUUID();
-				const timer = setTimeout(() => {
-					pendingSendsRef.current.delete(id);
-					reject(new Error("The chat did not answer, so nothing was sent."));
-				}, sendTimeoutMs);
-				pendingSendsRef.current.set(id, ({ result }) => {
-					clearTimeout(timer);
-					if (typeof result === "string") {
-						resolve(result);
-					} else {
-						reject(new Error(result.error));
-					}
-				});
-				channel.postMessage({
-					type: "send",
-					id,
-					message,
-				} satisfies TabPopoutMessage);
-			}),
-		[],
-	);
+			});
+			channel.postMessage({
+				type: "send",
+				id,
+				message,
+			} satisfies TabPopoutMessage);
+		});
 
 	return { chatState, send };
 }

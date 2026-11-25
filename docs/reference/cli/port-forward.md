@@ -48,7 +48,7 @@ machine:
 
 ### -p, --tcp
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_TCP</code> |
@@ -57,7 +57,7 @@ Forward TCP port(s) from the workspace to the local machine.
 
 ### --udp
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_UDP</code> |
@@ -66,7 +66,7 @@ Forward UDP port(s) from the workspace to the local machine. The UDP connection 
 
 ### --disable-autostart
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_SSH_DISABLE_AUTOSTART</code> |

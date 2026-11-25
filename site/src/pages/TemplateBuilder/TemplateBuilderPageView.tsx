@@ -297,7 +297,7 @@ export const TemplateBuilderPageView: React.FC<
 				<PageHeaderSubtitle>
 					A Terraform blueprint for reproducible workspaces.
 					<Link
-						href={docs("/admin/templates")}
+						href={docs("/templates")}
 						target="_blank"
 						className="ml-1 font-normal"
 					>

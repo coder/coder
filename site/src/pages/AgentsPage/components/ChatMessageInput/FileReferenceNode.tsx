@@ -96,6 +96,13 @@ export class FileReferenceNode extends DecoratorNode<React.ReactNode> {
 		return true;
 	}
 
+	// A keyboard-selected decorator becomes a NodeSelection, which clears
+	// the DOM caret while the editor keeps focus, so the next keystroke
+	// lands at the start of the editor. Arrow keys step over the chip.
+	isKeyboardSelectable(): boolean {
+		return false;
+	}
+
 	decorate(_editor: LexicalEditor): React.ReactNode {
 		return (
 			<FileReferenceChipWrapper
@@ -122,7 +129,11 @@ const getFileReferenceSpacingSnapshot = (
 	);
 };
 
-const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
+/** Margins that keep an inline chip clear of adjacent text and chips. */
+export const useFileReferenceSpacing = (
+	editor: LexicalEditor,
+	nodeKey: NodeKey,
+) => {
 	const spacingSnapshot = useSyncExternalStore(
 		(notify) => editor.registerUpdateListener(notify),
 		() => getFileReferenceSpacingSnapshot(editor, nodeKey),
@@ -151,6 +162,7 @@ const FileReferenceChipWrapper: React.FC<{
 				node.remove();
 			}
 		});
+		editor.getRootElement()?.focus({ preventScroll: true });
 	};
 
 	const handleClick = () => {

@@ -39,7 +39,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2",
+				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border bg-surface-primary px-3 py-2",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>

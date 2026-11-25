@@ -14,7 +14,7 @@ export function useAgentsPageKeybindings({
 	onOpenSettings,
 }: {
 	onNewAgent: () => void;
-	onToggleSearch?: () => void;
+	onToggleSearch: () => void;
 	onOpenSettings?: () => void;
 }) {
 	useEffect(() => {
@@ -31,7 +31,7 @@ export function useAgentsPageKeybindings({
 				return;
 			}
 
-			if (key === "k" && onToggleSearch) {
+			if (key === "k") {
 				event.preventDefault();
 				onToggleSearch();
 				return;

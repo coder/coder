@@ -3,7 +3,6 @@ package database
 import (
 	"reflect"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -90,44 +88,6 @@ func TestConnectionLogsQueryConsistency(t *testing.T) {
 	require.NotEmpty(t, countWhereClause, "countConnectionLogs query should have a WHERE clause")
 
 	require.Equal(t, getWhereClause, countWhereClause, "getConnectionLogsOffset and countConnectionLogs queries should have the same WHERE clause")
-}
-
-// TestFinalizeStaleChatDebugRows_TerminalStatusAlignment asserts that the
-// NOT IN ('completed', 'error', 'interrupted') literals in the
-// FinalizeStaleChatDebugRows SQL query match the terminal statuses
-// defined by ChatDebugTerminalStatuses in codersdk.  If a new terminal
-// status is added to Go but not to the SQL, this test fails.
-func TestFinalizeStaleChatDebugRows_TerminalStatusAlignment(t *testing.T) {
-	t.Parallel()
-
-	// Extract all NOT IN (...) lists from the SQL constant.
-	re := regexp.MustCompile(`NOT IN\s*\(([^)]+)\)`)
-	matches := re.FindAllStringSubmatch(finalizeStaleChatDebugRows, -1)
-	require.NotEmpty(t, matches, "expected at least one NOT IN clause in finalizeStaleChatDebugRows")
-
-	// Parse the quoted status literals from each NOT IN clause.
-	literalRe := regexp.MustCompile(`'([^']+)'`)
-	goTerminal := codersdk.ChatDebugTerminalStatuses()
-
-	for _, match := range matches {
-		literals := literalRe.FindAllStringSubmatch(match[1], -1)
-		var sqlStatuses []string
-		for _, lit := range literals {
-			sqlStatuses = append(sqlStatuses, lit[1])
-		}
-		slices.Sort(sqlStatuses)
-
-		var goStatuses []string
-		for _, s := range goTerminal {
-			goStatuses = append(goStatuses, string(s))
-		}
-		slices.Sort(goStatuses)
-
-		require.Equal(t, goStatuses, sqlStatuses,
-			"terminal statuses in FinalizeStaleChatDebugRows SQL must match "+
-				"codersdk.ChatDebugTerminalStatuses(); update both when adding "+
-				"a new terminal status")
-	}
 }
 
 // TestInsertChatMessagesOrderContract guards the input-order guarantee that

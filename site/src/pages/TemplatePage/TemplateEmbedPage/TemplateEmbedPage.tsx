@@ -83,14 +83,15 @@ const TemplateEmbedPage: React.FC = () => {
 		};
 	}, [template.active_version_id, me]);
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters]
+		return [...parameters]
 			.filter((it) => !it.ephemeral)
 			.sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+	}, [parameters]);
 
 	const isLoading = isConnecting || !latestResponse;
 

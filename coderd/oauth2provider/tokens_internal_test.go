@@ -276,6 +276,18 @@ func TestNarrowAccessScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
+			name:      "RetiredScopeDroppedFromRequest",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", "task:*"},
+			want:      "workspace:ssh",
+		},
+		{
+			name:      "OnlyRetiredScopesRejected",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"task:*"},
+			wantErr:   errUnknownScope,
+		},
+		{
 			// RBAC expands debug_info:read; only the catalog keeps it internal.
 			name:      "InternalOnlyScopeRejected",
 			granted:   string(database.ApiKeyScopeCoderAll),

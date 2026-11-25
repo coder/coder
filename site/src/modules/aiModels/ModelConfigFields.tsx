@@ -58,6 +58,29 @@ const booleanFieldOptions = [
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
 
+/**
+ * Disabled controls in this form (read-only users, or while saving) render
+ * their text, placeholder, and icons in content-disabled at full opacity,
+ * instead of the primitives' mix of opacity-50 and content-secondary, so
+ * every disabled field looks the same.
+ */
+export const disabledControlClassName =
+	"disabled:opacity-100 disabled:text-content-disabled disabled:placeholder:text-content-disabled disabled:[&_svg]:text-content-disabled";
+
+/**
+ * Class names for an InputGroup with a unit suffix such as "tokens". By
+ * default a disabled InputGroup and its addon each apply opacity-50. These
+ * keep them opaque and color the suffix content-disabled. Pair with
+ * disabledControlClassName on the input.
+ */
+export const unitInputGroupClassName = "has-[input:disabled]:opacity-100";
+/** See unitInputGroupClassName. */
+export const unitInputAddonClassName =
+	"group-has-[input:disabled]/input-group:opacity-100";
+/** See unitInputGroupClassName. */
+export const unitSuffixClassName =
+	"text-xs text-content-secondary group-has-[input:disabled]/input-group:text-content-disabled";
+
 const isReasoningEffortField = (jsonName: string): boolean =>
 	jsonName === "reasoning_effort.default" ||
 	jsonName === "reasoning_effort.max";
@@ -177,25 +200,31 @@ const InputField: React.FC<
 	const fieldProps = form.getFieldProps(fieldKey);
 
 	const inputEl = suffix ? (
-		<InputGroup className={cn(fieldError && "border-border-destructive")}>
+		<InputGroup
+			className={cn(
+				unitInputGroupClassName,
+				fieldError && "border-border-destructive",
+			)}
+		>
 			<InputGroupInput
 				id={fieldKey}
-				className="min-w-0 placeholder:text-content-disabled"
+				className={cn("min-w-0", disabledControlClassName)}
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
 				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
-			<InputGroupAddon align="inline-end">
-				<span className="text-xs text-content-disabled">{suffix}</span>
+			<InputGroupAddon align="inline-end" className={unitInputAddonClassName}>
+				<span className={unitSuffixClassName}>{suffix}</span>
 			</InputGroupAddon>
 		</InputGroup>
 	) : (
 		<Input
 			id={fieldKey}
 			className={cn(
-				"min-w-0 placeholder:text-content-disabled",
+				"min-w-0",
+				disabledControlClassName,
 				fieldError && "border-content-destructive",
 			)}
 			placeholder={placeholder}
@@ -259,6 +288,7 @@ const SelectField: React.FC<
 					id={fieldKey}
 					className={cn(
 						"min-w-0 shadow-none",
+						disabledControlClassName,
 						fieldError && "border-content-destructive",
 					)}
 					aria-invalid={Boolean(fieldError)}
@@ -343,7 +373,12 @@ const SegmentedField: React.FC<
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
-								disabled && "pointer-events-none opacity-60",
+								disabled && "pointer-events-none text-content-disabled",
+								// content-disabled text is unreadable on the filled highlight,
+								// so a disabled selection is marked with an outline instead.
+								disabled &&
+									isActive &&
+									"bg-transparent inset-ring inset-ring-border",
 							)}
 							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
@@ -393,7 +428,8 @@ const JSONField: React.FC<
 				id={fieldKey}
 				rows={1}
 				className={cn(
-					"min-h-0 resize-y font-mono text-xs leading-tight placeholder:text-content-disabled",
+					"min-h-0 resize-y font-mono text-xs leading-tight",
+					disabledControlClassName,
 					showError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
@@ -787,7 +823,7 @@ export const PricingEstimateFields: React.FC<{
 								</span>
 							)}
 							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">
+								<span className="text-xs text-content-secondary">
 									USD/1M tokens
 								</span>
 							</InputGroupAddon>

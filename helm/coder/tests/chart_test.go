@@ -169,6 +169,10 @@ var testCases = []testCase{
 		name:          "listenerset_redirect",
 		expectedError: "",
 	},
+	{
+		name:          "single_stack_ipv6",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

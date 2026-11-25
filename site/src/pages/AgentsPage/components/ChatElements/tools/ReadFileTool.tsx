@@ -1,6 +1,5 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
@@ -20,14 +19,11 @@ const ReadFileContent: React.FC<{
 	const isDark = theme.palette.mode === "dark";
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel={`Contents of ${path}`}
+			ariaLabel={`Contents of ${path}`}
 			orientation="both"
-			scrollBarClassName="w-1.5"
-			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer
 				file={{
@@ -37,7 +33,7 @@ const ReadFileContent: React.FC<{
 				options={getFileViewerOptionsMinimal(isDark)}
 				style={DIFFS_FONT_STYLE}
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };
 

@@ -14,6 +14,13 @@ import (
 // convention is an implementation detail, not a stable contract.
 const Suffix = "-coderd-chat"
 
+var (
+	// ErrNoEligibleAgents means the candidates contain no root agent.
+	ErrNoEligibleAgents = xerrors.New("no eligible workspace agents found")
+	// ErrMultipleChatAgents means more than one root agent uses Suffix.
+	ErrMultipleChatAgents = xerrors.New("only one agent should use this suffix")
+)
+
 // IsChatAgent reports whether name uses the chat-agent suffix convention.
 func IsChatAgent(name string) bool {
 	return strings.HasSuffix(strings.ToLower(name), Suffix)
@@ -47,9 +54,7 @@ func FindChatAgent(
 	}
 
 	if len(rootAgents) == 0 {
-		return database.WorkspaceAgent{}, xerrors.New(
-			"no eligible workspace agents found",
-		)
+		return database.WorkspaceAgent{}, ErrNoEligibleAgents
 	}
 
 	compareAgents := func(a, b database.WorkspaceAgent) int {
@@ -78,9 +83,10 @@ func FindChatAgent(
 			names = append(names, agent.Name)
 		}
 		return database.WorkspaceAgent{}, xerrors.Errorf(
-			"multiple agents match the chat suffix %q: %s; only one agent should use this suffix",
+			"multiple agents match the chat suffix %q: %s: %w",
 			Suffix,
 			strings.Join(names, ", "),
+			ErrMultipleChatAgents,
 		)
 	}
 }

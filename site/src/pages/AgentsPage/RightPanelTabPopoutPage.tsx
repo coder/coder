@@ -10,12 +10,9 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
+import type { SubmitChatTurnResult } from "./components/ChatConversation/submitChatTurn";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
-import {
-	ComposerContext,
-	type ComposerHandle,
-} from "./context/ComposerContext";
 import { useTabPopoutWindow } from "./hooks/useTabPopoutWindow";
 import { getPersistedRightPanelTabs } from "./utils/rightPanelTabStorage";
 import type { UserRightPanelTab } from "./utils/rightPanelTabs";
@@ -91,25 +88,24 @@ const PortPreviewTab: React.FC<{
 	host: string;
 	canAnnotate: boolean;
 	isAgentWorking: boolean;
-	send: ComposerHandle["send"];
+	send: (message: string) => Promise<SubmitChatTurnResult>;
 }> = ({ chatId, tab, workspace, host, canAnnotate, isAgentWorking, send }) => {
 	const agent = findWorkspaceAgent(workspace, tab.agentId);
 	if (!agent) {
 		return <Message>This port preview tab is no longer available.</Message>;
 	}
 	return (
-		<ComposerContext value={{ send }}>
-			<PortPreviewPanel
-				chatId={chatId}
-				workspace={workspace}
-				agent={agent}
-				host={host}
-				tab={tab}
-				canAnnotate={canAnnotate}
-				isAgentWorking={isAgentWorking}
-				isPopoutWindow
-			/>
-		</ComposerContext>
+		<PortPreviewPanel
+			chatId={chatId}
+			workspace={workspace}
+			agent={agent}
+			host={host}
+			tab={tab}
+			canAnnotate={canAnnotate}
+			isAgentWorking={isAgentWorking}
+			onSendToolMessage={send}
+			isPopoutWindow
+		/>
 	);
 };
 

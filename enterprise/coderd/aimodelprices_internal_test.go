@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,20 +8,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// decodeAIModelPrices decodes a prices document the same way the handler does,
+// decodeAIModelPrices decodes a prices document with the handler's decoder,
 // so a case can be written as the JSON an operator would send.
-func decodeAIModelPrices(t *testing.T, body string) ([]codersdk.AIModelPriceUpsert, []map[string]json.RawMessage) {
+func decodeAIModelPrices(t *testing.T, body string) ([]codersdk.AIModelPriceUpsert, []aiModelPriceKeys) {
 	t.Helper()
 
-	var typed codersdk.UpsertAIModelPricesRequest
-	require.NoError(t, json.Unmarshal([]byte(body), &typed))
-
-	var raw struct {
-		Prices []map[string]json.RawMessage `json:"prices"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(body), &raw))
-
-	return typed.Prices, raw.Prices
+	var req codersdk.UpsertAIModelPricesRequest
+	keys, err := decodeAIModelPricesBody([]byte(body), &req)
+	require.NoError(t, err)
+	return req.Prices, keys
 }
 
 func TestValidateAIModelPrices(t *testing.T) {
@@ -185,8 +179,8 @@ func TestValidateAIModelPrices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			requested, raw := decodeAIModelPrices(t, tt.body)
-			require.Equal(t, tt.want, validateAIModelPrices(requested, raw))
+			requested, keys := decodeAIModelPrices(t, tt.body)
+			require.Equal(t, tt.want, validateAIModelPrices(requested, keys))
 		})
 	}
 }

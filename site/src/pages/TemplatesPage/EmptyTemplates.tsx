@@ -60,7 +60,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 						Templates are written in Terraform and describe the infrastructure
 						for workspaces. You can start using a starter template below or{" "}
 						<Link
-							href={docs("/admin/templates/creating-templates")}
+							href={docs("/templates/creating-templates")}
 							target="_blank"
 							rel="noreferrer"
 							showExternalIcon={false}

@@ -22,7 +22,6 @@ func (r *RootCmd) workspaceProxy() *serpent.Command {
 			"It will act as a connection gateway to your workspace. " +
 			"Best used if Coder and your workspace are deployed in different regions.",
 		Aliases: []string{"wsproxy"},
-		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -176,7 +175,7 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 		},
 		serpent.Option{
 			Flag:        "display-name",
-			Description: "(Optional) Display of the proxy. A more human friendly name to be displayed.",
+			Description: "(Optional) Display name of the proxy. A more human friendly name to be displayed.",
 			Value:       serpent.StringOf(&displayName),
 		},
 		serpent.Option{
@@ -324,7 +323,7 @@ func (r *RootCmd) createProxy() *serpent.Command {
 		},
 		serpent.Option{
 			Flag:        "display-name",
-			Description: "Display of the proxy. If omitted, the name is reused as the display name.",
+			Description: "Display name of the proxy. If omitted, the name is reused as the display name.",
 			Value:       serpent.StringOf(&displayName),
 		},
 		serpent.Option{

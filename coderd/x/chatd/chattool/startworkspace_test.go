@@ -118,6 +118,10 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, started)
 		require.Nil(t, result["build_id"], "build_id should not be present when workspace was already running")
 		require.Equal(t, true, result["no_build"], "no_build should be true when workspace was already running")
+
+		bound, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: wsResp.Build.ID, Valid: true}, bound.BuildID, "a stale binding must be repaired to the latest build")
 	})
 
 	t.Run("AlreadyRunningPrefersChatSuffixAgent", func(t *testing.T) {

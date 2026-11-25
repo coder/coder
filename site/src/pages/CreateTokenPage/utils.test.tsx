@@ -3,7 +3,7 @@ import {
 	filterByMaxTokenLifetime,
 	type LifetimeDay,
 	lifetimeDayPresets,
-	NANO_HOUR,
+	NANO_DAY,
 } from "./utils";
 
 describe("unit/CreateTokenForm", () => {
@@ -12,17 +12,17 @@ describe("unit/CreateTokenForm", () => {
 			maxTokenLifetime: number;
 			expected: LifetimeDay[];
 		}>([
-			{ maxTokenLifetime: 6 * 24 * NANO_HOUR, expected: [] },
+			{ maxTokenLifetime: 6 * NANO_DAY, expected: [] },
 			{
-				maxTokenLifetime: 20 * 24 * NANO_HOUR,
+				maxTokenLifetime: 20 * NANO_DAY,
 				expected: [lifetimeDayPresets[0]],
 			},
 			{
-				maxTokenLifetime: 40 * 24 * NANO_HOUR,
+				maxTokenLifetime: 40 * NANO_DAY,
 				expected: [lifetimeDayPresets[0], lifetimeDayPresets[1]],
 			},
 			{
-				maxTokenLifetime: 70 * 24 * NANO_HOUR,
+				maxTokenLifetime: 70 * NANO_DAY,
 				expected: [
 					lifetimeDayPresets[0],
 					lifetimeDayPresets[1],
@@ -30,7 +30,7 @@ describe("unit/CreateTokenForm", () => {
 				],
 			},
 			{
-				maxTokenLifetime: 100 * 24 * NANO_HOUR,
+				maxTokenLifetime: 100 * NANO_DAY,
 				expected: lifetimeDayPresets,
 			},
 		])(
@@ -50,15 +50,15 @@ describe("unit/CreateTokenForm", () => {
 				expected: 30,
 			},
 			{
-				maxTokenLifetime: 60 * 24 * NANO_HOUR,
+				maxTokenLifetime: 60 * NANO_DAY,
 				expected: 30,
 			},
 			{
-				maxTokenLifetime: 20 * 24 * NANO_HOUR,
+				maxTokenLifetime: 20 * NANO_DAY,
 				expected: 7,
 			},
 			{
-				maxTokenLifetime: 2 * 24 * NANO_HOUR,
+				maxTokenLifetime: 2 * NANO_DAY,
 				expected: "custom",
 			},
 		])(
