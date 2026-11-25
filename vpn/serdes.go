@@ -94,8 +94,8 @@ func (s *serdes[S, _, _]) sendLoop() {
 				s.logger.Debug(s.ctx, "failed to write message", slog.Error(err))
 				return
 			}
-			// The VPN protocol requires Stop to be the final response. Exit
-			// here so another ready sender cannot race with cancellation.
+			// The VPN protocol requires Stop to be the final response, so
+			// write nothing after it.
 			if tunnelMsg, ok := any(msg).(*TunnelMessage); ok && tunnelMsg.GetStop() != nil {
 				return
 			}

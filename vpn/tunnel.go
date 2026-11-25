@@ -108,10 +108,8 @@ func (t *Tunnel) requestLoop() {
 		if req.msg.Rpc != nil && req.msg.Rpc.MsgId != 0 {
 			t.handleRPC(req)
 			if _, ok := req.msg.GetMsg().(*ManagerMessage_Stop); ok {
-				// sendReply has handed the Stop response to serdes, which
-				// finishes writing it before checking cancellation. Do not
-				// close sendCh: other goroutines may still be sending.
-				t.speaker.cancel()
+				// The writer exits after the Stop response. Do not close
+				// sendCh: other goroutines may still be sending.
 				return
 			}
 			continue
