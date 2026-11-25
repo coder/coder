@@ -8,7 +8,7 @@ import { NavLink, type To, useLocation, useMatch } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	type ChatProjectWithSummary,
-	pinChatProject,
+	reorderChatProjectPins,
 	unpinChatProject,
 } from "#/api/queries/chatProjects";
 import {
@@ -116,11 +116,11 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
-	const pinOptions = pinChatProject(queryClient);
+	const reorderOptions = reorderChatProjectPins(queryClient);
 	const reorderMutation = useMutation({
-		...pinOptions,
-		onError: (error, variables, context) => {
-			pinOptions.onError?.(error, variables, context);
+		...reorderOptions,
+		onError: (error, projectIds, context) => {
+			reorderOptions.onError?.(error, projectIds, context);
 			toast.error(getErrorMessage(error, "Failed to reorder pinned projects."));
 		},
 	});
@@ -158,7 +158,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 			);
 			if (order) {
 				setLocalPinOrder(order);
-				reorderMutation.mutate({ project, pinOrder: source.index + 1 });
+				reorderMutation.mutate(order);
 			}
 		},
 	});

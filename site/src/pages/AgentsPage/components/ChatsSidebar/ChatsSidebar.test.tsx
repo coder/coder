@@ -2037,15 +2037,15 @@ describe("ChatsSidebar pinned reordering", () => {
 			organization_id: MockOrganization2.id,
 		};
 		const launchName = `Launch (${MockDefaultOrganization.display_name})`;
-		const pins: unknown[] = [];
+		const orders: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject, mockOpsProject]),
 			),
 			http.put(
-				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
-				async ({ params, request }) => {
-					pins.push([params.project, await request.json()]);
+				"/api/experimental/chats/projects/pins/order",
+				async ({ request }) => {
+					orders.push(await request.json());
 					return new HttpResponse(null, { status: 204 });
 				},
 			),
@@ -2076,7 +2076,9 @@ describe("ChatsSidebar pinned reordering", () => {
 		await user.keyboard("[Space]");
 
 		await waitFor(() =>
-			expect(pins).toEqual([[MockChatProject.id, { pin_order: 2 }]]),
+			expect(orders).toEqual([
+				{ project_ids: [mockOpsProject.id, MockChatProject.id] },
+			]),
 		);
 	});
 
