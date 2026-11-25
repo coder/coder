@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
@@ -99,7 +99,7 @@ export const CanAnnotate: Story = {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", { name: "Annotate elements" }),
 		);
-		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+		await screen.findByRole("tooltip");
 	},
 };
 
