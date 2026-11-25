@@ -73,7 +73,15 @@ export function createCommentPopup(
 		const hold = shift && !atLimit;
 		send.innerHTML = hold ? plusIcon : sendIcon;
 		const count = options.heldCount;
-		send.append(hold ? "Add" : count > 0 ? `Send ${count + 1}` : "Send");
+		send.append(
+			shift
+				? atLimit
+					? "Release Shift"
+					: "Add"
+				: count > 0
+					? `Send ${count + 1}`
+					: "Send",
+		);
 	};
 	setSendLabel(false);
 
@@ -88,7 +96,13 @@ export function createCommentPopup(
 			textarea.focus({ preventScroll: true });
 		}
 	};
-	send.addEventListener("click", (event) => submit(event.shiftKey));
+	send.addEventListener("pointerenter", (event) =>
+		setSendLabel(event.shiftKey),
+	);
+	send.addEventListener("click", (event) => {
+		setSendLabel(event.shiftKey);
+		submit(event.shiftKey);
+	});
 	textarea.addEventListener("input", () => {
 		send.disabled = textarea.value.trim() === "";
 	});

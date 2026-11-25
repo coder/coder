@@ -85,10 +85,21 @@ function postFromPreview(
 
 export const CanAnnotate: Story = {
 	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
+	parameters: { pixel: { exclude: false } },
+	// Hide only the nondeterministic third-party document so Pixel captures
+	// the real Coder header, annotation control, and help.
+	decorators: [
+		(Story) => (
+			<div className="h-full [&_iframe]:invisible">
+				<Story />
+			</div>
+		),
+	],
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", { name: "Annotate elements" }),
 		);
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
 	},
 };
 
