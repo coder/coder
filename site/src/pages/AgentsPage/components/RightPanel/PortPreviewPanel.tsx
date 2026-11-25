@@ -438,29 +438,42 @@ export const PortPreviewPanel: React.FC<{
 				<div className="flex-1" />
 				{showAnnotate && (
 					<>
-						{/* aria-disabled rather than disabled so the control stays
-						 * focusable and the explanation reaches keyboard users. */}
-						<Button
-							size="icon"
-							variant="subtle"
-							aria-pressed={bridge.requested}
-							aria-label={
-								bridge.requested ? "Stop annotating" : "Annotate elements"
-							}
-							aria-disabled={bridge.unavailable}
-							aria-describedby={
-								bridge.unavailable ? unavailableReasonId : undefined
-							}
-							aria-busy={bridge.loading}
-							onClick={handleAnnotateClick}
-							className={
-								bridge.requested
-									? "bg-surface-tertiary text-content-primary"
-									: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
-							}
-						>
-							<MessageSquarePlusIcon />
-						</Button>
+						<Tooltip>
+							{/* aria-disabled rather than disabled so the control stays
+							 * focusable and the explanation reaches keyboard users. */}
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									aria-pressed={bridge.requested}
+									aria-label={
+										bridge.requested ? "Stop annotating" : "Annotate elements"
+									}
+									aria-disabled={bridge.unavailable}
+									{...(bridge.unavailable && {
+										"aria-describedby": unavailableReasonId,
+									})}
+									aria-busy={bridge.loading}
+									onClick={handleAnnotateClick}
+									className={
+										bridge.requested
+											? "bg-surface-tertiary text-content-primary"
+											: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
+									}
+								>
+									<MessageSquarePlusIcon />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">
+								{bridge.unavailable
+									? overlayUnavailableReason
+									: bridge.loading
+										? "Loading the annotation overlay"
+										: bridge.requested
+											? "Click elements in the preview to annotate them"
+											: "Annotate elements in the preview; each comment is sent to the agent"}
+							</TooltipContent>
+						</Tooltip>
 						{bridge.unavailable && (
 							<span id={unavailableReasonId} className="sr-only">
 								{overlayUnavailableReason}

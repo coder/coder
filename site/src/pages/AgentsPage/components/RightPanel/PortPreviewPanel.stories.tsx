@@ -85,6 +85,11 @@ function postFromPreview(
 
 export const CanAnnotate: Story = {
 	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Annotate elements" }),
+		);
+	},
 };
 
 export const AnnotatePicking: Story = {
