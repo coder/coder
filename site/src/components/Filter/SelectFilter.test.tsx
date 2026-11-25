@@ -66,9 +66,7 @@ it("names the dropdown after the filter", async () => {
 	);
 
 	await user.click(screen.getByRole("button", { name: "Select a status" }));
-	expect(await screen.findByRole("dialog")).toHaveAccessibleName(
-		"Select a status",
-	);
+	await screen.findByRole("dialog", { name: "Select a status" });
 });
 
 it("names the search input with the search label", async () => {
