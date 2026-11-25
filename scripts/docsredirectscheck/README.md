@@ -120,6 +120,16 @@ Any other failure to read it skips the base redirect sources with a note.
 beta-docs currently serves a dotted segment with hyphens, so `esr-2.24-2.29-upgrade` is served as `esr-2-24-2-29-upgrade`.
 Until the docs engine fixes it, a live route that equals a head route with `.` replaced by `-` counts as present.
 
+### REST API endpoint pages
+
+The docs site generates one page for each REST API endpoint from `coderd/apidoc/swagger.json`, at `reference/api/<section>/<endpoint>`, such as `reference/api/users/get-user-by-name`.
+`docs/manifest.json` lists only the section pages, such as `reference/api/users`, so the check cannot tell which endpoint pages exist.
+A route of that form in the live page list is therefore not checked while its section page is a live route, and the check prints how many it left out.
+Once the section page is gone, its endpoint routes need a rule like any other route.
+
+The endpoint part of the URL comes from the endpoint's summary and the section from its tag.
+A change to either one moves the page, and the check does not notice.
+
 ## How it decides which pages exist
 
 It derives routes from `docs/manifest.json` as the docs websites do: strip a leading `./`, then strip the suffixes `README.md`, `index.md`, and `.md` one after another, and trim slashes.

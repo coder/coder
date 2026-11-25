@@ -304,8 +304,16 @@ func checkRemovedRoutes(ctx context.Context, o options, head docsFiles, live rou
 			_, _ = fmt.Fprintln(o.stderr, "Re-run the job. Use -offline to skip the live page list when running locally.")
 			return 2
 		}
+		endpoints := 0
 		for _, route := range routes {
+			if isAPIEndpointRoute(route, live) {
+				endpoints++
+				continue
+			}
 			inv.add(route, "the live page list "+url)
+		}
+		if endpoints > 0 {
+			note("%d REST API endpoint %s in the live page list not checked: the docs site generates them from coderd/apidoc/swagger.json", endpoints, plural(endpoints, "page", "pages"))
 		}
 	}
 
