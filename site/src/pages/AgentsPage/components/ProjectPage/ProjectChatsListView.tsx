@@ -108,12 +108,8 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 		unpinnedChats.length > 0 ||
 		hasNextPage ||
 		Boolean(error);
-	// Pinning moves a row to the other section, which remounts it, so the
-	// trigger its menu returns focus to is gone. Once the row renders in the
-	// section it is moving to, its trigger takes back focus that the removed
-	// row dropped, leaving focus the user has since moved alone. The ref
-	// callback also runs while the row is still in its old section, which the
-	// section check skips.
+	// Pinning remounts the row in the other section, removing the trigger its
+	// menu returns focus to. The ref callback also runs in the old section.
 	const movingChatRef = useRef<{ id: string; pinned: boolean }>(undefined);
 	const rowProps = {
 		currentUser,
@@ -130,10 +126,7 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 				pinnedChatIds.has(chat.id) === moving.pinned
 			) {
 				movingChatRef.current = undefined;
-				if (
-					!document.activeElement ||
-					document.activeElement === document.body
-				) {
+				if (document.activeElement === document.body) {
 					trigger.focus();
 				}
 			}

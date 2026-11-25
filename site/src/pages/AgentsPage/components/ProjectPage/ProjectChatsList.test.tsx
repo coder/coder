@@ -377,38 +377,10 @@ describe("ProjectChatsList", () => {
 	);
 
 	it.each([
-		{ action: "Pin agent", pinOrder: 0, section: "Pinned" },
-		{ action: "Unpin agent", pinOrder: 1, section: "Chats" },
-	])(
-		"$action keeps focus on the row's actions as it moves to $section",
-		async ({ action, pinOrder, section }) => {
-			const user = userEvent.setup();
-			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...mockProjectChat, pin_order: pinOrder },
-			]);
-			// Pending, so the row stays where the optimistic update moved it.
-			vi.spyOn(API.experimental, "updateChat").mockReturnValue(
-				new Promise(() => {}),
-			);
-			renderList();
-			const triggerName = `Open chat actions for ${MockChat.title}`;
-			await user.click(
-				await screen.findByRole("button", { name: triggerName }),
-			);
-			await user.click(await screen.findByRole("menuitem", { name: action }));
-
-			const movedTrigger = await within(
-				await screen.findByRole("region", { name: section }),
-			).findByRole("button", { name: triggerName });
-			await waitFor(() => expect(movedTrigger).toHaveFocus());
-		},
-	);
-
-	it.each([
 		{ action: "Pin agent", pinOrder: 0, from: "Chats", to: "Pinned" },
 		{ action: "Unpin agent", pinOrder: 1, from: "Pinned", to: "Chats" },
 	])(
-		"$action keeps focus on the row's actions as a failure moves it back to $from",
+		"$action keeps focus on the row's actions as it moves to $to and back to $from on failure",
 		async ({ action, pinOrder, from, to }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
@@ -422,10 +394,10 @@ describe("ProjectChatsList", () => {
 				await screen.findByRole("button", { name: triggerName }),
 			);
 			await user.click(await screen.findByRole("menuitem", { name: action }));
-			await within(await screen.findByRole("region", { name: to })).findByRole(
-				"button",
-				{ name: triggerName },
-			);
+			const movedTrigger = await within(
+				await screen.findByRole("region", { name: to }),
+			).findByRole("button", { name: triggerName });
+			await waitFor(() => expect(movedTrigger).toHaveFocus());
 
 			update.reject(new Error("Pin update rejected"));
 
