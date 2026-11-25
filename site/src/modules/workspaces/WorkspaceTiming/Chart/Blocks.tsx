@@ -20,6 +20,7 @@ export const Blocks: React.FC<BlocksProps> = ({ count }) => {
 			return;
 		}
 
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-initialize-state -- The ref is null during render, so the width can only be measured after mount.
 		setAvailableWidth(blocksRef.current.clientWidth);
 	}, []);
 

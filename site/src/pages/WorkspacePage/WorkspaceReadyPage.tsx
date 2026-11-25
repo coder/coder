@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
@@ -23,6 +23,7 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { toast } from "#/components/Toaster/toast";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -113,16 +114,9 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 
 	// Favicon
 	const favicon = getFaviconByStatus(workspace.latest_build);
-	const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
-	useEffect(() => {
-		if (!window.matchMedia) {
-			return;
-		}
-
-		const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-		// We want the favicon the opposite of the theme.
-		setFaviconTheme(isDark.matches ? "light" : "dark");
-	}, []);
+	const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+	// We want the favicon the opposite of the theme.
+	const faviconTheme = prefersDark ? "light" : "dark";
 
 	// Active version
 	const { data: latestVersion } = useQuery({
