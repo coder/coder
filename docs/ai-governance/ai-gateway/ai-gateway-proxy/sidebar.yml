@@ -1,0 +1,7 @@
+title: AI Gateway Proxy
+description: Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.
+path: ./index.md
+children:
+  - title: Setup
+    description: Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.
+    path: ./setup.md

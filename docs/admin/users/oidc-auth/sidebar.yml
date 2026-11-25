@@ -1,0 +1,16 @@
+title: OpenID Connect
+description: Configure OpenID Connect authentication with identity providers like Okta or Active Directory.
+path: ./index.md
+children:
+  - title: Google
+    description: Configure Coder to authenticate users with Google using OpenID Connect (OIDC).
+    path: ./google.md
+  - title: Microsoft
+    description: Configure Coder to authenticate users with Microsoft Entra ID using OpenID Connect (OIDC).
+    path: ./microsoft.md
+  - title: Configure OIDC refresh tokens
+    description: Configure OIDC refresh tokens so Coder can keep user sessions active beyond token expiration.
+    path: ./refresh-tokens.md
+  - title: Configure custom claims/scopes with Okta for group/role
+    description: Configure custom Okta claims and scopes to drive Coder group and role sync.
+    path: ./configuring-okta.md

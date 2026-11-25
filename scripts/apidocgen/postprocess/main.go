@@ -151,8 +151,7 @@ func prepareDocsDirectory() error {
 func writeDocs(sections [][]byte) error {
 	log.Println("Write docs to destination")
 
-	sourcesDir := path.Join(docsDirectory, docgenenv.ManifestSourcesDir)
-	m, err := docgenenv.LoadManifestSources(sourcesDir)
+	m, err := docgenenv.LoadManifestSources(docsDirectory)
 	if err != nil {
 		return err
 	}
@@ -162,10 +161,10 @@ func writeDocs(sections [][]byte) error {
 	// metadata source and the rewrite target can't drift apart.
 	restAPI := m.FindRoute("Reference", "REST API")
 	if restAPI == nil {
-		return xerrors.Errorf("could not find REST API route in sidebar sources %q", sourcesDir)
+		return xerrors.Errorf("could not find REST API route in the sidebar sources under %q", docsDirectory)
 	}
-	if restAPI.ChildrenFrom == "" {
-		return xerrors.Errorf("REST API route in sidebar sources %q must set children_from", sourcesDir)
+	if restAPI.Folder == "" {
+		return xerrors.Errorf("REST API route in the sidebar sources under %q must set folder", docsDirectory)
 	}
 
 	// The REST API route's children in the sources are curated metadata
@@ -214,7 +213,7 @@ func writeDocs(sections [][]byte) error {
 		}
 		mdFiles = append(mdFiles, mdFile{
 			title: sectionName,
-			path:  "./" + path.Join(apiSubdir, mdFilename),
+			path:  "./" + mdFilename,
 		})
 	}
 
@@ -230,9 +229,9 @@ func writeDocs(sections [][]byte) error {
 		return slices.IsSorted([]string{mdFiles[i].title, mdFiles[j].title})
 	})
 
-	// Write the generated routes to the sidebar fragment the sources name in
-	// children_from. The fragment carries only structure (title and path);
-	// curated metadata stays in the sources as overlays.
+	// Write the generated routes to the sidebar file in the generated folder,
+	// with paths relative to it. The file carries only structure (title and
+	// path); curated metadata stays in the parent sidebar as overlays.
 	var children []docgenenv.Route
 	for _, mdf := range mdFiles {
 		children = append(children, docgenenv.Route{
@@ -240,11 +239,11 @@ func writeDocs(sections [][]byte) error {
 			Path:  mdf.path,
 		})
 	}
-	fragment := path.Join(sourcesDir, restAPI.ChildrenFrom)
+	fragment := path.Join(docsDirectory, restAPI.Folder, docgenenv.SidebarFile)
 	if err := docgenenv.WriteRouteFragment(fragment, children); err != nil {
 		return err
 	}
-	log.Printf("Write sidebar fragment: %s", fragment)
+	log.Printf("Write sidebar: %s", fragment)
 	return nil
 }
 

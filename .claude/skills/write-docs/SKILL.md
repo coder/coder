@@ -86,8 +86,8 @@ style.
    Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
-   One outcome per page. New pages MUST be added to the right source file in
-   `docs/manifest/` (then run `make gen/docs-manifest`), and the documentation
+   One outcome per page. New pages MUST be added to the right `sidebar.yml` in
+   the page's folder (then run `make gen/docs-manifest`), and the documentation
    lands in the same change as the feature. If the change introduces,
    renames, or deprecates a Coder product
    or feature name, update the [glossary](../../../docs/reference/glossary.md)
@@ -214,7 +214,7 @@ the whole series as a single review.
       unverified for the reviewer.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
 - [ ] One outcome per page, correct Diátaxis mode, added to
-      `docs/manifest/`, and `docs/manifest.json` rebuilt.
+      its folder's `sidebar.yml`, and `docs/manifest.json` rebuilt.
 - [ ] New, renamed, or deprecated product or feature names have a matching
       `docs/reference/glossary.md` entry (a rename keeps the former name; a
       deprecation names the replacement).
@@ -226,7 +226,7 @@ the whole series as a single review.
       [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 - [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
 - [ ] Premium and other staged pages carry the `state:` on their
-      `docs/manifest/` route, with no suffix in the title.
+      `sidebar.yml` route, with no suffix in the title.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into
       focused PRs (aim for under ~1,000 lines changed; one page per PR for a

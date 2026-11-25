@@ -1,0 +1,15 @@
+title: Administration
+description: Guides for the template and deployment administrators who configure, secure, and operate Coder.
+path: ./index.md
+icon_path: ./images/icons/wrench.svg
+children:
+  - folder: setup
+  - folder: users
+  - title: External authentication
+    description: Configure external authentication so workspaces can access Git providers and other OAuth services.
+    path: ./external-auth.md
+    icon_path: ./images/icons/plug.svg
+  - folder: integrations
+  - folder: networking
+  - folder: monitoring
+  - folder: security

@@ -461,7 +461,7 @@ A page's H1 and its sidebar title serve different jobs and may diverge.
   Refer to [Declare audience and scope up front](./audience-and-scope.md#declare-audience-and-scope-up-front) for how the H1 names the outcome.
 - The **sidebar title** is a navigation label.
   It fits the limited horizontal space of the sidebar and reads fast when the reader is scanning a tree of dozens of pages.
-  The Coder docs site reads the sidebar title from the `title` field of the page's route in the sidebar sources under [`docs/manifest/`](../../manifest/index.yml).
+  The Coder docs site reads the sidebar title from the `title` field of the page's route in the `sidebar.yml` files under [`docs/`](../../sidebar.yml).
 
 The two must each stand alone, but they don't need to be identical.
 Breadcrumb depth already supplies one layer of context.
@@ -505,7 +505,7 @@ No Vale rule.*
 
 Each page declares a description that appears in search engine results, in social-media previews, and in screen-reader page summaries.
 The Coder docs site reads descriptions from `docs/manifest.json`, not from YAML front matter inside the Markdown file.
-That file is compiled from the sidebar sources under [`docs/manifest/`](../../manifest/index.yml), where each route maps a page to a `title` and a `description`:
+That file is compiled from the `sidebar.yml` files under [`docs/`](../../sidebar.yml), where each route maps a page to a `title` and a `description`:
 
 ```yaml
 - title: Configure your workspace

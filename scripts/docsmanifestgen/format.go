@@ -18,53 +18,44 @@ import (
 // routes and the index file. They match the field order of docgenenv.Route
 // and docgenenv.ManifestIndex, which TestKeyOrderMatchesStructs enforces.
 var (
-	routeKeyOrder = []string{"title", "description", "path", "icon_path", "state", "children_from", "include", "children"}
-	indexKeyOrder = []string{"versions", "sections"}
+	routeKeyOrder = []string{"title", "description", "path", "icon_path", "state", "folder", "children"}
+	indexKeyOrder = []string{"versions", "routes"}
 )
 
 // formattedFile is a source file whose canonical form differs from its
 // contents on disk.
 type formattedFile struct {
-	rel  string // Sources-relative name, for messages.
+	rel  string // Docs-relative name, for messages.
 	path string
 	out  []byte // Canonical contents.
 }
 
-// unformattedSources returns every YAML file under dir whose contents differ
-// from its canonical form, without modifying anything.
+// unformattedSources returns every sidebar file under dir whose contents
+// differ from its canonical form, without modifying anything.
 func unformattedSources(dir string) ([]formattedFile, error) {
+	names, err := docgenenv.SidebarFiles(dir)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		changed []formattedFile
 		errs    []error
 	)
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !isYAML(path) {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
+	for _, rel := range names {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
 		in, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		out, err := formatFile(rel, in)
 		if err != nil {
 			errs = append(errs, xerrors.Errorf("%s: %w", rel, err))
-			return nil
+			continue
 		}
 		if !bytes.Equal(in, out) {
 			changed = append(changed, formattedFile{rel: rel, path: path, out: out})
 		}
-		return nil
-	})
-	if err != nil {
-		errs = append(errs, xerrors.Errorf("format %q: %w", dir, err))
 	}
 	return changed, errors.Join(errs...)
 }
@@ -98,7 +89,7 @@ func formatFile(rel string, in []byte) ([]byte, error) {
 	root := doc.Content[0]
 	var err error
 	switch {
-	case rel == docgenenv.ManifestIndexFile:
+	case rel == docgenenv.SidebarFile:
 		err = formatIndex(root)
 	case root.Kind == yaml.MappingNode:
 		err = formatRoute(root)
@@ -118,13 +109,15 @@ func formatIndex(n *yaml.Node) error {
 		return err
 	}
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		v := n.Content[i+1]
-		style := yaml.Style(0)
-		if n.Content[i].Value == "versions" {
-			style = yaml.FlowStyle
+		k, v := n.Content[i], n.Content[i+1]
+		var err error
+		if k.Value == "versions" {
+			err = formatStringList(v, yaml.FlowStyle)
+		} else {
+			err = formatRouteList(v)
 		}
-		if err := formatStringList(v, style); err != nil {
-			return xerrors.Errorf("%s: %w", n.Content[i].Value, err)
+		if err != nil {
+			return xerrors.Errorf("%s: %w", k.Value, err)
 		}
 	}
 	return nil
@@ -229,9 +222,4 @@ func formatString(n *yaml.Node) error {
 		n.Style = yaml.DoubleQuotedStyle
 	}
 	return nil
-}
-
-func isYAML(path string) bool {
-	ext := filepath.Ext(path)
-	return ext == ".yml" || ext == ".yaml"
 }

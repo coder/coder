@@ -1,6 +1,6 @@
-// Command docsmanifestgen compiles the YAML sidebar sources under
-// docs/manifest into docs/manifest.json, formats those sources, and checks
-// them.
+// Command docsmanifestgen compiles the YAML sidebar sources, the sidebar.yml
+// files in the docs directory, into docs/manifest.json, formats those sources,
+// and checks them.
 //
 // Usage:
 //
@@ -34,16 +34,15 @@ func run(args []string) error {
 		return xerrors.New("usage: docsmanifestgen <build|fmt|check> [flags]")
 	}
 	fs := flag.NewFlagSet("docsmanifestgen "+args[0], flag.ContinueOnError)
-	docsDir := fs.String("docs", "docs", "Docs directory. Sources are read from its manifest subdirectory.")
+	docsDir := fs.String("docs", "docs", "Docs directory. Sidebar sources are read from its sidebar.yml files.")
 	out := fs.String("out", "", "Output path for build. Defaults to manifest.json in the docs directory.")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	sourcesDir := filepath.Join(*docsDir, docgenenv.ManifestSourcesDir)
 
 	switch args[0] {
 	case "build":
-		m, err := docgenenv.BuildManifest(sourcesDir, *docsDir)
+		m, err := docgenenv.BuildManifest(*docsDir)
 		if err != nil {
 			return err
 		}
@@ -56,15 +55,16 @@ func run(args []string) error {
 		}
 		return atomicwrite.File(*out, b)
 	case "fmt":
-		return formatSources(sourcesDir)
+		return formatSources(*docsDir)
 	case "check":
 		var errs []error
-		if _, err := docgenenv.BuildManifest(sourcesDir, *docsDir); err != nil {
+		if _, err := docgenenv.BuildManifest(*docsDir); err != nil {
 			errs = append(errs, err)
 		} else {
-			errs = append(errs, repeatedStates(sourcesDir)...)
+			errs = append(errs, repeatedStates(*docsDir)...)
+			errs = append(errs, unlistedPagesIn(*docsDir)...)
 		}
-		unformatted, err := unformattedSources(sourcesDir)
+		unformatted, err := unformattedSources(*docsDir)
 		if err != nil {
 			errs = append(errs, err)
 		}

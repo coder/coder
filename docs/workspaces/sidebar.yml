@@ -1,0 +1,42 @@
+title: Workspaces
+description: Guides for Coder end users on accessing, managing, and personalizing their workspaces.
+path: ./index.md
+icon_path: ./images/icons/users.svg
+children:
+  - folder: workspace-access
+  - folder: desktop
+  - title: Manage workspaces
+    description: Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.
+    path: ./workspace-management.md
+    icon_path: ./images/icons/generic.svg
+  - title: Shared workspaces
+    description: Let multiple users securely connect to a single Coder workspace to program and debug together.
+    path: ./shared-workspaces.md
+    icon_path: ./images/icons/generic.svg
+  - title: Persistent shared workspaces
+    description: Set up long-lived shared workspaces with service accounts and workspace sharing.
+    path: ./persistent-shared-workspaces.md
+    state: [premium]
+  - title: Manage workspace schedules
+    description: Control cloud costs by scheduling when your Coder workspaces automatically start and stop.
+    path: ./workspace-scheduling.md
+    icon_path: ./images/icons/stopwatch.svg
+  - title: Workspace lifecycle
+    description: A guide to the workspace lifecycle, from creation and status through stopping and deletion.
+    path: ./workspace-lifecycle.md
+    icon_path: ./images/icons/circle-dot.svg
+  - folder: devcontainers
+  - title: Dotfiles
+    description: Personalize your Coder workspaces by applying your dotfiles repository with the coder dotfiles command.
+    path: ./workspace-dotfiles.md
+    icon_path: ./images/icons/art-pad.svg
+  - title: User secrets
+    description: Store secret values in Coder and automatically inject them into workspaces.
+    path: ./user-secrets.md
+    icon_path: ./images/icons/secrets.svg
+  - title: Cloning Git repositories
+    description: Learn how to automatically clone Git repositories into your Coder workspaces on startup.
+    path: ./cloning-git-repositories.md
+  - title: Speed up your workspaces
+    description: Speed up Coder template builds and workspace startup with practical optimizations.
+    path: ./speed-up-templates.md

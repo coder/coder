@@ -1,0 +1,46 @@
+# Sidebar for coder.com/docs, compiled into docs/manifest.json.
+#
+# Edit the sidebar.yml files, not docs/manifest.json. After editing, run
+# "make gen/docs-manifest" to format the sources and rebuild docs/manifest.json.
+#
+# Each docs folder holds a sidebar.yml next to the pages it orders. This root
+# file lists the manifest versions and the top-level routes in sidebar order.
+# Every other sidebar.yml holds one route and its direct children.
+#
+# A child that has children of its own lives in a sidebar.yml in a subfolder,
+# and the parent lists it as "- folder: admin/users". A folder entry sets no
+# other key. The folder is relative to the folder of the file that lists it, so
+# moving a folder carries its sidebar with it.
+#
+# Paths name pages relative to the folder of the file that holds them.
+#
+# Keys appear in this order: title, description, path, icon_path, state,
+# folder, children. A route that sets folder and other keys gets its children
+# from the sidebar.yml that a doc generator writes in that folder. Its children
+# list may only add description, icon_path, or state to generated routes,
+# matched by title.
+#
+# make lint/docs-manifest fails when a folder with pages has no sidebar.yml or
+# when a sidebar.yml leaves out a page in its folder.
+
+versions: [main]
+routes:
+  - title: Home
+    description: Coder is a self-hosted platform for running AI coding agents and cloud development environments on the infrastructure you control.
+    path: ./README.md
+    icon_path: ./images/icons/home.svg
+  - folder: get-started
+  - folder: install
+  - folder: templates
+  - folder: workspaces
+  - folder: coder-agents
+  - folder: ai-governance
+  - folder: agent-relay
+  - title: MCP server
+    description: Connect external AI coding agents to Coder using its built-in Model Context Protocol server.
+    path: ./mcp-server.md
+    icon_path: ./images/icons/plug.svg
+    state: [beta]
+  - folder: admin
+  - folder: reference
+  - folder: support

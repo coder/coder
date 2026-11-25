@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -80,17 +79,17 @@ Use the canonical name.
 `
 
 func main() {
-	sourcesDir := flag.String("manifest-sources", filepath.Join("docs", docgenenv.ManifestSourcesDir), "directory of the docs sidebar sources that supply the page metadata")
+	docsDir := flag.String("docs", "docs", "docs directory whose sidebar.yml files supply the page metadata")
 	out := flag.String("out", "docs/reference/api-key-scopes.md", "path to write the generated reference page")
 	flag.Parse()
 
-	manifest, err := docgenenv.LoadManifestSources(*sourcesDir)
+	manifest, err := docgenenv.LoadManifestSources(*docsDir)
 	if err != nil {
 		flog.Fatalf("%v", err)
 	}
 	route := manifest.FindRoute(routeTitles...)
 	if route == nil {
-		flog.Fatalf("sidebar sources %q have no route %q", *sourcesDir, strings.Join(routeTitles, " > "))
+		flog.Fatalf("sidebar sources under %q have no route %q", *docsDir, strings.Join(routeTitles, " > "))
 	}
 
 	content, err := render(*route)

@@ -1,0 +1,10 @@
+title: Plan your deployment
+description: Learn the architecture, size the deployment, and record the decisions that shape it.
+path: ./index.md
+icon_path: ./images/icons/notes.svg
+children:
+  - title: Architecture
+    description: Learn about Coder's architecture and the components that make up a deployment.
+    path: ./architecture.md
+  - folder: sizing
+  - folder: migrate

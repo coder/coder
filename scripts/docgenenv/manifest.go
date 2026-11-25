@@ -10,7 +10,7 @@ import (
 // matter by the doc generators; the structural fields (path, children) stay in
 // the manifest.
 //
-// The same type decodes the YAML sidebar sources under docs/manifest, so the
+// The same type decodes the YAML sidebar sources (sidebar.yml files), so the
 // field order here is the key order enforced in both the sources and the
 // compiled manifest.json.
 type Route struct {
@@ -19,15 +19,14 @@ type Route struct {
 	Path        string   `json:"path,omitempty" yaml:"path,omitempty"`
 	IconPath    string   `json:"icon_path,omitempty" yaml:"icon_path,omitempty"`
 	State       []string `json:"state,omitempty" yaml:"state,omitempty"`
-	// ChildrenFrom names a generated fragment, relative to the sources
-	// directory, that supplies this route's children. It exists only in the
-	// sources; BuildManifest replaces it with the fragment's routes.
-	ChildrenFrom string `json:"-" yaml:"children_from,omitempty"`
-	// Include names another source file, relative to the sources directory,
-	// that holds this child route. It exists only in the sources, where an
-	// include entry sets no other key; the loader replaces the entry with the
-	// route in the named file.
-	Include  string  `json:"-" yaml:"include,omitempty"`
+	// Folder names a subfolder, relative to the folder of the sidebar file
+	// that holds this entry. It exists only in the sources. An entry that sets
+	// only folder stands for the route in that folder's sidebar file. An
+	// entry that sets other keys too takes its children from the sidebar file
+	// a doc generator writes in that folder, and its children are metadata
+	// overlays. After loading, Folder of such a route is relative to the docs
+	// directory.
+	Folder   string  `json:"-" yaml:"folder,omitempty"`
 	Children []Route `json:"children,omitempty" yaml:"children,omitempty"`
 }
 

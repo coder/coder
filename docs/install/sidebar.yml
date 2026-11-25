@@ -1,0 +1,10 @@
+title: Install
+description: Plan, prepare, install, validate, and operate a Coder deployment in your own infrastructure.
+path: ./index.md
+icon_path: ./images/icons/download.svg
+children:
+  - folder: plan
+  - folder: prepare
+  - folder: server
+  - folder: validate
+  - folder: operate

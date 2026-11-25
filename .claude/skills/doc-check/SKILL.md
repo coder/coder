@@ -70,7 +70,7 @@ In every other mode, run the checks that exist for the files the change touches,
 Use the result instead of re-deriving it, and never contradict a check's output.
 
 - `make lint/emdash`
-- `make lint/docs-html` and `make lint/docs-manifest` when `docs/` or `docs/manifest/` changed
+- `make lint/docs-html` and `make lint/docs-manifest` when `docs/` or a `sidebar.yml` changed
 - markdownlint and Vale on the changed Markdown files (`make lint/markdown`, `make lint/prose`, or the tools directly)
 
 A check that fails on a line the change added or edited is a blocking finding.
@@ -181,7 +181,7 @@ Everything else is a suggestion.
 
 1. **Wrong.** A docs claim the code contradicts, including a configurable default presented as fixed, and an unsupported compliance or security claim.
 2. **Missing.** Behavior the change adds or changes, that is user-facing per [Documentation lands with the change](../../../docs/.style/content-guidelines.md#documentation-lands-with-the-change), with no docs that explain it. This includes a broken user path, such as a step that needs a role the page never mentions.
-3. **Broken.** A typo, markup that renders wrong or breaks a component (such as `<div class="tab">` where the component needs `tabs`), a failing deterministic check, a new page missing from `docs/manifest/`, a missing Premium state, a rename without a redirect.
+3. **Broken.** A typo, markup that renders wrong or breaks a component (such as `<div class="tab">` where the component needs `tabs`), a failing deterministic check, a new page missing from its folder's `sidebar.yml`, a missing Premium state, a rename without a redirect.
 4. **Rule-anchored.** A consistency, audience, structure, or language finding where all three hold:
    - the finding cites a style-guide or content-guideline rule by page and anchor, or a contradicting line on another page;
    - the verifier confirmed it;
@@ -222,9 +222,9 @@ Review only the user-facing part of a mixed diff.
 
 ## Repository facts
 
-- **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
+- **Sidebar:** the `sidebar.yml` files under `docs/` are the navigation source. Each sits in the folder it orders and holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
 - **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
-- **Feature states:** a staged feature carries `state:` on its highest route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
+- **Feature states:** a staged feature carries `state:` on its highest route in a `sidebar.yml`, such as `state: [premium]`.
   Descendants inherit it and set `state:` only for a state they add.
   Titles and H1s carry no state suffix.
 - **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR, such as `{"source": "old/path", "destination": "new/path"}`. Routes are relative to the docs root, so they leave out `/docs`, and `"/"` is the docs root. There is no `docs/_redirects` file.
