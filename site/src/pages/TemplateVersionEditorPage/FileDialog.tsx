@@ -64,7 +64,6 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 						slashes too.
 					</p>
 					<FormField
-						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
@@ -188,7 +187,6 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 						contain slashes too!
 					</p>
 					<FormField
-						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();

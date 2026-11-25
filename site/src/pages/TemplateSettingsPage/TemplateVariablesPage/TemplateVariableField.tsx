@@ -105,7 +105,6 @@ export const TemplateVariableField: React.FC<TemplateVariableFieldProps> = ({
 						: "text"
 			}
 			disabled={disabled}
-			autoFocus
 			placeholder={
 				templateVersionVariable.sensitive
 					? ""

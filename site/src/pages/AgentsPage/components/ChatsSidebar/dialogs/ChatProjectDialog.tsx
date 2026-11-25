@@ -235,7 +235,6 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					label={project ? "Name" : "Project name"}
 					required
 					disabled={isSubmitting}
-					autoFocus
 				/>
 				<FormField
 					field={descriptionField}

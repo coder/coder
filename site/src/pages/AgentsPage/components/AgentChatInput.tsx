@@ -269,8 +269,7 @@ const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
 type PlusMenuSubmenu = "workspace" | "mcp";
 
 // Below md, swapping the plus menu's views unmounts the focused control.
-// A callback ref moves focus to its replacement, because biome's
-// lint/a11y/noAutofocus rule rejects autoFocus on native buttons.
+// Move focus to its replacement so keyboard navigation can continue.
 const focusOnMount = (element: HTMLElement | null) => {
 	element?.focus();
 };

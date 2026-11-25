@@ -200,7 +200,6 @@ const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 							onChange={onChangeTrimmed(form)}
 							onBlur={nameField.onBlur}
 							autoComplete="name"
-							autoFocus
 							disabled={isEveryoneGroup(group)}
 							aria-invalid={nameField.error}
 						/>

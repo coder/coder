@@ -85,7 +85,6 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 							})}
 							label="Name"
 							onChange={onChangeTrimmed(form)}
-							autoFocus
 							autoComplete="name"
 							required
 						/>

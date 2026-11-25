@@ -237,6 +237,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									ref={setPrimaryFallback}
 									size="sm"
 									variant="outline"
+									// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the New skill button after closing the create editor.
 									autoFocus={lastEditor?.type === "create"}
 									disabled={isAtLimit || skillsQuery.isLoading}
 									onClick={() => openEditor({ type: "create" })}
@@ -306,6 +307,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 												scope={scope}
 												skill={skill}
 												canEdit={canEdit}
+												// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the edited skill’s menu after closing the editor.
 												autoFocus={
 													lastEditor?.type === "edit" &&
 													lastEditor.name === skill.name
@@ -564,6 +566,7 @@ const ProjectSkillEditorHeader: React.FC<ProjectSkillEditorHeaderProps> = ({
 			variant="subtle"
 			className="-ml-2"
 			disabled={isSubmitting}
+			// oxlint-disable-next-line jsx-a11y/no-autofocus -- The Back button is the initial focus target in the editor.
 			autoFocus
 			onClick={onBack}
 		>
@@ -636,6 +639,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 						size="icon"
 						variant="subtle"
 						aria-label={`Open menu for ${skill.name}`}
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Restore focus to this menu when returning from the editor.
 						autoFocus={autoFocus}
 						onPointerDown={onTriggerInteraction}
 						onKeyDown={onTriggerInteraction}

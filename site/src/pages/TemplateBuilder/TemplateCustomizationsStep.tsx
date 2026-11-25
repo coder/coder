@@ -212,6 +212,7 @@ export const TemplateCustomizationsStep: React.FC<
 								<OrganizationAutocomplete
 									{...props}
 									required
+									// oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus the organization control when creation fails on that field.
 									autoFocus={fieldsShowingCreateError.includes(
 										"organization_id",
 									)}
@@ -266,6 +267,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={nameField}
 						label="ID"
 						required
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus the template ID when creation fails on that field.
 						autoFocus={fieldsShowingCreateError.includes("name")}
 						id="template-name"
 						placeholder="my-template"

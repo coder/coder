@@ -366,7 +366,6 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 					label="Name"
 					description="The name of your Coder app."
 					disabled={formDisabled}
-					autoFocus
 					required
 				/>
 				<div className="flex flex-col gap-2">

@@ -94,7 +94,6 @@ export const WorkspaceSettingsForm: React.FC<WorkspaceSettingsFormProps> = ({
 						label="Name"
 						disabled={!workspace.allow_renames || form.isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						autoFocus
 						className="w-full"
 					/>
 				</FormFields>
