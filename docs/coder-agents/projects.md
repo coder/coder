@@ -90,6 +90,7 @@ Every chat stays available from the project's page.
 Chats you own in a project that you can no longer open, for example after the owner stops sharing it, stay in the sidebar.
 
 The API equivalents are `PUT` and `DELETE` on `/api/experimental/organizations/{organization}/chats/projects/{project}/pin`.
+To reorder, send the IDs of your pinned projects in their new order as `project_ids` to `PUT /api/experimental/chats/projects/pins/order`.
 
 ## Instructions
 
