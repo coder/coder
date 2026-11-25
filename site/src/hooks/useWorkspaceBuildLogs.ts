@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { watchBuildLogsByBuildId } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -8,28 +8,27 @@ export const useWorkspaceBuildLogs = (
 	buildId: string | undefined,
 	enabled = true,
 ) => {
-	const [logs, setLogs] = useState<ProvisionerJobLog[]>();
-	const socket = useRef<WebSocket>(undefined);
+	const [buildLogs, setBuildLogs] = useState<{
+		buildId: string;
+		logs: ProvisionerJobLog[];
+	}>();
 
 	useEffect(() => {
 		if (!buildId || !enabled) {
-			socket.current?.close();
 			return;
 		}
 
-		// Every time this hook is called reset the values
-		setLogs(undefined);
-
-		socket.current = watchBuildLogsByBuildId(buildId, {
+		let ignore = false;
+		const logs: ProvisionerJobLog[] = [];
+		const socket = watchBuildLogsByBuildId(buildId, {
 			// Retrieve all the logs
 			after: -1,
 			onMessage: (log) => {
-				setLogs((previousLogs) => {
-					if (!previousLogs) {
-						return [log];
-					}
-					return [...previousLogs, log];
-				});
+				if (ignore) {
+					return;
+				}
+				logs.push(log);
+				setBuildLogs({ buildId, logs: [...logs] });
 			},
 			onError: () => {
 				toast.error(`Error on getting "${buildId}" build logs.`);
@@ -37,9 +36,14 @@ export const useWorkspaceBuildLogs = (
 		});
 
 		return () => {
-			socket.current?.close();
+			ignore = true;
+			socket.close();
 		};
 	}, [buildId, enabled]);
 
-	return logs;
+	// Disabling keeps the last logs. A new build starts from empty logs.
+	if (!buildId || !enabled || buildLogs?.buildId === buildId) {
+		return buildLogs?.logs;
+	}
+	return undefined;
 };

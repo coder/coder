@@ -8,7 +8,7 @@ import {
 	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { ParameterValidationError } from "#/api/api";
@@ -115,19 +115,21 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	const { duplicateWorkspace, isDuplicationReady } =
 		useWorkspaceDuplication(workspace);
 
-	// Since the workspace state is not updated immediately after the mutation, we
-	// need to be sure the menu is closed when the action gets disabled.
+	// The menu closes when a new build starts, because its actions may no
+	// longer apply. The workspace data can lag behind an action, so the menu
+	// may have been opened before the build arrived.
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
-	const [open, setOpen] = useState(false);
-	useEffect(() => {
-		if (disabled) {
-			setOpen(false);
-		}
-	}, [disabled]);
+	const [openedForBuildId, setOpenedForBuildId] = useState<string>();
+	const open = openedForBuildId === workspace.latest_build.id;
 
 	return (
 		<>
-			<DropdownMenu open={open} onOpenChange={setOpen}>
+			<DropdownMenu
+				open={open}
+				onOpenChange={(nextOpen) => {
+					setOpenedForBuildId(nextOpen ? workspace.latest_build.id : undefined);
+				}}
+			>
 				<DropdownMenuTrigger asChild>
 					<Button
 						size="icon-lg"

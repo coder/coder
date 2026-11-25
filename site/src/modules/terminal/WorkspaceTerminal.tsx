@@ -343,7 +343,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		});
 		resizeObserver.observe(mountNode);
 
-		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription -- This effect creates the xterm instance; setTerminal exposes it to the effects that drive it.
+		// oxlint-disable-next-line react-you-might-not-need-an-effect/no-external-store-subscription, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- This effect creates the xterm instance; setTerminal exposes it to the effects that drive it.
 		setTerminal(nextTerminal);
 
 		return () => {

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
@@ -43,40 +43,40 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 }) => {
 	const [formState, setFormState] = useState<{
 		mode: "manual" | "auto";
-		paramValues: Record<string, string>;
+		editedValues: Record<string, string>;
 	}>({
 		mode: "manual",
-		paramValues: {},
+		editedValues: {},
 	});
 
-	useEffect(() => {
-		if (parameters) {
-			const serverParamValues: Record<string, string> = {};
-			for (const p of parameters) {
-				const initialVal = p.value?.valid ? p.value.value : "";
-				serverParamValues[p.name] = initialVal;
-			}
-			setFormState((prev) => ({ ...prev, paramValues: serverParamValues }));
-		}
-	}, [parameters]);
+	// Values the user typed win over the server's value for that parameter.
+	const paramValues: Record<string, string> = Object.fromEntries(
+		parameters.map((p) => [
+			p.name,
+			formState.editedValues[p.name] ?? (p.value?.valid ? p.value.value : ""),
+		]),
+	);
 
-	const buttonValues = useMemo(() => {
-		const values: ButtonValues = { mode: formState.mode };
-		for (const [key, value] of Object.entries(formState.paramValues)) {
-			values[`param.${key}`] = value;
-		}
-		return values;
-	}, [formState]);
+	const buttonValues: ButtonValues = { mode: formState.mode };
+	for (const [key, value] of Object.entries(paramValues)) {
+		buttonValues[`param.${key}`] = value;
+	}
 
 	const handleChange = (
 		changedParamInfo: PreviewParameter,
 		newValue: string,
 	) => {
 		const newParamValues = {
-			...formState.paramValues,
+			...paramValues,
 			[changedParamInfo.name]: newValue,
 		};
-		setFormState((prev) => ({ ...prev, paramValues: newParamValues }));
+		setFormState((prev) => ({
+			...prev,
+			editedValues: {
+				...prev.editedValues,
+				[changedParamInfo.name]: newValue,
+			},
+		}));
 
 		const formInputsToSend: Record<string, string> = { ...newParamValues };
 		for (const p of parameters) {
@@ -140,7 +140,7 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 										parameter={parameter}
 										onChange={(value) => handleChange(parameter, value)}
 										disabled={parameter.styling?.disabled}
-										value={formState.paramValues[parameter.name] || ""}
+										value={paramValues[parameter.name] || ""}
 									/>
 								))}
 							</div>

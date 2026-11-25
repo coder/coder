@@ -16,6 +16,7 @@ import {
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
+	ProvisionerJobStatus,
 	Template,
 	TemplateVersion,
 	TemplateVersionVariable,
@@ -79,6 +80,8 @@ type TemplateVersionEditorProps = {
 	template: Template;
 	templateVersion: TemplateVersion;
 	fileTree: FileTree;
+	/** Whether the file tree differs from the active version's files. */
+	hasUnsavedChanges: boolean;
 	onFileTreeChange: (updater: (fileTree: FileTree) => FileTree) => void;
 	buildLogs?: ProvisionerJobLog[];
 	resources?: WorkspaceResource[];
@@ -110,6 +113,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	template,
 	templateVersion,
 	fileTree,
+	hasUnsavedChanges,
 	onFileTreeChange,
 	onPreview,
 	onPublish,
@@ -138,7 +142,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	const [createFileOpen, setCreateFileOpen] = useState(false);
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
-	const [dirty, setDirty] = useState(false);
 	const matchingProvisioners = templateVersion.matched_provisioners?.count;
 	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
@@ -181,7 +184,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 		linkToTemplate(template.organization_name, template.name),
 	);
 
-	// Automatically switch to the template preview tab when the build succeeds.
 	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
@@ -190,10 +192,11 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 		}
 
 		if (
-			["running", "pending"].includes(previousVersion.current.job.status) &&
-			templateVersion.job.status === "succeeded"
+			isBuildSuccess(
+				previousVersion.current.job.status,
+				templateVersion.job.status,
+			)
 		) {
-			setDirty(false);
 			toast.success(
 				`Template version "${previousVersion.current.name}" built successfully.`,
 				{
@@ -211,7 +214,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	const isEditorValueBinary =
 		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
-	useLeaveSiteWarning(dirty);
+	useLeaveSiteWarning(hasUnsavedChanges);
 
 	const gotBuildLogs = buildLogs && buildLogs.length > 0;
 
@@ -290,7 +293,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 
 						<TopbarButton
 							variant="default"
-							disabled={dirty || !canPublish}
+							disabled={hasUnsavedChanges || !canPublish}
 							onClick={onPublish}
 						>
 							Publish
@@ -360,7 +363,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 									);
 									onActivePathChange(path);
 									setCreateFileOpen(false);
-									setDirty(true);
 								}}
 							/>
 							<DeleteFileDialog
@@ -375,7 +377,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 									if (activePath === deleteFileOpen) {
 										onActivePathChange(undefined);
 									}
-									setDirty(true);
 								}}
 								open={Boolean(deleteFileOpen)}
 								onClose={() => setDeleteFileOpen(undefined)}
@@ -398,7 +399,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 									);
 									onActivePathChange(newPath);
 									setRenameFileOpen(undefined);
-									setDirty(true);
 								}}
 							/>
 						</div>
@@ -442,7 +442,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 											onFileTreeChange((fileTree) =>
 												updateFile(activePath, value, fileTree),
 											);
-											setDirty(true);
 										}}
 									/>
 								)
@@ -592,6 +591,16 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 				missingVariables={missingVariables}
 			/>
 		</>
+	);
+};
+
+const isBuildSuccess = (
+	previous: ProvisionerJobStatus,
+	current: ProvisionerJobStatus,
+): boolean => {
+	return (
+		(previous === "running" || previous === "pending") &&
+		current === "succeeded"
 	);
 };
 

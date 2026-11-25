@@ -216,6 +216,7 @@
 		"react-you-might-not-need-an-effect/no-chain-state-updates": "error",
 		"react-you-might-not-need-an-effect/no-initialize-state": "error",
 		"react-you-might-not-need-an-effect/no-pass-data-to-parent": "error",
+		"react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "error",
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -252,7 +253,6 @@
 
 		// react-you-might-not-need-an-effect rules with existing violations.
 		"react-you-might-not-need-an-effect/no-event-handler": "off", // (xl)
-		"react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "off", // (large)
 
 		"no-restricted-imports": [
 			"error",
