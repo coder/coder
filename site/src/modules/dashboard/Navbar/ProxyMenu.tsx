@@ -138,53 +138,51 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin">
-						<DropdownMenuRadioGroup value={selectedProxy?.id}>
-							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
-								(proxy) => (
-									<DropdownMenuRadioItem
-										value={proxy.id}
-										key={proxy.id}
-										onClick={(e) => {
-											e.preventDefault();
-											if (!proxy.healthy) {
-												toast.error(
-													`Failed to select proxy "${proxy.display_name}".`,
-													{
-														description:
-															"Please select a healthy workspace proxy.",
-													},
-												);
-												closeMenu();
-												return;
-											}
-
-											proxyContextValue.setProxy(proxy);
+					<DropdownMenuRadioGroup value={selectedProxy?.id}>
+						{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+							(proxy) => (
+								<DropdownMenuRadioItem
+									value={proxy.id}
+									key={proxy.id}
+									onClick={(e) => {
+										e.preventDefault();
+										if (!proxy.healthy) {
+											toast.error(
+												`Failed to select proxy "${proxy.display_name}".`,
+												{
+													description:
+														"Please select a healthy workspace proxy.",
+												},
+											);
 											closeMenu();
-										}}
-									>
-										<div className="flex gap-3 items-center w-full">
-											<div className="leading-none size-4">
-												<ExternalImage
-													src={proxy.icon_url}
-													alt=""
-													className="object-contain size-full"
-												/>
-											</div>
+											return;
+										}
 
-											{proxy.display_name}
-
-											<Latency
-												className="ml-auto"
-												latency={latencies?.[proxy.id]?.latencyMS}
-												isLoading={proxyLatencyLoading(proxy)}
+										proxyContextValue.setProxy(proxy);
+										closeMenu();
+									}}
+								>
+									<div className="flex gap-3 items-center w-full">
+										<div className="leading-none size-4">
+											<ExternalImage
+												src={proxy.icon_url}
+												alt=""
+												className="object-contain size-full"
 											/>
 										</div>
-									</DropdownMenuRadioItem>
-								),
-							)}
-						</DropdownMenuRadioGroup>
-					</div>
+
+										{proxy.display_name}
+
+										<Latency
+											className="ml-auto"
+											latency={latencies?.[proxy.id]?.latencyMS}
+											isLoading={proxyLatencyLoading(proxy)}
+										/>
+									</div>
+								</DropdownMenuRadioItem>
+							),
+						)}
+					</DropdownMenuRadioGroup>
 				)}
 
 				<DropdownMenuSeparator />

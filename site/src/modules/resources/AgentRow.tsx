@@ -633,7 +633,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															</DropdownMenuTrigger>
 															<DropdownMenuContent
 																align="end"
-																className="max-h-56 overflow-y-auto"
+																className="max-h-[min(14rem,var(--radix-popper-available-height))]"
 															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
