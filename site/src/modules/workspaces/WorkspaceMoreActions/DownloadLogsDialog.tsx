@@ -17,7 +17,7 @@ import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
-	"onConfirm" | "onClose" | "open"
+	"onConfirm" | "onClose" | "open" | "onCloseAutoFocus"
 > & {
 	workspace: Workspace;
 	download?: (zip: Blob, filename: string) => void;
@@ -32,6 +32,7 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 	workspace,
 	open,
 	onClose,
+	onCloseAutoFocus,
 	download = saveAs,
 }) => {
 	const buildLogsQuery = useQuery({
@@ -101,6 +102,7 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 		<ConfirmDialog
 			open={open}
 			onClose={onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			hideCancel={false}
 			title="Download logs"
 			confirmLoading={isDownloading}

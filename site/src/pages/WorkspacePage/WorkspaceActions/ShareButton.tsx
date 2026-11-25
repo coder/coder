@@ -1,4 +1,5 @@
 import { Share2Icon } from "lucide-react";
+import { useId } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
@@ -21,6 +22,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 	canShareWorkspace,
 }) => {
 	const sharing = useWorkspaceSharing(workspace);
+	const headingId = useId();
 
 	return (
 		<Popover>
@@ -30,9 +32,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 					Share
 				</TopbarButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-[580px] p-4">
+			<PopoverContent
+				align="end"
+				aria-labelledby={headingId}
+				className="w-[calc(100vw-2rem)] p-3 sm:w-145 sm:p-4"
+			>
 				<div className="flex items-center gap-2 mb-4">
-					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
+					<h3 id={headingId} className="text-lg font-semibold m-0">
+						Workspace sharing
+					</h3>
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}

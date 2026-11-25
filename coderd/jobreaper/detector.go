@@ -23,9 +23,26 @@ const (
 	// to a RUNNING job before it is considered hung.
 	HungJobDuration = 5 * time.Minute
 
-	// PendingJobDuration is the duration of time since last update
-	// to a PENDING job before it is considered dead.
+	// PendingJobDuration is the duration since the last update to a PENDING
+	// job before it can be reaped when no eligible provisioner is online and
+	// making progress.
 	PendingJobDuration = 30 * time.Minute
+
+	// ProvisionerProgressWindow is how recently an eligible provisioner must
+	// have completed a job, when it is not running a job that is still being
+	// updated, to count as making progress and protect pending jobs it can
+	// run. A running job counts while its provisioner keeps updating it, even
+	// if the build is stuck, so pending jobs behind a pool whose eligible
+	// provisioners are all stuck stay queued until a stuck build is canceled.
+	ProvisionerProgressWindow = 30 * time.Minute
+
+	// ProvisionerStaleInterval is how recently a provisioner must have sent a
+	// heartbeat for the reaper to treat it as online. An eligible provisioner
+	// protects pending jobs it can run only while it is online and making
+	// progress. It is longer than the interval used to display provisioners
+	// as online so that a delayed heartbeat does not expose queued jobs to
+	// reaping.
+	ProvisionerStaleInterval = 5 * time.Minute
 
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
@@ -190,9 +207,11 @@ func (d *Detector) run(t time.Time) Stats {
 
 	// Find all provisioner jobs to be reaped
 	jobs, err := d.db.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
-		PendingSince: t.Add(-PendingJobDuration),
-		HungSince:    t.Add(-HungJobDuration),
-		MaxJobs:      MaxJobsPerRun,
+		PendingSince:             t.Add(-PendingJobDuration),
+		ProvisionerSeenSince:     t.Add(-ProvisionerStaleInterval),
+		ProvisionerProgressSince: t.Add(-ProvisionerProgressWindow),
+		HungSince:                t.Add(-HungJobDuration),
+		MaxJobs:                  MaxJobsPerRun,
 	})
 	if err != nil {
 		stats.Error = xerrors.Errorf("get provisioner jobs to be reaped: %w", err)
@@ -252,9 +271,51 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
+		if jobToReap.Type == Pending && job.JobStatus != database.ProvisionerJobStatusPending {
+			return jobIneligibleError{
+				Err: xerrors.New("job is no longer pending"),
+			}
+		}
 		if job.UpdatedAt.After(time.Now().Add(-jobToReap.Threshold)) {
 			return jobIneligibleError{
 				Err: xerrors.New("job has been updated recently"),
+			}
+		}
+		// A healthy provisioner pool can have a long queue. Preserve pending
+		// jobs while an eligible provisioner is online and making progress.
+		// Keep the eligibility lookup, the heartbeat check, and the progress
+		// window and hung cutoff arguments aligned with
+		// GetProvisionerJobsToBeReaped in
+		// coderd/database/queries/provisionerjobs.sql.
+		if jobToReap.Type == Pending {
+			now := dbtime.Now()
+			daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(
+				ctx, []uuid.UUID{job.ID},
+			)
+			if err != nil {
+				return xerrors.Errorf("get eligible provisioner daemons: %w", err)
+			}
+			var onlineDaemonIDs []uuid.UUID
+			for _, daemon := range daemons {
+				lastSeen := daemon.ProvisionerDaemon.LastSeenAt
+				if lastSeen.Valid && !lastSeen.Time.Before(now.Add(-ProvisionerStaleInterval)) {
+					onlineDaemonIDs = append(onlineDaemonIDs, daemon.ProvisionerDaemon.ID)
+				}
+			}
+			if len(onlineDaemonIDs) > 0 {
+				makingProgress, err := db.HasProvisionerDaemonMakingProgress(ctx, database.HasProvisionerDaemonMakingProgressParams{
+					DaemonIds:                onlineDaemonIDs,
+					ProvisionerProgressSince: now.Add(-ProvisionerProgressWindow),
+					HungSince:                now.Add(-HungJobDuration),
+				})
+				if err != nil {
+					return xerrors.Errorf("check provisioner daemon progress: %w", err)
+				}
+				if makingProgress {
+					return jobIneligibleError{
+						Err: xerrors.New("an eligible provisioner is online and making progress"),
+					}
+				}
 			}
 		}
 

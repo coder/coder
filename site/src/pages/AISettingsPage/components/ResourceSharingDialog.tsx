@@ -315,8 +315,8 @@ const LoadedSharingDialogEditor = <Role extends string, Option>({
 				</form>
 
 				{isEmpty ? (
-					<div className="rounded-md border border-solid border-border px-6 py-10 text-center">
-						<p className="m-0 text-sm font-medium">{emptyTitle}</p>
+					<div className="rounded-md border px-6 py-10 text-center">
+						<p className="m-0 text-sm">{emptyTitle}</p>
 						<p className="m-0 mt-2 text-sm text-content-secondary">
 							Add a member or group using the controls above.
 						</p>

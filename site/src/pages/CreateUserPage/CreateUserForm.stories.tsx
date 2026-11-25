@@ -80,14 +80,14 @@ export const ServiceAccountRequiresPremium: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByTestId("login-type-input"));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Login type" }));
 	},
 };
 
 export const LoginTypeKeyboardFocus: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		canvas.getByTestId("login-type-input").focus();
+		canvas.getByRole("combobox", { name: "Login type" }).focus();
 		await userEvent.keyboard("{Enter}");
 		await screen.findByRole("listbox");
 		await userEvent.keyboard("{ArrowDown}");
@@ -102,7 +102,7 @@ export const KeepsEmailForExternalLogin: Story = {
 		const canvas = within(canvasElement);
 		const email = canvas.getByLabelText(/email/i);
 		await userEvent.type(email, "someone@coder.com");
-		await userEvent.click(canvas.getByTestId("login-type-input"));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Login type" }));
 		await userEvent.click(
 			await within(document.body).findByRole("option", {
 				name: /openID connect/i,
@@ -149,6 +149,23 @@ export const FormError: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 		await expect(await canvas.findByText("Username taken")).toBeVisible();
 		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
+export const LoginTypeError: Story = {
+	args: {
+		error: mockApiError({
+			validations: [
+				{ field: "login_type", detail: "Login type is not allowed" },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/username/i), "someuser");
+		await userEvent.type(canvas.getByLabelText(/email/i), "someone@coder.com");
+		await userEvent.type(canvas.getByTestId("password-input"), "SomePassword!");
+		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 	},
 };
 

@@ -12,7 +12,7 @@ const makePanelContent = (label: string) => (
 );
 
 const makeBadge = (additions: number, deletions: number) => (
-	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
+	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs">
 		{additions > 0 && (
 			<span className="flex h-full items-center bg-surface-git-added px-1.5 text-git-added-bright">
 				+{additions}
@@ -194,6 +194,16 @@ export const CloseableTabFocusedWithKeyboard: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: "Close Terminal 9 tab" }).focus();
+	},
+};
+
+// Terminal 3's close button starts clipped at the right edge, so keyboard focus
+// on its label must scroll the whole pill into view.
+export const CloseableTabLabelFocusedWithKeyboard: Story = {
+	render: CloseableTabs.render,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("tab", { name: "Terminal 3" }).focus();
 	},
 };
 

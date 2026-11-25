@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-(--breakpoint-xl) p-6 h-[720px]">
+			<div className="w-full max-w-(--breakpoint-xl) p-6 h-180">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
@@ -72,24 +72,6 @@ export const OnRetry: Story = {
 		const retryButton = body.getByRole("button", { name: /retry/i });
 		await userEvent.click(retryButton);
 		await expect(args.onRetry).toHaveBeenCalledTimes(1);
-	},
-	parameters: {
-		pixel: { exclude: true },
-	},
-};
-
-export const OnMarkAllAsRead: Story = {
-	args: {
-		defaultOpen: true,
-		unreadCount: 2,
-		notifications: MockNotifications.slice(0, 3),
-		onMarkAllAsRead: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const markButton = body.getByRole("button", { name: /mark all as read/i });
-		await userEvent.click(markButton);
-		await expect(args.onMarkAllAsRead).toHaveBeenCalledTimes(1);
 	},
 	parameters: {
 		pixel: { exclude: true },

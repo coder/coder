@@ -1,8 +1,7 @@
-import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import * as Yup from "yup";
@@ -16,12 +15,7 @@ import { FormFields, FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import {
-	Select,
-	SelectContent,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+import { SelectField } from "#/components/SelectField/SelectField";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -226,6 +220,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	const loginTypeField = getFieldHelpers("login_type", {
 		helperText: "Authentication method for this user.",
 	});
+	const loginTypeOptionId = useId();
 
 	return (
 		<div>
@@ -242,7 +237,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 						Add a user to this Coder deployment.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<form
 						onSubmit={form.handleSubmit}
 						autoComplete="off"
@@ -271,81 +266,63 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								</div>
 							)}
 
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="login_type">Login type</Label>
-								<Select
-									value={form.values.login_type}
-									onValueChange={async (value) => {
-										const isServiceAccount = value === "none";
-										await Promise.all([
-											form.setFieldValue("login_type", value),
-											form.setFieldValue("service_account", isServiceAccount),
-											isServiceAccount
-												? form.setFieldValue("email", "")
-												: Promise.resolve(),
-											value !== "password"
-												? form.setFieldValue("password", "")
-												: Promise.resolve(),
-										]);
-									}}
-								>
-									<SelectTrigger
-										id="login_type"
-										data-testid="login-type-input"
-										aria-invalid={loginTypeField.error}
-										aria-describedby={
-											loginTypeField.error
-												? "login_type-error"
-												: "login_type-helper"
-										}
-										className={cn(
-											loginTypeField.error && "border-border-destructive",
-										)}
-									>
-										<SelectValue placeholder="Select a login type…" />
-									</SelectTrigger>
-
-									<SelectContent>
-										{availableLoginTypes.map((key) => {
-											const opt = loginTypeOptions[key];
-											const requiresPremium =
-												key === "none" && !serviceAccountsEnabled;
-											return (
-												<SelectPrimitive.Item
-													key={key}
-													value={key}
-													disabled={requiresPremium}
-													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link data-disabled:pointer-events-none data-disabled:opacity-50"
+							<SelectField
+								id="login_type"
+								field={loginTypeField}
+								label="Login type"
+								placeholder="Select a login type…"
+								onValueChange={async (value) => {
+									const isServiceAccount = value === "none";
+									await Promise.all([
+										form.setFieldValue("login_type", value),
+										form.setFieldValue("service_account", isServiceAccount),
+										isServiceAccount
+											? form.setFieldValue("email", "")
+											: Promise.resolve(),
+										value !== "password"
+											? form.setFieldValue("password", "")
+											: Promise.resolve(),
+									]);
+								}}
+							>
+								{availableLoginTypes.map((key) => {
+									const opt = loginTypeOptions[key];
+									const requiresPremium =
+										key === "none" && !serviceAccountsEnabled;
+									const labelId = `${loginTypeOptionId}-${key}-label`;
+									const descriptionId = `${loginTypeOptionId}-${key}-description`;
+									return (
+										<SelectPrimitive.Item
+											key={key}
+											value={key}
+											disabled={requiresPremium}
+											// The description is part of what each option means, so
+											// include it in the name instead of only the short label.
+											aria-labelledby={`${labelId} ${descriptionId}`}
+											className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link data-disabled:pointer-events-none data-disabled:opacity-50"
+										>
+											<span className="absolute right-2 top-2 flex items-center justify-center">
+												<SelectPrimitive.ItemIndicator>
+													<CheckIcon className="size-icon-sm text-content-primary" />
+												</SelectPrimitive.ItemIndicator>
+											</span>
+											<div className="flex flex-col py-0.5">
+												<SelectPrimitive.ItemText id={labelId}>
+													{opt.label}
+												</SelectPrimitive.ItemText>
+												<span
+													id={descriptionId}
+													className="text-xs text-content-secondary whitespace-normal wrap-break-word"
 												>
-													<span className="absolute right-2 top-2 flex items-center justify-center">
-														<SelectPrimitive.ItemIndicator>
-															<CheckIcon className="size-icon-sm" />
-														</SelectPrimitive.ItemIndicator>
-													</span>
-													<div className="flex flex-col py-0.5">
-														<SelectPrimitive.ItemText>
-															{opt.label}
-														</SelectPrimitive.ItemText>
-														<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
-															{requiresPremium
-																? `Requires a Premium license. ${opt.description}`
-																: opt.description}
-														</span>
-													</div>
-												</SelectPrimitive.Item>
-											);
-										})}
-									</SelectContent>
-								</Select>
-								{loginTypeField.helperText && (
-									<span
-										id="login_type-helper"
-										className="text-xs text-content-secondary"
-									>
-										{loginTypeField.helperText}
-									</span>
-								)}
-							</div>
+													{requiresPremium
+														? `Requires a Premium license. ${opt.description}`
+														: opt.description}
+												</span>
+											</div>
+										</SelectPrimitive.Item>
+									);
+								})}
+							</SelectField>
 
 							<FormField
 								field={getFieldHelpers("username", {

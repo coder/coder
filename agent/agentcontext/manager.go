@@ -248,11 +248,11 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 }
 
-// started returns a channel that is closed once Run has
+// Started returns a channel that is closed once Run has
 // claimed the running flag. Tests use it to coordinate with
 // the watcher loop without polling; a closed channel never
 // blocks, so this is safe to call repeatedly.
-func (m *Manager) started() <-chan struct{} {
+func (m *Manager) Started() <-chan struct{} {
 	return m.runStartedCh
 }
 

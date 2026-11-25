@@ -79,30 +79,19 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 	if marshalErr != nil {
 		return errors.Join(dispatchErr, xerrors.Errorf("encode hook dispatch error: %w", marshalErr))
 	}
-	var failedChat database.Chat
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		current, err := store.GetChatByID(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("load chat for hook failure: %w", err)
-		}
+	failedChat, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		// Park only idle chats. FinishError is also allowed from running
 		// states, but a running chat keeps its active turn and the
 		// request error alone surfaces to the caller.
-		if current.Status != database.ChatStatusWaiting {
+		if snapshot.Chat.Status != database.ChatStatusWaiting {
 			return chatstate.ErrTransitionNotAllowed
 		}
-		if _, err := tx.FinishError(chatstate.FinishErrorInput{
+		_, err := tx.FinishError(chatstate.FinishErrorInput{
+			Snapshot:  snapshot,
 			LastError: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-		}); err != nil {
-			return err
-		}
-		chat, err := store.GetChatByID(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after hook failure: %w", err)
-		}
-		failedChat = chat
-		return nil
+		})
+		return err
 	})
 	if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
 		return dispatchErr

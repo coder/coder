@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -7,6 +8,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -251,15 +253,15 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 	return (
 		<div className="flex gap-8 pt-4 flex-col items-center justify-center">
 			<div
-				className="
-				flex flex-col items-center justify-center p-6
-			 	rounded-lg border border-border border-solid bg-surface-secondary"
+				className={cn(
+					"flex flex-col items-center justify-center p-6",
+					"rounded-lg border bg-surface-secondary",
+				)}
 			>
 				<img src="/open-in-coder.svg" alt="Open in Coder button" />
 			</div>
 			<Button
 				variant="default"
-				disabled={clipboard.showCopiedSuccess}
 				onClick={() => {
 					const textToCopy = getClipboardCopyContent(template, buttonValues);
 					clipboard.copyToClipboard(textToCopy);
@@ -268,6 +270,7 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
 				Markdown
 			</Button>
+			<CopiedStatus show={clipboard.showCopiedSuccess} />
 		</div>
 	);
 };

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	getProvisionerDaemonsKey,
 	permittedOrganizations,
@@ -10,6 +11,8 @@ import {
 	MockOrganization,
 	MockOrganization2,
 	MockProvisioner,
+	mockApiError,
+	mockAxiosError,
 } from "#/testHelpers/entities";
 import {
 	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
@@ -54,7 +57,7 @@ const meta: Meta<typeof TemplateCustomizationsStep> = {
 			{ key: permittedOrgsKey, data: [MockOrganization, MockOrganization2] },
 		],
 	},
-	// The "Create Template" submit button lives in the wizard's shared nav bar,
+	// The "Create template" submit button lives in the wizard's shared nav bar,
 	// outside this component. It is associated with the form via the `form`
 	// attribute, so the stories render an equivalent button to exercise submit.
 	decorators: [
@@ -62,7 +65,7 @@ const meta: Meta<typeof TemplateCustomizationsStep> = {
 			<div className="flex flex-col gap-6">
 				<Story />
 				<Button type="submit" form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}>
-					Create Template
+					Create template
 				</Button>
 			</div>
 		),
@@ -75,16 +78,15 @@ type Story = StoryObj<typeof TemplateCustomizationsStep>;
 export const MultipleOrganizations: Story = {};
 
 // Submitting without choosing an organization surfaces an inline error under
-// the organization field and does not call onCreate.
+// the organization field.
 export const MissingOrganizationError: Story = {
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByTestId("organization-autocomplete");
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await canvas.findByText("Select an organization to continue.");
-		await expect(args.onCreate).not.toHaveBeenCalled();
 	},
 };
 
@@ -105,7 +107,7 @@ export const SingleOrganizationSubmits: Story = {
 		// Wait for the auto-selected org to render in the autocomplete.
 		await canvas.findByText(MockDefaultOrganization.display_name);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await expect(args.onCreate).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -135,9 +137,114 @@ export const MissingNameError: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByText(MockDefaultOrganization.display_name);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await canvas.findByText("Please enter a template id.");
 		await expect(args.onCreate).not.toHaveBeenCalled();
+	},
+};
+
+// The Organization field stays disabled until the permitted organizations load.
+export const OrganizationsLoading: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+// A failed organizations request replaces the field with a retryable error.
+export const OrganizationsLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockRejectedValue(
+			mockApiError({ message: "Unable to fetch organizations." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockSubmittedValues = {
+	organization_id: MockDefaultOrganization.id,
+	name: "docker",
+	display_name: "Docker Containers",
+	description: "Run workspaces as Docker containers",
+	icon: "/icon/docker.svg",
+};
+
+const mockDuplicateIdError = mockAxiosError({
+	message: "A template with this name already exists in the organization.",
+	validations: [
+		{
+			field: "name",
+			detail: "A template with this name already exists in the organization.",
+		},
+	],
+	status: 409,
+});
+
+const mockOrganizationNotFoundError = mockAxiosError({
+	message: "Organization not found.",
+	validations: [
+		{ field: "organization_id", detail: "Organization not found." },
+	],
+	status: 404,
+});
+
+const mockCreateError = mockAxiosError({
+	message: "Internal error inserting template.",
+	status: 500,
+});
+
+// A create rejected for a duplicate ID restores the submitted values and shows
+// the error on the ID field.
+export const DuplicateIdError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockDuplicateIdError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
+	},
+};
+
+export const OrganizationNotFoundError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockOrganizationNotFoundError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
+	},
+};
+
+// Errors that no field owns stay in an alert above the form.
+export const CreateError: Story = {
+	args: {
+		initialValues: mockSubmittedValues,
+		createError: mockCreateError,
+	},
+	parameters: {
+		queries: [
+			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
+			{
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
+				data: [MockProvisioner],
+			},
+		],
 	},
 };

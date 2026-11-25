@@ -63,6 +63,7 @@ const PERSONAL_OVERRIDE_COPY: Record<
 	},
 	explore: {
 		title: "Explore subagent model",
+		// sentence-case-expect: Explore is the subagent's name.
 		description: "Choose the model behavior for read-only Explore subagents.",
 	},
 };
@@ -295,7 +296,7 @@ export const PersonalModelOverrideRow: React.FC<
 					}
 					triggerAriaLabel={`${title} behavior`}
 					emptyMessage="No matching models found."
-					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]"
+					className="h-10 w-full justify-between rounded-md border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]"
 					contentClassName="min-w-[18rem]"
 					reasoningEffort={selectedReasoningEffort}
 					onReasoningEffortChange={(value) =>

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -159,9 +158,9 @@ func TestStopHookDispatchFailureErrorsChat(t *testing.T) {
 	require.Contains(t, lastError, "hook dispatch failed: stop: http_error")
 }
 
-func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server {
+func stopConsumer(t *testing.T, response func() (int, string)) *hookConsumer {
 	t.Helper()
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	consumer := newHookConsumer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type != agenthooks.EventStop {
@@ -175,7 +174,6 @@ func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server 
 			_, err := w.Write([]byte(body))
 			require.NoError(t, err)
 		}
-	}))
-	t.Cleanup(consumer.Close)
+	})
 	return consumer
 }
