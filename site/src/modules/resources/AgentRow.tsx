@@ -7,7 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type {
 	AgentScriptTiming,
@@ -176,27 +176,17 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	);
 	const hasScriptIssues = getAgentScriptIssues(agent).length > 0;
 	const { proxy } = useProxy();
-	const [showLogs, setShowLogs] = useState(
+
+	const defaultShowLogs =
 		(agent.lifecycle_state !== "ready" ||
 			hasConnectivityIssues ||
 			hasScriptIssues) &&
-			hasStartupFeatures,
-	);
-	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
+		hasStartupFeatures;
+	// The logs follow the agent's state until the user opens or closes them.
+	const [userShowLogs, setUserShowLogs] = useState<boolean>();
+	const showLogs = userShowLogs ?? defaultShowLogs;
 
-	useEffect(() => {
-		setShowLogs(
-			(agent.lifecycle_state !== "ready" ||
-				hasConnectivityIssues ||
-				hasScriptIssues) &&
-				hasStartupFeatures,
-		);
-	}, [
-		agent.lifecycle_state,
-		hasConnectivityIssues,
-		hasScriptIssues,
-		hasStartupFeatures,
-	]);
+	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -226,34 +216,23 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const hasAutoSelectedLogTabRef = useRef(false);
-	// Auto-select the first log tab whose script failed and has rendered output.
-	useEffect(() => {
-		if (hasAutoSelectedLogTabRef.current) {
-			return;
+
+	// Undefined until the user picks a tab.
+	const [chosenLogTab, setChosenLogTab] = useState<string>();
+
+	// Until then, show the first log tab whose script failed and has rendered output.
+	const failedSourceWithLogs = agent.log_sources.find((logSource) => {
+		const script = agent.scripts.find((s) => s.log_source_id === logSource.id);
+		if (!isScriptFailed(script)) {
+			return false;
 		}
-		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
-			const script = agent.scripts.find(
-				(s) => s.log_source_id === logSource.id,
-			);
-			if (!isScriptFailed(script)) {
-				return false;
-			}
-			return agentLogs.some(
-				(log) =>
-					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-			);
-		});
-		if (failedSourceWithLogs) {
-			hasAutoSelectedLogTabRef.current = true;
-			setSelectedLogTab(failedSourceWithLogs.id);
-		}
-	}, [agent.log_sources, agent.scripts, agentLogs]);
-	const handleSelectedLogTabChange = (value: string) => {
-		hasAutoSelectedLogTabRef.current = true;
-		setSelectedLogTab(value);
-	};
+		return agentLogs.some(
+			(log) => log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+		);
+	});
+
+	const selectedLogTab = chosenLogTab ?? failedSourceWithLogs?.id ?? "all";
+
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -502,7 +481,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			</div>
 
 			<section className="border-t">
-				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
+				<Collapsible open={shouldExpandLogs} onOpenChange={setUserShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
 							<Button
@@ -576,7 +555,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 									<Tabs
 										className="-mx-px -mt-px"
 										value={selectedLogTab}
-										onValueChange={handleSelectedLogTabChange}
+										onValueChange={setChosenLogTab}
 									>
 										<div className="flex items-stretch">
 											<div className="min-w-0 flex-1 overflow-hidden">
@@ -637,7 +616,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
-																	onValueChange={handleSelectedLogTabChange}
+																	onValueChange={setChosenLogTab}
 																>
 																	{overflowLogTabs.map((tab) => (
 																		<DropdownMenuRadioItem

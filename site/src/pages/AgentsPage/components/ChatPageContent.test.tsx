@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
+import { createRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
@@ -27,6 +27,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatPageInput,
 	ChatPageTimeline,
@@ -127,52 +128,81 @@ describe("workspaceSkillsFromChat", () => {
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
 	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
-) =>
-	renderWithAuth(
-		<ChatPageInput
-			chat={{ ...MockChat, id: "", organization_id: "" }}
-			store={store}
-			modelCatalog={undefined}
-			onSend={vi.fn()}
-			onDeleteQueuedMessage={vi.fn()}
-			onPromoteQueuedMessage={vi.fn()}
-			onInterrupt={vi.fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={vi.fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			editingTarget={null}
-			onCancelEdit={vi.fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={vi.fn()}
-			unsupportedProviderNames={[]}
-			onPlanModeToggle={vi.fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={vi.fn()}
-			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={vi.fn()}
-			isWorkspaceLoading={false}
-			queuedMessageUnderEditID={null}
-			{...overrides}
-		/>,
-	);
+) => renderWithAuth(chatPageInput(store, overrides));
+
+// Renders the input with props a test can change while it stays mounted.
+const renderUpdatableChatPageInput = (
+	store: ReturnType<typeof createChatStore>,
+	initialOverrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
+) => {
+	let setOverrides: React.Dispatch<
+		React.SetStateAction<Partial<React.ComponentProps<typeof ChatPageInput>>>
+	> = () => {};
+	const inputRef = { current: null };
+
+	const Harness: React.FC = () => {
+		const [overrides, setState] = useState(initialOverrides);
+		setOverrides = setState;
+
+		return chatPageInput(store, { inputRef, ...overrides });
+	};
+
+	renderWithAuth(<Harness />);
+
+	return {
+		update: (next: Partial<React.ComponentProps<typeof ChatPageInput>>) =>
+			act(() => setOverrides((current) => ({ ...current, ...next }))),
+	};
+};
+
+const chatPageInput = (
+	store: ReturnType<typeof createChatStore>,
+	overrides: Partial<React.ComponentProps<typeof ChatPageInput>>,
+) => (
+	<ChatPageInput
+		chat={{ ...MockChat, id: "", organization_id: "" }}
+		store={store}
+		modelCatalog={undefined}
+		onSend={vi.fn()}
+		onDeleteQueuedMessage={vi.fn()}
+		onPromoteQueuedMessage={vi.fn()}
+		onInterrupt={vi.fn()}
+		isInputDisabled={false}
+		isSendPending={false}
+		isInterruptPending={false}
+		hasModelOptions
+		selectedModel="model-config-1"
+		onModelChange={vi.fn()}
+		modelOptions={[
+			{
+				id: "model-config-1",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o",
+			},
+		]}
+		modelSelectorPlaceholder="Select model"
+		canConfigureAgentSetup={false}
+		editingTarget={null}
+		onCancelEdit={vi.fn()}
+		isReadOnly={false}
+		onReasoningEffortChange={vi.fn()}
+		unsupportedProviderNames={[]}
+		onPlanModeToggle={vi.fn()}
+		isModelCatalogLoading={false}
+		inputRef={{ current: null }}
+		initialValue=""
+		remountKey={0}
+		onContentChange={vi.fn()}
+		editingFileBlocks={[]}
+		mcpServers={[]}
+		selectedMCPServerIds={[]}
+		onMCPSelectionChange={vi.fn()}
+		isWorkspaceLoading={false}
+		queuedMessageUnderEditID={null}
+		{...overrides}
+	/>
+);
 
 const workspaceFileReference = (
 	name: string,
@@ -598,6 +628,37 @@ describe("ChatPageInput", () => {
 			},
 		);
 
+		it("drops edit uploads when editing a different message", async () => {
+			const user = userEvent.setup();
+			const onSend = vi.fn().mockResolvedValue(undefined);
+			const { update } = renderUpdatableChatPageInput(createChatStore(), {
+				...draftProps,
+				onSend,
+				editingTarget: { kind: "history", id: 1 },
+				editingFileBlocks: [],
+			});
+
+			await user.upload(
+				await screen.findByTestId("chat-attachment-file-input"),
+				new File([new Uint8Array(16)], "archive.tar", {
+					type: "application/x-tar",
+				}),
+			);
+			await screen.findByRole("button", { name: "Remove archive.tar" });
+
+			update({
+				editingTarget: { kind: "history", id: 2 },
+				editingFileBlocks: [],
+			});
+
+			await user.click(
+				await screen.findByRole("button", { name: "Save edit" }),
+			);
+
+			await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+			expect(onSend.mock.calls[0][0].workspaceUploads).toBeUndefined();
+		});
+
 		it("keeps compose uploads out of message edits without clearing the draft", async () => {
 			const user = userEvent.setup();
 			const onSend = vi
@@ -797,6 +858,42 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("restores removed workspace file references when the edit is reopened", async () => {
+		const user = userEvent.setup();
+		const onSend = vi
+			.fn<React.ComponentProps<typeof ChatPageInput>["onSend"]>()
+			.mockResolvedValue(undefined);
+		const editing: EditingTarget = { kind: "history", id: 1 };
+		const editingFileBlocks = [
+			workspaceFileReference("first.csv", "ws-1"),
+			workspaceFileReference("second.csv", "ws-1"),
+		];
+		const { update } = renderUpdatableChatPageInput(createChatStore(), {
+			chat: { ...MockChat, id: "", organization_id: "", workspace_id: "ws-1" },
+			onSend,
+			editingTarget: editing,
+			initialValue: "edited",
+			editingFileBlocks,
+		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Remove first.csv" }),
+		);
+
+		update({ editingTarget: null });
+		update({
+			editingTarget: editing,
+			editingFileBlocks: [...editingFileBlocks],
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Save edit" }));
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
+		expect(
+			onSend.mock.calls[0][0].workspaceUploads?.map((upload) => upload.name),
+		).toEqual(["first.csv", "second.csv"]);
 	});
 
 	it("sends the attachments of a failed send again", async () => {
