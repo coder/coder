@@ -17,11 +17,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/fixtures"
+	"github.com/coder/coder/v2/cli"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	aibridgedtest "github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -1935,6 +1937,114 @@ func TestAIBridgeRouting(t *testing.T) {
 			require.Equal(t, tc.expectedPath, string(body))
 		})
 	}
+}
+
+// signalReadBody closes read once the first bytes arrive from the client.
+type signalReadBody struct {
+	io.ReadCloser
+	read chan struct{}
+	once sync.Once
+}
+
+func (b *signalReadBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.once.Do(func() { close(b.read) })
+	}
+	return n, err
+}
+
+// Forced gateway shutdown cancels a proxy request whose body stalls mid-read,
+// and the stalled HTTP/1 client receives the rejection through the coderd
+// router without first sending the rest of its body.
+func TestAIGatewayProxyStalledBodyShutdown(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("stalled requests must not reach upstream")
+	}))
+	t.Cleanup(upstream.Close)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayReverseProxy)}
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureAIBridge: 1},
+		},
+	})
+	//nolint:gocritic // Owner role is needed for provider management.
+	_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenAI,
+		Name:    "openai",
+		Enabled: true,
+		BaseURL: upstream.URL,
+		APIKeys: []string{"sk-embedded"},
+	})
+	require.NoError(t, err)
+
+	srv, unsubscribe, err := cli.NewAIBridgeDaemon(ctx, cli.AIBridgeDaemonOptions{
+		API:        api.AGPL,
+		Config:     api.DeploymentValues.AI.BridgeConfig,
+		Registerer: prometheus.NewRegistry(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(unsubscribe)
+	t.Cleanup(func() { _ = srv.Close() })
+	// Only the request body is wrapped, behind the coderd middleware chain, so
+	// the gateway replies through the production ResponseWriter.
+	reading := make(chan struct{})
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = &signalReadBody{ReadCloser: r.Body, read: reading}
+		srv.ServeHTTP(w, r)
+	}))
+	// The proxy backend is selected before the daemon reports ready.
+	require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast)
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	// The client sends one byte, then stalls until cleanup ends the body.
+	body, stall := io.Pipe()
+	t.Cleanup(func() { _ = stall.Close() })
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, userClient.URL.String()+"/api/v2/ai-gateway/openai/v1/chat/completions", body)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+userClient.SessionToken())
+	type reply struct {
+		status int
+		body   string
+	}
+	replies := make(chan reply, 1)
+	go func() {
+		resp, err := (&http.Client{}).Do(req)
+		if !assert.NoError(t, err, "client must receive the rejection") {
+			replies <- reply{}
+			return
+		}
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		replies <- reply{status: resp.StatusCode, body: string(respBody)}
+	}()
+	_, err = stall.Write([]byte("{"))
+	require.NoError(t, err)
+	testutil.TryReceive(ctx, t, reading)
+
+	// A done context forces shutdown, canceling admitted requests instead of
+	// waiting for them to drain.
+	forced, cancel := context.WithCancel(ctx)
+	cancel()
+	require.ErrorIs(t, srv.Shutdown(forced), context.Canceled)
+
+	// Full duplex lets the reply reach the client without draining the
+	// stalled body first.
+	got := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, replies)
+	require.Equal(t, http.StatusServiceUnavailable, got.status, "cancellation is not a client error")
+	require.Equal(t, "request canceled\n", got.body, "the reply must come from the canceled body read")
+	interceptions, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Empty(t, interceptions, "canceled requests must not record a start")
 }
 
 func TestAIBridgeActorHeaderNames(t *testing.T) {

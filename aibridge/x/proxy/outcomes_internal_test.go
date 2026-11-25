@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -246,69 +245,6 @@ func TestForwardingBodyFailures(t *testing.T) {
 			require.LessOrEqual(t, read.Load(), tc.maxRead, "failure must stop reading input")
 		})
 	}
-}
-
-// signalReadBody closes read once the first bytes arrive from the client.
-type signalReadBody struct {
-	io.ReadCloser
-	read chan struct{}
-	once sync.Once
-}
-
-func (b *signalReadBody) Read(p []byte) (int, error) {
-	n, err := b.ReadCloser.Read(p)
-	if n > 0 {
-		b.once.Do(func() { close(b.read) })
-	}
-	return n, err
-}
-
-// Closing the inflight gate unblocks a request whose body stalls mid-read, so
-// shutdown does not wait for the client to finish sending, and the stalled
-// client still receives the rejection.
-func TestForwardingStalledBodyShutdown(t *testing.T) {
-	t.Parallel()
-	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
-	rec := &testutil.MockRecorder{}
-	h.recorder = rec
-	h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("stalled requests must not call upstream")
-		return nil, io.ErrUnexpectedEOF
-	})
-	reading := make(chan struct{})
-	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = &signalReadBody{ReadCloser: r.Body, read: reading}
-		ctx := aibcontext.AsActor(r.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
-		h.ServeHTTP(w, r.WithContext(ctx))
-	}))
-	t.Cleanup(gateway.Close)
-	// The client sends one byte, then stalls until cleanup ends the body.
-	body, stall := io.Pipe()
-	t.Cleanup(func() { _ = stall.Close() })
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/openai/v1/chat/completions", body)
-	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+userSecretKey)
-	status := make(chan int, 1)
-	go func() {
-		resp, err := gateway.Client().Do(req)
-		if !assert.NoError(t, err, "client must receive the rejection") {
-			status <- 0
-			return
-		}
-		_ = resp.Body.Close()
-		status <- resp.StatusCode
-	}()
-	_, err = stall.Write([]byte("{"))
-	require.NoError(t, err)
-
-	ctx := codertestutil.Context(t, codertestutil.WaitShort)
-	codertestutil.TryReceive(ctx, t, reading)
-	h.inflight.Close()
-	require.NoError(t, h.inflight.Shutdown(ctx), "a stalled body must not hold admission after close")
-	// Full duplex lets the reply reach the client without draining the
-	// stalled body first.
-	require.Equal(t, http.StatusServiceUnavailable, codertestutil.TryReceive(ctx, t, status), "cancellation is not a client error")
-	require.Empty(t, rec.RecordedInterceptions(), "canceled requests must not record a start")
 }
 
 // Key failover retries with the next pooled key, and an exhausted pool returns

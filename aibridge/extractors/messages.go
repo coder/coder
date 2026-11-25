@@ -102,7 +102,7 @@ func (e *messagesExtractor) ExtractResponse(ctx context.Context, statusCode int,
 	// flag.
 	streaming, err := streamingFromContentType(header)
 	if err != nil {
-		e.logger.Debug(ctx, "failed to determine response format; using request stream flag", slog.Error(err))
+		e.logger.Debug(ctx, "failed to determine response format; using request stream flag", slog.F("content_type", header.Get("Content-Type")), slog.Error(err))
 		streaming = e.streaming
 	}
 	if streaming {

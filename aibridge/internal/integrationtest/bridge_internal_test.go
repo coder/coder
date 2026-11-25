@@ -1750,11 +1750,11 @@ func TestSimple(t *testing.T) {
 			t.Parallel()
 
 			for _, streaming := range []bool{true, false} {
-				// TODO: record streamed responses in proxy mode. https://linear.app/codercom/issue/AIGOV-616
-				if tc.proxy && streaming {
-					continue
-				}
 				t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+					if tc.proxy && streaming {
+						// TODO: record streamed responses in proxy mode. https://linear.app/codercom/issue/AIGOV-616
+						t.Skip("AIGOV-616: proxy mode does not record streamed responses yet")
+					}
 					t.Parallel()
 
 					ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)

@@ -327,14 +327,13 @@ func (fr *forwardedRequest) forwardingError(ctx context.Context) error {
 
 // recordFacts extracts the response facts, then records them and the end
 // record concurrently, and finally releases in-flight admission. endedAt and
-// forwardErr are snapshots taken when forwarding completed. All recording
-// shares one timeout.
+// forwardErr are snapshots taken when forwarding completed. Each write has its
+// own recorder.DefaultAsyncTimeout.
 func (fr *forwardedRequest) recordFacts(ctx context.Context, endedAt time.Time, forwardErr error, release func()) {
 	// Release in-flight gate admission after recording.
 	defer release()
 	// Do not propagate cancellation to the recorder.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
-	defer cancel()
+	ctx = context.WithoutCancel(ctx)
 
 	// The end record depends on the error the response reported, so
 	// extraction must finish before either write starts. The result stays
@@ -361,42 +360,39 @@ func (fr *forwardedRequest) recordFacts(ctx context.Context, endedAt time.Time, 
 	wg.Wait()
 }
 
-// recordResponseFacts stores the extracted response facts, created at endedAt.
+// recordResponseFacts stores the extracted response facts, created at endedAt,
+// and returns once every write finishes. The writes run concurrently, so a
+// response with many facts does not exhaust a shared timeout. The handler's
+// recorder chain logs write failures.
 func (fr *forwardedRequest) recordResponseFacts(ctx context.Context, endedAt time.Time, result extractors.ResponseResult) {
 	id := fr.startRecord.ID
-	rec := fr.handler.recorder
+	rec := recorder.NewAsyncRecorder(fr.handler.recorder, recorder.DefaultAsyncTimeout)
+	defer rec.Wait()
 	if prompt := result.Prompt; prompt != nil {
 		prompt.InterceptionID, prompt.CreatedAt = id, endedAt
-		if err := rec.RecordPromptUsage(ctx, prompt); err != nil {
-			fr.logger.Warn(ctx, "failed to record prompt usage", slog.Error(err))
-		}
+		_ = rec.RecordPromptUsage(ctx, prompt)
 	}
 	for i := range result.Tokens {
 		tokens := &result.Tokens[i]
 		tokens.InterceptionID, tokens.CreatedAt = id, endedAt
-		if err := rec.RecordTokenUsage(ctx, tokens); err != nil {
-			fr.logger.Warn(ctx, "failed to record token usage", slog.Error(err))
-		}
+		_ = rec.RecordTokenUsage(ctx, tokens)
 	}
 	for i := range result.Tools {
 		tool := &result.Tools[i]
 		tool.InterceptionID, tool.CreatedAt = id, endedAt
-		if err := rec.RecordToolUsage(ctx, tool); err != nil {
-			fr.logger.Warn(ctx, "failed to record tool usage", slog.Error(err))
-		}
+		_ = rec.RecordToolUsage(ctx, tool)
 	}
 	for i := range result.Thoughts {
 		thought := &result.Thoughts[i]
 		thought.InterceptionID, thought.CreatedAt = id, endedAt
-		if err := rec.RecordModelThought(ctx, thought); err != nil {
-			fr.logger.Warn(ctx, "failed to record model thought", slog.Error(err))
-		}
+		_ = rec.RecordModelThought(ctx, thought)
 	}
 }
 
-// recordEnd stores how the interception ended. forwardErr takes precedence
-// over responseErr, the failure the response reported. An HTTP error response
-// without either is classified by its status.
+// recordEnd stores how the interception ended and returns once the write
+// finishes. forwardErr takes precedence over responseErr, the failure the
+// response reported. An HTTP error response without either is classified by
+// its status. The handler's recorder chain logs a write failure.
 func (fr *forwardedRequest) recordEnd(ctx context.Context, endedAt time.Time, forwardErr, responseErr error) {
 	err := forwardErr
 	if err == nil {
@@ -428,9 +424,9 @@ func (fr *forwardedRequest) recordEnd(ctx context.Context, endedAt time.Time, fo
 		ErrorType:      errType,
 		ErrorMessage:   errMsg,
 	}
-	if err := fr.handler.recorder.RecordInterceptionEnded(ctx, record); err != nil {
-		fr.logger.Warn(ctx, "failed to record interception end", slog.Error(err))
-	}
+	rec := recorder.NewAsyncRecorder(fr.handler.recorder, recorder.DefaultAsyncTimeout)
+	_ = rec.RecordInterceptionEnded(ctx, record)
+	rec.Wait()
 }
 
 // checkRequest validates a bridged request without reading its body. On rejection
