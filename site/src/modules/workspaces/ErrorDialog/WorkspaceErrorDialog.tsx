@@ -19,6 +19,7 @@ type WorkspaceErrorDialogProps = {
 	workspaceName: string;
 	templateVersionId: string;
 	isDeleting: boolean;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const WorkspaceErrorDialog: React.FC<WorkspaceErrorDialogProps> = ({
@@ -30,6 +31,7 @@ export const WorkspaceErrorDialog: React.FC<WorkspaceErrorDialogProps> = ({
 	workspaceName,
 	templateVersionId,
 	isDeleting,
+	onCloseAutoFocus,
 }) => {
 	const navigate = useNavigate();
 
@@ -51,7 +53,7 @@ export const WorkspaceErrorDialog: React.FC<WorkspaceErrorDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-			<DialogContent variant="destructive">
+			<DialogContent variant="destructive" onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
 					<DialogTitle>
 						Error {isDeleting ? "deleting" : "building"} workspace

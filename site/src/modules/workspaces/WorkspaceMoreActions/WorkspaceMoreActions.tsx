@@ -233,6 +233,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
+					onCloseAutoFocus={returnFocusToTrigger}
 				/>
 			)}
 
@@ -271,6 +272,7 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
 				isDeleting
+				onCloseAutoFocus={returnFocusToTrigger}
 			/>
 		</>
 	);
