@@ -282,6 +282,7 @@ export function mountAnnotator(
 		closePopup();
 		const popup = createCommentPopup(win, {
 			target,
+			toolbar,
 			heldCount: held.count(),
 			onCancel: closePopup,
 			onSubmit: (comment, hold) => {
