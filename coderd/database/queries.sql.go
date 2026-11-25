@@ -22913,6 +22913,28 @@ func (q *sqlQuerier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, a
 	return i, err
 }
 
+const releaseMCPServerUserTokenRefresh = `-- name: ReleaseMCPServerUserTokenRefresh :exec
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW()
+WHERE
+    id = $1::uuid
+    AND updated_at = $2::timestamptz
+`
+
+type ReleaseMCPServerUserTokenRefreshParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Ends a refresh claim that got no token, so the next refresher can claim
+// at once. It matches only the claim's updated_at, so a write that ended
+// the claim first keeps its version.
+func (q *sqlQuerier) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg ReleaseMCPServerUserTokenRefreshParams) error {
+	_, err := q.db.ExecContext(ctx, releaseMCPServerUserTokenRefresh, arg.ID, arg.UpdatedAt)
+	return err
+}
+
 const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
 UPDATE
     mcp_server_configs

@@ -7976,6 +7976,13 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseExternalAuthLinkRefreshLease)(ctx, arg)
 }
 
+func (q *querier) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshParams) error {
+	fetch := func(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseMCPServerUserTokenRefresh)(ctx, arg)
+}
+
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	// This is a system function to clear user groups in group sync.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {

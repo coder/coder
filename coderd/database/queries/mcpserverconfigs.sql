@@ -284,6 +284,17 @@ WHERE
 RETURNING
     updated_at;
 
+-- name: ReleaseMCPServerUserTokenRefresh :exec
+-- Ends a refresh claim that got no token, so the next refresher can claim
+-- at once. It matches only the claim's updated_at, so a write that ended
+-- the claim first keeps its version.
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz;
+
 -- name: UpdateMCPServerUserTokenFromRefresh :one
 -- Refresh persistence must not recreate a token deleted by disconnect.
 -- The optimistic lock also prevents stale refreshes from replacing newer tokens.

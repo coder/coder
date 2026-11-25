@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestIsPermanentRefreshError(t *testing.T) {
@@ -295,9 +296,10 @@ func TestRefreshOAuth2TokenWithoutRequest(t *testing.T) {
 	})
 }
 
-// TestRefreshUserTokenOneRefresher refreshes one expired token while another
-// refresher's provider call is in flight. The provider rotates refresh tokens
-// and reports any reuse of a spent one.
+// TestRefreshUserTokenOneRefresher refreshes one expired token from three
+// callers at once while the first one's provider call is held, then from a
+// later caller. The provider rotates refresh tokens and reports any reuse of
+// a spent one.
 func TestRefreshUserTokenOneRefresher(t *testing.T) {
 	t.Parallel()
 
@@ -307,24 +309,26 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 		wantAccess  string
 		wantFailure bool
 		wantGrants  int64
-		// lateCaller refreshes the stale row after the first call returns;
-		// it must get the first call's result. A provider outage keeps the
-		// claim until it lapses, so that row has no late caller.
-		lateCaller bool
-		// saveFails fails the first call's save with a database error.
+		// saveFails fails the first call's save with a database error. Its
+		// claim then stays until it lapses, so that row has no other callers.
 		saveFails bool
+		// cancelFirst cancels the first caller during its provider call.
+		cancelFirst bool
 	}{
-		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1, lateCaller: true},
-		{name: "RevokedGrant", refresh: "revoked", wantFailure: true, lateCaller: true},
+		{name: "Rotates", refresh: "refresh-0", wantAccess: "access-1", wantGrants: 1},
+		{name: "RevokedGrant", refresh: "revoked", wantFailure: true},
 		{name: "ProviderDown", refresh: "down", wantAccess: "expired-access"},
-		{name: "Disconnected", refresh: "disconnect", wantGrants: 1, lateCaller: true},
-		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1, lateCaller: true},
-		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1, lateCaller: true},
+		{name: "Disconnected", refresh: "disconnect", wantGrants: 1},
+		{name: "Reconnected", refresh: "reconnect", wantAccess: "reconnected-access", wantGrants: 1},
+		{name: "SameAccessToken", refresh: "same-access", wantAccess: "expired-access", wantGrants: 1},
 		{name: "SaveFails", refresh: "refresh-0", wantAccess: "expired-access", wantGrants: 1, saveFails: true},
+		{name: "CallerCanceled", refresh: "down", wantAccess: "expired-access", cancelFirst: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
+			clock := quartz.NewMock(t)
+			poll := clock.Trap().NewTimer("RefreshUserToken", "poll")
 			store, _ := dbtestutil.NewDB(t)
 			db := store
 			if tc.saveFails {
@@ -384,33 +388,53 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 			})
 			require.NoError(t, err)
 			refresh := func(ctx context.Context) (database.MCPServerUserToken, error) {
-				return mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), authzDB, testMCPHTTPClient(nil), cfg, tok)
+				return mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), clock, authzDB, testMCPHTTPClient(nil), cfg, tok)
+			}
+			results := make(chan database.MCPServerUserToken, 3)
+			call := func(ctx context.Context, wantErr bool) {
+				got, err := refresh(ctx)
+				assert.Equal(t, wantErr, err != nil, "error: %v", err)
+				results <- got
 			}
 
-			first := make(chan database.MCPServerUserToken, 1)
-			go func() {
-				got, err := refresh(ctx)
-				assert.Equal(t, tc.saveFails, err != nil, "error: %v", err)
-				first <- got
-			}()
+			firstCtx, cancelFirst := context.WithCancel(ctx)
+			defer cancelFirst()
+			go call(firstCtx, tc.saveFails)
 			testutil.Eventually(ctx, t, func(context.Context) bool { return requests.Load() == 1 }, testutil.IntervalFast)
-
-			// A second refresher of the same row waits for the first instead
-			// of spending the refresh token again.
-			waitCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
-			defer cancel()
-			_, err = refresh(waitCtx)
-			require.Error(t, err)
-			require.EqualValues(t, 1, requests.Load(), "a second refresher reached the provider")
+			// The other callers wait for the first instead of spending the
+			// refresh token again.
+			waiters := 2
+			if tc.saveFails {
+				waiters = 0
+			}
+			for range waiters {
+				go call(ctx, false)
+				poll.MustWait(ctx).MustRelease(ctx)
+			}
+			if tc.cancelFirst {
+				cancelFirst()
+			}
 			close(release)
-
-			results := []database.MCPServerUserToken{testutil.RequireReceive(ctx, t, first)}
-			if tc.lateCaller {
+			rows := []database.MCPServerUserToken{testutil.RequireReceive(ctx, t, results)}
+			sent := requests.Load()
+			// When the first call ends, the waiters return at their next poll
+			// with what it left, without a provider call of their own.
+			if waiters > 0 {
+				_, w := clock.AdvanceNext()
+				w.MustWait(ctx)
+			}
+			for range waiters {
+				rows = append(rows, testutil.RequireReceive(ctx, t, results))
+			}
+			require.Equal(t, sent, requests.Load(), "a waiting caller reached the provider")
+			poll.Close()
+			// A later caller does not wait, also after a provider failure.
+			if !tc.saveFails {
 				late, err := refresh(ctx)
 				require.NoError(t, err)
-				results = append(results, late)
+				rows = append(rows, late)
 			}
-			for _, got := range results {
+			for _, got := range rows {
 				require.Equal(t, tc.wantAccess, got.AccessToken)
 				require.Equal(t, tc.wantFailure, got.OauthRefreshFailureReason != "")
 			}
@@ -418,6 +442,81 @@ func TestRefreshUserTokenOneRefresher(t *testing.T) {
 			require.Zero(t, reuses.Load(), "a spent refresh token was sent again")
 		})
 	}
+}
+
+// TestRefreshUserTokenReleaseKeepsNewerClaim fails caller A's provider call
+// after a reconnect stored a token that is already due and caller B claimed
+// it. A's release must leave B's claim alone, so a later caller C waits for
+// B instead of spending B's refresh token a second time.
+func TestRefreshUserTokenReleaseKeepsNewerClaim(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	defer cancel()
+	clock := quartz.NewMock(t)
+	poll := clock.Trap().NewTimer("RefreshUserToken", "poll")
+	defer poll.Close()
+	store, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(store, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	user := dbgen.User(t, store, database.User{})
+
+	failA, finishB := make(chan struct{}), make(chan struct{})
+	sent := make(chan string, 8)
+	var reconnectedSends atomic.Int64
+	wait := func(ch chan struct{}) {
+		select {
+		case <-ch:
+		case <-ctx.Done():
+		}
+	}
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		refresh := r.FormValue("refresh_token")
+		sent <- refresh
+		if refresh == "original" {
+			wait(failA)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if reconnectedSends.Add(1) > 1 {
+			assert.Fail(t, "the reconnected refresh token was sent twice")
+			cancel()
+			return
+		}
+		wait(finishB)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"b-access","refresh_token":"b-refresh","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(provider.Close)
+	cfg := dbgen.MCPServerConfig(t, store, database.MCPServerConfig{AuthType: "oauth2", OAuth2ClientID: "cid", OAuth2TokenURL: provider.URL})
+	upsert := func(refresh string) database.MCPServerUserToken {
+		tok, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID, UserID: user.ID, AccessToken: "expired-access", RefreshToken: refresh, TokenType: "Bearer",
+			Expiry: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+		return tok
+	}
+	tok := upsert("original")
+	results := make(chan database.MCPServerUserToken, 3)
+	call := func() {
+		got, err := mcpclient.RefreshUserToken(dbauthz.AsChatd(ctx), slogtest.Make(t, nil), clock, authzDB, testMCPHTTPClient(nil), cfg, tok)
+		assert.NoError(t, err)
+		results <- got
+	}
+
+	go call() // A
+	require.Equal(t, "original", testutil.RequireReceive(ctx, t, sent))
+	upsert("reconnected")
+	go call() // B
+	require.Equal(t, "reconnected", testutil.RequireReceive(ctx, t, sent))
+	close(failA)
+	testutil.RequireReceive(ctx, t, results)
+	go call() // C
+	poll.MustWait(ctx).MustRelease(ctx)
+	close(finishB)
+	require.Equal(t, "b-access", testutil.RequireReceive(ctx, t, results).AccessToken)
+	_, w := clock.AdvanceNext()
+	w.MustWait(ctx)
+	require.Equal(t, "b-access", testutil.RequireReceive(ctx, t, results).AccessToken)
 }
 
 // failingSaveStore fails saving a refreshed token with a database error.

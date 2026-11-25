@@ -613,7 +613,7 @@ func (p *Server) openEvents(ctx context.Context, cfg database.MCPServerConfig, o
 		if err != nil {
 			return nil, xerrors.Errorf("get MCP server token: %w", err)
 		}
-		row, err = mcpclient.RefreshUserToken(ctx, p.logger, p.db, p.mcpHTTPClient, cfg, row)
+		row, err = mcpclient.RefreshUserToken(ctx, p.logger, p.clock, p.db, p.mcpHTTPClient, cfg, row)
 		if err != nil {
 			return nil, err
 		}

@@ -2819,7 +2819,7 @@ func (p *Server) refreshExpiredMCPTokens(
 			continue
 		}
 		eg.Go(func() error {
-			refreshed, err := mcpclient.RefreshUserToken(ctx, logger, p.db, p.mcpHTTPClient, cfg, tok)
+			refreshed, err := mcpclient.RefreshUserToken(ctx, logger, p.clock, p.db, p.mcpHTTPClient, cfg, tok)
 			result[i] = refreshed
 			return err
 		})
