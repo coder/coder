@@ -48,6 +48,7 @@ import { getOwnPinnedChats, isOwnPinnedChat } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
+import { useMoveToUnpinnedProjectDialog } from "../../MoveToUnpinnedProjectDialog";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -289,6 +290,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
+	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
 
 	const movePinnedChat = (chatId: string, to: number) => {
 		const order = movePinnedId(pinnedChatIds, chatId, to);
@@ -598,8 +600,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FoldersIcon}
 						label="Projects"
 						active={isProjectsActive}
+						// Takes focus when the move dialog's chat or the last pinned
+						// project leaves the sidebar, since both can be found here.
 						ref={(element) => {
 							projectsNavItemRef.current = element;
+							moveToUnpinnedProjectDialog?.setFocusFallback(
+								element ? focusSidebarFallback : undefined,
+							);
 						}}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>
