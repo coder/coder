@@ -85,7 +85,7 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
 
 	dialCtx, dialCancel := context.WithTimeout(ctx, testutil.IntervalSlow)
@@ -164,7 +164,7 @@ func TestServerTailnet_AgentConn_NotCounted(t *testing.T) {
 
 			var logs bytes.Buffer
 			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 			ctx = loggermw.WithRequestLogger(ctx, requestLogger)
 
 			dialCtx, dialCancel := tt.dialCtx(ctx)
@@ -278,7 +278,7 @@ func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 
 	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 	require.NoError(t, err)
@@ -339,9 +339,9 @@ func TestServerTailnet_ReverseProxy_TCPDialFailure(t *testing.T) {
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, "", time.Now())
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", testutil.RandomPort(t)))
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", closedPort(ctx, t)))
 	require.NoError(t, err)
 
 	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
@@ -702,6 +702,31 @@ func (w *wrappedListener) Accept() (net.Conn, error) {
 
 func (w *wrappedListener) getDials() int {
 	return int(w.dials.Load())
+}
+
+// closedPort returns a loopback port that refuses connections. The port is
+// below the OS ephemeral port range, so a listener on port 0 cannot be given
+// it before the caller dials it.
+func closedPort(ctx context.Context, t *testing.T) int {
+	t.Helper()
+
+	var dialer net.Dialer
+	for port := 20000; port < 30000; port++ {
+		open := false
+		// The agent retries on ::1 when its dial to 127.0.0.1 fails.
+		for _, host := range []string{"127.0.0.1", "::1"} {
+			conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+			if err == nil {
+				_ = conn.Close()
+				open = true
+			}
+		}
+		if !open {
+			return port
+		}
+	}
+	t.Fatal("no closed port between 20000 and 29999")
+	return 0
 }
 
 type agentWithID struct {

@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -205,6 +206,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
 }
+
+// CreateExtractor returns nil. No Copilot route has an extractor yet.
+func (*Copilot) CreateExtractor(string) extractors.Extractor { return nil }
 
 // ResolveCredential resolves Copilot's per-request BYOK token.
 // Coder authentication credentials must already have been removed from the

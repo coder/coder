@@ -9,6 +9,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extractors"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -55,3 +56,6 @@ func (*DisabledStub) CreateInterceptor(_ http.ResponseWriter, _ *http.Request, _
 	//nolint:nilnil // disabled providers never reach the interceptor.
 	return nil, nil
 }
+
+// CreateExtractor returns nil. Disabled providers serve no routes.
+func (*DisabledStub) CreateExtractor(string) extractors.Extractor { return nil }

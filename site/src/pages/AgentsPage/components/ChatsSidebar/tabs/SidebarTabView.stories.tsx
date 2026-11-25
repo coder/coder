@@ -197,6 +197,16 @@ export const CloseableTabFocusedWithKeyboard: Story = {
 	},
 };
 
+// Terminal 3's close button starts clipped at the right edge, so keyboard focus
+// on its label must scroll the whole pill into view.
+export const CloseableTabLabelFocusedWithKeyboard: Story = {
+	render: CloseableTabs.render,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("tab", { name: "Terminal 3" }).focus();
+	},
+};
+
 export const AddTabControlDisabled: Story = {
 	args: {
 		addTabControl: () => addTabButton(true),
