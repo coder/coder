@@ -3593,7 +3593,12 @@ export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 				data: [
 					{
 						...MockChatProject,
-						permissions: { update: false, delete: false, share: false },
+						permissions: {
+							update: false,
+							delete: false,
+							share: false,
+							archive: false,
+						},
 					},
 				],
 			},
@@ -3618,7 +3623,12 @@ export const ProjectActionsWithoutDeletePermission: Story = {
 				data: [
 					{
 						...MockChatProject,
-						permissions: { update: true, delete: false, share: true },
+						permissions: {
+							update: true,
+							delete: false,
+							share: true,
+							archive: false,
+						},
 					},
 				],
 			},

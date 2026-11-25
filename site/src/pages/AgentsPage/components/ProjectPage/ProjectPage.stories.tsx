@@ -148,7 +148,12 @@ export const WithoutUpdateOrDeletePermission: Story = {
 	args: {
 		project: {
 			...MockChatProject,
-			permissions: { update: false, delete: false, share: false },
+			permissions: {
+				update: false,
+				delete: false,
+				share: false,
+				archive: false,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -164,7 +169,7 @@ export const WithoutDeletePermission: Story = {
 	args: {
 		project: {
 			...MockChatProject,
-			permissions: { update: true, delete: false, share: true },
+			permissions: { update: true, delete: false, share: true, archive: false },
 		},
 	},
 };

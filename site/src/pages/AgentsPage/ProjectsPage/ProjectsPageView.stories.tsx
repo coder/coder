@@ -83,7 +83,12 @@ const mockSharedProjects: ChatProjectWithSummary[] = [
 			name: "On-call",
 			description: "Incident follow-ups for the platform team.",
 			owner_id: MockUserMember.id,
-			permissions: { update: false, delete: false, share: false },
+			permissions: {
+				update: false,
+				delete: false,
+				share: false,
+				archive: false,
+			},
 		},
 		{
 			own_chat_count: 1,

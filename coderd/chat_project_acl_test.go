@@ -82,7 +82,7 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Equal(t, codersdk.ChatProjectPermissions{}, shared.Permissions)
 		owned, err := client.GetChatProject(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, owned.Permissions)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true, Archive: true}, owned.Permissions)
 		memories, err := sharee.ListChatProjectMemories(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Len(t, memories, 1)
@@ -385,7 +385,7 @@ func TestChatProjectSharing(t *testing.T) {
 
 		adminView, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, adminView.Permissions)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true, Archive: true}, adminView.Permissions)
 		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: memberProject.OrganizationID,
 			ProjectID:      &memberProject.ID,
