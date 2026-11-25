@@ -116,7 +116,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
-		navigateAfterArchive: fn(),
+		navigateOnArchive: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,

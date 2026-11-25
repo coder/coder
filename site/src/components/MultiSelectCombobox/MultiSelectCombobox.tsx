@@ -9,7 +9,6 @@ import {
 	useCallback,
 	useEffect,
 	useImperativeHandle,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -27,7 +26,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useDebouncedValue } from "#/hooks/debounce";
 
 export type Option = {
 	value: string;
@@ -50,25 +48,8 @@ type MultiSelectComboboxProps = {
 	/** manually controlled options */
 	options?: Option[];
 	placeholder?: string;
-	/** Loading component. */
-	loadingIndicator?: React.ReactNode;
 	/** Empty component. */
 	emptyIndicator?: React.ReactNode;
-	/** Debounce time for async search. Only work with `onSearch`. */
-	delay?: number;
-	/**
-	 * Only work with `onSearch` prop. Trigger search when `onFocus`.
-	 * For example, when user click on the input, it will trigger the search to get initial options.
-	 **/
-	triggerSearchOnFocus?: boolean;
-	/** async search */
-	onSearch?: (value: string) => Promise<Option[]>;
-	/**
-	 * sync search. This search will not showing loadingIndicator.
-	 * The rest props are the same as async search.
-	 * i.e.: creatable, groupBy, delay.
-	 **/
-	onSearchSync?: (value: string) => Option[];
 	onChange?: (options: Option[]) => void;
 	/** Limit the maximum number of selected options. */
 	maxSelected?: number;
@@ -182,10 +163,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	placeholder,
 	defaultOptions: arrayDefaultOptions = [],
 	options: arrayOptions,
-	delay,
-	onSearch,
-	onSearchSync,
-	loadingIndicator,
 	emptyIndicator,
 	maxSelected = Number.MAX_SAFE_INTEGER,
 	onMaxSelected,
@@ -196,7 +173,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	badgeClassName,
 	selectFirstItem = true,
 	creatable = false,
-	triggerSearchOnFocus = false,
 	commandProps,
 	inputProps,
 	hideClearAllButton = false,
@@ -206,16 +182,15 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
-	const [isLoading, setIsLoading] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 
 	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
-	const [options, setOptions] = useState<GroupOption>(
-		transitionToGroupOption(arrayDefaultOptions, groupBy),
+	const options = transitionToGroupOption(
+		arrayOptions ?? arrayDefaultOptions,
+		groupBy,
 	);
 	const [inputValue, setInputValue] = useState("");
-	const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
 
 	const [previousValue, setPreviousValue] = useState<Option[]>(value || []);
 	if (value && value !== previousValue) {
@@ -290,65 +265,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		};
 	}, [open]);
 
-	useEffect(() => {
-		/** If `onSearch` is provided, do not trigger options updated. */
-		if (!arrayOptions || onSearch) {
-			return;
-		}
-		const newOption = transitionToGroupOption(arrayOptions || [], groupBy);
-		if (JSON.stringify(newOption) !== JSON.stringify(options)) {
-			setOptions(newOption);
-		}
-	}, [arrayOptions, groupBy, onSearch, options]);
-
-	useEffect(() => {
-		/** sync search */
-
-		const doSearchSync = () => {
-			const res = onSearchSync?.(debouncedSearchTerm);
-			setOptions(transitionToGroupOption(res || [], groupBy));
-		};
-
-		const exec = () => {
-			if (!onSearchSync || !open) return;
-
-			if (triggerSearchOnFocus) {
-				doSearchSync();
-			}
-
-			if (debouncedSearchTerm) {
-				doSearchSync();
-			}
-		};
-
-		void exec();
-	}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearchSync]);
-
-	useEffect(() => {
-		/** async search */
-
-		const doSearch = async () => {
-			setIsLoading(true);
-			const res = await onSearch?.(debouncedSearchTerm);
-			setOptions(transitionToGroupOption(res || [], groupBy));
-			setIsLoading(false);
-		};
-
-		const exec = async () => {
-			if (!onSearch || !open) return;
-
-			if (triggerSearchOnFocus) {
-				await doSearch();
-			}
-
-			if (debouncedSearchTerm) {
-				await doSearch();
-			}
-		};
-
-		void exec();
-	}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
-
 	// Scroll dropdown into view on open
 	useEffect(() => {
 		if (!open || !listRef.current) {
@@ -393,13 +309,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			</CommandItem>
 		);
 
-		// For normal creatable
-		if (!onSearch && inputValue.length > 0) {
-			return Item;
-		}
-
-		// For async search creatable. avoid showing creatable item before loading at first.
-		if (onSearch && debouncedSearchTerm.length > 0 && !isLoading) {
+		if (inputValue.length > 0) {
 			return Item;
 		}
 
@@ -409,22 +319,10 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const EmptyItem = useCallback(() => {
 		if (!emptyIndicator) return undefined;
 
-		// For async search that showing emptyIndicator
-		if (onSearch && !creatable && Object.keys(options).length === 0) {
-			return (
-				<CommandItem value="-" disabled>
-					{emptyIndicator}
-				</CommandItem>
-			);
-		}
-
 		return <CommandEmpty>{emptyIndicator}</CommandEmpty>;
-	}, [creatable, emptyIndicator, onSearch, options]);
+	}, [emptyIndicator]);
 
-	const selectables = useMemo<GroupOption>(
-		() => removePickedOption(options, selected),
-		[options, selected],
-	);
+	const selectables = removePickedOption(options, selected);
 
 	/** Avoid Creatable Selector freezing or lagging when paste a long string. */
 	const commandFilter = () => {
@@ -457,11 +355,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 				"h-auto overflow-visible bg-transparent",
 				commandProps?.className,
 			)}
-			shouldFilter={
-				commandProps?.shouldFilter !== undefined
-					? commandProps.shouldFilter
-					: !onSearch
-			} // When onSearch is provided, we don't want to filter the options. You can still override it.
 			filter={commandFilter()}
 		>
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Click focuses the keyboard-accessible input. */}
@@ -546,9 +439,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							}}
 							onFocus={(event) => {
 								setOpen(true);
-								if (triggerSearchOnFocus) {
-									onSearch?.(debouncedSearchTerm);
-								}
 								inputProps?.onFocus?.(event);
 							}}
 							placeholder={
@@ -621,83 +511,75 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							inputRef?.current?.focus();
 						}}
 					>
-						{isLoading ? (
-							loadingIndicator
-						) : (
-							<>
-								{EmptyItem()}
-								{CreatableItem()}
-								{!selectFirstItem && (
-									<CommandItem value="-" className="hidden" />
-								)}
-								{Object.entries(selectables).map(([key, dropdowns]) => (
-									<CommandGroup
-										key={key}
-										heading={key}
-										className="h-full overflow-auto"
-									>
-										{/* biome-ignore lint/complexity/noUselessFragments: A parent element is
+						{EmptyItem()}
+						{CreatableItem()}
+						{!selectFirstItem && <CommandItem value="-" className="hidden" />}
+						{Object.entries(selectables).map(([key, dropdowns]) => (
+							<CommandGroup
+								key={key}
+								heading={key}
+								className="h-full overflow-auto"
+							>
+								{/* biome-ignore lint/complexity/noUselessFragments: A parent element is
 											    needed for multiple dropdown items */}
-										<>
-											{dropdowns.map((option) => {
-												return (
-													<CommandItem
-														key={option.value}
-														value={option.value}
-														keywords={[option.label]}
-														disabled={option.disable}
-														// Picked options leave the list, so no listed option is selected.
-														aria-selected={false}
-														onMouseDown={(e) => {
-															e.preventDefault();
-															e.stopPropagation();
-														}}
-														onSelect={() => {
-															if (selected.length >= maxSelected) {
-																onMaxSelected?.(selected.length);
-																return;
-															}
-															setInputValue("");
-															const newOptions = [...selected, option];
-															setSelected(newOptions);
-															onChange?.(newOptions);
-														}}
-														className={cn(
-															"cursor-pointer",
-															option.disable &&
-																"cursor-default text-content-disabled",
-														)}
-													>
-														<div className="flex items-center gap-2">
-															{showIcons && (
-																<Avatar
-																	size="sm"
-																	src={option.icon}
-																	fallback={option.label}
-																/>
-															)}
-															{option.label}
-															{option.description && (
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<span className="flex items-center pointer-events-auto">
-																			<InfoIcon className="size-3.5! text-content-secondary" />
-																		</span>
-																	</TooltipTrigger>
-																	<TooltipContent side="right" sideOffset={10}>
-																		{option.description}
-																	</TooltipContent>
-																</Tooltip>
-															)}
-														</div>
-													</CommandItem>
-												);
-											})}
-										</>
-									</CommandGroup>
-								))}
-							</>
-						)}
+								<>
+									{dropdowns.map((option) => {
+										return (
+											<CommandItem
+												key={option.value}
+												value={option.value}
+												keywords={[option.label]}
+												disabled={option.disable}
+												// Picked options leave the list, so no listed option is selected.
+												aria-selected={false}
+												onMouseDown={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+												}}
+												onSelect={() => {
+													if (selected.length >= maxSelected) {
+														onMaxSelected?.(selected.length);
+														return;
+													}
+													setInputValue("");
+													const newOptions = [...selected, option];
+													setSelected(newOptions);
+													onChange?.(newOptions);
+												}}
+												className={cn(
+													"cursor-pointer",
+													option.disable &&
+														"cursor-default text-content-disabled",
+												)}
+											>
+												<div className="flex items-center gap-2">
+													{showIcons && (
+														<Avatar
+															size="sm"
+															src={option.icon}
+															fallback={option.label}
+														/>
+													)}
+													{option.label}
+													{option.description && (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span className="flex items-center pointer-events-auto">
+																	<InfoIcon className="size-3.5! text-content-secondary" />
+																</span>
+															</TooltipTrigger>
+															<TooltipContent side="right" sideOffset={10}>
+																{option.description}
+															</TooltipContent>
+														</Tooltip>
+													)}
+												</div>
+											</CommandItem>
+										);
+									})}
+								</>
+							</CommandGroup>
+						))}
 					</CommandList>
 				)}
 			</div>

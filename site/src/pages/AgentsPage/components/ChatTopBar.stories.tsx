@@ -43,7 +43,7 @@ const chatTopBarOutletContext = {
 	chatErrorReasons: {},
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
-	navigateAfterArchive: fn(),
+	navigateOnArchive: fn(),
 	activeChatChildren: undefined,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,

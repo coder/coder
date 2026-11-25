@@ -85,7 +85,7 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		currentUser: MockUserOwner,
 		actions: {
 			clearChatErrorReason: fn(),
-			navigateAfterArchive: fn(),
+			navigateOnArchive: fn(),
 			onOpenRenameDialog: fn(),
 		},
 		showCost: true,

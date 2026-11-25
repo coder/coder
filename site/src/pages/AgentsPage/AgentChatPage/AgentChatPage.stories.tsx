@@ -82,7 +82,7 @@ const AgentChatPageLayout: React.FC = () => {
 							chatErrorReasons: {},
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
-							navigateAfterArchive: () => {},
+							navigateOnArchive: () => {},
 							onOpenRenameDialog: () => {},
 							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
