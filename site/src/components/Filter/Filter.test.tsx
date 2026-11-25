@@ -1,8 +1,9 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useSearchParams } from "react-router";
 import { mockApiError } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
-import { Filter, type UseFilterResult } from "./Filter";
+import { render, renderWithAuth } from "#/testHelpers/renderHelpers";
+import { Filter, type UseFilterResult, useFilter } from "./Filter";
 
 const mockFilter: UseFilterResult = {
 	query: "",
@@ -11,6 +12,23 @@ const mockFilter: UseFilterResult = {
 	update: () => {},
 	debounceUpdate: () => {},
 	cancelDebounce: () => {},
+};
+
+const FilterWithSearchParams: React.FC = () => {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+	});
+
+	return (
+		<Filter
+			filter={filter}
+			isLoading={false}
+			optionsSkeleton={null}
+			presets={[{ name: "Running", query: "status:running" }]}
+		/>
+	);
 };
 
 describe(Filter.name, () => {
@@ -56,5 +74,32 @@ describe(Filter.name, () => {
 		expect(
 			screen.getByRole("textbox", { name: "Search" }),
 		).toHaveAccessibleDescription(detail);
+	});
+
+	it("shows a preset picked after clearing the search", async () => {
+		const user = userEvent.setup();
+		renderWithAuth(<FilterWithSearchParams />, { route: "/?filter=owner:me" });
+		const search = await screen.findByRole("textbox", { name: "Search" });
+
+		await user.click(screen.getByRole("button", { name: "Clear search" }));
+		expect(search).toHaveValue("");
+
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "Running" }),
+		);
+
+		await waitFor(() => expect(search).toHaveValue("status:running"));
+	});
+
+	it("applies the typed search when the box loses focus", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(<FilterWithSearchParams />);
+		const search = await screen.findByRole("textbox", { name: "Search" });
+
+		await user.type(search, "owner:me");
+		await user.tab();
+
+		expect(router.state.location.search).toBe("?filter=owner%3Ame");
 	});
 });
