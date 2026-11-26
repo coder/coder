@@ -54,7 +54,7 @@ export const Navbar: React.FC = () => {
 		{ enabled: !canViewSiteWideAISettings },
 	);
 	const spendOrganizationsQuery = useQuery({
-		...aiSpendOrganizations(),
+		...aiSpendOrganizations(organizations),
 		enabled:
 			entitlements.features.aibridge.enabled && !canViewSiteWideAISettings,
 	});
