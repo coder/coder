@@ -548,8 +548,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 			require.Len(t, got, 2)
 			require.Equal(t, gone.ID, got[0].ID)
+			require.True(t, got[0].Deleted)
 			require.Empty(t, got[0].BaseURL)
 			require.Equal(t, reused.ID, got[1].ID)
+			require.False(t, got[1].Deleted)
 		}
 	})
 

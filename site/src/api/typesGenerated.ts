@@ -509,6 +509,7 @@ export interface AIProvider {
 	readonly display_name: string;
 	readonly icon: string;
 	readonly enabled: boolean;
+	readonly deleted: boolean;
 	readonly base_url: string;
 	readonly api_keys: readonly AIProviderKey[];
 	readonly settings: AIProviderSettings;

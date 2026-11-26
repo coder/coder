@@ -47,6 +47,7 @@ SELECT DISTINCT ON (name)
     display_name,
     icon,
     enabled,
+    deleted,
     created_at,
     updated_at
 FROM

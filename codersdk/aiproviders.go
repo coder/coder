@@ -246,6 +246,7 @@ type AIProvider struct {
 	DisplayName string             `json:"display_name"`
 	Icon        string             `json:"icon"`
 	Enabled     bool               `json:"enabled"`
+	Deleted     bool               `json:"deleted"`
 	BaseURL     string             `json:"base_url"`
 	APIKeys     []AIProviderKey    `json:"api_keys"`
 	Settings    AIProviderSettings `json:"settings"`

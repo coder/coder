@@ -1409,6 +1409,7 @@ title: Schemas
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
   "display_name": "string",
   "enabled": true,
   "icon": "string",
@@ -1432,6 +1433,7 @@ title: Schemas
 | `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |                                                        |
 | `base_url`     | string                                                     | false    |              |                                                        |
 | `created_at`   | string                                                     | false    |              |                                                        |
+| `deleted`      | boolean                                                    | false    |              |                                                        |
 | `display_name` | string                                                     | false    |              |                                                        |
 | `enabled`      | boolean                                                    | false    |              |                                                        |
 | `icon`         | string                                                     | false    |              |                                                        |

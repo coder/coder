@@ -668,6 +668,7 @@ SELECT DISTINCT ON (name)
     display_name,
     icon,
     enabled,
+    deleted,
     created_at,
     updated_at
 FROM
@@ -687,6 +688,7 @@ type GetAIProviderSummariesRow struct {
 	DisplayName sql.NullString `db:"display_name" json:"display_name"`
 	Icon        string         `db:"icon" json:"icon"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
+	Deleted     bool           `db:"deleted" json:"deleted"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
@@ -707,6 +709,7 @@ func (q *sqlQuerier) GetAIProviderSummaries(ctx context.Context, includeDeleted 
 			&i.DisplayName,
 			&i.Icon,
 			&i.Enabled,
+			&i.Deleted,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -20712,6 +20712,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deleted": {
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
