@@ -117,7 +117,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 				onChange={onTimeRangeChange}
 				minDate={minDate}
 				label="Active"
-				valuePrefix="Active:"
+				showLabel
 				align="start"
 				size="lg"
 			/>

@@ -112,7 +112,7 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 				onChange={onLastSeenChange}
 				presets={lastSeenPresets}
 				label="Last seen"
-				valuePrefix="Last seen:"
+				showLabel
 				size="lg"
 			/>
 		</div>
