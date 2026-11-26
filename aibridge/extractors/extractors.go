@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 )
 
 // Extractor provides a way to extract facts from a request and response body.
@@ -20,12 +19,10 @@ type Extractor interface {
 	// ExtractRequest adds Model and CorrelatingToolCallID to the start record.
 	ExtractRequest(reqBody []byte, start *recorder.InterceptionRecord) error
 	// ExtractResponse returns the recording facts of the final upstream
-	// response. body is a finalized capture, possibly partial when capture
-	// failed, and nil when no upstream response was accepted; a nil body yields
-	// an empty result. ExtractResponse only reads body and header. A returned
-	// error means some facts could not be extracted; the result keeps the facts
-	// extracted before the failure.
-	ExtractResponse(ctx context.Context, statusCode int, header http.Header, body *replaybody.TeeBuffer) (ResponseResult, error)
+	// response. body is the completed capture, partial if capture failed, and
+	// nil if no response was received, which yields an empty result. On error,
+	// the result holds the facts extracted before the failure.
+	ExtractResponse(ctx context.Context, statusCode int, header http.Header, body []byte) (ResponseResult, error)
 }
 
 // ResponseResult holds the facts extracted from a response. The caller stamps

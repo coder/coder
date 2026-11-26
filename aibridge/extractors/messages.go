@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 )
 
 const (
@@ -89,14 +88,14 @@ func (e *messagesExtractor) ExtractRequest(reqBody []byte, start *recorder.Inter
 	return nil
 }
 
-func (e *messagesExtractor) ExtractResponse(ctx context.Context, statusCode int, header http.Header, body *replaybody.TeeBuffer) (ResponseResult, error) {
+func (e *messagesExtractor) ExtractResponse(ctx context.Context, statusCode int, header http.Header, body []byte) (ResponseResult, error) {
 	// No upstream response was accepted, so there is nothing to extract.
 	if body == nil {
 		return ResponseResult{}, nil
 	}
 	// Error responses carry an error envelope whatever the request asked for.
 	if statusCode >= http.StatusBadRequest {
-		return ResponseResult{ResponseError: decodeMessagesError(statusCode, body.Bytes())}, nil
+		return ResponseResult{ResponseError: decodeMessagesError(statusCode, body)}, nil
 	}
 	// The response content type takes precedence over the request's stream
 	// flag.
@@ -109,7 +108,7 @@ func (e *messagesExtractor) ExtractResponse(ctx context.Context, statusCode int,
 		// TODO: extract streamed responses. https://linear.app/codercom/issue/AIGOV-616
 		return ResponseResult{}, nil
 	}
-	return e.extractBlocking(body.Bytes())
+	return e.extractBlocking(body)
 }
 
 // extractBlocking extracts facts from a JSON Message response.

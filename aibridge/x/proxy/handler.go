@@ -62,10 +62,9 @@ var errForwardingAborted = xerrors.New("forwarding aborted")
 type forwardedRequest struct {
 	handler *forwardingHandler
 
-	// logger is set by start and carries the interception ID once the start is
-	// recorded. cred and startRecord are set by start after the request passes
-	// validation and its interception start is recorded. startRecord is nil
-	// otherwise.
+	// logger is the request logger, set by start. cred and startRecord are
+	// set by start after the request passes validation and its interception
+	// start is recorded. startRecord is nil otherwise.
 	logger      slog.Logger
 	cred        credential.Credential
 	startRecord *recorder.InterceptionRecord
@@ -172,8 +171,9 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	ctx, cleanup := fr.handler.inflight.RequestContext(ctx)
 	defer cleanup()
-	// finish needs to run before cleanup cancels the ctx.
-	defer fr.finish(ctx, release)
+	// finish needs to run before cleanup cancels the ctx. It reads ctx when it
+	// runs, so it sees the interception ID added below.
+	defer func() { fr.finish(ctx, release) }()
 	defer func() {
 		if fr.requestBody != nil {
 			_ = fr.requestBody.Close()
@@ -183,6 +183,10 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 	if !fr.start(ctx, w, r) {
 		return
 	}
+	// Later logs belong to the recorded interception, including those of the
+	// extractor, the recorder, and the upstream transport.
+	ctx = slog.With(ctx, slog.F("interception_id", fr.startRecord.ID))
+	fr.outbound = fr.outbound.WithContext(ctx)
 
 	route := strings.TrimPrefix(r.URL.Path, "/"+fr.handler.provider.Name())
 	fr.err = fr.handler.breaker.Execute(route, "", w, fr.forward)
@@ -230,9 +234,8 @@ func (fr *forwardedRequest) start(ctx context.Context, w http.ResponseWriter, r 
 		http.Error(w, "failed to record interception", http.StatusInternalServerError)
 		return false
 	}
-	fr.cred, fr.startRecord = cred, record
-	// Later logs belong to the recorded interception.
-	fr.logger = logger.With(slog.F("interception_id", record.ID))
+	fr.cred = cred
+	fr.startRecord = record
 	return true
 }
 
@@ -274,7 +277,8 @@ func (fr *forwardedRequest) readRequest(ctx context.Context, w http.ResponseWrit
 	}
 	_ = outbound.Body.Close()
 	outbound.Body = replay
-	fr.outbound, fr.requestBody = outbound, capture
+	fr.outbound = outbound
+	fr.requestBody = capture
 	return true
 }
 
@@ -340,14 +344,18 @@ func (fr *forwardedRequest) recordFacts(ctx context.Context, endedAt time.Time, 
 	// empty when the route has no extractor.
 	var result extractors.ResponseResult
 	if fr.extractor != nil {
+		var body []byte
+		if fr.responseBody != nil {
+			body = fr.responseBody.Bytes()
+		}
 		var err error
-		result, err = fr.extractor.ExtractResponse(ctx, fr.status, fr.header, fr.responseBody)
+		result, err = fr.extractor.ExtractResponse(ctx, fr.status, fr.header, body)
 		if err != nil {
 			// Extraction failures only lose recording facts, they do not change
 			// the outcome. A failed forward leaves a partial capture, which is
 			// expected not to parse.
 			if forwardErr != nil {
-				fr.logger.Debug(ctx, "failed to extract response facts", slog.Error(err))
+				fr.logger.Debug(ctx, "failed to extract response facts", slog.F("forward_error", forwardErr.Error()), slog.Error(err))
 			} else {
 				fr.logger.Warn(ctx, "failed to extract response facts", slog.Error(err))
 			}
@@ -362,37 +370,41 @@ func (fr *forwardedRequest) recordFacts(ctx context.Context, endedAt time.Time, 
 
 // recordResponseFacts stores the extracted response facts, created at endedAt,
 // and returns once every write finishes. The writes run concurrently, so a
-// response with many facts does not exhaust a shared timeout. The handler's
-// recorder chain logs write failures.
+// response with many facts does not exhaust a shared timeout. AsyncRecorder
+// returns no errors; the handler's recorder chain logs write failures.
 func (fr *forwardedRequest) recordResponseFacts(ctx context.Context, endedAt time.Time, result extractors.ResponseResult) {
 	id := fr.startRecord.ID
 	rec := recorder.NewAsyncRecorder(fr.handler.recorder, recorder.DefaultAsyncTimeout)
 	defer rec.Wait()
 	if prompt := result.Prompt; prompt != nil {
-		prompt.InterceptionID, prompt.CreatedAt = id, endedAt
-		_ = rec.RecordPromptUsage(ctx, prompt)
+		prompt.InterceptionID = id
+		prompt.CreatedAt = endedAt
+		_ = rec.RecordPromptUsage(ctx, prompt) //nolint:errcheck // AsyncRecorder always returns nil.
 	}
 	for i := range result.Tokens {
 		tokens := &result.Tokens[i]
-		tokens.InterceptionID, tokens.CreatedAt = id, endedAt
-		_ = rec.RecordTokenUsage(ctx, tokens)
+		tokens.InterceptionID = id
+		tokens.CreatedAt = endedAt
+		_ = rec.RecordTokenUsage(ctx, tokens) //nolint:errcheck // AsyncRecorder always returns nil.
 	}
 	for i := range result.Tools {
 		tool := &result.Tools[i]
-		tool.InterceptionID, tool.CreatedAt = id, endedAt
-		_ = rec.RecordToolUsage(ctx, tool)
+		tool.InterceptionID = id
+		tool.CreatedAt = endedAt
+		_ = rec.RecordToolUsage(ctx, tool) //nolint:errcheck // AsyncRecorder always returns nil.
 	}
 	for i := range result.Thoughts {
 		thought := &result.Thoughts[i]
-		thought.InterceptionID, thought.CreatedAt = id, endedAt
-		_ = rec.RecordModelThought(ctx, thought)
+		thought.InterceptionID = id
+		thought.CreatedAt = endedAt
+		_ = rec.RecordModelThought(ctx, thought) //nolint:errcheck // AsyncRecorder always returns nil.
 	}
 }
 
-// recordEnd stores how the interception ended and returns once the write
-// finishes. forwardErr takes precedence over responseErr, the failure the
-// response reported. An HTTP error response without either is classified by
-// its status. The handler's recorder chain logs a write failure.
+// recordEnd stores how the interception ended within
+// recorder.DefaultAsyncTimeout. forwardErr takes precedence over responseErr,
+// the failure the response reported. An HTTP error response without either is
+// classified by its status. The handler's recorder chain logs a write failure.
 func (fr *forwardedRequest) recordEnd(ctx context.Context, endedAt time.Time, forwardErr, responseErr error) {
 	err := forwardErr
 	if err == nil {
@@ -424,9 +436,9 @@ func (fr *forwardedRequest) recordEnd(ctx context.Context, endedAt time.Time, fo
 		ErrorType:      errType,
 		ErrorMessage:   errMsg,
 	}
-	rec := recorder.NewAsyncRecorder(fr.handler.recorder, recorder.DefaultAsyncTimeout)
-	_ = rec.RecordInterceptionEnded(ctx, record)
-	rec.Wait()
+	ctx, cancel := context.WithTimeout(ctx, recorder.DefaultAsyncTimeout)
+	defer cancel()
+	_ = fr.handler.recorder.RecordInterceptionEnded(ctx, record) //nolint:errcheck // The recorder chain logs failures.
 }
 
 // checkRequest validates a bridged request without reading its body. On rejection

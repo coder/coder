@@ -797,9 +797,11 @@ func TestForwardingExtraction(t *testing.T) {
 		name string
 		body string
 		// status, contentType, and response describe the upstream response.
+		// upstreamErr, when set, fails the upstream body after response.
 		status      int
 		contentType string
 		response    string
+		upstreamErr error
 		wantModel   string
 		wantPrompts []recorder.PromptUsageRecord
 		wantTokens  []recorder.TokenUsageRecord
@@ -849,6 +851,20 @@ func TestForwardingExtraction(t *testing.T) {
 			wantError:   recorder.ErrorTypeServerError,
 			wantMessage: `{"detail":"bad gateway"}`,
 		},
+		{
+			// An upstream failure partway through the body leaves a partial
+			// capture: no facts are recorded and the end keeps the forward
+			// error.
+			name:        "PartialResponse",
+			body:        blockingRequest,
+			status:      http.StatusOK,
+			contentType: "application/json",
+			response:    `{"id":"msg_1","model":"claude-test-1","usage":{"input_tokens":3`,
+			upstreamErr: io.ErrUnexpectedEOF,
+			wantModel:   "claude-test",
+			wantError:   recorder.ErrorTypeUnknown,
+			wantMessage: io.ErrUnexpectedEOF.Error(),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -867,7 +883,11 @@ func TestForwardingExtraction(t *testing.T) {
 				if tc.contentType != "" {
 					header.Set("Content-Type", tc.contentType)
 				}
-				return &http.Response{StatusCode: tc.status, Header: header, Body: io.NopCloser(strings.NewReader(tc.response))}, nil
+				var upstream io.Reader = strings.NewReader(tc.response)
+				if tc.upstreamErr != nil {
+					upstream = io.MultiReader(upstream, readerFunc(func([]byte) (int, error) { return 0, tc.upstreamErr }))
+				}
+				return &http.Response{StatusCode: tc.status, Header: header, Body: io.NopCloser(upstream)}, nil
 			})
 			req := newMessagesRequest(t, prov, strings.NewReader(tc.body))
 			response := httptest.NewRecorder()
@@ -890,7 +910,8 @@ func TestForwardingExtraction(t *testing.T) {
 			for _, prompt := range rec.RecordedPromptUsages() {
 				require.Equal(t, starts[0].ID, prompt.InterceptionID)
 				require.Equal(t, end.EndedAt, prompt.CreatedAt)
-				prompt.InterceptionID, prompt.CreatedAt = "", time.Time{}
+				prompt.InterceptionID = ""
+				prompt.CreatedAt = time.Time{}
 				prompts = append(prompts, *prompt)
 			}
 			require.Equal(t, tc.wantPrompts, prompts)
@@ -898,7 +919,8 @@ func TestForwardingExtraction(t *testing.T) {
 			for _, usage := range rec.RecordedTokenUsages() {
 				require.Equal(t, starts[0].ID, usage.InterceptionID)
 				require.Equal(t, end.EndedAt, usage.CreatedAt)
-				usage.InterceptionID, usage.CreatedAt = "", time.Time{}
+				usage.InterceptionID = ""
+				usage.CreatedAt = time.Time{}
 				tokens = append(tokens, *usage)
 			}
 			require.Equal(t, tc.wantTokens, tokens)
@@ -1154,9 +1176,11 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEqual(t, uuid.Nil, id)
 			require.WithinRange(t, start.StartedAt, before, time.Now())
-			wantKind, wantStartHint := credential.KindBYOK, utils.MaskSecret(userSecretKey)
+			wantKind := credential.KindBYOK
+			wantStartHint := utils.MaskSecret(userSecretKey)
 			if tc.pooled {
-				wantKind, wantStartHint = credential.KindCentralized, credential.HintFailoverKey
+				wantKind = credential.KindCentralized
+				wantStartHint = credential.HintFailoverKey
 			}
 			require.Equal(t, &recorder.InterceptionRecord{
 				ID:                          start.ID,

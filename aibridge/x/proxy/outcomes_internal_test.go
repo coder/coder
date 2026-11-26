@@ -366,7 +366,8 @@ func TestForwardingBYOKOutcomes(t *testing.T) {
 
 func TestForwardingStreamsAndCancels(t *testing.T) {
 	t.Parallel()
-	canceled, forwarded := make(chan struct{}), make(chan struct{})
+	canceled := make(chan struct{})
+	forwarded := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,11 +1,9 @@
 package extractors_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"slices"
 	"testing"
@@ -17,20 +15,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/extractors"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// captureResponse returns a finalized capture of body, as forwarding leaves it.
-func captureResponse(t *testing.T, body []byte) *replaybody.TeeBuffer {
-	t.Helper()
-	resp := &http.Response{Body: io.NopCloser(bytes.NewReader(body))}
-	capture := replaybody.NewResponse(resp)
-	_, err := io.Copy(io.Discard, resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, capture.Close())
-	return capture
-}
 
 func TestMessagesExtractRequest(t *testing.T) {
 	t.Parallel()
@@ -87,7 +73,7 @@ func TestMessagesExtractRequest(t *testing.T) {
 			require.Equal(t, tc.wantToolCallID, start.CorrelatingToolCallID)
 
 			header := http.Header{"Content-Type": {"application/json"}}
-			got, err := e.ExtractResponse(t.Context(), http.StatusOK, header, captureResponse(t, []byte(`{"id":"msg_1"}`)))
+			got, err := e.ExtractResponse(t.Context(), http.StatusOK, header, []byte(`{"id":"msg_1"}`))
 			require.NoError(t, err)
 			var wantPrompt *recorder.PromptUsageRecord
 			if tc.wantPrompt != nil {
@@ -366,11 +352,10 @@ func TestMessagesExtractResponse(t *testing.T) {
 				body, err = sjson.DeleteBytes(body, path)
 				require.NoError(t, err)
 			}
-			var capture *replaybody.TeeBuffer
-			if !tc.noResponse {
-				capture = captureResponse(t, body)
+			if tc.noResponse {
+				body = nil
 			}
-			got, err := e.ExtractResponse(t.Context(), tc.status, header, capture)
+			got, err := e.ExtractResponse(t.Context(), tc.status, header, body)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 			} else {
