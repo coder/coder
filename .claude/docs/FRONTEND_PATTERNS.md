@@ -187,6 +187,21 @@ Every view that renders server data must handle this matrix:
 - Generate IDs for form elements, labels, and ARIA attributes with
   `React.useId()`. Hard-coded string IDs collide when a component renders more
   than once on a page.
+- Placeholder text is never a label. It disappears once a value is picked
+  (WCAG 3.3.2 and 2.5.3).
+  - Form fields (dialogs, settings, create and edit forms) get a visible
+    `<Label>` above the field, linked with `htmlFor` and an `id` from
+    `useId()`. If the trigger's name must include the selection, use
+    `aria-labelledby="{labelId} {triggerId}"` instead.
+  - Toolbar filters above lists and tables use `FilterCombobox`. A standalone
+    control puts the label inside the trigger. With nothing picked it can show
+    just the label ("Last seen"); once a value is picked it shows
+    `Label: value` ("Last seen: Last 7 days") so the label doesn't disappear.
+    In both states the accessible name includes the current value ("Last
+    seen: All time").
+  - Row-level controls in a table or list may use `aria-label` when the
+    column header or row content acts as the visible label.
+  - Don't hide a label with `sr-only` when sighted users need it.
 
 ## FE7: React Query discipline
 
