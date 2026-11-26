@@ -70,6 +70,8 @@ const meta = {
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },
 		onDaysChange: fn(),
 		minDay: undefined,
+		isRetentionLoading: false,
+		isRetentionUnderADay: false,
 		reportFilter: "",
 		onReportFilterChange: fn(),
 		reportQuery: mockPendingReportQuery,
@@ -102,6 +104,14 @@ export const OverviewLoading: Story = {
 		unpricedModels: undefined,
 		isUnpricedModelsLoading: true,
 		topSpenderDetails: undefined,
+	},
+};
+
+export const OverviewRetentionLoading: Story = {
+	args: {
+		...OverviewLoading.args,
+		isUnpricedModelsLoading: false,
+		isRetentionLoading: true,
 	},
 };
 
@@ -160,6 +170,10 @@ export const OverviewMobile: Story = {
 
 export const DetailedReport: Story = {
 	args: { tab: "detailed-report" },
+};
+
+export const DetailedReportRetentionLoading: Story = {
+	args: { tab: "detailed-report", isRetentionLoading: true },
 };
 
 export const DetailedReportBuilding: Story = {
@@ -289,4 +303,8 @@ export const NoPermittedOrganizations: Story = {
 
 export const OrganizationUnavailable: Story = {
 	args: { organization: undefined },
+};
+
+export const RetentionUnderADay: Story = {
+	args: { isRetentionUnderADay: true },
 };

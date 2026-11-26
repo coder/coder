@@ -40,6 +40,8 @@ type AISpendPageViewProps = {
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	minDay: string | undefined;
+	isRetentionLoading: boolean;
+	isRetentionUnderADay: boolean;
 	reportFilter: string;
 	onReportFilterChange: (filter: string) => void;
 	reportQuery: DetailedReportQuery;
@@ -74,6 +76,8 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	days,
 	onDaysChange,
 	minDay,
+	isRetentionLoading,
+	isRetentionUnderADay,
 	reportFilter,
 	onReportFilterChange,
 	reportQuery,
@@ -134,7 +138,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					)
 				}
 			>
-				<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Spend</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
@@ -144,6 +148,11 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 			{organization === undefined ? (
 				<Alert severity="warning">
 					This organization is unavailable, or you don't have access to it.
+				</Alert>
+			) : isRetentionUnderADay ? (
+				<Alert severity="info">
+					The AI Gateway data retention is shorter than a day, so spend can't be
+					shown by day.
 				</Alert>
 			) : (
 				<Tabs
@@ -161,6 +170,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							days={days}
 							onDaysChange={onDaysChange}
 							minDay={minDay}
+							isRetentionLoading={isRetentionLoading}
 							overview={overview}
 							overviewError={overviewError}
 							unpricedModels={unpricedModels}
@@ -186,6 +196,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							days={days}
 							onDaysChange={onDaysChange}
 							minDay={minDay}
+							isRetentionLoading={isRetentionLoading}
 							filter={reportFilter}
 							onFilterChange={onReportFilterChange}
 							canViewSessions={canViewSessions}
