@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -17,6 +18,8 @@ func TestWorkspaceAppCors(t *testing.T) {
 
 	regex, err := appurl.CompileHostnamePattern("*--apps.coder.example.com")
 	require.NoError(t, err)
+	// The base36 form is 0oq73xnihgtc6v280bd0muhq4.
+	workspaceID := uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c")
 
 	methods := []string{
 		http.MethodOptions,
@@ -86,6 +89,43 @@ func TestWorkspaceAppCors(t *testing.T) {
 				AgentName:     "agent",
 				WorkspaceName: "ws",
 				Username:      "user2",
+			},
+			allowed: false,
+		},
+		{
+			// The proxy sets the owner username of a short form target from
+			// the token, so a long form origin of the same owner is allowed.
+			name:   "LongOriginShortTarget",
+			origin: "https://3000--agent--ws--user--apps.coder.example.com",
+			app: appurl.ApplicationURL{
+				AppSlugOrPort: "8000",
+				Username:      "user",
+				WorkspaceID:   workspaceID,
+				AgentNameHash: "1t30hzc",
+			},
+			allowed: true,
+		},
+		{
+			name:   "ShortOriginSameWorkspace",
+			origin: "https://8000--0oq73xnihgtc6v280bd0muhq4--1t30hzc--apps.coder.example.com",
+			app: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				WorkspaceName: "ws",
+				Username:      "user",
+				WorkspaceID:   workspaceID,
+			},
+			allowed: true,
+		},
+		{
+			// A short form origin has no username, so another workspace of
+			// the same owner is not allowed.
+			name:   "ShortOriginOtherWorkspace",
+			origin: "https://8000--0oq73xnihgtc6v280bd0muhq4--1t30hzc--apps.coder.example.com",
+			app: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				WorkspaceName: "ws",
+				Username:      "user",
+				WorkspaceID:   uuid.New(),
 			},
 			allowed: false,
 		},

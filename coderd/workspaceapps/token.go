@@ -22,11 +22,14 @@ type SignedToken struct {
 	// Request details.
 	Request `json:"request"`
 
-	UserID       uuid.UUID             `json:"user_id"`
-	WorkspaceID  uuid.UUID             `json:"workspace_id"`
-	AgentID      uuid.UUID             `json:"agent_id"`
-	AppURL       string                `json:"app_url"`
-	CORSBehavior codersdk.CORSBehavior `json:"cors_behavior"`
+	UserID uuid.UUID `json:"user_id"`
+	// OwnerUsername is the username of the workspace owner. CORS uses it,
+	// because short form URLs do not contain the username.
+	OwnerUsername string                `json:"owner_username,omitempty"`
+	WorkspaceID   uuid.UUID             `json:"workspace_id"`
+	AgentID       uuid.UUID             `json:"agent_id"`
+	AppURL        string                `json:"app_url"`
+	CORSBehavior  codersdk.CORSBehavior `json:"cors_behavior"`
 }
 
 // MatchesRequest returns true if the token matches the request. Any token that
@@ -47,6 +50,7 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&
+		t.AgentNameHash == req.AgentNameHash &&
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 

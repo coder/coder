@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -265,6 +266,53 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Subdomain:     "8080s--workspace--user",
 			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "agent name is required for port-based URLs",
+		},
+		{
+			Name:      "Short_Port",
+			Subdomain: "8080s--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "8080s",
+				WorkspaceID:   uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c"),
+				AgentNameHash: "1t30hzc",
+			},
+		},
+		{
+			Name:      "Short_App_WithPrefix",
+			Subdomain: "pre---app--0OQ73XNIHGTC6V280BD0MUHQ4",
+			Expected: appurl.ApplicationURL{
+				Prefix:        "pre---",
+				AppSlugOrPort: "app",
+				WorkspaceID:   uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c"),
+			},
+		},
+		{
+			// A long form app URL can have the shape of a short form port URL.
+			Name:      "Long_AppWithShortShape",
+			Subdomain: "app--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				WorkspaceName: "0oq73xnihgtc6v280bd0muhq4",
+				Username:      "1t30hzc",
+			},
+		},
+		{
+			Name:      "Short_LowPort",
+			Subdomain: "80--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "80",
+				WorkspaceID:   uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c"),
+				AgentNameHash: "1t30hzc",
+			},
+		},
+		{
+			Name:          "Invalid_Short_PortWithoutAgentHash",
+			Subdomain:     "8080--0oq73xnihgtc6v280bd0muhq4",
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_Short_WorkspaceIDOverflow",
+			Subdomain:     "app--zzzzzzzzzzzzzzzzzzzzzzzzz",
+			ExpectedError: "invalid workspace ID",
 		},
 		{
 			Name:      "ParseLegacyAppSlug_WithAgent",
@@ -637,6 +685,107 @@ func TestURLGenerationVsParsing(t *testing.T) {
 
 			require.Equal(t, tc.ExpectedParsed, parsed.AgentName,
 				"Agent name should be '%s' after parsing", tc.ExpectedParsed)
+		})
+	}
+}
+
+func TestNewApplicationURL(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.MustParse("0b9a2c7e-5f1d-4e3a-9c2b-7d4e6f8a1b3c")
+	long32 := "abcdefghijklmnopqrstuvwxyzabcdef"
+
+	testCases := []struct {
+		Name          string
+		AppSlugOrPort string
+		AgentName     string
+		WorkspaceName string
+		AppHost       string
+		Expected      string
+	}{
+		{
+			Name:          "Port_LongFormFits",
+			AppSlugOrPort: "8080",
+			AgentName:     "main",
+			WorkspaceName: "dev",
+			AppHost:       "*.apps.coder.com",
+			Expected:      "8080--main--dev--user",
+		},
+		{
+			Name:          "App_LongFormFits",
+			AppSlugOrPort: "app",
+			AgentName:     "main",
+			WorkspaceName: "dev",
+			AppHost:       "*.apps.coder.com",
+			Expected:      "app--dev--user",
+		},
+		{
+			Name:          "Port_ShortForm",
+			AppSlugOrPort: "8080s",
+			AgentName:     "main",
+			WorkspaceName: long32 + "-" + long32,
+			AppHost:       "*.apps.coder.com",
+			Expected:      "8080s--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+		},
+		{
+			Name:          "App_ShortForm",
+			AppSlugOrPort: "app",
+			AgentName:     "main",
+			WorkspaceName: long32 + "-" + long32,
+			AppHost:       "*.apps.coder.com",
+			Expected:      "app--0oq73xnihgtc6v280bd0muhq4",
+		},
+		{
+			// "8080--main--<45 chars>--user" is 63 characters and fits, but
+			// the longest port makes it 65. All ports of an agent use the
+			// same form, so this port uses the short form.
+			Name:          "Port_LongestPortDecides",
+			AppSlugOrPort: "8080",
+			AgentName:     "main",
+			WorkspaceName: long32 + "abcdefghijklm",
+			AppHost:       "*.apps.coder.com",
+			Expected:      "8080--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+		},
+		{
+			// Ports below 1000 get the agent hash too. The frontend makes
+			// the same URL.
+			Name:          "LowPort_ShortForm",
+			AppSlugOrPort: "80",
+			AgentName:     "main",
+			WorkspaceName: long32 + "-" + long32,
+			AppHost:       "*.apps.coder.com",
+			Expected:      "80--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+		},
+		{
+			Name:          "App_WildcardSuffixCounts",
+			AppSlugOrPort: "app",
+			AgentName:     "main",
+			WorkspaceName: long32,
+			AppHost:       "*--a-very-long-fixed-suffix-here.coder.com",
+			Expected:      "app--0oq73xnihgtc6v280bd0muhq4",
+		},
+		{
+			Name:          "PortPlaceholder",
+			AppSlugOrPort: "{{port}}",
+			AgentName:     "main",
+			WorkspaceName: long32 + "-" + long32,
+			AppHost:       "*.apps.coder.com",
+			Expected:      "{{port}}--0oq73xnihgtc6v280bd0muhq4--1t30hzc",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			got := appurl.New(tc.AppSlugOrPort, tc.AgentName, tc.WorkspaceName, "user", workspaceID, tc.AppHost)
+			require.Equal(t, tc.Expected, got.String())
+			if tc.AppSlugOrPort == "{{port}}" {
+				return
+			}
+			parsed, err := appurl.ParseSubdomainAppURL(got.String())
+			require.NoError(t, err)
+			require.Equal(t, got, parsed)
 		})
 	}
 }

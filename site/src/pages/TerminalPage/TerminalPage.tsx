@@ -107,6 +107,7 @@ const TerminalPage: React.FC = () => {
 				workspaceAgent?.name,
 				workspace.data?.name,
 				username,
+				workspace.data?.id,
 			);
 		},
 		[workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],

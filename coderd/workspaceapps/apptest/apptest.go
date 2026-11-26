@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -1435,6 +1436,52 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
+		})
+
+		// Short form URLs identify the workspace by ID, so they work for
+		// names that do not fit in one DNS label.
+		t.Run("ProxiesShortForm", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, nil)
+			otherUserClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			shortURL := func(app appurl.ApplicationURL, query string) string {
+				u := *appDetails.PathAppBaseURL
+				u.Host = strings.Replace(appDetails.Options.AppHost, "*", app.String(), 1)
+				u.Path = "/"
+				u.RawQuery = query
+				return u.String()
+			}
+			portURL := shortURL(appurl.ApplicationURL{
+				AppSlugOrPort: appDetails.Apps.Port.AppSlugOrPort,
+				WorkspaceID:   appDetails.Workspace.ID,
+				AgentNameHash: appurl.AgentNameHash(appDetails.Apps.Port.AgentName),
+			}, appDetails.Apps.Port.Query)
+			slugURL := shortURL(appurl.ApplicationURL{
+				AppSlugOrPort: appDetails.Apps.Owner.AppSlugOrPort,
+				WorkspaceID:   appDetails.Workspace.ID,
+			}, appDetails.Apps.Owner.Query)
+
+			for _, u := range []string{portURL, slugURL} {
+				resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u, nil)
+				require.NoError(t, err)
+				body, err := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode, u)
+				require.Equal(t, proxyTestAppBody, string(body))
+			}
+
+			// The workspace ID must not give access to other users.
+			otherAppClient := appDetails.AppClient(t)
+			otherAppClient.SetSessionToken(otherUserClient.SessionToken())
+			resp, err := requestWithRetries(ctx, t, otherAppClient, http.MethodGet, portURL, nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
 		})
 
 		t.Run("ProxyError", func(t *testing.T) {

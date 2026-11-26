@@ -353,6 +353,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 												subAgent.name,
 												workspace.name,
 												workspace.owner_name,
+												workspace.id,
 												location.protocol === "https" ? "https" : "http",
 											)
 										: "";

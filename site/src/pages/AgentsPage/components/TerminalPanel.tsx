@@ -136,6 +136,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 			workspaceAgent.name,
 			workspace.name,
 			workspace.owner_name,
+			workspace.id,
 		);
 	};
 

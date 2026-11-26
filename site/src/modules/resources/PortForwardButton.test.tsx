@@ -38,6 +38,7 @@ const expectedURL = (port: number) =>
 		MockWorkspaceAgent.name,
 		MockWorkspace.name,
 		MockWorkspace.owner_name,
+		MockWorkspace.id,
 		getWorkspaceListeningPortsProtocol(MockWorkspace.id),
 	);
 
