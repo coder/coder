@@ -5,6 +5,8 @@ import {
 	Area,
 	AreaChart,
 	CartesianGrid,
+	Dot,
+	type DotProps,
 	ReferenceLine,
 	XAxis,
 	YAxis,
@@ -34,14 +36,20 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
+type SeatDay = {
+	date: string;
+	users: number;
+};
+
+const formatDay = (date: string) =>
+	new Date(date).toLocaleString(undefined, {
+		month: "long",
+		day: "2-digit",
+	});
+
 type LicenseSeatConsumptionChartProps = {
 	limit: number | undefined;
-	data:
-		| {
-				date: string;
-				users: number;
-		  }[]
-		| undefined;
+	data: SeatDay[] | undefined;
 };
 
 export const LicenseSeatConsumptionChart: React.FC<
@@ -194,13 +202,9 @@ export const LicenseSeatConsumptionChart: React.FC<
 													const item = p[0];
 													return `${item.value} seats`;
 												}}
-												formatter={(_v, _n, item) => {
-													const date = new Date(item.payload.date);
-													return date.toLocaleString(undefined, {
-														month: "long",
-														day: "2-digit",
-													});
-												}}
+												formatter={(_v, _n, item) =>
+													formatDay(item.payload.date)
+												}
 											/>
 										)}
 									/>
@@ -226,6 +230,18 @@ export const LicenseSeatConsumptionChart: React.FC<
 										fillOpacity={0.4}
 										stroke="var(--color-users)"
 										stackId="a"
+										// Screen readers in browse mode reach the highlighted point
+										// directly, so it carries the same text as the tooltip.
+										activeDot={({
+											payload,
+											...props
+										}: DotProps & { payload: SeatDay }) => (
+											<Dot
+												{...props}
+												role="img"
+												aria-label={`${payload.users} seats, ${formatDay(payload.date)}`}
+											/>
+										)}
 									/>
 									{limit && (
 										<ReferenceLine

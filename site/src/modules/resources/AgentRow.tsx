@@ -26,6 +26,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -632,7 +633,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															</DropdownMenuTrigger>
 															<DropdownMenuContent
 																align="end"
-																className="max-h-56 overflow-y-auto"
+																className="max-h-[min(14rem,var(--radix-popper-available-height))]"
 															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
@@ -688,9 +689,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 													</TooltipContent>
 												</Tooltip>
-												<span role="status" className="sr-only">
-													{showCopiedSuccess && "Copied"}
-												</span>
+												<CopiedStatus show={showCopiedSuccess} />
 
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}

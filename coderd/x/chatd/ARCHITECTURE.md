@@ -996,7 +996,7 @@ The buffer exposes the following API:
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
 
-Subscribers must accept parts within 10 seconds of them being sent on the channel. If a subscriber does not accept a part within that timeframe, the subscription channel is closed.
+Once an episode is closed, a subscriber that does not accept a part within 10 seconds has its subscription channel closed. While the episode is open there is no limit.
 
 ## Chat runner
 
@@ -1706,6 +1706,8 @@ If `worker_id` is null, the relay forwarder stops forwarding messages and, if co
 
 If `worker_id` changes, the relay forwarder connects to the new worker's parts endpoint. If only `history_version` or `generation_attempt` changes while `worker_id` stays the same, the relay forwarder keeps the existing WebSocket connection and sends a control message over that connection to select the new episode. It should not tear down and recreate the connection just because the requested episode changed.
 
+`Sync` configures the relay forwarder after every newer snapshot, usually with the same target. The forwarder sends a selection only on a new connection or when the target changes, because each selection makes the parts endpoint send the episode again from `seq` 1.
+
 The forwarder must only pass parts for the currently requested episode to the stream loop.
 
 ### Parts endpoint
@@ -1735,7 +1737,8 @@ Behavior after receiving an episode-selection message:
 - stream future parts for that episode as they are produced;
 - if the worker has not produced parts for that episode yet, keep the connection open and emit nothing until matching parts become available;
 - missing episode state is not an error;
-- enforce contiguous `seq` delivery for the selected episode.
+- enforce contiguous `seq` delivery for the selected episode;
+- keep reading selection messages while waiting to send parts, and if a newer selection arrives before the endpoint starts serving this one, serve only the newer one.
 
 Only worker changes require a new parts WebSocket connection.
 

@@ -6,7 +6,8 @@
 	"linter": {
 		"rules": {
 			"a11y": {
-				"noAutofocus": "off" // oxlint owns no-autofocus
+				"noAutofocus": "off", // oxlint owns no-autofocus
+				"useIframeTitle": "off" // oxlint owns iframe-has-title
 			}
 		}
 	},

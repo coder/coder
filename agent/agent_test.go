@@ -3882,11 +3882,6 @@ func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
 		agentID,
 		agentsdk.Manifest{
 			DERPMap: derpMap,
-			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "echo hello",
-				Timeout:    30 * time.Second,
-				RunOnStart: true,
-			}},
 		},
 		statsCh,
 		fCoordinator,

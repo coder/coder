@@ -5,6 +5,7 @@ import {
 	MockAuditorRole,
 	MockAuthMethodsPasswordOnly,
 	MockOwnerRole,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { CreateUserForm } from "./CreateUserForm";
@@ -33,7 +34,9 @@ describe("CreateUserForm", () => {
 			const user = userEvent.setup();
 			renderForm();
 
-			await user.click(await screen.findByTestId("login-type-input"));
+			await user.click(
+				await screen.findByRole("combobox", { name: "Login type" }),
+			);
 			const option = await screen.findByRole("option", {
 				name: "Service account Requires a Premium license. Cannot log in interactively. Intended for automated pipelines, bots, and other non-human access.",
 			});
@@ -45,7 +48,9 @@ describe("CreateUserForm", () => {
 			const user = userEvent.setup({ pointerEventsCheck: 0 });
 			const { onSubmit } = renderForm();
 
-			await user.click(await screen.findByTestId("login-type-input"));
+			await user.click(
+				await screen.findByRole("combobox", { name: "Login type" }),
+			);
 			await user.click(
 				await screen.findByRole("option", { name: /service account/i }),
 			);
@@ -65,6 +70,26 @@ describe("CreateUserForm", () => {
 				service_account: false,
 			});
 		});
+	});
+
+	it("describes the login type trigger with its validation error", async () => {
+		const user = userEvent.setup();
+		renderForm({
+			error: mockApiError({
+				validations: [{ field: "login_type", detail: "Login type is invalid" }],
+			}),
+		});
+
+		await user.type(screen.getByLabelText(/username/i), "someuser");
+		await user.type(screen.getByLabelText(/email/i), "someone@example.com");
+		await user.type(screen.getByTestId("password-input"), "SomePassword!");
+		await user.click(screen.getByRole("button", { name: /save/i }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("combobox", { name: "Login type" }),
+			).toHaveAccessibleDescription("Login type is invalid"),
+		);
 	});
 
 	it("submits the roles checked in the Roles group", async () => {

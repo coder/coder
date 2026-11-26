@@ -13,6 +13,7 @@ on:
     # workflow-self-reference audit.
     paths:
       - scripts/Dockerfile.base
+      - provisioner/terraform/terraform_SHA256SUMS
       - .github/workflows/docker-base.yaml
 
 permissions:
@@ -40,8 +41,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Create empty base-build-context directory
-        run: mkdir base-build-context
+      # Dockerfile.base only needs the Terraform checksum file from the repo.
+      - name: Create base-build-context directory
+        run: |
+          mkdir base-build-context
+          cp provisioner/terraform/terraform_SHA256SUMS base-build-context/
 
       - name: Install depot.dev CLI
         uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2

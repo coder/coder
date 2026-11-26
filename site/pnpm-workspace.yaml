@@ -25,3 +25,10 @@ allowBuilds:
 
 patchedDependencies:
   cmdk@1.1.1: patches/cmdk@1.1.1.patch
+
+# Oxlint loads these ESLint plugins through jsPlugins, so the eslint peer is not needed.
+packageExtensions:
+  eslint-plugin-react-you-might-not-need-an-effect:
+    peerDependenciesMeta:
+      eslint:
+        optional: true

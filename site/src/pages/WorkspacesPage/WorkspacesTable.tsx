@@ -486,6 +486,12 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
 	const [isRestartConfirmOpen, setIsRestartConfirmOpen] = useState(false);
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+	const [confirmReturnFocusElement, setConfirmReturnFocusElement] =
+		useState<HTMLElement | null>(null);
+	const returnFocusFromConfirm = (event: Event) => {
+		event.preventDefault();
+		confirmReturnFocusElement?.focus();
+	};
 
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
@@ -608,13 +614,19 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 					disabled={!abilities.canAcceptJobs}
 					onStop={
 						abilities.actions.includes("stop")
-							? () => setIsStopConfirmOpen(true)
+							? (returnFocusElement) => {
+									setConfirmReturnFocusElement(returnFocusElement);
+									setIsStopConfirmOpen(true);
+								}
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
 					onRestart={
 						abilities.actions.includes("restart")
-							? () => setIsRestartConfirmOpen(true)
+							? (returnFocusElement) => {
+									setConfirmReturnFocusElement(returnFocusElement);
+									setIsRestartConfirmOpen(true);
+								}
 							: undefined
 					}
 					isRestarting={restartWorkspaceMutation.isPending}
@@ -628,6 +640,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
 				confirmText="Stop"
 				onClose={() => setIsStopConfirmOpen(false)}
+				onCloseAutoFocus={returnFocusFromConfirm}
 				onConfirm={() => {
 					stopWorkspaceMutation.mutate({});
 					setIsStopConfirmOpen(false);
@@ -642,6 +655,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 				description={`Are you sure you want to restart the workspace "${workspace.name}"? This will stop all running processes and delete non-persistent data.`}
 				confirmText="Restart"
 				onClose={() => setIsRestartConfirmOpen(false)}
+				onCloseAutoFocus={returnFocusFromConfirm}
 				onConfirm={() => {
 					restartWorkspaceMutation.mutate({ workspace });
 					setIsRestartConfirmOpen(false);

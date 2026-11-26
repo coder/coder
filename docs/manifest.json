@@ -11,31 +11,7 @@
 			"title": "Get started",
 			"description": "Install Coder, build your first template, and launch your first workspace in this quickstart guide.",
 			"path": "./get-started/index.md",
-			"icon_path": "./images/icons/rocket.svg",
-			"children": [
-				{
-					"title": "Customize your template",
-					"description": "Add a language, install command-line tools, and authenticate to GitHub.",
-					"path": "./get-started/customize-your-template/index.md",
-					"children": [
-						{
-							"title": "Add a programming language",
-							"description": "Expose a new programming language through a template parameter and install it at workspace startup.",
-							"path": "./get-started/customize-your-template/add-a-language.md"
-						},
-						{
-							"title": "Install your own command-line tools",
-							"description": "Install your own command-line tools in a workspace and make them persist across rebuilds.",
-							"path": "./get-started/customize-your-template/install-command-line-tools.md"
-						},
-						{
-							"title": "Clone private repositories",
-							"description": "Clone private GitHub repositories in your workspace using a Coder external-auth data source.",
-							"path": "./get-started/customize-your-template/authenticate-to-github.md"
-						}
-					]
-				}
-			]
+			"icon_path": "./images/icons/rocket.svg"
 		},
 		{
 			"title": "Install",
@@ -43,6 +19,12 @@
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
+				{
+					"title": "Production deployment process",
+					"description": "Follow the five phases of a production deployment, see which phases an evaluation can skip, and find out who takes part in each.",
+					"path": "./install/production-deployment.md",
+					"icon_path": "./images/icons/stairs.svg"
+				},
 				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
@@ -131,6 +113,11 @@
 					"path": "./install/server/index.md",
 					"icon_path": "./images/icons/download.svg",
 					"children": [
+						{
+							"title": "Requirements",
+							"description": "Check the compute, database, platform, and network requirements for installing the Coder control plane.",
+							"path": "./install/server/requirements.md"
+						},
 						{
 							"title": "Docker",
 							"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",

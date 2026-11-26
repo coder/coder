@@ -27,9 +27,9 @@ coder:
   env:
     - name: CODER_URL
       value: "https://coder.example.com"
-    # This env enables the Prometheus metrics endpoint.
-    - name: CODER_PROMETHEUS_ADDRESS
-      value: "0.0.0.0:2112"
+    # Enable the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
   replicaCount: 10
 provisionerDaemon:
   keySecretName: "coder-provisionerd-key"
@@ -61,6 +61,49 @@ coder:
   podLabels:
     com.coder/podLabel/foo: bar
     com.coder/podLabel/baz: qux
+```
+
+### Network Policy
+
+Set `coder.networkPolicy.enable` to create a `NetworkPolicy` for the provisioner
+pods. Your CNI must enforce NetworkPolicy for it to have any effect.
+
+The provisioner only makes outbound connections, so ingress is limited to
+Prometheus metrics when `CODER_PROMETHEUS_ENABLE` is `true` in `coder.env`, with no
+extra toggle. The chart does not detect `CODER_PROMETHEUS_ENABLE` set through
+`valueFrom`, so set it as a literal value in `coder.env`; otherwise the port is
+never added to the NetworkPolicy and scrapes are blocked. Restrict who can scrape with `coder.networkPolicy.prometheus.from`,
+or allow more with `coder.networkPolicy.extraIngress`.
+
+Egress is restricted by default. Only DNS, the Coder server, and the Kubernetes
+API ports are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
+`coder.networkPolicy.egress.enable` to `false` to leave egress open.
+
+- `egress.coderServer` defaults to the Coder chart's pods in any namespace.
+  Override `to` and `ports` if `CODER_URL` points elsewhere, such as an external
+  address. An empty `to` allows any destination on those ports.
+- `egress.kubernetesAPI` defaults to any destination on ports 443 and 6443,
+  because control plane addresses vary by cluster. That includes the internet and
+  an external `CODER_URL`, so if you set `to` to your API server, allow those
+  through `coderServer` or `extraEgress`.
+- `egress.dns.ports` defaults to 53; use 5353 on OpenShift. Setting any built-in
+  `ports` list to `[]` removes that rule.
+
+Your templates probably reach other services during builds, such as cloud APIs
+and registries. Allow them with `extraEgress`. This example opens HTTPS to any destination;
+narrow `cidr` to the ranges you need:
+
+```yaml
+coder:
+  networkPolicy:
+    enable: true
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+        ports:
+          - port: 443
+            protocol: TCP
 ```
 
 ### Additional Templates
