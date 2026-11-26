@@ -9,6 +9,7 @@ import {
 	type ChatProjectTemplatesSettings,
 	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
+	chatProjectTemplatesValues,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 
 /**
@@ -38,7 +39,7 @@ const serializeDefaultTemplate = (
  * Serializes template settings so that saved and drafted ones compare by
  * content: the order of template IDs and of parameter keys is ignored.
  */
-const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
+export const serializeTemplates = (templates: ChatProjectTemplatesSettings) =>
 	JSON.stringify([
 		templates.limit_templates,
 		templates.template_ids.toSorted(),
@@ -83,5 +84,53 @@ export const templatesChange = (
 		attach: draft.template_ids.filter((id) => !saved.template_ids.includes(id)),
 		detach: saved.template_ids.filter((id) => !draft.template_ids.includes(id)),
 		...((limitChanged || defaultChanged) && { request }),
+	};
+};
+
+/** Serializes form values, to tell whether the user changed the draft. */
+export const serializeValues = (values: ChatProjectTemplatesValues) =>
+	JSON.stringify({
+		...values,
+		templateIds: values.templateIds.toSorted(),
+		defaultParameters: Object.entries(values.defaultParameters).sort(
+			([a], [b]) => a.localeCompare(b),
+		),
+	});
+
+const serializeDefaults = (values: ChatProjectTemplatesValues) =>
+	serializeValues({ ...values, limitTemplates: false, templateIds: [] });
+
+/**
+ * Applies the draft's changes since `base` to `latest`, so saving the result
+ * never undoes a template that someone else attached or detached. Where both
+ * changed the limit or the default template, the draft wins.
+ */
+export const rebaseValues = (
+	draft: ChatProjectTemplatesValues,
+	base: ChatProjectTemplatesValues,
+	latest: ChatProjectTemplatesValues,
+): ChatProjectTemplatesValues => {
+	const templateIds = [
+		...latest.templateIds.filter(
+			(id) => draft.templateIds.includes(id) || !base.templateIds.includes(id),
+		),
+		...draft.templateIds.filter(
+			(id) =>
+				!base.templateIds.includes(id) && !latest.templateIds.includes(id),
+		),
+	];
+	// The default template is saved as a whole, so the draft's wins when the
+	// user changed any part of it.
+	const defaults =
+		serializeDefaults(draft) === serializeDefaults(base) ? latest : draft;
+	return {
+		...(templateIds.includes(defaults.defaultTemplateId)
+			? defaults
+			: chatProjectTemplatesValues(undefined)),
+		limitTemplates:
+			draft.limitTemplates === base.limitTemplates
+				? latest.limitTemplates
+				: draft.limitTemplates,
+		templateIds,
 	};
 };
