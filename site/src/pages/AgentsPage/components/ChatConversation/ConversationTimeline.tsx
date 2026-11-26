@@ -503,16 +503,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
 
-		const getItemKey = (block: WorkingBlock) =>
-			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
-
 		// Removing an item, as when a turn's blocks merge at its end, can shrink
 		// the timeline. The scroller's resize observers wait a frame, so the
 		// layout effect syncs before paint rather than painting a clamped scroll
 		// position. An append cannot shrink it, and while following the end,
 		// handleResize scrolls there, away from a newly sent prompt.
 		const itemKeys = layout.items.map((item) =>
-			item.type === "block" ? getItemKey(item.block) : item.slice.key,
+			item.type === "block"
+				? (nextLiveBlockKeys.itemKeys.get(item.block.key) ?? item.block.key)
+				: item.slice.key,
 		);
 		useLayoutEffect(() => {
 			const keys = new Set(itemKeys);
@@ -522,6 +521,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				handleResize();
 			}
 		});
+
+		const getItemKey = (block: WorkingBlock) =>
+			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 
 		if (renderRows.length === 0) {
 			return null;
