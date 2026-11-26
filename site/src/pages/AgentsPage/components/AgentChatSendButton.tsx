@@ -9,7 +9,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Kbd } from "#/components/Kbd/Kbd";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -21,6 +21,7 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
+import { getOSKey, isMac } from "#/utils/platform";
 import { enterSendsAgentChatMessage } from "../utils/agentChatSendShortcut";
 
 const LONG_PRESS_DELAY_MS = 500;
@@ -56,17 +57,28 @@ export const AgentChatSendButton: React.FC<AgentChatSendButtonProps> = ({
 }) => {
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
+	const modifierEnterShortcut = (
+		<KbdGroup>
+			<Kbd>{getOSKey()}</Kbd>
+			<Kbd>Enter</Kbd>
+		</KbdGroup>
+	);
 	const shortcuts = isMobile
 		? undefined
 		: enterSendsAgentChatMessage(sendShortcut, isCoarsePointer)
 			? {
-					send: "Enter",
-					sendAfterTurn: "Cmd/Ctrl+Enter",
+					send: <Kbd>Enter</Kbd>,
+					sendAfterTurn: modifierEnterShortcut,
 					ariaKeyShortcuts: "Enter",
 				}
 			: {
-					send: "Cmd/Ctrl+Enter",
-					sendAfterTurn: "Option/Alt+Enter",
+					send: modifierEnterShortcut,
+					sendAfterTurn: (
+						<KbdGroup>
+							<Kbd>{isMac() ? "Option" : "Alt"}</Kbd>
+							<Kbd>Enter</Kbd>
+						</KbdGroup>
+					),
 					ariaKeyShortcuts: "Control+Enter Meta+Enter",
 				};
 	const sendActionLabel = offersSendAfterTurn ? "Send during turn" : label;
@@ -101,16 +113,19 @@ export const AgentChatSendButton: React.FC<AgentChatSendButtonProps> = ({
 						</span>
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent side="top">
+				<TooltipContent side="top" className="flex flex-col gap-1">
 					{isRecording ? (
 						"Accept voice input"
 					) : (
 						<>
-							{shortcuts
-								? `${sendActionLabel}: ${shortcuts.send}`
-								: sendActionLabel}
+							<div className="flex items-center gap-2">
+								{shortcuts ? `${sendActionLabel}:` : sendActionLabel}
+								{shortcuts?.send}
+							</div>
 							{offersSendAfterTurn && shortcuts && (
-								<div>Send after turn: {shortcuts.sendAfterTurn}</div>
+								<div className="flex items-center gap-2">
+									Send after turn: {shortcuts.sendAfterTurn}
+								</div>
 							)}
 						</>
 					)}
@@ -124,8 +139,8 @@ type AgentChatSendMenuProps = {
 	canOpen: boolean;
 	onSend: () => void;
 	onSendAfterTurn: () => void;
-	sendShortcutLabel: string | undefined;
-	sendAfterTurnShortcutLabel: string | undefined;
+	sendShortcutLabel: React.ReactNode;
+	sendAfterTurnShortcutLabel: React.ReactNode;
 	children: React.ReactNode;
 };
 
@@ -268,12 +283,12 @@ const AgentChatSendMenu: React.FC<AgentChatSendMenuProps> = ({
 };
 
 type MenuShortcutProps = {
-	label: string | undefined;
+	label: React.ReactNode;
 };
 
 const MenuShortcut: React.FC<MenuShortcutProps> = ({ label }) =>
 	label ? (
-		<Kbd aria-hidden="true" className="ml-auto">
+		<span aria-hidden="true" className="ml-auto">
 			{label}
-		</Kbd>
+		</span>
 	) : null;

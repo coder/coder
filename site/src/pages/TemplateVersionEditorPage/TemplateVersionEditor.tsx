@@ -62,6 +62,7 @@ import {
 	removeFile,
 	updateFile,
 } from "#/utils/filetree";
+import { getOSKey } from "#/utils/platform";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,
@@ -273,7 +274,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 
 						<div className="flex gap-1 items-center">
 							<TopbarButton
-								title="Build template (Ctrl + Enter)"
+								title={`Build template (${getOSKey()} + Enter)`}
 								disabled={!canBuild}
 								onClick={async () => {
 									await triggerPreview();
