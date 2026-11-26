@@ -143,7 +143,7 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 			slog.F("metadata", req.Metadata),
 		},
 	}
-	return r.logResult(ctx, interceptionLogs, req, err)
+	return r.logResult(ctx, interceptionLogs, err)
 }
 
 func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
@@ -169,7 +169,7 @@ func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *Intercep
 		},
 	}
 
-	return r.logResult(ctx, interceptionEndedLogs, req, err)
+	return r.logResult(ctx, interceptionEndedLogs, err)
 }
 
 func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
@@ -193,12 +193,12 @@ func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRec
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
-			slog.F("prompt", req.Prompt),
+			slog.F("prompt_bytes", len(req.Prompt)),
 			slog.F("metadata", req.Metadata),
 		},
 	}
 
-	return r.logResult(ctx, promptUsageLogs, req, err)
+	return r.logResult(ctx, promptUsageLogs, err)
 }
 
 func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
@@ -235,7 +235,7 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 		},
 	}
 
-	return r.logResult(ctx, tokenUsageLogs, req, err)
+	return r.logResult(ctx, tokenUsageLogs, err)
 }
 
 func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
@@ -243,13 +243,16 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 	if req.InvocationError != nil {
 		structuredInvocationErr = req.InvocationError.Error()
 	}
+	// Marshal once: the structured record carries the arguments, while the
+	// result log below reports only their size.
+	input := r.marshalToolArgs(ctx, req.Args)
 	r.logStructured(ctx, RecordTypeToolUsage,
 		slog.F("interception_id", req.InterceptionID),
 		slog.F("msg_id", req.MsgID),
 		slog.F("tool_call_id", req.ToolCallID),
 		slog.F("item_id", req.ItemID),
 		slog.F("tool", req.Tool),
-		slog.F("input", r.marshalToolArgs(ctx, req.Args)),
+		slog.F("input", input),
 		slog.F("server_url", ptr.NilToEmpty(req.ServerURL)),
 		slog.F("injected", req.Injected),
 		slog.F("invocation_error", structuredInvocationErr),
@@ -277,13 +280,13 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 			slog.F("tool_call_id", req.ToolCallID),
 			slog.F("item_id", req.ItemID),
 			slog.F("server_url", ptr.NilToEmpty(req.ServerURL)),
-			slog.F("args", req.Args),
+			slog.F("args_bytes", len(input)),
 			slog.F("injected", req.Injected),
 			slog.F("invocation_error", invocationErr),
 			slog.F("metadata", req.Metadata),
 		},
 	}
-	return r.logResult(ctx, toolUsageLogs, req, err)
+	return r.logResult(ctx, toolUsageLogs, err)
 }
 
 func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
@@ -305,12 +308,12 @@ func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtR
 		typ:           "model_thought",
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
-			slog.F("content", req.Content),
+			slog.F("content_bytes", len(req.Content)),
 			slog.F("metadata", req.Metadata),
 		},
 	}
 
-	return r.logResult(ctx, modelThoughtLogs, req, err)
+	return r.logResult(ctx, modelThoughtLogs, err)
 }
 
 // logEntry defines a standard format for the messages logged for each
@@ -329,7 +332,13 @@ type logEntry struct {
 // lines for every call. This duplicate logging is suboptimal, but also load bearing.
 // It cannot be easily deduplicated, because customers have had the opportunity to
 // build observability and alerting based on it.
-func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, payload any, err error) error {
+//
+// Neither line may carry prompt, tool argument or model thought content: these
+// lines are emitted whether or not structured logging is enabled (the success
+// line at debug level, the failure lines always), so content would reach any
+// log pipeline. The fields report sizes instead, and the failure line reuses
+// the same content-free fields rather than the whole record.
+func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, err error) error {
 	if err == nil {
 		r.logger.Debug(ctx, logs.success, logs.fields...)
 		return nil
@@ -337,7 +346,8 @@ func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, payload any,
 
 	r.logger.Warn(ctx, logs.failureDetail, slog.Error(err))
 	if logs.failure != "" {
-		r.logger.Warn(ctx, logs.failure, slog.F("type", logs.typ), slog.Error(err), slog.F("payload", payload))
+		fields := append([]slog.Field{slog.F("type", logs.typ), slog.Error(err)}, logs.fields...)
+		r.logger.Warn(ctx, logs.failure, fields...)
 	}
 	return err
 }
