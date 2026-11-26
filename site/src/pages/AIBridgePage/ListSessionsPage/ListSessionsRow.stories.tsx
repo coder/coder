@@ -49,7 +49,25 @@ export const MultipleProviders: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByRole("button", { name: "3 providers" }));
-		await screen.findByRole("tooltip");
+		await screen.findByRole("dialog");
+	},
+};
+
+export const ManyProvidersKeyboardScroll: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: Array.from({ length: 40 }, (_, i) => `provider-${i + 1}`),
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "40 providers" }));
+		await userEvent.tab();
 	},
 };
 
