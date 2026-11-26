@@ -135,6 +135,8 @@ ai_gateway:
 
 Set to `0` to retain data indefinitely.
 
+Shorter retention also limits the days the [**Spend** page](./cost-controls.md#spend-page) can show.
+
 For duration formats, how retention works, and best practices, see the [Data Retention](../../admin/setup/data-retention.md) documentation.
 
 ## Structured Logging

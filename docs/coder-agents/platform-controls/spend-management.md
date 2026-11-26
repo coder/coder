@@ -71,10 +71,9 @@ AI Gateway reports do not include the old cost history.
 
 Spend is shown where it is actionable:
 
-<!-- TODO(AIGOV-685): Restore once the User spend page moves out of experimental.
-- **Admin settings** > **AI** > **User spend**: total and per-user AI Gateway spend for the selected organization and reporting period.
-  If you can also view AI sessions, you can filter it by provider, model, and client.
--->
+- **Admin settings** > **AI** > **Spend**:
+  AI Gateway spend for an organization, in total and per user.
+  Refer to [Spend page](../../ai-governance/ai-gateway/cost-controls.md#spend-page).
 - **Agents page and user menu**:
   the signed-in user's spend against their budget, as described previously.
 - **Group settings**:

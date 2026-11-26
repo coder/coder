@@ -297,15 +297,9 @@ Visibility follows the viewer's role:
 | Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
 | Members of a group                                   | The group's spend and budget, and their own member row               |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
+| Readers of an organization's group members           | Organization totals and per-user spend on the **Spend** page         |
 
-<!-- TODO(AIGOV-685): Restore once the User spend page moves out of experimental.
-| Readers of an organization's group members           | Organization totals and per-user spend on the **User spend** page    |
-
-- The **User spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period.
-  You can open it if you can read the organization's group members, as Owners, Auditors, Template Admins, User Admins, and their organization-scoped equivalents can.
-  If you can also view AI sessions, you can filter it by provider, model, and client.
--->
-
+- The [**Spend** page](#spend-page) shows total and per-user AI Gateway spend for an organization.
 - The **Groups** page compares each group's spend with the combined limits of the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and its source, labeled `Custom limit` for an override or `Group limit` for a group budget.
   If the effective group is another group in the same organization, the row shows `Budget managed by another group`.
@@ -323,6 +317,25 @@ Users can read their own spend, and administrators can read the spend of a user 
 
 For a user in several organizations, some of these reports can differ from the budget that applied to a request.
 Refer to [Where spend reports can differ](./request-organization.md#where-spend-reports-can-differ).
+
+### Spend page
+
+The **Spend** page shows the total AI Gateway spend for an organization and the spend of each user.
+Usage of models without a [price](#configure-model-prices) isn't counted, so the total and per-user spend can be lower than the actual cost.
+
+1. Go to **Admin settings** > **AI** > **Spend**.
+1. If more than one organization is listed, select one.
+1. Select a range of up to 31&nbsp;days.
+
+The page has two tabs:
+
+- **Overview** shows the total spend, the spend per day, the top spenders, and the models without a price.
+- **Detailed report** shows each user's spend, with the providers, models, and clients they used.
+  Users with usage of models without a price are flagged.
+  Select **Run report** to build it, then **Export CSV** to download it.
+  To see a breakdown for one user, open the menu on the user's row and select **Cost details**.
+
+The page only covers days within the AI Gateway [data retention](./setup.md#data-retention) period.
 
 ### Spend export
 
@@ -355,15 +368,15 @@ For the full metric list, including types and labels, see [Prometheus metrics](.
 ## Migrate from Coder Agents Cost Control
 
 In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control.
-The legacy Coder Agents Spend page remains available until v2.37.
+The legacy Coder Agents Spend page is removed in v2.37.
 
 > [!WARNING]
-> Spend limits configured under **Admin settings** > **AI** > **Spend** are no longer enforced by Coder Agents.
+> Spend limits configured on the legacy Coder Agents Spend page are no longer enforced by Coder Agents.
 > To enforce spend, set an AI Governance budget.
 
 To migrate existing limits:
 
-1. Record the limits currently set under **Admin settings** > **AI** > **Spend**, including the default limit and any group or user overrides.
+1. Before you upgrade to v2.37, record the default, group, and user limits from the legacy Coder Agents Spend page.
 1. Recreate group limits as [group budgets](#group-budget).
 1. Recreate per-user limits as [user overrides](#user-override).
 
@@ -392,7 +405,7 @@ A deployment that wants budgets and spend reporting without retaining conversati
 
 > [!NOTE]
 > [`--ai-gateway-retention`](./setup.md#data-retention) can't do this.
-> It purges the interception and token usage records too, so it sheds the cost ledger along with the content.
+> It purges the interception and token usage records too, so the **Spend** page and the spend export only cover the retention period.
 
 ## Next steps
 
