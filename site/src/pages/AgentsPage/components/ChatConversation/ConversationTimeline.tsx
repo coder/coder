@@ -1,12 +1,16 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
-import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
+import {
+	MessageScroller,
+	useMessageScroller,
+	useMessageScrollerContext,
+} from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -429,6 +433,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
+		const { handleResize } = useMessageScrollerContext();
+		const committedItemKeys = useRef<readonly string[]>([]);
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
@@ -496,6 +502,26 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
+
+		// Removing an item, as when a turn's blocks merge at its end, can shrink
+		// the timeline. The scroller's resize observers wait a frame, so the
+		// layout effect syncs before paint rather than painting a clamped scroll
+		// position. An append cannot shrink it, and while following the end,
+		// handleResize scrolls there, away from a newly sent prompt.
+		const itemKeys = layout.items.map((item) =>
+			item.type === "block"
+				? (nextLiveBlockKeys.itemKeys.get(item.block.key) ?? item.block.key)
+				: item.slice.key,
+		);
+		useLayoutEffect(() => {
+			const keys = new Set(itemKeys);
+			const removed = committedItemKeys.current.some((key) => !keys.has(key));
+			committedItemKeys.current = itemKeys;
+			if (removed) {
+				handleResize();
+			}
+		});
+
 		const getItemKey = (block: WorkingBlock) =>
 			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 

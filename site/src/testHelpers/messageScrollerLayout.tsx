@@ -6,9 +6,10 @@ import {
 	useMessageScrollerVisibility,
 } from "#/vendor/message-scroller";
 
-// jsdom has no layout. Rows stack by their data-height in a fixed viewport
-// that clamps scrollTop the way a browser does, with a classic scrollbar past
-// its clientWidth.
+// jsdom has no layout. Rows stack by their data-height, or by rowHeight of
+// their message ID when they have none, in a fixed viewport that clamps
+// scrollTop the way a browser does, with a classic scrollbar past its
+// clientWidth.
 const VIEWPORT_HEIGHT = 400;
 export const VIEWPORT_WIDTH = 800;
 export const SCROLLBAR_WIDTH = 10;
@@ -16,12 +17,19 @@ export const SCROLLBAR_WIDTH = 10;
 export const isViewport = (element: Element | null) =>
 	element?.getAttribute("role") === "region";
 
-const sizeOf = (element: Element, dimension: "height" | "width") =>
-	element instanceof HTMLElement && !element.hidden
-		? Number.parseFloat(
-				element.dataset[dimension] ?? element.style[dimension],
-			) || 0
-		: 0;
+let rowHeightOf: ((messageId: string) => number) | undefined;
+
+const sizeOf = (element: Element, dimension: "height" | "width") => {
+	if (!(element instanceof HTMLElement) || element.hidden) {
+		return 0;
+	}
+	const declared = element.dataset[dimension] ?? element.style[dimension];
+	const { messageId } = element.dataset;
+	if (!declared && dimension === "height" && messageId && rowHeightOf) {
+		return rowHeightOf(messageId);
+	}
+	return Number.parseFloat(declared) || 0;
+};
 
 const contentHeight = (viewport: Element) =>
 	Array.from(viewport.firstElementChild?.children ?? []).reduce(
@@ -103,10 +111,16 @@ export const visibleRowsAfterLayout = async () => {
 
 /**
  * Installs the layout mocks for the enclosing describe block. Call it at the
- * top of a describe that renders a transcript with renderTranscript.
+ * top of a describe that renders a transcript with renderTranscript, or that
+ * renders its own rows and sizes them by message ID with rowHeight.
  */
-export const setupMessageScrollerLayout = () => {
+export const setupMessageScrollerLayout = ({
+	rowHeight,
+}: {
+	rowHeight?: (messageId: string) => number;
+} = {}) => {
 	beforeEach(() => {
+		rowHeightOf = rowHeight;
 		const scrollTops = new WeakMap<Element, number>();
 		MockResizeObserver.reset();
 		vi.spyOn(Element.prototype, "scrollTo").mockImplementation(function (
@@ -191,6 +205,7 @@ export const setupMessageScrollerLayout = () => {
 	});
 
 	afterEach(() => {
+		rowHeightOf = undefined;
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 	});
