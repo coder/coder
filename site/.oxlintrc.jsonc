@@ -33,6 +33,7 @@
 		"media-has-caption": "error",
 		"click-events-have-key-events": "error",
 		"no-noninteractive-tabindex": "error",
+		"iframe-has-title": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -226,7 +227,6 @@
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
-		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 
 		// Correctness category rules with existing violations.
 		"require-mock-type-parameters": "off", // (xl)
