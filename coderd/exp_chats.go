@@ -8214,6 +8214,7 @@ func convertAIProviderSummary(provider database.GetAIProviderSummariesRow) coder
 		DisplayName: displayName,
 		Icon:        provider.Icon,
 		Enabled:     provider.Enabled,
+		Deleted:     provider.Deleted,
 	}
 }
 
@@ -8230,7 +8231,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	targetUser := httpmw.UserParam(r)
 	//nolint:gocritic // Users can list limited provider metadata to manage their own AI provider keys.
 	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
-	providers, err := api.Database.GetAIProviderSummaries(metadataCtx)
+	providers, err := api.Database.GetAIProviderSummaries(metadataCtx, false)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to list user AI provider configs", slog.Error(err), slog.F("user_id", targetUser.ID))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI providers."})
@@ -8312,7 +8313,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	}
 	//nolint:gocritic // Users can attach their own key to an enabled provider without AI provider admin permissions.
 	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
-	providers, err := api.Database.GetAIProviderSummaries(metadataCtx)
+	providers, err := api.Database.GetAIProviderSummaries(metadataCtx, false)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to get AI provider", slog.Error(err), slog.F("ai_provider_id", providerID))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
