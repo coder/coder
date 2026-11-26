@@ -192,7 +192,9 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("combobox");
+			const select = screen.getByRole("combobox", {
+				name: /^Select Parameter/,
+			});
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});

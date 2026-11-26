@@ -328,7 +328,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 					onValueChange={(newValue) => onChange(newValue ?? "")}
 					disabled={disabled}
 				>
-					<SelectTrigger>
+					<SelectTrigger id={id}>
 						<SelectValue
 							placeholder={parameter.styling?.placeholder || "Select option"}
 						/>
