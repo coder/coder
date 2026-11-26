@@ -258,13 +258,10 @@ export const WorkspaceParametersPageView: React.FC<
 								currentParameterValueIndex !== undefined
 									? currentParameterValueIndex
 									: index;
-							// Get the form value by parameter name to ensure correct value mapping
+							// Use the evaluated value while a newly revealed field is being added to the form.
 							const formValue =
-								currentParameterValueIndex !== undefined
-									? form.values?.rich_parameter_values?.[
-											currentParameterValueIndex
-										]?.value || ""
-									: "";
+								form.values.rich_parameter_values[parameterFieldIndex]?.value ??
+								(parameter.value.valid ? parameter.value.value : "");
 
 							const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 							const isDisabled =
