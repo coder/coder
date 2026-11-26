@@ -577,11 +577,8 @@ type DraftSlice = {
 
 type Draft = {
 	slices: DraftSlice[];
-	toolIds: Set<string>;
 	assistantIds: Set<number>;
-	sourceBlocks: number;
-	searches: number;
-	hasProviderTool: boolean;
+	hasToolCallOrSearch: boolean;
 	times: number[];
 	anchorKey?: string;
 	ordinal: number;
@@ -646,11 +643,8 @@ export const groupWorkingBlocks = (
 		if (!open) {
 			open = {
 				slices: [],
-				toolIds: new Set(),
 				assistantIds: new Set(),
-				sourceBlocks: 0,
-				searches: 0,
-				hasProviderTool: false,
+				hasToolCallOrSearch: false,
 				times: [],
 				anchorKey,
 				ordinal,
@@ -748,17 +742,13 @@ export const groupWorkingBlocks = (
 				isEnded,
 			});
 			workOrdinal += 1;
-			const tools =
-				row.type === "live" ? options.liveTools : row.entry.parsed.tools;
 			for (const block of piece.blocks) {
 				if (block.type === "tool") {
-					draft.toolIds.add(block.id);
 					draftOfTool.set(block.id, draft);
-					draft.hasProviderTool ||= tools.some(
-						(tool) => tool.id === block.id && tool.providerExecuted === true,
-					);
-				} else if (block.type === "sources") {
-					draft.sourceBlocks += 1;
+				}
+				// Citations count as a search: some providers cite without one.
+				if (block.type === "tool" || block.type === "sources") {
+					draft.hasToolCallOrSearch = true;
 				}
 			}
 		}
@@ -848,10 +838,8 @@ export const groupWorkingBlocks = (
 				draft.assistantIds.add(entry.message.id);
 			}
 			draft.times.push(...getPartTimestamps(part));
-			// Results, not calls: a step can end with a provider call
-			// unanswered, and the next step issues that call again.
 			if (isHiddenProviderResult(part)) {
-				draft.searches += 1;
+				draft.hasToolCallOrSearch = true;
 			}
 		}
 	}
@@ -900,19 +888,11 @@ export const groupWorkingBlocks = (
 					? getDraftAtBlock(liveRowIndex, searchLeadInIndex)
 					: liveDrafts[citedPieceIndex];
 			if (searchDraft) {
-				searchDraft.searches += 1;
+				searchDraft.hasToolCallOrSearch = true;
 				searchDraft.containsLiveOutput = true;
 			}
 		}
 	}
-
-	// Source blocks count as searches only when no provider search does,
-	// hidden or shown as a tool: some providers cite without a search, and an
-	// interrupt commits a search's result apart from the answer citing it.
-	const getActionCount = (draft: Draft) =>
-		draft.toolIds.size +
-		draft.searches +
-		(draft.searches > 0 || draft.hasProviderTool ? 0 : draft.sourceBlocks);
 
 	const getLiveKey = (draft: Draft) =>
 		`working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
@@ -923,7 +903,7 @@ export const groupWorkingBlocks = (
 	// or search.
 	const blockDrafts = drafts.filter(
 		(draft) =>
-			getActionCount(draft) > 0 ||
+			draft.hasToolCallOrSearch ||
 			// Otherwise a tool-less ended turn's narration reads as its answer.
 			draft.containsNarration ||
 			(draft.containsLiveRow &&

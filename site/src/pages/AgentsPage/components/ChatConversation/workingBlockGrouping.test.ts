@@ -496,18 +496,15 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0]).toMatchObject({ stepCount: 1 });
 	});
 
-	it("counts a reissued hidden call once, ignoring its unanswered first call", () => {
+	it("leaves reasoning unfolded when its hidden call got no result", () => {
 		const prompt = user("Go");
-		const steps = step("a", 1, 2, { leading: [hiddenCall("unanswered")] });
-		const answer = message("assistant", [
-			hiddenCall("search"),
-			citation,
-			hiddenResult("search"),
-			text("Go 1.27 is out."),
+		// An interrupt ends the step before the provider answers the call.
+		const interrupted = message("assistant", [
+			reasoning("Look it up", at(1), at(2)),
+			hiddenCall("unanswered", at(2)),
 		]);
-		const { blocks } = group([prompt, ...steps, answer]);
 
-		expect(blocks).toMatchObject([{ stepCount: 2 }]);
+		expect(group([prompt, interrupted]).blocks).toEqual([]);
 	});
 
 	it.each([
