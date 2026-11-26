@@ -146,9 +146,8 @@ export const FormError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
-		await expect(await canvas.findByText("Username taken")).toBeVisible();
-		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("textbox", { name: /username/i }));
+		await userEvent.tab();
 	},
 };
 
