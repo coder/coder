@@ -35,7 +35,7 @@ export const WorkspaceSharingIndicator: React.FC<
 			>
 				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
-			<TooltipContent className="w-56 p-0">
+			<TooltipContent className="flex w-56 flex-col p-0">
 				<div className="px-3 py-2">
 					<h2 className="m-0 text-sm font-semibold text-content-primary">
 						Workspace permissions

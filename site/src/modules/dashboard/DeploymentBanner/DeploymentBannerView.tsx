@@ -379,7 +379,7 @@ const ActiveConnections = memo(
 											{sessionCount ? count : "-"}
 										</Button>
 									</TooltipTrigger>
-									<TooltipContent className="p-3 font-sans text-xs">
+									<TooltipContent className="flex flex-col p-3 font-sans">
 										<div className="mb-2 font-medium text-content-primary">
 											{name}
 										</div>
