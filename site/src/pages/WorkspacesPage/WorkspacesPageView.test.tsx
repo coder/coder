@@ -1,17 +1,23 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { API } from "#/api/api";
+import { API, ParameterValidationError } from "#/api/api";
 import type { Workspace } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockDeletingWorkspace,
 	MockPendingWorkspace,
+	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
+	MockTemplateVersion2,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createFilter = (used = false): UseFilterResult => ({
@@ -51,6 +57,10 @@ const stoppedWorkspace = { ...MockStoppedWorkspace, name: "stopped" };
 const pendingWorkspace = { ...MockPendingWorkspace, name: "pending" };
 const runningWorkspace = { ...MockWorkspace, name: "running" };
 const deletingWorkspace = { ...MockDeletingWorkspace, name: "deleting" };
+const mockCancelableWorkspace = {
+	...MockStartingWorkspace,
+	template_allow_user_cancel_workspace_jobs: true,
+};
 
 function renderSelection(
 	initialWorkspaces: readonly Workspace[],
@@ -334,6 +344,117 @@ describe("WorkspacesPageView", () => {
 			await waitFor(() => expect(trigger).toHaveFocus());
 		},
 	);
+
+	it("returns focus to the overflow menu trigger when the delete error dialog closes", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API, "deleteWorkspace").mockRejectedValueOnce({
+			...mockApiError({ message: "Workspace is locked." }),
+			code: "ERR_BAD_REQUEST",
+		});
+		renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				workspaces={[MockWorkspace]}
+				count={1}
+			/>,
+		);
+
+		const trigger = await screen.findByRole("button", {
+			name: "Workspace actions",
+		});
+		await user.click(trigger);
+		await user.click(await screen.findByRole("menuitem", { name: "Delete…" }));
+		const deleteDialog = await screen.findByRole("dialog");
+		await user.type(
+			within(deleteDialog).getByLabelText("Workspace name"),
+			MockWorkspace.name,
+		);
+		await user.click(
+			within(deleteDialog).getByRole("button", { name: "Delete" }),
+		);
+		await screen.findByRole("dialog", { name: "Error deleting workspace" });
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(trigger).toHaveFocus());
+	});
+
+	it("returns focus to the overflow menu trigger when the update parameters dialog closes", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.post("/api/v2/authcheck", () => {
+				const permissions: WorkspacePermissions = {
+					readWorkspace: true,
+					shareWorkspace: true,
+					updateWorkspace: true,
+					updateWorkspaceVersion: true,
+					deleteFailedWorkspace: false,
+				};
+				return HttpResponse.json(permissions);
+			}),
+		);
+		vi.spyOn(API, "changeWorkspaceVersion").mockRejectedValueOnce(
+			new ParameterValidationError(MockTemplateVersion2.id, [
+				{ field: "region", detail: "Region is required." },
+			]),
+		);
+		renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				workspaces={[MockWorkspace]}
+				count={1}
+			/>,
+		);
+
+		const trigger = await screen.findByRole("button", {
+			name: "Workspace actions",
+		});
+		await user.click(trigger);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Change version…" }),
+		);
+		const versionDialog = await screen.findByRole("dialog");
+		await user.click(
+			await within(versionDialog).findByRole("button", {
+				name: "Template version",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockTemplateVersion2.name),
+			}),
+		);
+		await user.click(
+			within(versionDialog).getByRole("button", { name: "Change" }),
+		);
+		const parametersDialog = await screen.findByRole("dialog", {
+			name: "Update workspace parameters",
+		});
+		await user.click(
+			within(parametersDialog).getByRole("button", { name: "Cancel" }),
+		);
+
+		await waitFor(() => expect(trigger).toHaveFocus());
+	});
+
+	it("returns focus to the Cancel build button when its dialog is canceled", async () => {
+		const user = userEvent.setup();
+		renderWithAuth(
+			<WorkspacesPageView
+				{...defaultProps}
+				workspaces={[mockCancelableWorkspace]}
+				count={1}
+			/>,
+		);
+
+		const cancelBuildButton = await screen.findByRole("button", {
+			name: "Cancel build",
+		});
+		await user.click(cancelBuildButton);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(cancelBuildButton).toHaveFocus());
+	});
 
 	it("does not offer restart for a stopped workspace", async () => {
 		const user = userEvent.setup();

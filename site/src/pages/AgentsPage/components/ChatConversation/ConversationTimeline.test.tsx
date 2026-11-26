@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	screen,
 	waitFor,
@@ -7,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useLayoutEffect } from "react";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +21,11 @@ import {
 } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockPngBase64 } from "#/testHelpers/files";
+import {
+	flushLayout,
+	setupMessageScrollerLayout,
+	viewport,
+} from "#/testHelpers/messageScrollerLayout";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -59,7 +66,14 @@ type TimelineStage = {
 	pendingToolCallIDs?: ReadonlySet<string>;
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
-function renderTimeline(initial: TimelineStage = {}) {
+/**
+ * Renders the timeline in a MessageScroller, followed by afterTimeline, whose
+ * layout effects run after the timeline's.
+ */
+function renderTimeline(
+	initial: TimelineStage = {},
+	afterTimeline?: () => React.ReactNode,
+) {
 	const queryClient = createTestQueryClient();
 	queryClient.setQueryDefaults(preferenceSettingsKey, {
 		staleTime: Number.POSITIVE_INFINITY,
@@ -100,6 +114,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
 							/>
+							{afterTimeline?.()}
 						</MessageScroller.Content>
 					</MessageScroller.Viewport>
 				</MessageScroller.Root>
@@ -737,6 +752,101 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(summary).toHaveFocus();
+	});
+});
+
+const mockScrollHistory: ChatMessage[] = Array.from(
+	{ length: 8 },
+	(_, index) => ({
+		...MockChatMessage,
+		id: index + 1,
+		role: index % 2 === 0 ? "user" : "assistant",
+		content: [{ type: "text", text: `History ${index + 1}` }],
+	}),
+);
+const mockSplitTurn: ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	MockTextBeforeSecondStepMessage,
+	...MockWorkingMessages.slice(4),
+].map((message) => ({ ...message, id: message.id + 10 }));
+const historyRowIds = new Set(
+	mockScrollHistory.map((message) => `message:${message.id}`),
+);
+
+// message:14 is the reply between the steps.
+const scrollRowHeight = (messageId: string) => {
+	if (historyRowIds.has(messageId)) {
+		return 100;
+	}
+	return messageId === "message:14" ? 200 : 40;
+};
+
+const CommitScrollTop: React.FC<{ onCommit: (scrollTop: number) => void }> = ({
+	onCommit,
+}) => {
+	useLayoutEffect(() => {
+		onCommit(viewport().scrollTop);
+	});
+	return null;
+};
+
+describe("ConversationTimeline in a MessageScroller", () => {
+	setupMessageScrollerLayout({ rowHeight: scrollRowHeight });
+
+	it("keeps the anchored prompt in place in the commit that merges its turn's blocks", async () => {
+		const committedScrollTops: number[] = [];
+		const { rerenderStage } = renderTimeline(
+			{ messages: mockScrollHistory },
+			() => (
+				<CommitScrollTop onCommit={(top) => committedScrollTops.push(top)} />
+			),
+		);
+		await flushLayout();
+		// The prompt arrives with the Thinking row, which anchors it.
+		rerenderStage({
+			messages: [...mockScrollHistory, mockSplitTurn[0]],
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		await flushLayout();
+		const running = [...mockScrollHistory, ...mockSplitTurn.slice(0, 4)];
+		rerenderStage({
+			messages: running,
+			pendingToolCallIDs: getPendingToolCallIDs(running, "running"),
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await flushLayout();
+		const anchoredScrollTop = viewport().scrollTop;
+		committedScrollTops.length = 0;
+
+		// The turn ends: its blocks and the reply between them fold into one
+		// block, and the timeline below the prompt shrinks by 200px.
+		rerenderStage({
+			messages: [...mockScrollHistory, ...mockSplitTurn],
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+
+		expect(committedScrollTops).toEqual([anchoredScrollTop]);
+	});
+
+	it("scrolls a prompt sent from the end of the transcript straight to its anchor", async () => {
+		const { rerenderStage } = renderTimeline({ messages: mockScrollHistory });
+		await flushLayout();
+		const scrollTo = vi.mocked(Element.prototype.scrollTo);
+		scrollTo.mockClear();
+
+		rerenderStage({
+			messages: [...mockScrollHistory, mockSplitTurn[0]],
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		await act(() => Promise.resolve());
+
+		expect(scrollTo.mock.calls).toEqual([
+			[expect.objectContaining({ top: viewport().scrollTop })],
+		]);
 	});
 });
 

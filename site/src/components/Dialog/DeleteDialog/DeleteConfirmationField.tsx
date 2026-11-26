@@ -72,6 +72,7 @@ export const DeleteConfirmationField: React.FC<
 				className="text-content-primary"
 				name="confirmation"
 				autoComplete="off"
+				// oxlint-disable-next-line jsx-a11y/no-autofocus -- The confirmation prompt requires typing before deletion is enabled.
 				autoFocus
 				placeholder={name}
 				aria-invalid={showError}

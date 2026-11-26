@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import {
 	assignableRole,
 	MockAuditorRole,
@@ -8,6 +9,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { CreateUserForm } from "./CreateUserForm";
 
 const renderForm = (
@@ -90,6 +92,24 @@ describe("CreateUserForm", () => {
 				screen.getByRole("combobox", { name: "Login type" }),
 			).toHaveAccessibleDescription("Login type is invalid"),
 		);
+	});
+
+	it("describes the organization trigger with its validation error", async () => {
+		server.use(http.get("/api/v2/organizations", () => HttpResponse.json([])));
+		const user = userEvent.setup();
+		const { onSubmit } = renderForm({ showOrganizations: true });
+
+		await user.type(screen.getByLabelText(/username/i), "someuser");
+		await user.type(screen.getByLabelText(/email/i), "someone@example.com");
+		await user.type(screen.getByTestId("password-input"), "SomePassword!");
+		await user.click(screen.getByRole("button", { name: /save/i }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("combobox", { name: /organization/i }),
+			).toHaveAccessibleDescription("Please select an organization."),
+		);
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("submits the roles checked in the Roles group", async () => {

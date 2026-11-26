@@ -143,7 +143,6 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						label="Name"
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						autoFocus
 						className="w-full"
 					/>
 				</FormFields>

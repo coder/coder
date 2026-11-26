@@ -13,7 +13,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FormFields, FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SelectField } from "#/components/SelectField/SelectField";
 import {
@@ -63,6 +62,7 @@ const validationSchema = Yup.object({
 					.required("Please enter an email address."),
 			otherwise: (schema) => schema.optional(),
 		}),
+	organization: Yup.string().required("Please select an organization."),
 	login_type: Yup.string()
 		.oneOf(Object.keys(loginTypeOptions))
 		.required("Please select a login type."),
@@ -221,6 +221,9 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 		helperText: "Authentication method for this user.",
 	});
 	const loginTypeOptionId = useId();
+	const organizationField = getFieldHelpers("organization", {
+		backendFieldName: "organization_ids",
+	});
 
 	return (
 		<div>
@@ -248,22 +251,31 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 						)}
 						<FormFields>
 							{showOrganizations && (
-								<div className="flex flex-col gap-2">
-									<Label htmlFor="organization">Organization</Label>
-									<OrganizationAutocomplete
-										id="organization"
-										required
-										value={selectedOrg}
-										options={orgOptions}
-										onChange={(newValue) => {
-											setSelectedOrg(newValue);
-											void form.setFieldValue(
-												"organization",
-												newValue?.id ?? "",
-											);
-										}}
-									/>
-								</div>
+								<FormField
+									field={organizationField}
+									label="Organization"
+									required
+									control={(controlProps) => (
+										<OrganizationAutocomplete
+											{...controlProps}
+											required
+											triggerClassName={
+												organizationField.error
+													? "border-border-destructive"
+													: undefined
+											}
+											value={selectedOrg}
+											options={orgOptions}
+											onChange={(newValue) => {
+												setSelectedOrg(newValue);
+												void form.setFieldValue(
+													"organization",
+													newValue?.id ?? "",
+												);
+											}}
+										/>
+									)}
+								/>
 							)}
 
 							<SelectField
@@ -333,7 +345,6 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								onChange={onChangeTrimmed(form)}
 								autoComplete="username"
 								placeholder="your-username"
-								autoFocus
 							/>
 
 							<FormField

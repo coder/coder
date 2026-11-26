@@ -129,6 +129,7 @@ export const IconField: React.FC<IconFieldProps> = ({
 										onPickEmoji(picked);
 										setOpen(false);
 									}}
+									// oxlint-disable-next-line jsx-a11y/no-autofocus -- Opening the emoji picker places focus in its search field.
 									autoFocus
 								/>
 							</Suspense>

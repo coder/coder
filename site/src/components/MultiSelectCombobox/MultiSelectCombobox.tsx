@@ -484,12 +484,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									</div>
 									<button
 										type="button"
-										data-testid="clear-option-button"
+										aria-label={`Remove ${option.label}`}
 										className={cn(
 											"ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden",
 											"focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer",
 											(disabled || option.fixed) && "hidden",
 										)}
+										// cmdk prevents the default of Enter, so Enter never fires a native click.
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
 												handleUnselect(option);
@@ -548,11 +549,12 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					<div className="flex items-center justify-between">
 						<button
 							type="button"
-							data-testid="clear-all-button"
+							aria-label="Clear all"
 							onClick={() => {
 								setSelected(fixedOptions);
 								onChange?.(fixedOptions);
 							}}
+							// cmdk prevents the default of Enter, so Enter never fires a native click.
 							onKeyDown={(e) => {
 								if (e.key === "Enter") {
 									setSelected(fixedOptions);

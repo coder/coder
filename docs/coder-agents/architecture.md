@@ -298,6 +298,20 @@ Template visibility follows the same rule.
 When the agent lists available templates, it sees only the templates the user is authorized to access.
 The agent cannot provision a workspace from a template the user does not have permission to use.
 
+## Chats that share a workspace are not isolated
+
+Chats attached to the same workspace share its files, including the home directory, `/tmp`, git checkouts, and credentials.
+No chat knows the others exist, and Coder can't isolate them without restricting shell commands.
+If two chats write to the same path, one overwrites the other's file, and the agent might still report success.
+
+> [!WARNING]
+> Do not share a workspace between chats that work in repositories with different visibility.
+> Content from a private repository can end up in commits, pushes, or pull requests in another repository, including a public one.
+
+Use a separate workspace for each unrelated chat.
+If chats must share a workspace, give each chat its own git worktree.
+In your personal instructions or [`AGENTS.md`](./getting-started.md#add-workspace-context-with-agentsmd), tell the agent to create temporary files with `mktemp` instead of fixed paths.
+
 ## Scaling and resource impact
 
 The control plane overhead for Coder Agents is minimal.

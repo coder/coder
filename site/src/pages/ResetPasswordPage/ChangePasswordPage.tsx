@@ -107,7 +107,6 @@ const ChangePasswordPage: React.FC<ChangePasswordChangeProps> = ({
 									value={passwordField.value}
 									onChange={passwordField.onChange}
 									onBlur={passwordField.onBlur}
-									autoFocus
 									required
 									type="password"
 									aria-invalid={passwordField.error}

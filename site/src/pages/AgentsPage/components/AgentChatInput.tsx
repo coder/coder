@@ -30,6 +30,7 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import {
 	Popover,
 	PopoverContent,
@@ -43,13 +44,19 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
+import {
+	coarsePointerMediaQuery,
+	isBelowMdViewport,
+	isMobileViewport,
+} from "#/utils/mobile";
+import { getOSKey } from "#/utils/platform";
 import { useChatDropdownPosition } from "../hooks/useChatDropdownPosition";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -57,7 +64,10 @@ import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import { getAgentChatSendShortcut } from "../utils/agentChatSendShortcut";
+import {
+	enterSendsAgentChatMessage,
+	getAgentChatSendShortcut,
+} from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
@@ -269,8 +279,7 @@ const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
 type PlusMenuSubmenu = "workspace" | "mcp";
 
 // Below md, swapping the plus menu's views unmounts the focused control.
-// A callback ref moves focus to its replacement, because biome's
-// lint/a11y/noAutofocus rule rejects autoFocus on native buttons.
+// Move focus to its replacement so keyboard navigation can continue.
 const focusOnMount = (element: HTMLElement | null) => {
 	element?.focus();
 };
@@ -1011,7 +1020,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					isChatPaused={isChatPaused}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					composerQueuedMessageID={composerQueuedMessageID}
-					showEnterToSendHint={enterSendsHead}
+					sendShortcutHint={
+						enterSendsHead ? (
+							<QueuedMessageSendShortcutHint sendShortcut={sendShortcut} />
+						) : undefined
+					}
 					className="mb-2"
 				/>
 			)}
@@ -1518,6 +1531,25 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				/>
 			)}
 		</>
+	);
+};
+
+type QueuedMessageSendShortcutHintProps = {
+	sendShortcut: TypesGen.AgentChatSendShortcut;
+};
+
+const QueuedMessageSendShortcutHint: React.FC<
+	QueuedMessageSendShortcutHintProps
+> = ({ sendShortcut }) => {
+	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
+
+	return (
+		<KbdGroup>
+			{!enterSendsAgentChatMessage(sendShortcut, isCoarsePointer) && (
+				<Kbd>{getOSKey()}</Kbd>
+			)}
+			<Kbd>Enter</Kbd>
+		</KbdGroup>
 	);
 };
 

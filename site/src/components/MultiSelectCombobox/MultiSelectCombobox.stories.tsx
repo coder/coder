@@ -131,7 +131,9 @@ export const ClearFirstSelectedItem: Story = {
 		await userEvent.click(
 			canvas.getByRole("option", { name: "My Organization 2" }),
 		);
-		await userEvent.click(canvas.getAllByTestId("clear-option-button")[0]);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Remove My Organization" }),
+		);
 	},
 };
 
@@ -142,13 +144,7 @@ export const ClearAllComboboxItems: Story = {
 		await userEvent.click(
 			canvas.getByRole("option", { name: "My Organization" }),
 		);
-		await userEvent.click(canvas.getByTestId("clear-all-button"));
-
-		await waitFor(() =>
-			expect(
-				canvas.getByPlaceholderText("Select organization"),
-			).toBeInTheDocument(),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Clear all" }));
 	},
 };
 

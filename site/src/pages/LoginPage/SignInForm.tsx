@@ -71,11 +71,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
 			)}
 
 			{passwordEnabled && (
-				<PasswordSignInForm
-					onSubmit={onSubmit}
-					autoFocus={!oAuthEnabled}
-					isSigningIn={isSigningIn}
-				/>
+				<PasswordSignInForm onSubmit={onSubmit} isSigningIn={isSigningIn} />
 			)}
 
 			{!passwordEnabled && !oAuthEnabled && (

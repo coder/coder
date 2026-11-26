@@ -170,7 +170,8 @@ export const getAttachmentDownload = (
 const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
-		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		// Blur only while shown: a hidden link with a backdrop filter still gets a compositing layer.
+		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs [backdrop-filter:var(--download-backdrop-filter)] transition-[opacity,backdrop-filter] [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</AttachmentDownloadLink>
@@ -184,7 +185,8 @@ const AttachmentPreviewFrame: React.FC<{
 	children: React.ReactNode;
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
-		<div className="group/attachment relative inline-flex flex-col items-start">
+		// Not `group-focus-within`, which slows WebKit focus changes, or `visibility`, which makes Shift+Tab skip the link.
+		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-pointer-events:none] [--download-backdrop-filter:none] hover:[--download-opacity:1] hover:[--download-pointer-events:auto] hover:[--download-backdrop-filter:blur(var(--blur-xs))] focus-within:[--download-opacity:1] focus-within:[--download-pointer-events:auto] focus-within:[--download-backdrop-filter:blur(var(--blur-xs))] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-pointer-events:auto] [@media(hover:none)]:[--download-backdrop-filter:blur(var(--blur-xs))]">
 			{children}
 			<DownloadOverlay
 				href={href}

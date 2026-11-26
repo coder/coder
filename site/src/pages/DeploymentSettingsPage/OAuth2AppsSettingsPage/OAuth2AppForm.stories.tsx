@@ -104,7 +104,9 @@ export const SelfRegisteredScopesNarrowed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getAllByTestId("clear-option-button")[0],
+			within(canvasElement).getByRole("button", {
+				name: "Remove coder:workspaces.access",
+			}),
 		);
 	},
 };
@@ -113,7 +115,9 @@ export const AdminCreatedScopesNarrowed: Story = {
 	args: { app: appWithScopes },
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getAllByTestId("clear-option-button")[0],
+			within(canvasElement).getByRole("button", {
+				name: "Remove coder:workspaces.access",
+			}),
 		);
 	},
 };

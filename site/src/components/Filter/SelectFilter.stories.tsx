@@ -17,6 +17,7 @@ const meta: Meta<typeof SelectFilter> = {
 	component: SelectFilter,
 	args: {
 		options,
+		label: "Select an option",
 		placeholder: "All options",
 	},
 	decorators: [withDesktopViewport],

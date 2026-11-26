@@ -136,12 +136,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 						</button>
 					)}
 				</TooltipTrigger>
-				<TooltipContent
-					className={cn(
-						"ml-3 mb-1 p-4 text-sm text-content-primary",
-						"border pointer-events-none",
-					)}
-				>
+				<TooltipContent className="ml-3 mb-1 p-4 text-sm text-content-primary">
 					{healthErrors.length > 0 ? (
 						<>
 							<HelpPopoverTitle>

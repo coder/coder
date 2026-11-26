@@ -89,7 +89,6 @@ export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 								field={getFieldHelpers("name")}
 								label="Slug"
 								onChange={onChangeTrimmed(form)}
-								autoFocus
 							/>
 							<FormField
 								field={getFieldHelpers("display_name")}

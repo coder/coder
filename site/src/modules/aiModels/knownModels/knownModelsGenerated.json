@@ -210,18 +210,6 @@
 		},
 		{
 			"provider": "azure",
-			"modelIdentifier": "claude-mythos-5",
-			"displayName": "Claude Mythos 5",
-			"aliases": [],
-			"contextLimit": 1000000,
-			"maxOutputTokens": 128000,
-			"inputCost": 10,
-			"outputCost": 50,
-			"cacheReadCost": 1,
-			"cacheWriteCost": 12.5
-		},
-		{
-			"provider": "azure",
 			"modelIdentifier": "claude-opus-5-5",
 			"displayName": "Claude Opus 5.5",
 			"aliases": [],
@@ -298,7 +286,7 @@
 			"displayName": "Claude Sonnet 4.6",
 			"aliases": [],
 			"contextLimit": 1000000,
-			"maxOutputTokens": 64000,
+			"maxOutputTokens": 128000,
 			"inputCost": 3,
 			"outputCost": 15,
 			"cacheReadCost": 0.3,
@@ -452,7 +440,8 @@
 			"contextLimit": 1000000,
 			"maxOutputTokens": 384000,
 			"inputCost": 0.19,
-			"outputCost": 0.51
+			"outputCost": 0.51,
+			"cacheReadCost": 0.028
 		}
 	],
 	"bedrock": [
@@ -463,10 +452,10 @@
 			"aliases": ["global.anthropic.claude-haiku-4-5-20251001-v1:0"],
 			"contextLimit": 200000,
 			"maxOutputTokens": 64000,
-			"inputCost": 1,
-			"outputCost": 5,
-			"cacheReadCost": 0.1,
-			"cacheWriteCost": 1.25
+			"inputCost": 1.1,
+			"outputCost": 5.5,
+			"cacheReadCost": 0.11,
+			"cacheWriteCost": 1.375
 		},
 		{
 			"provider": "bedrock",
@@ -487,10 +476,10 @@
 			"aliases": ["global.anthropic.claude-sonnet-5"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2,
-			"outputCost": 10,
-			"cacheReadCost": 0.2,
-			"cacheWriteCost": 2.5
+			"inputCost": 2.2,
+			"outputCost": 11,
+			"cacheReadCost": 0.22,
+			"cacheWriteCost": 2.75
 		},
 		{
 			"provider": "bedrock",
@@ -499,10 +488,10 @@
 			"aliases": ["global.anthropic.claude-opus-5-5"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 4,
-			"outputCost": 20,
-			"cacheReadCost": 0.2,
-			"cacheWriteCost": 5
+			"inputCost": 4.4,
+			"outputCost": 22,
+			"cacheReadCost": 0.22,
+			"cacheWriteCost": 5.5
 		},
 		{
 			"provider": "bedrock",
@@ -511,10 +500,10 @@
 			"aliases": ["global.anthropic.claude-opus-5"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 5,
-			"outputCost": 25,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"inputCost": 5.5,
+			"outputCost": 27.5,
+			"cacheReadCost": 0.55,
+			"cacheWriteCost": 6.875
 		},
 		{
 			"provider": "bedrock",
@@ -523,10 +512,10 @@
 			"aliases": ["global.anthropic.claude-fable-5-1"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 10,
-			"outputCost": 50,
-			"cacheReadCost": 0.25,
-			"cacheWriteCost": 12.5
+			"inputCost": 11,
+			"outputCost": 55,
+			"cacheReadCost": 0.275,
+			"cacheWriteCost": 13.75
 		},
 		{
 			"provider": "bedrock",
@@ -535,10 +524,10 @@
 			"aliases": ["global.anthropic.claude-fable-5"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 10,
-			"outputCost": 50,
-			"cacheReadCost": 1,
-			"cacheWriteCost": 12.5
+			"inputCost": 11,
+			"outputCost": 55,
+			"cacheReadCost": 1.1,
+			"cacheWriteCost": 13.75
 		},
 		{
 			"provider": "bedrock",
@@ -559,10 +548,10 @@
 			"aliases": ["global.anthropic.claude-opus-4-8"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 5,
-			"outputCost": 25,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"inputCost": 5.5,
+			"outputCost": 27.5,
+			"cacheReadCost": 0.55,
+			"cacheWriteCost": 6.875
 		},
 		{
 			"provider": "bedrock",
@@ -571,10 +560,10 @@
 			"aliases": ["global.anthropic.claude-opus-4-7"],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 128000,
-			"inputCost": 5,
-			"outputCost": 25,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"inputCost": 5.5,
+			"outputCost": 27.5,
+			"cacheReadCost": 0.55,
+			"cacheWriteCost": 6.875
 		}
 	],
 	"google": [
@@ -992,10 +981,10 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 65536,
-			"inputCost": 0.15,
-			"outputCost": 0.6,
-			"cacheReadCost": 0.075
+			"maxOutputTokens": 131072,
+			"inputCost": 0.05,
+			"outputCost": 0.25,
+			"cacheReadCost": 0.05
 		},
 		{
 			"provider": "openrouter",
@@ -1003,7 +992,7 @@
 			"displayName": "Kimi K3",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
+			"maxOutputTokens": 1048576,
 			"inputCost": 0.192,
 			"outputCost": 16,
 			"cacheReadCost": 0.182
@@ -1014,10 +1003,10 @@
 			"displayName": "Kimi K2.7 Code",
 			"aliases": [],
 			"contextLimit": 262144,
-			"maxOutputTokens": 235929,
+			"maxOutputTokens": 262144,
 			"inputCost": 0.6,
-			"outputCost": 3.5,
-			"cacheReadCost": 0.16
+			"outputCost": 3,
+			"cacheReadCost": 0.12
 		},
 		{
 			"provider": "openrouter",
@@ -1025,7 +1014,7 @@
 			"displayName": "GLM-5.3",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
+			"maxOutputTokens": 131072,
 			"inputCost": 0.0699,
 			"outputCost": 1.4,
 			"cacheReadCost": 0.0689
@@ -1036,7 +1025,7 @@
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
+			"maxOutputTokens": 131072,
 			"inputCost": 0.15,
 			"outputCost": 0.5,
 			"cacheReadCost": 0.03
@@ -1047,10 +1036,10 @@
 			"displayName": "GLM-5.2",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
-			"inputCost": 0.007,
-			"outputCost": 6.8,
-			"cacheReadCost": 0.006
+			"maxOutputTokens": 131072,
+			"inputCost": 0.62,
+			"outputCost": 2.42,
+			"cacheReadCost": 0.14
 		},
 		{
 			"provider": "openrouter",
@@ -1178,7 +1167,7 @@
 			"displayName": "Gemini 4 Argon",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
+			"maxOutputTokens": 65536,
 			"inputCost": 2,
 			"outputCost": 10,
 			"cacheReadCost": 0.1,
@@ -1226,10 +1215,10 @@
 			"displayName": "DeepSeek V4.1 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943718,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
-			"cacheReadCost": 0.006
+			"maxOutputTokens": 393216,
+			"inputCost": 0.14,
+			"outputCost": 0.42,
+			"cacheReadCost": 0.0042
 		},
 		{
 			"provider": "openrouter",
@@ -1249,9 +1238,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 393216,
-			"inputCost": 0.9,
-			"outputCost": 1.5,
-			"cacheReadCost": 0.25
+			"inputCost": 0.888188,
+			"outputCost": 1.5082,
+			"cacheReadCost": 0.2
 		},
 		{
 			"provider": "openrouter",
@@ -1281,7 +1270,7 @@
 			"displayName": "Qwen3 Coder Next",
 			"aliases": [],
 			"contextLimit": 262144,
-			"maxOutputTokens": 235929,
+			"maxOutputTokens": 65536,
 			"inputCost": 0.12,
 			"outputCost": 0.8,
 			"cacheReadCost": 0.07
@@ -1292,7 +1281,7 @@
 			"displayName": "Grok 4.7",
 			"aliases": [],
 			"contextLimit": 500000,
-			"maxOutputTokens": 450000,
+			"maxOutputTokens": 500000,
 			"inputCost": 2,
 			"outputCost": 6,
 			"cacheReadCost": 0.5
@@ -1303,7 +1292,7 @@
 			"displayName": "Grok 4.6",
 			"aliases": [],
 			"contextLimit": 500000,
-			"maxOutputTokens": 450000,
+			"maxOutputTokens": 500000,
 			"inputCost": 2,
 			"outputCost": 6,
 			"cacheReadCost": 0.5
@@ -1314,10 +1303,10 @@
 			"displayName": "MiniMax-M3",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 512000,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
-			"cacheReadCost": 0.06
+			"maxOutputTokens": 262144,
+			"inputCost": 0.23,
+			"outputCost": 0.96,
+			"cacheReadCost": 0.05
 		}
 	],
 	"vercel": [
@@ -1490,7 +1479,7 @@
 			"displayName": "GLM 5.3",
 			"aliases": [],
 			"contextLimit": 1000000,
-			"maxOutputTokens": 1000000,
+			"maxOutputTokens": 131072,
 			"inputCost": 1.4,
 			"outputCost": 4.4,
 			"cacheReadCost": 0.14
@@ -1643,7 +1632,7 @@
 			"displayName": "Gemini 4 Argon",
 			"aliases": [],
 			"contextLimit": 1000000,
-			"maxOutputTokens": 1000000,
+			"maxOutputTokens": 65536,
 			"inputCost": 2,
 			"outputCost": 10,
 			"cacheReadCost": 0.1
@@ -1687,7 +1676,7 @@
 			"displayName": "DeepSeek V4.1 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 1048576,
+			"maxOutputTokens": 384000,
 			"inputCost": 0.3,
 			"outputCost": 1.2,
 			"cacheReadCost": 0.006
@@ -1709,7 +1698,7 @@
 			"displayName": "DeepSeek V4 Pro",
 			"aliases": [],
 			"contextLimit": 1048600,
-			"maxOutputTokens": 1048600,
+			"maxOutputTokens": 384000,
 			"inputCost": 1.32,
 			"outputCost": 3.96,
 			"cacheReadCost": 0.132
@@ -1766,7 +1755,7 @@
 			"displayName": "MiniMax M3",
 			"aliases": [],
 			"contextLimit": 1000000,
-			"maxOutputTokens": 1000000,
+			"maxOutputTokens": 512000,
 			"inputCost": 0.3,
 			"outputCost": 1.2,
 			"cacheReadCost": 0.06

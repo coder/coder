@@ -103,7 +103,6 @@ const RequestOTP: React.FC<RequestOTPProps> = ({
 								onChange={onChangeTrimmed(form)}
 								onBlur={emailField.onBlur}
 								type="email"
-								autoFocus
 								aria-invalid={Boolean(emailField.error)}
 							/>
 							{emailField.error && (

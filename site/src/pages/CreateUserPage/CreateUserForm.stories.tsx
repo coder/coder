@@ -130,7 +130,7 @@ export const WithOrganizations: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const organization = canvas.getByRole("combobox", {
-			name: "Organization",
+			name: /^Organization/,
 		});
 		await expect(organization).toHaveAttribute("aria-expanded", "false");
 		await userEvent.click(organization);
@@ -164,6 +164,33 @@ export const LoginTypeError: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.type(canvas.getByLabelText(/username/i), "someuser");
 		await userEvent.type(canvas.getByLabelText(/email/i), "someone@coder.com");
+		await userEvent.type(canvas.getByTestId("password-input"), "SomePassword!");
+		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
+	},
+};
+
+export const OrganizationRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: permittedOrganizationsKey({
+					object: { resource_type: "organization_member" },
+					action: "create",
+				}),
+				data: [MockOrganization, MockOrganization2],
+			},
+		],
+	},
+	args: {
+		showOrganizations: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/username/i), "someuser");
+		await userEvent.type(
+			canvas.getByLabelText(/email/i),
+			"someone@example.com",
+		);
 		await userEvent.type(canvas.getByTestId("password-input"), "SomePassword!");
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 	},

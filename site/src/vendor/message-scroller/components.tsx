@@ -540,6 +540,8 @@ export {
   MessageScrollerViewport,
   useMessageScroller,
   // LOCAL CHANGE
+  useMessageScrollerContext,
+  // LOCAL CHANGE
   useMessageScrollerUserLayoutIntent,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,

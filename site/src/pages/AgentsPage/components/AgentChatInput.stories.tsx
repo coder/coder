@@ -1,7 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -39,6 +47,11 @@ const defaultModelOptions = [
 		displayName: "GPT-4o",
 	},
 ] as const;
+
+const mockModifierEnterPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	agent_chat_send_shortcut: "modifier_enter",
+};
 
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
@@ -155,6 +168,30 @@ export const EditingQueuedMessage: Story = {
 	},
 };
 
+export const QueuedMessageSendShortcut: Story = {
+	args: {
+		queuedMessages: [MockChatQueuedMessage],
+		onPromoteQueuedMessage: fn(),
+	},
+};
+
+export const QueuedMessageModifierSendShortcut: Story = {
+	...QueuedMessageSendShortcut,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: mockModifierEnterPreferenceSettings,
+			},
+		],
+	},
+};
+
+export const QueuedMessageCoarsePointerSendShortcut: Story = {
+	...QueuedMessageSendShortcut,
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+};
+
 export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {
@@ -204,11 +241,6 @@ export const EnterSendsByDefault: Story = {
 			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
-};
-
-const mockModifierEnterPreferenceSettings: TypesGen.UserPreferenceSettings = {
-	...MockUserPreferenceSettings,
-	agent_chat_send_shortcut: "modifier_enter",
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
@@ -353,6 +385,24 @@ export const StreamingSendMenuOpen: Story = {
 			target: await canvas.findByRole("button", { name: "Send during turn" }),
 		});
 		await screen.findByRole("menu");
+	},
+};
+
+export const StreamingSendMenuOpenMac: Story = {
+	...StreamingSendMenuOpen,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: mockModifierEnterPreferenceSettings,
+			},
+		],
+	},
+	beforeEach: () => {
+		const platform = spyOn(navigator, "platform", "get").mockReturnValue(
+			"MacIntel",
+		);
+		return () => platform.mockRestore();
 	},
 };
 

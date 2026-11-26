@@ -136,6 +136,25 @@ const config: ChatModel = parseConfig(data);
 - Keep the PR scoped to one change. Move unrelated cleanups, renames, and
   drive-by refactors to separate PRs.
 
+### Keyboard shortcut hints
+
+- Render visible shortcut hints with `Kbd` from `#/components/Kbd/Kbd`,
+  including single keys such as Enter or Esc. For a key combination, use
+  `KbdGroup` with one `Kbd` per key, not plain text, hand-styled `<kbd>`
+  elements, or an entire combination inside one badge.
+- Use `getOSKey()` from `#/utils/platform` for shortcuts that switch between
+  Command and Control, and `isMac()` when choosing Option or Alt. Read the
+  keyboard handler to confirm the label matches the binding. Literal Control
+  shortcuts, such as terminal or remote-desktop commands, must not be relabeled
+  as Command just because the client is on macOS.
+- Native `title`, `placeholder`, and accessibility attributes remain strings,
+  but any shortcut they advertise must still match the handler and platform.
+  Preserve the machine-readable syntax of `aria-keyshortcuts`; do not replace
+  its key names with display glyphs. Screen-reader-only prose and canvas text
+  do not need keyboard badges.
+- A display cleanup must preserve shortcut behavior, preference-dependent key
+  combinations, and whether hints are hidden on mobile.
+
 ## FE4: Comments must earn their place
 
 - Do not write comments that restate the identifier, the assertion, or the
