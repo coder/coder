@@ -108,7 +108,7 @@ export const Default: Story = {
 	args: { initialQuery: rangeQuery },
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("combobox", { name: "Active" }),
+			within(canvasElement).getByRole("combobox", { name: /^Active:/ }),
 		);
 	},
 };
@@ -138,7 +138,7 @@ export const DatePickerOpenWithRetention: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("combobox", { name: "Active" }),
+			within(canvasElement).getByRole("combobox", { name: /^Active:/ }),
 		);
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
