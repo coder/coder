@@ -120,14 +120,10 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					(organization === undefined || organizations.length > 1) && (
 						<OrganizationAutocomplete
 							value={organization ?? null}
-							ariaLabel={
-								organization
-									? `Organization ${getOrganizationLabel(organization, organizations)}`
-									: "Organization"
-							}
+							label="Organization"
 							options={organizations}
 							required
-							triggerClassName="w-60"
+							triggerClassName="w-80 max-w-full"
 							optionsTabbable
 							onChange={(next) => {
 								if (next) {

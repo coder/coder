@@ -193,7 +193,7 @@ it("requests the selected organization's spend and clears the filter", async () 
 	);
 	await user.click(
 		await screen.findByRole("combobox", {
-			name: `Organization ${MockOrganization.display_name}`,
+			name: `Organization: ${MockOrganization.display_name}`,
 		}),
 	);
 	await user.click(
@@ -215,7 +215,7 @@ it("keeps the filter when the same organization is selected", async () => {
 	const { searchParam } = renderAISpendPage("filter=provider:openai");
 	await user.click(
 		await screen.findByRole("combobox", {
-			name: `Organization ${MockOrganization.display_name}`,
+			name: `Organization: ${MockOrganization.display_name}`,
 		}),
 	);
 	await user.click(await screen.findByRole("option", { selected: true }));

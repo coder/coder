@@ -39,6 +39,11 @@ type OrganizationAutocompleteProps = Pick<
 	labelOrganizations?: readonly Organization[];
 	id?: string;
 	ariaLabel?: string;
+	/**
+	 * Visible label shown before the value. Unless ariaLabel is set, it also
+	 * names the trigger "Label: value", or "Label" when nothing is selected.
+	 */
+	label?: string;
 	required?: boolean;
 	disabled?: boolean;
 	/**
@@ -75,6 +80,7 @@ export const OrganizationAutocomplete: React.FC<
 	labelOrganizations,
 	id,
 	ariaLabel,
+	label,
 	required,
 	disabled,
 	triggerClassName,
@@ -84,6 +90,7 @@ export const OrganizationAutocomplete: React.FC<
 	const [open, setOpen] = useState(false);
 	const contentId = useId();
 	const labelContext = labelOrganizations ?? options;
+	const valueLabel = value ? getOrganizationLabel(value, labelContext) : "";
 
 	// GetOrganizations has no ORDER BY, so the caller needs a stable order.
 	const sortedOptions = options.toSorted((a, b) => {
@@ -101,7 +108,10 @@ export const OrganizationAutocomplete: React.FC<
 					{...ariaProps}
 					id={id}
 					role="combobox"
-					aria-label={ariaLabel}
+					aria-label={
+						ariaLabel ??
+						(label && valueLabel ? `${label}: ${valueLabel}` : label)
+					}
 					variant="outline"
 					disabled={disabled}
 					aria-expanded={open}
@@ -113,6 +123,9 @@ export const OrganizationAutocomplete: React.FC<
 						triggerClassName,
 					)}
 				>
+					{label && (
+						<span className="shrink-0 text-content-secondary">{label}:</span>
+					)}
 					{value ? (
 						<>
 							<Avatar
@@ -120,12 +133,10 @@ export const OrganizationAutocomplete: React.FC<
 								src={value.icon}
 								fallback={value.display_name}
 							/>
-							<span className="truncate">
-								{getOrganizationLabel(value, labelContext)}
-							</span>
+							<span className="truncate">{valueLabel}</span>
 						</>
 					) : (
-						<span className="text-content-secondary">
+						<span className="truncate text-content-secondary">
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
