@@ -80,22 +80,25 @@ describe("Tooltip interactive with text only", () => {
 		vi.restoreAllMocks();
 	});
 
-	const renderTextOnly = () => {
+	const renderTextOnly = ({ withAfter = true } = {}) => {
 		render(
 			<>
 				<Tooltip interactive delayDuration={0}>
 					<TooltipTrigger>Details</TooltipTrigger>
 					<TooltipContent>Long details</TooltipContent>
 				</Tooltip>
-				<button type="button">After</button>
+				{withAfter && <button type="button">After</button>}
 			</>,
 		);
 		return screen.getByRole("button", { name: "Details" });
 	};
 
-	it("moves Tab into content that scrolls, then out past the trigger", async () => {
-		// jsdom has no layout, so report the content as taller than its box.
+	// jsdom has no layout, so report the content as taller than its box.
+	const mockScrollingContent = () =>
 		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(500);
+
+	it("moves Tab into content that scrolls, then out past the trigger", async () => {
+		mockScrollingContent();
 		const user = userEvent.setup();
 		renderTextOnly();
 
@@ -106,13 +109,29 @@ describe("Tooltip interactive with text only", () => {
 		expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
 	});
 
-	it("does not add a Tab stop for content that fits", async () => {
+	it("lets Tab leave content that scrolls when nothing follows the trigger", async () => {
+		mockScrollingContent();
 		const user = userEvent.setup();
-		renderTextOnly();
+		const trigger = renderTextOnly({ withAfter: false });
 
 		await user.tab();
 		await user.tab();
-		expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+		expect(screen.getByRole("dialog")).toHaveFocus();
+		await user.tab();
+		expect(document.body).toHaveFocus();
+		await waitFor(() =>
+			expect(trigger).toHaveAttribute("aria-expanded", "false"),
+		);
+	});
+
+	it("does not add a Tab stop for content that fits", async () => {
+		const user = userEvent.setup();
+		renderTextOnly({ withAfter: false });
+
+		await user.tab();
+		const dialog = await screen.findByRole("dialog");
+		await user.tab();
+		expect(dialog).not.toHaveFocus();
 	});
 });
 

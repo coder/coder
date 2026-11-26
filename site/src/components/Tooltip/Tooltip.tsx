@@ -30,6 +30,11 @@ const HOVER_CLOSE_DELAY = 150;
 const FOCUSABLE_ELEMENTS =
 	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Whether `content` scrolls and has no focusable elements to scroll to. */
+const isScrollRegion = (content: HTMLElement) =>
+	!content.querySelector(FOCUSABLE_ELEMENTS) &&
+	content.scrollHeight > content.clientHeight;
+
 /**
  * Returns an event handler that calls the consumer's handler from props, if
  * any, and then the tooltip's internal handler. Triggers are usually rendered
@@ -233,18 +238,22 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 				if (event.key === "Enter" || event.key === " ") {
 					event.stopPropagation();
 				}
-				// The content is portaled, so move focus into it explicitly. Content
-				// without focusable elements takes focus itself only when it
-				// scrolls, so keyboard users can scroll it with the arrow keys.
 				const content = context.content;
-				const first =
-					context.open && event.key === "Tab" && !event.shiftKey && content
-						? (content.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS) ??
-							(content.scrollHeight > content.clientHeight ? content : null))
-						: null;
-				if (first) {
+				if (
+					!context.open ||
+					event.key !== "Tab" ||
+					event.shiftKey ||
+					!content
+				) {
+					return;
+				}
+				// The content is portaled, so move focus into it explicitly.
+				const focusTarget =
+					content.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS) ??
+					(isScrollRegion(content) ? content : null);
+				if (focusTarget) {
 					event.preventDefault();
-					first.focus();
+					focusTarget.focus();
 				}
 			})}
 		/>
@@ -336,14 +345,39 @@ const InteractiveTooltipContent: React.FC<
 	...props
 }) => {
 	const { setContent, ...context } = useInteractiveContext();
+	const { content } = context;
+	// Content that scrolls and has no focusable elements is a Tab stop of its
+	// own, so keyboard users can scroll it with the arrow keys.
+	const [scrollRegion, setScrollRegion] = useState(false);
+
+	useEffect(() => {
+		if (!content) {
+			return;
+		}
+		const update = () => setScrollRegion(isScrollRegion(content));
+		update();
+		const observer = new ResizeObserver(update);
+		observer.observe(content);
+		for (const child of content.children) {
+			observer.observe(child);
+		}
+		return () => observer.disconnect();
+	}, [content]);
+
+	// Reopening while the content animates out reuses the node that leaving
+	// with Tab made inert.
+	useEffect(() => {
+		if (context.open && content) {
+			content.inert = false;
+		}
+	}, [context.open, content]);
 
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Content
 				aria-labelledby={`${context.id}-trigger`}
 				collisionPadding={8}
-				// Focusable so content that scrolls is a keyboard-reachable region.
-				tabIndex={0}
+				tabIndex={scrollRegion ? 0 : -1}
 				{...props}
 				id={context.id}
 				ref={setContent}
@@ -377,12 +411,21 @@ const InteractiveTooltipContent: React.FC<
 					const edge =
 						focusables[event.shiftKey ? 0 : focusables.length - 1] ??
 						event.currentTarget;
-					if (document.activeElement === edge) {
-						// Leave through the trigger: Shift+Tab stops there, and Tab
-						// continues from the trigger's place in the page.
-						context.trigger?.focus();
-						if (event.shiftKey) event.preventDefault();
+					if (document.activeElement !== edge || !context.trigger) {
+						return;
 					}
+					// Leave through the trigger: Shift+Tab stops there, and Tab
+					// continues from the trigger's place in the page.
+					context.trigger.focus();
+					if (event.shiftKey) {
+						event.preventDefault();
+						return;
+					}
+					// The portaled content comes after the trigger in the DOM and stays
+					// there while it animates out, so make it inert to keep the
+					// default Tab from landing back in it.
+					event.currentTarget.inert = true;
+					context.close();
 				})}
 			/>
 		</PopoverPrimitive.Portal>
