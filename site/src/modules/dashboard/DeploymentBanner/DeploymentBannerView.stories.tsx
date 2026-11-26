@@ -137,9 +137,8 @@ export const WithHealthIssues: Story = {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByTestId("deployment-health-trigger");
 		await userEvent.hover(trigger);
-		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
-		);
+		// The content must accept pointer input so a clipped error list can scroll.
+		await userEvent.hover(await screen.findByRole("tooltip"));
 	},
 };
 
