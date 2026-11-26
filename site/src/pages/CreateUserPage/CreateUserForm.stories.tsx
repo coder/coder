@@ -187,7 +187,10 @@ export const OrganizationRequired: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(canvas.getByLabelText(/username/i), "someuser");
-		await userEvent.type(canvas.getByLabelText(/email/i), "someone@example.com");
+		await userEvent.type(
+			canvas.getByLabelText(/email/i),
+			"someone@example.com",
+		);
 		await userEvent.type(canvas.getByTestId("password-input"), "SomePassword!");
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 	},
