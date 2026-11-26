@@ -1,4 +1,4 @@
-import type { QueryKey, UseQueryOptions } from "react-query";
+import type { QueryClient, QueryKey, UseQueryOptions } from "react-query";
 import type { MetadataState, MetadataValue } from "#/hooks/useEmbeddedMetadata";
 
 export const disabledRefetchOptions = {
@@ -72,3 +72,20 @@ export function cachedQuery<
 		TQueryKey
 	>;
 }
+
+/**
+ * Cancels the requests in flight for these queries and marks the queries
+ * stale. Views that still use one fetch it again, so a request that never
+ * settles cannot keep them waiting.
+ */
+export const replaceRequests = (
+	queryClient: QueryClient,
+	queryKeys: readonly QueryKey[],
+) => {
+	for (const queryKey of queryKeys) {
+		const filters = { queryKey, exact: true };
+		void queryClient
+			.cancelQueries(filters)
+			.then(() => queryClient.invalidateQueries(filters));
+	}
+};

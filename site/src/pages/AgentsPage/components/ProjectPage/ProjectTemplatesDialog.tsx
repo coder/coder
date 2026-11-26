@@ -6,7 +6,15 @@ import {
 	chatProjects,
 	chatProjectsKey,
 } from "#/api/queries/chatProjects";
-import { agentTemplates, agentTemplatesKey } from "#/api/queries/templates";
+import {
+	agentTemplates,
+	agentTemplatesKey,
+	richParameters,
+	richParametersKey,
+	templateVersionPresets,
+	templateVersionPresetsKey,
+} from "#/api/queries/templates";
+import { replaceRequests } from "#/api/queries/util";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -21,6 +29,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	ChatProjectTemplatesFields,
+	type ChatProjectTemplatesValues,
 	chatProjectTemplatesRequest,
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
@@ -77,16 +86,10 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 		}
 		checkIdRef.current += 1;
 		// A hung check would otherwise keep the next open dialog waiting.
-		// Other views share these lists, so fresh requests replace them.
-		for (const queryKey of [
+		replaceRequests(queryClient, [
 			chatProjectsKey,
 			agentTemplatesKey(formProps.project.organization_id),
-		]) {
-			const filters = { queryKey, exact: true };
-			void queryClient
-				.cancelQueries(filters)
-				.then(() => queryClient.invalidateQueries(filters));
-		}
+		]);
 		onOpenChange(false);
 	};
 
@@ -132,6 +135,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	onResetError,
 	onCancel,
 }) => {
+	const queryClient = useQueryClient();
 	const latestTemplates = savedTemplates(project);
 	// The dialog content mounts on open, so the draft starts from the
 	// templates saved at that time and a project refetch does not reset it.
@@ -192,13 +196,78 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		}
 		followLatest();
 	}
+	// The default template's active version decides which saved defaults
+	// are stale, so the list refreshes with the project.
 	const templatesQuery = useQuery({
 		...agentTemplates(project.organization_id),
 		refetchOnWindowFocus: true,
 	});
 	const eligibleTemplates = templatesQuery.data;
+	const defaultTemplate = eligibleTemplates?.find(
+		(template) => template.id === value.defaultTemplateId,
+	);
+	const hasDefaultPreset =
+		value.defaultsKind === "preset" && value.defaultPresetId !== "";
+	const presetsQuery = useQuery({
+		...templateVersionPresets(defaultTemplate?.active_version_id ?? ""),
+		enabled: defaultTemplate !== undefined && hasDefaultPreset,
+	});
+	// A new template version can drop the saved default preset. Chats skip
+	// it, and the server rejects saving it again, so the form clears it.
+	const hasStalePreset =
+		hasDefaultPreset &&
+		presetsQuery.data !== undefined &&
+		!(presetsQuery.data ?? []).some(
+			(preset) => preset.ID === value.defaultPresetId,
+		);
+	// Only classic templates have a fixed parameter list. Dynamic templates
+	// can add parameters during evaluation, which the static list misses.
+	const hasDefaultParameters =
+		value.defaultsKind === "parameters" &&
+		defaultTemplate?.use_classic_parameter_flow === true &&
+		Object.keys(value.defaultParameters).length > 0;
+	const parametersQuery = useQuery({
+		...richParameters(defaultTemplate?.active_version_id ?? ""),
+		enabled: defaultTemplate !== undefined && hasDefaultParameters,
+	});
+	const defaultsVersionId = defaultTemplate?.active_version_id;
+	// A stalled request for the defaults would keep the next open dialog
+	// waiting too, so the form replaces its requests when it unmounts or the
+	// default template's version changes.
+	useEffect(() => {
+		if (defaultsVersionId === undefined) {
+			return;
+		}
+		return () =>
+			replaceRequests(queryClient, [
+				templateVersionPresetsKey(defaultsVersionId),
+				richParametersKey(defaultsVersionId),
+			]);
+	}, [queryClient, defaultsVersionId]);
+	// Values for parameters the active version no longer has are not shown,
+	// and the server rejects them for classic templates, so the form drops
+	// them.
+	const parameterNames = parametersQuery.data?.map(({ name }) => name);
+	const staleParameterNames =
+		hasDefaultParameters && parameterNames
+			? Object.keys(value.defaultParameters).filter(
+					(name) => !parameterNames.includes(name),
+				)
+			: [];
+	const formValue: ChatProjectTemplatesValues = {
+		...value,
+		defaultPresetId: hasStalePreset ? "" : value.defaultPresetId,
+		defaultParameters: Object.fromEntries(
+			Object.entries(value.defaultParameters).filter(
+				([name]) => !staleParameterNames.includes(name),
+			),
+		),
+	};
 	const request =
-		eligibleTemplates && chatProjectTemplatesRequest(value, eligibleTemplates);
+		eligibleTemplates &&
+		chatProjectTemplatesRequest(formValue, eligibleTemplates);
+	// The request has the stale defaults cleared, so an untouched draft with
+	// one has changes: saving clears it.
 	const hasChanges = hasTemplatesChanges(
 		request,
 		initialValue,
@@ -213,22 +282,33 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		(request === undefined || serializedLatest !== serializeTemplates(request));
 	// Without a fresh copy of the project, Save could overwrite a limit or
 	// default template changed elsewhere that the conflict check has not seen.
-	const failedQueries = [projectsQuery, templatesQuery].filter(
-		(query) => query.isError,
-	);
+	// The defaults queries decide which stale values the save clears.
+	// A disabled query keeps its last error, so only the queries this draft
+	// uses count.
+	const failedQueries = [
+		projectsQuery,
+		templatesQuery,
+		...(hasDefaultPreset ? [presetsQuery] : []),
+		...(hasDefaultParameters ? [parametersQuery] : []),
+	].filter((query) => query.isError);
 	const refreshFailed = failedQueries.length > 0;
 	// Retry stays enabled while it runs so it keeps focus.
 	const isRetrying = failedQueries.some((query) => query.isFetching);
+	const isLoadingDefaults =
+		(hasDefaultPreset && presetsQuery.isFetching) ||
+		(hasDefaultParameters && parametersQuery.isFetching);
 	// A stale list can miss a template's new active version. The pre-save
 	// check's own refresh leaves Save enabled, so focus stays on it.
 	const isRefreshing =
 		(projectsQuery.isFetching && !isCheckingBeforeSave) ||
-		templatesQuery.isFetching;
+		templatesQuery.isFetching ||
+		isLoadingDefaults;
 	const isBusy =
 		isSaving ||
 		isCheckingBeforeSave ||
 		projectsQuery.isFetching ||
-		templatesQuery.isFetching;
+		templatesQuery.isFetching ||
+		isLoadingDefaults;
 	const canSave =
 		hasChanges &&
 		!hasConflict &&
@@ -363,7 +443,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				templates={eligibleTemplates}
 				templatesError={templatesQuery.error}
 				saveError={templatesValidationDetail(shownError)}
-				value={value}
+				value={formValue}
 				hiddenTemplateCount={project.hidden_template_count}
 				onChange={(next) => {
 					draftVersionRef.current += 1;
@@ -374,6 +454,24 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				}}
 				disabled={isSaving}
 			/>
+			{(hasStalePreset || staleParameterNames.length > 0) && (
+				<Alert severity="warning">
+					{staleParameterNames.length > 0 && (
+						<AlertDescription className="block">
+							The template's active version no longer has{" "}
+							{staleParameterNames.join(", ")}. Saving removes{" "}
+							{staleParameterNames.length === 1 ? "its value" : "their values"}.
+						</AlertDescription>
+					)}
+					{hasStalePreset && (
+						<AlertDescription className="block">
+							The default preset is no longer in the template's active version,
+							so chats do not use it. Choose another preset, or save to clear
+							it.
+						</AlertDescription>
+					)}
+				</Alert>
+			)}
 			{refreshFailed && (
 				<Alert
 					severity="error"
@@ -400,7 +498,8 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 					}
 				>
 					<AlertDescription>
-						Couldn't load the latest templates, so saving is paused.
+						Couldn't load the latest templates and their defaults, so saving is
+						paused.
 					</AlertDescription>
 				</Alert>
 			)}

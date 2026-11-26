@@ -4,12 +4,14 @@ import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { agentTemplatesKey } from "#/api/queries/templates";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockTemplate,
+	MockTemplateVersionParameter1,
+	MockTemplateVersionParameter2,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -31,12 +33,23 @@ const mockProjectWithDefault: ChatProject = {
 	templates: [MockTemplate],
 	default_template: { template_id: MockTemplate.id },
 };
+const mockProjectWithDefaultPreset: ChatProject = {
+	...mockProjectWithDefault,
+	default_template: { template_id: MockTemplate.id, preset_id: "preset-id" },
+};
 
-const renderDialog = (props: Partial<DialogProps> = {}) => {
-	vi.spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+const renderDialog = (
+	props: Partial<DialogProps> = {},
+	template: Template = MockTemplate,
+) => {
+	vi.spyOn(API, "getTemplates").mockResolvedValue([template]);
 	const getProjects = vi
 		.spyOn(API.experimental, "getChatProjects")
 		.mockResolvedValue([props.project ?? MockChatProject]);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+		MockTemplateVersionParameter1,
+		MockTemplateVersionParameter2,
+	]);
 	vi.spyOn(API, "getTemplateVersionDynamicParameters").mockResolvedValue({
 		id: 0,
 		diagnostics: [],
@@ -58,17 +71,20 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 			<ProjectTemplatesDialog {...allProps} />
 		</QueryClientProvider>,
 	);
+	const rerenderWith = (next: Partial<DialogProps>) =>
+		rerender(
+			<QueryClientProvider client={queryClient}>
+				<ProjectTemplatesDialog {...allProps} {...next} />
+			</QueryClientProvider>,
+		);
 	return {
 		user: userEvent.setup(),
 		props: allProps,
 		rerenderWithProject: (project: ChatProject) => {
 			getProjects.mockResolvedValue([project]);
-			rerender(
-				<QueryClientProvider client={queryClient}>
-					<ProjectTemplatesDialog {...allProps} project={project} />
-				</QueryClientProvider>,
-			);
+			rerenderWith({ project });
 		},
+		rerenderWith,
 		queryClient,
 	};
 };
@@ -131,6 +147,29 @@ describe("ProjectTemplatesDialog", () => {
 		);
 	});
 
+	it("clears a default preset that is no longer in the active version", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: {
+				...mockProjectWithDefault,
+				default_template: {
+					template_id: MockTemplate.id,
+					preset_id: "stale-preset",
+				},
+			},
+		});
+
+		await user.click(await findSave());
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: { default_template: { template_id: MockTemplate.id } },
+			}),
+		);
+	});
+
 	it("clears the default template with a nil template ID", async () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		const { user, props } = renderDialog({ project: mockProjectWithDefault });
@@ -160,6 +199,28 @@ describe("ProjectTemplatesDialog", () => {
 			},
 		},
 	};
+
+	it("drops default values for parameters a classic template no longer has", async () => {
+		const { user, props } = renderDialog(
+			{ project: mockProjectWithRemovedParameter },
+			{ ...MockTemplate, use_classic_parameter_flow: true },
+		);
+
+		await user.click(await findSave());
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: { [MockPreviewParameter1.name]: "kept" },
+					},
+				},
+			}),
+		);
+	});
 
 	it("keeps default values a dynamic template may still evaluate", async () => {
 		const { user, props } = renderDialog({
@@ -449,6 +510,85 @@ describe("ProjectTemplatesDialog", () => {
 		);
 		// The failed load, Retry, and the pre-save check.
 		expect(getTemplates).toHaveBeenCalledTimes(3);
+	});
+
+	it("pauses saving until the default preset list loads", async () => {
+		const getPresets = vi
+			.spyOn(API, "getTemplateVersionPresets")
+			.mockRejectedValueOnce(mockApiError({ message: "Network error." }))
+			.mockResolvedValue([]);
+		const { user, props } = renderDialog({
+			project: mockProjectWithDefaultPreset,
+		});
+		const getProjects = vi.mocked(API.experimental.getChatProjects);
+
+		const retry = await screen.findByRole("button", { name: "Retry" });
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		const refreshesBeforeSave = getProjects.mock.calls.length;
+		await user.click(screen.getByRole("button", { name: /Save/ }));
+		// A save starts by refreshing the project, so none has started.
+		expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave);
+
+		await user.click(retry);
+		await user.click(await findSave());
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					limit_templates: true,
+					default_template: { template_id: MockTemplate.id },
+				},
+			}),
+		);
+		expect(getPresets).toHaveBeenCalledTimes(2);
+	});
+
+	it("requests the default presets again when reopened with a request in flight", async () => {
+		const getPresets = vi
+			.spyOn(API, "getTemplateVersionPresets")
+			.mockReturnValue(new Promise(() => {}));
+		const { rerenderWith } = renderDialog({
+			project: mockProjectWithDefaultPreset,
+		});
+		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(1));
+
+		rerenderWith({ open: false });
+		rerenderWith({ open: true });
+
+		await waitFor(() => expect(getPresets).toHaveBeenCalledTimes(2));
+	});
+
+	it("ignores a failed preset list after switching to parameter values", async () => {
+		vi.spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Network error." }),
+		);
+		const { user, props } = renderDialog({
+			project: mockProjectWithDefaultPreset,
+		});
+
+		await screen.findByRole("button", { name: "Retry" });
+		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
+		const first = await findParameterInput(MockPreviewParameter1.display_name);
+		await user.clear(first);
+		await user.type(first, "x");
+		await user.click(await findSave());
+
+		await waitFor(() =>
+			expect(props.onSave).toHaveBeenCalledWith({
+				attach: [],
+				detach: [],
+				request: {
+					default_template: {
+						template_id: MockTemplate.id,
+						parameters: { [MockPreviewParameter1.name]: "x" },
+					},
+				},
+			}),
+		);
 	});
 
 	it("saves nothing when an eligible template changes during the check", async () => {
