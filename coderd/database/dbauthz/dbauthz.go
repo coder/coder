@@ -852,7 +852,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "ai-provider-metadata-reader"},
 				DisplayName: "AI Provider Metadata Reader",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type: {policy.ActionRead, policy.ActionReadSecret},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

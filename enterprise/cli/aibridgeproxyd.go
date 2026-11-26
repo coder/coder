@@ -118,8 +118,8 @@ func resolveAIGatewayProxyTarget(accessURL *url.URL, target string) (string, err
 // metrics and logs.
 func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFunc {
 	return func(ctx context.Context) (aibridgeproxyd.ProviderReload, error) {
-		//nolint:gocritic // AsAIProviderMetadataReader is the correct subject for routing-only access.
-		rows, err := db.GetAIProviders(dbauthz.AsAIProviderMetadataReader(ctx), database.GetAIProvidersParams{
+		//nolint:gocritic // Routing needs each provider's base URL, which the AI Gateway daemon subject can read.
+		rows, err := db.GetAIProviders(dbauthz.AsAIBridged(ctx), database.GetAIProvidersParams{
 			IncludeDisabled: true,
 		})
 		if err != nil {
