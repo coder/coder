@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -144,6 +144,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { organization, accessibleOrganizations } = useOrganizationModels();
+	const providerFilterId = useId();
 
 	// Keep filter state in the URL so it persists across navigation.
 	const providerFilter =
@@ -305,7 +306,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 						id="models-organization"
 						organization={organization}
 						organizations={accessibleOrganizations}
-						showLabel={false}
+						labelPosition="inline"
 						className="w-full sm:w-60"
 						triggerClassName="w-full sm:w-60"
 						optionsTabbable
@@ -322,13 +323,21 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				)}
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
+						// The name is the label, then the value: "Provider: <value>".
+						aria-labelledby={`${providerFilterId}-label ${providerFilterId}-value`}
 						className="w-full shadow-none sm:w-60"
-						aria-label="Filter by provider"
 					>
-						<SelectValue placeholder="All providers" />
+						<span className="flex min-w-0 items-center gap-1">
+							<span id={`${providerFilterId}-label`} className="shrink-0">
+								Provider:
+							</span>
+							<span id={`${providerFilterId}-value`}>
+								<SelectValue placeholder="All" />
+							</span>
+						</span>
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value={ALL_PROVIDERS_VALUE}>All providers</SelectItem>
+						<SelectItem value={ALL_PROVIDERS_VALUE}>All</SelectItem>
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">

@@ -78,9 +78,7 @@ describe("ModelsPageView", () => {
 		const user = userEvent.setup();
 		const { router } = renderModelsPageView();
 
-		await user.click(
-			screen.getByRole("combobox", { name: /filter by provider/i }),
-		);
+		await user.click(screen.getByRole("combobox", { name: /^Provider:/ }));
 		await user.click(await screen.findByRole("option", { name: "Anthropic" }));
 
 		await waitFor(() =>

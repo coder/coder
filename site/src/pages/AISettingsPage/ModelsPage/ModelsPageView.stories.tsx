@@ -4,6 +4,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
+	MockOrganization2,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
 import ModelsPageView from "./ModelsPageView";
@@ -82,7 +83,7 @@ export const Default: Story = {
 			canvas.getByRole("searchbox", { name: /search models/i }),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("combobox", { name: /filter by provider/i }),
+			canvas.getByRole("combobox", { name: /^Provider:/ }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("GPT-5")).toBeInTheDocument();
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
@@ -141,11 +142,38 @@ export const SearchByName: Story = {
 	},
 };
 
+export const WithOrganizationFilter: Story = {
+	decorators: [
+		(Story) => (
+			<OrganizationModelsContext.Provider
+				value={{
+					organization: MockDefaultOrganization,
+					accessibleOrganizations: [MockDefaultOrganization, MockOrganization2],
+					permissions: MockOrganizationPermissions,
+					requestedOrganizationDenied: false,
+				}}
+			>
+				<Story />
+			</OrganizationModelsContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const organizationFilter = canvas.getByRole("combobox", {
+			name: `Organization ${MockDefaultOrganization.display_name}`,
+		});
+		await expect(organizationFilter).toHaveTextContent(/^Organization:/);
+		await expect(
+			canvas.getByRole("combobox", { name: "Provider: All" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const FilterByProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const providerFilter = canvas.getByRole("combobox", {
-			name: /filter by provider/i,
+			name: /^Provider:/,
 		});
 		await userEvent.click(providerFilter);
 		const listbox = await within(document.body).findByRole("listbox");

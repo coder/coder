@@ -1,4 +1,5 @@
 import { XIcon } from "lucide-react";
+import { useId } from "react";
 import type {
 	Organization,
 	ProvisionerJob,
@@ -84,6 +85,8 @@ type OrganizationProvisionerJobsPageViewProps = {
 const OrganizationProvisionerJobsPageView: React.FC<
 	OrganizationProvisionerJobsPageViewProps
 > = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
+	const statusFilterId = useId();
+
 	if (!organization) {
 		return (
 			<>
@@ -150,8 +153,20 @@ const OrganizationProvisionerJobsPageView: React.FC<
 							});
 						}}
 					>
-						<SelectTrigger className="w-45" data-testid="status-filter">
-							<SelectValue placeholder="All statuses" />
+						<SelectTrigger
+							// The name is the label, then the value: "Status: <value>".
+							aria-labelledby={`${statusFilterId}-label ${statusFilterId}-value`}
+							className="w-45"
+							data-testid="status-filter"
+						>
+							<span className="flex min-w-0 items-center gap-1">
+								<span id={`${statusFilterId}-label`} className="shrink-0">
+									Status:
+								</span>
+								<span id={`${statusFilterId}-value`}>
+									<SelectValue placeholder="All" />
+								</span>
+							</span>
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>

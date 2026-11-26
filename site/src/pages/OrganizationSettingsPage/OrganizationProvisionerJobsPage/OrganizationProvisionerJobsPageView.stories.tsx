@@ -110,12 +110,15 @@ export const OnFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const statusFilter = canvas.getByTestId("status-filter");
+		const statusFilter = canvas.getByRole("combobox", { name: /^Status:/ });
 		await userEvent.click(statusFilter);
 
 		const body = within(canvasElement.ownerDocument.body);
 		const option = await body.findByRole("option", { name: "succeeded" });
 		await userEvent.click(option);
+		await waitFor(() =>
+			expect(statusFilter).toHaveAccessibleName("Status: succeeded"),
+		);
 	},
 };
 
