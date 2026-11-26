@@ -151,6 +151,7 @@ export function FilterCombobox({
 	const { setInputRef } = actions;
 
 	const errorId = useId();
+	const mainListId = useId();
 	const invalid = errorMessage !== undefined;
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
@@ -366,6 +367,13 @@ export function FilterCombobox({
 		valueSuggestions.length > 0 ||
 		inlineSections.length > 0;
 	const mainPanelEmpty = !mainPanelHasRows && !typeaheadError;
+	// On desktop the main menu stays beside an open category's options, whose
+	// list then takes cmdk's list id and highlight.
+	const mainListBesideCategory =
+		!isMobile &&
+		!mainPanelEmpty &&
+		activeCategoryKey !== null &&
+		!activeOptionsError;
 
 	const mainPanelProps = {
 		hasRows: mainPanelHasRows,
@@ -586,6 +594,7 @@ export function FilterCombobox({
 							// A click on the already focused input reopens a dismissed menu.
 							onClick={actions.onInputFocus}
 							onKeyDown={actions.onInputKeyDown}
+							alsoControlsId={mainListBesideCategory ? mainListId : undefined}
 						/>
 						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
 							<Badge
@@ -664,7 +673,7 @@ export function FilterCombobox({
 											activeCategoryKey !== null ||
 											categoriesNarrowedByText
 										}
-										navigable={activeCategoryKey === null}
+										listId={mainListBesideCategory ? mainListId : undefined}
 										{...mainPanelProps}
 									/>
 								)}
@@ -831,10 +840,10 @@ type MainPanelProps = Readonly<{
 	typeaheadError: boolean;
 	embedded?: boolean;
 	/**
-	 * Whether the rows form cmdk's list, which the input controls and list
-	 * navigation keys move through. Only one cmdk list may be mounted.
+	 * Replaces cmdk's list id while a category list beside this one takes it,
+	 * along with the highlight.
 	 */
-	navigable?: boolean;
+	listId?: string;
 	/** Clicking a category enters it instead of opening its pointer flyout. */
 	drillIn: boolean;
 	registerCategoryRow: (
@@ -861,7 +870,7 @@ function MainPanel({
 	inlineSections,
 	typeaheadError,
 	embedded = false,
-	navigable = true,
+	listId,
 	drillIn,
 	registerCategoryRow,
 	onSelectCategory,
@@ -992,38 +1001,46 @@ function MainPanel({
 		</>
 	);
 
-	// The panel scrolls instead of the list, so swapping the list keeps the
-	// scroll position.
+	const panelClassName = cn(
+		menuMaxHeightClassName,
+		"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border bg-surface-primary shadow-md sm:w-64",
+		embedded && "w-full rounded-none border-0 bg-transparent shadow-none",
+	);
+
+	// The list is the panel unless the error must sit below it. The wrapper
+	// stays mounted either way so the rows never remount.
 	return (
 		<div
-			data-slot="filter-main-panel"
-			className={cn(
-				menuMaxHeightClassName,
-				"min-h-0 w-(--radix-popover-trigger-width) max-w-full shrink-0 scroll-py-1 overflow-y-auto overscroll-contain rounded-md border bg-surface-primary p-2 shadow-md sm:w-64",
-				embedded &&
-					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
-			)}
+			className={
+				typeaheadError
+					? cn(panelClassName, "flex flex-col overflow-hidden")
+					: "contents"
+			}
 		>
-			{navigable ? (
-				<FilterComboboxList
-					// Hidden instead of unmounted: cmdk moves the highlight off an
-					// unmounting row only while that row's list is mounted.
-					hidden={!hasRows}
-					className="overflow-visible p-0"
-					aria-busy={categoryPlaceholderCount > 0 || undefined}
-				>
-					{rows}
-				</FilterComboboxList>
-			) : (
-				// cmdk gives every list the same id and navigates only the last
-				// one mounted, so the category list beside this one owns it.
-				<div role="listbox" aria-label="Suggestions" aria-multiselectable>
-					{rows}
-				</div>
-			)}
+			<FilterComboboxList
+				data-slot="filter-main-panel"
+				// Hidden instead of unmounted: cmdk moves the highlight off an
+				// unmounting row only while that row's list is mounted.
+				hidden={!hasRows}
+				className={cn(
+					!typeaheadError && panelClassName,
+					"p-2",
+					embedded && "p-0",
+					typeaheadError && "pb-0",
+				)}
+				aria-busy={categoryPlaceholderCount > 0 || undefined}
+				// cmdk gives every list the same id and reports the highlighted row
+				// on each, so a list beside the one holding the highlight replaces
+				// both.
+				{...(listId && { id: listId, "aria-activedescendant": undefined })}
+			>
+				{rows}
+			</FilterComboboxList>
 			{/* Below the list, which may only hold options and groups. */}
 			{typeaheadError && (
-				<LoadError message={SUGGESTIONS_ERROR_MESSAGE} onRetry={onRetry} />
+				<div className={cn("p-2", hasRows && "pt-0", embedded && "p-0")}>
+					<LoadError message={SUGGESTIONS_ERROR_MESSAGE} onRetry={onRetry} />
+				</div>
 			)}
 		</div>
 	);
@@ -1457,6 +1474,7 @@ function CategoryOptionsList({
 			{/* The options scroll in their own area, so the scope row stays below
 			    them inside the list cmdk navigates. */}
 			<FilterComboboxList
+				label={category?.label}
 				className={cn(
 					"flex min-h-0 flex-1 flex-col overflow-visible p-0",
 					"*:flex *:min-h-0 *:flex-1 *:flex-col",

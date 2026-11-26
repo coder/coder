@@ -198,6 +198,15 @@ describe("FilterCombobox", () => {
 			"true",
 		);
 
+	// The input's aria-controls names every listbox, each by a unique id.
+	const expectControlsEveryList = (input: HTMLElement) =>
+		expect(input.getAttribute("aria-controls")?.split(" ").sort()).toEqual(
+			screen
+				.getAllByRole("listbox")
+				.map((list) => list.id)
+				.sort(),
+		);
+
 	const openOwnerFlyoutOnManualClock = async ({
 		user,
 		filtersButton,
@@ -665,7 +674,10 @@ describe("FilterCombobox", () => {
 	});
 
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
-		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
+		const { user, onChange, input, filtersButton } = setup([
+			emptyTemplateCategory,
+			ownerCategory,
+		]);
 
 		await user.tab();
 		expect(filtersButton).toHaveFocus();
@@ -674,22 +686,20 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{Enter}");
 		expect(input).toHaveFocus();
 		await user.keyboard("{ArrowDown}");
+		expectHighlighted("Owner");
 		expect(input).toHaveAttribute("aria-expanded", "true");
 		expect(input).toHaveAttribute(
 			"aria-controls",
 			screen.getByRole("listbox").id,
 		);
 		await user.keyboard("{ArrowRight}");
-		await screen.findByRole("option", { name: "alice" });
+		const alice = await screen.findByRole("option", { name: "alice" });
+		// The category list shows beside the main menu, and none of its rows is
+		// highlighted yet.
+		expect(input).not.toHaveAttribute("aria-activedescendant");
+		expectControlsEveryList(input);
 		await user.keyboard("{ArrowDown}");
-		// The category list shows beside the main menu. The input controls the
-		// one listbox that holds its highlighted row.
-		const alice = screen.getByRole("option", { name: "alice" });
 		expect(input).toHaveAttribute("aria-activedescendant", alice.id);
-		const lists = screen.getAllByRole("listbox");
-		expect(
-			lists.filter((list) => list.id === input.getAttribute("aria-controls")),
-		).toEqual(lists.filter((list) => list.contains(alice)));
 		await user.keyboard("{Enter}");
 
 		await waitFor(() =>
@@ -828,7 +838,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("keeps the category row highlighted after leaving it with ArrowLeft", async () => {
-		const { user, onChange, filtersButton } = setup([
+		const { user, onChange, input, filtersButton } = setup([
 			ownerCategory,
 			statusCategory,
 		]);
@@ -837,7 +847,11 @@ describe("FilterCombobox", () => {
 		await screen.findByRole("option", { name: "Running" });
 		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
-		await user.keyboard("{ArrowDown}{ArrowLeft}{ArrowRight}");
+		await user.keyboard("{ArrowDown}{ArrowLeft}");
+		const owner = screen.getByRole("option", { name: "Owner" });
+		expect(input).toHaveAttribute("aria-activedescendant", owner.id);
+		expectControlsEveryList(input);
+		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.keyboard("{ArrowDown}{Enter}");
 
@@ -1389,6 +1403,29 @@ describe("FilterCombobox", () => {
 				SUGGESTIONS_ERROR_MESSAGE,
 			),
 		);
+	});
+
+	it("keeps the main menu under the input while a category's options fail to load", async () => {
+		const { user, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async () => {
+					throw new Error("failed");
+				},
+			},
+			emptyTemplateCategory,
+		]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Home}{ArrowRight}");
+		await screen.findByRole("button", { name: "Retry" });
+		const owner = screen.getByRole("option", { name: "Owner" });
+		expect(input).toHaveAttribute("aria-activedescendant", owner.id);
+		expectControlsEveryList(input);
+		await user.keyboard("{ArrowDown}");
+
+		expectHighlighted("Template");
 	});
 
 	it("retries failed suggestions from a Retry outside the listbox", async () => {

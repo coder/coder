@@ -533,11 +533,14 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 
 type FilterComboboxChipsInputProps = React.ComponentProps<
 	typeof CommandPrimitive.Input
->;
+> & {
+	/** A list the input controls besides the one cmdk names. */
+	alsoControlsId?: string;
+};
 
 export const FilterComboboxChipsInput: React.FC<
 	FilterComboboxChipsInputProps
-> = ({ className, ref, ...props }) => {
+> = ({ className, ref, alsoControlsId, ...props }) => {
 	const { inputValue, onInputValueChange } = useFilterComboboxState();
 
 	return (
@@ -560,12 +563,14 @@ export const FilterComboboxChipsInput: React.FC<
 			)}
 			{...props}
 		>
-			<ChipsInputElement />
+			<ChipsInputElement alsoControlsId={alsoControlsId} />
 		</CommandPrimitive.Input>
 	);
 };
 
-type ChipsInputElementProps = React.ComponentProps<"input">;
+type ChipsInputElementProps = React.ComponentProps<"input"> & {
+	alsoControlsId?: string;
+};
 
 /**
  * Renders cmdk's input from the props `asChild` passes in. cmdk sets its ARIA
@@ -575,6 +580,7 @@ type ChipsInputElementProps = React.ComponentProps<"input">;
 const ChipsInputElement: React.FC<ChipsInputElementProps> = ({
 	"aria-controls": ariaControls,
 	"aria-activedescendant": ariaActiveDescendant,
+	alsoControlsId,
 	...props
 }) => {
 	// With filtering off, cmdk counts every mounted item, and items mount only
@@ -586,7 +592,11 @@ const ChipsInputElement: React.FC<ChipsInputElementProps> = ({
 			{...props}
 			role="combobox"
 			aria-expanded={expanded}
-			aria-controls={expanded ? ariaControls : undefined}
+			aria-controls={
+				expanded
+					? [ariaControls, alsoControlsId].filter(Boolean).join(" ")
+					: undefined
+			}
 			aria-activedescendant={expanded ? ariaActiveDescendant : undefined}
 		/>
 	);

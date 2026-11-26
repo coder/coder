@@ -1189,6 +1189,40 @@ export const InlineOptionsErrorWithTypedText: Story = {
 	},
 };
 
+// A failed suggestion lookup with no other rows to list.
+export const TypeaheadError: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					optionsKey: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: async (query) => {
+						if (query) {
+							throw new Error("boom");
+						}
+						return [{ label: "alice", value: "alice" }];
+					},
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "alice");
+		await within(canvasElement.ownerDocument.body).findByText(
+			/Couldn.t load suggestions/,
+			{ ignore: '[role="status"], script, style' },
+		);
+	},
+};
+
 // A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {
