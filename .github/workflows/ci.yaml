@@ -82,6 +82,7 @@ jobs:
               - "docs/manifest/**"
               - "docs/reference/api/**"
               - "docs/reference/api-key-scopes.md"
+              - "docs/reference/workspace-related-data.md"
               - "docs/reference/cli/**"
               - "docs/admin/integrations/prometheus.md"
               - "docs/admin/security/audit-logs.md"

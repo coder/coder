@@ -19,6 +19,10 @@ children:
     description: Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.
     path: ./reference/api-key-scopes.md
     icon_path: ./images/icons/api.svg
+  - title: Workspace related data
+    description: Reference for the `include_related` query parameter, which selects the related data that workspace API responses return.
+    path: ./reference/workspace-related-data.md
+    icon_path: ./images/icons/api.svg
   - include: reference/agent-api.yml
   - title: FAQs
     description: Answers to frequently asked questions about Coder OSS and licensed deployments.
