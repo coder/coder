@@ -118,7 +118,11 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 							className="flex p-3 my-0 bg-content-destructive"
 							showExternalIcon={false}
 						>
-							<RouterLink to="/health" data-testid="deployment-health-trigger">
+							<RouterLink
+								to="/health"
+								aria-label="Deployment health issues"
+								data-testid="deployment-health-trigger"
+							>
 								<CircleAlertIcon className="text-content-primary" />
 							</RouterLink>
 						</Link>

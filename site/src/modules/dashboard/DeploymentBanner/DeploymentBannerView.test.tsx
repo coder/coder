@@ -1,7 +1,10 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AppFamilyName, SessionCountApp } from "#/api/typesGenerated";
-import { MockDeploymentStats } from "#/testHelpers/entities";
+import {
+	DeploymentHealthUnhealthy,
+	MockDeploymentStats,
+} from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { DeploymentBannerView, groupSessionApps } from "./DeploymentBannerView";
 
@@ -90,5 +93,20 @@ describe("DeploymentBannerView", () => {
 				/^Activity in the last ~\d+ minutes$/,
 			),
 		);
+	});
+
+	it("names the health link shown for an unhealthy deployment", async () => {
+		const user = userEvent.setup();
+		render(
+			<DeploymentBannerView
+				stats={MockDeploymentStats}
+				health={DeploymentHealthUnhealthy}
+			/>,
+		);
+
+		await user.tab();
+		expect(
+			screen.getByRole("link", { name: "Deployment health issues" }),
+		).toHaveFocus();
 	});
 });
