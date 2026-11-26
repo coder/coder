@@ -6,11 +6,12 @@ type WorkspaceBuildCancelDialogProps = {
 	onClose: () => void;
 	onConfirm: () => void;
 	workspace: Workspace;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const WorkspaceBuildCancelDialog: React.FC<
 	WorkspaceBuildCancelDialogProps
-> = ({ open, onClose, onConfirm, workspace }) => {
+> = ({ open, onClose, onConfirm, workspace, onCloseAutoFocus }) => {
 	const action =
 		workspace.latest_build.status === "pending"
 			? "remove the current build from the build queue"
@@ -24,6 +25,7 @@ export const WorkspaceBuildCancelDialog: React.FC<
 			confirmText="Confirm"
 			cancelText="Cancel"
 			onClose={onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onConfirm={onConfirm}
 			type="delete"
 		/>

@@ -591,7 +591,10 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.canCancel && (
 					<PrimaryAction
-						onClick={() => setIsCancelConfirmOpen(true)}
+						onClick={(event) => {
+							setConfirmReturnFocusElement(event.currentTarget);
+							setIsCancelConfirmOpen(true);
+						}}
 						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
@@ -666,6 +669,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 			<WorkspaceBuildCancelDialog
 				open={isCancelConfirmOpen}
 				onClose={() => setIsCancelConfirmOpen(false)}
+				onCloseAutoFocus={returnFocusFromConfirm}
 				onConfirm={() => {
 					cancelBuildMutation.mutate();
 					setIsCancelConfirmOpen(false);
@@ -679,7 +683,7 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 type PrimaryActionProps = React.PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
-	onClick: () => void;
+	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }>;
 
 const PrimaryAction: React.FC<PrimaryActionProps> = ({

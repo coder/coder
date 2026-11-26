@@ -147,17 +147,18 @@ type UpdateBuildParametersDialogProps = {
 	workspace: Workspace;
 	error: ParameterValidationError;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const UpdateBuildParametersDialog: React.FC<
 	UpdateBuildParametersDialogProps
-> = ({ workspace, error, onClose }) => {
+> = ({ workspace, error, onClose, onCloseAutoFocus }) => {
 	const templateVersionId = error.versionId;
 	const validations = error.validations;
 
 	return (
 		<Dialog open onOpenChange={() => onClose()}>
-			<DialogContent>
+			<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
 					<DialogTitle>Update workspace parameters</DialogTitle>
 					<DialogDescription>
