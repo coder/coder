@@ -185,7 +185,7 @@ func (fr *forwardedRequest) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	// Later logs belong to the recorded interception, including those of the
 	// extractor, the recorder, and the upstream transport.
-	ctx = slog.With(ctx, slog.F("interception_id", fr.startRecord.ID))
+	ctx = aibcontext.WithInterceptionID(ctx, fr.startRecord.ID)
 	fr.outbound = fr.outbound.WithContext(ctx)
 
 	route := strings.TrimPrefix(r.URL.Path, "/"+fr.handler.provider.Name())

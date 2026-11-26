@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"slices"
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
@@ -69,7 +70,17 @@ func (r *LogRecorder) logStructured(ctx context.Context, recordType string, fiel
 	if !r.structured {
 		return
 	}
-	r.logger.Info(ctx, InterceptionLogMarker, append([]slog.Field{slog.F("record_type", recordType)}, fields...)...)
+	fields = append([]slog.Field{slog.F("record_type", recordType)}, fields...)
+	r.logger.Info(ctx, InterceptionLogMarker, dedupeInterceptionID(ctx, fields)...)
+}
+
+// dedupeInterceptionID drops the interception_id field when ctx already
+// logs it, so each line carries it once.
+func dedupeInterceptionID(ctx context.Context, fields []slog.Field) []slog.Field {
+	if !aibcontext.HasInterceptionID(ctx) {
+		return fields
+	}
+	return slices.DeleteFunc(fields, func(f slog.Field) bool { return f.Name == "interception_id" })
 }
 
 // metadataWithUserAgent copies metadata rather than writing through: the
@@ -331,7 +342,7 @@ type logEntry struct {
 // build observability and alerting based on it.
 func (r *LogRecorder) logResult(ctx context.Context, logs logEntry, payload any, err error) error {
 	if err == nil {
-		r.logger.Debug(ctx, logs.success, logs.fields...)
+		r.logger.Debug(ctx, logs.success, dedupeInterceptionID(ctx, logs.fields)...)
 		return nil
 	}
 

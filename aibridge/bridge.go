@@ -229,10 +229,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		ctx = tracing.WithInterceptionAttributesInContext(ctx, traceAttrs)
 		// Attach the interception ID and credential kind to the context so every
 		// log line emitted with it can be correlated to the interception.
-		ctx = slog.With(ctx,
-			slog.F("interception_id", interceptor.ID()),
-			slog.F("credential_kind", string(cred.Kind())),
-		)
+		ctx = aibcontext.WithInterceptionID(ctx, interceptor.ID().String())
+		ctx = slog.With(ctx, slog.F("credential_kind", string(cred.Kind())))
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
