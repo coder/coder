@@ -42,18 +42,36 @@ describe("LoginPage", () => {
 		locationHrefSpy.mockReset();
 	});
 
-	it("shows an error message if SignIn fails", async () => {
-		// Given
+	it("allows retrying a failed sign-in without client navigation", async () => {
 		const apiErrorMessage = "Something wrong happened";
+		let loggedIn = false;
+		const loginRequest = vi
+			.fn()
+			.mockImplementationOnce(() =>
+				HttpResponse.json({ message: apiErrorMessage }, { status: 500 }),
+			)
+			.mockImplementation(() => {
+				loggedIn = true;
+				return HttpResponse.json({ session_token: "test-session-token" });
+			});
 		server.use(
-			// Make login fail
-			http.post("/api/v2/users/login", async () => {
-				return HttpResponse.json({ message: apiErrorMessage }, { status: 500 });
-			}),
+			http.post("/api/v2/users/login", loginRequest),
+			http.get("/api/v2/users/me", () =>
+				loggedIn
+					? HttpResponse.json(MockUserOwner)
+					: HttpResponse.json({ message: "no user here" }, { status: 401 }),
+			),
 		);
 
-		// When
-		render(<LoginPage />);
+		const { router } = renderWithRouter(
+			createMemoryRouter(
+				[
+					{ path: "/login", element: <LoginPage /> },
+					{ path: "/", element: null },
+				],
+				{ initialEntries: ["/login"] },
+			),
+		);
 		await waitForLoaderToBeRemoved();
 		// The live region exists before the error so screen readers announce it.
 		const [errorRegion] = screen.getAllByRole("alert");
@@ -62,12 +80,17 @@ describe("LoginPage", () => {
 		const password = screen.getByLabelText(/Password/);
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
-		// Click sign-in
-		const signInButton = await screen.findByText("Sign in");
-		fireEvent.click(signInButton);
-
-		// Then
+		const signInButton = screen.getByRole("button", { name: "Sign in" });
+		await userEvent.click(signInButton);
 		await waitFor(() => expect(errorRegion).toHaveTextContent(apiErrorMessage));
+		expect(locationHrefSpy).not.toHaveBeenCalled();
+
+		await userEvent.click(signInButton);
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledExactlyOnceWith("/");
+		});
+		expect(loginRequest).toHaveBeenCalledTimes(2);
+		expect(router.state.location.pathname).toBe("/login");
 	});
 
 	it("associates validation errors with their inputs", async () => {
@@ -168,54 +191,54 @@ describe("LoginPage", () => {
 		await screen.findByText("Setup");
 	});
 
-	it("navigates to the home page after successful password login", async () => {
-		// Given - user is NOT signed in
-		let loggedIn = false;
-		server.use(
-			http.get("/api/v2/users/me", () => {
-				if (!loggedIn) {
-					return HttpResponse.json(
-						{ message: "no user here" },
-						{ status: 401 },
-					);
-				}
-				return HttpResponse.json(MockUserOwner);
-			}),
-			http.post("/api/v2/users/login", () => {
-				loggedIn = true;
-				return HttpResponse.json({
-					session_token: "test-session-token",
-				});
-			}),
-		);
+	it.each(["/", "/workspaces?filter=mine"])(
+		"hard redirects to %s after password login without client navigation",
+		async (redirectPath) => {
+			let loggedIn = false;
+			server.use(
+				http.get("/api/v2/users/me", () => {
+					if (!loggedIn) {
+						return HttpResponse.json(
+							{ message: "no user here" },
+							{ status: 401 },
+						);
+					}
+					return HttpResponse.json(MockUserOwner);
+				}),
+				http.post("/api/v2/users/login", () => {
+					loggedIn = true;
+					return HttpResponse.json({
+						session_token: "test-session-token",
+					});
+				}),
+			);
 
-		// When
-		renderWithRouter(
-			createMemoryRouter(
-				[
+			const { router } = renderWithRouter(
+				createMemoryRouter(
+					[
+						{ path: "/login", element: <LoginPage /> },
+						{ path: "/", element: null },
+						{ path: "/workspaces", element: null },
+					],
 					{
-						path: "/login",
-						element: <LoginPage />,
+						initialEntries: [
+							`/login?redirect=${encodeURIComponent(redirectPath)}`,
+						],
 					},
-					{
-						path: "/",
-						element: <h1>Home</h1>,
-					},
-				],
-				{ initialEntries: ["/login"] },
-			),
-		);
+				),
+			);
 
-		await waitForLoaderToBeRemoved();
+			await waitForLoaderToBeRemoved();
+			await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
+			await userEvent.type(screen.getByLabelText(/Password/), "password");
+			await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
-		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign in"));
-
-		// Then - the component uses React Router navigation for standard
-		// redirects so the new session cookie is picked up by the next route.
-		await screen.findByText("Home");
-	});
+			await waitFor(() => {
+				expect(locationHrefSpy).toHaveBeenCalledExactlyOnceWith(redirectPath);
+			});
+			expect(router.state.location.pathname).toBe("/login");
+		},
+	);
 
 	it("does not follow a protocol-relative redirect after password login (CDM-02-001)", async () => {
 		// Given - user is NOT signed in
@@ -238,9 +261,8 @@ describe("LoginPage", () => {
 			}),
 		);
 
-		// When - the redirect param decodes to https://cure53.de//cure53.de,
-		// whose pathname is the protocol-relative url //cure53.de.
-		renderWithRouter(
+		// The decoded pathname is a protocol-relative URL, not a local path.
+		const { router } = renderWithRouter(
 			createMemoryRouter(
 				[
 					{
@@ -264,51 +286,60 @@ describe("LoginPage", () => {
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
 		fireEvent.click(await screen.findByText("Sign in"));
 
-		// Then - the malicious redirect must be replaced with the fallback
-		// path on both navigation paths (hard reload and SPA navigation).
+		// The untrusted redirect must not escape the current origin.
 		await waitFor(() => {
 			expect(locationHrefSpy).toHaveBeenCalledWith("/");
 		});
 		expect(locationHrefSpy).not.toHaveBeenCalledWith(
 			expect.stringContaining("//cure53.de"),
 		);
-		await screen.findByText("Home");
+		expect(router.state.location.pathname).toBe("/login");
 	});
 
-	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
-		// Given - user is signed in
-		server.use(
-			http.get("/api/v2/users/me", () => {
-				return HttpResponse.json(MockUserOwner);
-			}),
-		);
+	it.each([
+		{ redirectPath: "/workspaces?filter=mine", hardReload: false },
+		{
+			redirectPath:
+				"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback",
+			hardReload: true,
+		},
+	])(
+		"redirects an already signed-in user to $redirectPath",
+		async ({ redirectPath, hardReload }) => {
+			server.use(
+				http.get("/api/v2/users/me", () => {
+					return HttpResponse.json(MockUserOwner);
+				}),
+			);
 
-		const redirectPath =
-			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
-
-		// When
-		renderWithRouter(
-			createMemoryRouter(
-				[
-					{
-						path: "/login",
-						element: <LoginPage />,
-					},
-				],
-				{
-					initialEntries: [
-						`/login?redirect=${encodeURIComponent(redirectPath)}`,
+			const { router } = renderWithRouter(
+				createMemoryRouter(
+					[
+						{ path: "/login", element: <LoginPage /> },
+						{ path: "/workspaces", element: null },
 					],
-				},
-			),
-		);
+					{
+						initialEntries: [
+							`/login?redirect=${encodeURIComponent(redirectPath)}`,
+						],
+					},
+				),
+			);
 
-		// Then - the full redirect path (including query params) must be
-		// preserved for the OAuth2 authorization flow to complete.
-		await waitFor(() => {
-			expect(locationHrefSpy).toHaveBeenCalledWith(redirectPath);
-		});
-	});
+			if (hardReload) {
+				await waitFor(() => {
+					expect(locationHrefSpy).toHaveBeenCalledWith(redirectPath);
+				});
+			} else {
+				await waitFor(() => {
+					expect(
+						router.state.location.pathname + router.state.location.search,
+					).toBe(redirectPath);
+				});
+				expect(locationHrefSpy).not.toHaveBeenCalled();
+			}
+		},
+	);
 
 	it("redirects to /oauth2/authorize after successful login when not already signed in", async () => {
 		// Given - user is NOT signed in

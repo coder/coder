@@ -589,8 +589,9 @@ export const router = createBrowserRouter(
 
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>
+				{/* Nesting this under DashboardLayout would flash its shell before Agents. */}
+				<Route index element={<DashboardIndexRedirect />} />
 				<Route element={<DashboardLayout />}>
-					<Route index element={<DashboardIndexRedirect />} />
 					<Route
 						path="/external-auth/:provider"
 						element={<ExternalAuthPage />}

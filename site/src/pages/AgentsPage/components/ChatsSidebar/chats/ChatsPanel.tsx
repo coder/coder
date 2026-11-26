@@ -189,7 +189,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	location,
 	currentUserId,
 }) => {
-	const { homePath } = useDashboardHomePath();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
@@ -499,9 +498,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
-						<NavLink to={homePath} className="inline-flex">
-							<ProductLogo className="size-6" />
-						</NavLink>
+						<SidebarHomeLink />
 						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
@@ -810,5 +807,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			</div>
 			<UserSidebarFooter />
 		</div>
+	);
+};
+
+const SidebarHomeLink: React.FC = () => {
+	return (
+		<NavLink to={useDashboardHomePath()} className="inline-flex">
+			<ProductLogo className="size-6" />
+		</NavLink>
 	);
 };

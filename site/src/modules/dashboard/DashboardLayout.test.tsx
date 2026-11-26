@@ -17,7 +17,6 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { DashboardIndexRedirect } from "./DashboardIndexRedirect";
 import { DashboardLayout } from "./DashboardLayout";
 
 const renderDashboardLayout = async ({
@@ -153,32 +152,24 @@ describe("dashboard logo navigation", () => {
 		{ preference: "workspaces", createChat: true, destination: "/workspaces" },
 		{ preference: "agents", createChat: false, destination: "/workspaces" },
 	] as const)(
-		"loads $preference and links directly to $destination with createChat=$createChat",
+		"links directly to $destination for $preference with createChat=$createChat",
 		async ({ preference, createChat, destination }) => {
-			const saved = {
-				...MockUserPreferenceSettings,
-				default_landing_page: preference,
-			};
-			const getPreferences = vi
-				.spyOn(API, "getUserPreferenceSettings")
-				.mockResolvedValue(saved);
+			const getPreferences = vi.spyOn(API, "getUserPreferenceSettings");
 			const { router, queryClient } = await renderDashboardLayout({
 				route: "/templates",
 				permissions: { ...MockPermissions, createChat },
 				children: [
-					{ index: true, element: <DashboardIndexRedirect /> },
 					{ path: "templates", element: <div>Templates</div> },
 					{ path: "workspaces", element: <div>Workspaces</div> },
 					{ path: "agents", element: <div>Agents</div> },
 				],
 			});
-			if (createChat) {
-				await waitFor(() => {
-					expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
-						saved,
-					);
+			await act(async () => {
+				queryClient.setQueryData(preferenceSettingsKey, {
+					...MockUserPreferenceSettings,
+					default_landing_page: preference,
 				});
-			}
+			});
 			const visited: string[] = [];
 			const unsubscribe = router.subscribe(({ location }) => {
 				visited.push(location.pathname);
@@ -191,7 +182,7 @@ describe("dashboard logo navigation", () => {
 					expect(router.state.location.pathname).toBe(destination),
 				);
 				expect(visited).not.toContain("/");
-				expect(getPreferences).toHaveBeenCalledTimes(createChat ? 1 : 0);
+				expect(getPreferences).not.toHaveBeenCalled();
 			} finally {
 				unsubscribe();
 			}
@@ -202,7 +193,6 @@ describe("dashboard logo navigation", () => {
 		const { router } = await renderDashboardLayout({
 			route: "/templates",
 			children: [
-				{ index: true, element: <DashboardIndexRedirect /> },
 				{ path: "templates", element: <div>Templates</div> },
 				{
 					path: "workspaces",

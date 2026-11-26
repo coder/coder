@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { Navigate, useLocation } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -12,6 +12,7 @@ import { LoginPageView } from "./LoginPageView";
 
 const LoginPage: React.FC = () => {
 	const routerLocation = useLocation();
+	const [isRedirecting, setIsRedirecting] = useState(false);
 	const {
 		isLoading,
 		isSignedIn,
@@ -44,7 +45,8 @@ const LoginPage: React.FC = () => {
 		});
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
-	if (isSignedIn) {
+	// Password submission owns navigation until its hard reload finishes.
+	if (isSignedIn && !isRedirecting) {
 		// The reason we need `location.href` for api redirects is that
 		// we need the page to reload and make a request to the backend. If we
 		// use `<Navigate>`, react would handle the redirect itself and never
@@ -71,9 +73,15 @@ const LoginPage: React.FC = () => {
 				error={signInError ?? redirectError}
 				isLoading={isLoading || authMethodsQuery.isLoading}
 				buildInfo={buildInfoQuery.data}
-				isSigningIn={isSigningIn}
+				isSigningIn={isSigningIn || isRedirecting}
 				onSignIn={async ({ email, password }) => {
-					await signIn(email, password);
+					setIsRedirecting(true);
+					try {
+						await signIn(email, password);
+					} catch (error) {
+						setIsRedirecting(false);
+						throw error;
+					}
 					// Use a hard reload instead of React Router navigation
 					// so the server re-renders the HTML with all metadata
 					// tags populated (userAppearance, user, permissions,

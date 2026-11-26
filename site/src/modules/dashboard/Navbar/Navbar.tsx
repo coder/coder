@@ -28,7 +28,7 @@ export const Navbar: React.FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
-	const { homePath } = useDashboardHomePath();
+	const homePath = useDashboardHomePath();
 	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);

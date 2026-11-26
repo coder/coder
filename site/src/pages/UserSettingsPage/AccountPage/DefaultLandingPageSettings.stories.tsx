@@ -1,9 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { preferenceSettingsKey } from "#/api/queries/users";
+import { preferenceSettings, preferenceSettingsKey } from "#/api/queries/users";
 import type { UserPreferenceSettings } from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -95,13 +94,7 @@ export const Refetching: Story = {
 	},
 	decorators: [
 		(Story) => {
-			const queryClient = useQueryClient();
-			useEffect(() => {
-				void queryClient.invalidateQueries({
-					queryKey: preferenceSettingsKey,
-					exact: true,
-				});
-			}, [queryClient]);
+			useQuery({ ...preferenceSettings(), refetchOnMount: "always" });
 			return <Story />;
 		},
 	],
