@@ -4127,8 +4127,9 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Browsers hide WebSocket pings from page code, and a close sent over a
 	// network path that has stopped delivering data never reaches the client.
-	// The empty batches let a client treat a silence longer than
-	// keepaliveInterval as a dead connection.
+	// With the empty batches, each message starts at most keepaliveInterval
+	// after the previous one, so a client can treat a long silence as a dead
+	// connection.
 	keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
 	keepalive := api.Clock.NewTicker(keepaliveInterval, "chatStream", "keepalive")
 	defer keepalive.Stop()

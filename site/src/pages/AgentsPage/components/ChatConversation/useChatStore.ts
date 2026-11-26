@@ -51,7 +51,8 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 // after the previous one, and the browser delivers a message only after its
 // last byte, so the timeout leaves at least 60 s to download a message. A
 // message that takes longer is requested again on every reconnect, because
-// the reconnect resumes from the same snapshot version.
+// the reconnect resumes from the same snapshot version. The server's
+// WSWatcher probe can close a slow stream sooner.
 export const CHAT_SOCKET_SILENCE_TIMEOUT_MS =
 	(ChatStreamKeepaliveIntervalSeconds + 60) * 1000;
 

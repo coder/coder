@@ -10739,8 +10739,8 @@ func TestStreamChat(t *testing.T) {
 			require.NotEmpty(t, batch, "keepalive written a third of an interval after an event")
 		}
 
-		// Batches written after the matched frame may still hold Resets in the
-		// trap, so read them before waiting on the advance.
+		// Reset calls for batches after the matched frame may still be held in
+		// the trap, so read those batches before waiting on the advance.
 		advance := mClock.Advance(keepaliveInterval)
 		batch := nextFrame()
 		for len(batch) > 0 {
