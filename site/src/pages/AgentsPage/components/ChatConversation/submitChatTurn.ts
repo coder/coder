@@ -24,8 +24,10 @@ import type {
 } from "../ChatPageContent";
 import {
 	type ChatStore,
+	isPendingRowID,
 	type PendingAction,
 	selectMessagesByID,
+	selectOrderedMessageIDs,
 	selectQueuedMessages,
 } from "./chatStore";
 import { buildPendingContent } from "./pendingContent";
@@ -69,7 +71,7 @@ export type SubmitChatTurnParams = {
 	) => Promise<TypesGen.CreateChatMessageResponse>;
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
-	scrollToEnd: (options: { behavior: "smooth" }) => void;
+	scrollToEnd: (options: { behavior: ScrollBehavior }) => void;
 	setCachedChatPlanMode: (
 		chatId: string,
 		planMode?: TypesGen.ChatPlanMode,
@@ -228,16 +230,29 @@ export async function submitChatTurn(
 		setCachedChatPlanMode,
 	} = params;
 
-	// A failed send or edit removes what its pending action showed at the
-	// click, so the transcript scrolls to the end, where the latest state is.
+	// A send that only adds a queue row leaves the transcript as it was, so the
+	// view stays. A failure removes the pending row, so the view scrolls to the
+	// end again, where the latest state is.
 	const runTurnRequest = async (
 		action: PendingAction,
 		request: () => Promise<unknown>,
 	) => {
 		clearChatErrorReason(agentId);
 		store.clearClientError();
+		const latestRowID = () =>
+			selectOrderedMessageIDs(store.getSnapshot()).at(-1);
+		const latestRowBefore = latestRowID();
+		const turnRequest = store.runPendingAction(action, request);
+		const latestRowAfter = latestRowID();
+		if (
+			latestRowAfter !== undefined &&
+			latestRowAfter !== latestRowBefore &&
+			isPendingRowID(latestRowAfter)
+		) {
+			scrollToEnd({ behavior: "auto" });
+		}
 		try {
-			await store.runPendingAction(action, request);
+			await turnRequest;
 		} catch (error) {
 			scrollToEnd({ behavior: "smooth" });
 			onRequestError(error);

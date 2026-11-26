@@ -1612,8 +1612,8 @@ export const MetadataOnlyUserMessageRendersNoRow: Story = {
 };
 
 /**
- * Each user prompt is a single transcript row. The scroller anchors on those
- * rows, so nothing renders a second, pinned copy of the prompt.
+ * Each user prompt is a single transcript row. Nothing renders a second,
+ * pinned copy of the prompt.
  */
 export const UserMessagesRenderAsSingleRows: Story = {
 	args: {
