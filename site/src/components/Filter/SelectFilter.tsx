@@ -22,7 +22,7 @@ export type SelectFilterOption = {
 type SelectFilterProps = {
 	options: SelectFilterOption[] | undefined;
 	selectedOption?: SelectFilterOption;
-	// Used to add a accessibility label to the select
+	// Accessible name for the trigger and its dropdown
 	label: string;
 	// Used when there is no option selected
 	placeholder: string;
@@ -74,6 +74,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 					minWidth: width,
 				}}
 				align="end"
+				aria-label={label}
 				label={searchLabel}
 				// We want the backend to handle the filtering, not the client.
 				shouldFilter={false}
