@@ -19,7 +19,8 @@ type ItemsBadgeProps = {
 
 /**
  * One item renders as a labeled badge; several collapse into a count badge
- * whose tooltip lists them.
+ * whose tooltip lists them. The tooltip is interactive so a long list can be
+ * scrolled from the keyboard; a click or tap pins it.
  */
 export const ItemsBadge: React.FC<ItemsBadgeProps> = ({ items, noun }) => {
 	if (items.length === 0) {
@@ -27,23 +28,15 @@ export const ItemsBadge: React.FC<ItemsBadgeProps> = ({ items, noun }) => {
 	}
 	if (items.length > 1) {
 		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
+			<Tooltip interactive>
+				<TooltipTrigger className="max-w-full rounded-md">
 					<Badge asChild hover className="max-w-full">
-						{/* Radix opens tooltips on hover or focus only, so a click or tap
-						must keep reaching the clickable session row. */}
-						<button type="button">
+						<span>
 							{items.length} {noun}
-						</button>
+						</span>
 					</Badge>
 				</TooltipTrigger>
-				<TooltipContent
-					side="top"
-					align="start"
-					collisionPadding={16}
-					// The portal still bubbles React clicks up to the session row.
-					onClick={(event) => event.stopPropagation()}
-				>
+				<TooltipContent side="top" align="start" collisionPadding={16}>
 					<ul className="m-0 flex list-none flex-col gap-1 p-0">
 						{items.map((item) => (
 							<li key={item.key} className="flex items-center gap-1.5">

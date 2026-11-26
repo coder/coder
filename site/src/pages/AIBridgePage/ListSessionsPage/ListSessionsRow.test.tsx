@@ -26,41 +26,15 @@ const renderMultiProviderRow = () => {
 const getCountBadge = () => screen.getByRole("button", { name: "3 providers" });
 
 describe("count badge inside the clickable session row", () => {
-	it("opens the row when the badge is clicked while its list is shown", async () => {
+	it("pins the list on click, and neither the badge nor the list opens the row", async () => {
 		const user = userEvent.setup();
 		const onClick = renderMultiProviderRow();
 
-		await user.hover(getCountBadge());
-		await screen.findByRole("tooltip");
 		await user.click(getCountBadge());
-		expect(onClick).toHaveBeenCalledTimes(1);
-	});
-
-	it("opens the row when the focused badge is activated with Enter", async () => {
-		const user = userEvent.setup();
-		const onClick = renderMultiProviderRow();
-
-		await user.tab();
-		await screen.findByRole("tooltip");
-		await user.keyboard("{Enter}");
-		expect(onClick).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps clicks inside the list from opening the row", async () => {
-		const user = userEvent.setup();
-		const onClick = renderMultiProviderRow();
-
-		await user.hover(getCountBadge());
-		await user.click(await screen.findByRole("tooltip"));
+		await user.unhover(getCountBadge());
+		await user.click(await screen.findByRole("dialog"));
+		expect(getCountBadge()).toHaveAttribute("aria-expanded", "true");
 		expect(onClick).not.toHaveBeenCalled();
-	});
-
-	it("opens the row on a touch tap because touch cannot open the list", async () => {
-		const user = userEvent.setup();
-		const onClick = renderMultiProviderRow();
-
-		await user.pointer({ keys: "[TouchA]", target: getCountBadge() });
-		expect(onClick).toHaveBeenCalledTimes(1);
 	});
 });
 

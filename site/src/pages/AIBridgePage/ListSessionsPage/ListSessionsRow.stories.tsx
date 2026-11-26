@@ -49,7 +49,7 @@ export const MultipleProviders: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByRole("button", { name: "3 providers" }));
-		await screen.findByRole("tooltip");
+		await screen.findByRole("dialog");
 	},
 };
 
