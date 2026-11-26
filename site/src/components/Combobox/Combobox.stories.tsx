@@ -238,3 +238,30 @@ export const ClearSelectedOption: Story = {
 		);
 	},
 };
+
+const longOption: ComboboxOption = {
+	label: "Meridian Systems Engineering",
+	value: "meridian",
+};
+
+export const TruncatedTriggerFocused: Story = {
+	render: () => (
+		<div className="flex w-40">
+			<Combobox value={longOption.value}>
+				<ComboboxTrigger asChild>
+					<ComboboxButton
+						selectedOption={longOption}
+						placeholder="Select option"
+						width={150}
+					/>
+				</ComboboxTrigger>
+			</Combobox>
+		</div>
+	),
+	play: async () => {
+		await userEvent.tab();
+		await expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			longOption.label,
+		);
+	},
+};
