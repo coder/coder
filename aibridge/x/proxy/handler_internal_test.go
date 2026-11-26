@@ -787,22 +787,83 @@ func newMessagesRequest(t *testing.T, prov provider.Provider, body io.Reader) *h
 }
 
 // Routes with an extractor read the request before recording its start, then
-// forward the same bytes. Extraction failures only lose facts.
-func TestForwardingExtractsRequest(t *testing.T) {
+// forward the same bytes. Response facts are recorded with the interception ID
+// and end time, and a decoded error response classifies the end. Extraction
+// failures only lose facts.
+func TestForwardingExtraction(t *testing.T) {
 	t.Parallel()
+	const blockingRequest = `{"model":"claude-test","messages":[{"role":"user","content":"hi"}]}`
 	for _, tc := range []struct {
-		name      string
-		body      string
-		wantModel string
+		name string
+		body string
+		// status, contentType, and response describe the upstream response.
+		// upstreamErr, when set, fails the upstream body after response.
+		status      int
+		contentType string
+		response    string
+		upstreamErr error
+		wantModel   string
+		wantPrompts []recorder.PromptUsageRecord
+		wantTokens  []recorder.TokenUsageRecord
+		wantError   recorder.ErrorType
+		wantMessage string
 	}{
 		{
 			name:      "Messages",
 			body:      `{"model":"claude-test","stream":true,"messages":[{"role":"user","content":"hi"}]}`,
+			status:    http.StatusOK,
 			wantModel: "claude-test",
 		},
 		{
-			name: "InvalidJSON",
-			body: `not JSON`,
+			name:   "InvalidJSON",
+			body:   `not JSON`,
+			status: http.StatusOK,
+		},
+		{
+			name:        "BlockingResponse",
+			body:        blockingRequest,
+			status:      http.StatusOK,
+			contentType: "application/json",
+			response:    `{"id":"msg_1","model":"claude-test-1","usage":{"input_tokens":3,"output_tokens":5}}`,
+			wantModel:   "claude-test",
+			wantPrompts: []recorder.PromptUsageRecord{{MsgID: "msg_1", Prompt: "hi"}},
+			wantTokens:  []recorder.TokenUsageRecord{{MsgID: "msg_1", ProviderModel: "claude-test-1", Input: 3, Output: 5}},
+		},
+		{
+			name:        "Overloaded",
+			body:        blockingRequest,
+			status:      529,
+			contentType: "application/json",
+			response:    `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`,
+			wantModel:   "claude-test",
+			wantError:   recorder.ErrorTypeOverloaded,
+			wantMessage: "Overloaded",
+		},
+		{
+			// JSON without the Messages error envelope is classified by status
+			// and recorded raw.
+			name:        "ErrorWithoutEnvelope",
+			body:        blockingRequest,
+			status:      http.StatusBadGateway,
+			contentType: "application/json",
+			response:    `{"detail":"bad gateway"}`,
+			wantModel:   "claude-test",
+			wantError:   recorder.ErrorTypeServerError,
+			wantMessage: `{"detail":"bad gateway"}`,
+		},
+		{
+			// An upstream failure partway through the body leaves a partial
+			// capture: no facts are recorded and the end keeps the forward
+			// error.
+			name:        "PartialResponse",
+			body:        blockingRequest,
+			status:      http.StatusOK,
+			contentType: "application/json",
+			response:    `{"id":"msg_1","model":"claude-test-1","usage":{"input_tokens":3`,
+			upstreamErr: io.ErrUnexpectedEOF,
+			wantModel:   "claude-test",
+			wantError:   recorder.ErrorTypeUnknown,
+			wantMessage: io.ErrUnexpectedEOF.Error(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -818,21 +879,51 @@ func TestForwardingExtractsRequest(t *testing.T) {
 				payload, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
 				forwarded = append(forwarded, string(payload))
-				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: http.NoBody}, nil
+				header := http.Header{}
+				if tc.contentType != "" {
+					header.Set("Content-Type", tc.contentType)
+				}
+				var upstream io.Reader = strings.NewReader(tc.response)
+				if tc.upstreamErr != nil {
+					upstream = io.MultiReader(upstream, readerFunc(func([]byte) (int, error) { return 0, tc.upstreamErr }))
+				}
+				return &http.Response{StatusCode: tc.status, Header: header, Body: io.NopCloser(upstream)}, nil
 			})
 			req := newMessagesRequest(t, prov, strings.NewReader(tc.body))
 			response := httptest.NewRecorder()
 			h.ServeHTTP(response, req)
 			require.NoError(t, h.inflight.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
 
-			require.Equal(t, http.StatusOK, response.Code)
+			require.Equal(t, tc.status, response.Code)
+			require.Equal(t, tc.response, response.Body.String(), "extraction must not alter the forwarded response")
 			require.Equal(t, []string{tc.body}, forwarded, "extraction must not alter the forwarded bytes")
 			starts := rec.RecordedInterceptions()
 			require.Len(t, starts, 1)
 			require.Equal(t, tc.wantModel, starts[0].Model)
 			end := rec.RecordedInterceptionEnd(starts[0].ID)
 			require.NotNil(t, end)
-			require.Empty(t, end.ErrorType)
+			require.Equal(t, tc.wantError, end.ErrorType)
+			require.Equal(t, tc.wantMessage, end.ErrorMessage)
+
+			// Response records are stamped with the interception and its end.
+			var prompts []recorder.PromptUsageRecord
+			for _, prompt := range rec.RecordedPromptUsages() {
+				require.Equal(t, starts[0].ID, prompt.InterceptionID)
+				require.Equal(t, end.EndedAt, prompt.CreatedAt)
+				prompt.InterceptionID = ""
+				prompt.CreatedAt = time.Time{}
+				prompts = append(prompts, *prompt)
+			}
+			require.Equal(t, tc.wantPrompts, prompts)
+			var tokens []recorder.TokenUsageRecord
+			for _, usage := range rec.RecordedTokenUsages() {
+				require.Equal(t, starts[0].ID, usage.InterceptionID)
+				require.Equal(t, end.EndedAt, usage.CreatedAt)
+				usage.InterceptionID = ""
+				usage.CreatedAt = time.Time{}
+				tokens = append(tokens, *usage)
+			}
+			require.Equal(t, tc.wantTokens, tokens)
 		})
 	}
 }
@@ -1085,9 +1176,11 @@ func TestForwardingRecordsInterception(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEqual(t, uuid.Nil, id)
 			require.WithinRange(t, start.StartedAt, before, time.Now())
-			wantKind, wantStartHint := credential.KindBYOK, utils.MaskSecret(userSecretKey)
+			wantKind := credential.KindBYOK
+			wantStartHint := utils.MaskSecret(userSecretKey)
 			if tc.pooled {
-				wantKind, wantStartHint = credential.KindCentralized, credential.HintFailoverKey
+				wantKind = credential.KindCentralized
+				wantStartHint = credential.HintFailoverKey
 			}
 			require.Equal(t, &recorder.InterceptionRecord{
 				ID:                          start.ID,

@@ -31,11 +31,16 @@ func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 		path      string
 		streaming bool
 		wantType  recorder.ErrorType
+		// proxy selects reverse-proxy mode, where the key pool failure takes
+		// precedence over the error response it writes.
+		proxy bool
 	}{
-		{"anthropic_blocking", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, false, recorder.ErrorTypeUnauthorized},
-		{"anthropic_streaming", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, true, recorder.ErrorTypeUnauthorized},
-		{"openai_blocking", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, false, recorder.ErrorTypeUnauthorized},
-		{"openai_streaming", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, true, recorder.ErrorTypeUnauthorized},
+		{"anthropic_blocking", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, false, recorder.ErrorTypeUnauthorized, false},
+		{"anthropic_streaming", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, true, recorder.ErrorTypeUnauthorized, false},
+		{"anthropic_blocking/proxy", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, false, recorder.ErrorTypeUnauthorized, true},
+		{"anthropic_streaming/proxy", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, true, recorder.ErrorTypeUnauthorized, true},
+		{"openai_blocking", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, false, recorder.ErrorTypeUnauthorized, false},
+		{"openai_streaming", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, true, recorder.ErrorTypeUnauthorized, false},
 	}
 
 	for _, tc := range cases {
@@ -48,7 +53,7 @@ func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 			)
 			upstream.AllowOverflow = true
 
-			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL, withProvider(tc.provider))
+			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL, withProvider(tc.provider), withProxyMode(tc.proxy))
 
 			reqBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
 			require.NoError(t, err)
@@ -57,6 +62,7 @@ func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, resp.Body)
 			require.NoError(t, resp.Body.Close())
+			bridgeServer.awaitRecordings(t)
 
 			intcs := bridgeServer.Recorder.RecordedInterceptions()
 			require.Len(t, intcs, 1)

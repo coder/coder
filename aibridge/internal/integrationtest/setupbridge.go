@@ -145,10 +145,10 @@ func withCustomProvider(p aibridge.Provider) bridgeOption {
 	}
 }
 
-// withProxyMode serves [proxy.NewRouter] instead of the default
-// [aibridge.NewRequestBridge].
-func withProxyMode() bridgeOption {
-	return func(c *bridgeConfig) { c.proxyMode = true }
+// withProxyMode serves [proxy.NewRouter] when enabled, and the default
+// [aibridge.NewRequestBridge] otherwise.
+func withProxyMode(enabled bool) bridgeOption {
+	return func(c *bridgeConfig) { c.proxyMode = enabled }
 }
 
 // withMetrics sets the Prometheus metrics for the bridge.
@@ -173,7 +173,7 @@ func withActor(id uuid.UUID, username string) bridgeOption {
 
 // newBridgeTestServer creates a fully configured test server running
 // a RequestBridge with sensible defaults:
-//   - interception mode (unless withProxyMode)
+//   - interception mode (unless withProxyMode(true))
 //   - All standard providers (unless withProvider / withCustomProvider)
 //   - NoopMCPManager (unless withMCP)
 //   - slogtest debug logger

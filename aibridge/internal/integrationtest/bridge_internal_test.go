@@ -62,6 +62,7 @@ func TestAnthropicMessages(t *testing.T) {
 		cases := []struct {
 			name                          string
 			streaming                     bool
+			proxy                         bool
 			expectedInputTokens           int
 			expectedOutputTokens          int
 			expectedCacheReadInputTokens  int
@@ -86,6 +87,15 @@ func TestAnthropicMessages(t *testing.T) {
 				expectedCacheWriteInputTokens: 0,
 				expectedToolCallID:            "toolu_01AusGgY5aKFhzWrFBv9JfHq",
 			},
+			{
+				name:                          "non-streaming/proxy",
+				proxy:                         true,
+				expectedInputTokens:           5,
+				expectedOutputTokens:          84,
+				expectedCacheReadInputTokens:  23490,
+				expectedCacheWriteInputTokens: 0,
+				expectedToolCallID:            "toolu_01AusGgY5aKFhzWrFBv9JfHq",
+			},
 		}
 
 		for _, tc := range cases {
@@ -98,7 +108,7 @@ func TestAnthropicMessages(t *testing.T) {
 				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
 				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
-				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProxyMode(tc.proxy))
 
 				// Make API call to aibridge for Anthropic /v1/messages
 				reqBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
@@ -116,7 +126,11 @@ func TestAnthropicMessages(t *testing.T) {
 					// Ensure the message starts and completes, at a minimum.
 					assert.Contains(t, sp.AllEvents(), "message_start")
 					assert.Contains(t, sp.AllEvents(), "message_stop")
+				} else {
+					_, err = io.ReadAll(resp.Body)
+					require.NoError(t, err)
 				}
+				bridgeServer.awaitRecordings(t)
 
 				expectedTokenRecordings := 1
 				if tc.streaming {
@@ -388,6 +402,7 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 	cases := []struct {
 		name             string
 		streaming        bool
+		proxy            bool
 		fixture          []byte
 		expectedThoughts []recorder.ModelThoughtRecord // nil means no model thoughts expected
 	}{
@@ -451,6 +466,39 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 			fixture:          fixtures.AntSingleInjectedTool,
 			expectedThoughts: nil,
 		},
+		{
+			name:             "single thinking block/blocking/proxy",
+			proxy:            true,
+			fixture:          fixtures.AntSingleBuiltinTool,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("The user wants me to read", recorder.ThoughtSourceThinking)},
+		},
+		{
+			name:    "multiple thinking blocks/blocking/proxy",
+			proxy:   true,
+			fixture: fixtures.AntMultiThinkingBuiltinTool,
+			expectedThoughts: []recorder.ModelThoughtRecord{
+				newModelThought("The user wants me to read", recorder.ThoughtSourceThinking),
+				newModelThought("I should use the Read tool", recorder.ThoughtSourceThinking),
+			},
+		},
+		{
+			name:             "parallel tool calls/blocking/proxy",
+			proxy:            true,
+			fixture:          fixtures.AntSingleBuiltinToolParallel,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("The user wants me to read two files", recorder.ThoughtSourceThinking)},
+		},
+		{
+			name:             "thoughts without tool calls/blocking/proxy",
+			proxy:            true,
+			fixture:          fixtures.AntSimple,
+			expectedThoughts: []recorder.ModelThoughtRecord{newModelThought("This is a classic philosophical question about medieval scholasticism", recorder.ThoughtSourceThinking)},
+		},
+		{
+			name:             "no thoughts captured/proxy",
+			proxy:            true,
+			fixture:          fixtures.AntSingleInjectedTool,
+			expectedThoughts: nil,
+		},
 	}
 
 	for _, tc := range cases {
@@ -463,7 +511,7 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 			fix := fixtures.Parse(t, tc.fixture)
 			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
-			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProxyMode(tc.proxy))
 
 			reqBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
 			require.NoError(t, err)
@@ -477,7 +525,11 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 				require.NoError(t, sp.Parse(resp.Body))
 				assert.Contains(t, sp.AllEvents(), "message_start")
 				assert.Contains(t, sp.AllEvents(), "message_stop")
+			} else {
+				_, err = io.ReadAll(resp.Body)
+				require.NoError(t, err)
 			}
+			bridgeServer.awaitRecordings(t)
 
 			bridgeServer.Recorder.VerifyModelThoughtsRecorded(t, tc.expectedThoughts)
 			bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
@@ -1589,6 +1641,7 @@ func TestSimple(t *testing.T) {
 		expectedMsgID     string
 		userAgent         string
 		expectedClient    aibclient.Type
+		proxy             bool
 	}{
 		{
 			name:              config.ProviderAnthropic,
@@ -1656,6 +1709,40 @@ func TestSimple(t *testing.T) {
 			userAgent:         "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
 			expectedClient:    aibclient.Zed,
 		},
+		{
+			name:              config.ProviderAnthropic + "/proxy",
+			proxy:             true,
+			fixture:           fixtures.AntSimple,
+			expectedPath:      "/v1/messages",
+			getResponseIDFunc: getAnthropicResponseID,
+			path:              pathAnthropicMessages,
+			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
+			userAgent:         "claude-cli/2.0.67 (external, cli)",
+			expectedClient:    aibclient.ClaudeCode,
+		},
+		{
+			name:              config.ProviderAnthropic + "_haiku_prompt_capture/proxy",
+			proxy:             true,
+			fixture:           fixtures.AntHaikuSimple,
+			expectedPath:      "/v1/messages",
+			getResponseIDFunc: getAnthropicResponseID,
+			path:              pathAnthropicMessages,
+			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
+			userAgent:         "claude-cli/2.0.67 (external, cli)",
+			expectedClient:    aibclient.ClaudeCode,
+		},
+		{
+			name:              config.ProviderAnthropic + "_baseURL_path/proxy",
+			proxy:             true,
+			fixture:           fixtures.AntSimple,
+			basePath:          "/api",
+			expectedPath:      "/api/v1/messages",
+			getResponseIDFunc: getAnthropicResponseID,
+			path:              pathAnthropicMessages,
+			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
+			userAgent:         "GitHubCopilotChat/0.37.2026011603",
+			expectedClient:    aibclient.CopilotVSC,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1664,6 +1751,10 @@ func TestSimple(t *testing.T) {
 
 			for _, streaming := range []bool{true, false} {
 				t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+					if tc.proxy && streaming {
+						// TODO: record streamed responses in proxy mode. https://linear.app/codercom/issue/AIGOV-616
+						t.Skip("AIGOV-616: proxy mode does not record streamed responses yet")
+					}
 					t.Parallel()
 
 					ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
@@ -1672,7 +1763,7 @@ func TestSimple(t *testing.T) {
 					fix := fixtures.Parse(t, tc.fixture)
 					upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
-					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL+tc.basePath)
+					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL+tc.basePath, withProxyMode(tc.proxy))
 
 					// When: calling the "API server" with the fixture's request body.
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -1691,6 +1782,7 @@ func TestSimple(t *testing.T) {
 					bodyBytes, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
 					assert.NotEmpty(t, bodyBytes, "should have received response body")
+					bridgeServer.awaitRecordings(t)
 
 					// Reset the body after being read.
 					resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -1700,12 +1792,17 @@ func TestSimple(t *testing.T) {
 					require.NotEmpty(t, promptUsages, "no prompts tracked")
 					assert.Contains(t, promptUsages[0].Prompt, "how many angels can dance on the head of a pin")
 
-					// Validate that responses have their IDs overridden with a interception ID rather than the original ID from the upstream provider.
-					// The reason for this is that Bridge may make multiple upstream requests (i.e. to invoke injected tools), and clients will not be expecting
-					// multiple messages in response to a single request.
 					id, err := tc.getResponseIDFunc(streaming, resp)
 					require.NoError(t, err, "failed to retrieve response ID")
-					require.Nilf(t, uuid.Validate(id), "%s is not a valid UUID", id)
+					if tc.proxy {
+						// Proxy mode forwards the upstream response unchanged.
+						require.Equal(t, tc.expectedMsgID, id)
+					} else {
+						// Validate that responses have their IDs overridden with a interception ID rather than the original ID from the upstream provider.
+						// The reason for this is that Bridge may make multiple upstream requests (i.e. to invoke injected tools), and clients will not be expecting
+						// multiple messages in response to a single request.
+						require.Nilf(t, uuid.Validate(id), "%s is not a valid UUID", id)
+					}
 
 					tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
 					require.GreaterOrEqual(t, len(tokenUsages), 1)
@@ -1714,7 +1811,9 @@ func TestSimple(t *testing.T) {
 					// Validate user agent and client have been recorded.
 					interceptions := bridgeServer.Recorder.RecordedInterceptions()
 					require.Len(t, interceptions, 1, "expected exactly one interception, got: %v", interceptions)
-					assert.Equal(t, id, interceptions[0].ID)
+					if !tc.proxy {
+						assert.Equal(t, id, interceptions[0].ID)
+					}
 					assert.Equal(t, tc.userAgent, interceptions[0].UserAgent)
 					assert.Equal(t, string(tc.expectedClient), interceptions[0].Client)
 
@@ -1801,11 +1900,7 @@ func TestSessionIDTracking(t *testing.T) {
 
 			fix := fixtures.Parse(t, tc.fixture)
 			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
-			opts := []bridgeOption{withProvider(config.ProviderAnthropic)}
-			if tc.proxyMode {
-				opts = append(opts, withProxyMode())
-			}
-			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, opts...)
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProvider(config.ProviderAnthropic), withProxyMode(tc.proxyMode))
 
 			reqBody := fix.Request()
 			if tc.metadataSessionID != "" {
@@ -2301,24 +2396,39 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("non-stream error", func(t *testing.T) {
 		t.Parallel()
 
+		anthropicResponseHandler := func(resp *http.Response) {
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, "error", gjson.GetBytes(body, "type").Str)
+			require.Equal(t, "invalid_request_error", gjson.GetBytes(body, "error.type").Str)
+			require.Contains(t, gjson.GetBytes(body, "error.message").Str, "prompt is too long")
+		}
+
 		cases := []struct {
-			name              string
-			fixture           []byte
-			path              string
-			responseHandlerFn func(resp *http.Response)
+			name                 string
+			fixture              []byte
+			path                 string
+			responseHandlerFn    func(resp *http.Response)
+			proxy                bool
+			expectedErrorType    recorder.ErrorType
+			expectedErrorMessage string
 		}{
 			{
-				name:    config.ProviderAnthropic,
-				fixture: fixtures.AntNonStreamError,
-				path:    pathAnthropicMessages,
-				responseHandlerFn: func(resp *http.Response) {
-					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-					body, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-					require.Equal(t, "error", gjson.GetBytes(body, "type").Str)
-					require.Equal(t, "invalid_request_error", gjson.GetBytes(body, "error.type").Str)
-					require.Contains(t, gjson.GetBytes(body, "error.message").Str, "prompt is too long")
-				},
+				name:              config.ProviderAnthropic,
+				fixture:           fixtures.AntNonStreamError,
+				path:              pathAnthropicMessages,
+				responseHandlerFn: anthropicResponseHandler,
+			},
+			{
+				name:              config.ProviderAnthropic + "/proxy",
+				proxy:             true,
+				fixture:           fixtures.AntNonStreamError,
+				path:              pathAnthropicMessages,
+				responseHandlerFn: anthropicResponseHandler,
+				// The decoded error message, not the whole envelope.
+				expectedErrorType:    recorder.ErrorTypeBadRequest,
+				expectedErrorMessage: "prompt is too long: 205429 tokens > 200000 maximum",
 			},
 			{
 				name:    config.ProviderOpenAI,
@@ -2351,7 +2461,7 @@ func TestErrorHandling(t *testing.T) {
 						fix := fixtures.Parse(t, tc.fixture)
 						upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
-						bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+						bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProxyMode(tc.proxy))
 
 						// Add the stream param to the request.
 						reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -2362,7 +2472,15 @@ func TestErrorHandling(t *testing.T) {
 						defer resp.Body.Close()
 
 						tc.responseHandlerFn(resp)
+						bridgeServer.awaitRecordings(t)
 						bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+						if tc.proxy {
+							intcs := bridgeServer.Recorder.RecordedInterceptions()
+							require.Len(t, intcs, 1)
+							ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+							require.Equal(t, tc.expectedErrorType, ended.ErrorType)
+							require.Equal(t, tc.expectedErrorMessage, ended.ErrorMessage)
+						}
 					})
 				}
 			})
