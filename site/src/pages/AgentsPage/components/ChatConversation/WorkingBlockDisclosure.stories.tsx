@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent } from "storybook/test";
+import { MessageScroller } from "#/vendor/message-scroller";
 import {
 	FIXTURE_NOW,
 	MockWorkingBlock,
@@ -11,6 +12,13 @@ const meta = {
 	title: "pages/AgentsPage/ChatConversation/WorkingBlockDisclosure",
 	component: WorkingBlockDisclosure,
 	beforeEach: pinFixtureClock,
+	decorators: [
+		(Story) => (
+			<MessageScroller.Provider>
+				<Story />
+			</MessageScroller.Provider>
+		),
+	],
 	args: {
 		block: MockWorkingBlock,
 		expanded: false,

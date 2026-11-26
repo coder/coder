@@ -53,7 +53,9 @@ describe("WorkingBlockDisclosure", () => {
 	it("toggles with Enter and Space and keeps focus on the summary", async () => {
 		const user = userEvent.setup();
 		const onExpandedChange = vi.fn();
-		render(<ControlledDisclosure onExpandedChange={onExpandedChange} />);
+		render(<ControlledDisclosure onExpandedChange={onExpandedChange} />, {
+			wrapper: MessageScroller.Provider,
+		});
 		const summary = screen.getByRole("button", {
 			name: "Worked for 12s (2 steps)",
 		});

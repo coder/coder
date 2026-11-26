@@ -3,7 +3,7 @@ import { Component, useLayoutEffect, useRef, useState } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
 import {
-	useMessageScrollerLayoutSync,
+	useMessageScrollerContext,
 	useMessageScrollerUserLayoutIntent,
 } from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
@@ -204,15 +204,17 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	if (showPeek !== peekShown) {
 		setPeekShown(showPeek);
 	}
-	// The peek hiding without the block expanding shrinks the timeline.
-	const syncLayout = useMessageScrollerLayoutSync();
+	// The peek hiding without the block expanding shrinks the timeline. The
+	// scroller's resize observers wait a frame, so the layout effect syncs
+	// before paint. While following the end, handleResize scrolls there.
+	const { handleResize } = useMessageScrollerContext();
 	const peekWasShown = useRef(showPeek);
 	useLayoutEffect(() => {
 		if (peekWasShown.current && !showPeek && !expanded) {
-			syncLayout();
+			handleResize();
 		}
 		peekWasShown.current = showPeek;
-	}, [showPeek, expanded, syncLayout]);
+	}, [showPeek, expanded, handleResize]);
 	const [formedFresh] = useState(
 		() =>
 			block.startedAt === undefined ||
