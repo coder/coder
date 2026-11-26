@@ -3184,7 +3184,7 @@ describe("useChatStore", () => {
 		if (socket1 === undefined) {
 			throw new Error("watchChat did not return a socket");
 		}
-		// A running chat surfaces the reconnect.
+		// The running status makes the store show the reconnect state.
 		act(() => {
 			socket1.emitOpen();
 			socket1.emitData(statusEvent(chatID));

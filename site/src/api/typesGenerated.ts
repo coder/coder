@@ -4050,9 +4050,8 @@ export interface ChatStreamHistoryReset {
 
 // From codersdk/chats.go
 /**
- * ChatStreamKeepaliveIntervalSeconds is how long the chat stream goes
- * without writing before the server writes an empty batch. The web client
- * derives its WebSocket silence timeout from it.
+ * ChatStreamKeepaliveIntervalSeconds is how long the chat stream can go
+ * without a write before the server writes an empty batch.
  */
 export const ChatStreamKeepaliveIntervalSeconds = 15;
 

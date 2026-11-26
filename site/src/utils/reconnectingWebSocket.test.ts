@@ -579,7 +579,8 @@ describe("createReconnectingWebSocket", () => {
 		vi.advanceTimersByTime(1000);
 		expect(connect).toHaveBeenCalledTimes(2);
 
-		// The close event of silentSocket arrives late, if at all.
+		// A late close event from silentSocket must not count as a second
+		// disconnect.
 		silentSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 	});

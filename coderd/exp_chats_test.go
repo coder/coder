@@ -10624,9 +10624,9 @@ func TestStreamChat(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
 		defer keepaliveTrap.Close()
-		// The handler calls Reset after each event batch, and the trap holds
-		// each call until nextFrame has read that batch. Each clock advance
-		// below therefore runs after the reset it depends on.
+		// The handler calls Reset after writing each event batch. nextFrame
+		// releases that call once it reads the batch, so a clock advance always
+		// follows the Reset it depends on.
 		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
 		defer resetTrap.Close()
 		// WSWatcher creates its ticker from a goroutine. Starting it before the
@@ -10724,10 +10724,10 @@ func TestStreamChat(t *testing.T) {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
 		}
 
-		// The two advances add up to one interval, when the next keepalive
-		// would be due without the event's Reset. The Reset moves it to one
-		// interval after the event, so no keepalive may arrive before the
-		// second message.
+		// Without the Reset after the first message, a keepalive would be due
+		// when these two advances add up to one interval. The Reset moves it to
+		// one interval after the first message, so none may arrive before the
+		// second.
 		mClock.Advance(keepaliveInterval * 2 / 3).MustWait(ctx)
 		const first = "stream chat keepalive first"
 		sendMessage(first)
@@ -10739,9 +10739,8 @@ func TestStreamChat(t *testing.T) {
 			require.NotEmpty(t, batch, "keepalive written a third of an interval after an event")
 		}
 
-		// Event batches written after the matched frame may have Reset calls
-		// waiting in the trap, so read them before waiting on the advance to
-		// the next keepalive.
+		// Batches written after the matched frame may still hold Resets in the
+		// trap, so read them before waiting on the advance.
 		advance := mClock.Advance(keepaliveInterval)
 		batch := nextFrame()
 		for len(batch) > 0 {

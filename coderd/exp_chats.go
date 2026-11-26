@@ -4125,12 +4125,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Browsers do not expose WebSocket pings to page code, and the server's
-	// close cannot reach the client over a frozen connection, one that stops
-	// delivering data without closing. The web client therefore treats a
-	// long gap between messages as a frozen connection, and the empty
-	// batches written on this ticker keep an idle stream from having such a
-	// gap.
+	// Browsers hide WebSocket pings from page code, and a close sent over a
+	// network path that has stopped delivering data never reaches the client.
+	// The empty batches let a client treat a silence longer than
+	// keepaliveInterval as a dead connection.
 	keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
 	keepalive := api.Clock.NewTicker(keepaliveInterval, "chatStream", "keepalive")
 	defer keepalive.Stop()
