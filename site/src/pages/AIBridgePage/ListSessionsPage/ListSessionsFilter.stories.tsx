@@ -5,12 +5,11 @@ import { aiBridgeClientsKey, aiBridgeModelsKey } from "#/api/queries/aiBridge";
 import { aiProvidersIncludingDeletedKey } from "#/api/queries/aiProviders";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { usersKey } from "#/api/queries/users";
-import type { AIProvider } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockAIProviderAnthropic,
-	MockAIProviderOpenAI,
+	MockAIProviders,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockPermissions,
@@ -23,19 +22,6 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { ListSessionsFilter } from "./ListSessionsFilter";
-
-const mockProviders: AIProvider[] = [
-	{
-		...MockAIProviderAnthropic,
-		name: "anthropic-prod",
-		display_name: "Anthropic (prod)",
-	},
-	{
-		...MockAIProviderOpenAI,
-		name: "openai-prod",
-		display_name: "openai-prod",
-	},
-];
 
 const timeRange: DateTimeRangeValue = {
 	start: new Date("2026-08-12T15:00:00Z"),
@@ -85,7 +71,7 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		queries: [
-			{ key: aiProvidersIncludingDeletedKey, data: mockProviders },
+			{ key: aiProvidersIncludingDeletedKey, data: MockAIProviders },
 			{
 				key: aiBridgeClientsKey({ q: "", limit: 25 }),
 				data: ["claude-code", "cursor"],
@@ -117,7 +103,7 @@ export const Default: Story = {
 
 export const WithFilters: Story = {
 	args: {
-		initialQuery: `user:me provider_name:anthropic-prod client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
+		initialQuery: `user:me provider_name:${MockAIProviderAnthropic.name} client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
 	},
 };
 
