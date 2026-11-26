@@ -66,6 +66,7 @@ func TestIsExternalScope(t *testing.T) {
 	require.True(t, IsExternalScope("chat_model_config:share"))
 	require.True(t, IsExternalScope("chat:create"))
 	require.True(t, IsExternalScope("ai_provider:*"))
+	require.True(t, IsExternalScope("ai_provider:read_secret"))
 	require.True(t, IsExternalScope("mcp_server_config:*"))
 	require.True(t, IsExternalScope("deployment_config:update"))
 	require.True(t, IsExternalScope("organization_member:read"))

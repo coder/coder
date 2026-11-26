@@ -279,6 +279,7 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeAiProviderCreate,
 	APIKeyScopeAiProviderDelete,
 	APIKeyScopeAiProviderRead,
+	APIKeyScopeAiProviderReadSecret,
 	APIKeyScopeAiProviderUpdate,
 	APIKeyScopeApiKeyAll,
 	APIKeyScopeApiKeyCreate,

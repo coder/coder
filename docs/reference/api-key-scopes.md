@@ -101,13 +101,14 @@ The `resource:*` form grants every action on that resource, including actions no
 
 ### `ai_provider`
 
-| Scope                | Description                                                               |
-|----------------------|---------------------------------------------------------------------------|
-| `ai_provider:*`      | Every action on `ai_provider`, including actions not listed on this page. |
-| `ai_provider:create` | Create an AI provider.                                                    |
-| `ai_provider:delete` | Delete an AI provider.                                                    |
-| `ai_provider:read`   | Read AI provider metadata, never the configuration.                       |
-| `ai_provider:update` | Update an AI provider.                                                    |
+| Scope                     | Description                                                               |
+|---------------------------|---------------------------------------------------------------------------|
+| `ai_provider:*`           | Every action on `ai_provider`, including actions not listed on this page. |
+| `ai_provider:create`      | Create an AI provider.                                                    |
+| `ai_provider:delete`      | Delete an AI provider.                                                    |
+| `ai_provider:read`        | Read AI provider metadata, never the configuration.                       |
+| `ai_provider:read_secret` | Read AI provider configuration and keys.                                  |
+| `ai_provider:update`      | Update an AI provider.                                                    |
 
 ### `api_key`
 

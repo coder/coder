@@ -55,11 +55,12 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"chat_model_config:*":      {},
 
 	// AI providers
-	"ai_provider:read":   {},
-	"ai_provider:create": {},
-	"ai_provider:update": {},
-	"ai_provider:delete": {},
-	"ai_provider:*":      {},
+	"ai_provider:read":        {},
+	"ai_provider:create":      {},
+	"ai_provider:update":      {},
+	"ai_provider:delete":      {},
+	"ai_provider:read_secret": {},
+	"ai_provider:*":           {},
 
 	// MCP server configs
 	"mcp_server_config:read":   {},
