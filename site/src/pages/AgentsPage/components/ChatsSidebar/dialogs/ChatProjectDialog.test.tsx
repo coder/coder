@@ -13,6 +13,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockPreset,
 	MockTemplate,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -497,18 +498,23 @@ const mockFirstTemplate: Template = {
 	id: "template-1",
 	name: "docker",
 	display_name: "Docker",
+	active_version_id: "version-1",
 };
 const mockSecondTemplate: Template = {
 	...MockTemplate,
 	id: "template-2",
 	name: "kubernetes",
 	display_name: "Kubernetes",
+	active_version_id: "version-2",
 };
 describe("ChatProjectDialog templates", () => {
 	const useTemplateHandlers = () => {
 		server.use(
 			http.get("/api/v2/templates", () =>
 				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
+			),
+			http.get("/api/v2/templateversions/:versionId/presets", () =>
+				HttpResponse.json([MockPreset]),
 			),
 		);
 	};
@@ -519,6 +525,16 @@ describe("ChatProjectDialog templates", () => {
 			"New",
 		);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
+	};
+
+	const pickDefaultTemplate = async (
+		user: ReturnType<typeof userEvent.setup>,
+		name: string,
+	) => {
+		await user.click(
+			screen.getByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name }));
 	};
 
 	it("creates a project limited to every eligible template", async () => {
@@ -541,6 +557,79 @@ describe("ChatProjectDialog templates", () => {
 				}),
 			);
 		});
+	});
+
+	it("submits a default template with a preset", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
+		await user.click(
+			await screen.findByRole("combobox", { name: "Default preset" }),
+		);
+		await user.click(screen.getByRole("option", { name: "Small" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					limit_templates: false,
+					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+					default_template: {
+						template_id: mockSecondTemplate.id,
+						preset_id: MockPreset.ID,
+					},
+				}),
+			);
+		});
+	});
+
+	it("submits a default template without a preset after choosing None", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
+		const presetSelect = await screen.findByRole("combobox", {
+			name: "Default preset",
+		});
+		await user.click(presetSelect);
+		await user.click(screen.getByRole("option", { name: "Small" }));
+		await user.click(presetSelect);
+		await user.click(screen.getByRole("option", { name: "None" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					default_template: { template_id: mockSecondTemplate.id },
+				}),
+			);
+		});
+	});
+
+	it("clears the default when its template is removed", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ template_ids: [mockFirstTemplate.id] }),
+			);
+		});
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.not.objectContaining({ default_template: expect.anything() }),
+		);
 	});
 
 	it("starts with no templates when the organization changes", async () => {

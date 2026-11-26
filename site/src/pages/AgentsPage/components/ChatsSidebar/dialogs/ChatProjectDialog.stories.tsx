@@ -2,12 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { agentTemplatesKey } from "#/api/queries/templates";
+import {
+	agentTemplatesKey,
+	templateVersionPresetsKey,
+} from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockPreset,
 	MockTemplate,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -18,12 +22,14 @@ const mockDockerTemplate: Template = {
 	id: "template-docker",
 	name: "docker",
 	display_name: "Docker",
+	active_version_id: "version-docker",
 };
 const mockKubernetesTemplate: Template = {
 	...MockTemplate,
 	id: "template-kubernetes",
 	name: "kubernetes",
 	display_name: "Kubernetes",
+	active_version_id: "version-kubernetes",
 };
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
@@ -222,4 +228,64 @@ export const TemplatesLoadError: Story = {
 			mockApiError({ message: "Failed to load templates." }),
 		);
 	},
+};
+
+const pickDefaultTemplate: Story["play"] = async () => {
+	await userEvent.click(
+		await screen.findByRole("button", { name: "Select all" }),
+	);
+	await userEvent.click(
+		screen.getByRole("combobox", { name: "Default template" }),
+	);
+	await userEvent.click(await screen.findByRole("option", { name: "Docker" }));
+};
+
+export const DefaultTemplatePresets: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [MockPreset],
+			},
+		],
+	},
+	// Opens the preset list so the screenshot shows its None option.
+	play: async (context) => {
+		await pickDefaultTemplate(context);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Default preset" }),
+		);
+	},
+};
+
+export const DefaultTemplatePresetsLoading: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplateWithoutPresets: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplatePresetsLoadError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Failed to load presets." }),
+		);
+	},
+	play: pickDefaultTemplate,
 };
