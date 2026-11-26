@@ -18,7 +18,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
-import AISpendPage from "./AISpendPage";
+import SpendPage from "./SpendPage";
 import { TOP_SPENDERS_COUNT } from "./topSpenders";
 import { UNPRICED_MODELS_COUNT } from "./unpricedModels";
 
@@ -46,7 +46,7 @@ const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 	(user) => user.user_id,
 );
 
-function renderAISpendPage(
+function renderSpendPage(
 	search = "",
 	{ canViewSessions = false, retentionMs = 0 } = {},
 ) {
@@ -89,7 +89,7 @@ function renderAISpendPage(
 		.spyOn(API.experimental, "getOrganizationAISpendUsers")
 		.mockResolvedValue(MockOrganizationAISpendReport);
 	const router = createMemoryRouter(
-		[{ path, element: <AISpendPage now={now} /> }],
+		[{ path, element: <SpendPage now={now} /> }],
 		{ initialEntries: [`${path}?${search}`] },
 	);
 	renderWithRouter(router);
@@ -100,7 +100,7 @@ function renderAISpendPage(
 
 it("requests the last 7 days as UTC days when the URL has no dates", async () => {
 	const { overviewSpy, unpricedModelsSpy, usersSpy, searchParam } =
-		renderAISpendPage();
+		renderSpendPage();
 	const period = {
 		period_start: "2026-03-06T00:00:00.000Z",
 		period_end: "2026-03-13T00:00:00.000Z",
@@ -127,7 +127,7 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 });
 
 it("ignores URL days outside the retention", async () => {
-	const { overviewSpy } = renderAISpendPage(
+	const { overviewSpy } = renderSpendPage(
 		"startDate=2026-03-01&endDate=2026-03-03",
 		{ retentionMs: 3 * 24 * 60 * 60 * 1000 },
 	);
@@ -145,7 +145,7 @@ it("ignores URL days outside the retention", async () => {
 });
 
 it("starts URL days at the retention", async () => {
-	const { overviewSpy } = renderAISpendPage(
+	const { overviewSpy } = renderSpendPage(
 		"startDate=2026-03-08&endDate=2026-03-11",
 		{ retentionMs: 3 * 24 * 60 * 60 * 1000 },
 	);
@@ -165,7 +165,7 @@ it("starts URL days at the retention", async () => {
 it("writes a picked range to the URL as days and requests it", async () => {
 	const user = userEvent.setup();
 	const { overviewSpy, unpricedModelsSpy, usersSpy, searchParam } =
-		renderAISpendPage("startDate=2026-03-01&endDate=2026-03-03");
+		renderSpendPage("startDate=2026-03-01&endDate=2026-03-03");
 	await waitFor(() =>
 		expect(overviewSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -206,7 +206,7 @@ it("writes a picked range to the URL as days and requests it", async () => {
 
 it("requests the selected organization's spend and clears the filter", async () => {
 	const user = userEvent.setup();
-	const { overviewSpy, searchParam } = renderAISpendPage(
+	const { overviewSpy, searchParam } = renderSpendPage(
 		"filter=provider:openai",
 	);
 	await user.click(
@@ -230,7 +230,7 @@ it("requests the selected organization's spend and clears the filter", async () 
 
 it("keeps the filter when the same organization is selected", async () => {
 	const user = userEvent.setup();
-	const { searchParam } = renderAISpendPage("filter=provider:openai");
+	const { searchParam } = renderSpendPage("filter=provider:openai");
 	await user.click(
 		await screen.findByRole("combobox", {
 			name: `Organization: ${MockOrganization.display_name}`,
@@ -241,7 +241,7 @@ it("keeps the filter when the same organization is selected", async () => {
 });
 
 it("requests no spend for an organization the viewer cannot see", async () => {
-	const { overviewSpy, unpricedModelsSpy } = renderAISpendPage("org=missing");
+	const { overviewSpy, unpricedModelsSpy } = renderSpendPage("org=missing");
 	await screen.findByRole("combobox", { name: "Organization" });
 	expect(overviewSpy).not.toHaveBeenCalled();
 	expect(unpricedModelsSpy).not.toHaveBeenCalled();
@@ -249,7 +249,7 @@ it("requests no spend for an organization the viewer cannot see", async () => {
 
 it("keeps the selected tab in the URL", async () => {
 	const user = userEvent.setup();
-	const { searchParam } = renderAISpendPage();
+	const { searchParam } = renderSpendPage();
 	await user.click(await screen.findByRole("tab", { name: "Detailed report" }));
 	expect(
 		await screen.findByRole("heading", { name: "Generate a detailed report" }),
@@ -259,7 +259,7 @@ it("keeps the selected tab in the URL", async () => {
 
 it("shares the picked days between the tabs", async () => {
 	const user = userEvent.setup();
-	renderAISpendPage("startDate=2026-03-01&endDate=2026-03-03");
+	renderSpendPage("startDate=2026-03-01&endDate=2026-03-03");
 	await user.click(await screen.findByRole("tab", { name: "Detailed report" }));
 	expect(
 		within(
@@ -270,7 +270,7 @@ it("shares the picked days between the tabs", async () => {
 
 it("opens the Detailed report from the Top spenders card", async () => {
 	const user = userEvent.setup();
-	const { searchParam } = renderAISpendPage();
+	const { searchParam } = renderSpendPage();
 	await user.click(
 		await screen.findByRole("button", { name: "Detailed report" }),
 	);
@@ -279,7 +279,7 @@ it("opens the Detailed report from the Top spenders card", async () => {
 
 it("opens the Detailed report for a top spender without running it", async () => {
 	const user = userEvent.setup();
-	const { usersSpy, searchParam } = renderAISpendPage();
+	const { usersSpy, searchParam } = renderSpendPage();
 	const [spender] = MockOrganizationAISpendOverview.users;
 	await user.click(
 		await screen.findByRole("button", {
@@ -307,7 +307,7 @@ it("runs the report for the picked days and filter, resolving the user and group
 	const getGroupSpy = vi.spyOn(API, "getGroup").mockResolvedValue(MockGroup);
 	const filter =
 		'user:admin group:Front-End provider:openai model:gpt-5.4 client:"Claude Code"';
-	const { usersSpy } = renderAISpendPage(
+	const { usersSpy } = renderSpendPage(
 		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent(filter)}`,
 		{ canViewSessions: true },
 	);
@@ -341,7 +341,7 @@ it("runs the report for the picked days and filter, resolving the user and group
 it("ignores the URL filter when the viewer can't use it", async () => {
 	const user = userEvent.setup();
 	const getUserSpy = vi.spyOn(API, "getUser");
-	const { usersSpy } = renderAISpendPage(
+	const { usersSpy } = renderSpendPage(
 		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin provider:openai")}`,
 	);
 	await user.click(await screen.findByRole("button", { name: "Run report" }));
@@ -369,7 +369,7 @@ function pendingUntilAborted(signal?: AbortSignal): Promise<never> {
 
 it("cancels a report before it has results", async () => {
 	const user = userEvent.setup();
-	const { usersSpy } = renderAISpendPage("tab=detailed-report");
+	const { usersSpy } = renderSpendPage("tab=detailed-report");
 	let reportSignal: AbortSignal | undefined;
 	usersSpy.mockImplementation((_organizationId, _params, signal) => {
 		reportSignal = signal;
@@ -385,7 +385,7 @@ it("cancels a report before it has results", async () => {
 
 it("cancels a report while it loads another page", async () => {
 	const user = userEvent.setup();
-	const { usersSpy, searchParam } = renderAISpendPage("tab=detailed-report");
+	const { usersSpy, searchParam } = renderSpendPage("tab=detailed-report");
 	usersSpy.mockImplementation(async (_organizationId, params, signal) => {
 		if ((params.offset ?? 0) > 0) {
 			return pendingUntilAborted(signal);
@@ -406,7 +406,7 @@ it("exports the last run report", async () => {
 	const exportSpy = vi
 		.spyOn(API, "getOrganizationAISpendExport")
 		.mockResolvedValue(file);
-	renderAISpendPage(
+	renderSpendPage(
 		`tab=detailed-report&startDate=2026-03-01&endDate=2026-03-03&filter=${encodeURIComponent("user:admin model:gpt-5.4")}`,
 		{ canViewSessions: true },
 	);

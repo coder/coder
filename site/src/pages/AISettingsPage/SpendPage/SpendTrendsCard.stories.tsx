@@ -20,7 +20,7 @@ const mockMonthIntervals: OrganizationAISpendOverviewInterval[] = Array.from(
 );
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/SpendTrendsCard",
+	title: "pages/AISettingsPage/SpendPage/SpendTrendsCard",
 	component: SpendTrendsCard,
 	args: {
 		days: { startDate: "2026-03-06", endDate: "2026-03-12" },

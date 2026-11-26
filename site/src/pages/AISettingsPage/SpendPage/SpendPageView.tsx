@@ -24,16 +24,16 @@ import type { DetailedReportQuery } from "./DetailedReportTable";
 import { OverviewTab } from "./OverviewTab";
 import type { SpendDays } from "./spendDays";
 
-export type AISpendTab = "overview" | "detailed-report";
+export type SpendTab = "overview" | "detailed-report";
 
-type AISpendPageViewProps = {
+type SpendPageViewProps = {
 	isEntitled: boolean;
 	isEnabled: boolean;
 	now: Date | undefined;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
-	tab: AISpendTab;
+	tab: SpendTab;
 	onTabChange: (tab: string) => void;
 	isOrganizationsLoading: boolean;
 	organizationsError: Error | null;
@@ -60,7 +60,7 @@ type AISpendPageViewProps = {
 	canViewSessions: boolean;
 };
 
-export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
+export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	now,

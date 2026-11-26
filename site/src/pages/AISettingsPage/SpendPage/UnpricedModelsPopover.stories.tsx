@@ -20,7 +20,7 @@ const mockManyModels: UnpricedAIModel[] = Array.from(
 );
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/UnpricedModelsPopover",
+	title: "pages/AISettingsPage/SpendPage/UnpricedModelsPopover",
 	component: UnpricedModelsPopover,
 	args: {
 		models: MockUnpricedAIModels.models,
