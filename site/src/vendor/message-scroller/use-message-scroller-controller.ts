@@ -520,7 +520,14 @@ function useMessageScrollerController({
         }
       }
 
-      if (items.length === previousItemCount) {
+      // LOCAL CHANGE: while the held element is detached, the first unhandled
+      // anchor takes the hold, as when a stored message replaces its pending row.
+      const heldElement = streamingTurnRef.current
+
+      if (
+        items.length === previousItemCount ||
+        (heldElement !== null && !heldElement.isConnected)
+      ) {
         const anchor = getUnanchoredScrollAnchor(
           items,
           handledScrollAnchorsRef.current
