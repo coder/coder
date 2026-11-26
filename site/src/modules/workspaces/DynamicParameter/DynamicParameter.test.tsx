@@ -622,13 +622,34 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const removeButtons = screen.getAllByTestId("clear-option-button");
-			await waitFor(async () => {
-				await userEvent.click(removeButtons[0]);
-			});
+			await userEvent.click(
+				screen.getByRole("button", { name: "Remove Option 1" }),
+			);
 
-			expect(mockOnChange).toHaveBeenCalledWith('["option2"]');
+			expect(mockOnChange).toHaveBeenCalledExactlyOnceWith('["option2"]');
 		});
+
+		it.each([
+			{ name: "Remove Option 1", expectedValue: '["option2"]' },
+			{ name: "Clear all", expectedValue: "[]" },
+		])(
+			"calls onChange once when Enter activates $name",
+			async ({ name, expectedValue }) => {
+				const user = userEvent.setup();
+				render(
+					<DynamicParameter
+						parameter={mockMultiSelectParameter}
+						value='["option1", "option2"]'
+						onChange={mockOnChange}
+					/>,
+				);
+
+				act(() => screen.getByRole("button", { name }).focus());
+				await user.keyboard("{Enter}");
+
+				expect(mockOnChange).toHaveBeenCalledExactlyOnceWith(expectedValue);
+			},
+		);
 	});
 
 	describe("Error Parameter", () => {
