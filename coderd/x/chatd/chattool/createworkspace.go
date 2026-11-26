@@ -17,12 +17,20 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+const templateNotFoundMessage = "template not found; use list_templates to find available templates"
+
+// presetNotInTemplateMessage tells the model that preset_id does not belong
+// to the template's active version.
+const presetNotInTemplateMessage = "preset_id does not belong to the template's active version; " +
+	"use read_template to find the template's presets"
 
 const (
 	// buildPollInterval is how often we check if the workspace
@@ -65,7 +73,10 @@ type AgentConnFunc func(
 
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
-	OwnerID                        uuid.UUID
+	OwnerID uuid.UUID
+	// ProjectID applies the project's template limit and the defaults of
+	// its default template.
+	ProjectID                      uuid.NullUUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
@@ -164,6 +175,12 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
 			tmpl, tmplErr := db.GetTemplateByID(ctx, templateID)
+			// A template the owner cannot read gets the same response as
+			// one that does not exist, so a template that is attached to
+			// the chat's project but hidden from the owner is not revealed.
+			if httpapi.Is404Error(tmplErr) {
+				return fantasy.NewTextErrorResponse(templateNotFoundMessage), nil
+			}
 			if tmplErr != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("look up template: %w", tmplErr).Error(),
@@ -177,6 +194,13 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			}
 			if !tmpl.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
+			}
+			project, err := loadChatProjectTemplates(ctx, db, options.ProjectID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			if project != nil && !project.Allows(tmpl.ID) {
+				return fantasy.NewTextErrorResponse(projectTemplateNotAvailableMessage), nil
 			}
 
 			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)
@@ -221,6 +245,18 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 						xerrors.Errorf("invalid preset_id: %w", err).Error(),
 					), nil
 				}
+				// Workspace creation claims prebuilds by preset ID alone,
+				// so a preset from another template would bypass the
+				// template checks above.
+				preset, err := db.GetPresetByID(ctx, presetID)
+				if err != nil && !httpapi.Is404Error(err) {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("look up preset: %w", err).Error(),
+					), nil
+				}
+				if err != nil || preset.TemplateVersionID != tmpl.ActiveVersionID {
+					return fantasy.NewTextErrorResponse(presetNotInTemplateMessage), nil
+				}
 				createReq.TemplateVersionPresetID = presetID
 			}
 
@@ -238,6 +274,11 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					createReq.RichParameterValues,
 					codersdk.WorkspaceBuildParameter{Name: k, Value: v},
 				)
+			}
+			if project.isDefault(tmpl.ID) {
+				if err := applyProjectDefaults(ctx, options.Logger, db, project, tmpl.ActiveVersionID, args, &createReq); err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 			}
 
 			workspace, updatedChat, err := createWorkspaceWithNameRetry(ctx, ownerID, chatID, createReq, options.CreateFn)
