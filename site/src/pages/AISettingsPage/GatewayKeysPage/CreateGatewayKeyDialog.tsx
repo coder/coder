@@ -114,7 +114,6 @@ export const CreateGatewayKeyDialog: React.FC<CreateGatewayKeyDialogProps> = ({
 								})}
 								label="Name"
 								placeholder="primary-gateway"
-								autoFocus
 								autoComplete="off"
 							/>
 							<DialogFooter>

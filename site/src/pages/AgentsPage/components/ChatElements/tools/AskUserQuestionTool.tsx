@@ -237,6 +237,7 @@ const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 			{isOtherSelected && (
 				<div className="pl-7">
 					<Input
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Selecting Other opens a text field for the custom answer.
 						autoFocus={isInteractive}
 						aria-label={`Other response for ${questionHeader}`}
 						disabled={!isInteractive || isSubmitting}

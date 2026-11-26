@@ -280,7 +280,6 @@ const ConfirmLoginTypeChangeModal: React.FC<
 					<div className="flex flex-col gap-2 text-left">
 						<Label htmlFor={passwordId}>Confirm your password</Label>
 						<Input
-							autoFocus
 							onKeyDown={(event) => {
 								if (event.key === "Enter") {
 									handleConfirm();

@@ -115,6 +115,7 @@
 		"no-conditional-tests": "error",
 		"no-useless-fallback-in-spread": "error",
 		"no-noninteractive-element-interactions": "error",
+		"no-autofocus": "error",
 		"control-has-associated-label": "error",
 		"preserve-manual-memoization": "error",
 		"no-useless-spread": "error",
@@ -225,7 +226,6 @@
 		// Effort = approximate work before enabling:
 		// small < medium < large < xl.
 		// ==========================================================
-		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 
 		// Correctness category rules with existing violations.

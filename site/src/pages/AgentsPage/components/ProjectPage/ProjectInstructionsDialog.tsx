@@ -137,7 +137,6 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 					}}
 					disabled={isBusy}
 					minRows={6}
-					autoFocus
 				/>
 				{hasConflict && (
 					<Alert

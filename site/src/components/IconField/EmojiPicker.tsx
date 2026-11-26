@@ -221,6 +221,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 					<SearchIcon className="size-icon-sm" />
 				</InputGroupAddon>
 				<Frimousse.Search
+					// oxlint-disable-next-line jsx-a11y/no-autofocus -- Opening the emoji picker places focus in its search field.
 					autoFocus={autoFocus}
 					value={search}
 					onChange={(event) => setSearch(event.target.value)}

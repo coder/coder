@@ -333,7 +333,6 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								onChange={onChangeTrimmed(form)}
 								autoComplete="username"
 								placeholder="your-username"
-								autoFocus
 							/>
 
 							<FormField

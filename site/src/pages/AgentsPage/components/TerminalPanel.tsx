@@ -163,6 +163,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 						isVisible={shouldMountTerminal}
 						// Gate on active-tab status, not just connect, so a tab
 						// connecting off screen does not steal focus from the user.
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- The visible terminal takes keyboard input when its tab becomes active.
 						autoFocus={isPanelOpen && isActive}
 						onStatusChange={handleStatusChange}
 						onContentReady={signalReady}
