@@ -17,7 +17,7 @@ type UserOrGroupAutocompleteProps = {
 	templateID: string;
 	exclude: UserOrGroupAutocompleteValue[];
 	id: string;
-	triggerAriaLabelledBy?: string;
+	triggerAriaLabelledBy: string;
 };
 
 export const UserOrGroupAutocomplete: React.FC<
