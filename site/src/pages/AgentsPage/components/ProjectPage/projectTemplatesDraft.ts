@@ -62,6 +62,24 @@ export const hasTemplatesChanges = (
 		serializeTemplates(chatProjectTemplatesRequest(base, eligible));
 
 /**
+ * Covers what a request for the draft's templates depends on: which of them
+ * are eligible, their active versions, and their parameter mode.
+ */
+export const serializeEligibleTemplates = (
+	templates: readonly Template[] | undefined,
+	draftTemplateIds: readonly string[],
+) =>
+	JSON.stringify(
+		(templates ?? [])
+			.filter(({ id }) => draftTemplateIds.includes(id))
+			.map(
+				({ id, active_version_id, use_classic_parameter_flow }) =>
+					`${id}:${active_version_id}:${use_classic_parameter_flow}`,
+			)
+			.sort(),
+	);
+
+/**
  * Returns what saving the draft changes about the saved templates. Templates
  * that are in neither are left alone, which covers the ones the user cannot
  * see.

@@ -415,6 +415,44 @@ export const Conflict: Story = {
 	},
 };
 
+export const ConflictFoundOnSave: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: agentTemplatesKey(MockChatProject.organization_id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
+			},
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [MockPreset],
+			},
+		],
+	},
+	beforeEach: () => {
+		serverProject.set(mockProjectWithDefaultPreset);
+		// The check that Save runs first loads a save from "another user".
+		spyOn(API.experimental, "getChatProjects").mockImplementation(async () => {
+			serverProject.set(mockNewerProject);
+			return [mockNewerProject];
+		});
+		spyOn(API, "getTemplates").mockResolvedValue([
+			mockDockerTemplate,
+			mockKubernetesTemplate,
+		]);
+	},
+	render: (args) => <ServerProjectDialog {...args} />,
+	// Saves an edited draft, so the screenshot shows the warning with focus.
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("switch", {
+				name: "Limit chats to these templates",
+			}),
+		);
+		await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+	},
+};
+
 export const ProjectRefreshError: Story = {
 	parameters: {
 		queries: [

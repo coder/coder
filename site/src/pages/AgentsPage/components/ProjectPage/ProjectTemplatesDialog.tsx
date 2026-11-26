@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { isApiValidationError } from "#/api/errors";
 import {
 	type ChatProjectTemplatesChange,
 	chatProjects,
+	chatProjectsKey,
 } from "#/api/queries/chatProjects";
-import { agentTemplates } from "#/api/queries/templates";
+import { agentTemplates, agentTemplatesKey } from "#/api/queries/templates";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,6 +30,7 @@ import {
 	hasTemplatesChanges,
 	rebaseValues,
 	savedTemplates,
+	serializeEligibleTemplates,
 	serializeTemplates,
 	serializeValues,
 	templatesChange,
@@ -59,9 +61,31 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 	onCloseAutoFocus,
 	...formProps
 }) => {
+	const queryClient = useQueryClient();
+	// Identifies the latest pre-save check. Closing the dialog or leaving the
+	// page moves it on, so a check that resolves later does not save.
+	const checkIdRef = useRef(0);
+	useEffect(
+		() => () => {
+			checkIdRef.current += 1;
+		},
+		[],
+	);
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (nextOpen || formProps.isSaving) {
 			return;
+		}
+		checkIdRef.current += 1;
+		// A hung check would otherwise keep the next open dialog waiting.
+		// Other views share these lists, so fresh requests replace them.
+		for (const queryKey of [
+			chatProjectsKey,
+			agentTemplatesKey(formProps.project.organization_id),
+		]) {
+			const filters = { queryKey, exact: true };
+			void queryClient
+				.cancelQueries(filters)
+				.then(() => queryClient.invalidateQueries(filters));
 		}
 		onOpenChange(false);
 	};
@@ -75,6 +99,11 @@ export const ProjectTemplatesDialog: React.FC<ProjectTemplatesDialogProps> = ({
 				<ProjectTemplatesForm
 					{...formProps}
 					open={open}
+					onBeginCheck={() => {
+						checkIdRef.current += 1;
+						return checkIdRef.current;
+					}}
+					isCheckCurrent={(checkId) => checkId === checkIdRef.current}
 					onCancel={() => handleOpenChange(false)}
 				/>
 			</DialogContent>
@@ -86,10 +115,15 @@ type ProjectTemplatesFormProps = Omit<
 	ProjectTemplatesDialogProps,
 	"onOpenChange" | "onCloseAutoFocus"
 > & {
+	readonly onBeginCheck: () => number;
+	/** False once the dialog closed after the check began. */
+	readonly isCheckCurrent: (checkId: number) => boolean;
 	readonly onCancel: () => void;
 };
 
 const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
+	onBeginCheck,
+	isCheckCurrent,
 	open,
 	project,
 	isSaving,
@@ -104,16 +138,24 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const [baseTemplates, setBaseTemplates] = useState(latestTemplates);
 	const initialValue = chatProjectTemplatesValues(baseTemplates);
 	const [value, setValue] = useState(initialValue);
+	// Set before the pre-save check renders, so a second submit in the same
+	// moment cannot cancel that check's request and save unchecked.
+	const isSubmittingRef = useRef(false);
+	const [isCheckingBeforeSave, setIsCheckingBeforeSave] = useState(false);
 	// Save keeps focus while the dialog closes after a successful save, so
 	// a repeated Enter must not send the same save again. Only a failed save
 	// allows another.
 	const [isSaveSent, setIsSaveSent] = useState(false);
 	// Outcomes of a save or refresh that leaves the dialog open: focus moves
-	// to what explains it (Retry or Save), but only
+	// to what explains it (the conflict warning, Retry, or Save), but only
 	// when focus was lost, such as inputs disabled during a save.
-	const pendingFocusRef = useRef<"retry" | "save" | null>(null);
+	const pendingFocusRef = useRef<"conflict" | "retry" | "save" | null>(null);
+	const conflictAlertRef = useRef<HTMLDivElement>(null);
 	const retryButtonRef = useRef<HTMLButtonElement>(null);
 	const saveButtonRef = useRef<HTMLButtonElement>(null);
+	// Counts draft edits. The draft stays editable during the pre-save
+	// check, so a check that sees a newer edit saves nothing.
+	const draftVersionRef = useRef(0);
 	// A rejected save no longer applies once the draft follows newer
 	// templates, so its error is hidden.
 	const [dismissedError, setDismissedError] = useState<unknown>();
@@ -177,10 +219,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	const refreshFailed = failedQueries.length > 0;
 	// Retry stays enabled while it runs so it keeps focus.
 	const isRetrying = failedQueries.some((query) => query.isFetching);
-	// A stale list can miss a template's new active version.
-	const isRefreshing = projectsQuery.isFetching || templatesQuery.isFetching;
+	// A stale list can miss a template's new active version. The pre-save
+	// check's own refresh leaves Save enabled, so focus stays on it.
+	const isRefreshing =
+		(projectsQuery.isFetching && !isCheckingBeforeSave) ||
+		templatesQuery.isFetching;
 	const isBusy =
-		isSaving || projectsQuery.isFetching || templatesQuery.isFetching;
+		isSaving ||
+		isCheckingBeforeSave ||
+		projectsQuery.isFetching ||
+		templatesQuery.isFetching;
 	const canSave =
 		hasChanges &&
 		!hasConflict &&
@@ -190,8 +238,13 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!isSaving;
 	useEffect(() => {
 		const pending = pendingFocusRef.current;
-		// Wait for the outcome: a save either closes the dialog or fails.
-		if (isBusy || (pending === "save" && !shownError)) {
+		// Wait for the outcome: a save either closes the dialog or fails, and
+		// a found conflict renders its warning after the project refreshes.
+		if (
+			isBusy ||
+			(pending === "save" && !shownError) ||
+			(pending === "conflict" && !hasConflict)
+		) {
 			return;
 		}
 		pendingFocusRef.current = null;
@@ -207,14 +260,16 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		if (!isFocusLost) {
 			return;
 		}
-		if (pending === "retry" && refreshFailed) {
+		if (pending === "conflict") {
+			conflictAlertRef.current?.focus();
+		} else if (pending === "retry" && refreshFailed) {
 			retryButtonRef.current?.focus();
 		} else if (pending !== null || canSave) {
 			// Save stays focusable while it waits. This also covers Save losing
 			// focus to a background refresh.
 			saveButtonRef.current?.focus();
 		}
-	}, [isBusy, refreshFailed, canSave, shownError]);
+	}, [isBusy, hasConflict, refreshFailed, canSave, shownError]);
 
 	return (
 		<form
@@ -223,15 +278,67 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 			// required, which the browser would enforce on submit. A project
 			// default may leave a required parameter empty.
 			noValidate
-			onSubmit={(event) => {
+			onSubmit={async (event) => {
 				event.preventDefault();
-				if (!request || !eligibleTemplates || !canSave) {
+				if (
+					!request ||
+					!eligibleTemplates ||
+					!canSave ||
+					isSubmittingRef.current
+				) {
 					return;
 				}
+				isSubmittingRef.current = true;
 				// The previous failure's error would otherwise unblock Save again
 				// while this save runs.
 				if (shownError) {
 					onResetError();
+				}
+				// A change saved elsewhere since the last refresh would otherwise
+				// be overwritten, so check first. A newer save shows the conflict
+				// warning instead.
+				const checkId = onBeginCheck();
+				const draftVersion = draftVersionRef.current;
+				setIsCheckingBeforeSave(true);
+				// The request was built from the eligible-templates list, so it is
+				// refreshed too.
+				const [refreshed, refreshedTemplates] = await Promise.all([
+					projectsQuery.refetch(),
+					templatesQuery.refetch(),
+				]);
+				isSubmittingRef.current = false;
+				setIsCheckingBeforeSave(false);
+				if (
+					!isCheckCurrent(checkId) ||
+					draftVersion !== draftVersionRef.current
+				) {
+					return;
+				}
+				if (refreshed.isError || refreshedTemplates.isError) {
+					pendingFocusRef.current = "retry";
+					return;
+				}
+				// A changed list rebuilds the request; the user saves again.
+				if (
+					serializeEligibleTemplates(
+						refreshedTemplates.data,
+						value.templateIds,
+					) !== serializeEligibleTemplates(eligibleTemplates, value.templateIds)
+				) {
+					return;
+				}
+				const latest = refreshed.data?.find(({ id }) => id === project.id);
+				if (!latest) {
+					return;
+				}
+				const saved = savedTemplates(latest);
+				const serializedSaved = serializeTemplates(saved);
+				if (
+					serializedSaved !== serializeTemplates(baseTemplates) &&
+					serializedSaved !== serializeTemplates(request)
+				) {
+					pendingFocusRef.current = "conflict";
+					return;
 				}
 				// A rejected save leaves the dialog open, so focus returns to Save.
 				pendingFocusRef.current = "save";
@@ -241,7 +348,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				onSave(
 					templatesChange(
 						chatProjectTemplatesRequest(
-							chatProjectTemplatesValues(latestTemplates),
+							chatProjectTemplatesValues(saved),
 							eligibleTemplates,
 						),
 						request,
@@ -259,6 +366,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				value={value}
 				hiddenTemplateCount={project.hidden_template_count}
 				onChange={(next) => {
+					draftVersionRef.current += 1;
 					setValue(next);
 					if (shownError) {
 						onResetError();
@@ -297,25 +405,36 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				</Alert>
 			)}
 			{hasConflict && (
-				<ProjectEditConflictAlert
-					disabled={isSaving}
-					// The warning unmounts once resolved, so focus moves to Save.
-					onKeepDraft={() => {
-						followLatest();
-						saveButtonRef.current?.focus();
-					}}
-					onLoadLatest={() => {
-						setBaseTemplates(latestTemplates);
-						setValue(chatProjectTemplatesValues(latestTemplates));
-						onResetError();
-						// The newer save can include templates this list hasn't seen.
-						void templatesQuery.refetch();
-						saveButtonRef.current?.focus();
-					}}
+				// Focus lands on the warning rather than Load latest, so a repeated
+				// Enter cannot discard the draft.
+				<div
+					ref={conflictAlertRef}
+					tabIndex={-1}
+					className="rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
-					Someone else changed these templates while you were editing. Load the
-					latest templates, or keep your draft to apply your changes to them.
-				</ProjectEditConflictAlert>
+					<ProjectEditConflictAlert
+						disabled={isSaving}
+						// The warning unmounts once resolved, so focus moves to Save.
+						onKeepDraft={() => {
+							draftVersionRef.current += 1;
+							followLatest();
+							saveButtonRef.current?.focus();
+						}}
+						onLoadLatest={() => {
+							draftVersionRef.current += 1;
+							setBaseTemplates(latestTemplates);
+							setValue(chatProjectTemplatesValues(latestTemplates));
+							onResetError();
+							// The newer save can include templates this list hasn't seen.
+							void templatesQuery.refetch();
+							saveButtonRef.current?.focus();
+						}}
+					>
+						Someone else changed these templates while you were editing. Load
+						the latest templates, or keep your draft to apply your changes to
+						them.
+					</ProjectEditConflictAlert>
+				</div>
 			)}
 			{Boolean(shownError) && !isApiValidationError(shownError) && (
 				<ErrorAlert error={shownError} showDebugDetail={false} />

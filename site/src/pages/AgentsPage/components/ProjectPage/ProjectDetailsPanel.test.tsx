@@ -699,6 +699,12 @@ describe("ProjectDetailsPanel templates", () => {
 			updateProject,
 			getProjects,
 			...panel,
+			// The dialog checks the project list before saving, so it serves
+			// the rerendered project too.
+			rerenderWithProject: (project: ChatProject) => {
+				getProjects.mockResolvedValue([project]);
+				panel.rerenderWithProject(project);
+			},
 		};
 	};
 
@@ -777,6 +783,37 @@ describe("ProjectDetailsPanel templates", () => {
 			detach.mock.invocationCallOrder[0],
 		);
 	});
+
+	it.each([
+		{ status: 404, detachCalls: 2 },
+		{ status: 500, detachCalls: 1 },
+	])(
+		"continues after a detach that returns 404 and stops on other failures (status: $status)",
+		async ({ status, detachCalls }) => {
+			const { user, detach, getProjects } = setup(mockProjectWithTemplates);
+			detach.mockRejectedValueOnce({
+				...mockApiError({ message: "Failed to detach template." }),
+				status,
+			});
+
+			await user.click(
+				screen.getByRole("button", { name: "Edit templates: 2 templates" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Clear all" }),
+			);
+			const save = await findSave();
+			const refreshesBeforeSave = getProjects.mock.calls.length;
+			await user.click(save);
+
+			// The pre-save check refreshes the project, and so does the settled
+			// save, whether it failed or not.
+			await waitFor(() =>
+				expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave + 2),
+			);
+			expect(detach).toHaveBeenCalledTimes(detachCalls);
+		},
+	);
 
 	it("saves again after a save failed partway, without asking to resolve a conflict", async () => {
 		const { user, attach, updateProject, rerenderWithProject } = setup();
@@ -915,6 +952,24 @@ describe("ProjectDetailsPanel templates", () => {
 				...projectArgs,
 				mockKubernetesTemplate.id,
 			),
+		);
+		expect(attach).not.toHaveBeenCalled();
+	});
+
+	it("does not block Save when the latest templates already match the draft", async () => {
+		const { user, attach, getProjects, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject(mockProjectWithTemplates);
+		const refreshesBeforeSave = getProjects.mock.calls.length;
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// The pre-save check and the settled save each refresh the project.
+		await waitFor(() =>
+			expect(getProjects).toHaveBeenCalledTimes(refreshesBeforeSave + 2),
 		);
 		expect(attach).not.toHaveBeenCalled();
 	});
