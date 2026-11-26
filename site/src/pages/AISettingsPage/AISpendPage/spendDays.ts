@@ -62,8 +62,8 @@ const isDay = (value: string): boolean =>
 
 /**
  * Reads a range from URL values, or returns null when they are missing,
- * malformed, reversed, longer than the server allows, or start before
- * `minDay`.
+ * malformed, reversed, longer than the server allows, or end before `minDay`.
+ * A range that starts before `minDay` starts at `minDay` instead.
  */
 export const parseSpendDays = (
 	startDate: string | null,
@@ -73,14 +73,17 @@ export const parseSpendDays = (
 	if (!startDate || !endDate || !isDay(startDate) || !isDay(endDate)) {
 		return null;
 	}
-	if (minDay !== undefined && startDate < minDay) {
-		return null;
-	}
 	const dayCount = dayjs.utc(endDate).diff(dayjs.utc(startDate), "day") + 1;
 	if (dayCount < 1 || dayCount > MaxAISpendPeriodDays) {
 		return null;
 	}
-	return { startDate, endDate };
+	if (minDay === undefined || startDate >= minDay) {
+		return { startDate, endDate };
+	}
+	if (endDate < minDay) {
+		return null;
+	}
+	return { startDate: minDay, endDate };
 };
 
 /**

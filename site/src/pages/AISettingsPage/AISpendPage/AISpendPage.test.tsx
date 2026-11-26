@@ -144,6 +144,24 @@ it("ignores URL days outside the retention", async () => {
 	expect(overviewSpy).toHaveBeenCalledTimes(1);
 });
 
+it("starts URL days at the retention", async () => {
+	const { overviewSpy } = renderAISpendPage(
+		"startDate=2026-03-08&endDate=2026-03-11",
+		{ retentionMs: 3 * 24 * 60 * 60 * 1000 },
+	);
+	await waitFor(() =>
+		expect(overviewSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			{
+				period_start: "2026-03-10T00:00:00.000Z",
+				period_end: "2026-03-12T00:00:00.000Z",
+			},
+			TOP_SPENDERS_COUNT,
+		),
+	);
+	expect(overviewSpy).toHaveBeenCalledTimes(1);
+});
+
 it("writes a picked range to the URL as days and requests it", async () => {
 	const user = userEvent.setup();
 	const { overviewSpy, unpricedModelsSpy, usersSpy, searchParam } =

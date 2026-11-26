@@ -64,8 +64,15 @@ describe("parseSpendDays", () => {
 		expect(parseSpendDays(startDate, endDate)).toBeNull();
 	});
 
-	it("rejects a range that starts before the minimum day", () => {
-		expect(parseSpendDays("2026-03-09", "2026-03-12", "2026-03-10")).toBeNull();
+	it("starts a range at the minimum day", () => {
+		expect(parseSpendDays("2026-03-09", "2026-03-12", "2026-03-10")).toEqual({
+			startDate: "2026-03-10",
+			endDate: "2026-03-12",
+		});
+	});
+
+	it("rejects a range that ends before the minimum day", () => {
+		expect(parseSpendDays("2026-03-01", "2026-03-09", "2026-03-10")).toBeNull();
 	});
 });
 
