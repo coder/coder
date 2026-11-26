@@ -280,6 +280,47 @@
 			"url": "vscode://coder.coder-remote/open?url=https://cod%C4%B0ng.example.com&token=$SESSION_TOKEN",
 			"trusted": false,
 			"origin": "https://coding.example.com"
+		},
+		{
+			"name": "IPv4Origin",
+			"url": "vscode://coder.coder-remote/open?url=https://100.85.112.44&token=$SESSION_TOKEN",
+			"trusted": true,
+			"origin": "https://100.85.112.44"
+		},
+		{
+			"name": "IdeographicDotIPv4",
+			"url": "vscode://coder.coder-remote/open?url=https://100\u300285\u3002112\u300244&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://100.85.112.44"
+		},
+		{
+			"name": "FullWidthDotHost",
+			"url": "vscode://coder.coder-remote/open?url=https://coder\uff0eexample.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "HexIPv4",
+			"url": "vscode://coder.coder-remote/open?url=https://0x64.85.112.44&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://100.85.112.44"
+		},
+		{
+			"name": "DecimalIPv4",
+			"url": "vscode://coder.coder-remote/open?url=https://1683320876&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://100.85.112.44"
+		},
+		{
+			"name": "UnicodeHost",
+			"url": "vscode://coder.coder-remote/open?url=https://b\u00fccher.example&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://xn--bcher-kva.example"
+		},
+		{
+			"name": "LongFormIPv6",
+			"url": "vscode://coder.coder-remote/open?url=https://[2001:0db8::1]&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://[2001:db8::1]"
 		}
 	]
 }

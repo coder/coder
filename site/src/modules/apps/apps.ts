@@ -279,25 +279,35 @@ const isThisDeployment = (
 	url: string,
 	accessUrl: string | undefined,
 ): boolean => {
-	if (!isBareOrigin(url)) {
-		return false;
-	}
-	const { origin } = new URL(url);
+	const origin = parseBareOrigin(url)?.origin;
 	return (
-		origin === location.origin ||
-		(accessUrl !== undefined && parseURL(accessUrl)?.origin === origin)
+		origin !== undefined &&
+		(origin === location.origin ||
+			(accessUrl !== undefined && parseURL(accessUrl)?.origin === origin))
 	);
 };
 
+const BARE_ORIGIN_PATTERN = /^[a-z][a-z\d+.-]*:\/\/([^/\\?#@\s]+)\/?$/i;
+
 /**
- * True when `url` is only an origin, optionally with a trailing slash. A path
- * could reach a workspace app on this deployment, and userinfo can hide a
- * different host from IDEs that decode it again. Matched on the raw string,
- * since parsing normalizes `/.` and drops an empty `?`.
+ * Returns `url` parsed when it is only an origin, optionally with a trailing slash
  */
+const parseBareOrigin = (url: string): URL | undefined => {
+	const authority = BARE_ORIGIN_PATTERN.exec(url)?.[1];
+	const parsed = authority === undefined ? undefined : parseURL(url);
+	if (authority === undefined || parsed === undefined) {
+		return undefined;
+	}
+	const rawHost = authority.replace(/:\d*$/, "");
+	if (/\P{ASCII}/u.test(rawHost) || rawHost.toLowerCase() !== parsed.hostname) {
+		return undefined;
+	}
+	return parsed;
+};
+
+/** True when `url` is a bare origin, as defined by `parseBareOrigin`. */
 export const isBareOrigin = (url: string): boolean =>
-	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) &&
-	parseURL(url) !== undefined;
+	parseBareOrigin(url) !== undefined;
 
 /**
  * True for apps that can be rendered inside a dashboard iframe. Command apps
