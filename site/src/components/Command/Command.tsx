@@ -75,6 +75,11 @@ export const CommandInput: React.FC<
 	);
 };
 
+/**
+ * A cmdk list. An `id` replaces cmdk's generated id (see the cmdk patch), but
+ * then `CommandInput`'s `aria-controls` no longer matches it, so pass an `id`
+ * only when the list has no `CommandInput`.
+ */
 export const CommandList: React.FC<
 	React.ComponentProps<typeof CommandPrimitive.List>
 > = ({ className, ...props }) => {
@@ -152,7 +157,9 @@ export const CommandSeparator: React.FC<
 
 /**
  * A cmdk row. Pass `aria-selected` to mark the row holding the chosen value;
- * otherwise cmdk marks the highlighted row as selected.
+ * otherwise cmdk marks the highlighted row as selected. An `id` replaces
+ * cmdk's generated id and also keys cmdk's internal bookkeeping, so it must be
+ * unique and must not change while the row is mounted.
  */
 export const CommandItem: React.FC<
 	React.ComponentProps<typeof CommandPrimitive.Item>

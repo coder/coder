@@ -48,6 +48,11 @@ type AutocompleteProps<TOption> = {
 	"data-testid"?: string;
 };
 
+// cmdk keys its item bookkeeping on this id, so it must not change while the
+// option stays mounted, which an index-based id would when options filter.
+const getOptionId = (listboxId: string, optionValue: string) =>
+	`${listboxId}-option-${encodeURIComponent(optionValue)}`;
+
 export function Autocomplete<TOption>({
 	value,
 	onChange,
@@ -167,8 +172,8 @@ export function Autocomplete<TOption>({
 	const effectiveHighlightedValue =
 		highlightedIndex >= 0 ? highlightedValue : null;
 	const activeDescendant =
-		highlightedIndex >= 0
-			? `${listboxId}-option-${highlightedIndex}`
+		effectiveHighlightedValue !== null
+			? getOptionId(listboxId, effectiveHighlightedValue)
 			: undefined;
 
 	const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -343,14 +348,14 @@ export function Autocomplete<TOption>({
 								<>
 									<CommandEmpty>{noOptionsText}</CommandEmpty>
 									<CommandGroup>
-										{options.map((option, index) => {
+										{options.map((option) => {
 											const optionValue = getOptionValue(option);
 
 											return (
 												<CommandItem
 													role="option"
 													aria-selected={isSelected(option)}
-													id={`${listboxId}-option-${index}`}
+													id={getOptionId(listboxId, optionValue)}
 													key={optionValue}
 													value={optionValue}
 													onSelect={() => handleSelect(option)}

@@ -129,7 +129,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	// With an unset option the selector stays usable even when no model
 	// options exist, so a saved override can still be switched back.
 	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
-	const listboxId = useId();
+	const contentId = useId();
 	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
@@ -162,8 +162,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							: triggerLabel
 					}
 					aria-expanded={open}
-					aria-haspopup="listbox"
-					aria-controls={open ? listboxId : undefined}
+					aria-controls={open ? contentId : undefined}
 					disabled={isDisabled}
 					role="combobox"
 					type="button"
@@ -193,6 +192,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
+				id={contentId}
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
@@ -224,7 +224,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-secondary"
 					/>
 					<CommandList
-						id={listboxId}
 						role="listbox"
 						className={cn(
 							"max-h-80 border-t-0",
