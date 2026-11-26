@@ -53,6 +53,24 @@ export const MultipleProviders: Story = {
 	},
 };
 
+export const ManyProvidersKeyboardScroll: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: Array.from({ length: 40 }, (_, i) => `provider-${i + 1}`),
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "40 providers" }));
+		await userEvent.tab();
+	},
+};
+
 export const EmptyProviders: Story = {
 	args: {
 		session: {
