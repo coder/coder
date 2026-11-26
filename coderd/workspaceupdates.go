@@ -122,7 +122,8 @@ func (s *sub) Close() error {
 		s.psCancelFn()
 	}
 
-	close(s.ch)
+	// Do not close ch: pubsub may still be running a callback that sends on
+	// it. Readers stop on their own context.
 	return nil
 }
 
