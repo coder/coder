@@ -1431,6 +1431,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Organization prices are managed by the organization's admins
+			// alone. No other organization role can read them.
+			Name:     "AiModelPriceInOrg",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceAiModelPrice.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			// Both allowed subjects use currentUser as their ID, matching the
 			// resource owner.
 			Name:     "BoundaryLogCreate",

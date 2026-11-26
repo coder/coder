@@ -51,10 +51,10 @@ export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 }) => {
 	if (error) {
 		return (
-			<div className="min-h-[260px]">
+			<div className="min-h-65">
 				<ErrorAlert
 					error={error}
-					className="max-h-[340px] overflow-y-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-all [&_pre]:w-auto [&_pre]:min-w-0"
+					className="max-h-85 overflow-y-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-all [&_pre]:w-auto [&_pre]:min-w-0"
 				/>
 			</div>
 		);
@@ -88,7 +88,7 @@ export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 		);
 
 	return (
-		<div className="min-h-[260px]">
+		<div className="min-h-65">
 			<div className="space-y-3">
 				<p className="m-0 text-sm text-content-secondary">
 					<span>{resultSummary}</span>
@@ -139,11 +139,11 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 	const visibleRecentChats = recentChats.slice(0, RECENT_CHATS_COUNT);
 
 	return (
-		<div className="min-h-[260px]">
+		<div className="min-h-65">
 			<div className="space-y-3">
 				{visibleRecentChats.length > 0 && (
 					<div>
-						<h3 className="m-0 mb-3 text-sm font-medium text-content-secondary">
+						<h3 className="m-0 mb-3 text-sm text-content-secondary">
 							Recent chats
 						</h3>
 						<ScrollArea {...SCROLL_AREA_PROPS}>
@@ -201,7 +201,7 @@ const ChatSearchResultsList: React.FC<ChatSearchResultsListProps> = ({
 
 	if ((chats?.length ?? 0) === 0) {
 		return (
-			<div className="flex h-[300px] items-center justify-center px-6 text-center">
+			<div className="flex h-75 items-center justify-center px-6 text-center">
 				<p className="text-sm text-content-secondary">
 					No matching chats.
 					{hasSearchText && (
@@ -288,7 +288,8 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 			onClick={onSelect}
 			className={cn(
 				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
-				isSelected && "bg-surface-tertiary/40 text-content-primary",
+				isSelected &&
+					"bg-surface-tertiary/40 text-content-primary ring-2 ring-inset ring-content-link",
 			)}
 		>
 			<StatusIcon

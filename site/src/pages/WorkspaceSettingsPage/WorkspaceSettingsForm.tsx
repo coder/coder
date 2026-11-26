@@ -76,7 +76,7 @@ export const WorkspaceSettingsForm: React.FC<WorkspaceSettingsFormProps> = ({
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
 			<FormSection
-				title="Workspace Name"
+				title="Workspace name"
 				description="Update the name of your workspace."
 			>
 				<FormFields>
@@ -94,18 +94,17 @@ export const WorkspaceSettingsForm: React.FC<WorkspaceSettingsFormProps> = ({
 						label="Name"
 						disabled={!workspace.allow_renames || form.isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						autoFocus
 						className="w-full"
 					/>
 				</FormFields>
 			</FormSection>
 			<FormSection
-				title="Automatic Updates"
+				title="Automatic updates"
 				description="Configure your workspace to automatically update when started."
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
-						<Label htmlFor={automaticUpdatesField.id}>Update Policy</Label>
+						<Label htmlFor={automaticUpdatesField.id}>Update policy</Label>
 						<Select
 							value={
 								workspace.template_require_active_version

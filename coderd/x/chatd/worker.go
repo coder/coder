@@ -2,10 +2,8 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -108,26 +106,6 @@ func (w *chatWorker) Wake() {
 	w.mu.Unlock()
 	if wakeCh != nil {
 		wake(wakeCh)
-	}
-}
-
-// WaitIdle waits until the worker has no active or cleaning runners.
-func (w *chatWorker) WaitIdle(ctx context.Context) error {
-	for {
-		w.mu.Lock()
-		manager := w.manager
-		w.mu.Unlock()
-		if manager == nil || manager.idle() {
-			return nil
-		}
-		timer := w.opts.Clock.NewTimer(10*time.Millisecond, "chatworker", "wait-idle")
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		}
-		timer.Stop()
 	}
 }
 
@@ -262,19 +240,9 @@ func (w *chatWorker) acquireCandidate(
 	runnerID := uuid.New()
 	var takenOver bool
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("count queue: %w", err)
-		}
-		if !chatstate.ClassifyExecutionState(chat, queueCount > 0, true).IsRunnable() || chat.Archived {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
+		chat, state := snapshot.Chat, snapshot.State()
+		if !state.IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {
@@ -312,7 +280,7 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
-		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
+		_, err = tx.Acquire(chatstate.AcquireInput{Snapshot: snapshot, WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
@@ -359,18 +327,12 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(cleanupCtx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
+	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
+		chat := snapshot.Chat
 		if !chat.WorkerID.Valid || chat.WorkerID.UUID != workerID || !chat.RunnerID.Valid || chat.RunnerID.UUID != runnerID {
 			return errSkipAcquire
 		}
-		_, err = tx.Abandon(chatstate.AbandonInput{})
+		_, err := tx.Abandon(chatstate.AbandonInput{Snapshot: snapshot})
 		return err
 	})
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {

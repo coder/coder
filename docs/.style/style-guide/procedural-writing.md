@@ -1,3 +1,7 @@
+---
+review-personas: [structure, language]
+---
+
 # Procedural writing
 
 Procedural prose tells the reader what to do: the numbered steps of a how-to guide, a tutorial, or a Quickstart.
@@ -70,15 +74,17 @@ No Vale rule.*
 
 ## Keep steps short
 
-Write each step in 20 words or fewer.
-The limit covers the whole step, including an expected result.
-When a step deliberately breaks into more than one paragraph, for example around a code block, count each paragraph on its own.
+Write the instruction of each step in 20 words or fewer.
+The instruction is the step's first paragraph: the action, and an expected result if the step states one.
+Paragraphs below the instruction explain the step, and they follow the body prose target instead.
 Code blocks, images, and tables inside a step don't count toward the limit.
 Count words as [How to count words](./voice-and-tone.md#how-to-count-words) describes.
 Body prose gets a flexible 25-word target (refer to [Keep sentences and paragraphs short](./voice-and-tone.md#keep-sentences-and-paragraphs-short)).
-Steps get a firm limit because the reader is mid-task and holds the instruction in working memory while they act on it.
+Instructions get a firm limit because the reader is mid-task and holds the instruction in working memory while they act on it.
 
-When a step needs more words, split the step into two steps, or move background information into the prose around the procedure.
+When an instruction needs more words, shorten it, or move the explanation to a paragraph below the instruction.
+When the step holds more than one action, split it into one step for each action.
+Keep linked information together: do not break one action or one explanation across paragraphs only to meet the limit.
 Do not cut words that carry meaning to meet the limit.
 
 **Do**:
@@ -86,6 +92,8 @@ Do not cut words that carry meaning to meet the limit.
 ```md
 1. Open **Templates** > **Settings** > **Schedule**.
 2. Set the autostop timer to 8 hours.
+
+   Workspaces built from the template then stop overnight, which saves infrastructure cost while nobody uses them.
 ```
 
 **Don't**:
@@ -95,7 +103,9 @@ Do not cut words that carry meaning to meet the limit.
 ```
 
 *Adapted from ASD-STE100 Issue 9, rule 5.1.
-Enforced by `Coder.StepLength` (planned).*
+Enforced by `Coder.StepLength` (`warning`).
+The rule counts the words in the first paragraph of each ordered-list step and flags instructions over 20.
+It approximates [How to count words](./voice-and-tone.md#how-to-count-words), and its header comment lists the approximations.*
 
 ## Use a full clause after before, after, when, and while
 

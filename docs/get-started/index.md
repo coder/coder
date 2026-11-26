@@ -116,16 +116,19 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
+[Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
 1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
 
 1. Follow the onboarding to configure Podman.
 
-1. If you configured Podman to use WSL2, then you will need to do either upgrade WSL2 to version 2.5.1 or later (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default) or create a `.wslconfig` file in the `%USERPROFILE%` directory with the following contents
+1. If you configured Podman to use WSL2, upgrade WSL2 to version 2.5.1 or later, or create a `.wslconfig` file.
+
+   WSL2 version 2.5.1 and later use [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default.
+   Create the `.wslconfig` file in the `%USERPROFILE%` directory with the following contents:
 
    ```txt
    [wsl2]
@@ -154,7 +157,7 @@ Install the `coder` CLI to get started:
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   - For standalone binaries, system packages, or other alternate installation methods, refer to the [latest release on GitHub](https://github.com/coder/coder/releases/latest).
+   - For standalone binaries, system packages, or other alternate installation methods, visit the [Coder downloads page](https://coder.com/downloads).
 
 1. Start Coder:
 
@@ -164,7 +167,7 @@ Install the `coder` CLI to get started:
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 1. Use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
@@ -189,17 +192,22 @@ If your control plane is on a network or cloud device, or you are having trouble
 It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find it.
 
+The setup page asks for a setup token, whichever URL you use.
+Copy it from the line that starts with `Setup token:` in the same output.
+
 This section includes some of the quicker ways to install Coder.
 For more detailed options, visit the [Install](../install/index.md) page.
 
 ## Step 3: Initial setup
 
 1. Create your admin account:
+   - Setup token: Copy it from the line that starts with `Setup token:` in the `coder server` output.
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin account.
-   Coder automatically grants admin permissions to the first user that signs in.
+   Coder automatically grants admin permissions to the first user.
+   To sign in with GitHub later, create the account with your GitHub account's primary email.
+   After setup, switch the account to GitHub sign-in under **Account** > **Security**.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -219,7 +227,8 @@ The template builder guides you through creating one without writing any Terrafo
    > [!NOTE]
    > This template requires Docker to be running in the background, so make sure Docker is running.
 
-1. Skip or configure any base template parameters, then select modules to add IDEs and tools to your template.
+1. Skip or configure any base template parameters, then select modules to add IDEs and tools.
+
    For example, add **code-server** to get VS Code in the browser.
    You can skip module selection for now and add modules later.
 
@@ -228,7 +237,7 @@ The template builder guides you through creating one without writing any Terrafo
      `my-docker-template`
    - **Display name** and **Description**: fill in as you like.
 
-1. Select **Create Template**.
+1. Select **Create template**.
    Coder composes and validates the Terraform configuration, then creates your template.
 
    ![Template builder base selection step](../images/templatebuilder_01_bases.png)
@@ -253,12 +262,14 @@ Now it's time to launch a workspace.
 
 ## Step 5: Launch your workspace
 
-1. After the template is ready, select **+ Create Workspace**.
+1. After the template is ready, select **+ Create workspace**.
 
 1. Give the workspace a name.
+
    If you need a suggestion, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. If the template has any [parameters](../admin/templates/extending-templates/parameters/index.md), fill them in.
+1. If the template has any [parameters](../templates/extending-templates/parameters/index.md), fill them in.
+
    Parameters vary by template and the modules you selected in the builder.
 
 1. Select **Create workspace**.
@@ -290,6 +301,7 @@ If you didn't clone an existing Git repository when you created your workspace, 
    Learn more about how to find the repository URL in the [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
 
 2. Choose the folder to which VS Code should clone the repo.
+
    It will be in its own directory within this folder.
 
    Note that you cannot create a new parent directory in this step.
@@ -307,25 +319,70 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Pick the goal that matches what you want to do next.
+To keep learning, take a hands-on course on coder.com.
+Start with Template Fundamentals, which teaches you how to customize a template.
+
+<div class="cards">
+
+- [Template Fundamentals](https://coder.com/learn/coder-quickstart): Make a template your own by adding languages and tools, and learn Terraform basics along the way.
+- [All Coder courses](https://coder.com/learn): Browse every hands-on Coder course, from your first workspace to running Coder in production.
+
+</div>
+
+You can also pick the goal that matches what you want to do next.
 Each path starts from the deployment you just built.
 
 ### Hand a task to a coding agent
 
-[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
+[Coder Agents](../coder-agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
 Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
-You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
-Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
+You need an API key for a [supported large language model (LLM) provider](../coder-agents/models.md).
+Follow [Get started with Coder Agents](../coder-agents/getting-started.md) to configure a provider and run your first agent.
 
 If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
 
 ### Make the workspace fit how you work
 
-The Quickstart template is a starting point.
-[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10 minutes.
+The template you built is a starting point.
+To add a language or install your own command-line tools, take the [Template Fundamentals](https://coder.com/learn/coder-quickstart) course.
 
-To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
+To clone a private repository into your workspace, add GitHub authentication to the template:
+
+1. Open the template for editing.
+
+   In the dashboard, go to **Templates**, select your template, select the menu next to **Create workspace**, and then select **Edit files**.
+   With the CLI, run `coder templates pull <template-name> <directory>`.
+
+1. Add a `coder_external_auth` data source to `main.tf`:
+
+   ```tf
+   data "coder_external_auth" "github" {
+     id = "github"
+   }
+   ```
+
+   On a new Coder deployment, `id = "github"` works without extra setup.
+   For other providers, refer to [External authentication](../admin/external-auth.md).
+
+1. Publish a new version of the template.
+
+   In the web editor, select **Build**, wait for the build to finish, and then select **Publish**.
+   With the CLI, run `coder templates push -d <directory> <template-name>`.
+
+1. On the template page, select **Create workspace**.
+
+1. Under **External authentication**, select **Login with GitHub** to authorize Coder.
+
+   Coder requires this authentication to create a workspace from the template.
+   To let users skip it, add `optional = true` to the data source.
+
+1. Finish creating the workspace, as in [Step 5](#step-5-launch-your-workspace).
+
+1. In the workspace, clone your private repository with its HTTPS URL.
+
+   Git doesn't prompt you to sign in, because Coder supplies your GitHub token.
+
+To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 
 ### Bring in your team
 
@@ -333,8 +390,11 @@ Coder is built for shared, remote infrastructure.
 When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
-1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
-1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect a single sign-on (SSO) provider.
+1. Have each teammate launch their own workspace from your template.
+
+   Everyone in the organization can use the template by default.
+   Refer to [Workspace management](../workspaces/workspace-management.md).
 
 ## Learn more
 
@@ -345,7 +405,7 @@ When you're ready for other people to use it:
 
 ### Cannot connect to the Docker daemon
 
-When creating a workspace from a Docker template, you may see an error like:
+When creating a workspace from a Docker template, you might see an error like:
 
 ```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
@@ -354,7 +414,7 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 This usually means a container runtime is either not installed or not running on the machine where Coder is running.
 A runtime must be running before you create a workspace from a Docker-based template.
 
-If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+If the runtime is running but Coder still cannot connect, the daemon might expose its socket at a path other than `/var/run/docker.sock`.
 This is common with Colima on macOS and with rootless Docker on Linux.
 In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the control plane.
 
@@ -458,7 +518,7 @@ Identify and stop it, then start the control plane again.
    lsof -i :3000
    ```
 
-1. Stop the process using the PID from the previous command:
+1. Stop the process using the process ID (PID) from the previous command:
 
    ```sh
    kill <PID>

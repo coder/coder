@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -23,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -35,15 +37,28 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
-	emptySkillFormValues,
+	emptyProjectSkillFormValues,
+	isSkillContentChanged,
 	projectSkillsScope,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
-import { RetryButton } from "../RetryButton";
-import { SkillEditorForm, type SkillErrorDisplay } from "../SkillEditor";
+import {
+	SkillEditorBodyField,
+	SkillEditorDescriptionField,
+	SkillEditorFields,
+	SkillEditorForm,
+	SkillEditorImport,
+	SkillEditorNameField,
+	SkillEditorProjectSettings,
+	SkillEditorSubmitButton,
+	SkillEditorSubmitError,
+	type SkillErrorDisplay,
+	type SkillSubmitHandler,
+	useSkillEditorFormState,
+} from "../SkillEditor";
 import { SkillEnabledSwitch } from "../SkillEnabledSwitch";
 import { downloadSkillFile, skillError } from "../SkillsTable";
 import { DeleteSkillDialog } from "../SkillsTableView";
@@ -177,7 +192,14 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
-						onSubmit={(content, onSettled) => {
+						onSubmit={(values, content, onSettled, isContentChanged) => {
+							const req = {
+								content,
+								action: values.action,
+								model_invocable: values.modelInvocable,
+								// A hidden display name keeps its stored value.
+								display_name: values.action ? values.displayName : undefined,
+							};
 							const onSuccess = () => {
 								closeEditor();
 								toast.success(
@@ -185,10 +207,15 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								);
 							};
 							if (editor.type === "create") {
-								createMutation.mutate({ content }, { onSuccess, onSettled });
+								createMutation.mutate(req, { onSuccess, onSettled });
 							} else {
 								updateMutation.mutate(
-									{ name: editor.name, req: { content } },
+									{
+										name: editor.name,
+										req: isContentChanged
+											? req
+											: { ...req, content: undefined },
+									},
 									{ onSuccess, onSettled },
 								);
 							}
@@ -202,7 +229,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								<DialogDescription>
 									{isAtLimit
 										? `You have reached the limit of ${SKILLS_MAX_PER_OWNER} ${NOUN}s. Delete a skill before creating another one.`
-										: "Every chat in this project can use these."}
+										: "Chats use these when relevant, or when you ask."}
 								</DialogDescription>
 							</DialogHeader>
 							{canEdit && (
@@ -210,6 +237,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									ref={setPrimaryFallback}
 									size="sm"
 									variant="outline"
+									// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the New skill button after closing the create editor.
 									autoFocus={lastEditor?.type === "create"}
 									disabled={isAtLimit || skillsQuery.isLoading}
 									onClick={() => openEditor({ type: "create" })}
@@ -235,8 +263,25 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 							) : null}
 							{skillsQuery.isLoading && <Loader />}
 							{skillsQuery.isSuccess && skills.length === 0 && (
-								<div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
-									No skills added yet
+								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center text-sm text-content-secondary">
+									{canEdit ? (
+										<>
+											<p className="m-0">
+												Add reusable guides for specific tasks, like reviewing
+												PRs, writing release notes, or drafting updates.
+											</p>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => openEditor({ type: "create" })}
+											>
+												<PlusIcon />
+												New skill
+											</Button>
+										</>
+									) : (
+										"No skills added yet"
+									)}
 								</div>
 							)}
 							{skills.length > 0 && (
@@ -262,6 +307,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 												scope={scope}
 												skill={skill}
 												canEdit={canEdit}
+												// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the edited skill’s menu after closing the editor.
 												autoFocus={
 													lastEditor?.type === "edit" &&
 													lastEditor.name === skill.name
@@ -285,7 +331,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								</Table>
 							)}
 						</div>
-						<DialogFooter className="border-t border-border px-6 py-4">
+						<DialogFooter className="border-t px-6 py-4">
 							<Button variant="outline" onClick={() => handleOpenChange(false)}>
 								Close
 							</Button>
@@ -337,7 +383,9 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: (content: string, onSettled: () => void) => void;
+	readonly onSubmit: (
+		...args: [...Parameters<SkillSubmitHandler>, isContentChanged: boolean]
+	) => void;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
@@ -363,7 +411,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 		skillQuery.error.response?.status === 404;
 	let loaded: ReturnType<typeof skillFormValuesFromSkill> | undefined;
 	if (view.type === "create") {
-		loaded = { ok: true, values: emptySkillFormValues };
+		loaded = { ok: true, values: emptyProjectSkillFormValues };
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
 	}
@@ -429,30 +477,38 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				readOnly={!canEdit}
 				initialValues={openedValues ?? loaded.values}
 				existingNames={existingNames}
-				submitError={submitError}
 				isSubmitting={isSubmitting}
-				nameHint="Lowercase letters, numbers, and hyphens."
-				bodyPlaceholder="Describe when and how the agent should use this skill."
-				header={({ isDirty }) => (
-					<ProjectSkillEditorHeader
-						title={title}
-						isSubmitting={isSubmitting}
-						backButtonRef={backButtonRef}
-						onBack={isDirty ? () => setIsDiscardOpen(true) : onBack}
-					/>
+				onSubmit={(values, content, onSettled) => {
+					onSubmit(
+						values,
+						content,
+						onSettled,
+						view.type === "create" ||
+							isSkillContentChanged(openedValues ?? loaded.values, values),
+					);
+				}}
+			>
+				<ProjectSkillDiscardGuardedHeader
+					title={title}
+					isSubmitting={isSubmitting}
+					backButtonRef={backButtonRef}
+					onBack={onBack}
+					onDiscardChanges={() => setIsDiscardOpen(true)}
+				/>
+				<SkillEditorFields>
+					<SkillEditorSubmitError error={submitError} />
+					{canEdit && <SkillEditorImport />}
+					<SkillEditorNameField hint="Lowercase letters, numbers, and hyphens." />
+					<SkillEditorDescriptionField />
+					<SkillEditorProjectSettings />
+					<SkillEditorBodyField placeholder="Describe when and how the agent should use this skill." />
+				</SkillEditorFields>
+				{canEdit && (
+					<DialogFooter className="border-t px-6 py-4">
+						<SkillEditorSubmitButton>Save</SkillEditorSubmitButton>
+					</DialogFooter>
 				)}
-				footer={({ canSubmit }) =>
-					canEdit && (
-						<DialogFooter className="border-t border-border px-6 py-4">
-							<Button type="submit" disabled={!canSubmit}>
-								<Spinner loading={isSubmitting} />
-								Save
-							</Button>
-						</DialogFooter>
-					)
-				}
-				onSubmit={(_values, content, onSettled) => onSubmit(content, onSettled)}
-			/>
+			</SkillEditorForm>
 			<ConfirmDialog
 				open={isDiscardOpen}
 				type="delete"
@@ -470,6 +526,23 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				}}
 			/>
 		</>
+	);
+};
+
+type ProjectSkillDiscardGuardedHeaderProps = ProjectSkillEditorHeaderProps & {
+	readonly onDiscardChanges: () => void;
+};
+
+/** Asks before Back discards unsaved edits. Renders inside SkillEditorForm. */
+const ProjectSkillDiscardGuardedHeader: React.FC<
+	ProjectSkillDiscardGuardedHeaderProps
+> = ({ onBack, onDiscardChanges, ...headerProps }) => {
+	const { isDirty } = useSkillEditorFormState();
+	return (
+		<ProjectSkillEditorHeader
+			{...headerProps}
+			onBack={isDirty ? onDiscardChanges : onBack}
+		/>
 	);
 };
 
@@ -493,6 +566,7 @@ const ProjectSkillEditorHeader: React.FC<ProjectSkillEditorHeaderProps> = ({
 			variant="subtle"
 			className="-ml-2"
 			disabled={isSubmitting}
+			// oxlint-disable-next-line jsx-a11y/no-autofocus -- The Back button is the initial focus target in the editor.
 			autoFocus
 			onClick={onBack}
 		>
@@ -533,8 +607,12 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 }) => (
 	<TableRow>
 		<TableCell className="w-full max-w-0" title={skill.name}>
-			<div className="truncate font-medium text-content-primary">
-				{skill.name}
+			<div className="flex items-center gap-1.5">
+				<span className="truncate font-medium text-content-primary">
+					{skill.name}
+				</span>
+				{skill.action && <Badge size="sm">Action</Badge>}
+				{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
 			</div>
 			<div
 				className="truncate text-xs text-content-secondary"
@@ -561,6 +639,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 						size="icon"
 						variant="subtle"
 						aria-label={`Open menu for ${skill.name}`}
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Restore focus to this menu when returning from the editor.
 						autoFocus={autoFocus}
 						onPointerDown={onTriggerInteraction}
 						onKeyDown={onTriggerInteraction}

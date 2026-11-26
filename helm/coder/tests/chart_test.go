@@ -82,6 +82,14 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "network_policy",
+		expectedError: "",
+	},
+	{
+		name:          "network_policy_minimal",
+		expectedError: "",
+	},
+	{
 		name:          "extra_templates",
 		expectedError: "",
 	},
@@ -171,6 +179,10 @@ var testCases = []testCase{
 	},
 	{
 		name:          "single_stack_ipv6",
+		expectedError: "",
+	},
+	{
+		name:          "image_digest",
 		expectedError: "",
 	},
 }

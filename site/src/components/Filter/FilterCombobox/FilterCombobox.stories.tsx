@@ -7,7 +7,7 @@ import {
 	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
@@ -79,18 +79,21 @@ const filterOptions = (
 const categories: FilterCategory[] = [
 	{
 		key: "status",
+		optionsKey: "status",
 		label: "Status",
 		icon: <CircleDotIcon />,
 		getOptions: async (query) => filterOptions(statusOptions, query),
 	},
 	{
 		key: "template",
+		optionsKey: "template",
 		label: "Template",
 		icon: <LayoutGridIcon />,
 		getOptions: async (query) => filterOptions(templateOptions, query),
 	},
 	{
 		key: "owner",
+		optionsKey: "owner",
 		label: "Owner",
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
@@ -105,6 +108,7 @@ const categoriesWithAttributes: FilterCategory[] = [
 	),
 	{
 		key: "attribute",
+		optionsKey: "attribute",
 		aliases: ["attributes"],
 		label: "Attributes",
 		icon: <SlidersHorizontalIcon />,
@@ -202,6 +206,7 @@ export const SearchableHoverFlyout: Story = {
 			categories={[
 				{
 					key: "owner",
+					optionsKey: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
 					getOptions: async (query) =>
@@ -221,6 +226,7 @@ export const SearchableHoverFlyout: Story = {
 
 const longOptionCategory = (key: string, label: string): FilterCategory => ({
 	key,
+	optionsKey: key,
 	label,
 	getOptions: async () => [
 		{
@@ -520,6 +526,7 @@ export const NoFilterMatches: Story = {
 			categories={[
 				{
 					key: "owner",
+					optionsKey: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
 					getOptions: async (query) => filterOptions(ownerOptions, query),
@@ -574,7 +581,7 @@ export const EnterCommitsHighlightedCategory: Story = {
 		await userEvent.keyboard("{ArrowDown}");
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /Template/i })).toHaveAttribute(
-				"aria-selected",
+				"data-selected",
 				"true",
 			),
 		);
@@ -637,12 +644,14 @@ export const CrossCategoryValueSuggestions: Story = {
 			categories={[
 				{
 					key: "status",
+					optionsKey: "status",
 					label: "Status",
 					icon: <CircleDotIcon />,
 					getOptions: async (query) => filterOptions(statusOptions, query),
 				},
 				{
 					key: "owner",
+					optionsKey: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
 					getOptions: async (query) =>
@@ -702,6 +711,7 @@ export const TypedInlinePrefix: Story = {
 const scopedOwnerCategories: FilterCategory[] = [
 	{
 		key: "owner",
+		optionsKey: "owner",
 		label: "Owner",
 		icon: <UserIcon />,
 		scopeToggle: {
@@ -733,6 +743,21 @@ export const ScopeToggle: Story = {
 		await body.findByRole("switch", {
 			name: "Include workspaces shared with alice",
 		});
+	},
+};
+
+export const ScopeToggleKeyboard: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.keyboard("{ArrowRight}");
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "Include workspaces shared with alice",
+		});
+		await userEvent.keyboard("{End}");
 	},
 };
 
@@ -822,12 +847,14 @@ export const ClearAllFromCategory: Story = {
 const singleTemplateCategories: FilterCategory[] = [
 	{
 		key: "owner",
+		optionsKey: "owner",
 		label: "Owner",
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
 	{
 		key: "template",
+		optionsKey: "template",
 		label: "Template",
 		icon: <LayoutGridIcon />,
 		hideWhenSingleOption: true,
@@ -887,6 +914,7 @@ export const CategoryListLoadingAfterOneSettles: Story = {
 				...singleTemplateCategories,
 				{
 					key: "organization",
+					optionsKey: "organization",
 					label: "Organization",
 					icon: <UserIcon />,
 					hideWhenSingleOption: true,
@@ -1041,6 +1069,7 @@ export const CategoryOptionsErrorRetry: Story = {
 				categories={[
 					{
 						key: "status",
+						optionsKey: "status",
 						label: "Status",
 						icon: <CircleDotIcon />,
 						getOptions: async (query) => {
@@ -1108,26 +1137,24 @@ export const InlineOptionsError: Story = {
 
 // A Retry that has not settled keeps the heading with a loading row.
 export const InlineOptionsRetrying: Story = {
-	render: () => {
-		let failed = false;
-		return (
-			<FilterComboboxHarness
-				initialQuery=""
-				categories={categoriesWithAttributes.map((category) =>
-					category.key === "status"
-						? {
-								...category,
-								getOptions: () => {
-									if (!failed) {
-										failed = true;
-										return Promise.reject(new Error("boom"));
-									}
-									return new Promise<FilterOption[]>(() => {});
-								},
+	render: function Render() {
+		const failed = useRef(false);
+		const retryingCategories = categoriesWithAttributes.map((category) =>
+			category.key === "status"
+				? {
+						...category,
+						getOptions: () => {
+							if (!failed.current) {
+								failed.current = true;
+								return Promise.reject(new Error("boom"));
 							}
-						: category,
-				)}
-			/>
+							return new Promise<FilterOption[]>(() => {});
+						},
+					}
+				: category,
+		);
+		return (
+			<FilterComboboxHarness initialQuery="" categories={retryingCategories} />
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -1172,6 +1199,7 @@ export const TypeaheadErrorRetry: Story = {
 				categories={[
 					{
 						key: "owner",
+						optionsKey: "owner",
 						label: "Owner",
 						icon: <UserIcon />,
 						getOptions: async (query) => {
@@ -1210,6 +1238,7 @@ export const CategoryOptionsLoading: Story = {
 			categories={[
 				{
 					key: "owner",
+					optionsKey: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
 					getOptions: () => new Promise<FilterOption[]>(() => {}),
@@ -1237,6 +1266,7 @@ export const CategorySearchLoading: Story = {
 			categories={[
 				{
 					key: "owner",
+					optionsKey: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
 					getOptions: (query) =>
@@ -1280,6 +1310,7 @@ export const CategoryEmptyState: Story = {
 			categories={[
 				{
 					key: "template",
+					optionsKey: "template",
 					label: "Template",
 					icon: <LayoutGridIcon />,
 					getOptions: async () => [],

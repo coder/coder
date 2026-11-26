@@ -1,22 +1,17 @@
 ---
-title: About
+title: Home
 markdown_url: /docs.md
 ---
-
-<!-- Warning for docs contributors: The first section in docs/manifest/index.yml must be titled "About" for the static landing page to work correctly. -->
-
-Coder is a self-hosted platform for running AI coding agents and cloud development environments on infrastructure you control.
-It works with any cloud, IDE, OS, Git provider, and IDP.
 
 ![Coder platform showing templates and a running workspace](./images/hero-image.png)
 
 ## Coder Workspaces
 
-[Coder Workspaces](./user-guides/index.md) are cloud development environments defined with Terraform, connected through a secure Wireguard tunnel, and automatically shut down when not in use.
+[Coder Workspaces](./workspaces/index.md) are cloud development environments defined with Terraform, connected through a secure Wireguard tunnel, and automatically shut down when not in use.
 Agents and developers share the same workspace infrastructure.
 
 - **Defined in Terraform**:
-  Templates describe the infrastructure for each workspace, from EC2 VMs and Kubernetes Pods to Docker containers.
+  Templates describe the infrastructure for each workspace, from Amazon Elastic Compute Cloud (EC2) VMs and Kubernetes Pods to Docker containers.
 - **Any architecture and OS**:
   Support ARM and x86-64 across Windows, Linux, and macOS from a single deployment.
 - **Managed by admins**:
@@ -28,15 +23,15 @@ Agents and developers share the same workspace infrastructure.
 
 ## Coder Agents
 
-[Coder Agents](./ai-coder/agents/index.md) is a native AI coding agent built into Coder.
+[Coder Agents](./coder-agents/index.md) is a native AI coding agent built into Coder.
 The agent loop runs in the Coder control plane on your infrastructure, not in the workspace and not in a vendor's cloud.
-Developers interact with agents through the web UI or the REST API for programmatic and CI-driven workflows.
+Developers interact with agents through the web UI or the Representational State Transfer (REST) API for programmatic and continuous integration (CI)-driven workflows.
 
 - **Self-hosted agent loop**:
   The control plane handles planning, model calls, and tool dispatch.
   Workspaces have zero AI awareness.
 - **No API keys in workspaces**:
-  LLM credentials stay in the control plane.
+  large language model (LLM) credentials stay in the control plane.
 - **Any model**:
   Anthropic, OpenAI, Google, Bedrock, or self-hosted endpoints.
   Switching is a configuration change.
@@ -64,19 +59,20 @@ You can use:
 
   - [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/)
   - [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial)
-  - [Emacs](./user-guides/workspace-access/emacs-tramp.md)
+  - [Emacs](./workspaces/workspace-access/emacs-tramp.md)
 
 - A file sync such as [Mutagen](https://mutagen.io/)
 
 ## Why remote development
 
 Provisioning consistent development environments for a large engineering team is difficult.
-Each developer has preferences for operating systems, editors, and toolchains, and ensuring a reliable build environment across all of them is a maintenance burden.
+Each developer has preferences for operating systems, editors, and toolchains, and providing a reliable build environment across all of them is a maintenance burden.
 A missed step during onboarding or an unsupported local configuration can cost hours of debugging.
 
 Remote development solves this by moving the environment off the developer's machine and into managed infrastructure.
 The developer's laptop becomes a portal into the actual compute where work happens.
-If a device is lost or replaced, access is simply revoked; no source code or credentials are stored locally.
+If a device is lost or replaced, access is simply revoked.
+No source code or credentials are stored locally.
 
 This approach provides:
 
@@ -86,7 +82,7 @@ This approach provides:
   Infrastructure tools such as Terraform, nix, Docker, and Dev Containers produce identical environments for every developer.
 - **Security**:
   Source code stays on private servers.
-  Users and groups are managed through [SSO](./admin/users/oidc-auth/index.md) and [RBAC](./admin/users/groups-roles.md#roles).
+  Users and groups are managed through [single sign-on (SSO)](./admin/users/oidc-auth/index.md) and [role-based access control (RBAC)](./admin/users/groups-roles.md#roles).
 - **Compatibility**:
   Workspaces share infrastructure configurations with staging and production, reducing configuration drift.
 - **Accessibility**:
@@ -101,7 +97,7 @@ The key difference between Coder and other platforms is that the entire system, 
 For agents, this means platform teams can:
 
 - Run the entire agent loop on their infrastructure, with no SaaS dependency for orchestration.
-- Define MCP servers, skills, and system prompts centrally so every agent session starts with the same tools, policies, and context.
+- Define Model Context Protocol (MCP) servers, skills, and system prompts centrally so every agent session starts with the same tools, policies, and context.
 - Keep LLM credentials out of workspaces entirely.
 - Tie every agent action to an authenticated user identity.
 - Support air-gapped and restricted-network deployments with self-hosted models.
@@ -129,7 +125,7 @@ The [Coder Registry](https://registry.coder.com/templates) provides production-r
 Workspaces can include more than just compute.
 Terraform can add storage buckets, secrets, sidecars, and [other resources](https://developer.hashicorp.com/terraform/tutorials).
 
-See the [templates documentation](./admin/templates/index.md) for details.
+See the [templates documentation](./templates/index.md) for details.
 
 ## What Coder is not
 
@@ -155,7 +151,7 @@ See the [templates documentation](./admin/templates/index.md) for details.
 
 ## Learn more
 
-- [Coder Agents](./ai-coder/agents/index.md)
-- [Templates](./admin/templates/index.md)
+- [Coder Agents](./coder-agents/index.md)
+- [Templates](./templates/index.md)
 - [Installing Coder](./install/index.md)
 - [Quickstart tutorial](./get-started/index.md)

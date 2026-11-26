@@ -29,11 +29,12 @@ type ChangeWorkspaceVersionDialogProps = {
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const ChangeWorkspaceVersionDialog: React.FC<
 	ChangeWorkspaceVersionDialogProps
-> = ({ workspace, onClose, onConfirm, open }) => {
+> = ({ workspace, onClose, onConfirm, onCloseAutoFocus, open }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
 		select: (data) => [...data].reverse(),
@@ -66,6 +67,7 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 		<ConfirmDialog
 			open={open}
 			onClose={onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onConfirm={() => {
 				if (newVersion) {
 					onConfirm(newVersion);
@@ -106,6 +108,7 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 									<ComboboxContent
 										className="max-w-none min-w-[min(100%,320px)]"
 										align="start"
+										label="Search versions"
 									>
 										<ComboboxInput placeholder="Search versions…" />
 										<ComboboxList>
@@ -124,8 +127,8 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 															/>
 														}
 														title={
-															<div className="flex w-full flex-row items-center justify-between gap-2">
-																<div className="flex flex-row items-center gap-2">
+															<div className="flex w-full items-center justify-between gap-2">
+																<div className="flex items-center gap-2">
 																	{option.name}
 																	{option.message && (
 																		<InfoIcon

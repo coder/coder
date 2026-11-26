@@ -95,68 +95,6 @@ func attemptSinkFromContext(ctx context.Context) *attemptSink {
 	return sink
 }
 
-var stepCounters sync.Map // map[uuid.UUID]*atomic.Int32
-
-// runRefCounts tracks how many live RunContext instances reference each
-// RunID. Cleanup of shared state (step counters) is deferred until the
-// last RunContext for a given RunID is garbage collected.
-var (
-	runRefCounts sync.Map // map[uuid.UUID]*atomic.Int32
-	// refCountMu serializes trackRunRef and releaseRunRef so the
-	// decrement-to-zero check and subsequent map deletions are
-	// atomic with respect to new references being added.
-	refCountMu sync.Mutex
-)
-
-func trackRunRef(runID uuid.UUID) {
-	refCountMu.Lock()
-	defer refCountMu.Unlock()
-	val, _ := runRefCounts.LoadOrStore(runID, &atomic.Int32{})
-	counter, ok := val.(*atomic.Int32)
-	if !ok {
-		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
-	}
-	counter.Add(1)
-}
-
-// releaseRunRef decrements the reference count for runID and cleans up
-// shared state when the last reference is released. The mutex ensures
-// no concurrent trackRunRef can increment between the zero check and
-// the map deletions.
-func releaseRunRef(runID uuid.UUID) {
-	refCountMu.Lock()
-	defer refCountMu.Unlock()
-	val, ok := runRefCounts.Load(runID)
-	if !ok {
-		return
-	}
-	counter, ok := val.(*atomic.Int32)
-	if !ok {
-		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
-	}
-	if counter.Add(-1) <= 0 {
-		runRefCounts.Delete(runID)
-		stepCounters.Delete(runID)
-	}
-}
-
-func nextStepNumber(runID uuid.UUID) int32 {
-	val, _ := stepCounters.LoadOrStore(runID, &atomic.Int32{})
-	counter, ok := val.(*atomic.Int32)
-	if !ok {
-		panic("chatdebug: invalid step counter type")
-	}
-	return counter.Add(1)
-}
-
-// CleanupStepCounter removes per-run step counter and reference count
-// state. This is used by tests and later stacked branches that have a
-// real run lifecycle.
-func CleanupStepCounter(runID uuid.UUID) {
-	stepCounters.Delete(runID)
-	runRefCounts.Delete(runID)
-}
-
 const stepFinalizeTimeout = 5 * time.Second
 
 func stepFinalizeContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -164,23 +102,6 @@ func stepFinalizeContext(ctx context.Context) (context.Context, context.CancelFu
 		panic("chatdebug: nil context")
 	}
 	return context.WithTimeout(context.WithoutCancel(ctx), stepFinalizeTimeout)
-}
-
-func syncStepCounter(runID uuid.UUID, stepNumber int32) {
-	val, _ := stepCounters.LoadOrStore(runID, &atomic.Int32{})
-	counter, ok := val.(*atomic.Int32)
-	if !ok {
-		panic("chatdebug: invalid step counter type")
-	}
-	for {
-		current := counter.Load()
-		if current >= stepNumber {
-			return
-		}
-		if counter.CompareAndSwap(current, stepNumber) {
-			return
-		}
-	}
 }
 
 type stepHandle struct {

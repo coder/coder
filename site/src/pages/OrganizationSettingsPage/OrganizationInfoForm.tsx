@@ -83,16 +83,12 @@ export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 					title="Info"
 					description="The name and description of the organization."
 				>
-					<fieldset
-						disabled={form.isSubmitting}
-						className="border-0 p-0 m-0 w-full"
-					>
+					<fieldset disabled={form.isSubmitting} className="p-0 m-0 w-full">
 						<FormFields>
 							<FormField
 								field={getFieldHelpers("name")}
 								label="Slug"
 								onChange={onChangeTrimmed(form)}
-								autoFocus
 							/>
 							<FormField
 								field={getFieldHelpers("display_name")}
@@ -140,7 +136,6 @@ export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 							<IconField
 								{...getFieldHelpers("icon")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								onPickEmoji={(value) => form.setFieldValue("icon", value)}
 							/>
 						</FormFields>

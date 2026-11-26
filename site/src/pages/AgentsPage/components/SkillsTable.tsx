@@ -4,10 +4,11 @@ import JSZip from "jszip";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import type { SkillMetadata } from "#/api/typesGenerated";
+import type { SkillMetadata, UpdateSkillRequest } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
 	emptySkillFormValues,
+	isSkillContentChanged,
 	SKILLS_MAX_PER_OWNER,
 	type SkillAccess,
 	type SkillsCopy,
@@ -25,7 +26,7 @@ import {
 
 type DialogState =
 	| { type: "create"; submittedContent?: string }
-	| { type: "edit"; name: string; submittedContent?: string }
+	| { type: "edit"; name: string; submittedRequest?: UpdateSkillRequest }
 	| { type: "view"; name: string }
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
@@ -96,6 +97,8 @@ type SkillsTableProps = {
 	enabledOnly?: boolean;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
+	renderEnabledCell?: SkillsTableViewProps["renderEnabledCell"];
+	isLoading?: boolean;
 	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
 
@@ -106,6 +109,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	enabledOnly = false,
 	headerLevel,
 	toolbar,
+	renderEnabledCell,
+	isLoading = false,
 	onManagePermissions,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
@@ -150,7 +155,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			setDialogState((current) =>
 				current?.type === "edit" &&
 				current.name === variables.name &&
-				current.submittedContent === variables.req.content
+				current.submittedRequest === variables.req
 					? null
 					: current,
 			);
@@ -162,7 +167,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				setDialogState((current) =>
 					current?.type === "edit" &&
 					current.name === variables.name &&
-					current.submittedContent === variables.req.content
+					current.submittedRequest === variables.req
 						? null
 						: current,
 				);
@@ -249,19 +254,22 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 						)
 					: undefined,
 			isSubmitting: createMutation.isPending,
-			onSubmit: (_values, content, onSettled) => {
+			onSubmit: (values, content, onSettled) => {
 				setDialogState((current) =>
 					current?.type === "create"
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				createMutation.mutate({ content }, { onSettled });
+				createMutation.mutate(
+					{ content, model_invocable: values.modelInvocable },
+					{ onSettled },
+				);
 			},
 			onClose: () => setDialogState(null),
 		};
 	} else if (dialogState?.type === "edit" || dialogState?.type === "view") {
-		const submittedContent =
-			dialogState.type === "edit" ? dialogState.submittedContent : undefined;
+		const submittedRequest =
+			dialogState.type === "edit" ? dialogState.submittedRequest : undefined;
 		editorState = {
 			mode: "edit",
 			readOnly: dialogState.type === "view",
@@ -272,7 +280,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			isRetrying: editSkillQuery.isFetching,
 			submitError:
 				updateMutation.variables?.name === dialogState.name &&
-				updateMutation.variables.req.content === submittedContent
+				updateMutation.variables.req === submittedRequest
 					? skillError(
 							updateMutation.error,
 							`Failed to save ${lowerNoun}.`,
@@ -283,16 +291,20 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onRetry: () => {
 				void editSkillQuery.refetch();
 			},
-			onSubmit: (_values, content, onSettled) => {
+			onSubmit: (values, content, onSettled) => {
+				const changesContent =
+					!editInitialValues ||
+					isSkillContentChanged(editInitialValues, values);
+				const req: UpdateSkillRequest = {
+					...(changesContent && { content }),
+					model_invocable: values.modelInvocable,
+				};
 				setDialogState((current) =>
 					current?.type === "edit" && current.name === dialogState.name
-						? { ...current, submittedContent: content }
+						? { ...current, submittedRequest: req }
 						: current,
 				);
-				updateMutation.mutate(
-					{ name: dialogState.name, req: { content } },
-					{ onSettled },
-				);
+				updateMutation.mutate({ name: dialogState.name, req }, { onSettled });
 			},
 			onClose: () => setDialogState(null),
 		};
@@ -335,9 +347,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			access={access}
 			headerLevel={headerLevel}
 			toolbar={toolbar}
+			renderEnabledCell={renderEnabledCell}
 			onManagePermissions={onManagePermissions}
 			error={skillsQuery.error}
-			isLoading={skillsQuery.isLoading}
+			isLoading={skillsQuery.isLoading || isLoading}
 			isRetrying={skillsQuery.isFetching}
 			onRetry={() => {
 				void skillsQuery.refetch();

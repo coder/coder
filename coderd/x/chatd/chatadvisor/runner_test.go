@@ -11,9 +11,13 @@ import (
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 )
 
@@ -62,6 +66,52 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.Equal(t, fantasy.MessageRoleUser, capturedCall.Prompt[len(capturedCall.Prompt)-1].Role)
 	require.Equal(t, question, singleText(t, capturedCall.Prompt[len(capturedCall.Prompt)-1]))
+}
+
+func TestAdvisorRunRecordsChatSpan(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "claude",
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 7, OutputTokens: 3}},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 100,
+		MaxRetries:      1,
+		Stages:          chatloop.NewStageTracer(provider, nil),
+		StageModel:      chatloop.StageModel{Provider: "anthropic", ProviderType: "anthropic", Model: "claude"},
+	})
+	require.NoError(t, err)
+
+	_, err = runtime.RunAdvisor(t.Context(), "question", []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}, nil)
+	require.NoError(t, err)
+
+	var chatSpans []sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == "chat claude" {
+			chatSpans = append(chatSpans, span)
+		}
+	}
+	require.Len(t, chatSpans, 1)
+	require.Contains(t, chatSpans[0].Attributes(), attribute.Int("gen_ai.usage.output_tokens", 3))
+	// The advisor is not an assistant stream, so it stays out of the stream
+	// and time_to_first_token stages.
+	require.Contains(t, chatSpans[0].Attributes(), attribute.String(chatloop.AttrStage, string(chatloop.StageModelCall)))
+	for _, span := range recorder.Ended() {
+		require.NotEqual(t, string(chatloop.StageTimeToFirstToken), span.Name())
+	}
 }
 
 func TestAdvisorRunTruncatesLongQuestion(t *testing.T) {
@@ -560,48 +610,6 @@ func TestNewRuntimeValidation(t *testing.T) {
 			require.ErrorContains(t, err, testCase.errText)
 		})
 	}
-}
-
-func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
-	t.Parallel()
-
-	parentStore := true
-	parentOpts := &fantasyopenai.ResponsesProviderOptions{
-		Store: &parentStore,
-	}
-	parentProviderOpts := fantasy.ProviderOptions{
-		fantasyopenai.Name: parentOpts,
-	}
-
-	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model: &chattest.FakeModel{
-			ProviderName: "test-provider",
-			ModelName:    "test-model",
-			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return streamFromParts([]fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
-					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-				}), nil
-			},
-		},
-		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
-		MaxUsesPerRun:   1,
-		MaxOutputTokens: 64,
-		MaxRetries:      1,
-	})
-	require.NoError(t, err)
-
-	result, err := runtime.RunAdvisor(t.Context(), "anything?", nil, nil)
-	require.NoError(t, err)
-	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
-
-	// Parent's OpenAI Responses entry must still carry its Store setting;
-	// the advisor must have mutated only its per-call clone, never the
-	// shared pointer.
-	require.NotNil(t, parentOpts.Store)
-	require.True(t, *parentOpts.Store)
 }
 
 func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {

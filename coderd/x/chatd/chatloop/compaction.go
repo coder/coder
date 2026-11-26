@@ -26,12 +26,6 @@ const (
 	// CompactionDisabledThresholdPercent turns a compaction trigger off.
 	CompactionDisabledThresholdPercent = int32(100)
 
-	// compactionDebugCreateRunTimeout caps the compaction debug
-	// CreateRun budget. Debug instrumentation is best-effort;
-	// running without the debug row is preferable to blocking
-	// compaction on a slow or locked DB.
-	compactionDebugCreateRunTimeout = 5 * time.Second
-
 	// compactionContextTooLargeMessage tells the user how to recover a
 	// conversation that is too large to summarize.
 	compactionContextTooLargeMessage = "This conversation is too large for the model to compact. " +
@@ -211,8 +205,8 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	}
 	summaryRuntime := opts.Clock.Since(summaryStart)
 	if summary == "" {
-		publishCompactionError(config, "compaction produced an empty summary")
-		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
+		publishCompactionError(config, errEmptyCompactionSummary.Error())
+		return CompactionResult{}, errEmptyCompactionSummary
 	}
 
 	result := CompactionResult{
@@ -400,15 +394,7 @@ func startCompactionDebugRun(
 		modelConfigID = options.ModelConfigID
 	}
 
-	// Use a separate short-lived context for the debug insert so a
-	// slow or locked DB cannot block the model call. Detached from
-	// the parent so cancellation of the compaction run still lets
-	// the insert reach a terminal state, matching the best-effort
-	// contract of debug instrumentation.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
-	)
-	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return options.DebugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -419,40 +405,15 @@ func startCompactionDebugRun(
 		Status:              chatdebug.StatusInProgress,
 		Provider:            provider,
 		Model:               model,
-	})
-	createRunCancel()
-	if err != nil {
-		// Debug instrumentation must not surface as a compaction failure.
-		return ctx, func(error) {}
-	}
-
-	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
-		RunID:               run.ID,
-		ChatID:              options.ChatID,
-		RootChatID:          parentRun.RootChatID,
-		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       modelConfigID,
-		TriggerMessageID:    parentRun.TriggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Provider:            provider,
-		Model:               model,
-	})
-
-	return compactionCtx, func(runErr error) {
-		status := chatdebug.ClassifyError(runErr)
-		// Debug instrumentation must not surface as a compaction failure.
-		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
-			RunID:  run.ID,
-			ChatID: options.ChatID,
-			Status: status,
-		})
-	}
+	}, nil, 0)
 }
 
 // summaryToolResultCaps are the sizes, in bytes, that successive summary
 // requests cut large tool results to after the model rejects the request
 // without tool definitions for its size.
 var summaryToolResultCaps = []int{32 << 10, 4 << 10}
+
+var errEmptyCompactionSummary = xerrors.New("compaction produced an empty summary")
 
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
@@ -516,9 +477,21 @@ func generateCompactionSummary(
 	}
 	// TTFT is an assistant-generation measurement, so the summary stream
 	// records neither its histogram nor its stage.
-	streamSummaryText := func(call fantasy.Call) (string, error) {
+	streamSummaryText := func(call fantasy.Call) (text string, retErr error) {
+		spanCtx, span := options.Stages.StartModelCall(summaryCtx, options.StageModel, true)
+		span.SetInferenceRequest(call)
+		var inference InferenceResponse
+		defer func() {
+			// GenerateCompaction rejects an empty summary, so the span
+			// reports the call as failed too.
+			spanErr := retErr
+			if spanErr == nil && text == "" {
+				spanErr = errEmptyCompactionSummary
+			}
+			endModelCall(span, inference, spanErr)
+		}()
 		attempt, err := guardedStream(
-			summaryCtx,
+			spanCtx,
 			options.ResolvedProvider,
 			options.ResolvedModel,
 			clock,
@@ -567,6 +540,7 @@ func generateCompactionSummary(
 				finishSeen = true
 				finishReason = part.FinishReason
 				responseID = providerResponseID(part)
+				inference = InferenceResponse{ResponseID: responseID, FinishReason: finishReason, Usage: part.Usage}
 			case fantasy.StreamPartTypeError:
 				streamErr = part.Error
 				if streamErr == nil {

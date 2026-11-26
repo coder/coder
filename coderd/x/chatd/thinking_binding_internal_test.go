@@ -52,7 +52,7 @@ func TestThinkingDropBlockModel_RetriesWithEffort(t *testing.T) {
 
 	testutil.RequireReceive(ctx, t, requests)
 	retry := testutil.RequireReceive(ctx, t, requests)
-	require.JSONEq(t, `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, string(retry.Thinking))
+	require.JSONEq(t, `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, string(retry.Thinking))
 	require.Equal(t, thinkingBindingBeta, retry.Header.Get("Anthropic-Beta"))
 }
 

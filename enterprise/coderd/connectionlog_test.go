@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -99,8 +100,10 @@ func TestConnectionLogs(t *testing.T) {
 		})
 
 		ws := createWorkspace(t, db)
-		insert := func(method database.ConnectionLogMethod, appNameOrPort string) uuid.UUID {
+		const sessionID = "0123456789abcdef0123456789abcdef"
+		insert := func(method database.ConnectionLogMethod, appNameOrPort, clientSessionID string) uuid.UUID {
 			return dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ClientSessionID:  sql.NullString{String: clientSessionID, Valid: clientSessionID != ""},
 				ConnectionMethod: method,
 				AppNameOrPort:    sql.NullString{String: appNameOrPort, Valid: appNameOrPort != ""},
 				WorkspaceID:      ws.ID,
@@ -108,11 +111,11 @@ func TestConnectionLogs(t *testing.T) {
 				WorkspaceOwnerID: ws.OwnerID,
 			}).ID
 		}
-		sshCursor := insert(database.ConnectionLogMethodSSH, "cursor")
-		ptyCursor := insert(database.ConnectionLogMethodReconnectingPTY, "cursor")
-		_ = insert(database.ConnectionLogMethodSSH, "")
+		sshCursor := insert(database.ConnectionLogMethodSSH, "cursor", sessionID)
+		ptyCursor := insert(database.ConnectionLogMethodReconnectingPTY, "cursor", sessionID)
+		_ = insert(database.ConnectionLogMethodSSH, "", "")
 		// A workspace app slugged like an IDE is still a workspace app.
-		_ = insert(database.ConnectionLogMethodWorkspaceApp, "cursor")
+		workspaceCursor := insert(database.ConnectionLogMethodWorkspaceApp, "cursor", sessionID)
 
 		query := func(q string) []uuid.UUID {
 			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: q})
@@ -128,6 +131,8 @@ func TestConnectionLogs(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{sshCursor}, query("type:vscode"))
 		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor}, query("app:cursor"))
 		require.ElementsMatch(t, []uuid.UUID{ptyCursor}, query("method:reconnecting_pty app:cursor"))
+		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor, workspaceCursor}, query("client_session_id:"+sessionID+" workspace_id:"+ws.ID.String()))
+		require.Empty(t, query("client_session_id:"+sessionID+" workspace_id:"+uuid.NewString()))
 
 		_, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "method:vscode"})
 		var sdkErr *codersdk.Error
@@ -309,6 +314,7 @@ func TestConnectionLogs(t *testing.T) {
 			Time:             now.Add(-time.Hour),
 			ConnectionMethod: database.ConnectionLogMethodSSH,
 			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -324,6 +330,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.ExitCode)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
+		require.Equal(t, "0123456789abcdef0123456789abcdef", logs.ConnectionLogs[0].SSHInfo.ClientSessionID)
 
 		// Mark log as closed
 		updatedClog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
@@ -365,6 +372,53 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
+	})
+
+	// The frontend compares the raw strings to detect a disconnect recorded
+	// without its connect, so both timestamps must serialize identically.
+	t.Run("SSHInfoMissingConnect", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		ws := createWorkspace(t, db)
+		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			// Sub-millisecond precision catches any rounding on one side.
+			Time:             dbtime.Now().Add(-123 * time.Microsecond),
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ConnectionStatus: database.ConnectionStatusDisconnected,
+		})
+
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			ConnectionLogs []struct {
+				ConnectTime string `json:"connect_time"`
+				SSHInfo     struct {
+					DisconnectTime string `json:"disconnect_time"`
+				} `json:"ssh_info"`
+			} `json:"connection_logs"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Len(t, body.ConnectionLogs, 1)
+		log := body.ConnectionLogs[0]
+		require.NotEmpty(t, log.ConnectTime)
+		require.Equal(t, log.ConnectTime, log.SSHInfo.DisconnectTime)
 	})
 }
 

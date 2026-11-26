@@ -22,12 +22,43 @@ type stateResourceKey struct {
 }
 
 type indexedScript struct {
-	address     string
-	instanceKey cty.Value
-
+	address string
 	// addressErr records an address validation error found while
 	// building the index. The error is reported only if selector
 	// expansion encounters this script.
+	addressErr error
+}
+
+// scriptInstanceKey distinguishes `count` indices from `for_each`
+// string keys, including count index 0 and the empty string key.
+type scriptInstanceKey struct {
+	stringKey string
+	countKey  int64
+	isString  bool
+}
+
+// instanceLookupKey converts cty instance keys to Go map keys.
+// The key must be validated by tfaddr and must not be cty.NilVal.
+func instanceLookupKey(key cty.Value) scriptInstanceKey {
+	if key.Type() == cty.String {
+		return scriptInstanceKey{stringKey: key.AsString(), isString: true}
+	}
+	// tfaddr bounds numeric instance keys to nonnegative Go ints.
+	count, _ := key.AsBigFloat().Int64()
+	return scriptInstanceKey{countKey: count}
+}
+
+// scriptResourceIndex stores instances of one script resource in a module
+// instance. Both scripts and instances store indices into stateIndex.scripts.
+type scriptResourceIndex struct {
+	// Lists all instances for selectors like coder_script.setup.
+	scripts []int
+	// Maps instance keys to indices for selectors like
+	// coder_script.setup[0]. Use a slice defensively in case
+	// Terraform plan/state data contains multiple records for one
+	// key.
+	instances map[scriptInstanceKey][]int
+	// Holds the first address error among this resource's instances.
 	addressErr error
 }
 
@@ -48,11 +79,11 @@ type scriptSpan struct {
 type stateIndex struct {
 	// dataSources contains only coder_script_order data source
 	// instances, sorted by full Terraform address.
-	dataSources       []dataSource
-	scripts           []indexedScript
-	scriptLifecycles  map[string]scriptLifecycle
-	scriptsByResource map[stateResourceKey][]int
-	scriptsByModule   map[moduleCallKey][]scriptSpan
+	dataSources           []dataSource
+	scripts               []indexedScript
+	scriptLifecycles      map[string]scriptLifecycle
+	scriptResourceIndexes map[stateResourceKey]*scriptResourceIndex
+	scriptsByModule       map[moduleCallKey][]scriptSpan
 
 	// moduleLookupErrors records child-module address validation
 	// errors found while building the index. An error is reported
@@ -66,10 +97,10 @@ func newStateIndex(
 	modules []*tfjson.StateModule,
 ) (*stateIndex, error) {
 	idx := &stateIndex{
-		scriptLifecycles:   map[string]scriptLifecycle{},
-		scriptsByResource:  map[stateResourceKey][]int{},
-		scriptsByModule:    map[moduleCallKey][]scriptSpan{},
-		moduleLookupErrors: map[string]error{},
+		scriptLifecycles:      map[string]scriptLifecycle{},
+		scriptResourceIndexes: map[stateResourceKey]*scriptResourceIndex{},
+		scriptsByModule:       map[moduleCallKey][]scriptSpan{},
+		moduleLookupErrors:    map[string]error{},
 	}
 	dataSources := map[string]dataSource{}
 	for _, module := range modules {
@@ -129,17 +160,32 @@ func (idx *stateIndex) indexModule(
 		}
 
 		parsed, err := parseStateResourceAddress(module, resource)
-		script := indexedScript{address: resource.Address, addressErr: err}
-		if err == nil {
-			script.instanceKey = parsed.InstanceKey()
-		}
 		scriptIndex := len(idx.scripts)
-		idx.scripts = append(idx.scripts, script)
+		idx.scripts = append(idx.scripts, indexedScript{
+			address: resource.Address, addressErr: err,
+		})
 		key := stateResourceKey{
 			moduleAddress: module.Address,
 			resourceName:  resource.Name,
 		}
-		idx.scriptsByResource[key] = append(idx.scriptsByResource[key], scriptIndex)
+		// All instances of this resource share one index within the module.
+		resourceIndex := idx.scriptResourceIndexes[key]
+		if resourceIndex == nil {
+			resourceIndex = &scriptResourceIndex{}
+			idx.scriptResourceIndexes[key] = resourceIndex
+		}
+		resourceIndex.scripts = append(resourceIndex.scripts, scriptIndex)
+		if err != nil {
+			if resourceIndex.addressErr == nil {
+				resourceIndex.addressErr = err
+			}
+		} else if instanceKey := parsed.InstanceKey(); instanceKey != cty.NilVal {
+			if resourceIndex.instances == nil {
+				resourceIndex.instances = map[scriptInstanceKey][]int{}
+			}
+			lookupKey := instanceLookupKey(instanceKey)
+			resourceIndex.instances[lookupKey] = append(resourceIndex.instances[lookupKey], scriptIndex)
+		}
 	}
 
 	for _, child := range module.ChildModules {

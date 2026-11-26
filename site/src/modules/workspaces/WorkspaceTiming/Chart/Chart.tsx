@@ -1,11 +1,14 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { Breadcrumb } from "#/components/Breadcrumb/Breadcrumb";
 import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
-import type { BarColors } from "./Bar";
+
+/** Width in pixels of the label column. */
+export const Y_AXIS_WIDTH = 200;
 
 export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
@@ -15,8 +18,7 @@ export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 			style={{
 				"--header-height": "40px",
 				"--section-padding": "16px",
-				"--x-axis-rows-gap": "20px",
-				"--y-axis-width": "200px",
+				"--y-axis-width": `${Y_AXIS_WIDTH}px`,
 				...props.style,
 			}}
 		/>
@@ -66,7 +68,7 @@ export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = (
 			{props.children}
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 z-1 h-[100px] transition-opacity duration-200 bottom-[calc(-1*var(--scroll-top,0px))] opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+				className="pointer-events-none absolute inset-x-0 z-1 h-25 transition-opacity duration-200 -bottom-(--scroll-top,0px) opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
 			/>
 		</div>
 	);
@@ -77,8 +79,8 @@ export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 		<div
 			{...props}
 			className={cn(
-				"flex items-stretch border-b border-border text-xs",
-				"border-solid border-0 border-b",
+				"flex items-stretch border-b text-xs",
+				"border-b",
 				props.className,
 			)}
 		/>
@@ -98,33 +100,38 @@ export const ChartBreadcrumbs: React.FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
-		<ul className="m-0 flex w-(--y-axis-width) shrink-0 list-none items-center gap-1 p-(--section-padding) leading-none">
-			{breadcrumbs.map((b, i) => {
-				const isLast = i === breadcrumbs.length - 1;
-				return (
-					<React.Fragment key={b.label}>
-						<li className={cn(i === 0 && "text-content-secondary")}>
+		<Breadcrumb className="flex w-(--y-axis-width) shrink-0">
+			<ol className="m-0 flex list-none items-center gap-1 p-(--section-padding) leading-none">
+				{breadcrumbs.map((b, i) => {
+					const isLast = i === breadcrumbs.length - 1;
+					return (
+						<li
+							key={b.label}
+							className={cn(
+								"flex items-center gap-1",
+								i === 0 && "text-content-secondary",
+							)}
+							aria-current={isLast ? "location" : undefined}
+						>
 							{isLast ? (
 								b.label
 							) : (
-								<button
-									type="button"
-									className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-content-primary"
-									onClick={b.onClick}
-								>
-									{b.label}
-								</button>
+								<>
+									<button
+										type="button"
+										className="cursor-pointer bg-transparent p-0 text-inherit hover:text-content-primary"
+										onClick={b.onClick}
+									>
+										{b.label}
+									</button>
+									<ChevronRightIcon className="size-3.5 text-content-secondary" />
+								</>
 							)}
 						</li>
-						{!isLast && (
-							<li role="presentation" className="text-content-secondary">
-								<ChevronRightIcon className="size-[14px]" />
-							</li>
-						)}
-					</React.Fragment>
-				);
-			})}
-		</ul>
+					);
+				})}
+			</ol>
+		</Breadcrumb>
 	);
 };
 
@@ -137,33 +144,27 @@ export const ChartSearch = (props: SearchFieldProps) => {
 	);
 };
 
-export type ChartLegend = {
+/** How a bar's category, such as a resource action or script status, is shown. */
+export type ChartCategory = {
 	label: string;
-	colors?: BarColors;
+	className?: string;
 };
 
-type ChartLegendsProps = {
-	legends: ChartLegend[];
+type ChartCategoryLabelProps = {
+	label: string;
 };
 
-export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
+/**
+ * Keeps a row's category readable without relying on bar color (WCAG 1.4.1).
+ * Hidden from assistive technology because the bar's accessible name already
+ * includes the label.
+ */
+export const ChartCategoryLabel: React.FC<ChartCategoryLabelProps> = ({
+	label,
+}) => {
 	return (
-		<ul className="m-0 flex list-none items-center gap-6 pr-(--section-padding) p-0">
-			{legends.map((l) => (
-				<li
-					key={l.label}
-					className="flex items-center gap-2 font-medium leading-none"
-				>
-					<div
-						className="size-[18px] rounded border border-solid bg-surface-primary"
-						style={{
-							borderColor: l.colors?.stroke,
-							backgroundColor: l.colors?.fill,
-						}}
-					/>
-					{l.label}
-				</li>
-			))}
-		</ul>
+		<span aria-hidden className="whitespace-nowrap text-content-secondary">
+			{label}
+		</span>
 	);
 };

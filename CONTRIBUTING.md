@@ -133,7 +133,7 @@ the Makefile trigger the full targets as before.
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
    >
-   > The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+   > The user is `admin@coder.com`. `develop.sh` generates its password on the first run, prints it in the startup banner, and stores it in `.coderv2/admin-password`. A second user, `member@coder.com`, has its password in `.coderv2/member-password`.
 
 1. Create Your First Workspace
 
@@ -142,33 +142,6 @@ the Makefile trigger the full targets as before.
    ```sh
    ./scripts/coder-dev.sh create my-workspace -t docker
    ```
-
-### Deploying a PR
-
-You need to be a member or collaborator of the [coder](https://github.com/coder) GitHub organization to be able to deploy a PR.
-
-You can test your changes by creating a PR deployment. There are two ways to do
-this:
-
-- Run `./scripts/deploy-pr.sh`
-- Manually trigger the
-  [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
-  GitHub Action workflow.
-
-#### Available options
-
-- `-d` or `--deploy`, force deploys the PR by deleting the existing deployment.
-- `-b` or `--build`, force builds the Docker image. (generally not needed as we
-  are intelligently checking if the image needs to be built)
-- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will
-  enable the specified experiments. (defaults to `*`)
-- `-n` or `--dry-run` will display the context without deployment. e.g., branch
-  name and PR number, etc.
-- `-y` or `--yes`, will skip the CLI confirmation prompt.
-
-> [!NOTE]
-> PR deployment will be re-deployed automatically when the PR is updated.
-> It will use the last values automatically for redeployment.
 
 ## Styling
 
@@ -297,9 +270,9 @@ Examples:
 - Bad: `feat(coderd): added feature X` (past tense)
 
 Scopes must reference a real path in the repository (a directory or file stem)
-and must contain all changed files. For example, use `coderd/database` if all
-changes are within that directory. If changes span multiple top-level
-directories, omit the scope.
+and must contain all changed files, except files under `docs/`. For example,
+use `coderd/database` if all changes are within that directory. If changes
+span multiple top-level directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
 [If applied, this commit will ...](https://cbea.ms/git-commit/).

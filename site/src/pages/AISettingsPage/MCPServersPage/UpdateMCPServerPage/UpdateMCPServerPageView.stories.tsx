@@ -3,7 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
-import { MockCoderMCPServer } from "../testFixtures";
+import { MockCoderMCPServer, MockDynamicMCPServer } from "../testFixtures";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const onUpdateServer = fn(
@@ -174,5 +174,17 @@ export const NoShareReadOnlyAccess: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Manage permissions" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const AutomaticOAuth2Registration: Story = {
+	args: {
+		server: MockDynamicMCPServer,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
 	},
 };

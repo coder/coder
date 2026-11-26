@@ -1,0 +1,73 @@
+{{- if .Values.networkPolicy.enable }}
+{{- $e := .Values.networkPolicy.egress }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "coder.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.networkPolicy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $e.enable }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      {{- with .Values.networkPolicy.ingress.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with include "libcoder.prometheusPort" (list . true) }}
+    - ports:
+        - port: {{ . }}
+          protocol: TCP
+      {{- with $.Values.networkPolicy.prometheus.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if $e.enable }}
+  egress:
+    {{- with $e.dns.ports }}
+    - ports:
+        {{- range . }}
+        - port: {{ . }}
+          protocol: UDP
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with $e.dns.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with $e.coderServer.ports }}
+    - ports:
+        {{- range . }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with $e.coderServer.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

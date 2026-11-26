@@ -57,10 +57,10 @@ Alias: also available at /api/v2/aibridge/models for backward compatibility.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                                              |
-|---------|-------|--------|----------|----------------------------------------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query in the format `key:value`. Available keys are: model. A bare term searches by model prefix. |
-| `model` | query | string | false    | Literal model identifier prefix. Cannot be combined with q.                                              |
+| Name    | In    | Type   | Required | Description                                                                                                                                  |
+|---------|-------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query in the format `key:value`. Available keys are: model. A bare term searches by model. The match is a case-insensitive substring. |
+| `model` | query | string | false    | Literal model identifier substring, matched case-insensitively. Cannot be combined with q.                                                   |
 
 ### Example responses
 
@@ -153,12 +153,12 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
 
 ### Parameters
 
-| Name               | In    | Type    | Required | Description                                                                                                                                               |
-|--------------------|-------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`                | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before. |
-| `limit`            | query | integer | false    | Page limit                                                                                                                                                |
-| `after_session_id` | query | string  | false    | Cursor pagination after session ID (cannot be used with offset)                                                                                           |
-| `offset`           | query | integer | false    | Offset pagination (cannot be used with after_session_id)                                                                                                  |
+| Name               | In    | Type    | Required | Description                                                                                                                                                             |
+|--------------------|-------|---------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`                | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before. |
+| `limit`            | query | integer | false    | Page limit                                                                                                                                                              |
+| `after_session_id` | query | string  | false    | Cursor pagination after session ID (cannot be used with offset)                                                                                                         |
+| `offset`           | query | integer | false    | Offset pagination (cannot be used with after_session_id)                                                                                                                |
 
 ### Example responses
 
@@ -191,6 +191,17 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
         "blocked": 0,
         "total": 0
       },
+      "organizations": [
+        {
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "sources": [
+            "workspace"
+          ]
+        }
+      ],
       "providers": [
         "string"
       ],
@@ -286,6 +297,17 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "domain": "string"
     }
   ],
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
@@ -304,6 +326,20 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "organization": {
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "source": "workspace"
+          },
+          "priced_model": {
+            "cache_read_price": 0,
+            "cache_write_price": 0,
+            "input_price": 0,
+            "model": "string",
+            "output_price": 0
+          },
           "thinking": [
             {
               "text": "string"
@@ -312,6 +348,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -348,12 +386,28 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -366,6 +420,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,

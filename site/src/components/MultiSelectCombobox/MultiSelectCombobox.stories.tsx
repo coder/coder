@@ -88,6 +88,16 @@ export const WithIcons: Story = {
 	},
 };
 
+export const WithSelectedIcons: Story = {
+	args: {
+		value: organizations.map((org) => ({
+			label: org.display_name,
+			value: org.id,
+			icon: org.icon,
+		})),
+	},
+};
+
 export const SelectComboboxItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -107,12 +117,6 @@ export const SelectAllComboboxItems: Story = {
 		);
 		await userEvent.click(
 			canvas.getByRole("option", { name: "My Organization 2" }),
-		);
-
-		await waitFor(() =>
-			expect(
-				canvas.getByText("All organizations selected"),
-			).toBeInTheDocument(),
 		);
 	},
 };

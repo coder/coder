@@ -2,51 +2,41 @@
 title: Install Coder in your infrastructure
 ---
 
-This section describes how to plan, install, and configure a Coder deployment, from the initial decisions you need to make in order to successfully run Coder to a steady-state operating environment.
-The five phases are meant to be read in order: each phase produces the required information for the next phase.
+This section is for a Coder deployment administrator who installs and runs the Coder control plane on infrastructure they control, including networks with no internet access.
 
 > [!TIP]
-> If you only need the `coder` command-line client on your own machine, refer to [Coder CLI](./cli.md).
-> You don't need the rest of this section.
->
-> If you want a Coder deployment on a single machine as quickly as possible, follow the [Quickstart](../get-started/index.md) instead.
-> It installs Coder and launches a first workspace without the planning and preparation work described here.
-> Come back to this section when you want an expanded Coder deployment.
+> To try Coder on your own computer first, follow the [Quickstart](../get-started/index.md).
+> To install only the `coder` command-line client and sign in to a deployment that already exists, use the [Coder downloads page](https://coder.com/downloads).
 
-## The five phases
+## Install the control plane
 
-| Phase                                              | What it answers                                                          | What you finish with                                                           |
-|----------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| [1. Plan your deployment](./plan/index.md)         | Which components run where, how large they need to be, who operates them | A deployment shape and a size target you can hand to an infrastructure team    |
-| [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | DNS, certificates, a database, a license, and an identity provider application |
-| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | A running Coder deployment you can sign in to                                  |
-| [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | Evidence that the deployment is ready for real users                           |
-| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | An upgrade and scaling routine, plus a removal path                            |
+<div class="cards">
 
-Phases 1 and 2 are advisory rather than a gate.
-Nothing stops you from installing the control plane first, but the recommendations in those phases are what keep a deployment from needing to be rebuilt later.
-Don't know where to start?
-Read [Plan your deployment](./plan/index.md) and [Prepare prerequisites](./prepare/index.md) first.
+- [Installation requirements](./server/requirements.md): Check the CPU, memory, database, platform versions, and network access the control plane needs.
+- [Air-gapped K3s quickstart](./server/kubernetes/k3s-air-gapped.md): Install Coder on one K3s node with no internet access, from staging the artifacts to a running workspace.
+- [Install on Kubernetes](./server/kubernetes/index.md): The recommended platform for production, installed with the Helm chart on a managed cloud cluster, an on-premises cluster, or K3s.
+- [Installation methods](./server/index.md): Compare every supported platform, from Kubernetes, Rancher, and OpenShift to Docker, Linux hosts, and cloud virtual machines.
+
+</div>
+
+## Run Coder in production
+
+<div class="cards">
+
+- [Production deployment process](./production-deployment.md): Plan, prepare, install, validate, and operate a deployment that other people depend on.
+- [Upgrade Coder](./operate/upgrade.md): Move a running deployment to a newer release, with steps for each installation method.
+
+</div>
+
+## Common tasks
+
+<div class="cards">
+
+- [Air-gapped deployments](./prepare/airgap.md): Find what Coder and your templates download from the internet, and how to provide each download in a network with no internet access.
+- [Use an external database](./server/external-database.md): Create a PostgreSQL role and database for the control plane, connect Coder to it, and use a custom schema if you need one.
+- [TLS and reverse proxies](../admin/setup/index.md#tls--reverse-proxy): Serve Coder over HTTPS with its own TLS certificates, or behind Apache, Caddy, or NGINX.
+- [Image pull secrets](./operate/image-pull-secret.md): Pull workspace images from a private registry with a Kubernetes image pull secret that your template references.
+
+</div>
 
 <children></children>
-
-## Who does the work
-
-A Coder deployment usually crosses team boundaries.
-The following actors appear throughout this section, so you can anticipate which conversations you need to start and how long they're likely to take.
-
-| Actor                            | Responsible for                                                              | Appears in phase |
-|----------------------------------|------------------------------------------------------------------------------|------------------|
-| Coder platform owner             | The deployment itself: installation, configuration, upgrades, and support    | 1 to 5           |
-| Infrastructure team              | Clusters, virtual machines, networking, load balancers, and egress rules     | 1 to 4           |
-| DNS and TLS owner                | The Coder hostname, the wildcard record for workspace apps, and certificates | 2                |
-| Database administrator           | PostgreSQL provisioning, sizing, backups, and restore tests                  | 2, 4, 5          |
-| Identity provider administrator  | The OIDC application, claims, and group mappings                             | 2                |
-| Security and compliance reviewer | Audit requirements, network policy, data handling, and sign-off              | 2, 4             |
-| Licensing contact                | Purchasing and renewing the Coder license                                    | 2                |
-| Template author                  | The workspace templates developers use once the deployment is running        | 4, 5             |
-
-These are roles, not people.
-One person may serve as several actors, which is common for a proof of concept run by a single platform engineer.
-Several people may also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
-Use the table to identify who has to agree, not to count headcount.

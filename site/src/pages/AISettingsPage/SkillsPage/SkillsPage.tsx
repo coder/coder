@@ -19,6 +19,7 @@ import {
 	orgSearchParam,
 	selectOrganization,
 } from "../MCPServersPage/organizationParam";
+import { MembersCanDisableSkillsSetting } from "./MembersCanDisableSkillsSetting";
 import { OrganizationSkillSharingDialog } from "./OrganizationSkillSharingDialog";
 import { readableSkillsOrganizations } from "./readableSkillsOrganizations";
 
@@ -56,7 +57,7 @@ const SkillsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyOrganizationSkills}>
-			<title>{pageTitle("Skills", "AI Settings")}</title>
+			<title>{pageTitle("Skills", "AI settings")}</title>
 			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !organizationPermissionsQuery.data ? (
@@ -152,7 +153,15 @@ const OrganizationSkills: React.FC<OrganizationSkillsProps> = ({
 								setSharingSkill({ name: skill.name, onCloseAutoFocus })
 						: undefined
 				}
-				toolbar={toolbar}
+				toolbar={
+					<div className="flex flex-col gap-6">
+						{toolbar}
+						<MembersCanDisableSkillsSetting
+							organizationId={organization.id}
+							canUpdate={access.update}
+						/>
+					</div>
+				}
 			/>
 			{sharingSkill && (
 				<OrganizationSkillSharingDialog

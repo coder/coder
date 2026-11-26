@@ -1,29 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatProjectSkills,
+	chatProjectSkillsKey,
 	chatProjectUsability,
 	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
-	chatMessagesForInfiniteScroll,
 	chatModels,
-	chatQueueConvergence,
 	clearChat,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	editChatQueuedMessage,
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
@@ -36,8 +31,10 @@ import {
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
@@ -62,9 +59,11 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "../components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
+	selectHasMoreMessages,
+	selectMessagesByID,
+	selectQueuedMessages,
 	useChatSelector,
 	useChatStore,
 } from "../components/ChatConversation/chatStore";
@@ -80,6 +79,10 @@ import {
 	useConversationEditingState,
 } from "../hooks/useConversationEditingState";
 import { useGitWatcher } from "../hooks/useGitWatcher";
+import {
+	type ComposerMode,
+	useQueuedMessageEdit,
+} from "../hooks/useQueuedMessageEdit";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
@@ -100,6 +103,7 @@ import {
 	resolveModelSelector,
 } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -108,6 +112,22 @@ import {
 } from "./AgentChatPageView";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
+
+const reportQueuedEditError = async (
+	request: () => Promise<unknown>,
+	failureMessage: string,
+) => {
+	try {
+		await request();
+	} catch (error) {
+		toast.error(
+			getErrorStatus(error) === 404
+				? "Queued message was already sent or removed."
+				: getErrorMessage(error, failureMessage),
+		);
+		throw error;
+	}
+};
 
 const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
@@ -124,6 +144,7 @@ const AgentChatPage: React.FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
+	const isEditModelDirtyRef = useRef(false);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		parseStoredDraft(
@@ -159,9 +180,6 @@ const AgentChatPage: React.FC = () => {
 		refetchIntervalInBackground: false,
 	});
 	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
-	const chatMessagesQuery = useInfiniteQuery(
-		chatMessagesForInfiniteScroll(agentId),
-	);
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -206,10 +224,6 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -236,7 +250,6 @@ const AgentChatPage: React.FC = () => {
 		agentId,
 		chatAgentId,
 	});
-	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
@@ -270,38 +283,6 @@ const AgentChatPage: React.FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID as a defense
-		// against cross-page duplicates. Cache upserts fan the same
-		// fresh value out to every page containing an ID, so any
-		// surviving duplicates are value-identical and either
-		// occurrence is safe to render.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
-
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
-				}
-			: undefined;
 	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -323,6 +304,7 @@ const AgentChatPage: React.FC = () => {
 	);
 	const { isPending: isClearPending, mutateAsync: clearChatContext } =
 		useMutation(clearChat(queryClient, agentId));
+
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
@@ -332,9 +314,12 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const chatProjectId = experiments.includes("chat-projects")
-		? chatQuery.data?.project_id
-		: undefined;
+	const organizationSkillPreferencesQuery = useQuery({
+		...organizationSkillPreferences(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
+	const chatProjectId = chatQuery.data?.project_id;
 	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
@@ -355,6 +340,15 @@ const AgentChatPage: React.FC = () => {
 	);
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
+	);
+	const {
+		isPending: isSaveQueuedPending,
+		mutateAsync: requestQueuedMessageSave,
+	} = useMutation(editChatQueuedMessage(queryClient, agentId));
+	// Marker requests must not mark the composer pending, so they use a
+	// separate mutation instance.
+	const { mutateAsync: requestQueuedMessageEditing } = useMutation(
+		editChatQueuedMessage(queryClient, agentId),
 	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
@@ -397,24 +391,21 @@ const AgentChatPage: React.FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
-		isHydratingMessages,
-		acceptServerChatStatus,
-		setCacheQueuedMessages,
-		getCacheQueuedMessages,
-		upsertCacheMessages,
+		loadStatus,
+		loadError,
+		retryLoad,
+		fetchMoreMessages,
+		isFetchingMoreMessages,
+		hasFetchMoreError,
 	} = useChatStore({
 		chatID: agentId,
-		chatMessages: chatMessagesList,
-		chatRecord: chat,
-		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
+	const hasMoreMessages = useChatSelector(store, selectHasMoreMessages);
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord: chat,
@@ -512,6 +503,7 @@ const AgentChatPage: React.FC = () => {
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
+		isSaveQueuedPending ||
 		isInterruptPending ||
 		isCompactPending ||
 		isClearPending;
@@ -539,6 +531,12 @@ const AgentChatPage: React.FC = () => {
 		if (!isApiError(error)) {
 			return;
 		}
+		// The request may have invoked a project skill removed elsewhere.
+		if (chatProjectId) {
+			void queryClient.invalidateQueries({
+				queryKey: chatProjectSkillsKey(chatProjectId),
+			});
+		}
 		const detail = error.response?.data?.detail?.trim() || undefined;
 		const kind = isChatHookDeniedResponse(error.response?.data)
 			? "hook_denied"
@@ -550,7 +548,7 @@ const AgentChatPage: React.FC = () => {
 			message: getErrorMessage(error, "An unexpected error occurred."),
 			...(detail ? { detail } : {}),
 		};
-		store.setStreamError(reason);
+		store.setClientError(reason);
 		setChatErrorReason(agentId, reason);
 	};
 
@@ -571,71 +569,147 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
+	const requestDeleteQueuedMessage = async (id: number) => {
 		try {
-			await deleteQueuedMessage(id);
+			await store.runPendingAction(
+				{ kind: "deleteQueued", queuedMessageID: id },
+				() => deleteQueuedMessage(id),
+			);
 		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
+			toast.error(
+				getErrorMessage(error, "Failed to delete the queued message."),
+			);
 		}
 	};
 
-	const handlePromoteQueuedMessage = (id: number) =>
-		runPromoteQueuedMessage({
-			id,
-			store,
-			promoteQueuedMessage,
-			agentId,
-			clearChatErrorReason,
-			onError: handleRequestError,
-		});
+	const requestPromoteQueuedMessage = async (id: number) => {
+		store.clearClientError();
+		clearChatErrorReason(agentId);
+		try {
+			await store.runPendingAction(
+				{ kind: "promoteQueued", queuedMessageID: id },
+				() => promoteQueuedMessage(id),
+			);
+		} catch (error) {
+			handleRequestError(error);
+		}
+	};
+
+	const saveQueuedMessage = (
+		id: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	) =>
+		reportQueuedEditError(
+			() => requestQueuedMessageSave({ queuedMessageId: id, req }),
+			"Failed to save the queued message.",
+		);
+	const setQueuedMessageEditing = (id: number, editing: boolean) =>
+		store.runPendingAction(
+			{ kind: "editQueued", queuedMessageID: id, editing },
+			() =>
+				reportQueuedEditError(
+					() =>
+						requestQueuedMessageEditing({
+							queuedMessageId: id,
+							req: { editing },
+						}),
+					editing
+						? "Failed to start editing the queued message."
+						: "Failed to cancel the edit.",
+				),
+		);
+
+	const isOwner = chat !== undefined && !isViewerNotOwner;
+	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
+	const {
+		markedID,
+		composerTarget,
+		handleEditQueuedMessage,
+		handleEndQueuedMessageEdit: requestEndQueuedMessageEdit,
+	} = useQueuedMessageEdit({
+		store,
+		composerMode,
+		setComposerMode,
+		isOwner,
+		setQueuedMessageEditing,
+	});
+
+	const composerTargetContent = useChatSelector(store, (s) => {
+		if (composerTarget === null) {
+			return undefined;
+		}
+		if (composerTarget.kind === "queued") {
+			return selectQueuedMessages(s).find((row) => row.id === composerTarget.id)
+				?.content;
+		}
+		return selectMessagesByID(s).get(composerTarget.id)?.content;
+	});
 
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
 		chatInputRef,
 		inputValueRef,
+		composerMode,
+		setComposerMode,
+		target: composerTarget,
+		targetContent: composerTargetContent,
+		onLoadedTargetChange: () => {
+			isEditReasoningEffortDirtyRef.current = false;
+			isEditModelDirtyRef.current = false;
+		},
 	});
-	const handleEditUserMessage = (
-		...args: Parameters<typeof editing.handleEditUserMessage>
-	) => {
-		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditUserMessage(...args);
+
+	// Closes the composer's edit of the row and discards its typed text; the
+	// server acts on the row's saved content.
+	const closeQueuedEditOf = (id: number) => {
+		if (composerTarget?.kind === "queued" && composerTarget.id === id) {
+			editing.handleCancelEdit();
+		}
+	};
+	// reportQueuedEditError reports a failure, and the row then shows as
+	// under edit again.
+	const handleEndQueuedMessageEdit = (id: number) => {
+		closeQueuedEditOf(id);
+		return requestEndQueuedMessageEdit(id).catch(() => undefined);
+	};
+	const handleDeleteQueuedMessage = (id: number) => {
+		closeQueuedEditOf(id);
+		return requestDeleteQueuedMessage(id);
+	};
+	const handlePromoteQueuedMessage = (id: number) => {
+		closeQueuedEditOf(id);
+		return requestPromoteQueuedMessage(id);
+	};
+
+	const handleCancelEdit = () => {
+		if (composerTarget?.kind === "queued") {
+			void handleEndQueuedMessageEdit(composerTarget.id);
+			return;
+		}
+		if (composerTarget?.kind === "history" && isOwner && markedID !== null) {
+			editing.handleCancelEdit({ kind: "queued", id: markedID });
+			return;
+		}
+		editing.handleCancelEdit();
+	};
+
+	const handleBeginHistoryEdit = (messageId: number) => {
+		setComposerMode({ kind: "history", id: messageId });
 	};
 
 	const chatTitle = chatQuery.data?.title;
 
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
-		) {
+		if (chatReadyFiredRef.current === agentId || loadStatus !== "success") {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, loadStatus, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -654,11 +728,14 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills, so they never shadow a built-in
-		// command. A list with no data stays unknown, even after an error.
+		isEditModelDirtyRef,
+		// chatd skips disabled skills and, while members can opt out, skills
+		// they turned off, so neither shadows a built-in command. A list with
+		// no data stays unknown, even after an error.
 		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
-		organizationSkills: organizationSkillsQuery.data?.filter(
-			(skill) => skill.enabled,
+		organizationSkills: activeOrganizationSkills(
+			organizationSkillsQuery.data,
+			organizationSkillPreferencesQuery.data,
 		),
 		// Unlike the lists above, losing the use of the project means no
 		// project skills, even if some loaded earlier, because chatd then
@@ -675,24 +752,18 @@ const AgentChatPage: React.FC = () => {
 		store,
 		agentId,
 		clearChatErrorReason,
-		acceptServerChatStatus,
-		chatMessages: chatMessagesList,
 		effectiveSelectedModel,
 		modelOptions,
 		effectiveReasoningEffort,
 		mcpServerIds: effectiveMCPServerIds,
 		editMessage,
+		saveQueuedMessage,
 		sendMessage,
 		onRequestError: handleRequestError,
 		invalidateChat: (chatId: string) => {
 			void invalidateChatEntity(queryClient, chatId);
 		},
 		scrollToEnd,
-		upsertCacheMessages,
-		getCacheQueuedMessages,
-		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
 		setCachedChatPlanMode,
 	};
 
@@ -700,15 +771,17 @@ const AgentChatPage: React.FC = () => {
 		message,
 		attachments,
 		workspaceUploads,
-		editedMessageID,
+		busyBehavior,
+		editingTarget,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
 			workspaceUploads,
-			editedMessageID,
+			busyBehavior,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			editingTarget,
 		});
 	}
 
@@ -730,7 +803,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		!chatMessagesQuery.isLoadingError;
+		loadStatus !== "error";
 
 	return (
 		<>
@@ -738,7 +811,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			chatMessagesQuery.isLoading ||
+			loadStatus === "pending" ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -759,40 +832,37 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
+			) : chatQuery.isLoadingError || loadStatus === "error" ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
 					<AgentChatPageErrorView
-						error={
-							chatQuery.isLoadingError
-								? chatQuery.error
-								: chatMessagesQuery.error
-						}
+						error={chatQuery.isLoadingError ? chatQuery.error : loadError}
 						onRetry={() => {
 							if (chatQuery.isLoadingError) {
 								void chatQuery.refetch();
 							}
-							if (chatMessagesQuery.isLoadingError) {
-								void chatMessagesQuery.refetch();
-							}
+							retryLoad();
 						}}
 					/>
 				)
-			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
+			) : !chat ? (
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
-					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
-					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
+					setSelectedModel={(model) => {
+						setSelectedModel(model);
+						if (editing.editingTarget !== null) {
+							isEditModelDirtyRef.current = true;
+						}
+					}}
 					modelOptions={modelOptions}
 					modelCatalog={modelCatalog}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
@@ -802,7 +872,7 @@ const AgentChatPage: React.FC = () => {
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
+						if (editing.editingTarget !== null) {
 							isEditReasoningEffortDirtyRef.current = true;
 						}
 					}}
@@ -825,23 +895,23 @@ const AgentChatPage: React.FC = () => {
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+					handleEditQueuedMessage={handleEditQueuedMessage}
+					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
+					queuedMessageUnderEditID={markedID}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
-					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
-					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
-					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					onFetchMoreMessages={fetchMoreMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

@@ -11,28 +11,25 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what to route elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
-The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
+The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide.
+Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
 
 ## Why a hidden directory
 
 The leading dot mirrors the `.github/`, `.vscode/`, and `.claude/` convention already used in this repo for tooling-internal directories.
-The structural Markdown linters and Vale still pick it up (except the style guide's own prose under `style-guide/`, which is exempt); coder.com's docs site does not.
+The structural Markdown linters and Vale still pick it up (except the style guide's own prose under `style-guide/`, which is exempt).
+Coder.com's docs site does not.
 Refer to "What does not run against this directory" below for that exemption.
 
 ## How exclusion from coder.com works
 
-[coder.com/docs](https://coder.com/docs) routes and search are manifest-driven:
+[coder.com/docs](https://coder.com/docs) is built by [coder/docs-engine](https://github.com/coder/docs-engine), and its routes and search are manifest-driven.
+The engine's sync publishes only the pages `docs/manifest.json` names, so a file that isn't in the manifest gets no route, no search record, and no sidebar entry.
 
-- Route discovery lives in [`coder/coder.com:src/utils/docs/docs.ts`](https://github.com/coder/coder.com/blob/master/src/utils/docs/docs.ts) (`getDocsStaticPaths`).
-  It iterates `routes` from `docs/manifest.json` and emits one Next.js static path per entry.
-  Files not in the manifest do not become routes.
-- The Algolia surgical indexer at [`coder/coder.com:src/utils/algoliaDocs/surgical.ts`](https://github.com/coder/coder.com/blob/master/src/utils/algoliaDocs/surgical.ts) explicitly skips paths that are not in the manifest, incrementing `pathsSkipped`.
-
-Net result: not adding anything from `docs/.style/` to `docs/manifest.json` gives us no route, no Algolia record, and no sidebar entry.
-Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the deploy workflow from running on `.style`-only commits and exclude the directory from the surgical-reindex payload on mixed commits.
+Net result: not adding anything from `docs/.style/` to `docs/manifest.json` keeps it off coder.com/docs.
 
 ## What still runs against this directory
 
@@ -46,8 +43,6 @@ Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the de
 
 - `linkspector`: excluded via `excludedDirs` in `.github/.linkspector.yml`.
   External-link checking is overkill for contributor tooling.
-- The `deploy-docs` workflow: its `paths:` filter negates `docs/.style/**`, and the surgical-reindex git-diff invocation excludes the same path.
-  See `.github/workflows/deploy-docs.yaml`.
 - The `docs-preview` workflow: its `paths:` filter negates `docs/.style/**`, so `.style`-only PRs produce no preview comment.
   The selection logic also skips `.style` files when picking the preview target on mixed PRs.
   See `.github/workflows/docs-preview.yaml`.
@@ -55,19 +50,38 @@ Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the de
   The guide deliberately contains the constructs the rules ban, such as Don't examples and banned terms named in headings and prose, so the repo-root `.vale.ini` clears `BasedOnStyles` for `docs/.style/style-guide/**`.
   Nothing else under `docs/.style/` is exempt: the landing page, `content-guidelines.md`, the annotation demo, and the Coder rule docs are all linted.
   Zero-baseline is therefore measured over `docs/` excluding `docs/.style/style-guide/`.
-  The exemption applies only when the path resolves to `docs/.style/style-guide/...` from the working directory, which is what `make lint/prose` and CI pass (repo-root-relative `docs/...`).
-  Other invocation forms bypass the glob and still flag the guide's intentional examples: absolute paths (what editors and LSP integrations pass) and subdirectory-relative paths (for example `vale .style/style-guide/...` run from `docs/`).
+  The exemption applies only when the path resolves to `docs/.style/style-guide/...` from the working directory, which is what `make lint/prose` and continuous integration (CI) pass (repo-root-relative `docs/...`).
+  Other invocation forms bypass the glob and still flag the guide's intentional examples: absolute paths (what editors and Language Server Protocol (LSP) integrations pass) and subdirectory-relative paths (for example `vale .style/style-guide/...` run from `docs/`).
   Treat those in-editor and subdirectory findings on the guide as expected.
 
 ## Edit the content guidelines
 
 Open a PR against `docs/.style/content-guidelines.md`.
-The rules in that file apply to humans and AI-assisted workflows alike; when it conflicts with another style or contributing doc in the repo, it governs.
+The rules in that file apply to humans and AI-assisted workflows alike.
+When it conflicts with another style or contributing doc in the repo, it governs.
 
 ## Edit the style guide
 
 Open a PR against the appropriate subpage of `docs/.style/style-guide/`.
 Follow-up PRs add each rule and the matching style-guide section together.
+
+## Reviewer personas in front matter
+
+The `doc-check` skill reviews docs changes through several personas, each focused on one kind of problem, such as accuracy or word choice.
+Each rule page lists the personas that apply its rules in a `review-personas` front matter field:
+
+```yaml
+---
+review-personas: [language, consistency, accuracy]
+---
+```
+
+The skill finds a persona's rules by reading this field, not by file path, so pages can move or split without breaking the review.
+When you add a rule page, add the field.
+When you move a rule to a different page, check that the new page lists every persona that applied it.
+The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
+The CI review of a PR runs only the `accuracy`, `coverage`, and `learner` personas, so it applies only the rule pages that list one of them.
+The other personas run when an author uses the skill on their own branch.
 
 ## Add a Vale rule
 
@@ -76,9 +90,13 @@ A `suggestion` rule can ship with existing findings, as the severity notes below
 The PR that adds a rule is the rule's complete unit:
 
 1. **Cleanup commit**: fix every existing-content violation of the new rule so `make lint/prose` reports zero findings for it.
+
    The cleanup ships in the same PR as the enable, ordered first.
    For a `suggestion` rule, the cleanup is optional.
-2. **Enable commit**: add the rule to `.vale.ini` at its chosen severity, write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/` if applicable.
+2. **Enable commit**: enable the rule in `.vale.ini`, document it in the style guide, and add its YAML if applicable.
+
+   Set the rule's chosen severity in `.vale.ini`.
+   Write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/`.
    The rule's `message:` field points at the relevant style-guide subpage anchor.
    Update the coverage tables on [`style-guide/README.md`](style-guide/README.md) in the same commit.
    `make lint/style-claims` fails when a rule lands without its section, when the tables disagree with `.vale.ini`, or when an annotation claims enforcement that doesn't exist.
@@ -94,7 +112,8 @@ Severity is a deliberate per-rule choice:
   Use for soft guidance where the right fix is contextual: noun-as-adjective patterns like `desired state`, wordiness, optional sentence reshaping.
 
 The severity choice and the cleanup discipline are independent, with one exception.
-A rule landing at `warning` or `error` ships with zero baseline findings; the rule's purpose is to catch new violations, not to surface a backlog of existing ones.
+A rule landing at `warning` or `error` ships with zero baseline findings.
+The rule's purpose is to catch new violations, not to surface a backlog of existing ones.
 A rule that surfaces a standing backlog at those severities teaches contributors to ignore the annotation channel, which erodes trust in CI regardless of the severity at which the noise arrives.
 
 A rule at `suggestion` severity can land while existing findings remain.

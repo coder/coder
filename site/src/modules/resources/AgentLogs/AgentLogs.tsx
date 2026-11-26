@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { VariableSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -23,15 +23,35 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
+const LogsViewport: React.FC<React.ComponentProps<"div">> = (props) => (
+	<div
+		{...props}
+		// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the logs from here.
+		tabIndex={0}
+		role="region"
+		aria-label="Agent logs"
+	/>
+);
+
+// tolerates fractional scroll positions at non-integer zoom levels
+const AT_BOTTOM_THRESHOLD_PX = 2;
+
 type AgentLogsProps = Omit<
 	React.ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount" | "itemKey"
+	| "children"
+	| "itemSize"
+	| "itemCount"
+	| "itemKey"
+	| "outerRef"
+	| "innerRef"
+	| "onScroll"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	ref?: React.Ref<List>;
+	// keeps the newest line in view while scrolled to the bottom
+	follow?: boolean;
 };
 
 export const AgentLogs: React.FC<AgentLogsProps> = ({
@@ -40,24 +60,67 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	overflowed,
 	className,
 	showSourceIcons = true,
-	ref,
+	follow = false,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
 	const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 	const listRef = useRef<List>(null);
-	const mergeListRef = useCallback(
-		(instance: List | null) => {
-			listRef.current = instance;
-			if (typeof ref === "function") {
-				ref(instance);
-			} else if (ref) {
-				ref.current = instance;
+	const outerRef = useRef<HTMLDivElement>(null);
+	const innerRef = useRef<HTMLDivElement>(null);
+
+	const followRef = useRef(true);
+	const lastScrollTopRef = useRef(0);
+
+	// not scrollToItem: react-window re-applies a requested offset on every re-render
+	const scrollToBottom = useCallback(() => {
+		const outer = outerRef.current;
+		if (outer) {
+			outer.scrollTop = outer.scrollHeight;
+			lastScrollTopRef.current = outer.scrollTop;
+		}
+	}, []);
+
+	useLayoutEffect(() => {
+		if (follow) {
+			followRef.current = true;
+			scrollToBottom();
+		}
+	}, [follow, scrollToBottom]);
+
+	// re-pins on any content height change; same-frame scroll events run first
+	useEffect(() => {
+		const outer = outerRef.current;
+		const inner = innerRef.current;
+		if (!follow || !outer || !inner) {
+			return;
+		}
+		const handleScroll = () => {
+			const { scrollTop, scrollHeight, clientHeight } = outer;
+			const atBottom =
+				scrollHeight - scrollTop - clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+			const scrolledUp = scrollTop < lastScrollTopRef.current;
+			lastScrollTopRef.current = scrollTop;
+
+			if (atBottom) {
+				followRef.current = true;
+			} else if (scrolledUp) {
+				followRef.current = false;
 			}
-		},
-		[ref],
-	);
+		};
+		const observer = new ResizeObserver(() => {
+			if (followRef.current) {
+				scrollToBottom();
+			}
+		});
+		outer.addEventListener("scroll", handleScroll);
+		observer.observe(inner);
+		return () => {
+			outer.removeEventListener("scroll", handleScroll);
+			observer.disconnect();
+		};
+	}, [follow, scrollToBottom]);
 
 	// A log line's real height depends on its content (long lines wrap, so a
 	// single log entry can span multiple visual rows). A fixed itemSize makes
@@ -108,8 +171,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	return (
 		<div className="bg-surface-secondary relative">
 			<List
+				outerElementType={LogsViewport}
 				{...listProps}
-				ref={mergeListRef}
+				ref={listRef}
+				outerRef={outerRef}
+				innerRef={innerRef}
 				itemCount={logs.length}
 				itemSize={getRowHeight}
 				estimatedItemSize={AGENT_LOG_LINE_HEIGHT}
@@ -117,7 +183,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"py-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary peer focus-visible:outline-hidden",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -127,33 +193,6 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				{({ index, style }) => {
 					const log = logs[index];
 					const logSource = getLogSource(log.sourceId);
-
-					let assignedIcon = false;
-					let icon: React.JSX.Element;
-					// If no icon is specified, we show a deterministic
-					// colored circle to identify unique scripts.
-					if (logSource.icon) {
-						icon = (
-							<ExternalImage
-								src={logSource.icon}
-								alt=""
-								className="size-3.5 mr-2 shrink-0"
-							/>
-						);
-					} else {
-						icon = (
-							<div
-								role="presentation"
-								className="size-3.5 mr-2 shrink-0 rounded-full"
-								style={{
-									background: determineScriptDisplayColor(
-										logSource.display_name,
-									),
-								}}
-							/>
-						);
-						assignedIcon = true;
-					}
 
 					const doesNextLineHaveDifferentSource =
 						index < logs.length - 1 &&
@@ -167,25 +206,6 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					const shouldHideSource =
 						index > 0 &&
 						getLogSource(logs[index - 1].sourceId).id === log.sourceId;
-					if (shouldHideSource) {
-						icon = (
-							<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
-								<div
-									// dashed-line class comes from AgentLogLine component
-									className={cn(
-										"dashed-line w-0.5 rounded-[2px] bg-surface-tertiary h-full",
-										doesNextLineHaveDifferentSource && "h-1/2",
-									)}
-								/>
-								{doesNextLineHaveDifferentSource && (
-									<div
-										role="presentation"
-										className="dashed-line h-[2px] w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-[2px] absolute bg-surface-tertiary"
-									/>
-								)}
-							</div>
-						);
-					}
 
 					return (
 						<MeasuredLogRow
@@ -197,18 +217,13 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 								line={log}
 								sourceIcon={
 									showSourceIcons ? (
-										<Tooltip>
-											<TooltipTrigger asChild>{icon}</TooltipTrigger>
-											<TooltipContent side="bottom">
-												{logSource.display_name}
-												{assignedIcon && (
-													<i>
-														<br />
-														No icon specified!
-													</i>
-												)}
-											</TooltipContent>
-										</Tooltip>
+										shouldHideSource ? (
+											<SourceContinuationLine
+												isLastInRun={doesNextLineHaveDifferentSource}
+											/>
+										) : (
+											<SourceIcon source={logSource} />
+										)
 									) : null
 								}
 							/>
@@ -216,20 +231,25 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					);
 				}}
 			</List>
+			{/* Drawn over the list so row backgrounds cannot hide the focus ring. */}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-content-link"
+			/>
 
 			{overflowed && (
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Badge
 							asChild
-							className="max-w-fit py-1.5 px-3 absolute bottom-3 left-1/2 -translate-x-1/2"
+							className="max-w-fit absolute bottom-3 left-1/2 -translate-x-1/2"
 						>
 							<span>Logs overflowed</span>
 						</Badge>
 					</TooltipTrigger>
 					<TooltipContent
 						asChild
-						className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+						className="w-full text-sm text-content-secondary bg-surface-primary max-w-[min(65ch,var(--radix-popper-available-width))] leading-relaxed m-0 p-4"
 					>
 						<p>
 							Startup logs exceeded the max size of{" "}
@@ -288,6 +308,77 @@ const MeasuredLogRow: React.FC<MeasuredLogRowProps> = ({
 	return (
 		<div ref={rowRef} style={{ ...style, height: "auto" }}>
 			{children}
+		</div>
+	);
+};
+
+type SourceIconProps = {
+	source: WorkspaceAgentLogSource;
+};
+
+// Marks the first line of a run of lines from the same source. It is the run's
+// only tooltip trigger, so long logs don't add a tab stop per line.
+const SourceIcon: React.FC<SourceIconProps> = ({ source }) => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={source.display_name}
+					className="mr-2 flex shrink-0 items-center rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{/* If no icon is specified, we show a deterministic
+					colored circle to identify unique scripts. */}
+					{source.icon ? (
+						<ExternalImage src={source.icon} alt="" className="size-3.5" />
+					) : (
+						<div
+							role="presentation"
+							className="size-3.5 rounded-full"
+							style={{
+								background: determineScriptDisplayColor(source.display_name),
+							}}
+						/>
+					)}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">
+				{source.display_name}
+				{!source.icon && (
+					<i>
+						<br />
+						No icon specified!
+					</i>
+				)}
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
+type SourceContinuationLineProps = {
+	isLastInRun: boolean;
+};
+
+// Decorative connector shown instead of the icon on the remaining lines of a
+// run, visually tying them to the run's first line.
+const SourceContinuationLine: React.FC<SourceContinuationLineProps> = ({
+	isLastInRun,
+}) => {
+	return (
+		<div
+			aria-hidden
+			className="size-3.5 mr-2 flex justify-center relative shrink-0"
+		>
+			<div
+				// dashed-line class comes from AgentLogLine component
+				className={cn(
+					"dashed-line w-0.5 rounded-xs bg-surface-tertiary h-full",
+					isLastInRun && "h-1/2",
+				)}
+			/>
+			{isLastInRun && (
+				<div className="dashed-line h-0.5 w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-xs absolute bg-surface-tertiary" />
+			)}
 		</div>
 	);
 };

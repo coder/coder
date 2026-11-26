@@ -21,7 +21,6 @@ func TestBeginStepReuseStep(t *testing.T) {
 		chatID := uuid.New()
 		ownerID := uuid.New()
 		runID := uuid.New()
-		t.Cleanup(func() { CleanupStepCounter(runID) })
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
@@ -54,7 +53,6 @@ func TestBeginStepReuseStep(t *testing.T) {
 		chatID := uuid.New()
 		ownerID := uuid.New()
 		runID := uuid.New()
-		t.Cleanup(func() { CleanupStepCounter(runID) })
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)

@@ -65,10 +65,10 @@ func TestQuickgenDebugRun(t *testing.T) {
 				db.EXPECT().UpdateChatTitleByID(gomock.Any(), gomock.Any()).
 					Return(chatWithGeneratedTitle(chat, "Flaky heartbeat test"), nil).AnyTimes()
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				generated := &generatedChatTitle{}
-				titleOverrideTestServer(db, logger).maybeGenerateChatTitle(ctx, chat, messages, nil, resolved, generated, logger, svc)
-				_, ok := generated.Load()
-				return ok
+				server := titleOverrideTestServer(db, logger)
+				events := subscribeChatWatchEvents(t, server.pubsub, chat.OwnerID)
+				server.maybeGenerateChatTitle(ctx, chat, messages, nil, resolved, logger, svc)
+				return len(events) == 1
 			},
 		},
 		{

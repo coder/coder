@@ -40,6 +40,8 @@ import { isUUID } from "#/utils/uuid";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
 
+const GROUP_COMBOBOX_LABEL = "Coder group";
+
 const groupSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
 	regex_filter: Yup.string().trim(),
@@ -156,7 +158,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 						</SettingsHeader>
 						<div className="flex flex-col gap-6">
 							<div className="flex flex-col gap-2">
-								<div className="flex flex-row items-end gap-2">
+								<div className="flex items-end gap-2">
 									<div className="flex flex-col gap-2">
 										<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
 										<Input
@@ -236,7 +238,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 								Map IdP groups to Coder groups.
 							</SettingsHeaderDescription>
 						</SettingsHeader>
-						<div className="flex flex-row gap-2 justify-between items-start">
+						<div className="flex gap-2 justify-between items-start">
 							<div className="grid items-center gap-1 w-72">
 								<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 									IdP group name
@@ -259,7 +261,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 												placeholder="Select IdP group"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent className="w-72" label="Search IdP groups">
 											<ComboboxInput
 												value={comboInputValue}
 												onValueChange={setComboInputValue}
@@ -297,13 +299,9 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor={`${id}-coder-group`}>
-									Coder group
-								</Label>
+								<Label className="text-sm">{GROUP_COMBOBOX_LABEL}</Label>
 								<MultiSelectCombobox
-									inputProps={{
-										id: `${id}-coder-group`,
-									}}
+									commandProps={{ label: GROUP_COMBOBOX_LABEL }}
 									className="min-w-60 max-w-3xl"
 									value={coderGroups}
 									onChange={setCoderGroups}
@@ -437,7 +435,7 @@ const GroupRow: React.FC<GroupRowProps> = ({
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2 text-content-primary">
+				<div className="flex items-center gap-2 text-content-primary">
 					{idpGroup}
 					{!exists && <IdpUnseenClaimWarning />}
 				</div>

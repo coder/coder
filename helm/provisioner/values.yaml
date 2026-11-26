@@ -24,6 +24,10 @@ coder:
     # app version will not work and you'll need to set this value. The helm
     # chart helpfully fails quickly in this case.
     tag: ""
+    # coder.image.digest -- The digest of the image, for example
+    # "sha256:...". When set, the image is pinned to this digest and the tag
+    # is informational only.
+    digest: ""
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
@@ -185,6 +189,83 @@ coder:
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
   nodeSelector: {}
   #  kubernetes.io/os: linux
+
+  # coder.networkPolicy -- A NetworkPolicy for the provisioner pods. Requires a
+  # CNI that enforces NetworkPolicy. The provisioner only makes outbound
+  # connections, so once enabled ingress is limited to Prometheus metrics, if enabled,
+  # unless extraIngress allows more.
+  networkPolicy:
+    # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
+    enable: false
+    # coder.networkPolicy.annotations -- The NetworkPolicy annotations.
+    annotations: {}
+    prometheus:
+      # coder.networkPolicy.prometheus.from -- NetworkPolicyPeer objects allowed to scrape
+      # metrics. Metrics ingress is allowed automatically when Prometheus is
+      # enabled in coder.env (CODER_PROMETHEUS_ENABLE), on the port from
+      # CODER_PROMETHEUS_ADDRESS. Empty allows any source; restrict it to your
+      # Prometheus.
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: monitoring
+    # coder.networkPolicy.extraIngress -- NetworkPolicyIngressRule objects to
+    # allow.
+    extraIngress: []
+    # - ports:
+    #     - port: 2112
+    #       protocol: TCP
+    #   from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: monitoring
+    egress:
+      # coder.networkPolicy.egress.enable -- Whether to restrict egress. When
+      # true, only DNS, the Coder server, the Kubernetes API, and extraEgress
+      # rules are allowed. Set to false to leave egress open.
+      enable: true
+      dns:
+        # coder.networkPolicy.egress.dns.to -- NetworkPolicyPeer objects for the
+        # DNS server. Empty allows any destination on the ports below.
+        to: []
+        # coder.networkPolicy.egress.dns.ports -- UDP and TCP DNS ports. Some
+        # platforms, such as OpenShift, use 5353.
+        ports: [53]
+      coderServer:
+        # coder.networkPolicy.egress.coderServer.to -- NetworkPolicyPeer objects
+        # for the Coder server. The default matches the Coder chart's pods in
+        # any namespace. Change this if CODER_URL targets an external address
+        # (e.g. an ipBlock). Empty allows any destination on the ports below.
+        to:
+          - namespaceSelector: {}
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: coder
+        # coder.networkPolicy.egress.coderServer.ports -- TCP ports of the
+        # Coder server.
+        ports: [8080, 8443]
+      kubernetesAPI:
+        # coder.networkPolicy.egress.kubernetesAPI.to -- NetworkPolicyPeer
+        # objects for the Kubernetes API server, used by templates with the
+        # Kubernetes provider. Control plane addresses vary by cluster, so the
+        # default is empty, which allows any destination on the ports below,
+        # including the internet. If you restrict it with an ipBlock (see
+        # `kubectl get endpoints kubernetes`), allow an external CODER_URL and
+        # template registries through coderServer or extraEgress.
+        to: []
+        # coder.networkPolicy.egress.kubernetesAPI.ports -- TCP ports of the
+        # Kubernetes API server. An empty list removes the rule.
+        ports: [443, 6443]
+    # coder.networkPolicy.extraEgress -- NetworkPolicyEgressRule objects to
+    # allow, such as the cloud APIs and registries your templates use. Only
+    # used if egress.enable is true.
+    extraEgress: []
+    # - to:
+    #     - ipBlock:
+    #         cidr: 0.0.0.0/0
+    #   ports:
+    #     - port: 443
+    #       protocol: TCP
 
   # coder.command -- The command to use when running the container. Used
   # for customizing the location of the `coder` binary in your image.

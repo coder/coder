@@ -1,0 +1,191 @@
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "react-query";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import {
+	MockChat,
+	MockChatAttachment,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockAppearanceConfig,
+	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
+} from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
+import {
+	createChatStore,
+	isPendingRowID,
+	selectOrderedMessageIDs,
+} from "./ChatConversation/chatStore";
+import { ChatSummaryPanel } from "./ChatSummaryPanel";
+import { TabPanelStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
+
+const mockOldestLoadedMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 41,
+};
+
+const mockNewestLoadedMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 42,
+	role: "assistant",
+};
+
+const renderPanel = ({
+	isVisible = true,
+	hasMoreMessages = true,
+}: {
+	isVisible?: boolean;
+	hasMoreMessages?: boolean;
+} = {}) => {
+	const store = createChatStore();
+	store.upsertDurableMessages([
+		mockOldestLoadedMessage,
+		mockNewestLoadedMessage,
+	]);
+	renderComponent(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<DashboardContext.Provider
+				value={{
+					entitlements: MockEntitlements,
+					experiments: [],
+					appearance: MockAppearanceConfig,
+					buildInfo: MockBuildInfo,
+					organizations: [MockDefaultOrganization],
+					showOrganizations: false,
+					canViewOrganizationSettings: false,
+				}}
+			>
+				<TabPanelStateContext
+					value={{ isActive: isVisible, isPanelOpen: true, isExpanded: false }}
+				>
+					<ChatSummaryPanel
+						chatId={MockChat.id}
+						store={store}
+						hasMoreMessages={hasMoreMessages}
+					/>
+				</TabPanelStateContext>
+			</DashboardContext.Provider>
+		</QueryClientProvider>,
+	);
+	return store;
+};
+
+describe("ChatSummaryPanel attachments", () => {
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChat").mockResolvedValue(MockChat);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each([
+		{
+			name: "asks for attachments before the loaded page",
+			isVisible: true,
+			hasMoreMessages: true,
+			calls: [
+				[
+					MockChat.id,
+					{ before_id: mockOldestLoadedMessage.id },
+					expect.any(AbortSignal),
+				],
+			],
+		},
+		{
+			name: "skips the request when all are loaded",
+			isVisible: true,
+			hasMoreMessages: false,
+			calls: [],
+		},
+		{
+			name: "skips the request while hidden",
+			isVisible: false,
+			hasMoreMessages: true,
+			calls: [],
+		},
+	])("$name", ({ isVisible, hasMoreMessages, calls }) => {
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockResolvedValue({ attachments: [MockChatAttachment] });
+
+		renderPanel({ isVisible, hasMoreMessages });
+
+		expect(getChatAttachments.mock.calls).toEqual(calls);
+	});
+
+	it("asks for attachments before the oldest stored message while it is edited", async () => {
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockResolvedValue({ attachments: [MockChatAttachment] });
+		const store = renderPanel();
+
+		act(() => {
+			void store.runPendingAction(
+				{
+					kind: "edit",
+					editedMessageID: mockOldestLoadedMessage.id,
+					content: [{ type: "text", text: "edited" }],
+				},
+				() => new Promise(() => {}),
+			);
+		});
+		// The oldest shown ID is not a valid before_id.
+		expect(
+			selectOrderedMessageIDs(store.getSnapshot()).every(isPendingRowID),
+		).toBe(true);
+
+		await waitFor(() => expect(getChatAttachments).toHaveBeenCalled());
+		expect(getChatAttachments.mock.calls).toEqual([
+			[
+				MockChat.id,
+				{ before_id: mockOldestLoadedMessage.id },
+				expect.any(AbortSignal),
+			],
+		]);
+	});
+
+	it("retries the earlier attachments after a failure", async () => {
+		const user = userEvent.setup();
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(new Error("attachments unavailable"))
+			.mockResolvedValueOnce({ attachments: [MockChatAttachment] });
+
+		renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(getChatAttachments).toHaveBeenCalledTimes(2));
+		expect(getChatAttachments.mock.calls[1]).toEqual([
+			MockChat.id,
+			{ before_id: mockOldestLoadedMessage.id },
+			expect.any(AbortSignal),
+		]);
+	});
+
+	it("keeps the failure and its retry button while the retry runs", async () => {
+		const user = userEvent.setup();
+		const retry = createDeferred<TypesGen.ChatAttachmentsResponse>();
+		vi.spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(new Error("attachments unavailable"))
+			.mockReturnValueOnce(retry.promise);
+
+		renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled();
+		retry.resolve({ attachments: [MockChatAttachment] });
+		await waitFor(() =>
+			expect(screen.queryByRole("button", { name: /Retry/ })).toBeNull(),
+		);
+	});
+});

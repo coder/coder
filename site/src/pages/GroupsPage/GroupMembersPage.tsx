@@ -25,7 +25,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
+import { MembersFilter } from "#/components/Filter/MembersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
@@ -125,7 +125,7 @@ const GroupMembersPage: React.FC = () => {
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
-			<UsersFilter {...filterProps} />
+			<MembersFilter {...filterProps} />
 
 			<PaginationContainer
 				query={membersQuery}
@@ -154,7 +154,9 @@ const GroupMembersPage: React.FC = () => {
 												<StatusIconTooltip
 													message={
 														<>
-															{aiBudgetNote} <SpendEstimateDocsLink />
+															{aiBudgetNote}
+															<br />
+															<SpendEstimateDocsLink />
 														</>
 													}
 												/>
@@ -257,7 +259,7 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 					}
 					title={member.username}
 					subtitle={
-						member.is_service_account ? "Service Account" : member.email
+						member.is_service_account ? "Service account" : member.email
 					}
 				/>
 			</TableCell>
@@ -282,9 +284,12 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+							<Button
+								size="icon-lg"
+								variant="subtle"
+								aria-label={`Open menu for ${member.username}`}
+							>
 								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">

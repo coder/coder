@@ -1,35 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
-import type {
-	WorkspaceACL,
-	WorkspaceGroup,
-	WorkspaceUser,
-} from "#/api/typesGenerated";
+import type { WorkspaceACL, WorkspaceGroup } from "#/api/typesGenerated";
 import {
 	MockGroup,
 	MockGroup2,
-	MockUserMember,
-	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceUser,
+	MockWorkspaceUserAdmin,
+	MockWorkspaceUserLongName,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
-
-const mockWorkspaceUser: WorkspaceUser = {
-	id: MockUserMember.id,
-	username: MockUserMember.username,
-	name: MockUserMember.name,
-	avatar_url: MockUserMember.avatar_url,
-	role: "use",
-};
-
-const mockWorkspaceUserAdmin: WorkspaceUser = {
-	id: MockUserOwner.id,
-	username: MockUserOwner.username,
-	name: MockUserOwner.name,
-	avatar_url: MockUserOwner.avatar_url,
-	role: "admin",
-};
 
 const mockWorkspaceGroup: WorkspaceGroup = {
 	...MockGroup,
@@ -47,7 +28,7 @@ const emptyACL: WorkspaceACL = {
 };
 
 const aclWithUsers: WorkspaceACL = {
-	users: [mockWorkspaceUser, mockWorkspaceUserAdmin],
+	users: [MockWorkspaceUser, MockWorkspaceUserAdmin],
 	group: [],
 };
 
@@ -57,7 +38,7 @@ const aclWithGroups: WorkspaceACL = {
 };
 
 const aclWithUsersAndGroups: WorkspaceACL = {
-	users: [mockWorkspaceUser, mockWorkspaceUserAdmin],
+	users: [MockWorkspaceUser, MockWorkspaceUserAdmin],
 	group: [mockWorkspaceGroup, mockWorkspaceGroupAdmin],
 };
 
@@ -119,6 +100,32 @@ export const WithUsersAndGroups: Story = {
 	},
 };
 
+const aclWithLongName: WorkspaceACL = {
+	...aclWithUsersAndGroups,
+	users: [...aclWithUsersAndGroups.users, MockWorkspaceUserLongName],
+};
+
+export const NarrowViewport: Story = {
+	args: {
+		workspaceACL: aclWithLongName,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const NarrowViewportReadOnly: Story = {
+	args: {
+		workspaceACL: aclWithLongName,
+		canShareWorkspace: false,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const ReadOnly: Story = {
 	args: {
 		workspaceACL: aclWithUsersAndGroups,
@@ -136,7 +143,7 @@ export const AddingMember: Story = {
 export const UpdatingUser: Story = {
 	args: {
 		workspaceACL: aclWithUsers,
-		updatingUserId: mockWorkspaceUser.id,
+		updatingUserId: MockWorkspaceUser.id,
 	},
 };
 

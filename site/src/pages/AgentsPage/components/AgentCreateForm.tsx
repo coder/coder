@@ -28,6 +28,7 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -48,7 +49,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -77,6 +78,8 @@ const attachDuringSubmitMessage =
 
 export type CreateChatOptions = {
 	message: string;
+	/** Composer text and chips in document order. */
+	composerParts?: readonly ChatComposerContentPart[];
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
@@ -307,6 +310,7 @@ type AgentCreateFormProps = {
 	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
 export const AgentCreateForm: React.FC<AgentCreateFormProps> = (props) => (
@@ -329,8 +333,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	project,
 	prefill,
 	fillWidth,
+	highlightKey,
 }) => {
-	const { organizations, showOrganizations, experiments } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const lockedOrganizationId = project?.organization_id;
 	const draftKeys = draftStorageKeys(project?.id);
@@ -440,8 +445,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	// The project picker only exists on the general composer; a `project` prop
 	// already fixes the project. The selection is not saved, so a remembered
 	// choice cannot silently file later chats into a project.
-	const isProjectPickerEnabled =
-		!project && experiments.includes("chat-projects");
+	const isProjectPickerEnabled = !project;
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: isProjectPickerEnabled,
@@ -750,6 +754,18 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			(agent) => !agent.parent_id && agent.status === "connected",
 		);
 
+	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// The editor lives outside React state, so drop chips whose scope changed.
+	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
+	useEffect(() => {
+		const last = lastChipScopeRef.current;
+		lastChipScopeRef.current = { organizationId, chatProjectId };
+		if (last.organizationId && last.organizationId !== organizationId) {
+			chatInputRef.current?.removeSkills(["org", "project"]);
+		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [organizationId, chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
@@ -758,6 +774,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		submitDraft();
 		await onCreateChat({
 			message,
+			composerParts: chatInputRef.current?.getContentParts(),
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
@@ -1023,7 +1040,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				)}
 				<AgentChatInput
 					fillWidth={fillWidth}
+					highlightKey={highlightKey}
 					onSend={handleSendWithAttachments}
+					inputRef={chatInputRef}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={
 						isSubmitPending ||
@@ -1038,6 +1057,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						Boolean(aiGatewayDisabled)
 					}
 					isReadOnly={isForbidden}
+					lockWhileLoading
 					isLoading={isSubmitPending}
 					initialValue={initialInputValue}
 					initialEditorState={initialEditorState}
@@ -1078,6 +1098,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
 					chatProjectId={chatProjectId}
+					showProjectActions={project !== undefined}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);
@@ -1085,7 +1106,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							saveMCPSelection(organizationId, ids);
 						}
 					}}
-					onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 					workspaceOptions={filteredWorkspaces}
 					selectedWorkspaceId={effectiveWorkspaceId}
 					// Do not persist a workspace until its organization is authorized.

@@ -9,7 +9,7 @@ There are several ways to extend/automate Coder:
 
 - [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
 - [CLI](../reference/cli/index.md)
-- [REST API](../reference/api/index.md)
+- [Representational State Transfer (REST) API](../reference/api/index.md)
 - [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 - [Agent API](../reference/agent-api/index.md)
 
@@ -42,7 +42,7 @@ You can also enable a [Swagger endpoint](../reference/cli/server/index.md#--swag
 
 ## Use cases
 
-We strive to keep the following use cases up to date, but please note that changes to API queries and routes can occur.
+We strive to keep the following use cases up to date, but note that changes to API queries and routes can occur.
 For the most recent queries and payloads, we recommend checking the relevant documentation.
 
 ### Users & Groups
@@ -52,13 +52,13 @@ For the most recent queries and payloads, we recommend checking the relevant doc
 
 ### Templates
 
-- [Manage templates via Terraform or CLI](../admin/templates/managing-templates/change-management.md): Store all templates in git and update them in CI/CD pipelines.
+- [Manage templates via Terraform or CLI](../templates/managing-templates/change-management.md): Store all templates in git and update them in continuous integration and continuous delivery (CI/CD) pipelines.
 
 ### Workspace agents
 
 Workspace agents have a special token that can send logs, metrics, and workspace activity.
 
-- [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs): Expose messages prior to the Coder init script running (e.g. pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
+- [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs): Expose messages prior to the Coder init script running (for example, pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
 
   ```sh
   curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
@@ -74,7 +74,14 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   }"
   ```
 
-- [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id): Keep a workspace "active," even if there is not an open connection (e.g. for a long-running machine learning job).
+- [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id): Keep a workspace "active," even if there is not an open connection (for example, for a long-running machine learning job).
+
+  This script uses a user token, not the agent token.
+  Create one with `coder tokens create`, and set it as `CODER_SESSION_TOKEN`.
+  The script needs `jq`.
+  It leaves the deadline alone when the workspace already has a later one.
+  This check needs the Coder database to use the UTC time zone, so that the API returns the deadline as a UTC timestamp that ends in `Z`.
+  If the database uses another time zone, the script sets the deadline to one hour from now on every pass, which can shorten a later deadline.
 
   ```sh
   #!/bin/bash
@@ -84,11 +91,19 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   do
   if pgrep -f "my_training_script.py" > /dev/null
   then
-    curl -X PUT "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
-    -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
-    -d '{
-      "deadline": "2019-08-24T14:15:22Z"
-    }'
+    # Aim for a deadline one hour from now. The first date form is GNU, the second is BSD.
+    deadline=$(date -u -d '+1 hour' +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H +'%Y-%m-%dT%H:%M:%SZ')
+    current=$(curl -fsS "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID" \
+    -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq -r '.latest_build.deadline')
+    # Text comparison, so it is correct only for UTC timestamps, which end in Z.
+    if [[ "$current" != *Z || "$current" < "$deadline" ]]
+    then
+      curl -fsS -X PUT "https://coder.example.com/api/v2/workspaces/$CODER_WORKSPACE_ID/extend" \
+      -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+      -d "{
+        \"deadline\": \"$deadline\"
+      }"
+    fi
 
     # Sleep for 30 minutes (1800 seconds) if the job is running
     sleep 1800
@@ -98,3 +113,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   fi
   done
   ```
+
+  A user token used in a script is long-lived, so store it in a secret store, not in the script itself.
+
+  For other ways to keep a workspace running, refer to [Keep a workspace running without a connection](../workspaces/workspace-scheduling.md#keep-a-workspace-running-without-a-connection).

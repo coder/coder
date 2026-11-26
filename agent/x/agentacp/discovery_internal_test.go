@@ -6,12 +6,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -21,7 +23,7 @@ import (
 func TestDiscoveryCatalog(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m, _, configDir := newTestManager(t, fakeHarnessModeBoth)
+	m, dir, configDir := newTestManager(t, fakeHarnessModeBoth)
 	catalog := m.Catalog()
 	require.Equal(t, "fake", catalog[0].DisplayName)
 	require.True(t, catalog[0].LoadSession)
@@ -56,6 +58,7 @@ func TestDiscoveryCatalog(t *testing.T) {
 			require.NotEmpty(t, h.Error)
 		}
 	}
+	info := createTestSession(t, m, dir)
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": "false", "display_name": "Changed"})
 	require.NoError(t, m.Reload(ctx))
 	var found bool
@@ -68,6 +71,10 @@ func TestDiscoveryCatalog(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the edited harness must remain in the context snapshot")
+	session, err := m.Read(ctx, info.ID, nil)
+	require.NoError(t, err)
+	require.Equal(t, info.ID, session.Session.ID)
+	require.Equal(t, "fake", session.Session.HarnessDisplayName)
 	require.NoError(t, os.Remove(filepath.Join(configDir, "fake.json")))
 	require.NoError(t, m.Reload(ctx))
 	require.Len(t, m.Catalog(), 3)
@@ -93,6 +100,20 @@ func TestDiscoveryCatalog(t *testing.T) {
 		}
 		require.True(t, found, "the invalid directory must be reported in the catalog")
 	}
+}
+
+func TestDiscoverySymlinkedDirectory(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Symlink requires developer mode or admin on Windows")
+	}
+	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
+	link := filepath.Join(t.TempDir(), "workspace")
+	require.NoError(t, os.Symlink(dir, link))
+	m.workingDir = func() string { return link }
+	require.NoError(t, m.Reload(testutil.Context(t, testutil.WaitLong)))
+	require.Len(t, m.Catalog(), 1)
+	require.Empty(t, m.Catalog()[0].Error)
 }
 
 func TestDiscoveryDirectoryCreation(t *testing.T) {
@@ -122,45 +143,81 @@ func TestDiscoveryDirectoryCreation(t *testing.T) {
 	testutil.RequireReceive(ctx, t, changed)
 	require.Len(t, m.Catalog(), 1)
 	require.Empty(t, m.Catalog()[0].Error)
+	// Enabled configuration is still required for a new runtime.
+	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": fakeCommand(t, fakeHarnessModeBoth), "enabled": false})
+	advanceTestDiscovery(ctx, t, clock)
+	testutil.RequireReceive(ctx, t, changed)
+	_, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir})
+	require.ErrorIs(t, err, ErrUnavailable)
 }
 
 func TestProbeDeadline(t *testing.T) {
 	t.Parallel()
-	m, _, configDir := newTestManager(t, fakeHarnessModeBoth)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	deadline, ok := ctx.Deadline()
-	require.True(t, ok)
-	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = listener.Close() })
-	require.NoError(t, listener.SetDeadline(deadline))
-	command := "CODER_ACP_TEST_READY_ADDR=" + shellQuote(listener.Addr().String()) + " " + fakeCommand(t, fakeHarnessModeHang)
-	writeConfig(t, filepath.Join(configDir, "hang.json"), map[string]any{"command": command})
-	done := make(chan error, 1)
-	go func() { done <- m.Reload(ctx) }()
-	ready, err := listener.Accept()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = ready.Close() })
-	require.NoError(t, ready.SetDeadline(deadline))
-	var signal [1]byte
-	_, err = io.ReadFull(ready, signal[:])
-	require.NoError(t, err, "the helper must enter Initialize before the deadline advances")
-	require.Equal(t, byte(1), signal[0])
-	select {
-	case err := <-done:
-		t.Fatalf("probe completed before its deadline: %v", err)
-	default:
+	for _, shutdown := range []bool{false, true} {
+		name := "Timeout"
+		if shutdown {
+			name = "Shutdown"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m, _, configDir := newTestManager(t, fakeHarnessModeBoth)
+			sink := testutil.NewFakeSink(t)
+			m.logger = sink.Logger()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = listener.Close() })
+			require.NoError(t, listener.SetDeadline(deadline))
+			command := "CODER_ACP_TEST_READY_ADDR=" + shellQuote(listener.Addr().String()) + " " + fakeCommand(t, fakeHarnessModeHang)
+			writeConfig(t, filepath.Join(configDir, "hang.json"), map[string]any{"command": command})
+			done := make(chan error, 1)
+			go func() {
+				if shutdown {
+					m.RunDiscovery()
+					done <- nil
+					return
+				}
+				// Direct reload isolates the probe deadline from the pass budget.
+				done <- m.Reload(ctx)
+			}()
+			ready, err := listener.Accept()
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = ready.Close() })
+			require.NoError(t, ready.SetDeadline(deadline))
+			var signal [1]byte
+			_, err = io.ReadFull(ready, signal[:])
+			require.NoError(t, err, "the helper must enter Initialize before the deadline advances")
+			require.Equal(t, byte(1), signal[0])
+			select {
+			case <-done:
+				t.Fatal("discovery returned before its initial probes finished")
+			default:
+			}
+			if shutdown {
+				require.NoError(t, m.Close())
+			} else {
+				m.clock.(*quartz.Mock).Advance(setupTimeout).MustWait(ctx)
+			}
+			require.NoError(t, testutil.RequireReceive(ctx, t, done))
+			_, err = ready.Read(signal[:])
+			// Windows may report a connection reset instead of EOF when the helper exits.
+			require.Error(t, err, "the helper must exit after the probe deadline")
+			require.NotErrorIs(t, err, os.ErrDeadlineExceeded, "the helper must close the connection before the read deadline")
+			catalog := m.Catalog()
+			completed := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "finished initial acp discovery" })
+			if shutdown {
+				require.Len(t, completed, 1)
+				require.Contains(t, completed[0].Fields, slog.F("outcome", "canceled"))
+				require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "acp discovery failed" }))
+			} else {
+				require.Len(t, catalog, 2)
+				require.Empty(t, catalog[0].Error)
+				require.NotEmpty(t, catalog[1].Error)
+			}
+		})
 	}
-	m.clock.(*quartz.Mock).Advance(setupTimeout).MustWait(ctx)
-	require.NoError(t, testutil.RequireReceive(ctx, t, done))
-	_, err = ready.Read(signal[:])
-	// Windows may report a connection reset instead of EOF when the helper exits.
-	require.Error(t, err, "the helper must exit after the probe deadline")
-	require.NotErrorIs(t, err, os.ErrDeadlineExceeded, "the helper must close the connection before the read deadline")
-	catalog := m.Catalog()
-	require.Len(t, catalog, 2)
-	require.Empty(t, catalog[0].Error)
-	require.NotEmpty(t, catalog[1].Error)
 }
 
 func TestDiscoveryEditsAndDirectoryRecreation(t *testing.T) {

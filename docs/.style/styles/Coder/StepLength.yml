@@ -1,0 +1,437 @@
+# Coder.StepLength - keep the instruction of an ordered-list step to 20 words.
+# Refer to procedural-writing.md#keep-steps-short for the rule and
+# voice-and-tone.md#how-to-count-words for how words are counted.
+#
+# The rule is a Tengo script over the raw file text because a step's words
+# depend on Markdown structure that Vale's per-paragraph scopes hide: hard
+# wrapped continuation lines belong to one step, and code spans and bold labels
+# count as one word each.
+#
+# Counting model. These are approximations of the guide:
+#
+# - A step is an ordered-list item whose marker is `1.` or `1)`. A nested
+#   ordered item is its own step. Bullet items, even under a step, are not
+#   steps.
+# - A step is split into paragraph segments, and only the first segment, the
+#   step's instruction, is counted. Later segments explain the step and follow
+#   the body prose target instead. A segment is the marker line plus the lines
+#   that follow it. It ends at a blank line, a fence, a nested list (ordered
+#   or bullet), a table row, a blockquote, block-level HTML, or an explicit
+#   hard break: a line ending in `<br>`, a backslash, or two spaces. A
+#   paragraph after a blank line belongs to the step, and is a new segment,
+#   when it is indented at least to the step's text. Anything less indented
+#   ends the step. The words of nested bullets, tables, quotes, fenced code,
+#   and images are not counted.
+# - Fenced code blocks and HTML comments are skipped.
+# - Words are separated by whitespace, so a hyphenated compound and
+#   `30&nbsp;seconds` are one word. A number followed by a regular space and a
+#   unit is two words; Coder.UnitSpacing already requires `&nbsp;`.
+# - A code span and a `**bold**` or `__bold__` span are one word each, even
+#   when they contain spaces or sentence punctuation.
+# - Link text counts word by word. The destination of `[text](url)` and
+#   `[text][ref]` is skipped. An image, alt text included, adds no words. An autolink such as `<https://example.com>` is
+#   one word. Other inline HTML tags are skipped and their text counts.
+# - Non-ASCII text is rewritten to same-length ASCII before scanning, because
+#   Tengo indexes strings by rune but measures them in bytes. A no-break space
+#   joins words and an arrow is punctuation; other non-ASCII runes count as
+#   letters.
+# - A token with no letter or digit, such as the `>` in `**A** > **B**`, is
+#   not a word.
+# - Sentence boundaries do not matter: the limit applies to the whole first
+#   segment, so an action and an expected result in it are counted together.
+# - The match spans the offending segment, from its first word to its last.
+#   Vale locates a match by its text, so a span of only the first word of a
+#   wrapped segment can resolve to an earlier line that repeats the word.
+extends: script
+message: "This step's instruction has more than 20 words. Shorten it, split the step, or move the explanation to a paragraph below the instruction. Refer to procedural-writing.md#keep-steps-short."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/procedural-writing.md#keep-steps-short
+level: warning
+scope: raw
+script: |
+  text := import("text")
+
+  limit := 20
+  matches := []
+
+  is_space := func(c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n'
+  }
+  is_digit := func(c) {
+    return c >= '0' && c <= '9'
+  }
+  is_alnum := func(c) {
+    return is_digit(c) || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+  }
+  is_lower := func(c) {
+    return c >= 'a' && c <= 'z'
+  }
+  is_alpha := func(c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+  }
+
+  // find returns the index of the first occurrence of needle in s at or after
+  // from, or -1.
+  find := func(s, needle, from) {
+    n := len(needle)
+    i := from
+    for i + n <= len(s) {
+      if s[i:i+n] == needle {
+        return i
+      }
+      i += 1
+    }
+    return -1
+  }
+
+  // ordered_content returns the index where the content of an ordered list
+  // item begins, or -1 when line is not an ordered list item.
+  ordered_content := func(line) {
+    n := len(line)
+    i := 0
+    for i < n && (line[i] == ' ' || line[i] == '\t') {
+      i += 1
+    }
+    d := 0
+    for i < n && is_digit(line[i]) {
+      i += 1
+      d += 1
+    }
+    if d == 0 || d > 9 || i >= n || (line[i] != '.' && line[i] != ')') {
+      return -1
+    }
+    i += 1
+    if i >= n || (line[i] != ' ' && line[i] != '\t') {
+      return -1
+    }
+    for i < n && (line[i] == ' ' || line[i] == '\t') {
+      i += 1
+    }
+    return i
+  }
+
+  // bullet_marker reports whether line starts with an unordered list marker.
+  bullet_marker := func(line) {
+    n := len(line)
+    i := 0
+    for i < n && (line[i] == ' ' || line[i] == '\t') {
+      i += 1
+    }
+    if i + 1 < n && (line[i] == '-' || line[i] == '*' || line[i] == '+') && (line[i+1] == ' ' || line[i+1] == '\t') {
+      return true
+    }
+    return false
+  }
+
+  block_tags := ["details", "summary", "div", "table", "thead", "tbody", "tr", "td", "th", "img", "br", "p", "pre", "ul", "ol", "li", "picture", "source", "video", "iframe", "blockquote", "hr", "figure", "figcaption", "center", "span", "a"]
+
+  // html_block reports whether a trimmed line opens block-level HTML or a
+  // comment, which a step does not scan.
+  html_block := func(t) {
+    if len(t) < 2 || t[0] != '<' {
+      return false
+    }
+    if t[1] == '!' {
+      return true
+    }
+    i := 1
+    if t[i] == '/' {
+      i += 1
+    }
+    j := i
+    for j < len(t) && is_alpha(t[j]) {
+      j += 1
+    }
+    name := text.to_lower(t[i:j])
+    for tag in block_tags {
+      if tag == name {
+        return true
+      }
+    }
+    return false
+  }
+
+  // skip_dest returns the index after the parenthesis that closes a link
+  // destination whose text begins at i.
+  skip_dest := func(s, i) {
+    depth := 1
+    for i < len(s) && depth > 0 {
+      if s[i] == '(' {
+        depth += 1
+      } else if s[i] == ')' {
+        depth -= 1
+      }
+      i += 1
+    }
+    return i
+  }
+
+  // report records a match that spans the whole paragraph segment. Vale
+  // locates a match by its text, and a span that is only the first word of a
+  // wrapped segment can resolve to an earlier line that repeats the word.
+  report := func(base, first, last_end) {
+    matches = append(matches, {begin: base + first, end: base + last_end})
+  }
+
+  // check counts the words in the step paragraph in s, which begins at
+  // absolute offset base, and reports it when it is over the limit.
+  check := func(s, base) {
+    n := len(s)
+    i := 0
+    count := 0
+    first := -1
+    last_end := -1
+    for true {
+      for i < n && is_space(s[i]) {
+        i += 1
+      }
+      if i >= n {
+        break
+      }
+      start := i
+      hasword := false
+      for i < n && !is_space(s[i]) {
+        c := s[i]
+        if c == '`' {
+          k := i
+          for k < n && s[k] == '`' {
+            k += 1
+          }
+          run := s[i:k]
+          e := find(s, run, k)
+          if e < 0 {
+            i = k
+          } else {
+            i = e + len(run)
+            hasword = true
+          }
+        } else if (c == '*' || (c == '_' && i == start)) && i + 1 < n && s[i+1] == c {
+          e := find(s, s[i:i+2], i + 2)
+          if e < 0 {
+            i += 2
+          } else {
+            i = e + 2
+            hasword = true
+          }
+        } else if c == '!' && i + 1 < n && s[i+1] == '[' && find(s, "](", i) >= 0 {
+          i = skip_dest(s, find(s, "](", i) + 2)
+        } else if c == ']' && i + 1 < n && s[i+1] == '(' {
+          i = skip_dest(s, i + 2)
+        } else if c == ']' && i + 1 < n && s[i+1] == '[' {
+          e := find(s, "]", i + 2)
+          if e < 0 {
+            i += 2
+          } else {
+            i = e + 1
+          }
+        } else if c == '<' && i + 1 < n && (is_alpha(s[i+1]) || s[i+1] == '/') {
+          e := find(s, ">", i)
+          if e < 0 {
+            i += 1
+          } else {
+            if s[i:i+5] == "<http" {
+              hasword = true
+            }
+            i = e + 1
+          }
+        } else {
+          if is_alnum(c) {
+            hasword = true
+          }
+          i += 1
+        }
+      }
+      if hasword {
+        if first < 0 {
+          first = start
+        }
+        last_end = i
+        count += 1
+      }
+    }
+    if count > limit {
+      report(base, first, last_end)
+    }
+  }
+
+  // Tengo indexes strings by rune but measures them in bytes, so rewrite each
+  // non-ASCII rune to ASCII of the same byte length. Offsets stay valid. A
+  // no-break space joins words and an arrow is punctuation; any other
+  // non-ASCII rune is a letter.
+  norm := text.re_replace("\\x{a0}", scope, "~~")
+  norm = text.re_replace("[\\x{2190}-\\x{21ff}]", norm, "~~~")
+  norm = text.re_replace("[\\x{80}-\\x{7ff}]", norm, "AA")
+  norm = text.re_replace("[\\x{800}-\\x{ffff}]", norm, "AAA")
+  norm = text.re_replace("[\\x{10000}-\\x{10ffff}]", norm, "AAAA")
+
+  // indent_of returns the width of the leading whitespace of line, with a tab
+  // counting as 4 columns.
+  indent_of := func(line) {
+    w := 0
+    for k := 0; k < len(line); k += 1 {
+      if line[k] == ' ' {
+        w += 1
+      } else if line[k] == '\t' {
+        w += 4
+      } else {
+        break
+      }
+    }
+    return w
+  }
+
+  // hard_break reports whether line ends with an explicit line break: a
+  // `<br>` tag, a trailing backslash, or two or more trailing spaces.
+  hard_break := func(line) {
+    l := line
+    if len(l) > 0 && l[len(l)-1] == '\r' {
+      l = l[:len(l)-1]
+    }
+    if len(text.trim_space(l)) == 0 {
+      return false
+    }
+    if len(l) >= 2 && l[len(l)-1] == ' ' && l[len(l)-2] == ' ' {
+      return true
+    }
+    r := text.trim_space(text.to_lower(l))
+    if r[len(r)-1] == '\\' {
+      return true
+    }
+    for tag in ["<br>", "<br/>", "<br />"] {
+      if len(r) >= len(tag) && r[len(r)-len(tag):] == tag {
+        return true
+      }
+    }
+    return false
+  }
+
+  lines := text.split(norm, "\n")
+  offset := 0
+  fence := ""
+  in_comment := false
+  in_step := false
+  step_indent := 0
+  seg := ""
+  seg_base := 0
+  checked := false
+  blank := false
+  skipping := false
+  skip_col := 0
+
+  end_seg := func() {
+    if seg != "" && !checked {
+      check(seg, seg_base)
+      checked = true
+    }
+    seg = ""
+  }
+  end_step := func() {
+    end_seg()
+    in_step = false
+    skipping = false
+    skip_col = 0
+  }
+  add := func(line, start) {
+    if seg == "" {
+      seg = line[start:]
+      seg_base = offset + start
+    } else {
+      seg += "\n" + line
+    }
+    if hard_break(line) {
+      end_seg()
+    }
+  }
+
+  for line in lines {
+    raw_len := len(line) + 1
+    t := text.trim_space(line)
+    ind := indent_of(line)
+
+    if fence != "" {
+      if len(t) >= len(fence) && t[:len(fence)] == fence {
+        fence = ""
+      }
+      offset += raw_len
+      continue
+    }
+    if in_comment {
+      if find(t, "-->", 0) >= 0 {
+        in_comment = false
+      }
+      offset += raw_len
+      continue
+    }
+
+    if len(t) >= 3 && (t[:3] == "```" || t[:3] == "~~~") {
+      if blank && ind < step_indent {
+        end_step()
+      } else {
+        end_seg()
+      }
+      k := 0
+      for k < len(t) && t[k] == t[0] {
+        k += 1
+      }
+      fence = t[:k]
+      blank = false
+      offset += raw_len
+      continue
+    }
+    if len(t) >= 4 && t[:4] == "<!--" {
+      end_seg()
+      if find(t, "-->", 4) < 0 {
+        in_comment = true
+      }
+      offset += raw_len
+      continue
+    }
+
+    content := ordered_content(line)
+    if t == "" {
+      end_seg()
+      blank = true
+      skipping = false
+    } else if content >= 0 {
+      end_step()
+      if content < len(line) && !is_space(line[content]) {
+        in_step = true
+        checked = false
+        step_indent = content
+        add(line, content)
+      }
+      blank = false
+    } else if t[0] == '#' {
+      end_step()
+      blank = false
+    } else if bullet_marker(line) || t[0] == '>' || t[0] == '|' || html_block(t) {
+      if in_step && ind >= step_indent {
+        end_seg()
+        skipping = true
+        skip_col = 0
+        if bullet_marker(line) {
+          skip_col = ind + 2
+        }
+      } else {
+        end_step()
+      }
+      blank = false
+    } else if in_step {
+      if blank {
+        if skip_col > 0 && ind >= skip_col {
+          // A paragraph of a nested bullet.
+        } else if ind >= step_indent {
+          skipping = false
+          add(line, 0)
+        } else {
+          end_step()
+        }
+      } else if !skipping {
+        add(line, 0)
+      }
+      blank = false
+    } else {
+      blank = false
+    }
+    offset += raw_len
+  }
+  end_step()

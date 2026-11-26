@@ -15,13 +15,10 @@ import (
 )
 
 // resolveChatProjectID returns the project the chat belongs to, or an
-// invalid ID when it has none or chat projects are disabled. Subagent chats
+// invalid ID when it has none. Subagent chats
 // do not carry a project, so they inherit the root chat's project at the cost
 // of one extra lookup. A failed lookup is logged and treated as no project.
 func (p *Server) resolveChatProjectID(ctx context.Context, logger slog.Logger, chat database.Chat) uuid.NullUUID {
-	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return uuid.NullUUID{}
-	}
 	if chat.ProjectID.Valid || !chat.RootChatID.Valid || chat.RootChatID.UUID == chat.ID {
 		return chat.ProjectID
 	}

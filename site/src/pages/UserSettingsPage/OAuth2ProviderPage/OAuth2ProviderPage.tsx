@@ -9,6 +9,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const OAuth2ProviderPage: React.FC = () => {
@@ -23,8 +24,9 @@ const OAuth2ProviderPage: React.FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("OAuth2 applications", "Settings")}</title>
 			<SettingsHeader>
-				<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
+				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
 			</SettingsHeader>
 			<OAuth2ProviderPageView
 				isLoading={userOAuth2AppsQuery.isLoading}
@@ -36,7 +38,7 @@ const OAuth2ProviderPage: React.FC = () => {
 			/>
 			{appToRevoke !== undefined && (
 				<DeleteDialog
-					title="Revoke Application"
+					title="Revoke application"
 					verb="Revoking"
 					info={`This will invalidate any tokens created by the OAuth2 application "${appToRevoke.name}".`}
 					label="Name of the application to revoke"

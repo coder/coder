@@ -126,16 +126,6 @@ func TestResolveUsableChatProjectID(t *testing.T) {
 			ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
 		}).Valid)
 	})
-
-	t.Run("ExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
-		server := newProjectTestServer(t, dbmock.NewMockStore(gomock.NewController(t)))
-		server.experiments = nil
-		require.False(t, server.resolveUsableChatProjectID(t.Context(), server.logger, database.Chat{
-			ID:        uuid.New(),
-			ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		}).Valid)
-	})
 }
 
 func TestLoadProjectInstructions(t *testing.T) {

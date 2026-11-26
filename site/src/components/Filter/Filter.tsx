@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
@@ -16,6 +16,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { NewTabLabel } from "#/components/Link/Link";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
@@ -63,7 +64,10 @@ export const useFilter = ({
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-		const noUpdateNeeded = query === serialized;
+		// Pending updates mutate searchParams before the router re-renders.
+		// Comparing with query would drop a revert to the render-time value.
+		const currentQuery = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+		const noUpdateNeeded = currentQuery === serialized;
 		if (noUpdateNeeded) {
 			return;
 		}
@@ -113,10 +117,6 @@ const BaseSkeleton: React.FC<SkeletonProps> = ({
 	);
 };
 
-export const MenuSkeleton: React.FC = () => {
-	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
-};
-
 type FilterProps = React.ComponentProps<"div"> & {
 	filter: ReturnType<typeof useFilter>;
 	optionsSkeleton: React.ReactNode;
@@ -148,6 +148,7 @@ export const Filter: React.FC<FilterProps> = ({
 	// remove this; render keys would cause the component to remount too often
 	const [queryCopy, setQueryCopy] = useState(filter.query);
 	const textboxInputRef = useRef<HTMLInputElement>(null);
+	const errorId = useId();
 
 	// Conditionally re-syncs the parent and local filter queries
 	useEffect(() => {
@@ -186,13 +187,14 @@ export const Filter: React.FC<FilterProps> = ({
 							learnMoreLink2={learnMoreLink2}
 						/>
 					)}
-					<div className="flex flex-col gap-2 w-full">
+					<div className="flex flex-col w-full">
 						<SearchField
 							ref={textboxInputRef}
 							className="w-full"
 							value={queryCopy}
-							aria-label="Filter"
+							aria-label="Search"
 							aria-invalid={shouldDisplayError}
+							aria-describedby={shouldDisplayError ? errorId : undefined}
 							onChange={(query) => {
 								setQueryCopy(query);
 								filter.debounceUpdate(query);
@@ -208,11 +210,18 @@ export const Filter: React.FC<FilterProps> = ({
 							}}
 							placeholder="Search..."
 						/>
-						{hasError(error) && (
-							<span className="text-content-destructive text-sm">
-								{getValidationErrorMessage(error)}
-							</span>
-						)}
+						{/* Always mounted so screen readers announce errors that arrive
+						    after the debounced refetch; empty, it takes no space. */}
+						<span
+							id={errorId}
+							role="status"
+							className={cn(
+								"text-content-destructive text-sm",
+								shouldDisplayError && "mt-2",
+							)}
+						>
+							{shouldDisplayError && getValidationErrorMessage(error)}
+						</span>
 					</div>
 					{options}
 				</>
@@ -264,6 +273,7 @@ const PresetMenu: React.FC<PresetMenuProps> = ({
 						<a href={learnMoreLink} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							View advanced filtering
+							<NewTabLabel />
 						</a>
 					</DropdownMenuItem>
 				)}
@@ -272,6 +282,7 @@ const PresetMenu: React.FC<PresetMenuProps> = ({
 						<a href={learnMoreLink2} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							{learnMoreLabel2}
+							<NewTabLabel />
 						</a>
 					</DropdownMenuItem>
 				)}

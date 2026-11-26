@@ -3,16 +3,20 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
 } from "#/testHelpers/entities";
 import {
 	getAppHref,
 	getVSCodeHref,
 	isAppBlockedByMissingWildcard,
 	isAppUrlValid,
+	isBareOrigin,
+	isSessionTokenDestinationTrusted,
 	isWorkspaceAppEmbeddable,
 	openAppInNewWindow,
 	SESSION_TOKEN_PLACEHOLDER,
 } from "./apps";
+import sessionTokenDestinationCases from "./sessionTokenDestinationCases.json";
 
 function buildApp(overrides: Partial<WorkspaceApp> = {}): WorkspaceApp {
 	return {
@@ -85,23 +89,7 @@ describe("getAppHref", () => {
 		const externalApp = {
 			...MockWorkspaceApp,
 			external: true,
-			url: `vscode://example.com?token=${SESSION_TOKEN_PLACEHOLDER}`,
-		};
-		const href = getAppHref(externalApp, {
-			host: "*.apps-host.tld",
-			path: "/path-base",
-			agent: MockWorkspaceAgent,
-			workspace: MockWorkspace,
-			token: "user-session-token",
-		});
-		expect(href).toBe("vscode://example.com?token=user-session-token");
-	});
-
-	it("replaces the session token for Antigravity IDE URLs", () => {
-		const externalApp = {
-			...MockWorkspaceApp,
-			external: true,
-			url: `antigravity-ide://coder.coder-remote/open?token=${SESSION_TOKEN_PLACEHOLDER}`,
+			url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
 		};
 		const href = getAppHref(externalApp, {
 			host: "*.apps-host.tld",
@@ -111,7 +99,59 @@ describe("getAppHref", () => {
 			token: "user-session-token",
 		});
 		expect(href).toBe(
-			"antigravity-ide://coder.coder-remote/open?token=user-session-token",
+			`vscode://coder.coder-remote/open?url=${location.origin}&token=user-session-token`,
+		);
+	});
+
+	it("doesn't replace the session token when the link points to another deployment", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(externalApp.url);
+	});
+
+	it("strips the session token for sub-agent apps", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceSubAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			`vscode://coder.coder-remote/open?url=${location.origin}&token=`,
+		);
+	});
+
+	it("replaces the session token for Antigravity IDE URLs", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `antigravity-ide://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			`antigravity-ide://coder.coder-remote/open?url=${location.origin}&token=user-session-token`,
 		);
 	});
 
@@ -228,6 +268,47 @@ describe("getAppHref", () => {
 			});
 		}).not.toThrow();
 		expect(href).toBe("my-repo");
+	});
+});
+
+describe("isSessionTokenDestinationTrusted", () => {
+	// cli/open_internal_test.go runs the same cases against `coder open app`.
+	it.each(sessionTokenDestinationCases.cases)(
+		"$name (trusted: $trusted)",
+		({ url, trusted, origin }) => {
+			expect(
+				isSessionTokenDestinationTrusted(
+					url,
+					origin ?? sessionTokenDestinationCases.origin,
+				),
+			).toBe(trusted);
+		},
+	);
+
+	it("allows links to the current origin", () => {
+		const url = `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`;
+		expect(isSessionTokenDestinationTrusted(url, undefined)).toBe(true);
+	});
+});
+
+describe("isBareOrigin", () => {
+	it.each(["https://coder.example.com", "http://localhost:3000/"])(
+		"allows %s",
+		(url) => {
+			expect(isBareOrigin(url)).toBe(true);
+		},
+	);
+
+	it.each([
+		"https://coder.example.com/@o/w.a/apps/x/",
+		"https://attacker.example@coder.example.com",
+		"https://coder.example.com/?x=1",
+		"https://coder.example.com/#x",
+		"https://coder.example.com/.",
+		"https://coder.example.com ",
+		"not-a-url",
+	])("rejects %s", (url) => {
+		expect(isBareOrigin(url)).toBe(false);
 	});
 });
 

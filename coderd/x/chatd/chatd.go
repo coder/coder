@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -182,6 +181,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -202,11 +202,13 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
-	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -287,6 +289,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg advisorRuntimeConfig,
+	priorUses int,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -350,6 +353,9 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		Stages:               p.stages,
+		StageModel:           advisor.stageModel(),
+		PriorUses:            priorUses,
 	})
 	if err != nil {
 		logger.Warn(
@@ -444,10 +450,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
+	// SendMessageBusyBehaviorSteer delivers the message before the next
+	// assistant model call. It is the default.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 )
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
@@ -470,8 +475,11 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	// InsertedMessages holds every message the send inserted, in
-	// insertion order. A queued send on an errored chat can still
-	// insert messages by promoting the previous queue head.
+	// insertion order. A send to an errored or paused chat can also
+	// insert queued messages: a steer send inserts the queued steer
+	// messages before the new message, and a queue send to an errored
+	// chat inserts the steer lane, or the first queue message when that
+	// lane is empty.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
 	// FirstUserTurn reports that the send inserted the first
@@ -515,14 +523,6 @@ type EditMessageResult struct {
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
-}
-
-// PromoteQueuedResult contains post-promotion message metadata.
-type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message. For a chat that
-	// was running at promote time, the insertion is deferred to the
-	// worker's auto-promote and PromotedMessage is the zero value.
-	PromotedMessage database.ChatMessage
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
@@ -660,7 +660,18 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	chatID := uuid.New()
-	contentParts := opts.InitialUserContent
+	// The new chat has no pinned workspace context yet, so it is resolved
+	// without a workspace and cannot invoke workspace skills.
+	contentParts, err := p.resolveSkillInvocations(ctx, database.Chat{
+		ID:             chatID,
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		ProjectID:      opts.ProjectID,
+		RootChatID:     opts.RootChatID,
+	}, opts.InitialUserContent)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// The prompt-submit hook fires with the first SendMessage when the
 	// chat is created without an initial user message.
 	if p.hooks.Enabled() && len(contentParts) > 0 {
@@ -818,22 +829,6 @@ func callerModelConfigContext(
 	return dbauthz.As(ctx, actor), nil
 }
 
-func resolveSendMessageModelConfigID(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	requested uuid.UUID,
-) (uuid.UUID, error) {
-	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
-	}
-
-	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
-		return uuid.Nil, err
-	}
-	return requested, nil
-}
-
 // requireEnabledChatModelConfig rechecks enabled state inside the daemon.
 // The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
@@ -916,6 +911,13 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+// validateModelConfigOverride returns requested as an override if it is
+// an enabled model config in the organization, and no override when
+// requested is uuid.Nil. Call it before the chat transaction: model
+// config writes serialize on an organization advisory lock that chat
+// transactions do not take, so the chat row lock cannot stop a
+// concurrent disable. If the config is disabled after this check, the
+// turn runs on the organization default model (see resolveModelConfig).
 func validateModelConfigOverride(
 	ctx context.Context,
 	store database.Store,
@@ -1008,39 +1010,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 }
 
 const manualTitleMessageWindowLimit = 50
-
-// generatedChatTitle carries the title produced by the detached
-// automatic title-generation goroutine. maybeGenerateChatTitle stores
-// the generated title here so tests can observe it without a database
-// read; the title_change pubsub event it publishes remains the source of
-// truth for clients.
-type generatedChatTitle struct {
-	mu    sync.RWMutex
-	title string
-}
-
-func (t *generatedChatTitle) Store(title string) {
-	if t == nil || title == "" {
-		return
-	}
-
-	t.mu.Lock()
-	t.title = title
-	t.mu.Unlock()
-}
-
-func (t *generatedChatTitle) Load() (string, bool) {
-	if t == nil {
-		return "", false
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if t.title == "" {
-		return "", false
-	}
-	return t.title, true
-}
 
 // RenameChatTitle persists a user-supplied chat title. An unchanged
 // title is still written when its source is not yet user.
@@ -1276,11 +1245,8 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	// ExperimentEvaluator decides user-scoped experiments for a chat's
-	// owner. It is required.
-	ExperimentEvaluator *experiments.Evaluator
-	PrometheusRegistry  prometheus.Registerer
-	TracerProvider      trace.TracerProvider
+	PrometheusRegistry             prometheus.Registerer
+	TracerProvider                 trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1290,6 +1256,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -1301,8 +1270,8 @@ type Config struct {
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
-	if cfg.ExperimentEvaluator == nil {
-		return nil, xerrors.New("chatd: experiment evaluator is required")
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1387,6 +1356,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
 			return chatdebug.NewService(
 				cfg.Database,
@@ -1397,7 +1367,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
-		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -1519,21 +1488,6 @@ func (p *Server) Start() *Server {
 		}
 	}
 	return p
-}
-
-func subscribeWithInitialError(chatID uuid.UUID, message string) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	events := make(chan codersdk.ChatStreamEvent)
-	close(events)
-	return []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error:  &codersdk.ChatError{Message: message},
-	}}, events, func() {}, true
 }
 
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
@@ -1660,14 +1614,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
@@ -1785,25 +1739,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	region := ""
-	supportsAmbientCredentials := false
-	if settings.Bedrock != nil {
-		region = strings.TrimSpace(settings.Bedrock.Region)
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		region = strings.TrimSpace(cp.Region)
-		supportsAmbientCredentials = true
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
-		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
-		SupportsAmbientCredentials: supportsAmbientCredentials,
+		SupportsAmbientCredentials: settings.ClaudePlatformAWS != nil,
 	}, nil
 }
 
@@ -1880,44 +1824,6 @@ func (p *Server) resolveUserProviderAPIKeysForProvider(
 		userKeys,
 	)
 	return keys, nil
-}
-
-func (p *Server) resolveUserProviderAPIKeysForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, error) {
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
-	return keys, err
-}
-
-func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, err
-		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, &provider, nil
-		}
-	}
-	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, err
-	}
-	return keys, nil, nil
 }
 
 func (p *Server) resolveUserProviderAPIKeys(
@@ -2258,14 +2164,14 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
-		if status == database.ChatStatusWaiting {
+		if turnFinished(status) {
 			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
 		}
 		return
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
@@ -2339,7 +2245,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	runResult runChatResult,
 	logger slog.Logger,
 ) string {
-	if status != database.ChatStatusWaiting {
+	if !turnFinished(status) {
 		return fallbackTurnStatusLabel(status)
 	}
 
@@ -2807,7 +2713,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chat)
 	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
 		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
@@ -2816,7 +2722,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chat), stop
 }
 
 func chatKind(chat database.Chat) chatloop.ChatKind {
@@ -2826,8 +2732,24 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+func chatIdentity(chat database.Chat) chatloop.ChatIdentity {
+	return chatloop.ChatIdentity{
+		ChatID:         chat.ID,
+		OwnerID:        chat.OwnerID,
+		OrganizationID: chat.OrganizationID,
+		WorkspaceID:    chat.WorkspaceID,
+		ParentChatID:   chat.ParentChatID,
+		RootChatID:     chat.RootChatID,
+	}
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, chat database.Chat) context.Context {
+	return stageIdentityContext(ctx, scope, chatKind(chat), chatIdentity(chat))
+}
+
+func stageIdentityContext(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, identity chatloop.ChatIdentity) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
+	ctx = chatloop.ContextWithChatIdentity(ctx, identity)
 	return chatloop.ContextWithChatKind(ctx, kind)
 }
 

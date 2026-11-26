@@ -25,7 +25,6 @@ func TestChatProjectSkillsAudit(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentChatProjects)}
 	ownerClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 		AuditLogging: true,
 		Options: &coderdtest.Options{

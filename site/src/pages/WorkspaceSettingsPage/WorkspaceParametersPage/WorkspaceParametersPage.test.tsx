@@ -10,6 +10,7 @@ import {
 	MockPreviewParameter2,
 	MockPreviewParameter4,
 	MockPreviewParameter7,
+	MockTemplateVersion2,
 	MockWorkspace,
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter4,
@@ -296,6 +297,59 @@ describe("WorkspaceParametersPage", () => {
 			MockPreviewParameter4,
 			MockPreviewParameter7,
 		]);
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and start/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+				workspace.id,
+				expect.objectContaining({
+					template_version_id: workspace.template_active_version_id,
+				}),
+			),
+		);
+	});
+
+	it("uses the required active version when opened without one", async () => {
+		const workspace: TypesGen.Workspace = {
+			...MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			template_active_version_id: MockTemplateVersion2.id,
+		};
+		vi.mocked(API.getWorkspaceByOwnerAndName)
+			.mockReset()
+			.mockResolvedValue(workspace);
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			readWorkspace: true,
+			shareWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: false,
+			deleteFailedWorkspace: false,
+		});
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		renderWorkspaceParametersPage(
+			`/@${workspace.owner_name}/${workspace.name}/settings`,
+		);
+
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		]);
+		expect(API.templateVersionDynamicParameters).toHaveBeenCalledTimes(1);
+		expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+			workspace.template_active_version_id,
+			workspace.owner_id,
+			expect.anything(),
+		);
 		await waitForLoaderToBeRemoved();
 
 		const form = screen.getByTestId("form");

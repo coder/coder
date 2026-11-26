@@ -50,6 +50,8 @@ import (
 var bedrockSupportedBetaFlags = map[string]bool{
 	// Supported on Claude 3.7 Sonnet.
 	"computer-use-2025-01-24": true,
+	// Supported on Claude Opus 4.5 and later. Enables computer_20251124.
+	"computer-use-2025-11-24": true,
 	// Supported on Claude 3.7 Sonnet and Claude 4+.
 	"token-efficient-tools-2025-02-19": true,
 	// Supported on Claude 4+ models.
@@ -200,7 +202,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {
-	return i.reqPayload.correlatingToolCallID()
+	return i.reqPayload.CorrelatingToolCallID()
 }
 
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
@@ -232,7 +234,7 @@ func (i *interceptionBase) Model() string {
 		return model
 	}
 
-	return i.reqPayload.model()
+	return i.reqPayload.Model()
 }
 
 // upstreamModel returns the identifier sent to Bedrock as the invocation

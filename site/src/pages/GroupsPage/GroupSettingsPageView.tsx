@@ -46,7 +46,9 @@ const validationSchema = Yup.object({
 
 const BudgetDocsLink: React.FC = () => (
 	<Link
-		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
+		href={docs(
+			"/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
+		)}
 		target="_blank"
 		rel="noreferrer"
 		size="sm"
@@ -198,7 +200,6 @@ const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 							onChange={onChangeTrimmed(form)}
 							onBlur={nameField.onBlur}
 							autoComplete="name"
-							autoFocus
 							disabled={isEveryoneGroup(group)}
 							aria-invalid={nameField.error}
 						/>
@@ -243,7 +244,6 @@ const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 							<IconField
 								{...getFieldHelpers("avatar_url")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								label="Avatar URL"
 								onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 							/>
@@ -302,7 +302,7 @@ const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 				</div>
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-col items-start gap-2">
-						<Label htmlFor={quotaField.id}>Quota Allowance</Label>
+						<Label htmlFor={quotaField.id}>Quota allowance</Label>
 						<Input
 							id={quotaField.id}
 							name={quotaField.name}

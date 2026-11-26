@@ -237,6 +237,7 @@ const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 			{isOtherSelected && (
 				<div className="pl-7">
 					<Input
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Selecting Other opens a text field for the custom answer.
 						autoFocus={isInteractive}
 						aria-label={`Other response for ${questionHeader}`}
 						disabled={!isInteractive || isSubmitting}
@@ -285,7 +286,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	return (
 		<div className="space-y-3">
 			{showProgress && (
-				<p className="text-xs font-medium text-content-secondary">
+				<p className="text-xs text-content-secondary">
 					Question {questionIndex + 1} of {questionCount}
 				</p>
 			)}
@@ -305,7 +306,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					<span>{questionText}</span>
 				</p>
 			</div>
-			<div className="rounded-md border border-solid border-border px-3 py-1">
+			<div className="rounded-md border px-3 py-1">
 				<RadioGroup
 					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
 					className="space-y-1"
@@ -613,10 +614,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			</div>
 
 			{showSubmittedResponse && (
-				<div className="mt-4 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2">
-					<p className="text-xs font-medium text-content-secondary">
-						Submitted answer
-					</p>
+				<div className="mt-4 rounded-md border bg-surface-secondary px-3 py-2">
+					<p className="text-xs text-content-secondary">Submitted answer</p>
 					<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">
 						{displayedSubmittedResponseText || "No answer recorded."}
 					</p>

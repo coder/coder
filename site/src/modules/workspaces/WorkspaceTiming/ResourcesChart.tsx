@@ -1,23 +1,24 @@
-import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { Theme } from "#/theme";
-import { useTheme } from "#/theme/context";
-import { Bar } from "./Chart/Bar";
+import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
+	type ChartCategory,
+	ChartCategoryLabel,
 	ChartContent,
-	type ChartLegend,
-	ChartLegends,
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
+import {
+	ChartTable,
+	ChartTableRow,
+	ChartTableSection,
+} from "./Chart/ChartTable";
 import {
 	calcDuration,
 	calcOffset,
@@ -26,14 +27,6 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
-import {
-	YAxis,
-	YAxisHeader,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
 import type { Stage } from "./StagesChart";
 
 type ResourceTiming = {
@@ -64,11 +57,6 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 			(!isCoderResource(t.name) || isStageBoundary(t.name)) &&
 			t.name.includes(filter),
 	);
-	const theme = useTheme();
-	const legendsByAction = getLegendsByAction(theme);
-	const visibleLegends = [...new Set(visibleTimings.map((t) => t.action))].map(
-		(a) => legendsByAction[a] ?? { label: a },
-	);
 
 	return (
 		<Chart>
@@ -89,72 +77,45 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 					value={filter}
 					onChange={setFilter}
 				/>
-				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
-				<YAxis>
-					<YAxisSection>
-						<YAxisHeader>{stage.name} stage</YAxisHeader>
-						<YAxisLabels>
-							{visibleTimings.map((t) => {
-								const label = isStageBoundary(t.name)
-									? "total stage duration"
-									: t.name;
-								return (
-									<YAxisLabel key={label} id={encodeURIComponent(t.name)}>
-										{label}
-									</YAxisLabel>
-								);
-							})}
-						</YAxisLabels>
-					</YAxisSection>
-				</YAxis>
-
-				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSection>
+				<ChartTable caption={`Resources in ${stage.name} stage`} ticks={ticks}>
+					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
-							const stageBoundary = isStageBoundary(t.name);
 							const duration = calcDuration(t.range);
-							const legend = legendsByAction[t.action] ?? { label: t.action };
-							const label = stageBoundary ? "total stage duration" : t.name;
+							const category = categoriesByAction[t.action] ?? {
+								label: t.action,
+							};
+							const label = isStageBoundary(t.name)
+								? "total stage duration"
+								: t.name;
 
 							return (
-								<XAxisRow
-									key={t.name}
-									yAxisLabelId={encodeURIComponent(t.name)}
-								>
+								<ChartTableRow key={t.name} label={label}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<Bar
+											<FocusableBar
+												aria-label={`${label}: ${category.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legend.colors}
+												className={category.className}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
 											side="bottom"
-											className="flex flex-col gap-1.5 border-surface-quaternary"
+											className="border-surface-quaternary text-content-primary"
 										>
-											<p className="m-0 text-content-primary">{label}</p>
-											{/* Stage boundaries should not have these links */}
-											{!stageBoundary && (
-												<Link
-													to=""
-													className="flex items-center gap-1 no-underline text-xs text-inherit hover:text-content-primary"
-												>
-													<ExternalLinkIcon className="size-icon-xs" />
-													view template
-												</Link>
-											)}
+											{label}
 										</TooltipContent>
 									</Tooltip>
 									{formatTime(duration)}
-								</XAxisRow>
+									<ChartCategoryLabel label={category.label} />
+								</ChartTableRow>
 							);
 						})}
-					</XAxisSection>
-				</XAxis>
+					</ChartTableSection>
+				</ChartTable>
 			</ChartContent>
 		</Chart>
 	);
@@ -176,36 +137,23 @@ export const isCoderResource = (resource: string) => {
 // ProvisionerTiming to catch missing actions in the record. As a "workaround"
 // for now, we are using undefined since we don't have noUncheckedIndexedAccess
 // enabled.
-function getLegendsByAction(
-	theme: Theme,
-): Record<string, ChartLegend | undefined> {
-	return {
-		"state refresh": {
-			label: "state refresh",
-		},
-		provision: {
-			label: "provision",
-		},
-		create: {
-			label: "create",
-			colors: {
-				fill: theme.roles.success.background,
-				stroke: theme.roles.success.outline,
-			},
-		},
-		delete: {
-			label: "delete",
-			colors: {
-				fill: theme.roles.warning.background,
-				stroke: theme.roles.warning.outline,
-			},
-		},
-		read: {
-			label: "read",
-			colors: {
-				fill: theme.roles.active.background,
-				stroke: theme.roles.active.outline,
-			},
-		},
-	};
-}
+const categoriesByAction: Record<string, ChartCategory | undefined> = {
+	"state refresh": {
+		label: "state refresh",
+	},
+	provision: {
+		label: "provision",
+	},
+	create: {
+		label: "create",
+		className: "bg-chart-success border-chart-success-border",
+	},
+	delete: {
+		label: "delete",
+		className: "bg-chart-warning border-chart-warning-border",
+	},
+	read: {
+		label: "read",
+		className: "bg-chart-active border-chart-active-border",
+	},
+};

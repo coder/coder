@@ -18,11 +18,11 @@ Coder Tasks is an interface for running and interfacing with terminal-based codi
 Beginning in Coder 2.24, Tasks were introduced as an experimental feature that allowed administrators and developers to run long-lived or automated operations from templates.
 Over subsequent releases, Tasks matured significantly through UI refinement, improved reliability, and underlying task-status improvements in the server and database layers.
 By 2.29, Tasks were formally promoted to general availability, with full CLI support, a task-specific UI, and consistent visibility of task states across the dashboard.
-This transition established Tasks as a stable automation and job-execution primitive within Coder, particularly suited for long-running background operations like bug fixes, documentation generation, PR reviews, and testing/QA.
+This transition established Tasks as a stable automation and job-execution primitive within Coder, particularly suited for long-running background operations like bug fixes, documentation generation, PR reviews, and testing/quality assurance (QA).
 
 > [!NOTE]
 > Coder Tasks has since been deprecated and is no longer available in current releases.
-> [Coder Agents](../../../ai-coder/agents/index.md) is the long-term replacement.
+> [Coder Agents](../../../coder-agents/index.md) is the long-term replacement.
 
 ### AI Gateway
 
@@ -34,7 +34,7 @@ It solves three key problems:
 - Secure communication between the Coder control plane and upstream AI APIs
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations.
-For more information, read our documentation [here](../../../ai-coder/ai-gateway/index.md).
+For more information, read our documentation [here](../../../ai-governance/ai-gateway/index.md).
 
 ### Agent Firewall
 
@@ -42,7 +42,7 @@ Agent Firewall was introduced in 2.27 and is currently in Early Access.
 Agent Firewall is a process-level firewall in Coder that restricts and audits what autonomous programs (like AI agents) can access and do within a workspace.
 They provide network policy enforcement, blocking specific domains and HTTP verbs to prevent data exfiltration, and write logs to the workspace for auditability.
 Agent Firewall supports any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module.
-For more information, read our documentation [here](../../../ai-coder/agent-firewall/index.md).
+For more information, read our documentation [here](../../../ai-governance/agent-firewall/index.md).
 
 ### Performance Enhancements
 
@@ -64,22 +64,22 @@ Template developers benefited from new Terraform directory-persistence capabilit
 The CLI gained substantial improvements between the two versions.
 Most notably, beginning in 2.29, Coder’s CLI now stores session tokens in the operating system keyring by default on macOS and Windows, enhancing credential security and reducing exposure from plaintext token storage.
 Users who rely on directly accessing the token file can opt out using `--use-keyring=false`.
-The CLI also introduced cross-platform support for keyring storage, gained support for GA Task commands, and integrated experimental functionality for the new Agent Socket API.
+The CLI also introduced cross-platform support for keyring storage, gained support for generally available (GA) Task commands, and integrated experimental functionality for the new Agent Socket API.
 
 ## Changes to be Aware of
 
 The following are changes introduced after 2.24.X that might break workflows, or require other manual effort to address:
 
-| Initial State (2.24 & before)                                      | New State (2.25-2.29)                                                                                  | Change Required                                                                                                                                                                                                                                                                 |
-|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Workspace updates occur in place without stopping                  | Workspace updates now forcibly stop workspaces before updating                                         | Expect downtime during updates; update any scripted update flows that rely on seamless updates. See [`coder update` CLI reference](https://coder.com/docs/reference/cli/update).                                                                                                |
-| Connection events (SSH, port-forward, browser) logged in Audit Log | Connection events moved to Connection Log; historical entries older than 90&nbsp;days pruned           | Update compliance, audit, or ingestion pipelines to use the new [Connection Log](https://coder.com/docs/admin/monitoring/connection-logs) instead of [Audit Logs](https://coder.com/docs/admin/security/audit-logs) for connection events.                                      |
-| CLI session tokens stored in plaintext file                        | CLI session tokens stored in OS keyring (macOS/Windows)                                                | Update scripts, automation, or SSO flows that read/modify the token file, or use `--use-keyring=false`. See [Sessions & API Tokens](https://coder.com/docs/admin/users/sessions-tokens) and [`coder login` CLI reference](https://coder.com/docs/reference/cli/login).          |
-| `task_app_id` field available in `codersdk.WorkspaceBuild`         | `task_app_id` removed from `codersdk.WorkspaceBuild`                                                   | Migrate integrations to use `Task.WorkspaceAppID` instead. See [REST API reference](https://coder.com/docs/reference/api).                                                                                                                                                      |
-| OIDC session handling more permissive                              | Sessions expire when access tokens expire (typically 1&nbsp;hour) unless refresh tokens are configured | Add `offline_access` to `CODER_OIDC_SCOPES` (e.g., `openid,profile,email,offline_access`); Google requires `CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline","prompt":"consent"}'`. See [OIDC Refresh Tokens](https://coder.com/docs/admin/users/oidc-auth/refresh-tokens). |
-| Devcontainer agent selection is random when multiple agents exist  | Devcontainer agent selection requires explicit choice                                                  | Update automated workflows to explicitly specify agent selection. See [Dev Containers Integration](https://coder.com/docs/user-guides/devcontainers) and [Configure a template for dev containers](https://coder.com/docs/admin/templates/extending-templates/devcontainers).   |
-| Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                  | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/install/operate/provisioners) and [Template Dependencies](https://coder.com/docs/admin/templates/managing-templates/dependencies).         |
-| Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering  | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](https://coder.com/docs/admin/templates/extending-templates).                |
+| Initial State (2.24 & before)                                      | New State (2.25-2.29)                                                                                  | Change Required                                                                                                                                                                                                                                                                         |
+|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Workspace updates occur in place without stopping                  | Workspace updates now forcibly stop workspaces before updating                                         | Expect downtime during updates; update any scripted update flows that rely on seamless updates. See [`coder update` CLI reference](https://coder.com/docs/reference/cli/update).                                                                                                        |
+| Connection events (SSH, port-forward, browser) logged in Audit Log | Connection events moved to Connection Log; historical entries older than 90&nbsp;days pruned           | Update compliance, audit, or ingestion pipelines to use the new [Connection Log](https://coder.com/docs/admin/monitoring/connection-logs) instead of [Audit Logs](https://coder.com/docs/admin/security/audit-logs) for connection events.                                              |
+| CLI session tokens stored in plaintext file                        | CLI session tokens stored in OS keyring (macOS/Windows)                                                | Update scripts, automation, or single sign-on (SSO) flows that read/modify the token file, or use `--use-keyring=false`. See [Sessions & API Tokens](https://coder.com/docs/admin/users/sessions-tokens) and [`coder login` CLI reference](https://coder.com/docs/reference/cli/login). |
+| `task_app_id` field available in `codersdk.WorkspaceBuild`         | `task_app_id` removed from `codersdk.WorkspaceBuild`                                                   | Migrate integrations to use `Task.WorkspaceAppID` instead. See [Representational State Transfer (REST) API reference](https://coder.com/docs/reference/api).                                                                                                                            |
+| OpenID Connect (OIDC) session handling more permissive             | Sessions expire when access tokens expire (typically 1&nbsp;hour) unless refresh tokens are configured | Add `offline_access` to `CODER_OIDC_SCOPES` (e.g., `openid,profile,email,offline_access`); Google requires `CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline","prompt":"consent"}'`. See [OIDC Refresh Tokens](https://coder.com/docs/admin/users/oidc-auth/refresh-tokens).         |
+| Devcontainer agent selection is random when multiple agents exist  | Devcontainer agent selection requires explicit choice                                                  | Update automated workflows to explicitly specify agent selection. See [Dev Containers Integration](../../../workspaces/devcontainers/index.md) and [Configure a template for dev containers](../../../templates/extending-templates/devcontainers.md).                                  |
+| Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                  | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/install/operate/provisioners) and [Template Dependencies](../../../templates/managing-templates/dependencies.md).                                  |
+| Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering  | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](../../../workspaces/workspace-lifecycle.md) and [Extending Templates](../../../templates/extending-templates/index.md).                                               |
 
 <a id="upgrading"></a>
 
@@ -98,12 +98,13 @@ The following are recommendations by the Coder team when performing the upgrade:
 - **Update integrations referencing deprecated API fields:**
   Code relying on `WorkspaceBuild.task_app_id` must migrate to `Task.WorkspaceAppID`, and any custom integrations built against 2.24 APIs should be validated against the new SDK
 - **Communicate audit-logging changes to security/compliance teams:**
-  From 2.25 onward, connection events moved into the Connection Log, and older audit entries may be pruned, which can affect SIEM pipelines or compliance workflows
+  From 2.25 onward, connection events moved into the Connection Log, and older audit entries might be pruned, which can affect security information and event management (SIEM) pipelines or compliance workflows
 - **Validate workspace lifecycle automation:**
   Since updates now require stopping the workspace first, confirm that automated update jobs, scripts, or scheduled tasks still function correctly in this new model
 - **Retest agent and task automation built on early experimental features:**
-  Updates to agent readiness, permission checks, and lifecycle ordering may affect workflows developed against 2.24’s looser behaviors
+  Updates to agent readiness, permission checks, and lifecycle ordering might affect workflows developed against 2.24’s looser behaviors
 - **Monitor workspace, template, and Terraform build performance:**
-  New caching, indexes, and DB optimizations may change build times; observing performance post-upgrade helps catch regressions early
+  New caching, indexes, and database (DB) optimizations might change build times.
+  Observing performance post-upgrade helps catch regressions early
 - **Prepare user communications around Tasks and UI changes:**
   Tasks are now GA and more visible in the dashboard, and many UI improvements will be new to users coming from 2.24, so a brief internal announcement can smooth the transition

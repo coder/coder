@@ -26,7 +26,7 @@ const MessageScrollerItemContext =
 // LOCAL CHANGE: a no-op outside a Viewport, so tool rows also render
 // standalone.
 const MessageScrollerUserLayoutIntentContext = React.createContext<
-  (target: Element) => void
+  MessageScrollerContextValue["userLayoutIntent"]
 >(() => {})
 
 // LOCAL CHANGE

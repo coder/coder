@@ -11,7 +11,7 @@ The vast majority of home and corporate internet connections use at least one le
 
 In order for one application to connect to another across a network, the connecting application needs to know the IP address and port under which the target application is reachable.
 If both applications reside on the same network, then they can most likely connect directly to each other.
-In the context of a Coder workspace agent and client, this is generally not the case, as both agent and client will most likely be running in different _private_ networks (e.g. `192.168.1.0/24`).
+In the context of a Coder workspace agent and client, this is generally not the case, as both agent and client will most likely be running in different _private_ networks (for example, `192.168.1.0/24`).
 In this case, at least one of the two will need to know an IP address and port under which they can reach their counterpart.
 
 This problem is often referred to as NAT traversal, and Coder uses a standard protocol named STUN to address this.
@@ -28,7 +28,7 @@ Once communication succeeds in one direction, we can inspect the source address 
 At a high level, STUN works like this:
 
 - **Discovery:**
-  Both the client and agent will send UDP traffic to one or more configured STUN servers.
+  Both the client and agent will send User Datagram Protocol (UDP) traffic to one or more configured STUN servers.
   These STUN servers are generally located on the public internet, and respond with the public IP address and port from which the request came.
 - **Coordination:**
   The client and agent then exchange this information through the control plane.
@@ -64,7 +64,7 @@ They then exchange this information through the control plane, and can then comm
 
 ### 3. Direct connections with VPN and NAT hairpinning
 
-In this example, the client workstation must use a VPN to connect to the corporate network.
+In this example, the client workstation must use a virtual private network (VPN) to connect to the corporate network.
 All traffic from the client will enter through the VPN entry node and exit at the VPN exit node inside the corporate network.
 Traffic from the client inside the corporate network will appear to be coming from the IP address of the VPN exit node `172.16.1.2`.
 Traffic from the client to the public internet will appear to have the public IP address of the corporate router `12.34.56.7`.
@@ -80,9 +80,9 @@ To correctly route the traffic backwards, the corporate router must correctly ro
 - Traffic sent from the client to the external IP of the corporate router back to the cluster router, and
 - Traffic sent from the agent to the external IP of the corporate router to the VPN exit node.
 
-This behaviour is known as "hairpinning", and may not be supported in all network configurations.
+This behavior is known as "hairpinning", and might not be supported in all network configurations.
 
-If hairpinning is not supported, deploying an internal STUN server can aid establishing direct connections between client and agent.
+If hairpinning is not supported, [deploying an internal STUN server](./self-hosted-stun.md) can aid establishing direct connections between client and agent.
 When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate.
 Using these internal addresses is much more likely to result in a successful direct connection.
 
@@ -94,16 +94,20 @@ Some NATs are known to use a different port when forwarding requests to the STUN
 In that case, the address a peer discovers over the STUN protocol will have the correct IP address, but the wrong port.
 Tailscale refers to this as "hard" NAT in [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
 
-If both peers are behind a "hard" NAT, direct connections may take longer to establish or will not be established at all.
-If one peer is behind a "hard" NAT and the other is running a firewall (including Windows Defender Firewall), the firewall may block direct connections.
+If both peers are behind a "hard" NAT, direct connections might take longer to establish or will not be established at all.
+If one peer is behind a "hard" NAT and the other is running a firewall (including Windows Defender Firewall), the firewall might block direct connections.
 
-In both cases, peers fallback to DERP connections if they cannot establish a direct connection.
+In both cases, peers fallback to Designated Encrypted Relay for Packets (DERP) connections if they cannot establish a direct connection.
 
 If your workspaces are behind a "hard" NAT, you can:
 
-1. Ensure clients are not also behind a "hard" NAT.
-   You may have limited ability to control this if end users connect from their homes.
-2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an inbound policy allowing all UDP ports either to the `coder` or `coder.exe` CLI binary, or from the IP addresses of your workspace NATs.
+1. Make sure clients are not also behind a "hard" NAT.
+
+   You might have limited ability to control this if end users connect from their homes.
+2. Allow all inbound UDP ports in client firewalls, either to the `coder` or `coder.exe` binary or from workspace NAT IPs.
+
+   For example, add an inbound policy to Windows Defender Firewall.
+
 3. Reconfigure your workspace network's NAT connection to the public internet to be an "easy" NAT.
    See below for specific examples.
 
@@ -115,7 +119,7 @@ Linux `MASQUERADE` rules work well for this.
 
 ### AWS Elastic Kubernetes Service (EKS)
 
-The default configuration of AWS Elastic Kubernetes Service (EKS) includes the [Amazon VPC CNI Driver](https://github.com/aws/amazon-vpc-cni-k8s), which by default randomizes the public port for different outgoing UDP connections.
+The default configuration of AWS Elastic Kubernetes Service (EKS) includes the [Amazon Virtual Private Cloud (VPC) Container Network Interface (CNI) Driver](https://github.com/aws/amazon-vpc-cni-k8s), which by default randomizes the public port for different outgoing UDP connections.
 This makes it act as a "hard" NAT, even if the EKS nodes are on a public subnet (and thus do not need to use the AWS NAT Gateway to reach the Internet).
 
 This behavior can be disabled by setting the environment variable `AWS_VPC_K8S_CNI_RANDOMIZESNAT=none` in the `aws-node` DaemonSet.

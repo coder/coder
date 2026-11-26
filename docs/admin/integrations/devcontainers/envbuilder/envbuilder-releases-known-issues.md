@@ -2,6 +2,12 @@
 title: Envbuilder releases and known issues
 ---
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+
 ## Release channels
 
 Envbuilder provides two release channels:
@@ -11,7 +17,7 @@ Envbuilder provides two release channels:
     Tags `>=1.0.0` are considered stable.
 - **Preview**
   - Available at [`ghcr.io/coder/envbuilder-preview`](https://github.com/coder/envbuilder/pkgs/container/envbuilder-preview).
-    Built from the tip of `main`, and should be considered experimental and prone to breaking changes.
+    Built from the tip of `main`, so it's experimental and prone to breaking changes.
 
 Refer to the [Envbuilder GitHub repository](https://github.com/coder/envbuilder/) for more information and to submit feature requests or bug reports.
 

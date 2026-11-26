@@ -55,7 +55,9 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(import.meta.dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
-		sourcemap: isProfilingBuild ? true : "hidden",
+		// Source maps are roughly 100 MB and are embedded in the coder binary,
+		// so only profiling builds include them.
+		sourcemap: isProfilingBuild,
 		rolldownOptions: {
 			input: {
 				index: path.resolve(import.meta.dirname, "./index.html"),
@@ -74,7 +76,7 @@ export default defineConfig({
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },
 						{ name: "xterm", test: /@xterm/ },
-						{ name: "emoji-mart", test: /emoji-mart/ },
+						{ name: "emoji-picker", test: /frimousse|emojibase-data/ },
 						{ name: "radix-ui", test: /radix-ui/ },
 					],
 				},
@@ -176,13 +178,11 @@ export default defineConfig({
 		],
 	},
 	resolve: {
-		alias: {
-			// In profiling builds, swap the usual reconciler for the profiling
-			// variant so that <Profiler> receives actual timing data.
-			...(isProfilingBuild
-				? { "react-dom/client": "react-dom/profiling" }
-				: {}),
-		},
+		// In profiling builds, swap the usual reconciler for the profiling
+		// variant so that <Profiler> receives actual timing data.
+		alias: isProfilingBuild
+			? { "react-dom/client": "react-dom/profiling" }
+			: {},
 	},
 	test: {
 		silent: "passed-only",

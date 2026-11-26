@@ -8,6 +8,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import { SecurityForm } from "./SecurityForm";
 import {
 	SingleSignOnSection,
@@ -24,37 +25,47 @@ const SecurityPage: React.FC = () => {
 	});
 	const singleSignOnSection = useSingleSignOnSection();
 
+	const title = <title>{pageTitle("Security", "Settings")}</title>;
+
 	if (!authMethodsQuery.data || !userLoginType) {
-		return <Loader />;
+		return (
+			<>
+				{title}
+				<Loader />
+			</>
+		);
 	}
 
 	return (
-		<SecurityPageView
-			security={{
-				form: {
-					disabled: userLoginType.login_type !== "password",
-					error: updatePasswordMutation.error,
-					isLoading: updatePasswordMutation.isPending,
-					onSubmit: async (data) => {
-						await updatePasswordMutation.mutateAsync({
-							userId: me.id,
-							...data,
-						});
-						toast.success("Updated password.");
-						// Refresh the browser session. We need to improve the AuthProvider
-						// to include better API to handle these scenarios
-						location.href = location.origin;
+		<>
+			{title}
+			<SecurityPageView
+				security={{
+					form: {
+						disabled: userLoginType.login_type !== "password",
+						error: updatePasswordMutation.error,
+						isLoading: updatePasswordMutation.isPending,
+						onSubmit: async (data) => {
+							await updatePasswordMutation.mutateAsync({
+								userId: me.id,
+								...data,
+							});
+							toast.success("Updated password.");
+							// Refresh the browser session. We need to improve the AuthProvider
+							// to include better API to handle these scenarios
+							location.href = location.origin;
+						},
 					},
-				},
-			}}
-			oidc={{
-				section: {
-					authMethods: authMethodsQuery.data,
-					userLoginType,
-					...singleSignOnSection,
-				},
-			}}
-		/>
+				}}
+				oidc={{
+					section: {
+						authMethods: authMethodsQuery.data,
+						userLoginType,
+						...singleSignOnSection,
+					},
+				}}
+			/>
+		</>
 	);
 };
 

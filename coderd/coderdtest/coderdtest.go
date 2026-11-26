@@ -73,6 +73,7 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	natspubsub "github.com/coder/coder/v2/coderd/nats"
@@ -94,7 +95,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -118,7 +118,10 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL            *url.URL
+	AccessURL *url.URL
+	// SetupToken makes the server require this token to create the
+	// first user, as it does on a tunnel.
+	SetupToken           string
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
@@ -158,7 +161,6 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon bool
-	ChatProviderAPIKeys      *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker. Used in tests.
 	ChatWorkerDisabled          bool
@@ -620,6 +622,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	// shim in the health report for the pubsub, if our original pubsub doesn't support it.
+	// PGPubsub, NATS, and the inmemory pubsub all do, but if a specific test adds a mock, then maybe it won't.
+	var rps pubsub.ReportingPubsub
+	rps, ok = options.Pubsub.(pubsub.ReportingPubsub)
+	if !ok {
+		rps = testReportingPubsub{options.Pubsub}
+	}
+
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -630,16 +640,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
-			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
+			SetupToken:                     options.SetupToken,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         *options.Logger,
 			CacheDir:                       cacheDir,
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
-			Pubsub:                         options.Pubsub,
+			Pubsub:                         rps,
 			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 			UsageInserter:                  usageInserter,
@@ -2016,4 +2026,15 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
 
 	return id
+}
+
+type testReportingPubsub struct {
+	pubsub.Pubsub
+}
+
+func (testReportingPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	return healthsdk.PubsubReport{
+		Backend:    "coderd-shim",
+		BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+	}
 }

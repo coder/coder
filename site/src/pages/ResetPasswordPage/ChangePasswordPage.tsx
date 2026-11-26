@@ -72,7 +72,7 @@ const ChangePasswordPage: React.FC<ChangePasswordChangeProps> = ({
 
 	return (
 		<>
-			<title>{pageTitle("Reset Password", applicationName)}</title>
+			<title>{pageTitle("Reset password", applicationName)}</title>
 
 			<div className="p-6 flex items-center justify-center flex-col min-h-full text-center">
 				<main className="w-full max-w-xs flex flex-col items-center">
@@ -107,7 +107,6 @@ const ChangePasswordPage: React.FC<ChangePasswordChangeProps> = ({
 									value={passwordField.value}
 									onChange={passwordField.onChange}
 									onBlur={passwordField.onBlur}
-									autoFocus
 									required
 									type="password"
 									aria-invalid={passwordField.error}

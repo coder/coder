@@ -16,7 +16,7 @@ The following providers have been tested and work with Coder:
 - [GitHub](#configure-a-github-oauth-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 
-If you have experience with a provider that is not listed here, please [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
+If you have experience with a provider that is not listed here, [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
 
 ## Configuration
 
@@ -105,8 +105,10 @@ This works through Git's `GIT_ASKPASS` mechanism, which Coder configures in each
 `GIT_ASKPASS` tells Coder which Git host the operation is for, but never which provider to use.
 Coder resolves the provider in two steps:
 
-1. Coder considers only the providers that the workspace's template declares with `data "coder_external_auth"`, and selects the one whose `CODER_EXTERNAL_AUTH_<N>_REGEX` matches the host.
-1. If every declared provider is configured and none of them match the host, including when the template declares no providers at all, Coder matches the host against all providers configured on the deployment.
+1. Coder considers only the providers the workspace's template declares with `data "coder_external_auth"`, and selects the one whose `CODER_EXTERNAL_AUTH_<N>_REGEX` matches the host.
+1. If every declared provider is configured and none match the host, Coder matches the host against all deployment providers.
+
+   This includes the case where the template declares no providers at all.
    This fallback keeps hosts that the template never declares, such as an unrelated Git server, reachable from the workspace.
 
 Because the first step is scoped to the template, two workspaces built from different templates receive their own template's token for the same Git host, regardless of the order the providers appear in the deployment configuration.
@@ -160,7 +162,7 @@ You must add the SSH key to your Git provider.
 
 ## PKCE Support
 
-[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0 security extension that prevents authorization code interception attacks.
+[Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0 security extension that prevents authorization code interception attacks.
 Coder supports PKCE when acting as an OAuth client to external identity providers.
 
 Coder will usually assume PKCE support is available with "S256" as the code challenge method.
@@ -217,7 +219,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.example.com/rest/oauth2/latest/authorize
 ```
 
-When configuring your Bitbucket OAuth application, set the redirect URI to `https://example.com/external-auth/primary-bitbucket-server/callback`.
+When configuring your Bitbucket OAuth application, set the redirect Uniform Resource Identifier (URI) to `https://example.com/external-auth/primary-bitbucket-server/callback`.
 This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
@@ -231,7 +233,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The redirect URI for Gitea should be `https://coder.example.com/external-auth/gitea/callback`.
+The redirect URI for Gitea is `https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
@@ -261,7 +263,11 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_EXTERNAL_AUTH_0_REGEX=^(https?://)?github\.example\.com(/.*)?$
 ```
+
+The default regex matches only `github.com`, so set `CODER_EXTERNAL_AUTH_0_REGEX` to match your GitHub Enterprise host.
+Anchor the expression with `^` and `$` as in the example, so that it does not also match a look-alike host such as `github.example.com.attacker.example`.
 
 When configuring your GitHub Enterprise OAuth application, set the [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url) as `https://example.com/external-auth/primary-github/callback`, where `primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
@@ -291,7 +297,7 @@ Visit the [JFrog Artifactory](./integrations/jfrog-artifactory.md) guide for ins
 
 ## Self-managed Git providers
 
-Custom authentication and token URLs should be used for self-managed Git provider deployments.
+Use custom authentication and token URLs for self-managed Git provider deployments.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
@@ -325,6 +331,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    ![Register GitHub App](../images/admin/github-app-register.png)
 
 1. Adjust the GitHub app permissions.
+
    You can use more or fewer permissions than are listed here, this example allows users to clone repositories:
 
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
@@ -338,7 +345,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Members       | Read-only    | Grants access to organization members and teams.       |
 
 1. Install the App for your organization.
-   You may select a subset of repositories to grant access to.
+   You can grant access to a subset of repositories.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 

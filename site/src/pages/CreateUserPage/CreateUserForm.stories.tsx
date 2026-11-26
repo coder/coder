@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import {
 	assignableRole,
@@ -74,6 +74,26 @@ export const NoAvailableLoginTypes: Story = {
 	},
 };
 
+export const ServiceAccountRequiresPremium: Story = {
+	args: {
+		serviceAccountsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: "Login type" }));
+	},
+};
+
+export const LoginTypeKeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("combobox", { name: "Login type" }).focus();
+		await userEvent.keyboard("{Enter}");
+		await screen.findByRole("listbox");
+		await userEvent.keyboard("{ArrowDown}");
+	},
+};
+
 export const KeepsEmailForExternalLogin: Story = {
 	args: {
 		authMethods: MockAuthMethodsAll,
@@ -82,7 +102,7 @@ export const KeepsEmailForExternalLogin: Story = {
 		const canvas = within(canvasElement);
 		const email = canvas.getByLabelText(/email/i);
 		await userEvent.type(email, "someone@coder.com");
-		await userEvent.click(canvas.getByTestId("login-type-input"));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Login type" }));
 		await userEvent.click(
 			await within(document.body).findByRole("option", {
 				name: /openID connect/i,
@@ -129,6 +149,23 @@ export const FormError: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 		await expect(await canvas.findByText("Username taken")).toBeVisible();
 		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
+export const LoginTypeError: Story = {
+	args: {
+		error: mockApiError({
+			validations: [
+				{ field: "login_type", detail: "Login type is not allowed" },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/username/i), "someuser");
+		await userEvent.type(canvas.getByLabelText(/email/i), "someone@coder.com");
+		await userEvent.type(canvas.getByTestId("password-input"), "SomePassword!");
+		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 	},
 };
 

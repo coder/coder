@@ -16,7 +16,7 @@ inputs:
   mise-version:
     description: mise version to install.
     required: false
-    default: "2026.5.12"
+    default: "2026.10.25"
   mise-sha256:
     description: SHA256 checksum for the mise binary.
     required: false

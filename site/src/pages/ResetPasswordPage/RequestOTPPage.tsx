@@ -21,7 +21,7 @@ const RequestOTPPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Reset Password", applicationName)}</title>
+			<title>{pageTitle("Reset password", applicationName)}</title>
 
 			<main className="p-6 flex items-center justify-center flex-col min-h-full text-center">
 				<div>
@@ -103,7 +103,6 @@ const RequestOTP: React.FC<RequestOTPProps> = ({
 								onChange={onChangeTrimmed(form)}
 								onBlur={emailField.onBlur}
 								type="email"
-								autoFocus
 								aria-invalid={Boolean(emailField.error)}
 							/>
 							{emailField.error && (
@@ -136,7 +135,7 @@ const RequestOTP: React.FC<RequestOTPProps> = ({
 
 const RequestOTPSuccess: React.FC<{ email: string }> = ({ email }) => {
 	return (
-		<div className="w-full max-w-[380px] flex flex-col items-center font-medium text-sm leading-6">
+		<div className="w-full max-w-95 flex flex-col items-center text-sm leading-6">
 			<div>
 				<p className="m-0 mb-14">
 					If the account{" "}

@@ -29,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -537,6 +539,32 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 	return envs, nil
 }
 
+// RedactedEnvValue replaces non-empty environment variable values in API
+// responses. Template authors commonly pass credentials through coder_env, and
+// there is no way to tell which values are sensitive. It matches the marker
+// used by the support bundle and the agent debug manifest.
+const RedactedEnvValue = "***REDACTED***"
+
+// redactEnv returns a copy of envs with every non-empty value replaced by
+// RedactedEnvValue. Keys are preserved so users can see which variables are
+// set. Empty values carry no secret and are kept as is.
+func redactEnv(envs map[string]string) map[string]string {
+	if envs == nil {
+		return nil
+	}
+	redacted := make(map[string]string, len(envs))
+	for k, v := range envs {
+		if v != "" {
+			v = RedactedEnvValue
+		}
+		redacted[k] = v
+	}
+	return redacted
+}
+
+// WorkspaceAgent converts a database agent to its API representation.
+// Environment variable values are redacted with RedactedEnvValue; the agent
+// receives the real values through its manifest instead.
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
@@ -582,7 +610,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
 		APIVersion:               dbAgent.APIVersion,
-		EnvironmentVariables:     envs,
+		EnvironmentVariables:     redactEnv(envs),
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
@@ -1146,6 +1174,11 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
+// AIBridgeInterceptionOrganizationSource converts a database organization source to its SDK value.
+func AIBridgeInterceptionOrganizationSource(source database.AIBridgeInterceptionOrganizationSource) codersdk.AIBridgeInterceptionOrganizationSource {
+	return codersdk.AIBridgeInterceptionOrganizationSource(source)
+}
+
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
 		ID: row.SessionID,
@@ -1155,12 +1188,13 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers:    row.Providers,
-		Models:       row.Models,
-		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt:    row.StartedAt,
-		Threads:      row.Threads,
-		LastActiveAt: row.LastActiveAt,
+		Providers:     row.Providers,
+		Organizations: aiBridgeSessionOrganizations(row.Organizations),
+		Models:        row.Models,
+		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:     row.StartedAt,
+		Threads:       row.Threads,
+		LastActiveAt:  row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1240,10 +1274,12 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 	// SQL query.
 	interceptionsByThread := make(map[uuid.UUID][]database.AIBridgeInterception, len(interceptions))
 	var threadIDs []uuid.UUID
+	orgsByInterception := make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization, len(interceptions))
 	for _, row := range interceptions {
 		if _, ok := interceptionsByThread[row.ThreadID]; !ok {
 			threadIDs = append(threadIDs, row.ThreadID)
 		}
+		orgsByInterception[row.AIBridgeInterception.ID] = aiBridgeInterceptionOrganization(row)
 		interceptionsByThread[row.ThreadID] = append(interceptionsByThread[row.ThreadID], row.AIBridgeInterception)
 	}
 
@@ -1252,7 +1288,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 	var pageStartedAt, pageEndedAt *time.Time
 	for _, threadID := range threadIDs {
 		intcs := interceptionsByThread[threadID]
-		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
+		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception, orgsByInterception)
 		for _, intc := range intcs {
 			if pageStartedAt == nil || intc.StartedAt.Before(*pageStartedAt) {
 				t := intc.StartedAt
@@ -1281,6 +1317,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			AvatarURL: session.UserAvatarUrl,
 		}),
 		Providers:     session.Providers,
+		Organizations: aiBridgeSessionOrganizations(session.Organizations),
 		Models:        session.Models,
 		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: session.Metadata, Valid: len(session.Metadata) > 0}),
 		StartedAt:     session.StartedAt,
@@ -1292,6 +1329,8 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			CacheReadInputTokens:  session.CacheReadInputTokens,
 			CacheWriteInputTokens: session.CacheWriteInputTokens,
 			Metadata:              sessionTokenMeta,
+			CostMicros:            session.CostMicros,
+			HasUnpricedUsage:      session.HasUnpricedUsage,
 		},
 		Threads: threads,
 	}
@@ -1360,6 +1399,7 @@ func buildAIBridgeThread(
 	toolsByInterception map[uuid.UUID][]database.AIBridgeToolUsage,
 	promptsByInterception map[uuid.UUID][]database.AIBridgeUserPrompt,
 	thoughtsByInterception map[uuid.UUID][]database.AIBridgeModelThought,
+	orgsByInterception map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization,
 ) codersdk.AIBridgeThread {
 	// Find the root interception (where id == threadID) to get the
 	// thread prompt and model.
@@ -1381,6 +1421,7 @@ func buildAIBridgeThread(
 	if rootIntc != nil {
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
+		thread.Organization = orgsByInterception[rootIntc.ID]
 		thread.CredentialKind = string(rootIntc.CredentialKind)
 		thread.CredentialHint = sanitizeCredentialHint(rootIntc.CredentialHint)
 		// Get first user prompt from root interception.
@@ -1463,9 +1504,11 @@ func buildAIBridgeThread(
 
 		actions = append(actions, codersdk.AIBridgeAgenticAction{
 			InterceptionID: intc.ID,
+			Organization:   orgsByInterception[intc.ID],
 			Model:          intc.Model,
 			Attribution:    aiBridgeInterceptionAttribution(intc),
 			TokenUsage:     actionTokenUsage,
+			PricedModel:    aiBridgePricedModel(tokensByInterception[intc.ID]),
 			Thinking:       thinking,
 			ToolCalls:      toolCalls,
 		})
@@ -1488,18 +1531,46 @@ func buildAIBridgeThread(
 		threadTokens = append(threadTokens, tokensByInterception[intc.ID]...)
 	}
 	thread.TokenUsage = aggregateTokenUsage(threadTokens)
+	// Root interception only, each agentic action carries its own priced model.
+	thread.PricedModel = aiBridgePricedModel(tokensByInterception[threadID])
 
 	return thread
 }
 
+// aiBridgePricedModel returns the model and prices from the first priced
+// token usage row, or nil when none of the rows were priced. Rows of one
+// interception share the same priced model, and only the prices can differ
+// if they changed mid-request.
+func aiBridgePricedModel(tokens []database.AIBridgeTokenUsage) *codersdk.AIBridgePricedModel {
+	for _, tu := range tokens {
+		if !tu.PricedModel.Valid {
+			continue
+		}
+		return &codersdk.AIBridgePricedModel{
+			Model:           tu.PricedModel.String,
+			InputPrice:      nullInt64Ptr(tu.InputPriceMicros),
+			OutputPrice:     nullInt64Ptr(tu.OutputPriceMicros),
+			CacheReadPrice:  nullInt64Ptr(tu.CacheReadPriceMicros),
+			CacheWritePrice: nullInt64Ptr(tu.CacheWritePriceMicros),
+		}
+	}
+	return nil
+}
+
 // aggregateTokenUsage sums token usage rows and aggregates metadata.
 func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
-	var inputTokens, outputTokens, cacheRead, cacheWrite int64
+	var inputTokens, outputTokens, cacheRead, cacheWrite, costMicros int64
+	var hasUnpriced bool
 	for _, tu := range tokens {
 		inputTokens += tu.InputTokens
 		outputTokens += tu.OutputTokens
 		cacheRead += tu.CacheReadInputTokens
 		cacheWrite += tu.CacheWriteInputTokens
+		if tu.CostMicros.Valid {
+			costMicros += tu.CostMicros.Int64
+		} else {
+			hasUnpriced = true
+		}
 	}
 	return codersdk.AIBridgeSessionThreadsTokenUsage{
 		InputTokens:           inputTokens,
@@ -1507,6 +1578,8 @@ func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridge
 		CacheReadInputTokens:  cacheRead,
 		CacheWriteInputTokens: cacheWrite,
 		Metadata:              aggregateTokenMetadata(tokens),
+		CostMicros:            costMicros,
+		HasUnpricedUsage:      hasUnpriced,
 	}
 }
 
@@ -1594,18 +1667,100 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
-func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) codersdk.OrganizationAISpendUser {
-	return codersdk.OrganizationAISpendUser{
-		UserID:             row.UserID,
-		Username:           row.Username,
-		Name:               row.Name,
-		AvatarURL:          row.AvatarURL,
-		CostMicros:         row.CostMicros,
-		UnpricedUsageCount: row.UnpricedUsageCount,
-		Providers:          row.Providers,
-		Clients:            row.Clients,
-		Models:             row.Models,
+// OrganizationAISpendUsers groups the per-dimension rows of
+// ListOrganizationAISpendUsers into users, keeping the query's order. It
+// returns an error for a dimension it does not know.
+func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) ([]codersdk.OrganizationAISpendUser, error) {
+	users := make([]codersdk.OrganizationAISpendUser, 0)
+	// userIndex maps a user to their position in users.
+	userIndex := make(map[uuid.UUID]int)
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendUser{
+				UserID:        row.UserID,
+				Username:      row.Username,
+				Name:          row.Name,
+				AvatarURL:     row.AvatarURL,
+				CostMicros:    row.CostMicros,
+				ProviderSpend: []codersdk.OrganizationAISpendProvider{},
+				ModelSpend:    []codersdk.OrganizationAISpendModel{},
+				ClientSpend:   []codersdk.OrganizationAISpendClient{},
+			})
+		}
+		switch row.Dimension {
+		case "provider":
+			displayName := row.ProviderDisplayName
+			if displayName == "" {
+				displayName = row.DimensionName
+			}
+			users[i].ProviderSpend = append(users[i].ProviderSpend, codersdk.OrganizationAISpendProvider{
+				Name:             row.DimensionName,
+				DisplayName:      displayName,
+				Icon:             row.ProviderIcon,
+				Type:             codersdk.AIProviderType(row.ProviderType),
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		case "model":
+			users[i].ModelSpend = append(users[i].ModelSpend, codersdk.OrganizationAISpendModel{
+				Name:             row.DimensionName,
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		case "client":
+			users[i].ClientSpend = append(users[i].ClientSpend, codersdk.OrganizationAISpendClient{
+				Name:             row.DimensionName,
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		default:
+			return nil, xerrors.Errorf("unknown AI spend dimension %q", row.Dimension)
+		}
 	}
+	return users, nil
+}
+
+func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {
+	users := make([]codersdk.OrganizationAISpendOverviewUser, 0, len(rows))
+	// userIndex maps a user to their position in users, which keeps the
+	// query's user order.
+	userIndex := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendOverviewUser{
+				UserID:      row.UserID,
+				Username:    row.Username,
+				Name:        row.Name,
+				AvatarURL:   row.AvatarURL,
+				SpendMicros: row.SpendMicros,
+				Groups:      []codersdk.OrganizationAISpendOverviewGroup{},
+			})
+		}
+		users[i].Groups = append(users[i].Groups, codersdk.OrganizationAISpendOverviewGroup{
+			GroupID:          row.GroupID,
+			GroupName:        row.GroupName,
+			GroupDisplayName: row.GroupDisplayName,
+			SpendMicros:      row.GroupSpendMicros,
+		})
+	}
+	return users
+}
+
+func OrganizationAISpendOverviewIntervals(rows []database.GetOrganizationAISpendPerDayRow) []codersdk.OrganizationAISpendOverviewInterval {
+	return slice.List(rows, func(row database.GetOrganizationAISpendPerDayRow) codersdk.OrganizationAISpendOverviewInterval {
+		start := row.Day.UTC()
+		return codersdk.OrganizationAISpendOverviewInterval{
+			StartTime:   start,
+			EndTime:     start.AddDate(0, 0, 1),
+			SpendMicros: row.SpendMicros,
+		}
+	})
 }
 
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
@@ -1669,6 +1824,39 @@ func sanitizeCredentialHint(hint string) string {
 		return "..."
 	}
 	return hint
+}
+
+// aiBridgeInterceptionOrganization returns the organization stored on a
+// thread row, or nil when the interception has none.
+func aiBridgeInterceptionOrganization(row database.ListAIBridgeSessionThreadsRow) *codersdk.AIBridgeInterceptionOrganization {
+	if !row.AIBridgeInterception.OrganizationID.Valid {
+		return nil
+	}
+	return &codersdk.AIBridgeInterceptionOrganization{
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          row.AIBridgeInterception.OrganizationID.UUID,
+			Name:        row.OrganizationName,
+			DisplayName: row.OrganizationDisplayName,
+			Icon:        row.OrganizationIcon,
+		},
+		Source: AIBridgeInterceptionOrganizationSource(row.AIBridgeInterception.OrganizationSource.AIBridgeInterceptionOrganizationSource),
+	}
+}
+
+// aiBridgeSessionOrganizations decodes the organizations JSON array built by
+// ListAIBridgeSessions. It never returns nil, so the API sends [] rather
+// than null.
+func aiBridgeSessionOrganizations(raw json.RawMessage) []codersdk.AIBridgeSessionOrganization {
+	var orgs []codersdk.AIBridgeSessionOrganization
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &orgs); err != nil {
+			return []codersdk.AIBridgeSessionOrganization{}
+		}
+	}
+	if orgs == nil {
+		orgs = []codersdk.AIBridgeSessionOrganization{}
+	}
+	return orgs
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
@@ -1760,13 +1948,20 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		parts = nil
 	}
 
-	return codersdk.ChatQueuedMessage{
+	queued := codersdk.ChatQueuedMessage{
 		ID:            message.ID,
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
+		BusyBehavior:  codersdk.ChatBusyBehavior(message.BusyBehavior),
 		CreatedAt:     message.CreatedAt,
+		EditingSince:  nullTimePtr(message.EditingSince),
 	}
+	if message.ReasoningEffort.Valid {
+		effort := string(message.ReasoningEffort.ChatReasoningEffort)
+		queued.ReasoningEffort = &effort
+	}
+	return queued
 }
 
 // ChatQueuedMessages converts a slice of database queued messages
@@ -1803,6 +1998,21 @@ func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
 		out = append(out, AIModelPrice(dbPrice))
 	}
 	return out
+}
+
+func UnpricedAIModel(row database.GetUnpricedAIModelsRow) codersdk.UnpricedAIModel {
+	providerDisplayName := row.ProviderName
+	if row.ProviderDisplayName.Valid && row.ProviderDisplayName.String != "" {
+		providerDisplayName = row.ProviderDisplayName.String
+	}
+	return codersdk.UnpricedAIModel{
+		ProviderName:        row.ProviderName,
+		ProviderDisplayName: providerDisplayName,
+		ProviderIcon:        row.ProviderIcon,
+		ProviderType:        codersdk.AIProviderType(row.ProviderType),
+		Model:               row.Model,
+		TokenCount:          row.TokenCount,
+	}
 }
 
 func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
@@ -1887,18 +2097,41 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 }
 
 // ChatProject converts a project with the caller's permissions on it.
-func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
-	return codersdk.ChatProject{
-		Permissions:    permissions,
-		ID:             project.ID,
-		OrganizationID: project.OrganizationID,
-		OwnerID:        project.OwnerID,
-		Name:           project.Name,
-		Description:    project.Description,
-		Icon:           project.Icon,
-		CreatedAt:      project.CreatedAt,
-		UpdatedAt:      project.UpdatedAt,
+// templates must be the project's templates as the caller sees them, so the
+// response never identifies a template the caller cannot access.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions, templates chattool.ProjectTemplates) codersdk.ChatProject {
+	converted := codersdk.ChatProject{
+		Permissions:         permissions,
+		ID:                  project.ID,
+		OrganizationID:      project.OrganizationID,
+		OwnerID:             project.OwnerID,
+		Name:                project.Name,
+		Description:         project.Description,
+		Icon:                project.Icon,
+		LimitTemplates:      project.LimitTemplates,
+		Templates:           make([]codersdk.ChatProjectTemplate, 0, len(templates.Templates)),
+		HiddenTemplateCount: templates.HiddenCount,
+		CreatedAt:           project.CreatedAt,
+		UpdatedAt:           project.UpdatedAt,
 	}
+	for _, template := range templates.Templates {
+		converted.Templates = append(converted.Templates, codersdk.ChatProjectTemplate{
+			ID:          template.ID,
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Icon:        template.Icon,
+		})
+	}
+	if templates.DefaultTemplateID.Valid {
+		converted.DefaultTemplate = &codersdk.ChatProjectDefaultTemplate{TemplateID: templates.DefaultTemplateID.UUID}
+		if templates.DefaultPresetID.Valid {
+			converted.DefaultTemplate.PresetID = &templates.DefaultPresetID.UUID
+		}
+		if len(templates.DefaultParameters) > 0 {
+			converted.DefaultTemplate.Parameters = templates.DefaultParameters
+		}
+	}
+	return converted
 }
 
 // ChatProjectInstructions converts a project's stored instructions.
@@ -2464,18 +2697,27 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 	return out
 }
 
-// Skill converts a database Skill to an SDK Skill.
+// Skill converts a database Skill to an SDK Skill. The stored content is
+// the file as uploaded, so the returned content has its
+// disable-model-invocation key set to agree with ModelInvocable. Every client
+// then gets a file that other tools read the same way. Uploads are checked
+// so that the key can always be set. A skill stored before that check can
+// still fail it, and its content is returned as stored.
 func Skill(skill database.Skill) codersdk.Skill {
+	content, _ := skills.WithModelInvocable(skill.Content, skill.ModelInvocable)
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
-			ID:          skill.ID,
-			Name:        skill.Name,
-			Description: skill.Description,
-			Enabled:     skill.Enabled,
-			CreatedAt:   skill.CreatedAt,
-			UpdatedAt:   skill.UpdatedAt,
+			ID:             skill.ID,
+			Name:           skill.Name,
+			DisplayName:    skill.DisplayName,
+			Description:    skill.Description,
+			Enabled:        skill.Enabled,
+			Action:         skill.Action,
+			ModelInvocable: skill.ModelInvocable,
+			CreatedAt:      skill.CreatedAt,
+			UpdatedAt:      skill.UpdatedAt,
 		},
-		Content: skill.Content,
+		Content: content,
 	}
 }
 
@@ -2485,12 +2727,15 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			DisplayName:    row.DisplayName,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2502,12 +2747,14 @@ func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadata
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2518,12 +2765,14 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata

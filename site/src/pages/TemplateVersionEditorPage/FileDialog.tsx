@@ -56,7 +56,7 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 			type="success"
 			cancelText="Cancel"
 			confirmText="Create"
-			title="Create File"
+			title="Create file"
 			description={
 				<div className="flex flex-col gap-8">
 					<p>
@@ -64,7 +64,6 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 						slashes too.
 					</p>
 					<FormField
-						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
@@ -79,7 +78,7 @@ export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 							error: Boolean(error),
 							helperText: error,
 						}}
-						label="File Path"
+						label="File path"
 						autoComplete="off"
 						placeholder="example.tf"
 					/>
@@ -108,7 +107,7 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 			onClose={onClose}
 			open={open}
 			onConfirm={onConfirm}
-			title="Delete File"
+			title="Delete file"
 			description={
 				<>
 					Are you sure you want to delete <strong>{filename}</strong>? It will
@@ -180,7 +179,7 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 			type="success"
 			cancelText="Cancel"
 			confirmText="Rename"
-			title="Rename File"
+			title="Rename file"
 			description={
 				<div className="flex flex-col gap-4">
 					<p>
@@ -188,7 +187,6 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 						contain slashes too!
 					</p>
 					<FormField
-						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
@@ -203,7 +201,7 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 							error: Boolean(error),
 							helperText: error,
 						}}
-						label="File Path"
+						label="File path"
 						autoComplete="off"
 						placeholder={filename}
 					/>

@@ -82,8 +82,10 @@ func (p Part) jsonValue() partJSON {
 type Options struct {
 	MaxEpisodeBytes        int64
 	ClosedEpisodeRetention time.Duration
-	SubscriberSendTimeout  time.Duration
-	Clock                  quartz.Clock
+	// SubscriberSendTimeout bounds how long a send waits after its episode
+	// closes.
+	SubscriberSendTimeout time.Duration
+	Clock                 quartz.Clock
 }
 
 // Buffer stores streamed message parts by episode.
@@ -106,6 +108,7 @@ type episodeState struct {
 	// toolCompletions stores started occurrences by unresolved-call position.
 	toolCompletions map[int]ToolCompletion
 	closed          bool
+	closedCh        chan struct{}
 	closedAt        time.Time
 	closedHeapItem  *closedEpisodeItem
 	parts           []Part
@@ -155,6 +158,9 @@ type episodeSubscriber struct {
 	out      chan Part
 	notifyCh chan struct{}
 	stopCh   chan struct{}
+	// closedCh is the episode's closedCh. The buffer keeps an episode while it
+	// has subscribers, so this stays the current episode's channel.
+	closedCh <-chan struct{}
 	next     int
 	stopOnce sync.Once
 }
@@ -378,11 +384,21 @@ func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 	return maps.Clone(episode.toolCompletions)
 }
 
+// EpisodeCount returns the number of tracked episodes so tests can assert
+// that episode state is reclaimed and does not leak.
+func (b *Buffer) EpisodeCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.episodes)
+}
+
 // SubscribeToEpisode replays existing parts and streams new parts.
 //
 // Subscribers may attach before CreateEpisode is called. In that case the
 // subscription stays idle until the first part added, closure, cancellation,
-// or buffer shutdown. The returned cancel function is idempotent.
+// or buffer shutdown. The returned cancel function is idempotent. A send waits
+// with no deadline while the episode is open. After the close it waits at most
+// SubscriberSendTimeout more, then the channel closes with parts undelivered.
 func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, func(), error) {
 	b.mu.Lock()
 	if b.closed {
@@ -401,7 +417,8 @@ func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, 
 		notifyCh: make(chan struct{}, 1),
 		// stopCh is unbuffered because stop only closes it. Closing does not
 		// block and every select that observes it treats it as cancellation.
-		stopCh: make(chan struct{}),
+		stopCh:   make(chan struct{}),
+		closedCh: episode.closedCh,
 	}
 	if episode.subscribers == nil {
 		episode.subscribers = make(map[*episodeSubscriber]struct{})
@@ -504,7 +521,7 @@ func (b *Buffer) getOrCreateEpisodeLocked(key Key) *episodeState {
 	if episode != nil {
 		return episode
 	}
-	episode = &episodeState{}
+	episode = &episodeState{closedCh: make(chan struct{})}
 	b.episodes[key] = episode
 	return episode
 }
@@ -566,7 +583,18 @@ func (b *Buffer) deliverSubscriber(ctx context.Context, key Key, subscriber *epi
 	}
 }
 
+// sendSubscriberPart has no timeout while the episode is open: open episodes
+// are kept regardless of subscribers, so a drop would not free the episode.
 func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubscriber, part Part) bool {
+	select {
+	case subscriber.out <- part:
+		return true
+	case <-subscriber.closedCh:
+	case <-subscriber.stopCh:
+		return false
+	case <-ctx.Done():
+		return false
+	}
 	timer := b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
 	defer timer.Stop()
 	select {
@@ -641,6 +669,7 @@ func (e *episodeState) close(now time.Time) bool {
 		return false
 	}
 	e.closed = true
+	close(e.closedCh)
 	e.closedAt = now
 	return true
 }

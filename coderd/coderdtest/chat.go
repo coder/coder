@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -25,26 +24,6 @@ const (
 	// TestChatModelOpenAICompat is the default model for chat runtime tests.
 	TestChatModelOpenAICompat = "gpt-4o-mini"
 )
-
-// OpenAICompatProviderAPIKeys returns provider keys that route OpenAI-compatible
-// chat calls to baseURL.
-func OpenAICompatProviderAPIKeys(baseURL string) chatprovider.ProviderAPIKeys {
-	return chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{
-			TestChatProviderOpenAICompat: TestChatProviderAPIKey,
-		},
-		BaseURLByProvider: map[string]string{
-			TestChatProviderOpenAICompat: baseURL,
-		},
-	}
-}
-
-// FakeOpenAICompatProviderAPIKeys starts a fake OpenAI-compatible provider and
-// returns provider keys for coderdtest.Options.
-func FakeOpenAICompatProviderAPIKeys(t testing.TB) chatprovider.ProviderAPIKeys {
-	t.Helper()
-	return OpenAICompatProviderAPIKeys(chattest.OpenAI(t))
-}
 
 // CreateOpenAICompatChatModel creates the default provider and ChatModel used
 // by chat runtime tests. Tests can pass a baseURL to route chat work to a
@@ -99,7 +78,7 @@ func WaitForChatSettled(
 
 	server := api.ChatDaemon()
 	require.NotNil(t, server)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	chat, err := getChatByIDAsSystem(ctx, api.Database, chatID)
 	require.NoError(t, err)

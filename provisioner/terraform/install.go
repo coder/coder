@@ -20,12 +20,15 @@ import (
 var (
 	// TerraformVersion is the version of Terraform used internally
 	// when Terraform is not available on the system.
-	// NOTE: Keep this in sync with the version in scripts/Dockerfile.base.
-	// NOTE: Keep this in sync with the version in install.sh.
-	TerraformVersion = version.Must(version.NewVersion("1.16.6"))
+	// NOTE: Keep this in sync with terraform_SHA256SUMS in this directory, a
+	// copy of HashiCorp's GPG-signed checksum file for this version (a test
+	// checks this). scripts/Dockerfile.base and install.sh read the version and
+	// checksums from it. scripts/update_terraform_version.sh bumps this
+	// version, the checksum file and the other pins together.
+	TerraformVersion = version.Must(version.NewVersion("1.17.2"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.16.9")) // use .9 to automatically allow patch releases
+	maxTerraformVersion = version.Must(version.NewVersion("1.17.9")) // use .9 to automatically allow patch releases
 
 	errTerraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )

@@ -16,6 +16,8 @@ type ModelRowProps = {
 	model: ChatModel;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
+	/** Icon configured on the model's provider, if any. */
+	providerIcon?: string;
 	hasProvider: boolean;
 	providerEnabled: boolean;
 	onClick: () => void;
@@ -32,6 +34,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
+	providerIcon,
 	hasProvider,
 	providerEnabled,
 	onClick,
@@ -71,7 +74,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 										aria-label={`Provider type: ${providerType}`}
 										className="flex items-center justify-center"
 									>
-										<ProviderIcon provider={providerType} />
+										<ProviderIcon provider={providerType} icon={providerIcon} />
 									</span>
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
@@ -80,7 +83,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 								</TooltipContent>
 							</Tooltip>
 						) : (
-							<ProviderIcon provider={providerType} />
+							<ProviderIcon provider={providerType} icon={providerIcon} />
 						)}
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
@@ -117,7 +120,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 										<button type="button">Unavailable</button>
 									</Badge>
 								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[240px]">
+								<TooltipContent side="bottom" className="max-w-60">
 									{providerNotice}
 								</TooltipContent>
 							</Tooltip>
@@ -139,7 +142,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+					<span className="truncate text-sm leading-6 text-content-secondary">
 						Unset
 					</span>
 				)}

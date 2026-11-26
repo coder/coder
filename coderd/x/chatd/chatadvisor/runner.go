@@ -57,6 +57,9 @@ func (rt *Runtime) RunAdvisor(
 		Messages:             BuildAdvisorMessages(question, conversationSnapshot),
 		CallTemplate:         nestedCall,
 		StreamSilenceTimeout: rt.cfg.StreamSilenceTimeout,
+		Stages:               rt.cfg.Stages,
+		StageModel:           rt.cfg.StageModel,
+		ModelCallStage:       true,
 	}
 	if opts != nil && (opts.OnAdviceDelta != nil || opts.OnReasoningDelta != nil) {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
@@ -87,7 +90,7 @@ func (rt *Runtime) RunAdvisor(
 		}
 	}); err != nil {
 		// Refund the use so a transient provider failure does not
-		// permanently exhaust the per-run advisor budget.
+		// permanently exhaust the per-turn advisor budget.
 		rt.release()
 		return AdvisorResult{
 			Type:          ResultTypeError,

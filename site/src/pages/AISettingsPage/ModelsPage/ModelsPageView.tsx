@@ -39,6 +39,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useUpdateSearchParams } from "#/hooks/useUpdateSearchParams";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	canManageProviderModels,
@@ -59,6 +60,18 @@ const ALL_PROVIDERS_VALUE = "all";
 const PROVIDER_PARAM = "provider";
 const SEARCH_PARAM = "search";
 const PAGE_PARAM = "page";
+
+const getProviderIconByModelId = (
+	providerStates: readonly ProviderState[],
+): ReadonlyMap<string, string> =>
+	new Map(
+		providerStates.flatMap((providerState) =>
+			providerState.models.map((model): [string, string] => [
+				model.id,
+				providerState.providerDescriptor.icon,
+			]),
+		),
+	);
 
 const AddModelDropdown: React.FC<{
 	providerStates: readonly ProviderState[];
@@ -81,7 +94,7 @@ const AddModelDropdown: React.FC<{
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
-				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+				<div className="px-2 py-1.5 text-xs text-content-secondary">
 					Select a provider
 				</div>
 				{manageableProviderStates.length === 0 ? (
@@ -96,7 +109,10 @@ const AddModelDropdown: React.FC<{
 								void navigate(organizationAddModelPath(organization, next));
 							}}
 						>
-							<ProviderIcon provider={providerState.provider} />
+							<ProviderIcon
+								provider={providerState.provider}
+								icon={providerState.providerDescriptor.icon}
+							/>
 							<span>{providerState.label}</span>
 						</DropdownMenuItem>
 					))
@@ -126,7 +142,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchParams] = useSearchParams();
 	const { organization, accessibleOrganizations } = useOrganizationModels();
 
 	// Keep filter state in the URL so it persists across navigation.
@@ -136,16 +152,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	const rawPage = Number.parseInt(searchParams.get(PAGE_PARAM) ?? "1", 10);
 	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
 
-	const updateSearchParams = (mutate: (params: URLSearchParams) => void) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				mutate(next);
-				return next;
-			},
-			{ replace: true },
-		);
-	};
+	const updateSearchParams = useUpdateSearchParams();
 
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
@@ -166,6 +173,8 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 		}
 		return map;
 	}, [providerStates]);
+
+	const providerIconByModelId = getProviderIconByModelId(providerStates);
 
 	const hasProviderByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
@@ -268,9 +277,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				<SettingsHeaderDescription>
 					Choose which models from your configured providers are available for
 					users to select. You can set a default and adjust context limits.{" "}
-					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/models#models")}
-					/>
+					<SettingsHeaderDocsLink href={docs("/coder-agents/models#models")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{(loadError ?? refetchError) != null && (
@@ -325,7 +332,10 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">
-									<ProviderIcon provider={providerState.provider} />
+									<ProviderIcon
+										provider={providerState.provider}
+										icon={providerState.providerDescriptor.icon}
+									/>
 									{providerState.label}
 								</span>
 							</SelectItem>
@@ -372,6 +382,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
+								providerIcon={providerIconByModelId.get(model.id)}
 								hasProvider={hasProviderByModelId.get(model.id) ?? false}
 								providerEnabled={
 									providerEnabledByModelId.get(model.id) ?? false

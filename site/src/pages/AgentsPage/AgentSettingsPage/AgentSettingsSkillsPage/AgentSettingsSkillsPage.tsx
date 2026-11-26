@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { useQueries } from "react-query";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import { type UseQueryResult, useQuery } from "react-query";
+import { organizationSkillPreferences } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { RetryButton } from "../../components/RetryButton";
+import {
+	getMemberOrganizations,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
+import { OrganizationSkillPreferenceSwitch } from "../../components/OrganizationSkillPreferenceSwitch";
+import { OrganizationSkillsMasterSwitch } from "../../components/OrganizationSkillsMasterSwitch";
 import { SectionHeader } from "../../components/SectionHeader";
 import { SkillsTable } from "../../components/SkillsTable";
 import {
@@ -15,40 +20,92 @@ import {
 	userSkillsScope,
 } from "../../utils/skills";
 
+type QueryErrorAlertProps = {
+	query: Pick<UseQueryResult<unknown>, "error" | "isFetching" | "refetch">;
+	retryLabel: string;
+};
+
+const QueryErrorAlert: React.FC<QueryErrorAlertProps> = ({
+	query,
+	retryLabel,
+}) => (
+	<ErrorAlert
+		error={query.error}
+		actions={
+			<RetryButton
+				size="sm"
+				variant="outline"
+				aria-label={retryLabel}
+				isRetrying={query.isFetching}
+				onRetry={() => {
+					void query.refetch();
+				}}
+			/>
+		}
+	/>
+);
+
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();
-	// The dashboard lists every organization the user can read, but chats
-	// only run in organizations the user is a member of.
-	const memberOrganizations = useDashboard().organizations.filter(
-		(organization) => user.organization_ids.includes(organization.id),
+	const memberOrganizations = getMemberOrganizations(
+		useDashboard().organizations,
+		user,
 	);
-	const organizationSkillQueries = useQueries({
-		queries: memberOrganizations.map((organization) =>
-			organizationSkills(organization.id),
-		),
-	});
-	const visibleOrganizations = memberOrganizations.flatMap(
-		(organization, index) => {
-			const query = organizationSkillQueries[index];
-			const hasEnabledSkills = Boolean(
-				query.data?.some((skill) => skill.enabled),
-			);
-			return hasEnabledSkills || query.isError || query.isPending
-				? [{ organization, query, hasEnabledSkills }]
-				: [];
-		},
-	);
+
 	const [selectedOrganizationId, setSelectedOrganizationId] =
 		useState<string>();
+
+	// List every member organization and load skills only for the selected
+	// one: users can belong to hundreds, and a picker filtered by loaded
+	// results shifts while requests settle.
 	const selected =
-		visibleOrganizations.find(
-			({ organization }) => organization.id === selectedOrganizationId,
+		memberOrganizations.find(
+			(organization) => organization.id === selectedOrganizationId,
 		) ??
-		visibleOrganizations.find(({ organization }) => organization.is_default) ??
-		visibleOrganizations.at(0);
+		memberOrganizations.find((organization) => organization.is_default) ??
+		memberOrganizations.at(0);
+
 	const organizationName = selected
-		? selected.organization.display_name || selected.organization.name
+		? selected.display_name || selected.name
 		: "";
+
+	const preferencesQuery = useQuery({
+		...organizationSkillPreferences(selected?.id ?? ""),
+		enabled: Boolean(selected),
+	});
+
+	const editablePreferences = preferencesQuery.data?.members_can_disable_skills
+		? preferencesQuery.data
+		: undefined;
+
+	let organizationToolbar: React.ReactNode = null;
+	if (preferencesQuery.isError && !preferencesQuery.data) {
+		organizationToolbar = (
+			<QueryErrorAlert
+				query={preferencesQuery}
+				retryLabel={`Retry loading your ${organizationName} skill choices`}
+			/>
+		);
+	} else if (selected && editablePreferences) {
+		organizationToolbar = (
+			<OrganizationSkillsMasterSwitch
+				organizationId={selected.id}
+				preferences={editablePreferences}
+			/>
+		);
+	}
+
+	let organizationDescription: string;
+	if (!preferencesQuery.data) {
+		organizationDescription =
+			"Skills available to you. Ask an organization admin to change the skill content.";
+	} else if (editablePreferences) {
+		organizationDescription =
+			"Skills available to you. Turn off the ones you do not want in your chats. Ask an organization admin to change the skill content.";
+	} else {
+		organizationDescription =
+			"Read-only skills available to you. Ask an organization admin to change them.";
+	}
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -76,10 +133,8 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							<OrganizationField
 								id="member-skills-organization"
 								className="w-full sm:w-60"
-								organizations={visibleOrganizations.map(
-									({ organization }) => organization,
-								)}
-								organization={selected.organization}
+								organizations={memberOrganizations}
+								organization={selected}
 								onChange={(organization) =>
 									setSelectedOrganizationId(organization.id)
 								}
@@ -87,44 +142,34 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							/>
 						}
 					/>
-					{selected.query.isError && !selected.hasEnabledSkills ? (
-						// The table's own observer would refetch a failed list on
-						// mount and clear its error, so a failed list renders here.
-						<div className="flex flex-col gap-4">
-							<SectionHeader level="section" label={organizationName} />
-							<ErrorAlert
-								error={selected.query.error}
-								actions={
-									<RetryButton
-										size="sm"
-										variant="outline"
-										aria-label={`Retry loading ${organizationName} skills`}
-										isRetrying={selected.query.isFetching}
-										onRetry={() => {
-											void selected.query.refetch();
-										}}
-									/>
-								}
-							/>
-						</div>
-					) : (
-						<SkillsTable
-							key={selected.organization.id}
-							scope={organizationSkillsScope(selected.organization.id)}
-							copy={{
-								noun: "Organization skill",
-								title: organizationName,
-								description:
-									"Read-only skills available to you. Ask an organization admin to change them.",
-								editorDescription:
-									"Read-only organization skill. Ask an organization admin to change it.",
-								archiveName: `${selected.organization.name}-skills.zip`,
-							}}
-							access={readOnlySkillAccess}
-							enabledOnly
-							headerLevel="section"
-						/>
-					)}
+					<SkillsTable
+						key={selected.id}
+						scope={organizationSkillsScope(selected.id)}
+						copy={{
+							noun: "Organization skill",
+							title: organizationName,
+							description: organizationDescription,
+							editorDescription:
+								"Read-only organization skill. Ask an organization admin to change it.",
+							archiveName: `${selected.name}-skills.zip`,
+						}}
+						access={readOnlySkillAccess}
+						enabledOnly
+						headerLevel="section"
+						toolbar={organizationToolbar}
+						isLoading={preferencesQuery.isPending}
+						renderEnabledCell={
+							editablePreferences
+								? (skill) => (
+										<OrganizationSkillPreferenceSwitch
+											organizationId={selected.id}
+											skill={skill}
+											preferences={editablePreferences}
+										/>
+									)
+								: undefined
+						}
+					/>
 				</section>
 			)}
 		</div>

@@ -23,6 +23,7 @@ import {
 } from "#/api/queries/userSkills";
 import type {
 	CreateSkillRequest,
+	OrganizationSkillPreferences,
 	Skill,
 	SkillMetadata,
 	UpdateSkillRequest,
@@ -40,13 +41,27 @@ export type SkillFormValues = {
 	name: string;
 	description: string;
 	body: string;
+	/** Project skills only: offers the skill above project composers. */
+	action?: boolean;
+	/** Project skills only: labels the action instead of the name. */
+	displayName?: string;
+	/** Lets agents find and load the skill on their own. */
+	modelInvocable?: boolean;
 };
 
-/** The fields of a skill that has not been written yet. */
+/** The fields and API defaults of a skill that has not been written yet. */
 export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+	modelInvocable: true,
+};
+
+/** The fields and API defaults of a project skill not written yet. */
+export const emptyProjectSkillFormValues: SkillFormValues = {
+	...emptySkillFormValues,
+	action: false,
+	displayName: "",
 };
 
 type SkillSearchMetadata = {
@@ -199,7 +214,12 @@ export const parseSkillMarkdown = (content: string): SkillFormValues => {
 		throw new SkillMarkdownError("Skill body is required.");
 	}
 
-	return { name, description, body };
+	// Claude Code marks skills that only users may invoke this way. Like the
+	// server, only a boolean value counts.
+	const disableModelInvocation = parsed.attributes["disable-model-invocation"];
+	return typeof disableModelInvocation === "boolean"
+		? { name, description, body, modelInvocable: !disableModelInvocation }
+		: { name, description, body };
 };
 
 export const tryParseSkillMarkdown = (
@@ -233,6 +253,9 @@ export const skillFormValuesFromSkill = (
 			name: skill.name,
 			description: skill.description,
 			body: parsed.values.body,
+			action: skill.action,
+			displayName: skill.display_name,
+			modelInvocable: skill.model_invocable,
 		},
 	};
 };
@@ -266,6 +289,20 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
+
+/**
+ * Reports whether saving `values`, the editor's submitted values with trimmed
+ * fields, changes the SKILL.md fields the editor rebuilds. Settings-only edits
+ * omit content so the stored file keeps frontmatter keys and formatting that
+ * the editor does not show.
+ */
+export const isSkillContentChanged = (
+	opened: SkillFormValues,
+	values: SkillFormValues,
+): boolean =>
+	values.name !== opened.name ||
+	values.description !== opened.description.trim() ||
+	values.body !== opened.body;
 
 export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;
@@ -349,6 +386,39 @@ export const organizationSkillsScope = (
 	update: (queryClient) => updateOrganizationSkill(queryClient, organizationId),
 	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
 });
+
+/**
+ * Returns the organization skills that load into the member's chats, mirroring
+ * GetOrganizationSkillMemberPreferencesRow.Excludes in Go. A list with enabled
+ * skills stays undefined until the preferences load.
+ */
+export const activeOrganizationSkills = (
+	skills: readonly SkillMetadata[] | undefined,
+	preferences: OrganizationSkillPreferences | undefined,
+): SkillMetadata[] | undefined => {
+	const enabledSkills = skills?.filter((skill) => skill.enabled);
+
+	// Without enabled skills there is nothing to opt out of.
+	if (!enabledSkills || enabledSkills.length === 0) {
+		return enabledSkills;
+	}
+
+	if (!preferences) {
+		return undefined;
+	}
+
+	if (!preferences.members_can_disable_skills) {
+		return enabledSkills;
+	}
+
+	if (preferences.all_skills_disabled) {
+		return [];
+	}
+
+	return enabledSkills.filter(
+		(skill) => !preferences.disabled_skill_ids.includes(skill.id),
+	);
+};
 
 /** Adapts a project's skill queries to SkillsScope; mutations refresh its list. */
 export const projectSkillsScope = (

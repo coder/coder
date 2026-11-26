@@ -93,14 +93,14 @@ export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 			<div className="pt-6">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
-						{isEditing ? "Edit Custom Role" : "New Custom Role"}
+						{isEditing ? "Edit custom role" : "New custom role"}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Set a name and permissions for this role.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<div className="border border-solid p-6 rounded-lg">
+				<div className="border p-6 rounded-lg">
 					<form
 						onSubmit={form.handleSubmit}
 						noValidate
@@ -122,7 +122,6 @@ export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 								})}
 								label="Name"
 								required
-								autoFocus
 								disabled={isEditing}
 								onChange={onChangeTrimmed(form)}
 								className="w-full"

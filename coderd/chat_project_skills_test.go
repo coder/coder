@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,17 @@ func TestChatProjectSkills(t *testing.T) {
 	member := codersdk.NewExperimentalClient(memberRaw)
 	content := userSkillMarkdown("deploy", "Deploy the app", "Run make deploy.")
 
-	created, err := client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{Content: content})
+	created, err := client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{
+		Content:        content,
+		Action:         ptr.Ref(true),
+		ModelInvocable: ptr.Ref(false),
+		DisplayName:    ptr.Ref("  Deploy app  "),
+	})
 	require.NoError(t, err)
 	require.Equal(t, "Deploy the app", created.Description)
+	require.True(t, created.Action)
+	require.False(t, created.ModelInvocable)
+	require.Equal(t, "Deploy app", created.DisplayName)
 	list, err := client.ChatProjectSkills(ctx, orgID, project.ID)
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.SkillMetadata{created.SkillMetadata}, list)
@@ -39,6 +48,37 @@ func TestChatProjectSkills(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Ship the app", updated.Description)
 	require.False(t, updated.Enabled)
+	// Omitted settings keep their values, and set ones flip independently.
+	require.True(t, updated.Action)
+	require.False(t, updated.ModelInvocable)
+	require.Equal(t, "Deploy app", updated.DisplayName)
+	updated, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
+		Action:         ptr.Ref(false),
+		ModelInvocable: ptr.Ref(true),
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Action)
+	require.True(t, updated.ModelInvocable)
+	require.Equal(t, "Ship the app", updated.Description)
+	// Turning the action off keeps the display name for when it returns.
+	require.Equal(t, "Deploy app", updated.DisplayName)
+	updated, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
+		DisplayName: ptr.Ref(""),
+	})
+	require.NoError(t, err)
+	require.Empty(t, updated.DisplayName)
+	for _, displayName := range []string{"Deploy\napp", "Deploy\u2028app", "Deploy\u2029app", strings.Repeat("é", codersdk.MaxSkillDisplayNameLength+1)} {
+		_, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
+			DisplayName: ptr.Ref(displayName),
+		})
+		require.Equal(t, "Invalid skill display name.", requireSDKErrorStatus(t, err, http.StatusBadRequest).Message)
+	}
+	// The limit counts characters, not bytes.
+	updated, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
+		DisplayName: ptr.Ref(strings.Repeat("é", codersdk.MaxSkillDisplayNameLength)),
+	})
+	require.NoError(t, err)
+	require.Equal(t, strings.Repeat("é", codersdk.MaxSkillDisplayNameLength), updated.DisplayName)
 
 	_, err = client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{Content: content})
 	requireSDKErrorStatus(t, err, http.StatusConflict)

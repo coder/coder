@@ -3,16 +3,16 @@ title: Secrets
 ---
 
 Coder is open-minded about how you get your secrets into your workspaces.
-For more information about how to use secrets and other security tips, visit our guide to [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
+For more information about how to use secrets and other security tips, visit our guide to [security best practices](security-best-practices.md#secrets).
 
 Use this guide to configure how templates make secrets available to Coder workspaces.
 To authenticate workspace provisioners with Coder, see the <a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
-For secret values that developers manage themselves, see [User secrets](../../user-guides/user-secrets.md).
+For secret values that developers manage themselves, see [User secrets](../../workspaces/user-secrets.md).
 
 ## Before you begin
 
 Your first attempt to use secrets with Coder should be your local method.
-You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets may be brought over.
+You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets can be brought over.
 
 Often, this workflow is simply:
 
@@ -20,7 +20,7 @@ Often, this workflow is simply:
 1. Your users write them to a persistent file after they've built their workspace
 
 > [!WARNING]
-> [Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> [Template parameters](../../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
 > Coder shows parameter values in cleartext throughout the product.
 > Assume anyone with view access to a workspace can also see its parameters.
 
@@ -35,8 +35,10 @@ Users can view their public key in their account settings:
 ![SSH keys in account settings](../../images/ssh-keys.png)
 
 > [!NOTE]
-> SSH keys are never stored in Coder workspaces, and are fetched only when SSH is invoked.
-> The keys are held in-memory and never written to disk.
+> SSH keys are fetched only when SSH is invoked.
+> For the duration of the SSH connection, the key is written to a temporary file, which is removed after SSH exits.
+> On Linux and macOS, the file is created with owner-only permissions (0600) in the operating system's temporary directory.
+> The key is not stored persistently.
 
 ## User secrets
 
@@ -44,7 +46,7 @@ User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a template-provided variable or file, Coder injects the user secret into that workspace.
 A secret can be disabled, in which case it is stored but not injected until it is re-enabled.
 User secret values are covered by [Database Encryption](./database-encryption.md) when it is enabled.
-See the [User secrets guide](../../user-guides/user-secrets.md).
+See the [User secrets guide](../../workspaces/user-secrets.md).
 
 ## Workspace secrets
 
@@ -78,7 +80,7 @@ resource "coder_agent" "main" {
 }
 ```
 
-A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
+A catch-all variation of this approach is dynamically provisioning a cloud service account (for example, [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
 
 <a id="displaying-secrets"></a>
 
@@ -120,4 +122,4 @@ Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for m
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)

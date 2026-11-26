@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
-	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC217WithRole(context.Context, string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -469,6 +469,39 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 	})
 
+	t.Run("TracksZed", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Uses a POSIX shell comment to mimic Zed's proxy command")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
+		// Zed sends no app name; the agent detects its proxy command line.
+		err = session.Start("cat # .zed_server/zed-remote-server-stable-1.0.0 proxy --identifier test")
+		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			s, ok := <-stats
+			return ok && s.SessionCounts["zed"] == 1 && s.SessionCounts["ssh"] == 0
+		}, testutil.WaitLong, testutil.IntervalFast, "never saw zed session")
+
+		_ = stdin.Close()
+		require.NoError(t, session.Wait())
+
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: "zed"},
+			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+		)
+	})
+
 	for _, shutdown := range []bool{false, true} {
 		name := "TracksJetBrains"
 		if shutdown {
@@ -508,8 +541,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			remotePort := sc.Text()
 
 			sink := testutil.NewFakeSink(t)
+			logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1)
+			logger.Debug(ctx, "making sure there is at least one debug log")
 			conn, agentClient, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-				o.Logger = sink.Logger()
+				o.Logger = logger
 			})
 			sshClient, err := conn.SSHClient(ctx)
 			require.NoError(t, err)
@@ -543,6 +578,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 					},
 				)
 				requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonServerShutdown)
+				requireDebugFlushed(t, sink, codersdk.DisconnectReasonServerShutdown)
 				return
 			}
 
@@ -563,11 +599,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
 				proto.DisconnectEvent{
-					Reason:  "normal close",
+					Reason:  string(codersdk.DisconnectReasonGraceful),
 					RxBytes: int64(written),
 					TxBytes: int64(written),
 				},
 			)
+			requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonGraceful)
+			requireDebugFlushed(t, sink, codersdk.DisconnectReasonGraceful)
 		})
 	}
 }
@@ -1554,6 +1592,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},
@@ -1593,6 +1632,7 @@ func TestAgent_SFTP(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
 				RxBytes: wantSomeBytes,
 				TxBytes: wantSomeBytes,
 			},
@@ -1823,68 +1863,38 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_OWNER_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
+	manifest := agentsdk.Manifest{
+		AgentName:        "test-agent",
+		OwnerName:        "test-user",
+		WorkspaceName:    "test-workspace",
+		WorkspaceID:      uuid.New(),
+		WorkspaceBuildID: uuid.New(),
+		TemplateID:       uuid.New(),
+		TemplateName:     "test-template",
+	}
+	for key, want := range map[string]string{
+		"CODER":                         "true",
+		"CODER_WORKSPACE_NAME":          manifest.WorkspaceName,
+		"CODER_WORKSPACE_OWNER_NAME":    manifest.OwnerName,
+		"CODER_WORKSPACE_AGENT_NAME":    manifest.AgentName,
+		"CODER_WORKSPACE_ID":            manifest.WorkspaceID.String(),
+		"CODER_WORKSPACE_BUILD_ID":      manifest.WorkspaceBuildID.String(),
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
+	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+			session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
 			}
 			output, err := session.Output(command)
 			require.NoError(t, err)
-			require.NotEmpty(t, strings.TrimSpace(string(output)))
+			require.Equal(t, want, strings.TrimSpace(string(output)))
 		})
 	}
-}
-
-func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
-	t.Parallel()
-
-	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
-	}
-
-	buildID := uuid.New()
-	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
-
-	// A manifest from a server that predates the build ID leaves it unset
-	// rather than exporting the nil UUID.
-	t.Run("Unset", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS == "windows" {
-			t.Skip("uses POSIX parameter expansion")
-		}
-		// The agent inherits the runner's environment, so hide any build ID the
-		// runner itself exports.
-		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
-			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
-		})
-		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
-		require.NoError(t, err)
-		require.Equal(t, "unset", strings.TrimSpace(string(output)))
-	})
-}
-
-// withoutEnvInfo is the system environment without one variable.
-type withoutEnvInfo struct {
-	usershell.SystemEnvInfo
-	exclude string
-}
-
-func (e withoutEnvInfo) Environ() []string {
-	var environ []string
-	for _, kv := range e.SystemEnvInfo.Environ() {
-		if !strings.HasPrefix(kv, e.exclude+"=") {
-			environ = append(environ, kv)
-		}
-	}
-	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
@@ -3872,11 +3882,6 @@ func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
 		agentID,
 		agentsdk.Manifest{
 			DERPMap: derpMap,
-			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "echo hello",
-				Timeout:    30 * time.Second,
-				RunOnStart: true,
-			}},
 		},
 		statsCh,
 		fCoordinator,

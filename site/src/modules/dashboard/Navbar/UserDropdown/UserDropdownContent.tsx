@@ -9,6 +9,7 @@ import {
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { CopiedStatus } from "#/components/CopyButton/CopyButton";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -43,6 +44,12 @@ const CodernautsSVG = () => (
 		<path d="M10,15 L10.5,18 L13.5,18 L14,15" />
 	</svg>
 );
+
+// Radix moves focus from an item to the menu on pointerleave, which blurs the
+// item and closes its tooltip before the pointer can reach it (WCAG 1.4.13).
+const keepFocusOnPointerLeave = (event: React.PointerEvent) => {
+	event.preventDefault();
+};
 
 type UserDropdownContentProps = {
 	user: TypesGen.User;
@@ -102,7 +109,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 			</DropdownMenuItem>
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
-				<span>Sign Out</span>
+				<span>Sign out</span>
 			</DropdownMenuItem>
 			{supportLinks && supportLinks.length > 0 && (
 				<>
@@ -127,9 +134,13 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 			)}
 			{trialCta}
 			<DropdownMenuSeparator />
-			<Tooltip disableHoverableContent>
+			<Tooltip>
 				<TooltipTrigger asChild>
-					<DropdownMenuItem className="text-xs" asChild>
+					<DropdownMenuItem
+						className="text-xs"
+						onPointerLeave={keepFocusOnPointerLeave}
+						asChild
+					>
 						<a
 							href={buildInfo?.external_url}
 							className="flex items-center gap-2"
@@ -144,13 +155,14 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 						</a>
 					</DropdownMenuItem>
 				</TooltipTrigger>
-				<TooltipContent side="bottom">Browse the source code</TooltipContent>
+				<TooltipContent side="left">Browse the source code</TooltipContent>
 			</Tooltip>
 			{buildInfo?.deployment_id && (
-				<Tooltip disableHoverableContent>
+				<Tooltip>
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
+							onPointerLeave={keepFocusOnPointerLeave}
 							onSelect={(e) => {
 								e.preventDefault();
 								copyToClipboard(buildInfo.deployment_id);
@@ -162,9 +174,10 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							) : (
 								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
+							<CopiedStatus show={showCopiedSuccess} />
 						</DropdownMenuItem>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">
+					<TooltipContent side="left">
 						{showCopiedSuccess ? "Copied!" : "Copy deployment ID"}
 					</TooltipContent>
 				</Tooltip>

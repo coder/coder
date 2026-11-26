@@ -21,6 +21,7 @@ import {
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { shortRelativeTime } from "#/utils/time";
@@ -29,7 +30,7 @@ import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
@@ -47,6 +48,10 @@ type ChatTreeNodeProps = {
 	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
+	/** When omitted, the "Move up" item is hidden. */
+	readonly onMovePinUp?: () => void;
+	/** When omitted, the "Move down" item is hidden. */
+	readonly onMovePinDown?: () => void;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -55,6 +60,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
 	dragHandleProps,
+	onMovePinUp,
+	onMovePinDown,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -215,12 +222,14 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving: isArchivingThisChat,
 		isUpdatingReadState,
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => pinMutation.mutate(chat.id),
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onMovePinUp,
+		onMovePinDown,
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
 		onMarkRead: isActiveChat
@@ -247,15 +256,15 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			<ChatActionsMenu
 				{...sharedMenuItemProps}
 				variant="context"
-				contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
+				contentClassName="max-w-72 **:[[role=menuitem]]:text-[13px]"
 			>
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
-						"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
+						"group relative -mx-2 flex min-w-0 select-none items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
 						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
-						// pl-[11px] is pl-3 minus the active border, so content does not shift.
-						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+						// pl-2.75 is pl-3 minus the active border, so content does not shift.
+						"has-aria-[current=page]:border-l has-aria-[current=page]:border-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:pl-2.75 has-aria-[current=page]:text-content-primary data-[state=open]:has-aria-[current=page]:bg-surface-quaternary/50 has-data-[state=open]:has-aria-[current=page]:bg-surface-quaternary/50 [@media(hover:hover)]:has-aria-[current=page]:hover:bg-surface-quaternary/50",
 					)}
 				>
 					<div
@@ -271,7 +280,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							className={cn(
 								"flex size-5 items-center justify-center rounded-md",
 								hasChildren &&
-									"[@media(hover:hover)]:group-hover/icon:invisible",
+									"[@media(hover:hover)]:group-hover/icon:invisible group-has-focus-visible/icon:invisible",
 							)}
 						>
 							<StatusIcon
@@ -291,8 +300,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								size="icon"
 								onClick={() => toggleExpanded(chatID)}
 								className={cn(
-									"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-									"[@media(hover:hover)]:group-hover/icon:visible",
+									"absolute inset-0 flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 opacity-0 pointer-events-none hover:text-content-primary [&>svg]:size-3.5",
+									"[@media(hover:hover)]:group-hover/icon:opacity-100 [@media(hover:hover)]:group-hover/icon:pointer-events-auto focus-visible:opacity-100",
 								)}
 								data-testid={`agents-tree-toggle-${chat.id}`}
 								aria-label={isExpanded ? "Collapse" : "Expand"}
@@ -355,8 +364,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									className={cn(
 										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 										// The timestamp swaps out for the actions trigger on
-										// hover or while a menu is open.
-										"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										// hover, keyboard focus, or while a menu is open.
+										"[@media(hover:hover)]:group-hover:hidden group-has-focus-visible:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
 										isActiveChat && "hidden",
 									)}
 								>
@@ -391,32 +400,17 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{!isArchivingThisChat && (
 							<ChatActionsMenu
 								{...sharedMenuItemProps}
-								contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
+								contentClassName="max-w-72 **:[[role=menuitem]]:text-[13px]"
 							>
 								<Button
 									size="icon"
 									variant="subtle"
 									className={cn(
-										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}
-									onContextMenuCapture={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-									}}
-									onMouseDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
-									onPointerDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
+									{...preventRowContextMenuProps}
 								>
 									<EllipsisVerticalIcon className="size-3.5" />
 								</Button>

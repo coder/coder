@@ -81,14 +81,6 @@ func TestResolveProjectMemory(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("ExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
-		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true}})
-		require.False(t, ok)
-	})
-
 	t.Run("ProjectLookupFailure", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))

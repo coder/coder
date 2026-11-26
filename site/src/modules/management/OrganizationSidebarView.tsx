@@ -83,16 +83,19 @@ export const OrganizationSidebarView: React.FC<
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
-					<Command loop>
+					<Command loop label="Find organization">
 						<CommandInput placeholder="Find organization" />
 						<CommandList>
 							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
-								<div className="flex flex-col max-h-[260px] overflow-y-auto">
+								<div className="flex flex-col max-h-65 overflow-y-auto">
 									{sortedOrganizations.map((organization) => (
 										<CommandItem
 											key={organization.id}
 											value={`${organization.display_name} ${organization.name}`}
+											aria-selected={
+												activeOrganization?.name === organization.name
+											}
 											onSelect={() => {
 												setIsPopoverOpen(false);
 												navigate(urlForSubpage(organization.name));
@@ -122,6 +125,7 @@ export const OrganizationSidebarView: React.FC<
 									<CommandGroup>
 										<CommandItem
 											className="flex justify-center data-[selected=true]:bg-transparent"
+											aria-selected={false}
 											onSelect={() => {
 												setIsPopoverOpen(false);
 												setTimeout(() => {
@@ -129,7 +133,7 @@ export const OrganizationSidebarView: React.FC<
 												}, 200);
 											}}
 										>
-											<PlusIcon /> Create Organization
+											<PlusIcon /> Create organization
 										</CommandItem>
 									</CommandGroup>
 								</>
@@ -193,12 +197,12 @@ const OrganizationSettingsNavigation: React.FC<
 						<SettingsSidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-keys")}
 						>
-							Provisioner Keys
+							Provisioner keys
 						</SettingsSidebarNavItem>
 						<SettingsSidebarNavItem
 							href={urlForSubpage(organization.name, "provisioner-jobs")}
 						>
-							Provisioner Jobs
+							Provisioner jobs
 						</SettingsSidebarNavItem>
 					</>
 				)}
@@ -206,7 +210,7 @@ const OrganizationSettingsNavigation: React.FC<
 				<SettingsSidebarNavItem
 					href={urlForSubpage(organization.name, "idp-sync")}
 				>
-					IdP Sync
+					IdP sync
 				</SettingsSidebarNavItem>
 			)}
 			{orgPermissions.editSettings && (

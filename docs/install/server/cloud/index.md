@@ -4,6 +4,11 @@ title: Cloud platforms
 
 We provide install guides and example templates for deploying Coder to your cloud of choice.
 
+If you already run a Kubernetes cluster in the cloud, follow [Install Coder on Kubernetes](../kubernetes/index.md) instead.
+That guide covers managed clusters such as Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), and Google Kubernetes Engine (GKE).
+Kubernetes is the recommended platform for deployments that others depend on.
+The AWS Marketplace guide uses a CloudFormation template that creates a new EKS cluster for a proof of concept.
+
 <div class="tabs">
 
 ## AWS
@@ -13,9 +18,9 @@ Follow the tutorial here:
 
 - [Install Coder Community Edition from AWS Marketplace](./aws-marketplace.md)
 
-Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Kubernetes cluster.
+Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Kubernetes cluster.
 
-For EKS-specific installation guidance, see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
+For installation guidance specific to Amazon Elastic Kubernetes Service (EKS), see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
 
 ## GCP
 
@@ -24,7 +29,7 @@ Follow the tutorial here:
 
 - [Install Coder on GCP Compute Engine](./compute-engine.md)
 
-Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing GKE cluster.
+Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Google Kubernetes Engine (GKE) cluster.
 
 ## Azure
 
@@ -32,11 +37,11 @@ Use the following guide to run Coder on an Azure VM:
 
 - [Install Coder on an Azure VM](./azure-vm.md)
 
-Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing GKE cluster.
+Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing AKS cluster.
 
 ## Other
 
 Is your cloud missing?
-Check [community](../community.md) install methods or install the [standalone binary](../../cli.md).
+Check [community](../community.md) install methods or install the [standalone binary](https://coder.com/downloads).
 
 </div>

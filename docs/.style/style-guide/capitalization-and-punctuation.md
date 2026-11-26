@@ -1,3 +1,7 @@
+---
+review-personas: [language, structure]
+---
+
 # Capitalization and punctuation
 
 Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, no semicolons in prose, and no em-dashes or en-dashes in prose.
@@ -233,7 +237,8 @@ Code, configuration values, and table cells, where space is limited, keep their 
 > The proxy is in another region; connections through it are slower.
 
 *Adapted from ASD-STE100 Issue 9, rule 8.1.
-Enforced by `Coder.Semicolons` (planned).*
+Enforced by `Coder.Semicolons` (`warning`).
+The rule skips table cells and code, and it skips the pages generated from Go source.*
 
 ## No periods in acronyms
 
@@ -251,7 +256,7 @@ Lowercase Latin abbreviations such as `e.g.` keep their periods (refer to [Latin
 
 > The A.P.I. returns the user's region, such as U.S. or E.U.
 
-*Enforced by `Coder.AcronymPeriods` (planned).*
+*Enforced by `Coder.AcronymPeriods` (`warning`).*
 
 ## Exclamation points rare in prose
 

@@ -3,7 +3,6 @@ package coderd
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -102,12 +101,7 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	// The same limit applies as for the deployment and user prompts.
-	if len(instructions) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(instructions)),
-		})
+	if api.writePromptTooLongError(ctx, rw, instructions, "Instructions exceed maximum length.") {
 		return
 	}
 

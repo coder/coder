@@ -5,10 +5,11 @@ import type {
 	CompactionTriggerLoadError,
 	OrganizationCompactionTrigger,
 } from "../../utils/compactionTriggers";
+import type { ProviderInfo } from "../../utils/modelOptions";
 
 export type AgentSettingsCompactionPageViewProps = {
 	models: readonly TypesGen.ChatModel[];
-	providerTypeByID: ReadonlyMap<string, string>;
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	organizations: readonly TypesGen.Organization[];
 	compactionTriggersByOrganizationID: ReadonlyMap<
 		string,
@@ -31,7 +32,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 	AgentSettingsCompactionPageViewProps
 > = ({
 	models,
-	providerTypeByID,
+	providerInfoByID,
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
@@ -51,7 +52,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 			/>
 			<UserCompactionThresholdSettings
 				models={models}
-				providerTypeByID={providerTypeByID}
+				providerInfoByID={providerInfoByID}
 				organizations={organizations}
 				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 				modelsError={modelsError}

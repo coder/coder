@@ -6,16 +6,37 @@ All Coder features are supported in air-gapped / behind firewalls / disconnected
 This is a general comparison.
 Keep reading for a full tutorial running Coder air-gapped with Kubernetes or Docker.
 
-| Component          | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                                                    |
-|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../../provisioner/terraform/install.go#L27-L28)                                                                                                                                                                        |
-| Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                                                |
-| STUN               | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../../reference/cli/server/index.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../../reference/cli/server/index.md#--derp-server-stun-addresses) |
-| DERP               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../../admin/networking/index.md#relayed-connections).                                                                                                                          | By default, Coder's built-in DERP relay can be used, or [custom relays](../../admin/networking/index.md#custom-relays).                                                                                                                                                                                                   |
-| PostgreSQL         | If no [PostgreSQL connection URL](../../reference/cli/server/index.md#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                   | An external database is required, you must specify a [PostgreSQL connection URL](../../reference/cli/server/index.md#--postgres-url)                                                                                                                                                                                      |
-| Telemetry          | Telemetry is on by default, and [can be disabled](../../reference/cli/server/index.md#--telemetry)                                                                                                                                                                 | Telemetry [can be disabled](../../reference/cli/server/index.md#--telemetry)                                                                                                                                                                                                                                              |
-| Update check       | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../../reference/cli/server/index.md#--update-check)                                                                                                                                                                                                                                       |
-| License validation | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](./licensing.md#offline-license-validation)                                                                                                                                                                                                                            |
+| Component                                                          | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Terraform binary                                                   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../../provisioner/terraform/install.go#L27-L28)                                                                                                                                                                                                                                                                                                                                                      |
+| Terraform registry                                                 | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                                                                                                                                                                                                                              |
+| Session Traversal Utilities for Network Address Translation (STUN) | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../../reference/cli/server/index.md#--derp-server-stun-addresses), and users can still connect via [relayed connections](../../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom Designated Encrypted Relay for Packets (DERP) server](../../reference/cli/server/index.md#--derp-server-stun-addresses). To keep direct connections without public STUN servers, [self-host a STUN server](../../admin/networking/self-hosted-stun.md). |
+| DERP                                                               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../../admin/networking/index.md#relayed-connections).                                                                                                                          | By default, Coder's built-in DERP relay can be used, or [custom relays](../../admin/networking/index.md#custom-relays).                                                                                                                                                                                                                                                                                                                                                                                 |
+| PostgreSQL                                                         | If no [PostgreSQL connection URL](../../reference/cli/server/index.md#--postgres-url) is specified, Coder downloads PostgreSQL from [repo.maven.apache.org](https://repo.maven.apache.org/maven2) the first time it starts                                         | An external database is required, so you must specify a [PostgreSQL connection URL](../../reference/cli/server/index.md#--postgres-url)                                                                                                                                                                                                                                                                                                                                                                 |
+| Telemetry                                                          | Telemetry is on by default, and [can be disabled](../../reference/cli/server/index.md#--telemetry)                                                                                                                                                                 | Telemetry [can be disabled](../../reference/cli/server/index.md#--telemetry)                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Update check                                                       | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../../reference/cli/server/index.md#--update-check)                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| License validation                                                 | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](./licensing.md#offline-license-validation)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Trial license                                                      | Starting a trial when you create the first user requests a license from `v2-licensor.coder.com`                                                                                                                                                                    | Do not start a trial. Add a license key that you get from Coder instead, which [validates offline](./licensing.md#offline-license-validation)                                                                                                                                                                                                                                                                                                                                                           |
+| Access URL tunnel                                                  | If no [access URL](../../reference/cli/server/index.md#--access-url) is set, Coder creates a public `*.try.coder.app` URL through a tunnel server that Coder hosts                                                                                                 | Set an [access URL](../../admin/setup/index.md#access-url) that users and workspaces can reach on your network                                                                                                                                                                                                                                                                                                                                                                                          |
+| GitHub sign-in and external auth                                   | A new deployment that has no GitHub providers configured adds a GitHub sign-in provider and a GitHub external auth provider that Coder manages, and both connect to `github.com`                                                                                   | Turn off the [default sign-in provider](../../reference/cli/server/index.md#--oauth2-github-default-provider-enable) and the [default external auth provider](../../reference/cli/server/index.md#--external-auth-github-default-provider-enable), or configure providers on your network                                                                                                                                                                                                               |
+| Template builder                                                   | The template builder resolves module sources from `registry.coder.com`                                                                                                                                                                                             | Turn off the builder or point it to a mirror. Refer to [Template builder](#template-builder)                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+## What templates and workspaces download
+
+Coder can start without internet access and still fail when you create your first template or build your first workspace, because templates download providers, modules, images, and tools.
+The starter templates ship inside the `coder` binary, but creating a template from one still runs `terraform init`, which downloads the template's providers and modules.
+
+The table covers the Docker and Kubernetes starter templates.
+Check your own templates for the same kinds of downloads.
+
+| Download                                                                                                                            | When it happens                                                       | What fails without it                                                                                                                                                                                  | Offline replacement                                                                                                                                                                                                                                           |
+|-------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Terraform providers: `coder/coder`, `kreuzwerker/docker` or `hashicorp/kubernetes`, and `hashicorp/http` for the `jetbrains` module | When you create or push the template                                  | The push fails at `terraform init`                                                                                                                                                                     | Add the providers to a filesystem or network mirror. Refer to [Air-gapped container images](#air-gapped-container-images)                                                                                                                                     |
+| Coder Registry modules from `registry.coder.com`, such as `code-server` and `jetbrains` in the Docker starter template              | When you create or push the template                                  | The push fails when Terraform resolves the module source                                                                                                                                               | Mirror the registry or vendor the modules. Refer to [Coder Modules](#coder-modules)                                                                                                                                                                           |
+| JetBrains IDE versions, from `data.services.jetbrains.com`                                                                          | When a workspace build includes JetBrains IDEs that the user selected | The workspace build fails                                                                                                                                                                              | Set `ide_config` in the `jetbrains` module to the IDE build numbers you want, which skips the lookup                                                                                                                                                          |
+| The workspace image, `codercom/example-base:ubuntu`                                                                                 | When a workspace starts                                               | The workspace doesn't start unless the image is already on the host or node. The Kubernetes starter template sets `image_pull_policy = "Always"`, so its pods pull the image even when the node has it | Push the image to a registry on your network and change `image` in the template. If you load images onto nodes instead, set `image_pull_policy` to `IfNotPresent`                                                                                             |
+| code-server, from `code-server.dev` and GitHub                                                                                      | When a workspace starts                                               | The code-server app doesn't start                                                                                                                                                                      | Install code-server in the workspace image. In the Kubernetes starter template, replace the `curl` command in `startup_script`. For the `code-server` module, set `offline = true`, and set `install_prefix` to the directory that contains `bin/code-server` |
+| code-server extensions, from `open-vsx.org`                                                                                         | When a workspace starts, if the template lists extensions             | The extensions aren't installed                                                                                                                                                                        | Install the extensions in the workspace image. The `code-server` module doesn't install extensions in offline mode                                                                                                                                            |
 
 ## Air-gapped container images
 
@@ -50,7 +71,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See ../../provisioner/terraform/install.go#L27-L28
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.16.6
+ARG TERRAFORM_VERSION=1.17.2
 RUN apk update && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -68,12 +89,12 @@ ENV PATH=/opt/terraform:${PATH}
 #  https://developer.hashicorp.com/terraform/cli/config/config-file#filesystem_mirror
 #  Be sure to add all the providers you use in your templates to /opt/terraform/plugins
 
-RUN mkdir -p /home/coder/.terraform.d/plugins/registry.terraform.io
+RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
 ADD filesystem-mirror-example.tfrc /home/coder/.terraformrc
 
 # Optionally, we can "seed" the filesystem mirror with common providers.
 # Comment out lines 40-49 if you plan on only using a volume or network mirror:
-WORKDIR /home/coder/.terraform.d/plugins/registry.terraform.io
+WORKDIR /opt/terraform/plugins/registry.terraform.io
 ARG CODER_PROVIDER_VERSION=2.2.0
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
@@ -109,12 +130,13 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the provider version matches any templates or [example templates](../../../examples/templates) you intend to use.
+> After you change the bundled provider versions, push new versions of your templates and update workspaces to them.
 
 ```tf
 # filesystem-mirror-example.tfrc
 provider_installation {
   filesystem_mirror {
-    path = "/home/coder/.terraform.d/plugins"
+    path = "/opt/terraform/plugins"
   }
 }
 ```
@@ -155,11 +177,11 @@ services:
     volumes:
       - ./plugins:/opt/terraform/plugins
     # ...
-  environment:
-    CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
-    CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
-    CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
-    CODER_UPDATE_CHECK: "false" # Disable automatic update checks
+    environment:
+      CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
+      CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
+      CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
+      CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:17
     # ...
@@ -170,7 +192,7 @@ This can be uploaded into the `plugins` directory on your offline server.
 
 ### Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest).
+We publish the Helm chart for download on the [Coder downloads page](https://coder.com/downloads) and on [GitHub Releases](https://github.com/coder/coder/releases/latest).
 Follow our [Kubernetes](../server/kubernetes/index.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
@@ -198,6 +220,8 @@ coder:
 # ...
 ```
 
+For a tutorial that stages every artifact and installs Coder on a single-node K3s cluster, refer to [Install Coder on K3s in an air-gapped environment](../server/kubernetes/k3s-air-gapped.md).
+
 </div>
 
 ## Air-gapped docs
@@ -212,6 +236,7 @@ The docs are exported as static files that you can host on any web server, as de
 3. Extract the file and move its contents to your server folder.
 4. If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
 5. Set the [CODER_DOCS_URL](../../reference/cli/server/index.md#--docs-url) environment variable to use the URL of your hosted docs.
+
    This way, the Coder UI will reference the documentation from your specified URL.
 
 With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.
@@ -247,21 +272,30 @@ For a complete walkthrough of setting up the mirror, see [Mirror the Coder Regis
 To use Coder modules in offline installations, you can either:
 
 - [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror.md) (recommended)
-- [Manually publish modules to Artifactory or use a private git repository](../../admin/templates/extending-templates/modules.md#offline-installations)
+- [Manually publish modules to Artifactory or use a private git repository](../../templates/extending-templates/modules.md#offline-installations)
 
 ## Firewall exceptions
 
-In restricted internet networks, Coder may require connection to internet.
-Ensure that the following web addresses are accessible from the machine where Coder is installed.
+In a network that blocks most internet traffic, you can allow the addresses that templates and workspaces use instead of replacing each download.
+For the control plane's own connections, such as telemetry, the update check, and the access URL tunnel, use the settings in the table at the start of this page.
 
-- code-server.dev (install via AUR)
-- open-vsx.org (optional if someone would use code-server)
-- registry.terraform.io (to create and push template)
-- v2-licensor.coder.com (developing Coder in Coder)
+Allow these addresses from the control plane and any external provisioners:
+
+- `registry.terraform.io`, and the hosts it sends provider downloads to, such as `releases.hashicorp.com` and `github.com`, to create and push templates.
+- `registry.coder.com`, for modules and the template builder.
+- `data.services.jetbrains.com`, when a workspace build looks up JetBrains IDE versions.
+- `v2-licensor.coder.com`, only to start a trial when you create the first user.
+
+Allow these addresses from workspaces:
+
+- `code-server.dev` and `github.com`, to install code-server when a workspace starts.
+- `open-vsx.org`, to install code-server extensions.
+
+The hosts or nodes that run workspaces also need access to the registry that hosts your workspace images, such as Docker Hub.
 
 ## JetBrains IDEs
 
-Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../admin/templates/extending-templates/jetbrains-airgapped.md)
+Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../templates/extending-templates/jetbrains-airgapped.md)
 
 ## Microsoft VS Code Remote - SSH
 
@@ -273,5 +307,5 @@ Installation of the [Visual Studio Code Remote - SSH extension](https://code.vis
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

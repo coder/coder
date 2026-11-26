@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -40,6 +41,24 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 	default_org_member_roles: ["organization-workspace-access"],
 };
+
+export const MockAIBridgeSessionOrganization: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+		sources: ["workspace"],
+	};
+
+export const MockAIBridgeSessionOrganization2: TypesGen.AIBridgeSessionOrganization =
+	{
+		id: MockOrganization2.id,
+		name: MockOrganization2.name,
+		display_name: MockOrganization2.display_name,
+		icon: MockOrganization2.icon,
+		sources: ["effective_group"],
+	};
 
 export const MockOrganization3: TypesGen.Organization = {
 	id: "my-organization-3-id",
@@ -202,8 +221,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +253,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -554,6 +572,9 @@ export const MockChatProject: TypesGen.ChatProject = {
 	name: "Launch",
 	description: "Chats for the launch work.",
 	icon: "",
+	limit_templates: false,
+	templates: [],
+	hidden_template_count: 0,
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
 	permissions: { update: true, delete: true, share: true },
@@ -596,6 +617,29 @@ export const MockUserMember: TypesGen.User = {
 	name: "Mock User The Second",
 };
 
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserLongName: TypesGen.WorkspaceUser = {
+	...MockWorkspaceUser,
+	id: "long-name-workspace-user",
+	username: "a-long-username-for-narrow-views",
+	name: "A Member With An Unusually Long Display Name",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
+};
+
 export const SuspendedMockUser: TypesGen.User = {
 	id: "suspended-mock-user",
 	username: "SuspendedMockUser",
@@ -618,6 +662,7 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_light: "light",
 	theme_dark: "dark",
 	terminal_font: "",
+	terminal_font_size: 0,
 };
 
 export const MockUserSecrets: TypesGen.UserSecret[] = [
@@ -1025,6 +1070,7 @@ export const MockTemplate: TypesGen.Template = {
 	disable_module_cache: false,
 	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
+	browser_only: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1899,13 +1945,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-outdated-workspace-require-active-version",
+	outdated: true,
+	template_require_active_version: true,
+};
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
 	{
@@ -2791,6 +2836,28 @@ export const mockApiError = ({
 	},
 });
 
+/**
+ * Builds a real `AxiosError` with an API error body, for code that needs the
+ * HTTP status or an `Error` instance.
+ */
+export const mockAxiosError = ({
+	status,
+	...input
+}: MockAPIInput & { status: number }): AxiosError => {
+	const data = mockApiError(input).response.data;
+	return new AxiosError(data.message, undefined, undefined, null, {
+		status,
+		statusText: "",
+		data,
+		headers: {},
+		config: { headers: new AxiosHeaders() },
+	});
+};
+
+/** Like `mockApiError`, but an `Error`, as `useQuery` returns. */
+export const mockApiQueryError = (input: MockAPIInput = {}): Error =>
+	Object.assign(new Error(input.message), mockApiError(input));
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",
@@ -2914,6 +2981,14 @@ export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 		},
+	}),
+};
+
+export const MockEntitlementsWithAIBridge: TypesGen.Entitlements = {
+	...MockEntitlements,
+	has_license: true,
+	features: withDefaultFeatures({
+		aibridge: { enabled: true, entitlement: "entitled" },
 	}),
 };
 
@@ -3192,7 +3267,7 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
-export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockConnectedSSHConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3214,10 +3289,11 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: undefined,
 		disconnect_time: undefined,
 		exit_code: undefined,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
-export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockDisconnectedSSHConnectionLog = {
 	id: "893e75e0-1518-4ac8-9629-35923a39533a",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3239,8 +3315,9 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: "server shut down",
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
@@ -3415,6 +3492,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
@@ -4159,7 +4242,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4200,7 +4283,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4214,16 +4297,16 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 						],
 						client_errs: [
 							["recv derp message: derphttp.Client closed"],
 							[
-								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.dev.coder.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
+								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.coder.example.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
@@ -4259,7 +4342,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4300,7 +4383,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4314,10 +4397,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4349,7 +4432,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4390,7 +4473,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4404,10 +4487,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4439,7 +4522,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4480,7 +4563,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4494,10 +4577,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4558,7 +4641,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		severity: "ok",
 		warnings: [],
 		dismissed: false,
-		access_url: "https://dev.coder.com",
+		access_url: "https://coder.example.com",
 		reachable: true,
 		status_code: 200,
 		healthz_response: "OK",
@@ -4601,8 +4684,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Council Bluffs, Iowa",
 					icon_url: "/emojis/1f3e1.png",
 					healthy: true,
-					path_app_url: "https://dev.coder.com",
-					wildcard_hostname: "*--apps.dev.coder.com",
+					path_app_url: "https://coder.example.com",
+					wildcard_hostname: "*--apps.coder.example.com",
 					derp_enabled: false,
 					derp_only: false,
 					status: {
@@ -4624,8 +4707,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Sydney GCP",
 					icon_url: "/emojis/1f1e6-1f1fa.png",
 					healthy: true,
-					path_app_url: "https://sydney.dev.coder.com",
-					wildcard_hostname: "*--apps.sydney.dev.coder.com",
+					path_app_url: "https://sydney.coder.example.com",
+					wildcard_hostname: "*--apps.sydney.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4647,8 +4730,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Europe GCP (Frankfurt)",
 					icon_url: "/emojis/1f1e9-1f1ea.png",
 					healthy: true,
-					path_app_url: "https://europe.dev.coder.com",
-					wildcard_hostname: "*--apps.europe.dev.coder.com",
+					path_app_url: "https://europe.coder.example.com",
+					wildcard_hostname: "*--apps.europe.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4670,8 +4753,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Brazil GCP (Sao Paulo)",
 					icon_url: "/emojis/1f1e7-1f1f7.png",
 					healthy: true,
-					path_app_url: "https://brazil.dev.coder.com",
-					wildcard_hostname: "*--apps.brazil.dev.coder.com",
+					path_app_url: "https://brazil.coder.example.com",
+					wildcard_hostname: "*--apps.brazil.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4806,6 +4889,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "ok",
@@ -5029,6 +5118,12 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "error",
@@ -5371,7 +5466,7 @@ export const MockNotification: TypesGen.InboxNotification = {
 	actions: [
 		{
 			label: "View template",
-			url: "https://dev.coder.com/templates/coder/coder",
+			url: "https://coder.example.com/templates/coder/coder",
 		},
 	],
 	user_id: MockUserOwner.id,
@@ -5537,6 +5632,7 @@ export const MockSession: TypesGen.AIBridgeSession = {
 			"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
 	},
 	providers: ["anthropic", "openai"],
+	organizations: [],
 	models: ["claude-opus-4-6", "gpt-5.4"],
 	client: "Xum",
 	metadata: {
@@ -5575,6 +5671,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 15_325,
+		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5592,6 +5697,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
@@ -5779,19 +5886,44 @@ export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	name: "Test User",
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	cost_micros: 2_500_000,
-	unpriced_usage_count: 0,
-	providers: ["anthropic", "openai"],
-	clients: ["Claude Code", "Cursor"],
-	models: ["claude-opus-4-6", "gpt-5.4"],
+	provider_spend: [
+		{
+			name: "anthropic",
+			display_name: "Anthropic",
+			icon: "",
+			type: "anthropic",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{
+			name: "openai",
+			display_name: "OpenAI",
+			icon: "",
+			type: "openai",
+			cost_micros: 1_000_000,
+			has_unpriced_usage: false,
+		},
+	],
+	model_spend: [
+		{
+			name: "claude-opus-4-6",
+			cost_micros: 1_500_000,
+			has_unpriced_usage: false,
+		},
+		{ name: "gpt-5.4", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
+	client_spend: [
+		{ name: "Claude Code", cost_micros: 1_500_000, has_unpriced_usage: false },
+		{ name: "Cursor", cost_micros: 1_000_000, has_unpriced_usage: false },
+	],
 };
 
 export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 	{
 		period_start: "2026-02-10T00:00:00Z",
 		period_end: "2026-03-12T00:00:00Z",
-		retention_start: "2026-01-11T15:30:00Z",
 		count: 2,
-		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		totals: { cost_micros: 3_500_000, has_unpriced_usage: false },
 		users: [
 			MockOrganizationAISpendUser,
 			{
@@ -5801,11 +5933,225 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 				name: "Alice Liddell",
 				avatar_url: "",
 				cost_micros: 1_000_000,
-				providers: ["anthropic"],
-				clients: ["Unknown"],
-				models: ["claude-opus-4-6"],
+				provider_spend: [
+					{
+						name: "anthropic",
+						display_name: "Anthropic",
+						icon: "",
+						type: "anthropic",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				model_spend: [
+					{
+						name: "claude-opus-4-6",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
+				client_spend: [
+					{
+						name: "Unknown",
+						cost_micros: 1_000_000,
+						has_unpriced_usage: false,
+					},
+				],
 			},
 		],
+	};
+
+const MockOrganizationAISpendOverviewUser: TypesGen.OrganizationAISpendOverviewUser =
+	{
+		user_id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: "Test User",
+		avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+		spend_micros: 2_500_000,
+		groups: [
+			{
+				group_id: MockGroup.id,
+				group_name: MockGroup.name,
+				group_display_name: MockGroup.display_name,
+				spend_micros: 2_500_000,
+			},
+		],
+	};
+
+export const MockOrganizationAISpendOverview: TypesGen.OrganizationAISpendOverview =
+	{
+		period_start: "2026-03-06T00:00:00Z",
+		period_end: "2026-03-13T00:00:00Z",
+		count: 2,
+		totals: { spend_micros: 3_500_000, median_spend_micros: 1_750_000 },
+		intervals: [
+			{
+				start_time: "2026-03-06T00:00:00Z",
+				end_time: "2026-03-07T00:00:00Z",
+				spend_micros: 400_000,
+			},
+			{
+				start_time: "2026-03-07T00:00:00Z",
+				end_time: "2026-03-08T00:00:00Z",
+				spend_micros: 0,
+			},
+			{
+				start_time: "2026-03-08T00:00:00Z",
+				end_time: "2026-03-09T00:00:00Z",
+				spend_micros: 650_000,
+			},
+			{
+				start_time: "2026-03-09T00:00:00Z",
+				end_time: "2026-03-10T00:00:00Z",
+				spend_micros: 900_000,
+			},
+			{
+				start_time: "2026-03-10T00:00:00Z",
+				end_time: "2026-03-11T00:00:00Z",
+				spend_micros: 300_000,
+			},
+			{
+				start_time: "2026-03-11T00:00:00Z",
+				end_time: "2026-03-12T00:00:00Z",
+				spend_micros: 1_000_000,
+			},
+			{
+				start_time: "2026-03-12T00:00:00Z",
+				end_time: "2026-03-13T00:00:00Z",
+				spend_micros: 250_000,
+			},
+		],
+		users: [
+			MockOrganizationAISpendOverviewUser,
+			{
+				...MockOrganizationAISpendOverviewUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				spend_micros: 1_000_000,
+				groups: [],
+			},
+		],
+	};
+
+export const MockUnpricedAIModel: TypesGen.UnpricedAIModel = {
+	provider_name: MockAIProviderAnthropic.name,
+	provider_display_name: MockAIProviderAnthropic.display_name,
+	provider_icon: MockAIProviderAnthropic.icon,
+	provider_type: MockAIProviderAnthropic.type,
+	model: "claude-opus-4-8",
+	token_count: 1_200_000,
+};
+
+export const MockUnpricedAIModels: TypesGen.UnpricedAIModels = {
+	period_start: "2026-03-06T00:00:00Z",
+	period_end: "2026-03-13T00:00:00Z",
+	count: 2,
+	models: [
+		MockUnpricedAIModel,
+		{
+			provider_name: MockAIProviderOpenAI.name,
+			provider_display_name: MockAIProviderOpenAI.display_name,
+			provider_icon: MockAIProviderOpenAI.icon,
+			provider_type: MockAIProviderOpenAI.type,
+			model: "gpt-4-turbo",
+			token_count: 300_000,
+		},
+	],
+};
+
+const toMinimalOrganization = (
+	org: TypesGen.Organization,
+): TypesGen.MinimalOrganization => ({
+	id: org.id,
+	name: org.name,
+	display_name: org.display_name,
+	icon: org.icon,
+});
+
+/** A user's spend in MockOrganization, below the warning threshold. */
+export const MockUserOrganizationAISpend: TypesGen.UserOrganizationAISpend = {
+	organization: toMinimalOrganization(MockOrganization),
+	effective_group_id: "grp-789",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 819_000_000,
+};
+
+const mockUserOrganization2AISpend: TypesGen.UserOrganizationAISpend = {
+	organization: toMinimalOrganization(MockOrganization2),
+	effective_group_id: "grp-790",
+	effective_budget: {
+		spend_limit_micros: 1_200_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 1_250_000_000,
+};
+
+const mockUserOrganization3AISpend: TypesGen.UserOrganizationAISpend = {
+	organization: { ...toMinimalOrganization(MockOrganization3), icon: "" },
+	effective_group_id: "grp-791",
+	effective_budget: {
+		spend_limit_micros: 500_000_000,
+		limit_source: "group",
+	},
+	current_spend_micros: 450_000_000,
+};
+
+/** A single-organization user whose spend is below the warning threshold. */
+export const MockUserAISpendStatus: TypesGen.UserAISpendStatus = {
+	user_id: MockUserOwner.id,
+	effective_group_id: MockUserOrganizationAISpend.effective_group_id,
+	effective_budget: MockUserOrganizationAISpend.effective_budget,
+	current_spend_micros: MockUserOrganizationAISpend.current_spend_micros,
+	period_start: "2026-06-01T00:00:00Z",
+	period_end: "2026-07-01T00:00:00Z",
+};
+
+/** The per-organization spend of the single-organization user above. */
+export const MockUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		period_start: MockUserAISpendStatus.period_start,
+		period_end: MockUserAISpendStatus.period_end,
+		organization_id: MockOrganization.id,
+		organizations: [MockUserOrganizationAISpend],
+	};
+
+/**
+ * A user in three organizations: normal spend in the first, which the
+ * site-wide effective group resolves to, exceeded in the second and warning
+ * in the third. Pairs with MockUserAISpendStatus.
+ */
+export const MockMultiOrgUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		...MockUserOrganizationsAISpendStatus,
+		organizations: [
+			MockUserOrganizationAISpend,
+			mockUserOrganization2AISpend,
+			mockUserOrganization3AISpend,
+		],
+	};
+
+/**
+ * The site-wide spend of the same user when their effective group resolves
+ * to the second organization, where spend exceeds the budget.
+ */
+export const MockMultiOrgExceededUserAISpendStatus: TypesGen.UserAISpendStatus =
+	{
+		...MockUserAISpendStatus,
+		effective_group_id: mockUserOrganization2AISpend.effective_group_id,
+		effective_budget: mockUserOrganization2AISpend.effective_budget,
+		current_spend_micros: mockUserOrganization2AISpend.current_spend_micros,
+	};
+
+/** The per-organization spend matching MockMultiOrgExceededUserAISpendStatus. */
+export const MockMultiOrgExceededUserOrganizationsAISpendStatus: TypesGen.UserOrganizationsAISpendStatus =
+	{
+		...MockMultiOrgUserOrganizationsAISpendStatus,
+		organization_id: MockOrganization2.id,
 	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
