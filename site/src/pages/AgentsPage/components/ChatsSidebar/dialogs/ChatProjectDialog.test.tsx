@@ -1,25 +1,37 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import type { Template } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockTemplate,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
 // The icon field renders external images, which read the active theme, and
 // the organization picker shows tooltips, which need the app's provider.
-const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
-	<ThemeOverride theme={themes[DEFAULT_THEME]}>
-		<TooltipProvider>{children}</TooltipProvider>
-	</ThemeOverride>
-);
+const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
+	const [queryClient] = useState(createTestQueryClient);
+	return (
+		<QueryClientProvider client={queryClient}>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider>{children}</TooltipProvider>
+			</ThemeOverride>
+		</QueryClientProvider>
+	);
+};
 
 type DialogProps = React.ComponentProps<typeof ChatProjectDialog>;
 
@@ -131,6 +143,8 @@ describe("ChatProjectDialog", () => {
 			description: "Project description",
 			icon: "/emojis/1f4c1.png",
 			organizationId: MockOrganization2.id,
+			limit_templates: false,
+			template_ids: [],
 		};
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(values));
 
@@ -212,6 +226,8 @@ describe("ChatProjectDialog", () => {
 				description: "",
 				icon: "",
 				organizationId: MockOrganization2.id,
+				limit_templates: false,
+				template_ids: [],
 			}),
 		);
 	});
@@ -248,6 +264,8 @@ describe("ChatProjectDialog", () => {
 				description: "",
 				icon: "",
 				organizationId: MockDefaultOrganization.id,
+				limit_templates: false,
+				template_ids: [],
 			}),
 		);
 	});
@@ -283,6 +301,8 @@ describe("ChatProjectDialog", () => {
 			description: "Notes",
 			icon: "",
 			organizationId: MockDefaultOrganization.id,
+			limit_templates: false,
+			template_ids: [],
 		});
 	});
 
@@ -468,6 +488,82 @@ describe("ChatProjectDialog", () => {
 			name: MockChatProject.name,
 			description: `${MockChatProject.description}!`,
 			icon: MockChatProject.icon,
+		});
+	});
+});
+
+const mockFirstTemplate: Template = {
+	...MockTemplate,
+	id: "template-1",
+	name: "docker",
+	display_name: "Docker",
+};
+const mockSecondTemplate: Template = {
+	...MockTemplate,
+	id: "template-2",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+};
+describe("ChatProjectDialog templates", () => {
+	const useTemplateHandlers = () => {
+		server.use(
+			http.get("/api/v2/templates", () =>
+				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
+			),
+		);
+	};
+
+	const startCreate = async (user: ReturnType<typeof userEvent.setup>) => {
+		await user.type(
+			screen.getByRole("textbox", { name: /project name/i }),
+			"New",
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+	};
+
+	it("creates a project limited to every eligible template", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockDefaultOrganization.id,
+					limit_templates: true,
+					template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+				}),
+			);
+		});
+	});
+
+	it("starts with no templates when the organization changes", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
+		await user.click(screen.getByRole("combobox", { name: /^Organization/ }));
+		await user.click(
+			screen.getByRole("option", {
+				name: new RegExp(MockOrganization2.display_name),
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+					template_ids: [],
+				}),
+			);
 		});
 	});
 });
