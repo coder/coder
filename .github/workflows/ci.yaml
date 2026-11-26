@@ -135,9 +135,12 @@ jobs:
               - "**/*_darwin*.go"
               - "**/*_unix*.go"
               - "**/*_other*.go"
+              - "**/*_unsupported*.go"
+              - "**/*_stub*.go"
               - "pty/**"
               - ".github/workflows/ci.yaml"
               - ".github/actions/test-go-pg/**"
+              - ".github/actions/setup-gnu-tools/**"
             site:
               - "site/**"
             k8s:
