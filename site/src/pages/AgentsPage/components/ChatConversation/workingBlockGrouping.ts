@@ -549,7 +549,8 @@ const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
 
 /**
  * A provider-executed call that renders no row, so only its result shows
- * that the step ran. Web searches render rows and count as tools.
+ * that it ran: an interrupt can leave the call unanswered, and the next step
+ * issues it again. Web searches render rows as tools.
  */
 const isHiddenProviderResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && isHiddenProviderExecutedPart(part);
@@ -806,9 +807,9 @@ export const groupWorkingBlocks = (
 				: (partIndex) =>
 						getDraftAtBlock(rowIndex, entry.parsed.partBlockIndices[partIndex]);
 		} else {
-			// A hidden entry, like a tool result, counts toward the block open
-			// after the previous row. A hidden provider call counts toward the
-			// block the next row starts or continues, when there is one.
+			// A hidden entry, like a tool result, joins the block open after the
+			// previous row. A hidden provider call joins the block the next row
+			// starts or continues, when there is one.
 			let draft =
 				previousRowIndex === undefined
 					? undefined

@@ -534,7 +534,7 @@ describe("groupWorkingBlocks", () => {
 		},
 	);
 
-	it("counts a hidden call that rendered no row before the block's first step", () => {
+	it("folds a hidden call that rendered no row into the block the next row starts", () => {
 		const prompt = user("Go");
 		// The answer's own call stays out of the block that follows it.
 		const answer = message("assistant", [
