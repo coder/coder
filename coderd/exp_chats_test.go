@@ -8487,7 +8487,7 @@ func TestSendMessageQueuesReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
 
