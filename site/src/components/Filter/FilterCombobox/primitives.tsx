@@ -1,4 +1,4 @@
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
@@ -74,6 +74,11 @@ type FilterComboboxRootProps = {
 	 * or `highlightRef`.
 	 */
 	autoHighlight?: boolean;
+	/**
+	 * A row cmdk never highlights on its own, even while `autoHighlight` is
+	 * on. Only the navigation keys, the pointer, or `highlightRef` do.
+	 */
+	navigationOnlyValue?: string;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
 	onRemoveValue?: (value: string) => void;
@@ -86,9 +91,10 @@ type FilterComboboxRootProps = {
 	highlightRef?: React.Ref<FilterComboboxHighlight>;
 	/**
 	 * Called when cmdk moves the highlight, with the new value and the one it
-	 * replaced ("" when none). While `autoHighlight` is off, a row cmdk
-	 * highlights on its own is cleared at once, and this is called with "" as
-	 * the new value. Not called for `highlightRef.set`.
+	 * replaced ("" when none). While `autoHighlight` is off, or for a
+	 * `navigationOnlyValue` row, a row cmdk highlights on its own is cleared
+	 * at once, and this is called with "" as the new value. Not called for
+	 * `highlightRef.set`.
 	 */
 	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
@@ -111,6 +117,7 @@ type FilterComboboxRootProps = {
 export function FilterComboboxRoot({
 	open = false,
 	autoHighlight = true,
+	navigationOnlyValue,
 	onDismiss,
 	onRemoveValue,
 	inputValue = "",
@@ -186,7 +193,10 @@ export function FilterComboboxRoot({
 						const navigating = userNavigatingRef.current;
 						userNavigatingRef.current = false;
 						const previous = highlightedValueRef.current;
-						if (!autoHighlight && !navigating) {
+						if (
+							!navigating &&
+							(!autoHighlight || value === navigationOnlyValue)
+						) {
 							// cmdk has already stored the row it picked and only re-reads
 							// a controlled value when it changes. It trims the value, so
 							// switching between "" and " " resets it to nothing.
@@ -337,10 +347,10 @@ type FilterComboboxItemProps = React.ComponentProps<
 >;
 
 /**
- * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
- * click and on Enter for the highlighted row. `aria-selected` reports whether
- * the row's value is applied, since `aria-activedescendant` already conveys
- * the highlight.
+ * A dropdown row. cmdk calls `onSelect` on click and on Enter for the
+ * highlighted row. `aria-selected` reports whether the row's value is applied,
+ * since `aria-activedescendant` already conveys the highlight. A row that
+ * toggles a setting marks its state with `aria-checked` instead.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
@@ -533,6 +543,7 @@ export const FilterComboboxChipsInput: React.FC<
 	return (
 		<CommandPrimitive.Input
 			{...passwordManagerIgnoreProps}
+			asChild
 			ref={ref}
 			data-slot="combobox-chip-input"
 			value={inputValue}
@@ -548,6 +559,35 @@ export const FilterComboboxChipsInput: React.FC<
 				className,
 			)}
 			{...props}
+		>
+			<ChipsInputElement />
+		</CommandPrimitive.Input>
+	);
+};
+
+type ChipsInputElementProps = React.ComponentProps<"input">;
+
+/**
+ * Renders cmdk's input from the props `asChild` passes in. cmdk sets its ARIA
+ * props after the caller's, always marking the input expanded and pointing it
+ * at its list and highlighted row, even while neither is mounted.
+ */
+const ChipsInputElement: React.FC<ChipsInputElementProps> = ({
+	"aria-controls": ariaControls,
+	"aria-activedescendant": ariaActiveDescendant,
+	...props
+}) => {
+	// With filtering off, cmdk counts every mounted item, and items mount only
+	// in the open popup's lists.
+	const expanded = useCommandState((state) => state.filtered.count > 0);
+
+	return (
+		<input
+			{...props}
+			role="combobox"
+			aria-expanded={expanded}
+			aria-controls={expanded ? ariaControls : undefined}
+			aria-activedescendant={expanded ? ariaActiveDescendant : undefined}
 		/>
 	);
 };

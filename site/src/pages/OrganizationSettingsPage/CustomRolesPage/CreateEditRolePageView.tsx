@@ -122,7 +122,6 @@ export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 								})}
 								label="Name"
 								required
-								autoFocus
 								disabled={isEditing}
 								onChange={onChangeTrimmed(form)}
 								className="w-full"

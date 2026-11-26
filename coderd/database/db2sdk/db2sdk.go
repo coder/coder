@@ -1702,18 +1702,60 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
-func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) codersdk.OrganizationAISpendUser {
-	return codersdk.OrganizationAISpendUser{
-		UserID:             row.UserID,
-		Username:           row.Username,
-		Name:               row.Name,
-		AvatarURL:          row.AvatarURL,
-		CostMicros:         row.CostMicros,
-		UnpricedUsageCount: row.UnpricedUsageCount,
-		Providers:          row.Providers,
-		Clients:            row.Clients,
-		Models:             row.Models,
+// OrganizationAISpendUsers groups the per-dimension rows of
+// ListOrganizationAISpendUsers into users, keeping the query's order. It
+// returns an error for a dimension it does not know.
+func OrganizationAISpendUsers(rows []database.ListOrganizationAISpendUsersRow) ([]codersdk.OrganizationAISpendUser, error) {
+	users := make([]codersdk.OrganizationAISpendUser, 0)
+	// userIndex maps a user to their position in users.
+	userIndex := make(map[uuid.UUID]int)
+	for _, row := range rows {
+		i, ok := userIndex[row.UserID]
+		if !ok {
+			i = len(users)
+			userIndex[row.UserID] = i
+			users = append(users, codersdk.OrganizationAISpendUser{
+				UserID:        row.UserID,
+				Username:      row.Username,
+				Name:          row.Name,
+				AvatarURL:     row.AvatarURL,
+				CostMicros:    row.CostMicros,
+				ProviderSpend: []codersdk.OrganizationAISpendProvider{},
+				ModelSpend:    []codersdk.OrganizationAISpendModel{},
+				ClientSpend:   []codersdk.OrganizationAISpendClient{},
+			})
+		}
+		switch row.Dimension {
+		case "provider":
+			displayName := row.ProviderDisplayName
+			if displayName == "" {
+				displayName = row.DimensionName
+			}
+			users[i].ProviderSpend = append(users[i].ProviderSpend, codersdk.OrganizationAISpendProvider{
+				Name:             row.DimensionName,
+				DisplayName:      displayName,
+				Icon:             row.ProviderIcon,
+				Type:             codersdk.AIProviderType(row.ProviderType),
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		case "model":
+			users[i].ModelSpend = append(users[i].ModelSpend, codersdk.OrganizationAISpendModel{
+				Name:             row.DimensionName,
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		case "client":
+			users[i].ClientSpend = append(users[i].ClientSpend, codersdk.OrganizationAISpendClient{
+				Name:             row.DimensionName,
+				CostMicros:       row.DimensionCostMicros,
+				HasUnpricedUsage: row.DimensionHasUnpricedUsage,
+			})
+		default:
+			return nil, xerrors.Errorf("unknown AI spend dimension %q", row.Dimension)
+		}
 	}
+	return users, nil
 }
 
 func OrganizationAISpendOverviewUsers(rows []database.ListOrganizationAISpendPerUserRow) []codersdk.OrganizationAISpendOverviewUser {

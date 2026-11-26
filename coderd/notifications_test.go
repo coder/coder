@@ -328,8 +328,6 @@ func TestNotificationTest(t *testing.T) {
 	t.Run("OwnerCanSendTestNotification", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
@@ -340,6 +338,7 @@ func TestNotificationTest(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, ownerClient)
 
 		// When: They attempt to send a test notification.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := ownerClient.PostTestNotification(ctx)
 		require.NoError(t, err)
 
@@ -350,8 +349,6 @@ func TestNotificationTest(t *testing.T) {
 
 	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
@@ -364,6 +361,7 @@ func TestNotificationTest(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
 
 		// When: They attempt to send a test notification.
+		ctx := testutil.Context(t, testutil.WaitShort)
 		err := memberClient.PostTestNotification(ctx)
 
 		// Then: We expect a forbidden error with no notifications sent

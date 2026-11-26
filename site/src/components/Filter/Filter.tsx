@@ -64,7 +64,10 @@ export const useFilter = ({
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-		const noUpdateNeeded = query === serialized;
+		// Pending updates mutate searchParams before the router re-renders.
+		// Comparing with query would drop a revert to the render-time value.
+		const currentQuery = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+		const noUpdateNeeded = currentQuery === serialized;
 		if (noUpdateNeeded) {
 			return;
 		}
@@ -112,10 +115,6 @@ const BaseSkeleton: React.FC<SkeletonProps> = ({
 			{children}
 		</Skeleton>
 	);
-};
-
-export const MenuSkeleton: React.FC = () => {
-	return <BaseSkeleton className="min-w-50 shrink-0" />;
 };
 
 type FilterProps = React.ComponentProps<"div"> & {
@@ -188,14 +187,14 @@ export const Filter: React.FC<FilterProps> = ({
 							learnMoreLink2={learnMoreLink2}
 						/>
 					)}
-					<div className="flex flex-col gap-2 w-full">
+					<div className="flex flex-col w-full">
 						<SearchField
 							ref={textboxInputRef}
 							className="w-full"
 							value={queryCopy}
 							aria-label="Search"
 							aria-invalid={shouldDisplayError}
-							aria-describedby={hasError(error) ? errorId : undefined}
+							aria-describedby={shouldDisplayError ? errorId : undefined}
 							onChange={(query) => {
 								setQueryCopy(query);
 								filter.debounceUpdate(query);
@@ -211,11 +210,18 @@ export const Filter: React.FC<FilterProps> = ({
 							}}
 							placeholder="Search..."
 						/>
-						{hasError(error) && (
-							<span id={errorId} className="text-content-destructive text-sm">
-								{getValidationErrorMessage(error)}
-							</span>
-						)}
+						{/* Always mounted so screen readers announce errors that arrive
+						    after the debounced refetch; empty, it takes no space. */}
+						<span
+							id={errorId}
+							role="status"
+							className={cn(
+								"text-content-destructive text-sm",
+								shouldDisplayError && "mt-2",
+							)}
+						>
+							{shouldDisplayError && getValidationErrorMessage(error)}
+						</span>
 					</div>
 					{options}
 				</>

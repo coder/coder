@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.26.10
+go 1.26.11
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -54,7 +54,7 @@ replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20260313164934-7a658
 // repo as tailscale.com/tempfork/gliderlabs/ssh, however, we can't replace the
 // subpath and it includes changes to golang.org/x/crypto/ssh as well which
 // makes importing it directly a bit messy.
-replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-70855dedb788
+replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20261124114532-467fa35c3f9e
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
@@ -599,7 +599,7 @@ require (
 )
 
 require (
-	github.com/coder/gpgkms v0.2.0 // indirect
+	github.com/coder/gpgkms v0.2.1 // indirect
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
 	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect

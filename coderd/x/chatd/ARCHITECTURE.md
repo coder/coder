@@ -996,7 +996,7 @@ The buffer exposes the following API:
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
 
-Subscribers must accept parts within 10 seconds of them being sent on the channel. If a subscriber does not accept a part within that timeframe, the subscription channel is closed.
+Once an episode is closed, a subscriber that does not accept a part within 10 seconds has its subscription channel closed. While the episode is open there is no limit.
 
 ## Chat runner
 
@@ -1062,7 +1062,7 @@ Live stages wrap a section of code and end when it returns:
 - `stream`: the provider stream, from opening the request to consuming the last part.
 - `time_to_first_token`: nested in `stream`, from opening the request to the first streamed output part, including block start markers such as `text_start`; warnings and finish parts do not close it. The span is emitted for every attempt, but only a window closed by an output part is observed on the histograms. A failed attempt, including one whose first part is an error part, ends the span with the error and records no observation, as does a stream released before any output part arrives. A silence timeout before the first part is recorded as the span's error.
 - `retry_backoff`: the wait before retrying a failed LLM API call.
-- `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error only when the tool fails to execute (a `Run` error or panic), not when it returns an error result to the model. The `advisor` tool's nested model call runs inside its `tool_call` and is not instrumented as `stream` or `time_to_first_token`; the tool call is its only stage.
+- `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error when the tool fails to execute (a `Run` error or panic) or returns an error result to the model. The `advisor` tool's nested model call runs through `GenerateAssistant` with `ModelCallStage` inside its `tool_call`, so it records a `model_call` stage, not `stream` or `time_to_first_token`.
 - `commit`: the `CommitStep` transaction.
 - `compaction`: a compaction pass.
 
@@ -1070,6 +1070,19 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 
 - `acquisition` and `queue_wait`: described above.
 - `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
+
+#### GenAI semantic conventions
+
+Three stages are also GenAI operations, and their spans follow the OpenTelemetry GenAI semantic conventions (semconv v1.41.0, the last core release that ships them) so tracing backends can attribute model usage without custom mapping. `genai.go` in `chatloop` owns the mapping.
+
+- `chat_turn` is named `invoke_agent coder` and carries `gen_ai.operation.name=invoke_agent` and `gen_ai.agent.name=coder`. It starts before the turn resolves a model, so `gen_ai.provider.name` is added through `runnerTurnSpan.SetProvider` as soon as `prepare` resolves the turn model, before later preparation steps that can fail.
+- `stream` is named `chat {model}`, has span kind `CLIENT`, and carries `gen_ai.request.stream=true`. It is started with `StartWithModel`, so the name, `gen_ai.provider.name`, and `gen_ai.request.model` are set at creation, where head samplers see them. Before the stream opens it records the request's output token limit and temperature. After the stream is consumed, it records the response ID, the finish reason the provider reported (omitted when it sent none or an unclassified one, and kept when the loop rejects the response, since the span status and `error.type` describe the failure), and token usage. `gen_ai.usage.input_tokens` adds cache reads and cache writes to fantasy's `InputTokens`, which excludes them, because the conventions count them as input. `gen_ai.provider.name` maps the configured provider type to the conventions' well-known values, reports `aws.bedrock` for an anthropic provider with Bedrock settings, and passes other types through. The cache breakdown is recorded only when nonzero, because the OpenAI-compatible client never reports cache writes. For Anthropic, fantasy reports the first internal iteration's input counts (context occupancy), so responses that ran provider tools undercount billed input; the docs page states this.
+- `tool_call` is named `execute_tool {tool}` and carries the tool name, call ID, and `gen_ai.tool.type`: `function` for built-in tools and `extension` for every other tool. It is started with `StartTool`, so the name and these attributes are set at creation. A tool that returns an error result instead of a `Run` error, as MCP clients do for an unreachable server, ends its span with `error.type=tool_error`; the result text is not recorded.
+- `model_call` covers model calls outside the assistant stream and is also named `chat {model}`. `StageTracer.TraceModelCalls` wraps every model from `resolveModelCall`, innermost, so each non-streaming `Generate` or `GenerateObject` attempt (titles, status labels, chat summaries) records one span, including the usage of an object that fails to parse. It reads the response ID from OpenAI Responses metadata and sets `gen_ai.output.type=json` on `GenerateObject` only for the native OpenAI client, the one client whose default object mode sends a JSON schema rather than forcing a tool call. Compaction records one per summary stream through `GenerateCompactionOptions.Stages`. It has no histogram, so the `stream` histogram still measures assistant streams only. The advisor's `GenerateAssistant` call sets `ModelCallStage`, so it records a `model_call` span under the advisor tool span instead of `stream`.
+
+The span name follows the operation, so every stage span carries a `stage` attribute with its stage name, the same value as the histogram's `stage` label. Read the stage from that attribute, not from the span name. The pre-existing attributes (`chat_id`, `provider`, `model`, `tool_name`, ...) stay on the spans.
+
+`withStageIdentity` also puts a `chatloop.ChatIdentity` on the context, built from the chat row: the chat, owner, organization, workspace, parent chat, and root chat IDs. The three GenAI spans record it as `gen_ai.conversation.id`, `user.id`, and `coder.*` attributes, so each model call can be attributed to a user without joining other data. A turn takes the identity when it opens, so a workspace the turn creates appears on spans from the next turn. A failed stage span also records `error.type`, the classified error kind.
 
 ### Event shape
 
@@ -1693,6 +1706,8 @@ If `worker_id` is null, the relay forwarder stops forwarding messages and, if co
 
 If `worker_id` changes, the relay forwarder connects to the new worker's parts endpoint. If only `history_version` or `generation_attempt` changes while `worker_id` stays the same, the relay forwarder keeps the existing WebSocket connection and sends a control message over that connection to select the new episode. It should not tear down and recreate the connection just because the requested episode changed.
 
+`Sync` configures the relay forwarder after every newer snapshot, usually with the same target. The forwarder sends a selection only on a new connection or when the target changes, because each selection makes the parts endpoint send the episode again from `seq` 1.
+
 The forwarder must only pass parts for the currently requested episode to the stream loop.
 
 ### Parts endpoint
@@ -1722,7 +1737,8 @@ Behavior after receiving an episode-selection message:
 - stream future parts for that episode as they are produced;
 - if the worker has not produced parts for that episode yet, keep the connection open and emit nothing until matching parts become available;
 - missing episode state is not an error;
-- enforce contiguous `seq` delivery for the selected episode.
+- enforce contiguous `seq` delivery for the selected episode;
+- keep reading selection messages while waiting to send parts, and if a newer selection arrives before the endpoint starts serving this one, serve only the newer one.
 
 Only worker changes require a new parts WebSocket connection.
 

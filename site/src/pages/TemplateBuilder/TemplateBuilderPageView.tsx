@@ -206,7 +206,13 @@ export const TemplateBuilderPageView: React.FC<
 		navigateToStep(nearestVisible(target, state));
 	};
 
+	// The customizations step remounts after a failed create, so it restores
+	// the submitted values from here while the error is shown.
+	const [submittedCustomizations, setSubmittedCustomizations] =
+		useState<CustomizationsFormValues>();
+
 	const handleCreate = (values: CustomizationsFormValues) => {
+		setSubmittedCustomizations(values);
 		onCreateTemplate(state, values);
 	};
 
@@ -299,12 +305,14 @@ export const TemplateBuilderPageView: React.FC<
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
-				<PageHeaderSubtitle>
-					A Terraform blueprint for reproducible workspaces.
+				{/* A flex row keeps the link out of the sentence's text block, so it
+				    reads as a separate action marked by its external-link icon. */}
+				<PageHeaderSubtitle className="flex flex-wrap items-baseline gap-x-2">
+					<span>A Terraform blueprint for reproducible workspaces.</span>
 					<Link
 						href={docs("/templates")}
 						target="_blank"
-						className="ml-1 font-normal"
+						className="font-normal"
 					>
 						View docs
 					</Link>
@@ -324,6 +332,9 @@ export const TemplateBuilderPageView: React.FC<
 								dispatch={dispatch}
 								moduleVarMap={moduleVarMap}
 								createError={createError}
+								submittedCustomizations={
+									createError ? submittedCustomizations : undefined
+								}
 								onProvisionerStatusChange={handleProvisionerStatusChange}
 								onRemoveModule={handleDeselectModule}
 								registerModuleRef={registerModuleRef}
@@ -397,6 +408,7 @@ type StepContentProps = {
 	dispatch: (action: WizardAction) => void;
 	moduleVarMap: Record<string, Record<string, string>>;
 	createError: Error | null;
+	submittedCustomizations: CustomizationsFormValues | undefined;
 	onProvisionerStatusChange: (value: boolean | undefined) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
@@ -410,6 +422,7 @@ const StepContent: React.FC<StepContentProps> = ({
 	dispatch,
 	moduleVarMap,
 	createError,
+	submittedCustomizations,
 	onProvisionerStatusChange,
 	onRemoveModule,
 	registerModuleRef,
@@ -468,14 +481,13 @@ const StepContent: React.FC<StepContentProps> = ({
 			);
 		case "customizations":
 			return (
-				<>
-					{createError != null && <ErrorAlert error={createError} />}
-					<TemplateCustomizationsStep
-						state={state}
-						onCreate={onCreate}
-						onProvisionerStatusChange={onProvisionerStatusChange}
-					/>
-				</>
+				<TemplateCustomizationsStep
+					state={state}
+					onCreate={onCreate}
+					onProvisionerStatusChange={onProvisionerStatusChange}
+					initialValues={submittedCustomizations}
+					createError={createError}
+				/>
 			);
 		default:
 			return null;

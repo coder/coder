@@ -295,6 +295,18 @@ describe("theme CSS variables", () => {
 		});
 	});
 
+	// Consumers compose tokens as `hsl(var(--x) / alpha)`, which only resolves
+	// for space-separated channels.
+	it("does not use comma-separated HSL channels", () => {
+		const commaTokens = Array.from(
+			stripCssComments(css).matchAll(
+				/(--[\w-]+)\s*:\s*[\d.]+,\s*[\d.]+%,\s*[\d.]+%\s*;/g,
+			),
+			(match) => match[1],
+		);
+		expect(commaTokens).toEqual([]);
+	});
+
 	it("gives body the surface that ThemeProvider copies into theme-color", () => {
 		expect(extractBlocks(css, "body").join("\n")).toContain(
 			"bg-surface-primary",

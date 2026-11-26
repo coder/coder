@@ -12,13 +12,11 @@ import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 type PasswordSignInFormProps = {
 	onSubmit: (credentials: { email: string; password: string }) => void;
 	isSigningIn: boolean;
-	autoFocus: boolean;
 };
 
 export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 	onSubmit,
 	isSigningIn,
-	autoFocus,
 }) => {
 	const validationSchema = Yup.object({
 		email: Yup.string()
@@ -56,7 +54,6 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 					value={emailField.value}
 					onChange={onChangeTrimmed(form)}
 					onBlur={emailField.onBlur}
-					autoFocus={autoFocus}
 					autoComplete="email"
 					type="email"
 					placeholder="you@example.com"

@@ -497,8 +497,46 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByText("Multi-Select Parameter")).toBeInTheDocument();
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
+			expect(
+				screen.getByRole("combobox", { name: "Multi-Select Parameter" }),
+			).toBeInTheDocument();
+		});
+
+		it("does not report the highlighted option as selected", async () => {
+			const user = userEvent.setup();
+			render(
+				<DynamicParameter
+					parameter={mockMultiSelectParameter}
+					value='["option1"]'
+					onChange={mockOnChange}
+				/>,
+			);
+
+			await user.click(screen.getByRole("combobox"));
+			await user.keyboard("{ArrowDown}");
+
+			expect(
+				screen.queryByRole("option", { selected: true }),
+			).not.toBeInTheDocument();
+		});
+
+		it("announces when a search matches no options", async () => {
+			const user = userEvent.setup();
+			render(
+				<DynamicParameter
+					parameter={mockMultiSelectParameter}
+					value='["option1"]'
+					onChange={mockOnChange}
+				/>,
+			);
+			const status = screen.getByRole("status");
+			expect(status).toBeEmptyDOMElement();
+
+			await user.type(screen.getByRole("combobox"), "zzz");
+			expect(status).toHaveTextContent("No results found");
+
+			await user.clear(screen.getByRole("combobox"));
+			expect(status).toBeEmptyDOMElement();
 		});
 
 		it("displays selected options", () => {

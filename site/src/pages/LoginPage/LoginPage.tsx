@@ -10,6 +10,12 @@ import { retrieveRedirect, sanitizeRedirect } from "#/utils/redirect";
 import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
+/**
+ * Returns the login page's document title. Pass it as the only child of
+ * `<title>`: React leaves the title empty when it has more than one child.
+ */
+const getLoginPageTitle = (): string => `Sign in to ${getApplicationName()}`;
+
 const LoginPage: React.FC = () => {
 	const routerLocation = useLocation();
 	const [isRedirecting, setIsRedirecting] = useState(false);
@@ -24,7 +30,6 @@ const LoginPage: React.FC = () => {
 	} = useAuthContext();
 	const authMethodsQuery = useQuery(authMethods());
 	const redirectTo = retrieveRedirect(routerLocation.search);
-	const applicationName = getApplicationName();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	let redirectError: Error | null = null;
@@ -67,7 +72,7 @@ const LoginPage: React.FC = () => {
 
 	return (
 		<>
-			<title>Sign in to {applicationName}</title>
+			<title>{getLoginPageTitle()}</title>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
 				error={signInError ?? redirectError}

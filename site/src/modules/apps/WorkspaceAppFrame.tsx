@@ -151,16 +151,20 @@ export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 	);
 };
 
-type WorkspaceIframeProps = React.ComponentProps<"iframe">;
+type WorkspaceIframeProps = React.ComponentProps<"iframe"> & {
+	title: string;
+};
 
 export const WorkspaceIframe: React.FC<WorkspaceIframeProps> = ({
 	className,
 	ref,
+	title,
 	...props
 }) => {
 	return (
 		<iframe
 			ref={ref}
+			title={title}
 			loading="eager"
 			className={cn("size-full", className)}
 			allow="clipboard-read; clipboard-write"

@@ -769,6 +769,7 @@ type DeploymentValues struct {
 	ExternalAuthGithubDefaultProviderEnable serpent.Bool                         `json:"external_auth_github_default_provider_enable,omitempty" typescript:",notnull"`
 	SSHConfig                               SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	SetupToken                              serpent.String                       `json:"setup_token,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
@@ -870,11 +871,16 @@ func ValidateWorkspaceHostnameSuffix(suffix string) error {
 
 // ValidateWorkspaceHostnamePrefix validates a deployment-provided SSH hostname
 // prefix before it is made available to clients. Unlike the suffix, a prefix
-// may legitimately contain a trailing dot (the default is "coder."), so only
-// the single-token requirement is enforced.
+// may legitimately contain a trailing dot (the default is "coder."), so the
+// leading-dot rule does not apply. Glob characters are rejected because the
+// prefix is written as "Host <prefix>*": a prefix of "*" would produce
+// "Host **" and apply Coder's SSH options to every host the user connects to.
 func ValidateWorkspaceHostnamePrefix(prefix string) error {
 	if !isSingleHostPatternToken(prefix) {
 		return xerrors.Errorf("workspace hostname prefix %q must not contain whitespace or control characters", prefix)
+	}
+	if strings.ContainsAny(prefix, "*?") {
+		return xerrors.Errorf("workspace hostname prefix %q must not contain glob characters", prefix)
 	}
 	return nil
 }
@@ -4013,6 +4019,17 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.WgtunnelHost,
 			Default:     "", // empty string means pick best server
 			Hidden:      true,
+		},
+		{
+			Name: "Setup Token",
+			Description: "The token that must be supplied to create the first user when the " +
+				"deployment is published through a try.coder.app tunnel. When empty, the " +
+				"server generates one and prints it at startup. It must be at least 24 characters.",
+			Flag:        "setup-token",
+			Env:         "CODER_SETUP_TOKEN",
+			Value:       &c.SetupToken,
+			Group:       &deploymentGroupNetworking,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "Proxy Health Check Interval",

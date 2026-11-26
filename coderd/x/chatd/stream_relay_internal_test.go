@@ -1,10 +1,22 @@
 package chatd
 
 import (
+	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type fakeDialError struct {
@@ -22,4 +34,225 @@ func TestStreamPartsDialUnrecoverable(t *testing.T) {
 	require.False(t, streamPartsDialUnrecoverable(fakeDialError{unrecoverable: false}))
 	require.True(t, streamPartsDialUnrecoverable(fakeDialError{unrecoverable: true}))
 	require.True(t, streamPartsDialUnrecoverable(xerrors.Errorf("wrapped: %w", fakeDialError{unrecoverable: true})))
+}
+
+// TestStreamRelayForwarderDeliversPartsAfterStall stops reading relay.Parts()
+// for longer than the send timeout on an open episode, then expects every part
+// in order over the first connection.
+func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// The pipe, session and relay part channels hold 128 parts each, fewer
+		// than episodeParts, so the buffer's send blocks.
+		const (
+			episodeParts = 1000
+			sendTimeout  = 10 * time.Second
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{
+			Clock:                 clock,
+			SubscriberSendTimeout: sendTimeout,
+		})
+		defer buffer.Close()
+		chatID := uuid.New()
+		key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+		require.NoError(t, buffer.CreateEpisode(key))
+		for i := range episodeParts {
+			require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(fmt.Sprintf("part %d", i+1))))
+		}
+
+		logger := slogtest.Make(t, nil)
+		local := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
+		var dials atomic.Int32
+		dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
+			dials.Add(1)
+			return local(ctx, input)
+		}
+		relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
+		defer relay.Close()
+		relay.Configure(ctx, streamRelayTarget{
+			workerID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			historyVersion:    key.HistoryVersion,
+			generationAttempt: key.GenerationAttempt,
+		})
+
+		// drain reads until every goroutine blocks. A replay from seq 1 fails
+		// its order check.
+		var lastSeq int64
+		drain := func() {
+			for {
+				synctest.Wait()
+				select {
+				case part := <-relay.Parts():
+					require.Equal(t, lastSeq+1, part.Seq, "message part out of order")
+					lastSeq = part.Seq
+				default:
+					return
+				}
+			}
+		}
+
+		synctest.Wait()
+		require.Equal(t, cap(relay.parts), len(relay.parts), "relay.parts did not fill")
+		clock.Advance(sendTimeout).MustWait(ctx)
+		drain()
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))
+		drain()
+		require.Equal(t, int64(episodeParts+1), lastSeq, "the live part did not reach relay.Parts()")
+		require.Equal(t, int32(1), dials.Load(), "the relay forwarder reconnected")
+	})
+}
+
+type selectCountingSession struct {
+	StreamPartsSession
+	selects *atomic.Int32
+}
+
+func (s selectCountingSession) SelectEpisode(ctx context.Context, historyVersion, generationAttempt int64) error {
+	s.selects.Add(1)
+	return s.StreamPartsSession.SelectEpisode(ctx, historyVersion, generationAttempt)
+}
+
+// TestStreamRelayForwarderSelectsOnlyChangedTargets configures the same
+// target repeatedly and expects one selection and one copy of the episode,
+// then one more selection when the target changes.
+func TestStreamRelayForwarderSelectsOnlyChangedTargets(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			episodeParts = 200
+			reconfigures = 10
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+		defer buffer.Close()
+		chatID := uuid.New()
+		workerID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		createEpisode := func(historyVersion int64) streamRelayTarget {
+			key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: historyVersion, GenerationAttempt: 1}
+			require.NoError(t, buffer.CreateEpisode(key))
+			for i := range episodeParts {
+				require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(fmt.Sprintf("part %d", i+1))))
+			}
+			return streamRelayTarget{workerID: workerID, historyVersion: historyVersion, generationAttempt: 1}
+		}
+
+		logger := slogtest.Make(t, nil)
+		local := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
+		var selects atomic.Int32
+		dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
+			session, err := local(ctx, input)
+			if err != nil {
+				return nil, err
+			}
+			return selectCountingSession{StreamPartsSession: session, selects: &selects}, nil
+		}
+		relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
+		defer relay.Close()
+
+		// received reads relay.Parts() until every goroutine blocks.
+		received := func() int {
+			n := 0
+			for {
+				synctest.Wait()
+				select {
+				case <-relay.Parts():
+					n++
+				default:
+					return n
+				}
+			}
+		}
+
+		target := createEpisode(1)
+		parts := 0
+		for range reconfigures {
+			relay.Configure(ctx, target)
+			parts += received()
+		}
+		require.Equal(t, int32(1), selects.Load())
+		require.Equal(t, episodeParts, parts)
+
+		relay.Configure(ctx, createEpisode(2))
+		require.Equal(t, episodeParts, received())
+		require.Equal(t, int32(2), selects.Load())
+	})
+}
+
+// TestStreamRelayForwarderDeliversLivePartsAfterSameEpisodeReconfigures
+// stalls the stream loop until the buffers between the parts endpoint and
+// relay.Parts() are full, configures the same episode many times while it
+// reads at most one part each time, then resumes reading and expects a new
+// part of the episode to arrive.
+func TestStreamRelayForwarderDeliversLivePartsAfterSameEpisodeReconfigures(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			// The pipe, session and relay part channels hold 128 parts
+			// each, fewer than episodeParts.
+			episodeParts = 1000
+			reconfigures = 1000
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+		defer buffer.Close()
+		chatID := uuid.New()
+		key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+		require.NoError(t, buffer.CreateEpisode(key))
+		for i := range episodeParts {
+			require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(fmt.Sprintf("part %d", i+1))))
+		}
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		dialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
+		relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
+		defer relay.Close()
+		target := streamRelayTarget{
+			workerID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			historyVersion:    key.HistoryVersion,
+			generationAttempt: key.GenerationAttempt,
+		}
+		relay.Configure(ctx, target)
+		synctest.Wait()
+		require.Equal(t, cap(relay.parts), len(relay.parts), "relay.parts did not fill")
+
+		// readOne lets the forwarder run once, so it can take the pending
+		// configuration.
+		readOne := func() {
+			select {
+			case <-relay.Parts():
+			default:
+			}
+			synctest.Wait()
+		}
+		for range reconfigures {
+			relay.Configure(ctx, target)
+			readOne()
+		}
+
+		// Read until every goroutine blocks, then add a live part and read
+		// again.
+		var lastSeq int64
+		drain := func() {
+			for {
+				synctest.Wait()
+				select {
+				case part := <-relay.Parts():
+					lastSeq = part.Seq
+				default:
+					return
+				}
+			}
+		}
+		drain()
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))
+		drain()
+		require.Equal(t, int64(episodeParts+1), lastSeq, "the live part did not reach relay.Parts()")
+	})
 }

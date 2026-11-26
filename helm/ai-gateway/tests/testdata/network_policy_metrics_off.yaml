@@ -1,0 +1,16 @@
+coder:
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: https://coder.example.com
+    - name: CODER_AI_GATEWAY_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-gateway-key
+          key: key
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "False"
+aigateway: {}
+networkPolicy:
+  enable: true

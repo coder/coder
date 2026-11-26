@@ -59,11 +59,10 @@ const CategoryHeader: React.FC<EmojiPickerListCategoryHeaderProps> = ({
 	category,
 	...props
 }) => (
-	<div
-		className="bg-surface-primary px-3 pt-3 pb-1.5 text-xs font-medium text-content-secondary"
-		{...props}
-	>
-		{category.label}
+	<div className="bg-surface-primary px-3 pt-3 pb-1.5" {...props}>
+		<h2 className="m-0 text-xs font-medium text-content-secondary">
+			{category.label}
+		</h2>
 	</div>
 );
 
@@ -222,6 +221,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 					<SearchIcon className="size-icon-sm" />
 				</InputGroupAddon>
 				<Frimousse.Search
+					// oxlint-disable-next-line jsx-a11y/no-autofocus -- Opening the emoji picker places focus in its search field.
 					autoFocus={autoFocus}
 					value={search}
 					onChange={(event) => setSearch(event.target.value)}

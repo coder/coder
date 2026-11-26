@@ -24,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -37,13 +38,13 @@ import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
 	emptyProjectSkillFormValues,
+	isSkillContentChanged,
 	projectSkillsScope,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
-import { RetryButton } from "../RetryButton";
 import {
 	SkillEditorBodyField,
 	SkillEditorDescriptionField,
@@ -236,6 +237,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									ref={setPrimaryFallback}
 									size="sm"
 									variant="outline"
+									// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the New skill button after closing the create editor.
 									autoFocus={lastEditor?.type === "create"}
 									disabled={isAtLimit || skillsQuery.isLoading}
 									onClick={() => openEditor({ type: "create" })}
@@ -305,6 +307,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 												scope={scope}
 												skill={skill}
 												canEdit={canEdit}
+												// oxlint-disable-next-line jsx-a11y/no-autofocus -- Return focus to the edited skill’s menu after closing the editor.
 												autoFocus={
 													lastEditor?.type === "edit" &&
 													lastEditor.name === skill.name
@@ -476,16 +479,12 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				existingNames={existingNames}
 				isSubmitting={isSubmitting}
 				onSubmit={(values, content, onSettled) => {
-					// A settings-only edit keeps the stored SKILL.md as written.
-					const opened = openedValues ?? loaded.values;
 					onSubmit(
 						values,
 						content,
 						onSettled,
 						view.type === "create" ||
-							values.name !== opened.name ||
-							values.description !== opened.description.trim() ||
-							values.body !== opened.body,
+							isSkillContentChanged(openedValues ?? loaded.values, values),
 					);
 				}}
 			>
@@ -498,7 +497,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				/>
 				<SkillEditorFields>
 					<SkillEditorSubmitError error={submitError} />
-					{canEdit && <SkillEditorImport resetsModelInvocable />}
+					{canEdit && <SkillEditorImport />}
 					<SkillEditorNameField hint="Lowercase letters, numbers, and hyphens." />
 					<SkillEditorDescriptionField />
 					<SkillEditorProjectSettings />
@@ -567,6 +566,7 @@ const ProjectSkillEditorHeader: React.FC<ProjectSkillEditorHeaderProps> = ({
 			variant="subtle"
 			className="-ml-2"
 			disabled={isSubmitting}
+			// oxlint-disable-next-line jsx-a11y/no-autofocus -- The Back button is the initial focus target in the editor.
 			autoFocus
 			onClick={onBack}
 		>
@@ -639,6 +639,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 						size="icon"
 						variant="subtle"
 						aria-label={`Open menu for ${skill.name}`}
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- Restore focus to this menu when returning from the editor.
 						autoFocus={autoFocus}
 						onPointerDown={onTriggerInteraction}
 						onKeyDown={onTriggerInteraction}

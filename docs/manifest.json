@@ -11,31 +11,7 @@
 			"title": "Get started",
 			"description": "Install Coder, build your first template, and launch your first workspace in this quickstart guide.",
 			"path": "./get-started/index.md",
-			"icon_path": "./images/icons/rocket.svg",
-			"children": [
-				{
-					"title": "Customize your template",
-					"description": "Add a language, install command-line tools, and authenticate to GitHub.",
-					"path": "./get-started/customize-your-template/index.md",
-					"children": [
-						{
-							"title": "Add a programming language",
-							"description": "Expose a new programming language through a template parameter and install it at workspace startup.",
-							"path": "./get-started/customize-your-template/add-a-language.md"
-						},
-						{
-							"title": "Install your own command-line tools",
-							"description": "Install your own command-line tools in a workspace and make them persist across rebuilds.",
-							"path": "./get-started/customize-your-template/install-command-line-tools.md"
-						},
-						{
-							"title": "Clone private repositories",
-							"description": "Clone private GitHub repositories in your workspace using a Coder external-auth data source.",
-							"path": "./get-started/customize-your-template/authenticate-to-github.md"
-						}
-					]
-				}
-			]
+			"icon_path": "./images/icons/rocket.svg"
 		},
 		{
 			"title": "Install",
@@ -43,6 +19,12 @@
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
+				{
+					"title": "Production deployment process",
+					"description": "Follow the five phases of a production deployment, see which phases an evaluation can skip, and find out who takes part in each.",
+					"path": "./install/production-deployment.md",
+					"icon_path": "./images/icons/stairs.svg"
+				},
 				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
@@ -132,6 +114,11 @@
 					"icon_path": "./images/icons/download.svg",
 					"children": [
 						{
+							"title": "Requirements",
+							"description": "Check the compute, database, platform, and network requirements for installing the Coder control plane.",
+							"path": "./install/server/requirements.md"
+						},
+						{
 							"title": "Docker",
 							"description": "Install and run Coder using the official Docker images for a quick single-machine deployment.",
 							"path": "./install/server/docker.md",
@@ -143,6 +130,11 @@
 							"path": "./install/server/kubernetes/index.md",
 							"icon_path": "./images/icons/kubernetes.svg",
 							"children": [
+								{
+									"title": "Install Coder on K3s in an air-gapped environment",
+									"description": "Install Coder on a single-node K3s cluster with no internet access, using artifacts staged on a connected workstation.",
+									"path": "./install/server/kubernetes/k3s-air-gapped.md"
+								},
 								{
 									"title": "Deploy Coder on Azure with an Application Gateway",
 									"description": "Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.",
@@ -278,6 +270,11 @@
 							]
 						},
 						{
+							"title": "Disaster recovery",
+							"description": "Plan database backups and restores, and learn what users experience during a control plane outage.",
+							"path": "./install/operate/disaster-recovery.md"
+						},
+						{
 							"title": "Google Cloud to AWS federation",
 							"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
 							"path": "./install/operate/gcp-to-aws.md"
@@ -327,6 +324,11 @@
 							"title": "Image management",
 							"description": "Learn how to build and manage the container images that back your Coder templates.",
 							"path": "./templates/managing-templates/image-management.md"
+						},
+						{
+							"title": "Security updates",
+							"description": "Roll out a patched image to every new and existing workspace by publishing a template version and updating outdated workspaces.",
+							"path": "./templates/managing-templates/roll-out-security-updates.md"
 						},
 						{
 							"title": "Change management",
@@ -835,6 +837,11 @@
 							"title": "Chat debug logging",
 							"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
 							"path": "./coder-agents/platform-controls/chat-debug-logging.md"
+						},
+						{
+							"title": "OpenTelemetry tracing",
+							"description": "Export Coder Agents traces that follow the OpenTelemetry GenAI semantic conventions.",
+							"path": "./coder-agents/platform-controls/opentelemetry-tracing.md"
 						}
 					]
 				},
@@ -894,60 +901,11 @@
 		},
 		{
 			"title": "AI Governance",
-			"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
+			"description": "Govern AI usage at scale with AI Governance: AI Gateway, Agent Firewall, and reporting.",
 			"path": "./ai-governance/index.md",
 			"icon_path": "./images/icons/ai_intelligence.svg",
 			"state": ["premium"],
 			"children": [
-				{
-					"title": "Agent Firewall",
-					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
-					"path": "./ai-governance/agent-firewall/index.md",
-					"children": [
-						{
-							"title": "NsJail jail type",
-							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
-							"path": "./ai-governance/agent-firewall/nsjail/index.md",
-							"children": [
-								{
-									"title": "NsJail on Docker",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
-									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
-								},
-								{
-									"title": "NsJail on Kubernetes",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
-									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
-								},
-								{
-									"title": "NsJail on ECS",
-									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
-									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
-								}
-							]
-						},
-						{
-							"title": "Landjail jail type",
-							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
-							"path": "./ai-governance/agent-firewall/landjail.md"
-						},
-						{
-							"title": "Rules engine",
-							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
-							"path": "./ai-governance/agent-firewall/rules-engine.md"
-						},
-						{
-							"title": "Example policy",
-							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
-							"path": "./ai-governance/agent-firewall/example-policy.md"
-						},
-						{
-							"title": "Version requirements",
-							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
-							"path": "./ai-governance/agent-firewall/version.md"
-						}
-					]
-				},
 				{
 					"title": "AI Gateway",
 					"description": "Govern and observe AI coding traffic with AI Gateway.",
@@ -1087,6 +1045,55 @@
 							"title": "Rebranding migration",
 							"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
 							"path": "./ai-governance/ai-gateway/rebranding-migration.md"
+						}
+					]
+				},
+				{
+					"title": "Agent Firewall",
+					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
+					"path": "./ai-governance/agent-firewall/index.md",
+					"children": [
+						{
+							"title": "NsJail jail type",
+							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
+							"path": "./ai-governance/agent-firewall/nsjail/index.md",
+							"children": [
+								{
+									"title": "NsJail on Docker",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
+									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
+								},
+								{
+									"title": "NsJail on Kubernetes",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
+									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
+								},
+								{
+									"title": "NsJail on ECS",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
+									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
+								}
+							]
+						},
+						{
+							"title": "Landjail jail type",
+							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
+							"path": "./ai-governance/agent-firewall/landjail.md"
+						},
+						{
+							"title": "Rules engine",
+							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
+							"path": "./ai-governance/agent-firewall/rules-engine.md"
+						},
+						{
+							"title": "Example policy",
+							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+							"path": "./ai-governance/agent-firewall/example-policy.md"
+						},
+						{
+							"title": "Version requirements",
+							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
+							"path": "./ai-governance/agent-firewall/version.md"
 						}
 					]
 				}
@@ -1551,6 +1558,11 @@
 							"title": "Security - best practices",
 							"description": "Follow security best practices to harden your Coder deployment against common risks.",
 							"path": "./admin/security/security-best-practices.md"
+						},
+						{
+							"title": "Verify releases",
+							"description": "Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.",
+							"path": "./admin/security/verify-releases.md"
 						}
 					]
 				}

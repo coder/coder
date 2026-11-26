@@ -2,7 +2,7 @@
  * This component is based on multiple-selector
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
-import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Command,
+	CommandEmpty,
 	CommandGroup,
 	CommandItem,
 	CommandList,
@@ -90,12 +91,16 @@ type MultiSelectComboboxProps = {
 	selectFirstItem?: boolean;
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
-	/** Props of `Command` */
+	/**
+	 * Props of `Command`. Set `commandProps.label` to name the input:
+	 * `<label htmlFor>` will not be associated with the input, because cmdk
+	 * replaces the input's `id` and `aria-labelledby`.
+	 */
 	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
 		React.ComponentProps<typeof CommandPrimitive.Input>,
-		"ref" | "value" | "placeholder" | "disabled"
+		"ref" | "value" | "placeholder" | "disabled" | "id" | "aria-labelledby"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
@@ -148,29 +153,6 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
 		value.some((option) => targetOption.some((o) => o.value === option.value)),
 	);
 }
-
-/**
- * The `CommandEmpty` of shadcn/ui will cause the cmdk-empty to not render correctly.
- * Here a new CommandEmpty is created using the `Empty` implementation from `cmdk`.
- *
- * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
- **/
-const CommandEmpty: React.FC<
-	React.ComponentProps<typeof CommandPrimitive.Empty>
-> = ({ className, ...props }) => {
-	const render = useCommandState((state) => state.filtered.count === 0);
-
-	if (!render) return null;
-
-	return (
-		<div
-			className={cn("py-6 text-center text-sm", className)}
-			cmdk-empty=""
-			role="presentation"
-			{...props}
-		/>
-	);
-};
 
 export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	value,
@@ -368,6 +350,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		const Item = (
 			<CommandItem
 				value={inputValue}
+				aria-selected={false}
 				className="cursor-pointer"
 				onMouseDown={(e) => {
 					e.preventDefault();
@@ -641,6 +624,8 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 														value={option.value}
 														keywords={[option.label]}
 														disabled={option.disable}
+														// Picked options leave the list, so no listed option is selected.
+														aria-selected={false}
 														onMouseDown={(e) => {
 															e.preventDefault();
 															e.stopPropagation();

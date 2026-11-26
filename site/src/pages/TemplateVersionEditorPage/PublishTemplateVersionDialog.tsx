@@ -76,7 +76,6 @@ export const PublishTemplateVersionDialog: React.FC<
 							<FormField
 								field={getFieldHelpers("name")}
 								label="Version name"
-								autoFocus
 								disabled={isPublishing}
 							/>
 

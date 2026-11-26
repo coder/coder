@@ -4,6 +4,11 @@ title: Cloud platforms
 
 We provide install guides and example templates for deploying Coder to your cloud of choice.
 
+If you already run a Kubernetes cluster in the cloud, follow [Install Coder on Kubernetes](../kubernetes/index.md) instead.
+That guide covers managed clusters such as Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), and Google Kubernetes Engine (GKE).
+Kubernetes is the recommended platform for deployments that others depend on.
+The AWS Marketplace guide uses a CloudFormation template that creates a new EKS cluster for a proof of concept.
+
 <div class="tabs">
 
 ## AWS
@@ -32,7 +37,7 @@ Use the following guide to run Coder on an Azure VM:
 
 - [Install Coder on an Azure VM](./azure-vm.md)
 
-Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing GKE cluster.
+Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing AKS cluster.
 
 ## Other
 

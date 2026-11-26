@@ -21,6 +21,7 @@ import type {
 	UserAIBudgetOverride,
 	UserAISpendStatus,
 	UserAppearanceSettings,
+	UserOrganizationsAISpendStatus,
 	UserPreferenceSettings,
 	UsersRequest,
 } from "#/api/typesGenerated";
@@ -172,13 +173,29 @@ export const meAISpend = (): UseQueryOptions<UserAISpendStatus> => {
 	};
 };
 
+export const meOrganizationsAISpendKey = [
+	...meAISpendKey,
+	"organizations",
+] as const;
+
+export const meOrganizationsAISpend =
+	(): UseQueryOptions<UserOrganizationsAISpendStatus> => {
+		return {
+			queryKey: meOrganizationsAISpendKey,
+			queryFn: () => API.getUserOrganizationsAISpend(),
+			// Polled with meAISpend so the avatar badge follows the selected
+			// organization's spend.
+			refetchInterval: 60_000,
+		};
+	};
+
 export const userKey = (usernameOrId: string) =>
 	["user", usernameOrId] as const;
 
-export const user = (usernameOrId: string) => {
+export const user = (usernameOrId: string): UseQueryOptions<User> => {
 	return {
 		queryKey: userKey(usernameOrId),
-		queryFn: () => API.getUser(usernameOrId),
+		queryFn: ({ signal }) => API.getUser(usernameOrId, signal),
 	};
 };
 

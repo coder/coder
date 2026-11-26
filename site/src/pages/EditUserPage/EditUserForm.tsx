@@ -100,7 +100,6 @@ export const EditUserForm: React.FC<EditUserFormProps> = ({
 								required
 								onChange={onChangeTrimmed(form)}
 								autoComplete="username"
-								autoFocus
 							/>
 
 							<FormField

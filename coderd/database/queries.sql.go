@@ -2945,6 +2945,7 @@ SELECT
 	ai.model AS model,
 	ai.provider AS provider,
 	ai.provider_name AS provider_name,
+	COALESCE(ai.client, 'Unknown')::text AS client,
 	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
@@ -2963,6 +2964,7 @@ WHERE groups.organization_id = $1
 	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = $5)
 	AND ($6::text = '' OR ai.provider_name = $6)
 	AND ($7::text = '' OR ai.model = $7)
+	AND ($8::text = '' OR COALESCE(ai.client, 'Unknown') = $8::text)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -2972,10 +2974,11 @@ GROUP BY
 	organizations.name,
 	ai.model,
 	ai.provider,
-	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
-OFFSET $8
-LIMIT NULLIF($9::int, 0)
+	ai.provider_name,
+	COALESCE(ai.client, 'Unknown')
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown')
+OFFSET $9
+LIMIT NULLIF($10::int, 0)
 `
 
 type ExportOrganizationAISpendParams struct {
@@ -2986,6 +2989,7 @@ type ExportOrganizationAISpendParams struct {
 	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -3000,6 +3004,7 @@ type ExportOrganizationAISpendRow struct {
 	Model            string        `db:"model" json:"model"`
 	Provider         string        `db:"provider" json:"provider"`
 	ProviderName     string        `db:"provider_name" json:"provider_name"`
+	Client           string        `db:"client" json:"client"`
 	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
@@ -3008,10 +3013,11 @@ type ExportOrganizationAISpendRow struct {
 	Count            int64         `db:"count" json:"count"`
 }
 
-// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
-// @organization_id over the [period_start, period_end) window. Spend is
-// attributed through the token usage's effective group, and rows are bucketed
-// by the token usage created_at, matching how ai_user_daily_spend is derived.
+// Returns per-user, per-group, per-model, per-provider, per-client aggregated
+// AI spend for @organization_id over the [period_start, period_end) window.
+// Spend is attributed through the token usage's effective group, and rows are
+// bucketed by the token usage created_at, matching how ai_user_daily_spend is
+// derived. Usage without a recorded client is reported as Unknown.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend,
 		arg.OrganizationID,
@@ -3021,6 +3027,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 		arg.GroupID,
 		arg.ProviderName,
 		arg.Model,
+		arg.Client,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -3041,6 +3048,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.Model,
 			&i.Provider,
 			&i.ProviderName,
+			&i.Client,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.CacheReadTokens,
@@ -3842,13 +3850,13 @@ WITH unpriced_usage AS (
 		ON interceptions.id = token_usages.interception_id
 	LEFT JOIN groups
 		ON groups.id = token_usages.effective_group_id
-	WHERE token_usages.created_at >= $2::timestamptz
-		AND token_usages.created_at < $3::timestamptz
+	WHERE token_usages.created_at >= $4::timestamptz
+		AND token_usages.created_at < $5::timestamptz
 		AND token_usages.cost_micros IS NULL
 		AND token_usages.priced_model IS NULL
 		AND (
-			$4::uuid IS NULL
-			OR groups.organization_id = $4::uuid
+			$6::uuid IS NULL
+			OR groups.organization_id = $6::uuid
 		)
 	GROUP BY groups.organization_id, interceptions.provider_name, interceptions.model
 )
@@ -3858,7 +3866,8 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	SUM(unpriced_usage.token_count)::bigint AS token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count,
+	COUNT(*) OVER ()::BIGINT AS count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -3890,10 +3899,14 @@ ORDER BY
 	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
 	unpriced_usage.model ASC
+LIMIT NULLIF($3::int, 0)
+OFFSET $2::int
 `
 
 type GetUnpricedAIModelsParams struct {
 	PriceableProviders []string      `db:"priceable_providers" json:"priceable_providers"`
+	OffsetOpt          int32         `db:"offset_opt" json:"offset_opt"`
+	LimitOpt           int32         `db:"limit_opt" json:"limit_opt"`
 	PeriodStart        time.Time     `db:"period_start" json:"period_start"`
 	PeriodEnd          time.Time     `db:"period_end" json:"period_end"`
 	OrganizationID     uuid.NullUUID `db:"organization_id" json:"organization_id"`
@@ -3906,6 +3919,7 @@ type GetUnpricedAIModelsRow struct {
 	ProviderType        string         `db:"provider_type" json:"provider_type"`
 	Model               string         `db:"model" json:"model"`
 	TokenCount          int64          `db:"token_count" json:"token_count"`
+	Count               int64          `db:"count" json:"count"`
 }
 
 // Returns, for each live provider, the requested models with unpriced token
@@ -3916,10 +3930,13 @@ type GetUnpricedAIModelsRow struct {
 // reported by the provider, or whose cost could not be computed from a found
 // price, is not reported as unpriced. openai-compat providers cannot be priced,
 // so they are excluded. @organization_id limits the usage to one organization,
-// and null includes all.
+// and null includes all. count is the number of models before the limit, and a
+// @limit_opt of zero returns every model.
 func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels,
 		pq.Array(arg.PriceableProviders),
+		arg.OffsetOpt,
+		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
 		arg.OrganizationID,
@@ -3938,6 +3955,7 @@ func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIM
 			&i.ProviderType,
 			&i.Model,
 			&i.TokenCount,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -4008,6 +4026,55 @@ func (q *sqlQuerier) GetUserAIBudgetOverrideWithOrganization(ctx context.Context
 		&i.OrganizationID,
 	)
 	return i, err
+}
+
+const getUserAISpendByEffectiveGroupsSince = `-- name: GetUserAISpendByEffectiveGroupsSince :many
+SELECT
+	g.id::uuid AS effective_group_id,
+	COALESCE(SUM(s.spend_micros), 0)::BIGINT AS spend_micros
+FROM UNNEST($1::uuid[]) AS g(id)
+LEFT JOIN ai_user_daily_spend s
+	ON s.effective_group_id = g.id
+	AND s.user_id = $2
+	AND s.day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+GROUP BY g.id
+`
+
+type GetUserAISpendByEffectiveGroupsSinceParams struct {
+	EffectiveGroupIds []uuid.UUID `db:"effective_group_ids" json:"effective_group_ids"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	PeriodStart       time.Time   `db:"period_start" json:"period_start"`
+}
+
+type GetUserAISpendByEffectiveGroupsSinceRow struct {
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	SpendMicros      int64     `db:"spend_micros" json:"spend_micros"`
+}
+
+// Total spend for user_id per effective group in @effective_group_ids on or
+// after period_start until NOW. Groups with no spend return 0. The
+// period_start parameter is normalized to its UTC calendar day.
+func (q *sqlQuerier) GetUserAISpendByEffectiveGroupsSince(ctx context.Context, arg GetUserAISpendByEffectiveGroupsSinceParams) ([]GetUserAISpendByEffectiveGroupsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAISpendByEffectiveGroupsSince, pq.Array(arg.EffectiveGroupIds), arg.UserID, arg.PeriodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserAISpendByEffectiveGroupsSinceRow
+	for rows.Next() {
+		var i GetUserAISpendByEffectiveGroupsSinceRow
+		if err := rows.Scan(&i.EffectiveGroupID, &i.SpendMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUserAISpendSince = `-- name: GetUserAISpendSince :one
@@ -4231,19 +4298,32 @@ const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :man
 WITH spend AS (
 	SELECT
 		ai.initiator_id AS user_id,
+		ai.provider_name,
+		ai.model,
+		COALESCE(ai.client, 'Unknown') AS client,
+		GROUPING(ai.provider_name) = 0 AS is_provider,
+		GROUPING(ai.model) = 0 AS is_model,
+		GROUPING(COALESCE(ai.client, 'Unknown')) = 0 AS is_client,
 		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+		BOOL_OR(tu.cost_micros IS NULL) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN groups ON groups.id = tu.effective_group_id
 	WHERE groups.organization_id = $1
-		AND tu.created_at >= $4::timestamptz
-		AND tu.created_at < $5::timestamptz
+		AND tu.created_at >= $2::timestamptz
+		AND tu.created_at < $3::timestamptz
 		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			WHEN COALESCE(cardinality($4::uuid[]), 0) > 0
+				THEN ai.initiator_id = ANY($4::uuid[])
+			ELSE true
+		END
+		AND (
+			$5::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+			OR tu.effective_group_id = $5
+		)
+		AND CASE
+			WHEN $6::text != ''
+				THEN ai.provider_name = $6::text
 			ELSE true
 		END
 		AND CASE
@@ -4251,74 +4331,136 @@ WITH spend AS (
 			ELSE true
 		END
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $8::text != ''
+				THEN COALESCE(ai.client, 'Unknown') = $8::text
 			ELSE true
 		END
-	GROUP BY ai.initiator_id
+	GROUP BY GROUPING SETS (
+		(ai.initiator_id),
+		(ai.initiator_id, ai.provider_name),
+		(ai.initiator_id, ai.model),
+		(ai.initiator_id, COALESCE(ai.client, 'Unknown'))
+	)
+),
+user_page AS (
+	SELECT
+		spend.user_id,
+		users.username,
+		users.name,
+		users.avatar_url,
+		spend.cost_micros,
+		COUNT(*) OVER ()::BIGINT AS count,
+		COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+		BOOL_OR(spend.has_unpriced_usage) OVER () AS total_has_unpriced_usage
+	FROM spend
+	JOIN users ON users.id = spend.user_id
+	WHERE NOT (spend.is_provider OR spend.is_model OR spend.is_client)
+	ORDER BY spend.cost_micros DESC, LOWER(users.username), spend.user_id
+	LIMIT NULLIF($10::int, 0)
+	OFFSET $9::int
 )
 SELECT
-	spend.user_id,
-	users.username,
-	users.name,
-	users.avatar_url,
+	user_page.user_id,
+	user_page.username,
+	user_page.name,
+	user_page.avatar_url,
 	$1::uuid AS organization_id,
-	spend.cost_micros,
-	spend.unpriced_usage_count,
-	spend.providers,
-	spend.clients,
-	spend.models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM spend
-JOIN users ON users.id = spend.user_id
-ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
-LIMIT NULLIF($3::int, 0)
-OFFSET $2::int
+	user_page.cost_micros,
+	user_page.count,
+	user_page.total_cost_micros,
+	user_page.total_has_unpriced_usage,
+	(CASE
+		WHEN spend.is_provider THEN 'provider'
+		WHEN spend.is_model THEN 'model'
+		WHEN spend.is_client THEN 'client'
+	END)::text AS dimension,
+	(CASE
+		WHEN spend.is_provider THEN spend.provider_name
+		WHEN spend.is_model THEN spend.model
+		WHEN spend.is_client THEN spend.client
+	END)::text AS dimension_name,
+	COALESCE(providers.display_name, '')::text AS provider_display_name,
+	COALESCE(providers.icon, '')::text AS provider_icon,
+	COALESCE(providers.type::text, '')::text AS provider_type,
+	spend.cost_micros AS dimension_cost_micros,
+	spend.has_unpriced_usage AS dimension_has_unpriced_usage
+FROM user_page
+JOIN spend
+	ON spend.user_id = user_page.user_id
+	AND (spend.is_provider OR spend.is_model OR spend.is_client)
+LEFT JOIN LATERAL (
+	SELECT ai_providers.display_name, ai_providers.icon, ai_providers.type
+	FROM ai_providers
+	WHERE ai_providers.name = spend.provider_name
+	ORDER BY ai_providers.deleted ASC, ai_providers.updated_at DESC
+	LIMIT 1
+) AS providers ON spend.is_provider
+ORDER BY
+	user_page.cost_micros DESC,
+	LOWER(user_page.username),
+	user_page.user_id,
+	CASE
+		WHEN spend.is_provider THEN 1
+		WHEN spend.is_model THEN 2
+		WHEN spend.is_client THEN 3
+	END,
+	spend.cost_micros DESC,
+	dimension_name ASC
 `
 
 type ListOrganizationAISpendUsersParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
-	PeriodStart    time.Time `db:"period_start" json:"period_start"`
-	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
-	ProviderName   string    `db:"provider_name" json:"provider_name"`
-	Model          string    `db:"model" json:"model"`
-	Client         string    `db:"client" json:"client"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time   `db:"period_end" json:"period_end"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+	GroupID        uuid.UUID   `db:"group_id" json:"group_id"`
+	ProviderName   string      `db:"provider_name" json:"provider_name"`
+	Model          string      `db:"model" json:"model"`
+	Client         string      `db:"client" json:"client"`
+	OffsetOpt      int32       `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32       `db:"limit_opt" json:"limit_opt"`
 }
 
 type ListOrganizationAISpendUsersRow struct {
-	UserID                  uuid.UUID `db:"user_id" json:"user_id"`
-	Username                string    `db:"username" json:"username"`
-	Name                    string    `db:"name" json:"name"`
-	AvatarURL               string    `db:"avatar_url" json:"avatar_url"`
-	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
-	CostMicros              int64     `db:"cost_micros" json:"cost_micros"`
-	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
-	Providers               []string  `db:"providers" json:"providers"`
-	Clients                 []string  `db:"clients" json:"clients"`
-	Models                  []string  `db:"models" json:"models"`
-	Count                   int64     `db:"count" json:"count"`
-	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
-	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
+	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	Username                  string    `db:"username" json:"username"`
+	Name                      string    `db:"name" json:"name"`
+	AvatarURL                 string    `db:"avatar_url" json:"avatar_url"`
+	OrganizationID            uuid.UUID `db:"organization_id" json:"organization_id"`
+	CostMicros                int64     `db:"cost_micros" json:"cost_micros"`
+	Count                     int64     `db:"count" json:"count"`
+	TotalCostMicros           int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalHasUnpricedUsage     bool      `db:"total_has_unpriced_usage" json:"total_has_unpriced_usage"`
+	Dimension                 string    `db:"dimension" json:"dimension"`
+	DimensionName             string    `db:"dimension_name" json:"dimension_name"`
+	ProviderDisplayName       string    `db:"provider_display_name" json:"provider_display_name"`
+	ProviderIcon              string    `db:"provider_icon" json:"provider_icon"`
+	ProviderType              string    `db:"provider_type" json:"provider_type"`
+	DimensionCostMicros       int64     `db:"dimension_cost_micros" json:"dimension_cost_micros"`
+	DimensionHasUnpricedUsage bool      `db:"dimension_has_unpriced_usage" json:"dimension_has_unpriced_usage"`
 }
 
 // Returns one page of per-user AI spend for @organization_id over the
-// [period_start, period_end) window, most expensive first, together with the
-// providers, clients, and models each user spent through and the count and
-// totals over every matching user. It must keep the same joins and predicates as
-// ExportOrganizationAISpend so both report the same token usage.
+// [period_start, period_end) window, most expensive first. Each user has one
+// row per provider, model, and client they spent through, and every row
+// carries the user's spend and the count and totals over every matching user.
+// It must count the same token usage as the CSV export for the same filters.
+// The page, count, and totals apply to users, not to their provider, model,
+// and client rows.
+// Provider details include deleted providers, since usage still references
+// them, and prefer the live provider when a name was reused.
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
+		pq.Array(arg.UserIds),
+		arg.GroupID,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -4334,13 +4476,16 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 			&i.AvatarURL,
 			&i.OrganizationID,
 			&i.CostMicros,
-			&i.UnpricedUsageCount,
-			pq.Array(&i.Providers),
-			pq.Array(&i.Clients),
-			pq.Array(&i.Models),
 			&i.Count,
 			&i.TotalCostMicros,
-			&i.TotalUnpricedUsageCount,
+			&i.TotalHasUnpricedUsage,
+			&i.Dimension,
+			&i.DimensionName,
+			&i.ProviderDisplayName,
+			&i.ProviderIcon,
+			&i.ProviderType,
+			&i.DimensionCostMicros,
+			&i.DimensionHasUnpricedUsage,
 		); err != nil {
 			return nil, err
 		}

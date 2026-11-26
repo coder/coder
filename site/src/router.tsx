@@ -467,7 +467,7 @@ const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
 );
 const AISettingsSpendPage = lazy(
-	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
+	() => import("./pages/AISettingsPage/AISpendPage/AISpendPage"),
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),

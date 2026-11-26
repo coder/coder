@@ -8,9 +8,9 @@ import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
+	type ChartCategory,
+	ChartCategoryLabel,
 	ChartContent,
-	type ChartLegend,
-	ChartLegends,
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
@@ -57,9 +57,6 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 			(!isCoderResource(t.name) || isStageBoundary(t.name)) &&
 			t.name.includes(filter),
 	);
-	const visibleLegends = [...new Set(visibleTimings.map((t) => t.action))].map(
-		(a) => legendsByAction[a] ?? { label: a },
-	);
 
 	return (
 		<Chart>
@@ -80,14 +77,15 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 					value={filter}
 					onChange={setFilter}
 				/>
-				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
 				<ChartTable caption={`Resources in ${stage.name} stage`} ticks={ticks}>
 					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
-							const legend = legendsByAction[t.action] ?? { label: t.action };
+							const category = categoriesByAction[t.action] ?? {
+								label: t.action,
+							};
 							const label = isStageBoundary(t.name)
 								? "total stage duration"
 								: t.name;
@@ -97,11 +95,11 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<FocusableBar
-												aria-label={`${label}: ${legend.label}`}
+												aria-label={`${label}: ${category.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												className={legend.className}
+												className={category.className}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -112,6 +110,7 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 										</TooltipContent>
 									</Tooltip>
 									{formatTime(duration)}
+									<ChartCategoryLabel label={category.label} />
 								</ChartTableRow>
 							);
 						})}
@@ -138,7 +137,7 @@ export const isCoderResource = (resource: string) => {
 // ProvisionerTiming to catch missing actions in the record. As a "workaround"
 // for now, we are using undefined since we don't have noUncheckedIndexedAccess
 // enabled.
-const legendsByAction: Record<string, ChartLegend | undefined> = {
+const categoriesByAction: Record<string, ChartCategory | undefined> = {
 	"state refresh": {
 		label: "state refresh",
 	},

@@ -86,7 +86,6 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 						label="Name"
 						required
 						onChange={onChangeTrimmed(form, () => setFormError(undefined))}
-						autoFocus
 						className="w-full"
 					/>
 				</FormFields>

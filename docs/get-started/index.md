@@ -192,17 +192,22 @@ If your control plane is on a network or cloud device, or you are having trouble
 It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find it.
 
+The setup page asks for a setup token, whichever URL you use.
+Copy it from the line that starts with `Setup token:` in the same output.
+
 This section includes some of the quicker ways to install Coder.
 For more detailed options, visit the [Install](../install/index.md) page.
 
 ## Step 3: Initial setup
 
 1. Create your admin account:
+   - Setup token: Copy it from the line that starts with `Setup token:` in the `coder server` output.
    - Email: `your.email@example.com`
    - Password: Choose a strong password.
 
-   You can also choose to **Continue with GitHub** instead of creating an admin account.
-   Coder automatically grants admin permissions to the first user that signs in.
+   Coder automatically grants admin permissions to the first user.
+   To sign in with GitHub later, create the account with your GitHub account's primary email.
+   After setup, switch the account to GitHub sign-in under **Account** > **Security**.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -314,7 +319,17 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Pick the goal that matches what you want to do next.
+To keep learning, take a hands-on course on coder.com.
+Start with Template Fundamentals, which teaches you how to customize a template.
+
+<div class="cards">
+
+- [Template Fundamentals](https://coder.com/learn/coder-quickstart): Make a template your own by adding languages and tools, and learn Terraform basics along the way.
+- [All Coder courses](https://coder.com/learn): Browse every hands-on Coder course, from your first workspace to running Coder in production.
+
+</div>
+
+You can also pick the goal that matches what you want to do next.
 Each path starts from the deployment you just built.
 
 ### Hand a task to a coding agent
@@ -328,9 +343,44 @@ If you don't have a project in mind, ask the agent to generate something small y
 
 ### Make the workspace fit how you work
 
-The Quickstart template is a starting point.
-[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10&nbsp;minutes.
+The template you built is a starting point.
+To add a language or install your own command-line tools, take the [Template Fundamentals](https://coder.com/learn/coder-quickstart) course.
+
+To clone a private repository into your workspace, add GitHub authentication to the template:
+
+1. Open the template for editing.
+
+   In the dashboard, go to **Templates**, select your template, select the menu next to **Create workspace**, and then select **Edit files**.
+   With the CLI, run `coder templates pull <template-name> <directory>`.
+
+1. Add a `coder_external_auth` data source to `main.tf`:
+
+   ```tf
+   data "coder_external_auth" "github" {
+     id = "github"
+   }
+   ```
+
+   On a new Coder deployment, `id = "github"` works without extra setup.
+   For other providers, refer to [External authentication](../admin/external-auth.md).
+
+1. Publish a new version of the template.
+
+   In the web editor, select **Build**, wait for the build to finish, and then select **Publish**.
+   With the CLI, run `coder templates push -d <directory> <template-name>`.
+
+1. On the template page, select **Create workspace**.
+
+1. Under **External authentication**, select **Login with GitHub** to authorize Coder.
+
+   Coder requires this authentication to create a workspace from the template.
+   To let users skip it, add `optional = true` to the data source.
+
+1. Finish creating the workspace, as in [Step 5](#step-5-launch-your-workspace).
+
+1. In the workspace, clone your private repository with its HTTPS URL.
+
+   Git doesn't prompt you to sign in, because Coder supplies your GitHub token.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 

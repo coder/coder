@@ -453,6 +453,19 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGatewayRetention is how long AI Gateway data, such as interceptions and
+ * token usage, is kept before it is purged.
+ */
+export interface AIGatewayRetention {
+	/**
+	 * RetentionMillis is the retention duration in milliseconds. Zero means
+	 * data is never purged.
+	 */
+	readonly retention_ms: number;
+}
+
 // From codersdk/aimodelprices.go
 /**
  * AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -1900,6 +1913,11 @@ export interface AuthMethods {
 	readonly password: AuthMethod;
 	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
+	/**
+	 * SetupTokenRequired is true when the first user can only be
+	 * created with a setup token.
+	 */
+	readonly setup_token_required?: boolean;
 }
 
 // From codersdk/authorization.go
@@ -4706,6 +4724,11 @@ export interface CreateFirstUserRequest {
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
 	readonly onboarding_info?: CreateFirstUserOnboardingInfo;
+	/**
+	 * SetupToken is required when AuthMethods.SetupTokenRequired is
+	 * true. The server prints it at startup.
+	 */
+	readonly setup_token?: string;
 }
 
 // From codersdk/users.go
@@ -5671,6 +5694,7 @@ export interface DeploymentValues {
 	readonly external_auth_github_default_provider_enable?: boolean;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
+	readonly setup_token?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
@@ -8205,6 +8229,28 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendClient is a user's AI spend from one client, summed
+ * over every (provider, model, client) tuple with that client.
+ */
+export interface OrganizationAISpendClient {
+	/**
+	 * Name is the client recorded on the intercepted request. Usage without a
+	 * recorded client is reported as Unknown.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend from the client over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage from the client was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
  */
 export interface OrganizationAISpendDetailsFilter {
@@ -8214,6 +8260,7 @@ export interface OrganizationAISpendDetailsFilter {
 	readonly group_id?: string;
 	readonly provider_name?: string;
 	readonly model?: string;
+	readonly client?: string;
 }
 
 // From codersdk/aibridge.go
@@ -8230,6 +8277,14 @@ export interface OrganizationAISpendFilter {
 	readonly period_start?: string;
 	readonly period_end?: string;
 	/**
+	 * UserIDs restricts the report to these users.
+	 */
+	readonly user_ids?: readonly string[];
+	/**
+	 * GroupID matches the effective group recorded on the token usage.
+	 */
+	readonly group_id?: string;
+	/**
 	 * ProviderName matches the configured provider name recorded on the
 	 * intercepted request.
 	 */
@@ -8240,6 +8295,27 @@ export interface OrganizationAISpendFilter {
 	 * matches usage without a recorded client.
 	 */
 	readonly client?: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendModel is a user's AI spend on one model, summed over
+ * every (provider, model, client) tuple with that model.
+ */
+export interface OrganizationAISpendModel {
+	/**
+	 * Name is the model the client requested.
+	 */
+	readonly name: string;
+	/**
+	 * CostMicros is the priced spend on the model over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage of the model was
+	 * recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8344,17 +8420,45 @@ export interface OrganizationAISpendPage {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendProvider is a user's AI spend through one configured
+ * provider, summed over every (provider, model, client) tuple with that
+ * provider.
+ */
+export interface OrganizationAISpendProvider {
+	/**
+	 * Name is the name of the configured provider.
+	 */
+	readonly name: string;
+	/**
+	 * DisplayName falls back to the provider name when unset.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is empty when the provider has no configured icon.
+	 */
+	readonly icon: string;
+	/**
+	 * Type is omitted when the provider name was never configured.
+	 */
+	readonly type?: AIProviderType;
+	/**
+	 * CostMicros is the priced spend through the provider over the period.
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports whether any token usage through the provider
+	 * was recorded without a price.
+	 */
+	readonly has_unpriced_usage: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendReport is one page of per-user AI spend for an
  * organization over the applied period. Count and Totals cover every
  * matching user, not only the returned page.
  */
 export interface OrganizationAISpendReport extends AISpendPeriodWindow {
-	/**
-	 * RetentionStart is the oldest instant for which token usage is still
-	 * retained. An explicit period must not start before it. Omitted when the
-	 * deployment does not purge AI Gateway data.
-	 */
-	readonly retention_start?: string;
 	/**
 	 * Count is the number of users with token usage matching the filter.
 	 */
@@ -8377,10 +8481,10 @@ export interface OrganizationAISpendTotals {
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of token usage records without a cost
-	 * across every matching user.
+	 * HasUnpricedUsage reports whether any matching token usage was recorded
+	 * without a price.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -8394,28 +8498,24 @@ export interface OrganizationAISpendUser {
 	readonly name: string;
 	readonly avatar_url: string;
 	/**
-	 * CostMicros is the user's priced spend over the period.
+	 * CostMicros is the user's priced spend over the period. It is a lower
+	 * bound when any entry in ModelSpend has unpriced usage.
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of the user's token usage records that
-	 * carry no cost because their model had no price when they were recorded.
+	 * ProviderSpend is the user's spend per configured provider, most
+	 * expensive first.
 	 */
-	readonly unpriced_usage_count: number;
+	readonly provider_spend: readonly OrganizationAISpendProvider[];
 	/**
-	 * Providers are the configured provider names the user spent through,
-	 * sorted.
+	 * ModelSpend is the user's spend per model, most expensive first.
 	 */
-	readonly providers: readonly string[];
+	readonly model_spend: readonly OrganizationAISpendModel[];
 	/**
-	 * Clients are the clients the user spent through, sorted. Usage without a
-	 * recorded client is reported as Unknown.
+	 * ClientSpend is the user's spend per client, most expensive first. Usage
+	 * without a recorded client is reported as Unknown.
 	 */
-	readonly clients: readonly string[];
-	/**
-	 * Models are the models the user spent through, sorted.
-	 */
-	readonly models: readonly string[];
+	readonly client_spend: readonly OrganizationAISpendClient[];
 }
 
 // From codersdk/chats.go
@@ -8480,6 +8580,34 @@ export interface OrganizationMember {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly roles: readonly SlimRole[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationMemberAISpendStatus is a user's AI spend snapshot inside a
+ * single organization, resolved the same way AI Gateway resolves a request
+ * made in that organization.
+ */
+export interface OrganizationMemberAISpendStatus extends AISpendPeriodWindow {
+	readonly organization_id: string;
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the group inside this organization that the spend
+	 * is attributed to, falling back to the organization's Everyone group
+	 * when no budget applies.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is the spend limit that applies to the user in this
+	 * organization. Null when no budget applies, leaving the user's spend
+	 * unlimited.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the user's spend on their effective group over
+	 * the current budget period.
+	 */
+	readonly current_spend_micros: number;
 }
 
 // From codersdk/organizations.go
@@ -11278,11 +11406,12 @@ export interface UnpricedAIModel {
  */
 export interface UnpricedAIModels extends AISpendPeriodWindow {
 	/**
-	 * Count is the number of models listed.
+	 * Count is the number of models over every page.
 	 */
 	readonly count: number;
 	/**
-	 * Models are ordered by unpriced token count, highest first.
+	 * Models are one page of the models, ordered by unpriced token count,
+	 * highest first.
 	 */
 	readonly models: readonly UnpricedAIModel[];
 }
@@ -12474,6 +12603,48 @@ export interface UserLatencyInsightsResponse {
 // From codersdk/users.go
 export interface UserLoginType {
 	readonly login_type: LoginType;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationAISpend is a user's AI spend inside one organization in
+ * the active budget period.
+ */
+export interface UserOrganizationAISpend {
+	readonly organization: MinimalOrganization;
+	/**
+	 * EffectiveGroupID is the user's effective group inside Organization,
+	 * falling back to its Everyone group.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is null when no budget applies in Organization.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the spend on EffectiveGroupID over the current
+	 * budget period, the same value the budget check compares.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserOrganizationsAISpendStatus is a user's AI spend in each of their
+ * organizations that the caller can read, within the active budget period.
+ */
+export interface UserOrganizationsAISpendStatus extends AISpendPeriodWindow {
+	/**
+	 * OrganizationID is the organization of the user's site-wide effective
+	 * group, as reported by UserAISpendStatus. Null when no group resolves or
+	 * when that organization is not in Organizations.
+	 */
+	readonly organization_id: string | null;
+	/**
+	 * Organizations is the spend per organization the user is a current
+	 * member of and the caller can read, ordered by organization name.
+	 */
+	readonly organizations: readonly UserOrganizationAISpend[];
 }
 
 // From codersdk/users.go
