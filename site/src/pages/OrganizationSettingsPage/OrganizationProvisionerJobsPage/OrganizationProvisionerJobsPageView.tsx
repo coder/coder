@@ -154,18 +154,13 @@ const OrganizationProvisionerJobsPageView: React.FC<
 						}}
 					>
 						<SelectTrigger
-							// The name is the label, then the value: "Status: <value>".
+							// Radix's combobox trigger takes no name from its content.
 							aria-labelledby={`${statusFilterId}-label ${statusFilterId}-value`}
-							className="w-45"
-							data-testid="status-filter"
+							className="w-45 justify-start gap-1"
 						>
-							<span className="flex min-w-0 items-center gap-1">
-								<span id={`${statusFilterId}-label`} className="shrink-0">
-									Status:
-								</span>
-								<span id={`${statusFilterId}-value`}>
-									<SelectValue placeholder="All" />
-								</span>
+							<span id={`${statusFilterId}-label`}>Status:</span>
+							<span id={`${statusFilterId}-value`} className="mr-auto">
+								<SelectValue placeholder="All" />
 							</span>
 						</SelectTrigger>
 						<SelectContent>

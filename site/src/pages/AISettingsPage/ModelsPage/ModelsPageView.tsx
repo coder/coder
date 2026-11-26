@@ -323,17 +323,13 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 				)}
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
-						// The name is the label, then the value: "Provider: <value>".
+						// Radix's combobox trigger takes no name from its content.
 						aria-labelledby={`${providerFilterId}-label ${providerFilterId}-value`}
-						className="w-full shadow-none sm:w-60"
+						className="w-full shadow-none sm:w-60 justify-start gap-1"
 					>
-						<span className="flex min-w-0 items-center gap-1">
-							<span id={`${providerFilterId}-label`} className="shrink-0">
-								Provider:
-							</span>
-							<span id={`${providerFilterId}-value`}>
-								<SelectValue placeholder="All" />
-							</span>
+						<span id={`${providerFilterId}-label`}>Provider:</span>
+						<span id={`${providerFilterId}-value`} className="mr-auto">
+							<SelectValue placeholder="All" />
 						</span>
 					</SelectTrigger>
 					<SelectContent>

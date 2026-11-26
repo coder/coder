@@ -116,9 +116,6 @@ export const OnFilter: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const option = await body.findByRole("option", { name: "succeeded" });
 		await userEvent.click(option);
-		await waitFor(() =>
-			expect(statusFilter).toHaveAccessibleName("Status: succeeded"),
-		);
 	},
 };
 

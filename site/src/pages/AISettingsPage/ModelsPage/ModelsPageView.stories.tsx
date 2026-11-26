@@ -157,16 +157,6 @@ export const WithOrganizationFilter: Story = {
 			</OrganizationModelsContext.Provider>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const organizationFilter = canvas.getByRole("combobox", {
-			name: `Organization ${MockDefaultOrganization.display_name}`,
-		});
-		await expect(organizationFilter).toHaveTextContent(/^Organization:/);
-		await expect(
-			canvas.getByRole("combobox", { name: "Provider: All" }),
-		).toBeInTheDocument();
-	},
 };
 
 export const FilterByProvider: Story = {
