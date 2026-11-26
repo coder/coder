@@ -139,7 +139,8 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							className="group relative"
+							// Not `group-focus-within`, which slows WebKit focus changes.
+							className="relative [--actions-opacity:0] [--actions-pointer-events:none] hover:[--actions-opacity:1] hover:[--actions-pointer-events:auto] focus-within:[--actions-opacity:1] focus-within:[--actions-pointer-events:auto] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-pointer-events:auto]"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
@@ -183,7 +184,7 @@ export const AttachmentPreview: React.FC<{
 										);
 										onInlineText(file, nextContent);
 									}}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [pointer-events:var(--actions-pointer-events)] hover:bg-surface-secondary hover:text-content-primary"
 									aria-label="Paste inline"
 								>
 									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
@@ -217,7 +218,7 @@ export const AttachmentPreview: React.FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [pointer-events:var(--actions-pointer-events)] hover:bg-surface-secondary hover:text-content-primary"
 								aria-label={`Remove ${file.name}`}
 							>
 								<XIcon aria-hidden="true" className="size-3.5" />
