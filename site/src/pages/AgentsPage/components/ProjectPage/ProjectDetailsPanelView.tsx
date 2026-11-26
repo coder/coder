@@ -5,6 +5,7 @@ import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { RetryButton } from "#/components/RetryButton/RetryButton";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -13,6 +14,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { hiddenTemplatesNote } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
 /** The most avatar tiles the members row shows, including the "+K" tile. */
@@ -48,6 +50,21 @@ type ProjectDetailsPanelViewProps = {
 	 * Omit when the organization is unknown to hide the avatar.
 	 */
 	readonly organizationIconUrl?: string;
+	/** Attached templates the viewer can access. */
+	readonly templateCount: number;
+	/** Whether the project's chats can only use its attached templates. */
+	readonly limitTemplates: boolean;
+	/** Attached templates the viewer cannot access. */
+	readonly hiddenTemplateCount: number;
+	/** Opens the templates editor. Omit when the caller cannot edit. */
+	readonly onEditTemplates?: () => void;
+	/** The button that opens the templates editor, for restoring focus. */
+	readonly editTemplatesButtonRef?: React.Ref<HTMLButtonElement>;
+	/**
+	 * Takes focus when the templates editor closes after the user lost edit
+	 * permission, since the edit button is then gone.
+	 */
+	readonly templateCountRef?: React.Ref<HTMLSpanElement>;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -73,6 +90,12 @@ export const ProjectDetailsPanelView: React.FC<
 	createdAt,
 	organizationLabel,
 	organizationIconUrl,
+	templateCount,
+	limitTemplates,
+	hiddenTemplateCount,
+	onEditTemplates,
+	editTemplatesButtonRef,
+	templateCountRef,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -85,6 +108,11 @@ export const ProjectDetailsPanelView: React.FC<
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
+	const templateCountText =
+		templateCount === 1 ? "1 template" : `${templateCount} templates`;
+	const templateCountLabel = limitTemplates
+		? `Limited to ${templateCountText}`
+		: templateCountText;
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
@@ -153,6 +181,46 @@ export const ProjectDetailsPanelView: React.FC<
 							/>
 						</DetailRow>
 					)}
+					<DetailRow label="Templates">
+						{onEditTemplates ? (
+							<Link asChild showExternalIcon={false}>
+								<button
+									ref={editTemplatesButtonRef}
+									type="button"
+									className="cursor-pointer border-0 bg-transparent px-0 font-sans"
+									onClick={onEditTemplates}
+								>
+									<span className="sr-only">Edit templates:</span>{" "}
+									{templateCountLabel}
+									<PenIcon />
+								</button>
+							</Link>
+						) : (
+							<span
+								ref={templateCountRef}
+								tabIndex={-1}
+								className="rounded-sm outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+							>
+								{templateCountLabel}
+							</span>
+						)}
+						{hiddenTemplateCount > 0 && (
+							<Tooltip>
+								<TooltipTrigger
+									type="button"
+									className="ml-2 cursor-default rounded-sm bg-transparent p-0 text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+								>
+									{hiddenTemplateCount} hidden{" "}
+									<span className="sr-only">
+										{hiddenTemplateCount === 1 ? "template" : "templates"}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									{hiddenTemplatesNote(hiddenTemplateCount)}
+								</TooltipContent>
+							</Tooltip>
+						)}
+					</DetailRow>
 					<DetailRow label="Skills">
 						{skillCount === undefined && !skillsError ? (
 							<>

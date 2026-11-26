@@ -113,6 +113,18 @@ export const templatesValidationDetail = (error: unknown) =>
 			)?.detail
 		: undefined;
 
+/**
+ * Explains the templates attached to a project that the user cannot access.
+ * Only their count is known.
+ */
+export const hiddenTemplatesNote = (count: number) => {
+	const hidden =
+		count === 1
+			? "1 template in this project isn't shown because you don't have access to it."
+			: `${count} templates in this project aren't shown because you don't have access to them.`;
+	return `${hidden} A template admin or organization admin can give you access.`;
+};
+
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;
 
@@ -134,6 +146,8 @@ type ChatProjectTemplatesFieldsProps = {
 	/** The server's rejection of the saved templates, if any. */
 	readonly saveError: string | undefined;
 	readonly value: ChatProjectTemplatesValues;
+	/** Attached templates the user cannot access, which `templates` lacks. */
+	readonly hiddenTemplateCount?: number;
 	readonly onChange: (value: ChatProjectTemplatesValues) => void;
 	readonly disabled: boolean;
 };
@@ -145,10 +159,24 @@ type ChatProjectTemplatesFieldsProps = {
  */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
-> = ({ templates, templatesError, saveError, value, onChange, disabled }) => {
+> = ({
+	templates,
+	templatesError,
+	saveError,
+	value,
+	hiddenTemplateCount = 0,
+	onChange,
+	disabled,
+}) => {
 	const defaultTemplateSelectId = useId();
+	const hiddenNoteId = useId();
+	const hiddenNote =
+		hiddenTemplateCount > 0
+			? hiddenTemplatesNote(hiddenTemplateCount)
+			: undefined;
 	const limitsToNothing =
-		value.limitTemplates && value.templateIds.length === 0;
+		value.limitTemplates &&
+		value.templateIds.length + hiddenTemplateCount === 0;
 	const options = (templates ?? []).map((template) => ({
 		value: template.id,
 		label: templateLabel(template),
@@ -194,6 +222,9 @@ export const ChatProjectTemplatesFields: React.FC<
 				{templates && (
 					<MultiSelectCombobox
 						commandProps={{ label: "Templates" }}
+						inputProps={{
+							"aria-describedby": hiddenNote && hiddenNoteId,
+						}}
 						options={options}
 						value={options.filter((o) => value.templateIds.includes(o.value))}
 						onChange={(selected) =>
@@ -221,6 +252,11 @@ export const ChatProjectTemplatesFields: React.FC<
 					Agents see these templates first when they choose a template for a
 					workspace.
 				</p>
+				{hiddenNote && (
+					<p id={hiddenNoteId} className="m-0 text-xs text-content-secondary">
+						{hiddenNote}
+					</p>
+				)}
 			</div>
 			<SettingSwitch
 				label="Limit chats to these templates"

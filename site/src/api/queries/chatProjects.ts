@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
@@ -76,6 +77,56 @@ export type ChatProjectTemplatesChange = {
 		"limit_templates" | "default_template"
 	>;
 };
+
+/**
+ * Attaching first lets the update name a new default template, and detaching
+ * last keeps the old default when the update fails. The first failure stops
+ * the save; earlier steps stay saved.
+ */
+export const updateChatProjectTemplates = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: async ({
+			project,
+			change,
+		}: {
+			project: TypesGen.ChatProject;
+			change: ChatProjectTemplatesChange;
+		}) => {
+			const { organization_id: organizationId, id: projectId } = project;
+			for (const templateId of change.attach) {
+				await API.experimental.attachChatProjectTemplate(
+					organizationId,
+					projectId,
+					templateId,
+				);
+			}
+			if (change.request) {
+				await API.experimental.updateChatProject(
+					organizationId,
+					projectId,
+					change.request,
+				);
+			}
+			for (const templateId of change.detach) {
+				try {
+					await API.experimental.detachChatProjectTemplate(
+						organizationId,
+						projectId,
+						templateId,
+					);
+				} catch (error) {
+					// A 404 means the template is already detached or no longer
+					// readable, so this user has nothing left to detach.
+					if (getErrorStatus(error) !== 404) {
+						throw error;
+					}
+				}
+			}
+		},
+		// Returned so the save settles only after the project refreshed.
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: chatProjectsKey, exact: true }),
+	});
 
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({

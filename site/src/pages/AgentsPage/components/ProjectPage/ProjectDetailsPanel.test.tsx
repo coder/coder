@@ -11,6 +11,7 @@ import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
 	ChatProject,
 	ChatProjectInstructions,
+	Template,
 } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -20,6 +21,7 @@ import {
 	MockChatProjectInstructions,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockTemplate,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	mockApiError,
@@ -645,5 +647,193 @@ describe("ProjectDetailsPanel", () => {
 				{ user_roles: { [MockUserMember.id]: "admin" } },
 			),
 		);
+	});
+});
+
+const mockDockerTemplate: Template = {
+	...MockTemplate,
+	id: "template-docker",
+	name: "docker",
+	display_name: "Docker",
+};
+const mockKubernetesTemplate: Template = {
+	...MockTemplate,
+	id: "template-kubernetes",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+};
+
+describe("ProjectDetailsPanel templates", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const setup = (project: ChatProject = MockChatProject) => {
+		mockInstructions(MockUnsetChatProjectInstructions);
+		vi.spyOn(API, "getTemplates").mockResolvedValue([
+			mockDockerTemplate,
+			mockKubernetesTemplate,
+		]);
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		const attach = vi
+			.spyOn(API.experimental, "attachChatProjectTemplate")
+			.mockResolvedValue();
+		const detach = vi
+			.spyOn(API.experimental, "detachChatProjectTemplate")
+			.mockResolvedValue();
+		const updateProject = vi
+			.spyOn(API.experimental, "updateChatProject")
+			.mockResolvedValue(project);
+		const panel = renderPanel(project);
+		return {
+			attach,
+			detach,
+			updateProject,
+			...panel,
+		};
+	};
+
+	const projectArgs = [MockChatProject.organization_id, MockChatProject.id];
+	const mockProjectWithTemplates: ChatProject = {
+		...MockChatProject,
+		templates: [mockDockerTemplate, mockKubernetesTemplate],
+	};
+
+	it("attaches the templates picked in the editor and sends nothing else", async () => {
+		const { user, attach, detach, updateProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
+		expect(attach).toHaveBeenCalledWith(...projectArgs, mockDockerTemplate.id);
+		expect(attach).toHaveBeenCalledWith(
+			...projectArgs,
+			mockKubernetesTemplate.id,
+		);
+		expect(updateProject).not.toHaveBeenCalled();
+		expect(detach).not.toHaveBeenCalled();
+	});
+
+	it("attaches the new default, then updates the limit and default, then detaches the old default", async () => {
+		const { user, attach, detach, updateProject } = setup({
+			...MockChatProject,
+			templates: [mockDockerTemplate],
+			default_template: { template_id: mockDockerTemplate.id },
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 1 template" }),
+		);
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Kubernetes" }));
+		await user.click(
+			screen.getByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
+		await user.click(screen.getByRole("button", { name: "Remove Docker" }));
+		await user.click(
+			screen.getByRole("switch", { name: "Limit chats to these templates" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Save", busy: false }),
+		);
+
+		await waitFor(() =>
+			expect(detach).toHaveBeenCalledWith(
+				...projectArgs,
+				mockDockerTemplate.id,
+			),
+		);
+		expect(attach.mock.calls).toEqual([
+			[...projectArgs, mockKubernetesTemplate.id],
+		]);
+		expect(updateProject.mock.calls).toEqual([
+			[
+				...projectArgs,
+				{
+					limit_templates: true,
+					default_template: { template_id: mockKubernetesTemplate.id },
+				},
+			],
+		]);
+		expect(detach).toHaveBeenCalledTimes(1);
+		expect(attach.mock.invocationCallOrder[0]).toBeLessThan(
+			updateProject.mock.invocationCallOrder[0],
+		);
+		expect(updateProject.mock.invocationCallOrder[0]).toBeLessThan(
+			detach.mock.invocationCallOrder[0],
+		);
+	});
+
+	it("sends one save when Save is double clicked", async () => {
+		const { user, attach } = setup();
+		attach.mockReturnValue(new Promise(() => {}));
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(attach).toHaveBeenCalled());
+		expect(attach).toHaveBeenCalledTimes(1);
+	});
+
+	it("detaches a template removed from the saved templates and sends nothing else", async () => {
+		const { user, attach, detach, updateProject, rerenderWithProject } =
+			setup();
+		rerenderWithProject(mockProjectWithTemplates);
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 2 templates" }),
+		);
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(detach.mock.calls).toEqual([
+				[...projectArgs, mockKubernetesTemplate.id],
+			]),
+		);
+		expect(attach).not.toHaveBeenCalled();
+		expect(updateProject).not.toHaveBeenCalled();
+	});
+
+	it("returns focus to the edit button when the editor closes", async () => {
+		const { user } = setup();
+		const editButton = screen.getByRole("button", {
+			name: "Edit templates: 0 templates",
+		});
+
+		await user.click(editButton);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(editButton).toHaveFocus());
+	});
+
+	it("returns focus to the template count when edit permission is lost while editing", async () => {
+		const { user, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			permissions: { ...MockChatProject.permissions, update: false },
+		});
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(screen.getByText("0 templates")).toHaveFocus());
 	});
 });

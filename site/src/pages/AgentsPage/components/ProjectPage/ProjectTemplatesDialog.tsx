@@ -181,6 +181,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				templatesError={templatesQuery.error}
 				saveError={templatesValidationDetail(shownError)}
 				value={value}
+				hiddenTemplateCount={project.hidden_template_count}
 				onChange={(next) => {
 					setValue(next);
 					if (shownError) {
