@@ -4,7 +4,7 @@ import {
 	Share2Icon,
 	UserPlusIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatACL,
@@ -25,6 +25,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import { Label } from "#/components/Label/Label";
 import {
 	Popover,
 	PopoverContent,
@@ -108,7 +109,7 @@ const AddChatMemberForm: React.FC<AddChatMemberFormProps> = ({
 	children,
 }) => (
 	<form action={onSubmit}>
-		<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+		<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
 			<div className="min-w-0 flex-1">{children}</div>
 			<Button
 				disabled={disabled || isLoading}
@@ -213,6 +214,8 @@ export const ChatSharingPopoverContent: React.FC<
 	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
+	const autocompleteId = useId();
+	const autocompleteLabelId = `${autocompleteId}-label`;
 
 	const aclQuery = useQuery({
 		...chatACL(chatId),
@@ -340,13 +343,19 @@ export const ChatSharingPopoverContent: React.FC<
 							disabled={!selectedOption}
 							onSubmit={handleAddMember}
 						>
-							<UserOrGroupAutocomplete
-								value={selectedOption}
-								onChange={setSelectedOption}
-								organizationId={organizationId}
-								exclude={excludeFromAutocomplete}
-								className="w-full sm:w-80"
-							/>
+							<div className="flex flex-col gap-2">
+								<Label id={autocompleteLabelId}>User or group</Label>
+								<UserOrGroupAutocomplete
+									id={autocompleteId}
+									// The name is the label, then the selection the trigger shows.
+									triggerAriaLabelledBy={`${autocompleteLabelId} ${autocompleteId}`}
+									value={selectedOption}
+									onChange={setSelectedOption}
+									organizationId={organizationId}
+									exclude={excludeFromAutocomplete}
+									className="w-full sm:w-80"
+								/>
+							</div>
 						</AddChatMemberForm>
 
 						{isEmpty ? (

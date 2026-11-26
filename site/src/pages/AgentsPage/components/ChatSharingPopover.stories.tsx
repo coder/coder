@@ -137,7 +137,7 @@ const addAutocompleteOption = async (
 	{
 		query,
 		option,
-		triggerName = "Search for user or group",
+		triggerName = "User or group Search for user or group",
 	}: {
 		query: string;
 		option: string | RegExp;
@@ -219,7 +219,7 @@ export const CurrentUserExcludedFromAutocomplete: Story = {
 		const body = await openChatSharing(canvasElement);
 		await userEvent.click(
 			await body.findByRole("button", {
-				name: "Search for user or group",
+				name: "User or group Search for user or group",
 			}),
 		);
 		await userEvent.type(

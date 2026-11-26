@@ -21,6 +21,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Label } from "#/components/Label/Label";
 import { RetryButton } from "#/components/RetryButton/RetryButton";
 import {
 	Select,
@@ -238,6 +239,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 	onSettled,
 }) => {
 	const triggerId = useId();
+	const roleId = useId();
 	const [draft, setDraft] = useState<{
 		selection: UserOrGroupAutocompleteValue;
 		role: AssignableRole;
@@ -249,7 +251,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 
 	return (
 		<form
-			className="flex flex-col gap-2 sm:flex-row sm:items-center"
+			className="flex flex-col gap-2 sm:flex-row sm:items-end"
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (!selection || isChangePending) {
@@ -271,10 +273,8 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				);
 			}}
 		>
-			<div className="min-w-0 flex-1">
-				<span id={`${triggerId}-label`} className="sr-only">
-					User or group
-				</span>
+			<div className="flex min-w-0 flex-1 flex-col gap-2">
+				<Label id={`${triggerId}-label`}>User or group</Label>
 				<UserOrGroupAutocomplete
 					id={triggerId}
 					triggerRef={triggerRef}
@@ -289,12 +289,18 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 					className="w-full"
 				/>
 			</div>
-			<ProjectRoleSelect
-				value={role}
-				label="Role"
-				disabled={isAdding}
-				onValueChange={(role) => setDraft((current) => ({ ...current, role }))}
-			/>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor={roleId}>Role</Label>
+				<ProjectRoleSelect
+					id={roleId}
+					value={role}
+					label="Role"
+					disabled={isAdding}
+					onValueChange={(role) =>
+						setDraft((current) => ({ ...current, role }))
+					}
+				/>
+			</div>
 			<Button type="submit" disabled={!selection || isChangePending}>
 				<Spinner loading={isAdding}>
 					<UserPlusIcon />
@@ -312,6 +318,7 @@ type ProjectRoleSelectProps = {
 	readonly disabled: boolean;
 	readonly onValueChange: (role: AssignableRole) => void;
 	readonly ref?: React.Ref<HTMLButtonElement>;
+	readonly id?: string;
 };
 
 const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
@@ -320,6 +327,7 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 	disabled,
 	onValueChange,
 	ref,
+	id,
 }) => (
 	<Select
 		value={value}
@@ -330,7 +338,12 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 			}
 		}}
 	>
-		<SelectTrigger ref={ref} className="w-full sm:w-32" aria-label={label}>
+		<SelectTrigger
+			ref={ref}
+			id={id}
+			className="w-full sm:w-32"
+			aria-label={label}
+		>
 			<SelectValue placeholder="Role">
 				{value === "" ? undefined : chatProjectRoleLabel[value]}
 			</SelectValue>
