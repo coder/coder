@@ -47,6 +47,8 @@ type OrganizationAutocompleteProps = Pick<
 	 */
 	triggerClassName?: string;
 	optionsTabbable?: boolean;
+	/** Visible text before the selected organization, e.g. `Organization:`. */
+	valuePrefix?: string;
 };
 
 export const getOrganizationLabel = (
@@ -79,6 +81,7 @@ export const OrganizationAutocomplete: React.FC<
 	disabled,
 	triggerClassName,
 	optionsTabbable = false,
+	valuePrefix,
 	...ariaProps
 }) => {
 	const [open, setOpen] = useState(false);
@@ -113,6 +116,11 @@ export const OrganizationAutocomplete: React.FC<
 						triggerClassName,
 					)}
 				>
+					{valuePrefix && (
+						<span className="shrink-0 text-content-secondary">
+							{valuePrefix}
+						</span>
+					)}
 					{value ? (
 						<>
 							<Avatar
@@ -283,6 +291,11 @@ type OrganizationFieldProps = {
 	disabled?: boolean;
 	label?: string;
 	showLabel?: boolean;
+	/**
+	 * `above` renders a `<Label>` above the field. `inline` renders the label
+	 * inside the trigger as `Label: value`, for toolbar filters.
+	 */
+	labelPosition?: "above" | "inline";
 	showSingleOrganization?: boolean;
 	readOnly?: boolean;
 	triggerClassName?: string;
@@ -300,6 +313,7 @@ export const OrganizationField: React.FC<OrganizationFieldProps> = ({
 	disabled,
 	label = "Organization",
 	showLabel = true,
+	labelPosition = "above",
 	showSingleOrganization = false,
 	readOnly = false,
 	triggerClassName,
@@ -326,7 +340,7 @@ export const OrganizationField: React.FC<OrganizationFieldProps> = ({
 
 	return (
 		<div className={cn("flex w-72 flex-col gap-1.5", className)}>
-			{showLabel && (
+			{showLabel && labelPosition === "above" && (
 				<Label
 					htmlFor={id}
 					className="flex items-center gap-1 leading-6 text-content-primary"
@@ -356,6 +370,7 @@ export const OrganizationField: React.FC<OrganizationFieldProps> = ({
 					disabled={disabled}
 					triggerClassName={triggerClassName}
 					optionsTabbable={optionsTabbable}
+					valuePrefix={labelPosition === "inline" ? `${label}:` : undefined}
 				/>
 			)}
 		</div>

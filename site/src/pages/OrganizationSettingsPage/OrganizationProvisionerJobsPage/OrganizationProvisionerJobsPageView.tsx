@@ -1,4 +1,5 @@
 import { XIcon } from "lucide-react";
+import { useId } from "react";
 import type {
 	Organization,
 	ProvisionerJob,
@@ -84,6 +85,8 @@ type OrganizationProvisionerJobsPageViewProps = {
 const OrganizationProvisionerJobsPageView: React.FC<
 	OrganizationProvisionerJobsPageViewProps
 > = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
+	const statusFilterId = useId();
+
 	if (!organization) {
 		return (
 			<>
@@ -150,8 +153,15 @@ const OrganizationProvisionerJobsPageView: React.FC<
 							});
 						}}
 					>
-						<SelectTrigger className="w-45" data-testid="status-filter">
-							<SelectValue placeholder="All statuses" />
+						<SelectTrigger
+							// Radix's combobox trigger takes no name from its content.
+							aria-labelledby={`${statusFilterId}-label ${statusFilterId}-value`}
+							className="w-45 justify-start gap-1"
+						>
+							<span id={`${statusFilterId}-label`}>Status:</span>
+							<span id={`${statusFilterId}-value`} className="mr-auto">
+								<SelectValue placeholder="All" />
+							</span>
 						</SelectTrigger>
 						<SelectContent>
 							<SelectGroup>
