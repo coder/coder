@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
-import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 import {
 	Combobox,
 	ComboboxButton,
@@ -10,17 +9,18 @@ import {
 	ComboboxInput,
 	ComboboxItem,
 	ComboboxList,
+	type ComboboxOption,
 	ComboboxTrigger,
 } from "./Combobox";
 
-const options: SelectFilterOption[] = [
+const options: ComboboxOption[] = [
 	{ value: "go", label: "Go" },
 	{ value: "gleam", label: "Gleam" },
 	{ value: "kotlin", label: "Kotlin" },
 	{ value: "rust", label: "Rust" },
 ];
 
-const advancedOptions: SelectFilterOption[] = [
+const advancedOptions: ComboboxOption[] = [
 	{ value: "go", label: "Go", startIcon: "/icon/go.svg" },
 	{ value: "gleam", label: "Gleam", startIcon: "/icon/gleam.svg" },
 	{
@@ -34,7 +34,7 @@ const advancedOptions: SelectFilterOption[] = [
 const ComboboxWithHooks = ({
 	optionsList = options,
 }: {
-	optionsList?: SelectFilterOption[];
+	optionsList?: ComboboxOption[];
 }) => {
 	const [value, setValue] = useState<string | undefined>(undefined);
 	const [inputValue, setInputValue] = useState("");
@@ -70,7 +70,7 @@ const ComboboxWithHooks = ({
 const ComboboxWithCustomValue = ({
 	optionsList = options,
 }: {
-	optionsList?: SelectFilterOption[];
+	optionsList?: ComboboxOption[];
 }) => {
 	const [value, setValue] = useState<string | undefined>(undefined);
 	const [inputValue, setInputValue] = useState("");
@@ -235,6 +235,33 @@ export const ClearSelectedOption: Story = {
 
 		await waitFor(() =>
 			expect(canvas.getByRole("button")).toHaveTextContent("Select option"),
+		);
+	},
+};
+
+const longOption: ComboboxOption = {
+	label: "Meridian Systems Engineering",
+	value: "meridian",
+};
+
+export const TruncatedTriggerFocused: Story = {
+	render: () => (
+		<div className="flex w-40">
+			<Combobox value={longOption.value}>
+				<ComboboxTrigger asChild>
+					<ComboboxButton
+						selectedOption={longOption}
+						placeholder="Select option"
+						width={150}
+					/>
+				</ComboboxTrigger>
+			</Combobox>
+		</div>
+	),
+	play: async () => {
+		await userEvent.tab();
+		await expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			longOption.label,
 		);
 	},
 };

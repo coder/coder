@@ -15,10 +15,10 @@ import {
 	ComboboxInput,
 	ComboboxItem,
 	ComboboxList,
+	type ComboboxOption,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 import { FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
@@ -46,7 +46,7 @@ export const ChangeWorkspaceVersionDialog: React.FC<
 	const validVersions = versions?.filter((v) => v.job.status === "succeeded");
 	const selectedVersion = newVersion || currentVersion;
 
-	const selectedOption: SelectFilterOption | undefined = useMemo(() => {
+	const selectedOption: ComboboxOption | undefined = useMemo(() => {
 		if (!selectedVersion) {
 			return undefined;
 		}
