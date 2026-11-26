@@ -59,7 +59,7 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
-	// The peek shows only the newest steps, so the label counts them all.
+	// The peek shows only the newest rows, so the label gives the step count.
 	const steps =
 		block.stepCount > 0
 			? ` (${countLabel(block, block.stepCount, "step")})`

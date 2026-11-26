@@ -353,11 +353,11 @@ const createComponents = (
 };
 
 /**
- * Whether a rendered Response shows any content. A code block, which renders
- * only for code that is not empty, paints its text in the viewer's shadow
- * root, outside the element's text content.
+ * Whether a rendered Response shows text. A code block counts from its frame:
+ * the frame renders only for code that is not empty, and the viewer paints the
+ * code in a shadow root, outside the element's text content.
  */
-export const showsResponseContent = (element: HTMLElement): boolean =>
+export const showsResponseText = (element: HTMLElement): boolean =>
 	Boolean(element.textContent?.trim()) ||
 	element.querySelector("[data-code-block]") !== null;
 

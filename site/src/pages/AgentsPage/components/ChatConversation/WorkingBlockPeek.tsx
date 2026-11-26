@@ -11,18 +11,18 @@ const ROW_HEIGHT = 24;
 const ROW_GAP = 8;
 const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 /** The gap between the summary row and the first row, as expanded. */
-const RAIL_GAP = 6;
+const SUMMARY_GAP = 6;
 /** A row's 16px icon and its text keep this far clear of its edges. */
 const ROW_INK_INSET = (ROW_HEIGHT - 16) / 2;
 /** Two full rows and a third, older one fading out at the top. */
-const MAX_HEIGHT = RAIL_GAP + 3 * ROW_HEIGHT + 2 * ROW_GAP;
-const TWO_ROWS_HEIGHT = RAIL_GAP + 2 * ROW_HEIGHT + ROW_GAP;
+const MAX_HEIGHT = SUMMARY_GAP + 3 * ROW_HEIGHT + 2 * ROW_GAP;
+const TWO_ROWS_HEIGHT = SUMMARY_GAP + 2 * ROW_HEIGHT + ROW_GAP;
 /**
  * Rows fade as they slide past the window's edges, in the rows' empty
  * margins, so rows at rest keep full contrast. `--peek-top` is the top
  * fade's height, which covers the whole third row once one shows.
  */
-const TOP_FADE = RAIL_GAP + ROW_INK_INSET;
+const TOP_FADE = SUMMARY_GAP + ROW_INK_INSET;
 const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${ROW_INK_INSET}px), transparent)`;
 
 /** Rows and the window share one transition, so they arrive together. */
@@ -66,7 +66,7 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		}
 		const full = track.offsetHeight;
 		// The content's top margin alone is not a row.
-		const windowHeight = full <= RAIL_GAP ? 0 : Math.min(full, MAX_HEIGHT);
+		const windowHeight = full <= SUMMARY_GAP ? 0 : Math.min(full, MAX_HEIGHT);
 		const offset = windowHeight - full;
 		const fade = `${full > TWO_ROWS_HEIGHT ? TOP_FADE + ROW_PITCH : TOP_FADE}px`;
 		const previous = placed.current;
