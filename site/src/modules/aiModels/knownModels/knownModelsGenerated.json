@@ -210,18 +210,6 @@
 		},
 		{
 			"provider": "azure",
-			"modelIdentifier": "claude-mythos-5",
-			"displayName": "Claude Mythos 5",
-			"aliases": [],
-			"contextLimit": 1000000,
-			"maxOutputTokens": 128000,
-			"inputCost": 10,
-			"outputCost": 50,
-			"cacheReadCost": 1,
-			"cacheWriteCost": 12.5
-		},
-		{
-			"provider": "azure",
 			"modelIdentifier": "claude-opus-5-5",
 			"displayName": "Claude Opus 5.5",
 			"aliases": [],
