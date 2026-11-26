@@ -33,7 +33,7 @@ export const CliInstallPageView: React.FC<CliInstallPageViewProps> = ({
 			<div className="pt-4">
 				<RouterLink
 					to="/workspaces"
-					className="block py-4 text-center text-content-primary underline decoration-[hsla(0,0%,100%,0.7)] underline-offset-[3px] hover:no-underline"
+					className="block py-4 text-center text-content-primary underline underline-offset-3 hover:no-underline"
 				>
 					Go to workspaces
 				</RouterLink>
