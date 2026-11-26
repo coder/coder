@@ -233,10 +233,14 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 				if (event.key === "Enter" || event.key === " ") {
 					event.stopPropagation();
 				}
-				// The content is portaled, so move focus into it explicitly.
+				// The content is portaled, so move focus into it explicitly. Content
+				// without focusable elements takes focus itself only when it
+				// scrolls, so keyboard users can scroll it with the arrow keys.
+				const content = context.content;
 				const first =
-					context.open && event.key === "Tab" && !event.shiftKey
-						? context.content?.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS)
+					context.open && event.key === "Tab" && !event.shiftKey && content
+						? (content.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS) ??
+							(content.scrollHeight > content.clientHeight ? content : null))
 						: null;
 				if (first) {
 					event.preventDefault();
@@ -250,7 +254,8 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 /**
  * Content can scroll when it is taller than the viewport. An open Dialog's
  * scroll lock cancels wheel and touch scrolling outside the dialog content,
- * including this portaled tooltip, so keep those events from reaching it.
+ * including this portaled tooltip, so keep those events from reaching the
+ * lock's document listener.
  */
 const stopScrollLockPropagation = (event: React.SyntheticEvent) =>
 	event.stopPropagation();
@@ -275,6 +280,11 @@ type TooltipContentProps = React.ComponentProps<
 	disablePortal?: boolean;
 };
 
+/**
+ * Tooltip content is capped at the space next to its trigger and scrolls when
+ * taller. A plain tooltip cannot take focus, so keyboard users cannot scroll
+ * it: use `<Tooltip interactive>` for content that can exceed the viewport.
+ */
 export const TooltipContent: React.FC<TooltipContentProps> = ({
 	className,
 	sideOffset = 4,
@@ -332,6 +342,8 @@ const InteractiveTooltipContent: React.FC<
 			<PopoverPrimitive.Content
 				aria-labelledby={`${context.id}-trigger`}
 				collisionPadding={8}
+				// Focusable so content that scrolls is a keyboard-reachable region.
+				tabIndex={0}
 				{...props}
 				id={context.id}
 				ref={setContent}
@@ -362,7 +374,9 @@ const InteractiveTooltipContent: React.FC<
 					}
 					const focusables =
 						event.currentTarget.querySelectorAll(FOCUSABLE_ELEMENTS);
-					const edge = focusables[event.shiftKey ? 0 : focusables.length - 1];
+					const edge =
+						focusables[event.shiftKey ? 0 : focusables.length - 1] ??
+						event.currentTarget;
 					if (document.activeElement === edge) {
 						// Leave through the trigger: Shift+Tab stops there, and Tab
 						// continues from the trigger's place in the page.

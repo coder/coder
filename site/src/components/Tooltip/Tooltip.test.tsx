@@ -75,6 +75,47 @@ describe("Tooltip interactive", () => {
 	});
 });
 
+describe("Tooltip interactive with text only", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const renderTextOnly = () => {
+		render(
+			<>
+				<Tooltip interactive delayDuration={0}>
+					<TooltipTrigger>Details</TooltipTrigger>
+					<TooltipContent>Long details</TooltipContent>
+				</Tooltip>
+				<button type="button">After</button>
+			</>,
+		);
+		return screen.getByRole("button", { name: "Details" });
+	};
+
+	it("moves Tab into content that scrolls, then out past the trigger", async () => {
+		// jsdom has no layout, so report the content as taller than its box.
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(500);
+		const user = userEvent.setup();
+		renderTextOnly();
+
+		await user.tab();
+		await user.tab();
+		expect(screen.getByRole("dialog")).toHaveFocus();
+		await user.tab();
+		expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+	});
+
+	it("does not add a Tab stop for content that fits", async () => {
+		const user = userEvent.setup();
+		renderTextOnly();
+
+		await user.tab();
+		await user.tab();
+		expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+	});
+});
+
 describe("Tooltip delay", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();

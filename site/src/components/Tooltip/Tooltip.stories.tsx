@@ -55,7 +55,7 @@ export const TallerThanViewport: Story = {
 					<Button variant="outline">Hover</Button>
 				</TooltipTrigger>
 				<TooltipContent>
-					{Array.from({ length: 30 }, (_, index) => (
+					{Array.from({ length: 60 }, (_, index) => (
 						<p key={index} className="m-0">
 							Line {index + 1} of a tooltip taller than the viewport.
 						</p>
@@ -67,5 +67,14 @@ export const TallerThanViewport: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
+		// Expected: a plain tooltip that overflows scrolls but cannot take focus
+		// (the ARIA tooltip pattern has no focus inside it). TooltipContent's
+		// JSDoc points such content at `<Tooltip interactive>`, which is
+		// keyboard scrollable.
+		a11y: {
+			config: {
+				rules: [{ id: "scrollable-region-focusable", enabled: false }],
+			},
+		},
 	},
 };
