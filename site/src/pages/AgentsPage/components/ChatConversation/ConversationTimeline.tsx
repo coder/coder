@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -9,7 +9,7 @@ import { AlertTitle } from "#/components/Alert/Alert";
 import {
 	MessageScroller,
 	useMessageScroller,
-	useMessageScrollerLayoutSync,
+	useMessageScrollerContext,
 } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -433,7 +433,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
-		const syncLayout = useMessageScrollerLayoutSync();
+		const { handleResize } = useMessageScrollerContext();
 		const committedItemKeys = useRef<ReadonlySet<string>>(new Set());
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
@@ -504,8 +504,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 
 		// Removing an item, as when a turn's blocks merge at its end, can shrink
-		// the timeline. An append cannot, and a sync would scroll a newly sent
-		// prompt away while following.
+		// the timeline. The scroller's resize observers wait a frame, so the
+		// layout effect syncs before paint rather than painting a clamped scroll
+		// position. An append cannot shrink it, and while following the end,
+		// handleResize scrolls there, away from a newly sent prompt.
 		const itemSignature = layout.items
 			.map((item) =>
 				item.type === "block"
@@ -513,7 +515,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					: item.slice.key,
 			)
 			.join("\n");
-		const onRegroup = useEffectEvent(() => syncLayout());
 		useLayoutEffect(() => {
 			const keys = new Set(itemSignature.split("\n"));
 			const removed = [...committedItemKeys.current].some(
@@ -521,9 +522,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			);
 			committedItemKeys.current = keys;
 			if (removed) {
-				onRegroup();
+				handleResize();
 			}
-		}, [itemSignature]);
+		}, [itemSignature, handleResize]);
 
 		const getItemKey = (block: WorkingBlock) =>
 			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
