@@ -58,7 +58,10 @@ before they see the PR.
   Flag near-duplicates, hand-assembled versions of wrapped primitives, dead
   branches, and unrelated changes bundled into the diff. Flag new React hooks
   that an existing hook, a plain function, or component state could replace;
-  several new single-use hooks in one diff is a FAIL.
+  several new single-use hooks in one diff is a FAIL. For shortcut hints,
+  apply [FE3's keyboard shortcut rules](../../docs/FRONTEND_PATTERNS.md#keyboard-shortcut-hints):
+  check shared key badges, platform-specific labels, and agreement with the
+  keyboard handler, including hints in string-only attributes.
 - **FE4 (comments)**: Read every comment line the diff adds or edits. Flag
   any comment that restates the identifier, assertion, or control flow.
   Verify surviving comments are factually correct.
@@ -91,7 +94,7 @@ before they see the PR.
 
 ## Output format
 
-```
+```text
 FE1 PASS
 FE2 FAIL  site/src/pages/FooPage/FooPage.tsx:42  `as unknown as Workspace` cast
 FE3 PASS
