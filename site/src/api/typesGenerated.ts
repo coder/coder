@@ -9804,11 +9804,13 @@ export type ResourceType =
 	| "chat_instruction_settings"
 	| "chat_model_config"
 	| "chat_operational_settings"
+	| "chat_organization_model_override"
 	| "chat_organization_system_prompt"
 	| "chat_project"
 	| "chat_project_instructions"
 	| "chat_project_memory"
 	| "chat_project_skill"
+	| "chat_user_model_override"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9854,11 +9856,13 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_instruction_settings",
 	"chat_model_config",
 	"chat_operational_settings",
+	"chat_organization_model_override",
 	"chat_organization_system_prompt",
 	"chat_project",
 	"chat_project_instructions",
 	"chat_project_memory",
 	"chat_project_skill",
+	"chat_user_model_override",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",

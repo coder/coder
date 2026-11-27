@@ -7846,10 +7846,11 @@ func (q *sqlQuerier) UpdateChatModelConfigACLByID(ctx context.Context, arg Updat
 	return i, err
 }
 
-const deleteChatOrganizationModelOverride = `-- name: DeleteChatOrganizationModelOverride :exec
+const deleteChatOrganizationModelOverride = `-- name: DeleteChatOrganizationModelOverride :one
 DELETE FROM chat_organization_model_overrides
 WHERE organization_id = $1
   AND context = $2
+RETURNING id, organization_id, context, model_config_id, reasoning_effort
 `
 
 type DeleteChatOrganizationModelOverrideParams struct {
@@ -7857,9 +7858,17 @@ type DeleteChatOrganizationModelOverrideParams struct {
 	Context        string    `db:"context" json:"context"`
 }
 
-func (q *sqlQuerier) DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatOrganizationModelOverride, arg.OrganizationID, arg.Context)
-	return err
+func (q *sqlQuerier) DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatOrganizationModelOverride, arg.OrganizationID, arg.Context)
+	var i ChatOrganizationModelOverride
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Context,
+		&i.ModelConfigID,
+		&i.ReasoningEffort,
+	)
+	return i, err
 }
 
 const getChatOrganizationModelOverride = `-- name: GetChatOrganizationModelOverride :one
@@ -8055,7 +8064,7 @@ func (q *sqlQuerier) GetChatUserModelOverrides(ctx context.Context, arg GetChatU
 	return items, nil
 }
 
-const upsertChatOrganizationModelOverride = `-- name: UpsertChatOrganizationModelOverride :exec
+const upsertChatOrganizationModelOverride = `-- name: UpsertChatOrganizationModelOverride :one
 INSERT INTO chat_organization_model_overrides
     (organization_id, context, model_config_id, reasoning_effort)
 VALUES ($1, $2, $3, $4)
@@ -8063,6 +8072,7 @@ ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_cont
 DO UPDATE SET
     model_config_id = EXCLUDED.model_config_id,
     reasoning_effort = EXCLUDED.reasoning_effort
+RETURNING id, organization_id, context, model_config_id, reasoning_effort
 `
 
 type UpsertChatOrganizationModelOverrideParams struct {
@@ -8072,17 +8082,25 @@ type UpsertChatOrganizationModelOverrideParams struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
-func (q *sqlQuerier) UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, upsertChatOrganizationModelOverride,
+func (q *sqlQuerier) UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatOrganizationModelOverride,
 		arg.OrganizationID,
 		arg.Context,
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 	)
-	return err
+	var i ChatOrganizationModelOverride
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Context,
+		&i.ModelConfigID,
+		&i.ReasoningEffort,
+	)
+	return i, err
 }
 
-const upsertChatUserModelOverride = `-- name: UpsertChatUserModelOverride :exec
+const upsertChatUserModelOverride = `-- name: UpsertChatUserModelOverride :one
 INSERT INTO chat_user_model_overrides
     (user_id, organization_id, context, mode, model_config_id, reasoning_effort)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -8091,6 +8109,7 @@ DO UPDATE SET
     mode = EXCLUDED.mode,
     model_config_id = EXCLUDED.model_config_id,
     reasoning_effort = EXCLUDED.reasoning_effort
+RETURNING id, user_id, organization_id, context, mode, model_config_id, reasoning_effort
 `
 
 type UpsertChatUserModelOverrideParams struct {
@@ -8102,8 +8121,8 @@ type UpsertChatUserModelOverrideParams struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
-func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, upsertChatUserModelOverride,
+func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) (ChatUserModelOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUserModelOverride,
 		arg.UserID,
 		arg.OrganizationID,
 		arg.Context,
@@ -8111,7 +8130,17 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 	)
-	return err
+	var i ChatUserModelOverride
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.OrganizationID,
+		&i.Context,
+		&i.Mode,
+		&i.ModelConfigID,
+		&i.ReasoningEffort,
+	)
+	return i, err
 }
 
 const getChatOrganizationSystemPrompt = `-- name: GetChatOrganizationSystemPrompt :one

@@ -17118,7 +17118,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 
 	t.Run("OrganizationIsolation", func(t *testing.T) {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: member.ID})
-		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
+		_, err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
 			UserID: member.ID, OrganizationID: otherOrg.ID, Context: string(codersdk.ChatPersonalModelOverrideContextGeneral),
 			Mode: string(codersdk.ChatPersonalModelOverrideModeModel), ModelConfigID: uuid.NullUUID{UUID: otherOrgModel.ID, Valid: true},
 		})
@@ -17199,7 +17199,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	}
 	upsertRootModel := func(userID uuid.UUID, organizationID uuid.UUID, modelConfigID uuid.UUID) {
 		t.Helper()
-		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
+		_, err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
 			UserID: userID, OrganizationID: organizationID, Context: string(codersdk.ChatPersonalModelOverrideContextRoot),
 			Mode: string(codersdk.ChatPersonalModelOverrideModeModel), ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		})
@@ -17354,7 +17354,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 
 		// The composite foreign key makes a root override pointing at
 		// another organization's model unrepresentable at the schema level.
-		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
+		_, err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{
 			UserID:         otherUser.ID,
 			OrganizationID: org.ID,
 			Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),

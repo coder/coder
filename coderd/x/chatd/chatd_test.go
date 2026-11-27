@@ -5959,11 +5959,12 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		_, err := db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 			OrganizationID: overrideModel.OrganizationID,
 			Context:        string(codersdk.ChatModelOverrideContextCompaction),
 			ModelConfigID:  overrideModel.ID,
-		}))
+		})
+		require.NoError(t, err)
 		return overrideModel
 	}
 
@@ -10299,11 +10300,12 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		Model:          computerUseModelName,
 		OrganizationID: org.ID,
 	})
-	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+	_, err := db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 		OrganizationID: org.ID,
 		Context:        string(codersdk.ChatModelOverrideContextComputerUse),
 		ModelConfigID:  computerUseModel.ID,
-	}))
+	})
+	require.NoError(t, err)
 
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.

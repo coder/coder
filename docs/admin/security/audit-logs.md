@@ -381,6 +381,8 @@ Actions: `write`
 <table width="100%">
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
+<tr><td><code>advisor_max_output_tokens</code></td><td>Yes</td></tr>
+<tr><td><code>advisor_max_uses_per_run</code></td><td>Yes</td></tr>
 <tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
@@ -388,6 +390,21 @@ Actions: `write`
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>personal_model_overrides_enabled</code></td><td>Yes</td></tr>
 <tr><td><code>workspace_ttl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### ChatOrganizationModelOverride
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>context</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>model_config_id</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>reasoning_effort</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -444,6 +461,23 @@ Actions: `create`, `delete`
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>project_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### ChatUserModelOverride
+
+Actions: `create`, `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>context</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>mode</code></td><td>Yes</td></tr>
+<tr><td><code>model_config_id</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>reasoning_effort</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>No</td></tr>
 </tbody>
 </table>
 

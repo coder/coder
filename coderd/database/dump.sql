@@ -663,7 +663,9 @@ CREATE TYPE resource_type AS ENUM (
     'chat_organization_system_prompt',
     'chat_project_instructions',
     'organization_skill',
-    'chat_project_skill'
+    'chat_project_skill',
+    'chat_organization_model_override',
+    'chat_user_model_override'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

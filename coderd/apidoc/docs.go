@@ -31727,7 +31727,9 @@ const docTemplate = `{
                 "chat_organization_system_prompt",
                 "chat_project_instructions",
                 "chat_project_skill",
-                "experiment_rule"
+                "experiment_rule",
+                "chat_organization_model_override",
+                "chat_user_model_override"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -31777,7 +31779,9 @@ const docTemplate = `{
                 "ResourceTypeChatOrganizationSystemPrompt",
                 "ResourceTypeChatProjectInstructions",
                 "ResourceTypeChatProjectSkill",
-                "ResourceTypeExperimentRule"
+                "ResourceTypeExperimentRule",
+                "ResourceTypeChatOrganizationModelOverride",
+                "ResourceTypeChatUserModelOverride"
             ]
         },
         "codersdk.Response": {

@@ -802,7 +802,8 @@ func upsertInternalChatOrganizationModelOverride(
 	if hasEffort {
 		params.ReasoningEffort = sql.NullString{String: effort, Valid: true}
 	}
-	require.NoError(t, db.UpsertChatOrganizationModelOverride(systemRestrictedTestContext(t), params))
+	_, err = db.UpsertChatOrganizationModelOverride(systemRestrictedTestContext(t), params)
+	require.NoError(t, err)
 }
 
 func upsertInternalUserChatPersonalModelOverride(
@@ -823,7 +824,7 @@ func upsertInternalUserChatPersonalModelOverride(
 			reasoningEffort = sql.NullString{String: rawEffort, Valid: true}
 		}
 	}
-	require.NoError(t, db.UpsertChatUserModelOverride(
+	_, err := db.UpsertChatUserModelOverride(
 		systemRestrictedTestContext(t),
 		database.UpsertChatUserModelOverrideParams{
 			UserID:          userID,
@@ -833,7 +834,8 @@ func upsertInternalUserChatPersonalModelOverride(
 			ModelConfigID:   modelConfigID,
 			ReasoningEffort: reasoningEffort,
 		},
-	))
+	)
+	require.NoError(t, err)
 }
 
 func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
