@@ -136,7 +136,7 @@ if version_gt "$new_max" "$current_max"; then
 fi
 replace_in_file "$install_go" \
 	-e "s/^([[:space:]]*TerraformVersion[[:space:]]*=[[:space:]]*version\.Must\(version\.NewVersion\(\")${semver_re}/\1${version}/" \
-	"${max_expr[@]}"
+	${max_expr[@]+"${max_expr[@]}"}
 changed+=("$install_go")
 
 # Download URLs, e.g. releases.hashicorp.com/terraform/1.2.3/terraform_1.2.3_
