@@ -206,6 +206,71 @@ func TestAgent_FlushFlightRecorderOnDisconnect(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+// busyClient makes coderd turn the agent away with a Retry-After header, as
+// it does when too many agents are connecting at once.
+type busyClient struct {
+	*agenttest.Client
+	retryAfter time.Duration
+}
+
+func (c *busyClient) ConnectRPC217WithRole(context.Context, string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
+) {
+	//nolint:bodyclose // ReadBodyAsError closes the body.
+	return nil, nil, codersdk.ReadBodyAsError(&http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+			"Retry-After":  []string{strconv.Itoa(int(c.retryAfter.Seconds()))},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"message":"busy"}`)),
+	})
+}
+
+// TestAgent_ReconnectWaitsForRetryAfter verifies that an agent that coderd
+// turns away stays away for at least as long as coderd asked.
+func TestAgent_ReconnectWaitsForRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	mClock := quartz.NewMock(t)
+	reconnectTrap := mClock.Trap().NewTimer("agent", "reconnect")
+	defer reconnectTrap.Close()
+
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	baseClient := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(baseClient.Close)
+
+	const retryAfter = 7 * time.Second
+	agentUnderTest := agent.New(agent.Options{
+		Client:     &busyClient{Client: baseClient, retryAfter: retryAfter},
+		Filesystem: afero.NewMemMapFs(),
+		Logger:     logger.Named("agent"),
+		Clock:      mClock,
+	})
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// The first attempt is immediate, so the first wait follows the first
+	// rejection. The agent adds a short random delay of its own on top.
+	wait := reconnectTrap.MustWait(ctx)
+	defer wait.MustRelease(ctx)
+	require.GreaterOrEqual(t, wait.Duration, retryAfter)
+	require.Less(t, wait.Duration, retryAfter+time.Second)
+}
+
 // NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
 //             Writing "exit 0" to stdin before closing fixed the issue for me.
 

@@ -66,7 +66,6 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
-	"github.com/coder/retry"
 )
 
 const (
@@ -570,9 +569,21 @@ func (a *agent) runLoop() {
 	// messages.
 	ctx := a.hardCtx
 	defer a.logger.Info(ctx, "agent main loop exited")
-	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+	var (
+		backoff      reconnectBackoff
+		connectedFor time.Duration
+		retryAfter   time.Duration
+	)
+	for a.waitToConnect(ctx, backoff.next(connectedFor, retryAfter)) {
 		a.logger.Info(ctx, "connecting to coderd")
-		err := a.run()
+		var err error
+		connectedFor, err = a.run()
+		// When coderd is too busy to take the agent, it says how long the
+		// agent should stay away.
+		retryAfter = 0
+		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok {
+			retryAfter = sdkErr.RetryAfter()
+		}
 		if err == nil {
 			continue
 		}
@@ -602,6 +613,23 @@ func (a *agent) runLoop() {
 		// is available in the logs.
 		a.logger.Flush(ctx)
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
+	}
+}
+
+// waitToConnect waits for delay before the next attempt to connect to coderd.
+// It returns false if ctx ends first.
+func (a *agent) waitToConnect(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return ctx.Err() == nil
+	}
+	a.logger.Debug(ctx, "waiting before connecting to coderd", slog.F("delay", delay))
+	timer := a.clock.NewTimer(delay, "agent", "reconnect")
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
@@ -1005,13 +1033,15 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgent
 	}
 }
 
-func (a *agent) run() (retErr error) {
+// run connects to coderd and serves the connection until it fails. It returns
+// how long the connection lasted, which is zero if it was never established.
+func (a *agent) run() (time.Duration, error) {
 	// This allows the agent to refresh its token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
 	err := a.client.RefreshToken(a.hardCtx)
 	if err != nil {
-		return xerrors.Errorf("refresh token: %w", err)
+		return 0, xerrors.Errorf("refresh token: %w", err)
 	}
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
@@ -1019,8 +1049,9 @@ func (a *agent) run() (retErr error) {
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
 	aAPI, tAPI, err := a.client.ConnectRPC217WithRole(a.hardCtx, "agent")
 	if err != nil {
-		return err
+		return 0, err
 	}
+	connectedAt := a.clock.Now()
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()
 		if cErr != nil {
@@ -1195,7 +1226,7 @@ func (a *agent) run() (retErr error) {
 	if err != nil {
 		a.logger.Info(context.Background(), "connection manager errored", slog.Error(err))
 	}
-	return err
+	return a.clock.Since(connectedAt), err
 }
 
 // handleManifest returns a function that fetches and processes the manifest
