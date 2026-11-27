@@ -2382,6 +2382,7 @@ type API struct {
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	agentRPCAdmission        *admission.Limiter
 	clientCoordAdmission     *admission.Limiter
+	agentRPCConns            agentRPCConns
 	wsWatcher                *httpapi.WSWatcher
 
 	chatWorkspaceUploadsTotal *prometheus.CounterVec
