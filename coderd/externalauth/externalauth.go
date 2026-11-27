@@ -1297,6 +1297,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && au.Host != "" && !strings.EqualFold(au.Host, "gitea.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v1"
+				}
+			}
 		}
 	}
 }
@@ -1448,7 +1453,7 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
 	defaults := codersdk.ExternalAuthConfig{
 		DisplayName:                   "Gitea",
-		Scopes:                        []string{"read:repository", " write:repository", "read:user"},
+		Scopes:                        []string{"read:repository", "write:repository", "read:user"},
 		DisplayIcon:                   "/icon/gitea.svg",
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
