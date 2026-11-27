@@ -33,6 +33,7 @@ Each one is a starting point that you adapt to your cluster.
 | [agent-sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-agent-sandbox) | gVisor or Kata          | NetworkPolicy                           | Scoped AI Gateway token | Prebuilds or agent-sandbox warm pools |
 | [Plain Sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-sandboxed)     | Optional gVisor or Kata | Squid proxy by host name                | Scoped AI Gateway token | Prebuilds                             |
 | [OpenShell (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-openshell)         | Optional Kata           | OpenShell rules by host name and binary | Scoped AI Gateway token | Prebuilds                             |
+| [Nitro Sandboxes (EKS)](https://registry.coder.com/templates/daveahr2172/governed-agents-nitro)        | Nitro Sandboxes         | NetworkPolicy and Squid proxy           | Scoped AI Gateway token | Prebuilds                             |
 
 > [!TIP]
 > [agent-sandbox](https://agent-sandbox.sigs.k8s.io/) is a Kubernetes Special Interest Group (SIG) project that adds primitives for agent workloads.
@@ -160,6 +161,7 @@ Examples and references:
 
 - [agent-sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-agent-sandbox) template: a cluster administrator sets gVisor or Kata once in a `SandboxTemplate`, and workspaces can only claim sandboxes from it.
 - [Plain Sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-sandboxed) template: list the gVisor or Kata RuntimeClasses on your nodes to add kernel isolation to plain Pods.
+- [Nitro Sandboxes (EKS)](https://registry.coder.com/templates/daveahr2172/governed-agents-nitro) template: the `isolated-sandbox` RuntimeClass on EKS Auto Mode, with Pod requests sized for the Nitro VM.
 - [AWS Linux](https://registry.coder.com/templates/coder/aws-linux) template: a VM for each workspace.
 - [GKE Sandbox](https://cloud.google.com/kubernetes-engine/docs/concepts/sandbox-pods): gVisor node pools on Google Kubernetes Engine (GKE).
 - [Pod Sandboxing on Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/use-pod-sandboxing): Kata node pools on AKS.
@@ -235,6 +237,7 @@ Examples and references:
 
 - [Plain Sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-sandboxed) template: a NetworkPolicy and a Squid proxy that allow host names, such as an internal GitHub or artifact store.
 - [OpenShell (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-openshell) template: rules by host name and binary, and Landlock file limits.
+- [Nitro Sandboxes (EKS)](https://registry.coder.com/templates/daveahr2172/governed-agents-nitro) template: a default-deny NetworkPolicy, no DNS in the workspace, a Squid proxy for each workspace that allows bundles of host names, and an optional node pool behind a firewall that you run, such as AWS Network Firewall.
 - [agent-sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-agent-sandbox) template: a NetworkPolicy firewall, with ClusterNetworkPolicy or Cilium for more advanced rules.
 - [Network isolation for Coder Agents](../../coder-agents/platform-controls/agent-isolation.md): a template that runs the agent in its own Pod with a NetworkPolicy.
 - [Squid access controls](https://www.squid-cache.org/Doc/config/acl/): allowlists by host name for an egress proxy.
@@ -391,6 +394,7 @@ Credentials copied out of a workspace work from anywhere until they expire, so a
 Examples and references:
 
 - [Plain Sandbox (Kubernetes)](https://registry.coder.com/templates/coder-labs/kubernetes-sandboxed) template: the token from [Scope the AI Gateway token](#scope-the-ai-gateway-token), with prebuild handling.
+- [Nitro Sandboxes (EKS)](https://registry.coder.com/templates/daveahr2172/governed-agents-nitro) template: a scoped AI Gateway token that each start rotates, and an optional EKS Pod Identity association for each workspace.
 - [AI Gateway Proxy module](https://registry.coder.com/modules/coder/aibridge-proxy): route an agent CLI's model traffic through AI Gateway, so provider API keys stay out of the workspace.
 - [Vault JWT module](https://registry.coder.com/modules/coder/vault-jwt): authenticate to Vault with the user's OpenID Connect (OIDC) token instead of a static secret in the workspace.
 - [Scope permissions and credentials](../../coder-agents/platform-controls/template-optimization.md#scope-permissions-and-credentials) and [Git identity](../../coder-agents/platform-controls/template-optimization.md#git-identity): credentials and commit identity for agent templates.
