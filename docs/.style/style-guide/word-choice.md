@@ -194,6 +194,53 @@ Don't shorten it to "the agent" on a page that also discusses AI agents or Coder
 *Documentation-only.
 No Vale rule.*
 
+## Label sandboxing methods as Native or Integrated
+
+Pages about sandboxing AI agents compare Coder features with third-party tools that do the same job.
+Give each method one of these labels, so the reader can tell what Coder provides and what they install and run themselves:
+
+| Label              | Use for                                                                                                        | Examples                                                   |
+|--------------------|----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `Native`           | A method built into Coder, which the reader configures in Coder or with the Coder Terraform provider           | API key scopes, immutable parameters                       |
+| `Native (Premium)` | A Native method that needs a Premium license                                                                   | AI Gateway, prebuilt workspaces, workspace process logging |
+| `Integrated`       | A method that a third-party tool, runtime, or cloud service provides, and that the reader runs alongside Coder | Kubernetes NetworkPolicy, gVisor, Cilium, HashiCorp Vault  |
+
+Label the method, not the page or the template that uses it.
+A registry template that sets up gVisor configures an Integrated method, even when Coder publishes the template.
+
+In a table that compares methods, put the label in a `Type` column after the method name.
+When a page introduces a method in prose instead, state the label in the sentence that introduces the method.
+A later section that expands on a method the page already labeled doesn't repeat the label.
+
+Use the column, not a callout for each method.
+[Callouts](./formatting.md#callouts) are for asides, and they lose their weight when every method has one.
+
+**Do**:
+
+```md
+| Method                   | Type             | How it works                                          |
+|--------------------------|------------------|-------------------------------------------------------|
+| API key scopes           | Native           | Give the agent a token with only the scopes it needs. |
+| AI Gateway               | Native (Premium) | The agent calls model providers through Coder.        |
+| Kubernetes NetworkPolicy | Integrated       | Rules by IP address and port apply to the whole Pod.  |
+```
+
+**Don't**:
+
+```md
+| Method                   | How it works                                          | Tradeoffs                                       |
+|--------------------------|-------------------------------------------------------|-------------------------------------------------|
+| API key scopes           | Give the agent a token with only the scopes it needs. | Available in Coder. A narrow scope fails tasks. |
+| AI Gateway               | The agent calls model providers through Coder.        | Coder Premium. The agent needs a Coder token.   |
+| Kubernetes NetworkPolicy | Rules by IP address and port apply to the whole Pod.  | Built in, but IP-based.                         |
+```
+
+The **Don't** puts who provides each method in the Tradeoffs column, worded differently on each row.
+"Built in" can also mean built into Coder or built into Kubernetes.
+
+*Documentation-only.
+No Vale rule.*
+
 ## One term per concept
 
 Pick one name for each thing, then use that name every time the thing appears.

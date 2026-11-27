@@ -26,6 +26,29 @@ Agent Firewall offers network policy enforcement, which blocks domains and HTTP 
 
 Agent Firewall also streams audit logs to Coder's control plane for centralized monitoring of HTTP requests.
 
+## Agent Firewall and cluster network rules
+
+Agent Firewall and cluster network rules both limit where an AI agent can send data, but they apply at different layers:
+
+| Control                                                                               | Type             | Applies to                                                     | Rules by                                                      |
+|---------------------------------------------------------------------------------------|------------------|----------------------------------------------------------------|---------------------------------------------------------------|
+| Agent Firewall                                                                        | Native (Premium) | The process that Agent Firewall wraps, and its child processes | Domain, HTTP method, and URL path                             |
+| Cluster network rules, such as a Kubernetes NetworkPolicy, an egress proxy, or Cilium | Integrated       | Every process in the workspace Pod                             | IP address, host name, or HTTP request, depending on the tool |
+
+Use cluster network rules as the boundary for the workspace.
+They apply to every process in the Pod, including a command that the agent starts outside Agent Firewall, so they're harder to bypass.
+For each method and example rules, refer to [Network isolation](../../templates/extending-templates/sandbox-agents.md#network-isolation).
+
+Use Agent Firewall when:
+
+- The agent and the user share one workspace, and only the agent's process needs limits.
+- The template doesn't run on Kubernetes, such as a Docker or Amazon Elastic Container Service (ECS) template.
+- You want each allow and deny decision in the control plane's [audit logs](#audit-logs), and each session's request counts in the [AI Gateway session audit](../ai-gateway/audit.md).
+
+To use both for defense in depth, set the cluster rule as the outer limit for the workspace, and give Agent Firewall a narrower allowlist for the agent's process.
+A request from the agent must pass both layers, so a mistake in one layer doesn't open the other.
+Agent Firewall's requests leave through the workspace Pod, so the cluster rule must allow every destination in the Agent Firewall allowlist.
+
 <a id="getting-started-with-agent-firewall"></a>
 
 ## Get started with Agent Firewall

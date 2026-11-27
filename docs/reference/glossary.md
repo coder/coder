@@ -357,6 +357,13 @@ Refer to [IdP sync](../admin/users/idp-sync.md).
 The practice of defining infrastructure in version-controlled configuration files.
 Coder templates are infrastructure as code, written in Terraform.
 
+### Integrated
+
+A label for a [sandbox](#sandbox) method that a third-party tool, runtime, or cloud service provides, such as a Kubernetes NetworkPolicy, gVisor, or Cilium.
+Coder works with it, and you install and run it alongside Coder.
+Compare with [Native](#native).
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
+
 ## L
 
 ### License key
@@ -378,6 +385,16 @@ Refer to [MCP server](../mcp-server.md).
 A reusable Terraform building block that a template composes in.
 Coder publishes modules in the [Coder Registry](https://registry.coder.com/).
 Refer to [Modules](../templates/extending-templates/modules.md).
+
+## N
+
+### Native
+
+A label for a [sandbox](#sandbox) method that is built into Coder, such as API key scopes or AI Gateway.
+You configure it in Coder, or in a template with the Coder Terraform provider.
+Native (Premium) marks a method that needs a [Premium](#premium) license.
+Compare with [Integrated](#integrated).
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
 
 ## O
 
@@ -510,6 +527,16 @@ Coder's HTTP API, served under `/api/v2/*`.
 Refer to the [API reference](./api/index.md).
 
 ## S
+
+### Sandbox
+
+An isolated environment that limits what untrusted code, such as an AI agent, can reach.
+A sandbox can isolate the kernel, the network, and secrets, so a compromised or misdirected agent can do less damage.
+In Coder, a template makes a [workspace](#workspace) a sandbox by adding isolation, such as kernel, network, or secrets limits.
+The isolation applies to every process in the workspace.
+The jail that [Agent Firewall](#agent-firewall) starts is a narrower, process-level sandbox that limits the network access of the process it wraps.
+Not to be confused with [agent-sandbox](https://agent-sandbox.sigs.k8s.io/), a Kubernetes project that a template can use to run workspaces.
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
 
 ### SCIM
 
