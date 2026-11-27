@@ -37,16 +37,25 @@ func NewInflightGate(logger slog.Logger) *InflightGate {
 // after shutdown begins.
 func (g *InflightGate) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		release, ok := g.Admit()
-		if !ok {
+		if !g.TryServe(next, w, r) {
 			http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
-			return
 		}
-		defer release()
-		ctx, cleanup := g.RequestContext(r.Context())
-		defer cleanup()
-		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// TryServe serves r with next if the gate admits it, linking the request
+// context to Close. After shutdown begins it returns false without writing a
+// response, so the caller can serve the request elsewhere.
+func (g *InflightGate) TryServe(next http.Handler, w http.ResponseWriter, r *http.Request) bool {
+	release, ok := g.Admit()
+	if !ok {
+		return false
+	}
+	defer release()
+	ctx, cleanup := g.RequestContext(r.Context())
+	defer cleanup()
+	next.ServeHTTP(w, r.WithContext(ctx))
+	return true
 }
 
 // Admit returns nil, false after shutdown begins. Otherwise, release must be
