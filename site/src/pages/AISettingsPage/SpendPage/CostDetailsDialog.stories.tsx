@@ -8,7 +8,7 @@ import {
 import { CostDetailsDialog } from "./CostDetailsDialog";
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/CostDetailsDialog",
+	title: "pages/AISettingsPage/SpendPage/CostDetailsDialog",
 	component: CostDetailsDialog,
 	args: {
 		open: true,

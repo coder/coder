@@ -13,7 +13,7 @@ import {
 import { DetailedReportFilter } from "./DetailedReportFilter";
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/DetailedReportFilter",
+	title: "pages/AISettingsPage/SpendPage/DetailedReportFilter",
 	component: DetailedReportFilter,
 	args: {
 		organizationId: MockOrganization.id,

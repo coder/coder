@@ -25,8 +25,8 @@ import {
 	selectModelOrganization,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
-import { AISpendPageView, type AISpendTab } from "./AISpendPageView";
 import { toReportFilter } from "./DetailedReportFilter";
+import { SpendPageView, type SpendTab } from "./SpendPageView";
 import {
 	defaultSpendDays,
 	firstRetainedDay,
@@ -49,11 +49,11 @@ type ReportRun = {
 	filter: string;
 };
 
-type AISpendPageProps = {
+type SpendPageProps = {
 	now?: Date;
 };
 
-const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
+const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
@@ -221,7 +221,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		});
 	};
 
-	const tab: AISpendTab =
+	const tab: SpendTab =
 		searchParams.get(tabSearchParam) === "detailed-report"
 			? "detailed-report"
 			: "overview";
@@ -258,7 +258,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	return (
 		<>
 			<title>{pageTitle("AI spend", "AI settings")}</title>
-			<AISpendPageView
+			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
 				now={now}
@@ -309,4 +309,4 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	);
 };
 
-export default AISpendPage;
+export default SpendPage;

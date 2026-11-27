@@ -12,8 +12,8 @@ import {
 	MockUnpricedAIModels,
 	mockApiQueryError,
 } from "#/testHelpers/entities";
-import { AISpendPageView } from "./AISpendPageView";
 import type { DetailedReportQuery } from "./DetailedReportTable";
+import { SpendPageView } from "./SpendPageView";
 
 const mockReportQuery = {
 	...mockSuccessResult,
@@ -54,8 +54,8 @@ const mockTopSpenderDetails = [
 ];
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/AISpendPageView",
-	component: AISpendPageView,
+	title: "pages/AISettingsPage/SpendPage/SpendPageView",
+	component: SpendPageView,
 	args: {
 		isEntitled: true,
 		isEnabled: true,
@@ -89,10 +89,10 @@ const meta = {
 		topSpenderDetailsError: null,
 		canViewSessions: true,
 	},
-} satisfies Meta<typeof AISpendPageView>;
+} satisfies Meta<typeof SpendPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AISpendPageView>;
+type Story = StoryObj<typeof SpendPageView>;
 
 export const Overview: Story = {};
 

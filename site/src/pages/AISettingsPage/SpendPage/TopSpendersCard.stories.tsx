@@ -83,7 +83,7 @@ const mockTopSpenders: OrganizationAISpendUser[] = mockBusyOverview.users.map(
 );
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/TopSpendersCard",
+	title: "pages/AISettingsPage/SpendPage/TopSpendersCard",
 	component: TopSpendersCard,
 	args: {
 		overview: mockBusyOverview,

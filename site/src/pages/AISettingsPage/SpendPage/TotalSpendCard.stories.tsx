@@ -9,7 +9,7 @@ const mockNoUnpricedModels = {
 };
 
 const meta = {
-	title: "pages/AISettingsPage/AISpendPage/TotalSpendCard",
+	title: "pages/AISettingsPage/SpendPage/TotalSpendCard",
 	component: TotalSpendCard,
 	args: {
 		spendMicros: 31_188_990_000,
