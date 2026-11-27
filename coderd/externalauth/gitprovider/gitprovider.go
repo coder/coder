@@ -206,6 +206,8 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 		return newGitHub(apiBaseURL, httpClient, o.clock)
 	case "gitlab":
 		return newGitLab(apiBaseURL, httpClient, o.clock, o.logger)
+	case "gitea":
+		return newGitea(apiBaseURL, httpClient, o.clock)
 	default:
 		// Other providers (bitbucket-cloud, etc.) will be
 		// added here as they are implemented.

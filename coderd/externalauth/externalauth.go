@@ -194,7 +194,7 @@ type Config struct {
 // Git returns a Provider for this config. It returns (nil, nil) when
 // this config's type has no provider implementation, which covers both
 // non-git types (e.g. Slack, JFrog) and git types that are not
-// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// implemented yet (bitbucket-*, azure-devops*). Callers cannot
 // distinguish the two cases from the return values. Returns a non-nil
 // error if provider construction fails.
 //
@@ -1297,6 +1297,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && au.Host != "" && !strings.EqualFold(au.Host, "gitea.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v1"
+				}
+			}
 		}
 	}
 }
@@ -1448,7 +1453,7 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
 	defaults := codersdk.ExternalAuthConfig{
 		DisplayName:                   "Gitea",
-		Scopes:                        []string{"read:repository", " write:repository", "read:user"},
+		Scopes:                        []string{"read:repository", "write:repository", "read:user"},
 		DisplayIcon:                   "/icon/gitea.svg",
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}

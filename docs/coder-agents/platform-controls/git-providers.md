@@ -4,6 +4,7 @@ title: Git providers
 
 Coder Agents leverages your existing [external authentication](../../admin/external-auth.md) configuration to power the in-chat diff viewer.
 Self-hosted GitHub Enterprise deployments require one additional setting (`API_BASE_URL`) for this feature to work.
+The diff viewer supports GitHub, GitLab, Gitea, and Forgejo.
 
 ## GitHub Enterprise configuration
 
@@ -69,6 +70,28 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 > [!NOTE]
 > You can also set `API_BASE_URL` explicitly if needed (for example, `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
+## Gitea and Forgejo configuration
+
+Forgejo uses the `gitea` external auth type.
+Create the OAuth application as described in [Gitea](../../admin/external-auth.md#gitea).
+For a self-hosted instance, set `AUTH_URL` to your instance.
+Coder derives the token, validation, and API URLs from it.
+For Forgejo, set `DISPLAY_NAME` so users see Forgejo instead of Gitea on the link button:
+
+```dotenv
+CODER_EXTERNAL_AUTH_0_ID="gitea"
+CODER_EXTERNAL_AUTH_0_TYPE=gitea
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://git.example.com/login/oauth/authorize"
+CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Forgejo"
+```
+
+The default scopes (`read:repository write:repository read:user`) cover clone, push, and the pull request data the diff viewer reads.
+
+If the instance is served under a subpath, such as `https://example.com/git`, set `TOKEN_URL`, `VALIDATE_URL`, and `API_BASE_URL` to full URLs, for example `https://example.com/git/login/oauth/access_token`, `https://example.com/git/login/oauth/userinfo`, and `https://example.com/git/api/v1`.
+Coder builds pull request and repository URLs from it.
+
 ## Known limitations
 
 ### GitLab
@@ -81,6 +104,22 @@ The GitLab provider has some semantic differences compared to the GitHub provide
 - **Reviewer count** only counts users who have approved, not all assigned reviewers.
 
 These gaps are tracked internally and might be refined in future releases.
+
+### Gitea and Forgejo
+
+- **Branch diffs** before a pull request exists require Gitea 1.27 or later.
+  Forgejo and earlier Gitea releases can't return a branch diff through the API.
+  Until a pull request is opened, the diff viewer shows an error that the server can't diff a branch without a pull request.
+- **Branch to pull request lookup** runs as a server-side search on Forgejo.
+  Gitea doesn't support that search, so Coder scans up to 500 open pull requests in the repository to find a match.
+  In a Gitea repository with more open pull requests, the pull request for a branch might not be found.
+- **Approved** and **Changes requested** use each reviewer's latest review, as on GitHub.
+  Approvals that Gitea marks as stale after new commits still count unless the review was dismissed.
+- **Refresh cost**: before a pull request is found, each refresh searches the repository's open pull requests, which takes up to 10 requests on Gitea.
+  Afterward, each refresh makes three API requests (pull request, commit count, and reviews).
+  Unlike the GitHub provider, responses aren't cached with conditional requests.
+- **Token revocation**: Gitea and Forgejo have no endpoint to revoke OAuth tokens, so unlinking the external auth account in Coder doesn't revoke the token on the server.
+  Revoke it from the user's **Settings** > **Applications** page on the Gitea or Forgejo instance.
 
 ## Troubleshooting
 
