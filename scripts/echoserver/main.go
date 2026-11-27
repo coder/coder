@@ -1,7 +1,8 @@
 package main
 
 // A simple echo server.  It listens on a random port, prints that port, then
-// echos back anything sent to it.
+// echos back anything sent to it.  It exits when stdin is closed so that it
+// does not outlive the process that started it.
 
 import (
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
@@ -28,6 +30,11 @@ func main() {
 	if err != nil {
 		log.Panicf("print error: err=%s", err)
 	}
+
+	go func() {
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		os.Exit(0)
+	}()
 
 	for {
 		conn, err := l.Accept()
