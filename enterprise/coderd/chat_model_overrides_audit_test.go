@@ -10,8 +10,10 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestChatModelOverrideAudit(t *testing.T) {
@@ -36,6 +38,9 @@ func TestChatModelOverrideAudit(t *testing.T) {
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
 
+		f := f
+		f.ctx = testutil.Context(t, testutil.WaitLong)
+		f.systemCtx = dbauthz.AsSystemRestricted(f.ctx)
 		const override = codersdk.ChatModelOverrideContextAdvisor
 		write := func(req codersdk.UpdateChatModelOverrideRequest) {
 			t.Helper()
@@ -71,6 +76,9 @@ func TestChatModelOverrideAudit(t *testing.T) {
 	t.Run("Personal", func(t *testing.T) {
 		t.Parallel()
 
+		f := f
+		f.ctx = testutil.Context(t, testutil.WaitLong)
+		f.systemCtx = dbauthz.AsSystemRestricted(f.ctx)
 		_, member := coderdtest.CreateAnotherUser(t, f.client.Client, orgID)
 		const override = codersdk.ChatPersonalModelOverrideContextGeneral
 		write := func(req codersdk.UpdateUserChatPersonalModelOverrideRequest) {
