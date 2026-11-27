@@ -54,11 +54,11 @@ func init() {
 			},
 			"subcommandLink": subcommandLink,
 			// frontMatter renders the page's YAML front matter through the
-			// shared docgenenv emitter, so the CLI and API generators cannot
-			// drift on field set, ordering, or escaping. The CLI index mirrors
-			// the "Command Line" manifest route (main populates cliIndexRoute
-			// before the template runs); every other page uses the command's
-			// own name and short description.
+			// shared docgenenv emitter, which fixes the field set, ordering,
+			// and escaping. The CLI index mirrors the "Command Line" manifest
+			// route (main populates cliIndexRoute before the template runs);
+			// every other page uses the command's own name and short
+			// description.
 			"frontMatter": func(cmd *serpent.Command) string {
 				if cmd.FullName() == "coder" {
 					return docgenenv.FrontMatter(cliIndexRoute)
@@ -66,8 +66,8 @@ func init() {
 				return docgenenv.FrontMatter(cliCommandRoute(cmd))
 			},
 			// generatedContentBanner emits the shared body banner that marks
-			// the whole page as generated, sourced from one constant so the CLI
-			// and API generators cannot drift on its wording.
+			// the whole page as generated, sourced from one constant so its
+			// wording matches what lint/docs-gen-filter looks for.
 			"generatedContentBanner": func() string {
 				return docgenenv.GeneratedContentBanner
 			},

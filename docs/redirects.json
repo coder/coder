@@ -536,6 +536,10 @@
     "destination": "reference/api"
   },
   {
+    "source": "reference/api/mcp",
+    "destination": "reference/api"
+  },
+  {
     "source": "user-guides/workspace-access/windsurf",
     "destination": "workspaces/workspace-access/devin-desktop"
   },

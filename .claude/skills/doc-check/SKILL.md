@@ -216,14 +216,14 @@ These changes have no documentation surface.
 When every changed file falls in one of these classes, CI skips the review before this skill runs, so a diff in front of you has already passed that gate or a maintainer forced the review with the `doc-check` label.
 Review only the user-facing part of a mixed diff.
 
-- Auto-generated reference under `docs/reference/cli/` and `docs/reference/api/`. Review the source comment or CLI definition that generates it instead.
+- Auto-generated reference under `docs/reference/cli/`, and `coderd/apidoc/swagger.json`, which the docs site renders the REST API reference from. Review the source comment or CLI definition that generates it instead.
 - Internal-only refactors, test-only changes, CI and tooling changes that change no user-facing surface, dependency bumps without behavior changes, and pure code moves.
 - Features guarded by an unsafe experiment flag. Refer to [Experiments versus feature stages](../../../docs/.style/content-guidelines.md#experiments-versus-feature-stages). A safe experiment or an Early Access feature needs at least a single page.
 
 ## Repository facts
 
 - **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
-- **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
+- **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`. The docs site renders the REST API reference from `coderd/apidoc/swagger.json`, which comes from Swagger comments in Go; only `docs/reference/api/index.md` and `docs/reference/api/authentication.md` are written by hand. Suggest edits to the source.
 - **Feature states:** a staged feature carries `state:` on its highest route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
   Descendants inherit it and set `state:` only for a state they add.
   Titles and H1s carry no state suffix.

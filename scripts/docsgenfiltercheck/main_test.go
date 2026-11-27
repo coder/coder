@@ -30,8 +30,8 @@ func TestBodyOpensWithContentBanner(t *testing.T) {
 		{"CRLFAfterFrontMatter", "---\r\ntitle: x\r\n---\r\n\r\n" + banner + "\r\n\r\nBody\r\n", true},
 		{"CRLFNoFrontMatter", banner + "\r\n# Title\r\n", true},
 		{"CRLFInCodeBlock", "---\r\ntitle: x\r\n---\r\n\r\n```markdown\r\n" + banner + "\r\n```\r\n", false},
-		// The preamble the API generator writes, so a layout change there
-		// fails here.
+		// The preamble the API key scopes generator writes, so a layout
+		// change there fails here.
 		{"GeneratedHeader", docgenenv.GeneratedHeader(docgenenv.Route{Title: "x", Description: "y"}) + "Body\n", true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,11 +41,11 @@ func TestBodyOpensWithContentBanner(t *testing.T) {
 	}
 
 	// Committed output of the CLI template, which builds its preamble inline,
-	// and of the REST API postprocess index write, so a layout change in
-	// either fails here after make gen.
+	// and of the API key scopes generator, so a layout change in either fails
+	// here after make gen.
 	for _, page := range []string{
 		"../../docs/reference/cli/index.md",
-		"../../docs/reference/api/index.md",
+		"../../docs/reference/api-key-scopes.md",
 	} {
 		b, err := os.ReadFile(page)
 		require.NoError(t, err)

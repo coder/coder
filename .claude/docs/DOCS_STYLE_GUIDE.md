@@ -273,7 +273,7 @@ Document exact values from code:
 ### API Endpoints
 
 - Use full, correct paths (e.g., `/api/v2/insights/templates` not `/insights/templates`)
-- Link to generated API documentation in `docs/reference/api/`
+- Link to the generated REST API reference, such as `../../reference/api/insights.md`. The docs site renders those pages from `coderd/apidoc/swagger.json`, so they have no file under `docs/reference/api/`.
 
 ## Documentation Manifest
 

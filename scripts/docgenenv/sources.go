@@ -47,9 +47,10 @@ func LoadManifestSources(dir string) (*Manifest, error) {
 
 // BuildManifest reads the sidebar sources in dir, splices every children_from
 // fragment into its route, and validates the result. When docsDir is not
-// empty, every route path must name an existing file under it. It fails on any
-// file in dir that nothing references, so a section can't silently drop out
-// of the sidebar.
+// empty, every route path must name an existing file under it, except the REST
+// API reference pages the docs site renders from coderd/apidoc/swagger.json,
+// which must not. It fails on any file in dir that nothing references, so a
+// section can't silently drop out of the sidebar.
 func BuildManifest(dir, docsDir string) (*Manifest, error) {
 	m, used, err := loadSources(dir)
 	if err != nil {
@@ -330,9 +331,14 @@ func checkPaths(docsDir string, routes []Route, crumb []string, errs *[]error) {
 		c := append(slices.Clip(crumb), r.Title)
 		page := filepath.Join(docsDir, filepath.FromSlash(r.Path))
 		info, err := os.Stat(page)
-		if err != nil || !info.Mode().IsRegular() {
+		switch {
+		case isRenderedAPIPage(r.Path):
+			if err == nil {
+				*errs = append(*errs, xerrors.Errorf("%s: the docs site renders %q from coderd/apidoc/swagger.json and never shows the file under %s; delete the file", breadcrumb(c), r.Path, docsDir))
+			}
+		case err != nil || !info.Mode().IsRegular():
 			*errs = append(*errs, xerrors.Errorf("%s: path %q does not exist under %s", breadcrumb(c), r.Path, docsDir))
-		} else {
+		default:
 			checkFrontMatterDescription(page, strings.TrimPrefix(r.Path, "./")+": "+breadcrumb(c), errs)
 		}
 		checkPaths(docsDir, r.Children, c, errs)
