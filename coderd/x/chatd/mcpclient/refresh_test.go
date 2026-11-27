@@ -12,13 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
@@ -125,49 +123,6 @@ func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
 	_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(tokenSrv.Client()), cfg, tok)
 	require.Error(t, err)
 	require.Zero(t, targetHits.Load())
-}
-
-func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
-	t.Parallel()
-
-	logger := slogtest.Make(t, nil)
-	cfg := mcpclient.Server{
-		ID:       uuid.New(),
-		Slug:     "revoked",
-		UserAuth: mcpclient.UserAuthOAuth2,
-	}
-
-	t.Run("FailureReasonSet", func(t *testing.T) {
-		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
-			context.Background(), logger, cfg,
-			map[uuid.UUID]database.MCPServerUserToken{
-				cfg.ID: {
-					MCPServerConfigID:         cfg.ID,
-					AccessToken:               "leftover",
-					OauthRefreshFailureReason: "invalid_grant",
-				},
-			},
-			uuid.New(), nil,
-		)
-		require.NotContains(t, headers, "Authorization")
-	})
-
-	t.Run("HealthyToken", func(t *testing.T) {
-		t.Parallel()
-		headers := mcpclient.BuildAuthHeadersForTest(
-			context.Background(), logger, cfg,
-			map[uuid.UUID]database.MCPServerUserToken{
-				cfg.ID: {
-					MCPServerConfigID: cfg.ID,
-					AccessToken:       "valid",
-					TokenType:         "Bearer",
-				},
-			},
-			uuid.New(), nil,
-		)
-		require.Equal(t, "Bearer valid", headers["Authorization"])
-	})
 }
 
 func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {

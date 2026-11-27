@@ -707,7 +707,7 @@ func TestTransitionInputValidation(t *testing.T) {
 
 	t.Run("SendMessage_invalid_busy_behavior", func(t *testing.T) {
 		t.Parallel()
-		for _, from := range chatstate.AllowedInputStates(chatstate.TransitionSendMessage) {
+		for _, from := range allowedInputStates(chatstate.TransitionSendMessage) {
 			for _, bb := range invalidBusyBehaviors {
 				label := from.String() + "/" + string(bb)
 				if bb == "" {

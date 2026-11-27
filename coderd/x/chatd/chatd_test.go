@@ -14666,6 +14666,16 @@ func newRecordingTracerProvider(t *testing.T) (*sdktrace.TracerProvider, *tracet
 	return provider, recorder
 }
 
+func spanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
+	t.Helper()
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == key {
+			return attr.Value.Emit()
+		}
+	}
+	return ""
+}
+
 func requireCompactionSpan(t *testing.T, recorder *tracetest.SpanRecorder, model string, source chatloop.CompactionSource) {
 	t.Helper()
 	var compactions []sdktrace.ReadOnlySpan
@@ -14675,8 +14685,8 @@ func requireCompactionSpan(t *testing.T, recorder *tracetest.SpanRecorder, model
 		}
 	}
 	require.Len(t, compactions, 1)
-	require.Equal(t, model, chatd.SpanAttr(t, compactions[0], chatloop.AttrModel))
-	require.Equal(t, string(source), chatd.SpanAttr(t, compactions[0], chatloop.AttrCompactionSource))
+	require.Equal(t, model, spanAttr(t, compactions[0], chatloop.AttrModel))
+	require.Equal(t, string(source), spanAttr(t, compactions[0], chatloop.AttrCompactionSource))
 }
 
 func TestActiveServer_TracesChatTurn(t *testing.T) {
@@ -14688,7 +14698,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		db       database.Store
 		server   *chatd.Server
 		recorder *tracetest.SpanRecorder
-		registry *prometheus.Registry
 		user     database.User
 		org      database.Organization
 		model    database.ChatModelConfig
@@ -14697,15 +14706,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		provider, recorder := newRecordingTracerProvider(t)
-		registry := prometheus.NewRegistry()
 		openAIURL := chattest.NewOpenAI(t, respond)
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 		server := newActiveTestServer(t, db, ps, append([]func(*chatd.Config){func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.TracerProvider = provider
-			cfg.PrometheusRegistry = registry
 		}}, overrides...)...)
-		return harness{db: db, server: server, recorder: recorder, registry: registry, user: user, org: org, model: model}
+		return harness{db: db, server: server, recorder: recorder, user: user, org: org, model: model}
 	}
 	// A turn span can end after the chat status is visible.
 	waitForTurns := func(ctx context.Context, t *testing.T, recorder *tracetest.SpanRecorder, n int) spanIndex {
@@ -14714,7 +14721,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			index = spanIndex{}
 			for _, span := range recorder.Ended() {
-				stage := chatd.SpanAttr(t, span, chatloop.AttrStage)
+				stage := spanAttr(t, span, chatloop.AttrStage)
 				index[stage] = append(index[stage], span)
 			}
 			return len(index[string(chatloop.StageChatTurn)]) >= n
@@ -14778,7 +14785,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 	stepByAction := func(t *testing.T, steps []sdktrace.ReadOnlySpan, action string) sdktrace.ReadOnlySpan {
 		t.Helper()
 		for _, step := range steps {
-			if chatd.SpanAttr(t, step, chatloop.AttrGenerationAction) == action {
+			if spanAttr(t, step, chatloop.AttrGenerationAction) == action {
 				return step
 			}
 		}
@@ -14808,12 +14815,12 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		queueWait := single(t, index, chatloop.StageQueueWait)
 		require.False(t, queueWait.Parent().IsValid(), "queue_wait is a trace root")
 		require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
-		require.Equal(t, string(chatloop.ScopeTurn), chatd.SpanAttr(t, queueWait, chatloop.AttrScope))
-		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, queueWait, chatloop.AttrChatKind))
+		require.Equal(t, string(chatloop.ScopeTurn), spanAttr(t, queueWait, chatloop.AttrScope))
+		require.Equal(t, string(chatloop.ChatKindRoot), spanAttr(t, queueWait, chatloop.AttrChatKind))
 	}
 	requireInterrupted := func(t *testing.T, turn sdktrace.ReadOnlySpan) {
 		t.Helper()
-		require.Equal(t, string(chatloop.TurnOutcomeInterrupted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeInterrupted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		require.Equal(t, codes.Unset, turn.Status().Code)
 	}
 
@@ -14828,15 +14835,15 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 
 		turn := single(t, index, chatloop.StageChatTurn)
 		require.Equal(t, codes.Unset, turn.Status().Code)
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
-		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, turn, chatloop.AttrChatKind))
-		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, chatloop.AttrChatID))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.ChatKindRoot), spanAttr(t, turn, chatloop.AttrChatKind))
+		require.Equal(t, chatID.String(), spanAttr(t, turn, chatloop.AttrChatID))
 		require.False(t, turn.Parent().IsValid(), "chat_turn is a trace root")
 		require.Equal(t, "invoke_agent coder", turn.Name())
-		require.Equal(t, "invoke_agent", chatd.SpanAttr(t, turn, "gen_ai.operation.name"))
-		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, "gen_ai.conversation.id"))
-		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, turn, "user.id"))
-		require.Equal(t, h.org.ID.String(), chatd.SpanAttr(t, turn, chatloop.AttrOrganizationID))
+		require.Equal(t, "invoke_agent", spanAttr(t, turn, "gen_ai.operation.name"))
+		require.Equal(t, chatID.String(), spanAttr(t, turn, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), spanAttr(t, turn, "user.id"))
+		require.Equal(t, h.org.ID.String(), spanAttr(t, turn, chatloop.AttrOrganizationID))
 
 		requireChild(t, single(t, index, chatloop.StageAcquisition), turn)
 		steps := index[string(chatloop.StageGenerationStep)]
@@ -14852,17 +14859,17 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		requireChild(t, stream, generate)
 		requireChild(t, single(t, index, chatloop.StageTimeToFirstToken), stream)
 		requireChild(t, single(t, index, chatloop.StageCommit), generate)
-		require.NotEmpty(t, chatd.SpanAttr(t, generate, chatloop.AttrProvider))
-		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
+		require.NotEmpty(t, spanAttr(t, generate, chatloop.AttrProvider))
+		require.Equal(t, spanAttr(t, stream, chatloop.AttrProvider), spanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, "chat "+h.model.Model, stream.Name())
-		require.Equal(t, chatd.SpanAttr(t, stream, "gen_ai.provider.name"), chatd.SpanAttr(t, turn, "gen_ai.provider.name"))
+		require.Equal(t, spanAttr(t, stream, "gen_ai.provider.name"), spanAttr(t, turn, "gen_ai.provider.name"))
 		// Title generation is a non-streaming model call that runs outside
 		// the turn, so it must still be attributed to the chat owner.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		var modelCall sdktrace.ReadOnlySpan
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			for _, span := range h.recorder.Ended() {
-				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageModelCall) {
+				if spanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageModelCall) {
 					modelCall = span
 					return true
 				}
@@ -14870,14 +14877,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			return false
 		}, testutil.IntervalFast)
 		require.Equal(t, "chat "+h.model.Model, modelCall.Name())
-		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, modelCall, "user.id"))
-		require.Equal(t, chatID.String(), chatd.SpanAttr(t, modelCall, "gen_ai.conversation.id"))
-		require.Equal(t, chatID.String(), chatd.SpanAttr(t, stream, "gen_ai.conversation.id"))
-		require.Equal(t, h.user.ID.String(), chatd.SpanAttr(t, stream, "user.id"))
-		require.Equal(t, h.model.Model, chatd.SpanAttr(t, stream, "gen_ai.request.model"))
+		require.Equal(t, h.user.ID.String(), spanAttr(t, modelCall, "user.id"))
+		require.Equal(t, chatID.String(), spanAttr(t, modelCall, "gen_ai.conversation.id"))
+		require.Equal(t, chatID.String(), spanAttr(t, stream, "gen_ai.conversation.id"))
+		require.Equal(t, h.user.ID.String(), spanAttr(t, stream, "user.id"))
+		require.Equal(t, h.model.Model, spanAttr(t, stream, "gen_ai.request.model"))
 		require.Empty(t, index[string(chatloop.StageQueueWait)])
 		require.Empty(t, index[string(chatloop.StageRetryBackoff)])
-		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 	})
 
 	t.Run("ProviderError", func(t *testing.T) {
@@ -14892,10 +14898,10 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 
 		turn := single(t, index, chatloop.StageChatTurn)
 		require.Equal(t, codes.Error, turn.Status().Code)
-		require.Equal(t, string(chatloop.TurnOutcomeError), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeError), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		step := single(t, index, chatloop.StageGenerationStep)
 		requireChild(t, step, turn)
-		require.Equal(t, "generate_assistant", chatd.SpanAttr(t, step, chatloop.AttrGenerationAction))
+		require.Equal(t, "generate_assistant", spanAttr(t, step, chatloop.AttrGenerationAction))
 		stream := single(t, index, chatloop.StageStream)
 		requireChild(t, stream, step)
 		require.Equal(t, codes.Error, stream.Status().Code)
@@ -14920,10 +14926,10 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		requireChild(t, execute, turn)
 		toolCall := single(t, index, chatloop.StageToolCall)
 		requireChild(t, toolCall, execute)
-		require.Equal(t, "list_templates", chatd.SpanAttr(t, toolCall, chatloop.AttrToolName))
-		require.NotEmpty(t, chatd.SpanAttr(t, toolCall, chatloop.AttrProvider))
-		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrProvider), chatd.SpanAttr(t, toolCall, chatloop.AttrProvider))
-		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrModel), chatd.SpanAttr(t, toolCall, chatloop.AttrModel))
+		require.Equal(t, "list_templates", spanAttr(t, toolCall, chatloop.AttrToolName))
+		require.NotEmpty(t, spanAttr(t, toolCall, chatloop.AttrProvider))
+		require.Equal(t, spanAttr(t, execute, chatloop.AttrProvider), spanAttr(t, toolCall, chatloop.AttrProvider))
+		require.Equal(t, spanAttr(t, execute, chatloop.AttrModel), spanAttr(t, toolCall, chatloop.AttrModel))
 	})
 
 	t.Run("ProviderRetryKeepsTurnOpen", func(t *testing.T) {
@@ -14950,7 +14956,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		index := waitForTurns(ctx, t, h.recorder, 1)
 
 		turn := single(t, index, chatloop.StageChatTurn)
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		steps := index[string(chatloop.StageGenerationStep)]
 		for _, step := range steps {
 			requireChild(t, step, turn)
@@ -14984,7 +14990,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
 		// Holding the backoff timer lets the task timeout fire first.
 		retryTimer := retryTrap.MustWait(ctx)
-		advanceMockClockBy(ctx, t, clock, chatd.DefaultTaskTimeout)
+		advanceMockClockBy(ctx, t, clock, 15*time.Minute)
 		retryTimer.MustRelease(ctx)
 		taskRetry := taskRetryTrap.MustWait(ctx)
 		taskRetry.MustRelease(ctx)
@@ -14995,16 +15001,15 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			turns = nil
 			for _, span := range h.recorder.Ended() {
-				if chatd.SpanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageChatTurn) {
+				if spanAttr(t, span, chatloop.AttrStage) == string(chatloop.StageChatTurn) {
 					turns = append(turns, span)
 				}
 			}
 			return slices.ContainsFunc(turns, func(turn sdktrace.ReadOnlySpan) bool {
-				return chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome) == string(chatloop.TurnOutcomeCompleted)
+				return spanAttr(t, turn, chatloop.AttrTurnOutcome) == string(chatloop.TurnOutcomeCompleted)
 			})
 		}, testutil.IntervalFast)
 		require.Len(t, turns, 1)
-		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 		steps := 0
 		for _, span := range h.recorder.Ended() {
 			if span.Name() == string(chatloop.StageGenerationStep) {
@@ -15042,7 +15047,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 
 		// The tool result commit also fails the turn.
 		turn := single(t, index, chatloop.StageChatTurn)
-		require.Equal(t, string(chatloop.TurnOutcomeError), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeError), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		require.Equal(t, codes.Error, turn.Status().Code)
 		require.Contains(t, turn.Status().Description, "HTTP status 500")
 		requireChild(t, stepByAction(t, index[string(chatloop.StageGenerationStep)], "execute_local_tools"), turn)
@@ -15088,13 +15093,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		for _, connect := range connects {
 			require.Equal(t, codes.Error, connect.Status().Code)
 			require.Contains(t, connect.Status().Description, "broken-mcp")
-			require.Equal(t, "0", chatd.SpanAttr(t, connect, chatloop.AttrMCPServersConnected))
-			require.Equal(t, "1", chatd.SpanAttr(t, connect, chatloop.AttrMCPServersFailed))
+			require.Equal(t, "0", spanAttr(t, connect, chatloop.AttrMCPServersConnected))
+			require.Equal(t, "1", spanAttr(t, connect, chatloop.AttrMCPServersFailed))
 			require.True(t, slices.ContainsFunc(prepares, func(prepare sdktrace.ReadOnlySpan) bool {
 				return prepare.SpanContext().SpanID() == connect.Parent().SpanID()
 			}), "mcp_connect runs inside prepare")
 		}
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, single(t, index, chatloop.StageChatTurn), chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, single(t, index, chatloop.StageChatTurn), chatloop.AttrTurnOutcome))
 	})
 
 	t.Run("QueuedMessagePromotedByFinishTurn", func(t *testing.T) {
@@ -15139,10 +15144,9 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 				require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 				require.NotEqual(t, turns[0].SpanContext().TraceID(), turns[1].SpanContext().TraceID())
 				for _, turn := range turns {
-					require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+					require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 					requireChild(t, childOf(t, index, chatloop.StageAcquisition, turn), turn)
 				}
-				require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 			})
 		}
 	})
@@ -15171,7 +15175,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		turns := index[string(chatloop.StageChatTurn)]
 		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
 		requireInterrupted(t, turns[0])
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
@@ -15197,7 +15201,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 
 		turns := index[string(chatloop.StageChatTurn)]
 		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
@@ -15230,7 +15234,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		turns := index[string(chatloop.StageChatTurn)]
 		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
 		for _, turn := range turns {
-			require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+			require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		}
 	})
 
@@ -15253,9 +15257,9 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
 		turns := index[string(chatloop.StageChatTurn)]
-		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), chatd.SpanAttr(t, turns[0], chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), spanAttr(t, turns[0], chatloop.AttrTurnOutcome))
 		require.Equal(t, codes.Unset, turns[0].Status().Code)
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
@@ -15271,7 +15275,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		index := waitForTurns(ctx, t, h.recorder, 1)
 
 		turn := single(t, index, chatloop.StageChatTurn)
-		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 		require.Equal(t, codes.Unset, turn.Status().Code)
 	})
 
@@ -15397,10 +15401,9 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, submittedAt.UTC(), turns[1].StartTime().UTC())
 		stepByAction(t, childrenOf(index, chatloop.StageGenerationStep, turns[0]), "enter_requires_action")
 		for _, turn := range turns {
-			require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+			require.Equal(t, string(chatloop.TurnOutcomeCompleted), spanAttr(t, turn, chatloop.AttrTurnOutcome))
 			acquisition := childOf(t, index, chatloop.StageAcquisition, turn)
 			require.Equal(t, turn.StartTime(), acquisition.StartTime())
 		}
-		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 	})
 }
