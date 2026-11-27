@@ -2579,7 +2579,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
+			BuildFn:       p.buildWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
@@ -2587,7 +2587,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StopFn:        p.stopWorkspaceFn,
+			BuildFn:       p.buildWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,

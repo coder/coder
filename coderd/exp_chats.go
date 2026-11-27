@@ -54,7 +54,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -4610,15 +4609,8 @@ func (api *API) chatCreateWorkspace(
 	return workspace, chat, nil
 }
 
-// chatStartWorkspace starts a stopped workspace by creating a new
-// build with the "start" transition. It mirrors chatCreateWorkspace
-// but for the start path.
-//
-// Aliased as ChatStartWorkspace in coderd/export_test.go so external
-// tests in the coderd_test package can drive the auto-update path
-// end-to-end. The proper fix is to extract the request building into
-// a pure function; tracked in CODAGT-292.
-func (api *API) chatStartWorkspace(
+// chatBuildWorkspace creates a workspace build as the workspace owner.
+func (api *API) chatBuildWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	workspaceID uuid.UUID,
@@ -4635,32 +4627,13 @@ func (api *API) chatStartWorkspace(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
 
-	updatedToActiveVersion := false
-	if req.Transition == codersdk.WorkspaceTransitionStart {
-		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
-		}
-
-		templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-		if templateAccessControl.RequireActiveVersion {
-			latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-			if err != nil {
-				return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
-			}
-
-			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
-			req.TemplateVersionID = template.ActiveVersionID
-		}
-	}
-
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
 		UserID: ownerID,
 	}
 
-	apiBuild, err := api.postWorkspaceBuildsInternal(
+	return api.postWorkspaceBuildsInternal(
 		ctx,
 		syntheticKey,
 		workspace,
@@ -4672,94 +4645,6 @@ func (api *API) chatStartWorkspace(
 		},
 		audit.WorkspaceBuildBaggage{},
 	)
-	if err != nil {
-		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
-			const retryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values. If the correct value for a parameter is not obvious from its description or defaults, ask the user rather than guessing."
-			if responder, ok := httperror.IsResponder(err); ok {
-				status, resp := responder.Response()
-				resp = rewriteChatStartWorkspaceManualUpdateResponse(resp, err.Error(), retryInstructions)
-				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(status, resp)
-			}
-			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: retryInstructions,
-				Detail:  err.Error(),
-			})
-		}
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
-	}
-
-	return apiBuild, nil
-}
-
-// chatStopWorkspace stops a workspace by creating a new build with the
-// "stop" transition. It mirrors chatStartWorkspace, without start-only
-// active-version behavior.
-func (api *API) chatStopWorkspace(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	workspaceID uuid.UUID,
-	req codersdk.CreateWorkspaceBuildRequest,
-) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
-	}
-	ctx = dbauthz.As(ctx, actor)
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
-	}
-
-	req.Transition = codersdk.WorkspaceTransitionStop
-
-	// Build a synthetic API key so postWorkspaceBuildsInternal can
-	// record the correct initiator.
-	syntheticKey := database.APIKey{
-		UserID: ownerID,
-	}
-
-	apiBuild, err := api.postWorkspaceBuildsInternal(
-		ctx,
-		syntheticKey,
-		workspace,
-		req,
-		func(action policy.Action, object rbac.Objecter) bool {
-			// Authorization is handled by dbauthz on the context.
-			authErr := api.HTTPAuth.Authorizer.Authorize(ctx, actor, action, object.RBACObject())
-			return authErr == nil
-		},
-		audit.WorkspaceBuildBaggage{},
-	)
-	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
-	}
-
-	return apiBuild, nil
-}
-
-func rewriteChatStartWorkspaceManualUpdateResponse(resp codersdk.Response, fallbackDetail string, retryInstructions string) codersdk.Response {
-	originalMessage := resp.Message
-	resp.Message = retryInstructions
-	if len(resp.Validations) == 0 && originalMessage != "" {
-		if resp.Detail == "" {
-			resp.Detail = originalMessage
-		} else {
-			resp.Detail = originalMessage + ": " + resp.Detail
-		}
-	} else if resp.Detail == "" {
-		resp.Detail = fallbackDetail
-	}
-	return resp
-}
-
-func isChatStartWorkspaceManualUpdateRequiredError(err error) bool {
-	var diagnosticErr *dynamicparameters.DiagnosticError
-	if errors.As(err, &diagnosticErr) {
-		return true
-	}
-
-	return errors.Is(err, wsbuilder.ErrParameterValidation)
 }
 
 func chatWorkspaceAuditStatus(err error) int {

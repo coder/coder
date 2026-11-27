@@ -170,8 +170,7 @@ type Server struct {
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
-	startWorkspaceFn               chattool.StartWorkspaceFn
-	stopWorkspaceFn                chattool.StopWorkspaceFn
+	buildWorkspaceFn               chattool.BuildWorkspaceFn
 	renderTemplateParametersFn     chattool.RenderTemplateParametersFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
@@ -1231,8 +1230,7 @@ type Config struct {
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
-	StartWorkspace                 chattool.StartWorkspaceFn
-	StopWorkspace                  chattool.StopWorkspaceFn
+	BuildWorkspace                 chattool.BuildWorkspaceFn
 	RenderTemplateParameters       chattool.RenderTemplateParametersFn
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
@@ -1345,8 +1343,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
-		startWorkspaceFn:               cfg.StartWorkspace,
-		stopWorkspaceFn:                cfg.StopWorkspace,
+		buildWorkspaceFn:               cfg.BuildWorkspace,
 		renderTemplateParametersFn:     cfg.RenderTemplateParameters,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,

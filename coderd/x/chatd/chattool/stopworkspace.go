@@ -14,19 +14,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// StopWorkspaceFn stops a workspace by creating a new build with
-// the "stop" transition.
-type StopWorkspaceFn func(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	workspaceID uuid.UUID,
-	req codersdk.CreateWorkspaceBuildRequest,
-) (codersdk.WorkspaceBuild, error)
-
 // StopWorkspaceOptions configures the stop_workspace tool.
 type StopWorkspaceOptions struct {
 	OwnerID       uuid.UUID
-	StopFn        StopWorkspaceFn
+	BuildFn       BuildWorkspaceFn
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
 	Logger        slog.Logger
@@ -52,7 +43,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 			"and may discard unsaved in-memory state. This tool does not "+
 			"delete the workspace.",
 		func(ctx context.Context, _ stopWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.StopFn == nil {
+			if options.BuildFn == nil {
 				return fantasy.NewTextErrorResponse("workspace stopper is not configured"), nil
 			}
 
@@ -147,7 +138,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			stopBuild, err := options.StopFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			stopBuild, err := options.BuildFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			})
 			if err != nil {

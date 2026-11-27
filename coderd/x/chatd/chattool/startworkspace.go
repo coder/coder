@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"charm.land/fantasy"
@@ -10,24 +11,18 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// StartWorkspaceFn starts a workspace by creating a new build with
-// the "start" transition.
-type StartWorkspaceFn func(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	workspaceID uuid.UUID,
-	req codersdk.CreateWorkspaceBuildRequest,
-) (codersdk.WorkspaceBuild, error)
+const activeVersionRetryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values. If the correct value for a parameter is not obvious from its description or defaults, ask the user rather than guessing."
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
 	OwnerID       uuid.UUID
-	StartFn       StartWorkspaceFn
+	BuildFn       BuildWorkspaceFn
 	AgentConnFn   AgentConnFunc
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
@@ -52,7 +47,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 			"values (from read_template) only if necessary or "+
 			"explicitly requested by the user.",
 		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.StartFn == nil {
+			if options.BuildFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
 			}
 
@@ -162,8 +157,17 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
+			activeVersionID, err := requiredActiveVersion(ownerCtx, db, ws.TemplateID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("start workspace: %w", err).Error(),
+				), nil
+			}
+			updating := activeVersionID != uuid.Nil && activeVersionID != build.TemplateVersionID
+
 			startReq := codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransitionStart,
+				Transition:        codersdk.WorkspaceTransitionStart,
+				TemplateVersionID: activeVersionID,
 			}
 			for k, v := range args.Parameters {
 				startReq.RichParameterValues = append(
@@ -172,12 +176,16 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				)
 			}
 
-			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, startReq)
+			startBuild, err := options.BuildFn(ownerCtx, options.OwnerID, ws.ID, startReq)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
+					needsParameters := updating && isParameterError(err)
+					if needsParameters {
+						resp = withActiveVersionRetryInstructions(resp, err.Error())
+					}
 					result := responseErrorResult(resp)
-					if len(resp.Validations) > 0 && ws.TemplateID != uuid.Nil {
+					if needsParameters || len(resp.Validations) > 0 {
 						result["template_id"] = ws.TemplateID.String()
 					}
 					return toolResponse(result), nil
@@ -210,12 +218,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
-			// If the template version changed, annotate the
-			// response so the model knows an auto-update
-			// occurred.
-			if startBuild.TemplateVersionID != uuid.Nil &&
-				build.TemplateVersionID != uuid.Nil &&
-				startBuild.TemplateVersionID != build.TemplateVersionID {
+			if updating {
 				result["updated_to_active_version"] = true
 				result["update_reason"] = "template requires active versions"
 				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
@@ -236,6 +239,40 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 			}
 			return toolResponse(result), nil
 		})
+}
+
+// requiredActiveVersion returns the template's active version when the
+// template requires workspaces to use it, and uuid.Nil otherwise.
+func requiredActiveVersion(ctx context.Context, db database.Store, templateID uuid.UUID) (uuid.UUID, error) {
+	template, err := db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get template: %w", err)
+	}
+	if !template.RequireActiveVersion {
+		return uuid.Nil, nil
+	}
+	return template.ActiveVersionID, nil
+}
+
+func isParameterError(err error) bool {
+	var diagnosticErr *dynamicparameters.DiagnosticError
+	return errors.As(err, &diagnosticErr) ||
+		errors.Is(err, dynamicparameters.ErrParameterValidation)
+}
+
+func withActiveVersionRetryInstructions(resp codersdk.Response, fallbackDetail string) codersdk.Response {
+	originalMessage := resp.Message
+	resp.Message = activeVersionRetryInstructions
+	if len(resp.Validations) == 0 && originalMessage != "" {
+		if resp.Detail == "" {
+			resp.Detail = originalMessage
+		} else {
+			resp.Detail = originalMessage + ": " + resp.Detail
+		}
+	} else if resp.Detail == "" {
+		resp.Detail = fallbackDetail
+	}
+	return resp
 }
 
 // waitForAgentAndRespond selects the chat agent from the workspace's
