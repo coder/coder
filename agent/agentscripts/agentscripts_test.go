@@ -623,6 +623,34 @@ func TestStartCronDuringCloseDoesNotBlockClose(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, closed))
 }
 
+// A cron run that is still in flight when Close cancels it reports its
+// timing once its command exits. Close must not hold the lock that the
+// report needs while it waits for that run.
+func TestCloseDuringCronRun(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep")
+	}
+	ctx := testutil.Context(t, testutil.WaitShort)
+	fLogger := newFakeScriptLogger()
+	runner := setup(t, func(uuid.UUID) agentscripts.ScriptLogger { return fLogger })
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+	script := codersdk.WorkspaceAgentScript{
+		ID: uuid.New(), LogSourceID: uuid.New(),
+		// The login shell execs sh before printing, so the SIGHUP from Close
+		// cannot land while a shell that defers signals is still running.
+		Script: "exec sh -c 'echo started && exec sleep 30'", Cron: "* * * * * *",
+	}
+	require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
+	runner.StartCron()
+	require.Equal(t, "started", testutil.RequireReceive(ctx, t, fLogger.logs).Output)
+
+	closed := make(chan error, 1)
+	go func() { closed <- runner.Close() }()
+	require.NoError(t, testutil.RequireReceive(ctx, t, closed))
+}
+
 // recordingScriptLogs keeps every line per log source so a test can read a
 // script's output and its dependency lines together.
 type recordingScriptLogs struct {
