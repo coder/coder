@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1879,6 +1881,48 @@ func TestValidateToken(t *testing.T) {
 		assert.True(t, valid, "200 means the provider confirmed the token")
 		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a confirmed validation should not log a rate-limit warning")
 	})
+
+	// An oversized user profile is not decoded, but the 200 still confirms
+	// the token, as with any other undecodable profile.
+	t.Run("OversizedUserResponse", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":    1,
+				"login": "octocat",
+				"bio":   strings.Repeat("a", int(xhttp.MaxProviderResponseBytes)),
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		config, _ := newLoggedConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid)
+		assert.Nil(t, user, "an oversized profile must not be decoded")
+	})
+
+	t.Run("OversizedErrorResponse", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(strings.Repeat("a", 2*int(xhttp.MaxProviderResponseBytes))))
+		}))
+		t.Cleanup(srv.Close)
+
+		config, _ := newLoggedConfig(t, srv.URL)
+		valid, _, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.ErrorContains(t, err, "status 500")
+		_, tooLarge := errors.AsType[*xhttp.ResponseBodyTooLargeError](err)
+		assert.True(t, tooLarge, "want *ResponseBodyTooLargeError")
+		assert.False(t, valid)
+		assert.LessOrEqual(t, len(err.Error()), int(xhttp.MaxProviderResponseBytes)+128,
+			"the error must not carry more of the body than the limit")
+	})
 }
 
 func TestRevokeToken(t *testing.T) {
@@ -2026,6 +2070,53 @@ func TestRevokeToken(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "basic auth failed")
 		require.False(t, revoked)
+	})
+
+	t.Run("RevokeTokenRFC_OversizedResponse", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(strings.Repeat("a", 2*int(xhttp.MaxProviderResponseBytes))))
+		}))
+		t.Cleanup(srv.Close)
+
+		f := promoauth.NewFactory(prometheus.NewRegistry())
+		config := &externalauth.Config{
+			InstrumentedOAuth2Config: f.New("test-revoke", &oauth2.Config{}),
+			RevokeURL:                srv.URL,
+			RevokeTimeout:            testutil.WaitShort,
+		}
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitShort), srv.Client())
+		revoked, err := config.RevokeToken(ctx, database.ExternalAuthLink{OAuthAccessToken: "token"})
+		_, tooLarge := errors.AsType[*xhttp.ResponseBodyTooLargeError](err)
+		require.True(t, tooLarge, "want *ResponseBodyTooLargeError, got %v", err)
+		require.False(t, revoked)
+	})
+}
+
+func TestAuthorizeDevice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OversizedResponse", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"user_code": "ABCD-EFGH",
+				"padding":   strings.Repeat("a", int(xhttp.MaxProviderResponseBytes)),
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		f := promoauth.NewFactory(prometheus.NewRegistry())
+		deviceAuth := &externalauth.DeviceAuth{
+			Config:  f.New("test-device", &oauth2.Config{}),
+			CodeURL: srv.URL,
+		}
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitShort), srv.Client())
+		device, err := deviceAuth.AuthorizeDevice(ctx)
+		_, tooLarge := errors.AsType[*xhttp.ResponseBodyTooLargeError](err)
+		require.True(t, tooLarge, "want *ResponseBodyTooLargeError, got %v", err)
+		require.Nil(t, device)
 	})
 }
 
