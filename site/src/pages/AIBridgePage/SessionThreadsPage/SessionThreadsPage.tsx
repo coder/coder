@@ -19,7 +19,7 @@ const SessionThreadsPage: React.FC = () => {
 		permissions,
 	);
 
-	const canViewSessionThreads = isEntitled && hasPermission;
+	const canViewSessionThreads = isEntitled && isEnabled && hasPermission;
 
 	const { sessionId } = useParams() as { sessionId: string };
 

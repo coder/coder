@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	getOrganizationLabel,
@@ -19,6 +20,7 @@ import {
 } from "#/components/Tabs/Tabs";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
+import { docs } from "#/utils/docs";
 import { DetailedReportTab } from "./DetailedReportTab";
 import type { DetailedReportQuery } from "./DetailedReportTable";
 import { OverviewTab } from "./OverviewTab";
@@ -40,6 +42,8 @@ type AISpendPageViewProps = {
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	minDay: string | undefined;
+	isRetentionLoading: boolean;
+	isRetentionUnderADay: boolean;
 	reportFilter: string;
 	onReportFilterChange: (filter: string) => void;
 	reportQuery: DetailedReportQuery;
@@ -74,6 +78,8 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 	days,
 	onDaysChange,
 	minDay,
+	isRetentionLoading,
+	isRetentionUnderADay,
 	reportFilter,
 	onReportFilterChange,
 	reportQuery,
@@ -134,7 +140,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 					)
 				}
 			>
-				<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Spend</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
@@ -144,6 +150,17 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 			{organization === undefined ? (
 				<Alert severity="warning">
 					This organization is unavailable, or you don't have access to it.
+				</Alert>
+			) : isRetentionUnderADay ? (
+				<Alert severity="info">
+					The AI Gateway data retention is shorter than a day, so spend can't be
+					shown by day.{" "}
+					<Link
+						href={docs("/ai-governance/ai-gateway/setup#data-retention")}
+						target="_blank"
+					>
+						Learn more about data retention
+					</Link>
 				</Alert>
 			) : (
 				<Tabs
@@ -161,6 +178,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							days={days}
 							onDaysChange={onDaysChange}
 							minDay={minDay}
+							isRetentionLoading={isRetentionLoading}
 							overview={overview}
 							overviewError={overviewError}
 							unpricedModels={unpricedModels}
@@ -186,6 +204,7 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 							days={days}
 							onDaysChange={onDaysChange}
 							minDay={minDay}
+							isRetentionLoading={isRetentionLoading}
 							filter={reportFilter}
 							onFilterChange={onReportFilterChange}
 							canViewSessions={canViewSessions}
