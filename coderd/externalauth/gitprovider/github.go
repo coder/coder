@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/quartz"
 )
 
@@ -21,10 +23,11 @@ const (
 )
 
 type githubProvider struct {
-	apiBaseURL string
-	webBaseURL string
-	httpClient *http.Client
-	clock      quartz.Clock
+	apiBaseURL     string
+	webBaseURL     string
+	httpClient     *http.Client
+	clock          quartz.Clock
+	requestMetrics promoauth.InstrumentedOAuth2Config
 
 	// cache stores ETags and response bodies so JSON reads can be
 	// issued as conditional requests, letting unchanged pull
@@ -37,7 +40,7 @@ type githubProvider struct {
 	repositorySSHPathPattern *regexp.Regexp
 }
 
-func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
+func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock, requestMetrics promoauth.InstrumentedOAuth2Config) (Provider, error) {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
@@ -58,11 +61,12 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (
 	escapedHost := regexp.QuoteMeta(host)
 
 	return &githubProvider{
-		apiBaseURL: apiBaseURL,
-		webBaseURL: webBaseURL,
-		httpClient: httpClient,
-		clock:      clock,
-		cache:      newResponseCache(defaultResponseCacheEntries),
+		apiBaseURL:     apiBaseURL,
+		webBaseURL:     webBaseURL,
+		httpClient:     httpClient,
+		clock:          clock,
+		requestMetrics: requestMetrics,
+		cache:          newResponseCache(defaultResponseCacheEntries),
 		pullRequestPathPattern: regexp.MustCompile(
 			`^https://` + escapedHost + `/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
 		),
@@ -233,7 +237,7 @@ func (g *githubProvider) ResolveBranchPullRequest(
 		Number  int    `json:"number"`
 	}
 
-	if err := g.decodeJSON(ctx, requestURL, token, &pulls); err != nil {
+	if err := g.decodeJSON(ctx, requestURL, token, &pulls, promoauth.SourceGitProviderListPullRequests); err != nil {
 		return nil, err
 	}
 	if len(pulls) == 0 {
@@ -260,29 +264,8 @@ func (g *githubProvider) FetchPullRequestStatus(
 		ref.Number,
 	)
 
-	var pull struct {
-		Title        string `json:"title"`
-		State        string `json:"state"`
-		Merged       bool   `json:"merged"`
-		Draft        bool   `json:"draft"`
-		Additions    int32  `json:"additions"`
-		Deletions    int32  `json:"deletions"`
-		ChangedFiles int32  `json:"changed_files"`
-		Number       int    `json:"number"`
-		Commits      int32  `json:"commits"`
-		Head         struct {
-			SHA string `json:"sha"`
-			Ref string `json:"ref"`
-		} `json:"head"`
-		User struct {
-			Login     string `json:"login"`
-			AvatarURL string `json:"avatar_url"`
-		} `json:"user"`
-		Base struct {
-			Ref string `json:"ref"`
-		} `json:"base"`
-	}
-	if err := g.decodeJSON(ctx, pullEndpoint, token, &pull); err != nil {
+	pull, err := g.fetchPullRequest(ctx, token, ref, pullEndpoint)
+	if err != nil {
 		return nil, err
 	}
 
@@ -302,6 +285,7 @@ func (g *githubProvider) FetchPullRequestStatus(
 		pullEndpoint+"/reviews?per_page=100",
 		token,
 		&reviews,
+		promoauth.SourceGitProviderReviews,
 	); err != nil {
 		return nil, err
 	}
@@ -348,7 +332,7 @@ func (g *githubProvider) FetchPullRequestDiff(
 		url.PathEscape(ref.Repo),
 		ref.Number,
 	)
-	return g.fetchDiff(ctx, requestURL, token)
+	return g.fetchDiff(ctx, requestURL, token, promoauth.SourceGitProviderPullRequestDiff)
 }
 
 func (g *githubProvider) FetchBranchDiff(
@@ -370,7 +354,7 @@ func (g *githubProvider) FetchBranchDiff(
 		url.PathEscape(ref.Owner),
 		url.PathEscape(ref.Repo),
 	)
-	if err := g.decodeJSON(ctx, repositoryURL, token, &repository); err != nil {
+	if err := g.decodeJSON(ctx, repositoryURL, token, &repository, promoauth.SourceGitProviderRepository); err != nil {
 		return "", err
 	}
 	defaultBranch := strings.TrimSpace(repository.DefaultBranch)
@@ -387,7 +371,7 @@ func (g *githubProvider) FetchBranchDiff(
 		url.PathEscape(ref.Branch),
 	)
 
-	return g.fetchDiff(ctx, requestURL, token)
+	return g.fetchDiff(ctx, requestURL, token, promoauth.SourceGitProviderBranchDiff)
 }
 
 func (g *githubProvider) decodeJSON(
@@ -395,35 +379,22 @@ func (g *githubProvider) decodeJSON(
 	requestURL string,
 	token string,
 	dest any,
+	source promoauth.Oauth2Source,
 ) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return xerrors.Errorf("create github request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("User-Agent", "coder-chat-diff-status")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
 	// Issue a conditional request when we have a cached ETag for this
 	// URL + auth scope. GitHub replies 304 Not Modified when nothing
 	// changed, which is cheaper than a full body and does not count
 	// against the primary REST rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
-	var (
-		cachedBody []byte
-		haveCached bool
-	)
-	if etag, body, ok := g.cache.load(cacheKey); ok {
-		req.Header.Set("If-None-Match", etag)
-		cachedBody, haveCached = body, true
-	}
-
-	resp, err := g.httpClient.Do(req)
+	etag, cachedBody, haveCached := g.cache.load(cacheKey)
+	resp, err := g.requestJSON(ctx, githubJSONRequest{
+		requestURL: requestURL,
+		token:      token,
+		etag:       etag,
+		source:     source,
+	})
 	if err != nil {
-		return xerrors.Errorf("execute github request: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -435,22 +406,8 @@ func (g *githubProvider) decodeJSON(
 		return nil
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
-			return rlErr
-		}
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		if readErr != nil {
-			return xerrors.Errorf(
-				"github request failed with status %d",
-				resp.StatusCode,
-			)
-		}
-		return xerrors.Errorf(
-			"github request failed with status %d: %s",
-			resp.StatusCode,
-			strings.TrimSpace(string(body)),
-		)
+	if resp.StatusCode == http.StatusNotModified {
+		return xerrors.New("github response returned 304 without a cached response")
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -468,10 +425,100 @@ func (g *githubProvider) decodeJSON(
 	return nil
 }
 
+// githubJSONRequest is a GET request for a JSON resource of the GitHub REST
+// API.
+type githubJSONRequest struct {
+	requestURL string
+	token      string
+	// etag, when set, makes the request conditional.
+	etag   string
+	source promoauth.Oauth2Source
+	// isRateLimited selects the failed responses that are checked for a
+	// retry time. When nil, every failed response is checked.
+	isRateLimited func(*http.Response) bool
+}
+
+// requestJSON returns the response for a 200 or a 304; the caller closes its
+// body. For any other response it returns a *RateLimitError when the response
+// is checked and has a usable retry time. Otherwise it returns a
+// *githubRequestError, or a plain error when the body cannot be read.
+func (g *githubProvider) requestJSON(ctx context.Context, request githubJSONRequest) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, request.requestURL, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create github request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "coder-chat-diff-status")
+	if request.token != "" {
+		req.Header.Set("Authorization", "Bearer "+request.token)
+	}
+	if request.etag != "" {
+		req.Header.Set("If-None-Match", request.etag)
+	}
+
+	resp, err := g.do(ctx, req, request.source)
+	if err != nil {
+		return nil, xerrors.Errorf("execute github request: %w", err)
+	}
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotModified {
+		return resp, nil
+	}
+	defer resp.Body.Close()
+
+	rateLimited := request.isRateLimited != nil && request.isRateLimited(resp)
+	checkRetryTime := request.isRateLimited == nil || rateLimited
+	if checkRetryTime {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+			return nil, rlErr
+		}
+	}
+
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if readErr != nil {
+		return nil, xerrors.Errorf("github request failed with status %d", resp.StatusCode)
+	}
+	message := fmt.Sprintf(
+		"github request failed with status %d: %s",
+		resp.StatusCode,
+		strings.TrimSpace(string(body)),
+	)
+	return nil, &githubRequestError{
+		statusCode:  resp.StatusCode,
+		message:     message,
+		rateLimited: rateLimited,
+	}
+}
+
+// githubRequestError is a failed GitHub API response without a usable retry
+// time.
+type githubRequestError struct {
+	statusCode int
+	message    string
+	// rateLimited is true when the request's isRateLimited predicate matched
+	// the response. It is false for requests without a predicate.
+	rateLimited bool
+}
+
+func (e *githubRequestError) Error() string {
+	return e.message
+}
+
+func (g *githubProvider) do(ctx context.Context, req *http.Request, source promoauth.Oauth2Source) (*http.Response, error) {
+	if g.requestMetrics == nil {
+		return g.httpClient.Do(req)
+	}
+	// promoauth.Config.Do instruments the client stored under
+	// oauth2.HTTPClient in ctx, and a default client when there is none.
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, g.httpClient)
+	return g.requestMetrics.Do(ctx, source, req)
+}
+
 func (g *githubProvider) fetchDiff(
 	ctx context.Context,
 	requestURL string,
 	token string,
+	source promoauth.Oauth2Source,
 ) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -484,7 +531,7 @@ func (g *githubProvider) fetchDiff(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	resp, err := g.httpClient.Do(req)
+	resp, err := g.do(ctx, req, source)
 	if err != nil {
 		return "", xerrors.Errorf("execute github diff request: %w", err)
 	}

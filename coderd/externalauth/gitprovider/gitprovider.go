@@ -12,14 +12,16 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/quartz"
 )
 
 // providerOptions holds optional configuration for provider
 // construction.
 type providerOptions struct {
-	clock  quartz.Clock
-	logger slog.Logger
+	clock          quartz.Clock
+	logger         slog.Logger
+	requestMetrics promoauth.InstrumentedOAuth2Config
 }
 
 // Option configures optional behavior for a Provider.
@@ -38,6 +40,14 @@ func WithClock(c quartz.Clock) Option {
 func WithLogger(l slog.Logger) Option {
 	return func(o *providerOptions) {
 		o.logger = l
+	}
+}
+
+// WithRequestMetrics instruments GitHub API requests using the external auth
+// config's request counters. The provider's HTTP client still handles requests.
+func WithRequestMetrics(config promoauth.InstrumentedOAuth2Config) Option {
+	return func(o *providerOptions) {
+		o.requestMetrics = config
 	}
 }
 
@@ -203,7 +213,7 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 
 	switch providerType {
 	case "github":
-		return newGitHub(apiBaseURL, httpClient, o.clock)
+		return newGitHub(apiBaseURL, httpClient, o.clock, o.requestMetrics)
 	case "gitlab":
 		return newGitLab(apiBaseURL, httpClient, o.clock, o.logger)
 	default:

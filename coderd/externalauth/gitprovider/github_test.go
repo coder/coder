@@ -750,14 +750,47 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			reviewsJSON, err := json.Marshal(tc.reviews)
 			require.NoError(t, err)
 
+			const updatedAt = "2026-11-13T12:00:00Z"
+			var pull map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.pullJSON), &pull))
+			pull["title"] = "Test PR"
+			pull["number"] = 1
+			pull["updated_at"] = updatedAt
+			pullJSON, err := json.Marshal(pull)
+			require.NoError(t, err)
+
+			merged, ok := pull["merged"].(bool)
+			require.True(t, ok)
+
+			var mergedAt any
+			if merged {
+				mergedAt = updatedAt
+			}
+			issue := map[string]any{
+				"title":      pull["title"],
+				"number":     1,
+				"state":      pull["state"],
+				"draft":      pull["draft"],
+				"updated_at": updatedAt,
+				"pull_request": map[string]any{
+					"merged_at": mergedAt,
+				},
+			}
+			issueJSON, err := json.Marshal(issue)
+			require.NoError(t, err)
+
 			mux := http.NewServeMux()
 			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write(reviewsJSON)
 			})
+			mux.HandleFunc("/api/v3/repos/owner/repo/issues/1", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write(issueJSON)
+			})
 			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(tc.pullJSON))
+				_, _ = w.Write(pullJSON)
 			})
 
 			srv := httptest.NewServer(mux)
