@@ -513,8 +513,6 @@ func TestAgent_Stats_Magic(t *testing.T) {
 				t.Skip("JetBrains tracking is only supported on Linux")
 			}
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-
 			// JetBrains tracking works by looking at the process name listening on the
 			// forwarded port.  If the process's command line includes the magic string
 			// we are looking for, then we assume it is a JetBrains editor.  So when we
@@ -537,9 +535,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 			// The echo server prints its port as the first line.
 			sc := bufio.NewScanner(stdout)
-			sc.Scan()
+			require.True(t, sc.Scan(), "echo server did not print its port: %v", sc.Err())
 			remotePort := sc.Text()
 
+			ctx := testutil.Context(t, testutil.WaitLong)
 			sink := testutil.NewFakeSink(t)
 			logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1)
 			logger.Debug(ctx, "making sure there is at least one debug log")
