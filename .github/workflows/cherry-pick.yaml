@@ -115,31 +115,49 @@ jobs:
           echo "Target branch: $RELEASE_BRANCH"
           echo "Backport branch: $BACKPORT_BRANCH"
 
-          # Check if backport branch already exists (idempotency for re-runs).
-          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
-            echo "Branch ${BACKPORT_BRANCH} already exists, skipping."
-            exit 0
-          fi
-
           BOT_LOGIN="${APP_SLUG}[bot]"
           BOT_ID=$(gh api "/users/${BOT_LOGIN}" --jq .id)
           git config user.name "$BOT_LOGIN"
           git config user.email "${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
 
-          # Create the backport branch from the target release branch.
-          git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_BRANCH}"
+          # Idempotency: if a cherry-pick PR already exists for this branch
+          # (open, closed, or merged), there is nothing to do. This is the
+          # primary guard so a re-run that previously pushed a branch but
+          # failed before opening the PR still recovers below.
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_BRANCH" --state all --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
+            exit 0
+          fi
 
-          # Cherry-pick the merge commit. Use -x to record provenance and
-          # -m1 to pick the first parent (the main branch side).
           CONFLICT=false
-          if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
-            CONFLICT=true
-            echo "::warning::Cherry-pick to ${RELEASE_BRANCH} had conflicts."
+          CONFLICT_SUBJECT="cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually"
+          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            # The branch exists from an earlier run that failed before opening
+            # the PR. Reuse it as-is and fall through to PR creation rather
+            # than starting over or bailing out.
+            echo "Backport branch ${BACKPORT_BRANCH} already exists; reusing it to open the PR."
 
-            # Abort the failed cherry-pick and create an empty commit with
-            # instructions so the PR can still be opened.
-            git cherry-pick --abort
-            git commit --allow-empty -m "cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually
+            # Keep the [CONFLICT] title if the earlier run pushed the
+            # conflict placeholder commit.
+            git fetch origin "+refs/heads/${BACKPORT_BRANCH}:refs/remotes/origin/${BACKPORT_BRANCH}"
+            if [ "$(git log -1 --format=%s "origin/${BACKPORT_BRANCH}")" = "$CONFLICT_SUBJECT" ]; then
+              CONFLICT=true
+            fi
+          else
+            # Create the backport branch from the target release branch.
+            git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_BRANCH}"
+
+            # Cherry-pick the merge commit. Use -x to record provenance and
+            # -m1 to pick the first parent (the main branch side).
+            if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
+              CONFLICT=true
+              echo "::warning::Cherry-pick to ${RELEASE_BRANCH} had conflicts."
+
+              # Abort the failed cherry-pick and create an empty commit with
+              # instructions so the PR can still be opened.
+              git cherry-pick --abort
+              git commit --allow-empty -m "${CONFLICT_SUBJECT}
 
           Cherry-pick of ${MERGE_SHA} onto ${RELEASE_BRANCH} had conflicts.
           To resolve:
@@ -148,9 +166,10 @@ jobs:
             git cherry-pick -x -m1 ${MERGE_SHA}
             # resolve conflicts
             git push origin ${BACKPORT_BRANCH}"
-          fi
+            fi
 
-          git push origin "$BACKPORT_BRANCH"
+            git push origin "$BACKPORT_BRANCH"
+          fi
 
           BODY=$(cat <<EOF
           Cherry-pick of ${PR_URL}
@@ -166,32 +185,31 @@ jobs:
             TITLE="[CONFLICT] ${TITLE}"
           fi
 
-          # Ensure the release-specific label exists before applying it.
-          # --force updates the label in place if it already exists, so
-          # re-runs and concurrent runs stay idempotent.
+          # Ensure the release-specific label exists. --force updates the label
+          # in place if it already exists, so re-runs and concurrent runs stay
+          # idempotent. Best-effort: label problems must never prevent the PR
+          # from being opened.
           gh label create "$CHERRY_PICK_LABEL" \
             --description "Cherry-pick PR targeting ${RELEASE_BRANCH}" \
             --color "D93F0B" \
-            --force
+            --force || echo "::warning::Could not create label ${CHERRY_PICK_LABEL}."
 
-          # Check if a PR already exists for this branch (idempotency
-          # for re-runs). Use --state all to catch closed/merged PRs too.
-          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_BRANCH" --state all --json number --jq '.[0].number // empty')
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
-            exit 0
-          fi
-
+          # Create the PR first, then attach label/assignee/reviewer
+          # separately. Requesting a review from (or assigning) the PR author
+          # is rejected by GitHub, and doing it inline with `gh pr create`
+          # under `set -e` would abort the job and leave no PR. Attaching them
+          # afterwards as best-effort guarantees the PR always gets created.
           NEW_PR_URL=$(
             gh pr create \
               --base "$RELEASE_BRANCH" \
               --head "$BACKPORT_BRANCH" \
               --title "$TITLE" \
-              --body "$BODY" \
-              --label "$CHERRY_PICK_LABEL" \
-              --assignee "$SENDER" \
-              --reviewer "$SENDER"
+              --body "$BODY"
           )
+
+          gh pr edit "$NEW_PR_URL" --add-label "$CHERRY_PICK_LABEL" || echo "::warning::Could not add label ${CHERRY_PICK_LABEL} to ${NEW_PR_URL}."
+          gh pr edit "$NEW_PR_URL" --add-assignee "$SENDER" || echo "::warning::Could not assign @${SENDER} to ${NEW_PR_URL}."
+          gh pr edit "$NEW_PR_URL" --add-reviewer "$SENDER" || echo "::warning::Could not request review from @${SENDER} on ${NEW_PR_URL}."
 
           # Comment on the original PR to notify the author.
           COMMENT="Cherry-pick PR created: ${NEW_PR_URL}"
