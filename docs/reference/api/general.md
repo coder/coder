@@ -252,6 +252,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "client_connect_concurrency": 0,
+    "client_connect_queue_size": 0,
     "cluster": {
       "host": "string"
     },

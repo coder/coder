@@ -8575,6 +8575,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "client_connect_concurrency": 0,
+    "client_connect_queue_size": 0,
     "cluster": {
       "host": "string"
     },
@@ -9218,6 +9220,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "browser_only": true,
   "cache_directory": "string",
   "cli_upgrade_message": "string",
+  "client_connect_concurrency": 0,
+  "client_connect_queue_size": 0,
   "cluster": {
     "host": "string"
   },
@@ -9667,6 +9671,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `browser_only`                                 | boolean                                                                                              | false    |              |                                                                           |
 | `cache_directory`                              | string                                                                                               | false    |              |                                                                           |
 | `cli_upgrade_message`                          | string                                                                                               | false    |              |                                                                           |
+| `client_connect_concurrency`                   | integer                                                                                              | false    |              |                                                                           |
+| `client_connect_queue_size`                    | integer                                                                                              | false    |              |                                                                           |
 | `cluster`                                      | [codersdk.ClusterConfig](#codersdkclusterconfig)                                                     | false    |              |                                                                           |
 | `config`                                       | string                                                                                               | false    |              |                                                                           |
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                           |

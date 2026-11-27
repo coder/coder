@@ -1012,6 +1012,11 @@ func New(options *Options) *API {
 		options.DeploymentValues.AgentConnectQueueSize.Value(),
 		agentAdmissionMetrics,
 	)
+	api.clientCoordAdmission = newConnectLimiter(
+		options.DeploymentValues.ClientConnectConcurrency.Value(),
+		options.DeploymentValues.ClientConnectQueueSize.Value(),
+		nil,
+	)
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
 		api.NetworkTelemetryBatchFrequency,
@@ -1893,20 +1898,30 @@ func New(options *Options) *API {
 						Optional: true,
 					}),
 					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-					httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 				)
-				r.Get("/", api.workspaceAgent)
-				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
-				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
-				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
-				r.Get("/logs", api.workspaceAgentLogs)
-				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
-				r.Get("/connection", api.workspaceAgentConnection)
-				r.Get("/containers", api.workspaceAgentListContainers)
-				r.Get("/containers/watch", api.watchWorkspaceAgentContainers)
-				r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
-				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
-				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				workspaceAgentParam := httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database)
+				r.Group(func(r chi.Router) {
+					r.Use(workspaceAgentParam)
+					r.Get("/", api.workspaceAgent)
+					r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
+					r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
+					r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
+					r.Get("/logs", api.workspaceAgentLogs)
+					r.Get("/listening-ports", api.workspaceAgentListeningPorts)
+					r.Get("/connection", api.workspaceAgentConnection)
+					r.Get("/containers", api.workspaceAgentListContainers)
+					r.Get("/containers/watch", api.watchWorkspaceAgentContainers)
+					r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
+					r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(
+						// Limits how many clients set up a connection at once.
+						api.clientCoordAdmission.Middleware,
+						workspaceAgentParam,
+					)
+					r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				})
 
 				// PTY is part of workspaceAppServer.
 			})
@@ -2151,7 +2166,10 @@ func New(options *Options) *API {
 			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				api.clientCoordAdmission.Middleware,
+			)
 			r.Get("/", api.tailnetRPCConn)
 		})
 		r.Route("/init-script", func(r chi.Router) {
@@ -2363,6 +2381,7 @@ type API struct {
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	agentRPCAdmission        *admission.Limiter
+	clientCoordAdmission     *admission.Limiter
 	wsWatcher                *httpapi.WSWatcher
 
 	chatWorkspaceUploadsTotal *prometheus.CounterVec
