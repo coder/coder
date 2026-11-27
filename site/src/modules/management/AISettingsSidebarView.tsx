@@ -11,6 +11,7 @@ import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	canAccessAnyChatModelConfig,
 	type Permissions,
@@ -18,6 +19,7 @@ import {
 import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
 type AISettingsSidebarViewProps = {
+	isLoading?: boolean;
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	canViewAISpend?: boolean;
@@ -86,7 +88,20 @@ const ModelsSidebarNavItem: React.FC<{ href: To }> = ({ href }) => {
 	);
 };
 
+const SidebarSkeleton: React.FC = () => (
+	<BaseSidebar>
+		<div className="flex flex-col gap-1">
+			{Array.from({ length: 5 }, (_, index) => (
+				<div key={index} className="py-2 px-3">
+					<Skeleton variant="text" width={120} className="my-1.5" />
+				</div>
+			))}
+		</div>
+	</BaseSidebar>
+);
+
 const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
+	isLoading = false,
 	permissions,
 	canViewAISpend = false,
 	canAccessOrganizationModels = false,
@@ -130,6 +145,10 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 			? organizationName
 			: null,
 	);
+
+	if (isLoading) {
+		return <SidebarSkeleton />;
+	}
 
 	return (
 		<BaseSidebar>
