@@ -1686,6 +1686,22 @@ func parseOrganizationAISpendPage(parser *httpapi.QueryParamParser, query url.Va
 	return page
 }
 
+// parseAISpendUserIDs reads the user filter of an AI spend request, recording
+// invalid IDs and too many IDs on the parser.
+func parseAISpendUserIDs(parser *httpapi.QueryParamParser, query url.Values) []uuid.UUID {
+	userIDs := parser.UUIDs(query, nil, "user_ids")
+	if len(userIDs) > maxAISpendUserIDs {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field: "user_ids",
+			Detail: fmt.Sprintf(
+				"user_ids has %d entries, maximum is %d.",
+				len(userIDs), maxAISpendUserIDs,
+			),
+		})
+	}
+	return userIDs
+}
+
 // isStartOfUTCDay reports whether t is exactly 00:00:00 UTC.
 func isStartOfUTCDay(t time.Time) bool {
 	h, m, s := t.UTC().Clock()
@@ -1879,16 +1895,7 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	page := parseOrganizationAISpendPage(parser, query)
-	userIDs := parser.UUIDs(query, nil, "user_ids")
-	if len(userIDs) > maxAISpendUserIDs {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field: "user_ids",
-			Detail: fmt.Sprintf(
-				"user_ids has %d entries, maximum is %d.",
-				len(userIDs), maxAISpendUserIDs,
-			),
-		})
-	}
+	userIDs := parseAISpendUserIDs(parser, query)
 	groupID := parser.UUID(query, uuid.Nil, "group_id")
 	// An empty dimension matches every request.
 	providerName := parser.String(query, "", "provider_name")
@@ -2043,16 +2050,7 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 
 	parser := httpapi.NewQueryParamParser()
 	parser.RequiredNotEmpty("user_ids")
-	userIDs := parser.UUIDs(r.URL.Query(), nil, "user_ids")
-	if len(userIDs) > maxAISpendUserIDs {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field: "user_ids",
-			Detail: fmt.Sprintf(
-				"user_ids has %d entries, maximum is %d.",
-				len(userIDs), maxAISpendUserIDs,
-			),
-		})
-	}
+	userIDs := parseAISpendUserIDs(parser, r.URL.Query())
 	parser.ErrorExcessParams(r.URL.Query())
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
