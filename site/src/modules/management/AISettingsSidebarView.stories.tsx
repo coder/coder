@@ -5,6 +5,7 @@ import {
 	type RouterRoute,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { organizationChatModelsKey } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
@@ -237,6 +238,10 @@ export const OrganizationOnlyRoleCanAccessModels: Story = {
 					[MockDefaultOrganization.id]: MockOrganizationPermissions,
 				},
 			},
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: { models: [], providers: [], unsupported_providers: [] },
+			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -421,6 +426,10 @@ export const SkillsForOrganizationAuditor: Story = {
 	parameters: {
 		reactRouter: atLocation("/ai/settings/skills"),
 	},
+};
+
+export const Loading: Story = {
+	args: { isLoading: true },
 };
 
 export const NoPermissions: Story = {
