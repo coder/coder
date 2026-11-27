@@ -386,8 +386,8 @@ importers:
         specifier: 2.6.0
         version: 2.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)
       tzdata:
-        specifier: 1.0.52
-        version: 1.0.52
+        specifier: 1.0.53
+        version: 1.0.53
       ua-parser-js:
         specifier: 1.0.41
         version: 1.0.41
@@ -6643,8 +6643,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  tzdata@1.0.52:
-    resolution: {integrity: sha512-FUUjiOZS2fiUUJiBUqziXoUDBvrd2O1vR217xUAVolUd6sPu1Lov9YIKftzI9XqfjzRrLX5B0qlzvcb1ns+SnA==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.52.tgz}
+  tzdata@1.0.53:
+    resolution: {integrity: sha512-D7u/56HC2+NyxlkbgMy4+mtHVP0VkPxAKCPVoszNPFplBnIX9g67p+mpxqEgzBkKd/EvDAZjUXlwoi4hjYgpzg==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.53.tgz}
 
   ua-parser-js@1.0.41:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==, tarball: https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.41.tgz}
@@ -13425,7 +13425,7 @@ snapshots:
 
   typescript@6.0.2: {}
 
-  tzdata@1.0.52: {}
+  tzdata@1.0.53: {}
 
   ua-parser-js@1.0.41: {}
 
