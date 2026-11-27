@@ -44,7 +44,7 @@ beforeEach(() => {
 
 it("links organization group member readers to the Spend page", async () => {
 	const user = userEvent.setup();
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
+	const getOrganizationsSpy = vi.spyOn(API, "getOrganizations");
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[MockOrganization.id]: true,
 	});
@@ -64,11 +64,11 @@ it("links organization group member readers to the Spend page", async () => {
 	await user.click(await screen.findByRole("link", { name: "Spend" }));
 	expect(router.state.location.pathname).toBe("/ai/settings/spend");
 	expect(router.state.location.search).toBe("?org=second");
+	expect(getOrganizationsSpy).not.toHaveBeenCalled();
 });
 
 it("links organization instruction readers to the Instructions page", async () => {
 	const user = userEvent.setup();
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[`${MockOrganization.id}.viewChatModelConfigs`]: true,
 	});
@@ -101,7 +101,6 @@ it.each([
 	async ({ requested, expectedSearch }) => {
 		const user = userEvent.setup();
 		mockPermissions.current = { viewAnyOrganizationSkills: true };
-		vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 			[`${MockOrganization.id}.viewOrganizationSkills`]: true,
 		});

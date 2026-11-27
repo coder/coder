@@ -32,6 +32,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 				aibridge: { enabled: true, entitlement: "entitled" },
 			}),
 		},
+		organizations: [MockOrganization, MockOrganization2],
 	}),
 }));
 
@@ -69,10 +70,6 @@ function renderAISpendPage(
 		signIn: vi.fn(),
 		updateProfile: vi.fn(),
 	});
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([
-		MockOrganization,
-		MockOrganization2,
-	]);
 	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 	);

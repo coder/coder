@@ -21,7 +21,7 @@ export const AISettingsSidebar: React.FC = () => {
 		{ enabled: !permissions.editDeploymentConfig },
 	);
 	const spendOrganizationsQuery = useQuery({
-		...aiSpendOrganizations(),
+		...aiSpendOrganizations(organizations),
 		enabled: entitlements.features.aibridge.enabled,
 	});
 

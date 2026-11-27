@@ -10,6 +10,7 @@ import type {
 	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
 	AISpendPeriodWindow,
+	Organization,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
 	Pagination,
@@ -76,11 +77,11 @@ export const aiGatewayRetention = () => ({
 
 // The spend endpoints authorize on reading the organization's group members,
 // so this lists exactly the organizations they would serve.
-export const aiSpendOrganizations = () =>
-	permittedOrganizations({
-		object: { resource_type: "group_member" },
-		action: "read",
-	});
+export const aiSpendOrganizations = (organizations: readonly Organization[]) =>
+	permittedOrganizations(
+		{ object: { resource_type: "group_member" }, action: "read" },
+		organizations,
+	);
 
 /**
  * Filters a detailed AI spend report by provider, model, client, user, and

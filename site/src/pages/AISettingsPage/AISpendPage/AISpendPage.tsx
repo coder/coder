@@ -55,7 +55,7 @@ type AISpendPageProps = {
 
 const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
-	const { entitlements } = useDashboard();
+	const { entitlements, organizations } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
 		entitlements,
 		permissions,
@@ -78,7 +78,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 	};
 
 	const organizationsQuery = useQuery({
-		...aiSpendOrganizations(),
+		...aiSpendOrganizations(organizations),
 		enabled: isSpendAvailable,
 	});
 	const organizationSelection = selectModelOrganization(

@@ -19,7 +19,7 @@ export const AISettingsIndexRedirect = () => {
 		{ enabled: !permissions.editDeploymentConfig },
 	);
 	const spendOrganizationsQuery = useQuery({
-		...aiSpendOrganizations(),
+		...aiSpendOrganizations(organizations),
 		enabled:
 			entitlements.features.aibridge.enabled &&
 			!permissions.editDeploymentConfig,
