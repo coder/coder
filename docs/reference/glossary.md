@@ -357,6 +357,13 @@ Refer to [IdP sync](../admin/users/idp-sync.md).
 The practice of defining infrastructure in version-controlled configuration files.
 Coder templates are infrastructure as code, written in Terraform.
 
+### Integrated
+
+A label for [sandbox](#sandbox) isolation that a third-party tool, runtime, or cloud service provides, such as a Kubernetes NetworkPolicy, gVisor, or short-lived credentials from HashiCorp Vault.
+You install and run the tool alongside Coder, and a template sets it up for each workspace.
+Compare with [Native](#native).
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
+
 ## L
 
 ### License key
@@ -378,6 +385,16 @@ Refer to [MCP server](../mcp-server.md).
 A reusable Terraform building block that a template composes in.
 Coder publishes modules in the [Coder Registry](https://registry.coder.com/).
 Refer to [Modules](../templates/extending-templates/modules.md).
+
+## N
+
+### Native
+
+A label for a [sandbox](#sandbox) capability that is built into Coder, such as parameters that pick the sandbox and API key scopes.
+You configure it in Coder, or in a template with the Coder Terraform provider.
+Native (Premium) marks a capability that needs a [Premium](#premium) license.
+Compare with [Integrated](#integrated).
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
 
 ## O
 
@@ -510,6 +527,15 @@ Coder's HTTP API, served under `/api/v2/*`.
 Refer to the [API reference](./api/index.md).
 
 ## S
+
+### Sandbox
+
+An isolated environment that limits what untrusted code, such as an AI agent, can reach.
+A sandbox can isolate the kernel, the network, and secrets, so a compromised or misdirected agent can do less damage.
+In Coder, a sandbox is a [workspace](#workspace) whose template adds isolation, and the isolation applies to every process in the workspace.
+Coder provisions the workspace and limits its credentials, and tools such as gVisor or an egress proxy isolate its kernel and network.
+Not to be confused with [agent-sandbox](https://agent-sandbox.sigs.k8s.io/), a Kubernetes project that a template can use to run workspaces.
+Refer to [Sandbox agents](../templates/extending-templates/sandbox-agents.md).
 
 ### SCIM
 

@@ -2,12 +2,17 @@
 title: Network isolation
 ---
 
-Use your template to run the AI agent in a separate sandbox from the user's development environment.
+Use your template to run the Coder Agents chat tools in a separate sandbox from the user's development environment.
 You control which files and networks the agent can access without restricting the user's access.
 
-This guide uses Kubernetes, but you can use another sandbox, such as Bubblewrap with firewall rules.
-Coder selects the workspace agent that runs chat tools.
-You configure the sandbox around that agent.
+This page covers the part of the setup that's specific to Coder Agents: a separate Pod for the chat tools, with a network policy that allows only Coder.
+The setup combines two methods:
+
+- **Native**: Coder Agents runs chat tools in the workspace agent whose name ends in `-coderd-chat`, and you configure the sandbox around that agent.
+- **Integrated**: a Kubernetes NetworkPolicy limits the network access of that agent's Pod.
+
+For other ways to limit the network, such as an egress proxy that allows host names, OpenShell, or Cilium, and for kernel and secrets isolation, refer to [Sandbox agents](../../templates/extending-templates/sandbox-agents.md).
+You can apply those methods to the agent's Pod in this template.
 
 > [!NOTE]
 > Sandboxing in Coder is at an early stage and is subject to change.
@@ -330,6 +335,12 @@ It uses the runtime's default security profile.
 The network policy allows Coder's IP and TCP port, but not DNS.
 Coder selects the agent whose name ends in `-coderd-chat`.
 Use this ending on exactly one top-level agent.
+If no top-level agent name ends in `-coderd-chat`, Coder runs chat tools without the sandbox.
+It uses the first top-level agent by `order` and then by name instead, such as the user's `dev` agent.
+
+To let the agent reach more hosts than Coder, such as an internal Git host or artifact store, add a method that allows host names, such as an egress proxy or Cilium.
+Select the agent's Pod with the `coder.com/agent-role=sandbox` label, so the user's Pod keeps its access.
+For the methods and example rules, refer to [Network isolation](../../templates/extending-templates/sandbox-agents.md#network-isolation).
 
 ## 2. Create a workspace
 
@@ -403,9 +414,11 @@ Your network plugin can also allow traffic to the node or its local DNS service.
 Review these exceptions in the [Kubernetes NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
 
 The agent can read any credentials you give it, edit shared files, and send data to Coder.
+To limit the credentials in the agent's Pod, refer to [Secrets isolation](../../templates/extending-templates/sandbox-agents.md#secrets-isolation).
 Keep workspace Model Context Protocol (MCP) configuration outside the shared project.
-This policy does not restrict organization MCP servers.
+This policy does not restrict organization MCP servers, because they run outside the workspace.
 Restrict their tools and credentials separately.
+For what runs outside the workspace, refer to [Sandbox coverage by access method](../../templates/extending-templates/sandbox-agents.md#sandbox-coverage-by-access-method).
 
-If you use another sandbox, apply it to the full workspace agent and its child processes.
+If you use another sandbox, such as Bubblewrap with firewall rules, apply it to the full workspace agent and its child processes.
 Restricting only a shell leaves file tools and workspace MCP processes outside the sandbox.
