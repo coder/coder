@@ -374,7 +374,7 @@ func (m *runnerManager) releaseOwnershipHints(keys []runnerKey) {
 	for id := range uniqueChatIDs {
 		syncIDs = append(syncIDs, id)
 	}
-	chats, err := m.opts.Store.GetChatsByIDsForRunnerSync(ctx, syncIDs)
+	chats, err := m.opts.Store.GetChatsByIDs(ctx, database.GetChatsByIDsParams{IDs: syncIDs, SortByID: true})
 	if err != nil {
 		m.opts.Logger.Warn(ctx, "chatworker shutdown ownership lookup failed", slogError(err))
 	}
@@ -435,7 +435,7 @@ func (m *runnerManager) syncOnce(ctx context.Context) error {
 	for id := range idsByChat {
 		chatIDs = append(chatIDs, id)
 	}
-	chats, err := m.opts.Store.GetChatsByIDsForRunnerSync(ctx, chatIDs)
+	chats, err := m.opts.Store.GetChatsByIDs(ctx, database.GetChatsByIDsParams{IDs: chatIDs, SortByID: true})
 	if err != nil {
 		return xerrors.Errorf("get chats for runner sync: %w", err)
 	}
