@@ -35,17 +35,20 @@ runs:
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
 
+    # Depot caches are shared across branches, so only pull_request runs
+    # restore the store. Trusted runs install fresh and save on a miss.
     - name: Restore and save pnpm cache
       if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
+        lookup-only: true
         path: ${{ steps.pnpm-cache.outputs.store-path }}
         key: ${{ steps.pnpm-cache.outputs.key }}
         restore-keys: |
           ${{ steps.pnpm-cache.outputs.restore-key }}
 
     - name: Restore pnpm cache
-      if: ${{ inputs.use-cache == 'true' && github.ref != 'refs/heads/main' }}
+      if: ${{ inputs.use-cache == 'true' && github.event_name == 'pull_request' }}
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ steps.pnpm-cache.outputs.store-path }}
