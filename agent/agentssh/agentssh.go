@@ -594,6 +594,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				// Count the session until its disconnect is reported, not until
 				// its process exits, so session counts match the connection log.
 				endSession()
+				// The process may exit because the client left before ctx ends.
+				if conn.closedByClient() {
+					reason = codersdk.DisconnectReasonClientClosed
+				}
 				netErr := conn.networkError()
 				if netErr != nil || keepAlive.TimedOut() {
 					reason = codersdk.DisconnectReasonNetworkError
@@ -1614,6 +1618,16 @@ func (c *readErrorConn) Read(b []byte) (int, error) {
 		c.readErr.CompareAndSwap(nil, &err)
 	}
 	return n, err
+}
+
+// closedByClient reports whether the client ended the connection. The EOF is
+// recorded before the SSH mux closes the channels that end its sessions.
+func (c *readErrorConn) closedByClient() bool {
+	if c == nil {
+		return false
+	}
+	err := c.readErr.Load()
+	return err != nil && errors.Is(*err, io.EOF)
 }
 
 // networkError returns the error the connection ended with, such as the
