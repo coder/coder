@@ -131,14 +131,14 @@ jobs:
           fi
 
           CONFLICT=false
-          CONFLICT_SUBJECT="cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually"
+          CONFLICT_SUBJECT="cherry-pick of #${PR_NUMBER} failed: resolve conflicts manually"
           if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
             # The branch exists from an earlier run that failed before opening
             # the PR. Reuse it as-is and fall through to PR creation rather
             # than starting over or bailing out.
             echo "Backport branch ${BACKPORT_BRANCH} already exists; reusing it to open the PR."
 
-            # Keep the [CONFLICT] title if the earlier run pushed the
+            # Keep the (conflicts) title if the earlier run pushed the
             # conflict placeholder commit.
             git fetch origin "+refs/heads/${BACKPORT_BRANCH}:refs/remotes/origin/${BACKPORT_BRANCH}"
             if [ "$(git log -1 --format=%s "origin/${BACKPORT_BRANCH}")" = "$CONFLICT_SUBJECT" ]; then
@@ -181,8 +181,10 @@ jobs:
           )
 
           TITLE="${PR_TITLE} (#${PR_NUMBER})"
+          # Mark conflicts with a suffix, as backport.yaml does, so the title
+          # still starts with fix: for pr-cherry-pick-check.yaml.
           if [ "$CONFLICT" = true ]; then
-            TITLE="[CONFLICT] ${TITLE}"
+            TITLE="${TITLE} (conflicts)"
           fi
 
           # Ensure the release-specific label exists. --force updates the label
