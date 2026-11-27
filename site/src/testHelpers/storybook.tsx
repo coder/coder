@@ -76,7 +76,8 @@ export const withDashboardProvider = (
 };
 
 type MessageEvent = Record<"data", string>;
-type CallbackFn = (ev?: MessageEvent) => void;
+type CloseEvent = Record<"code", number>;
+type CallbackFn = (ev?: MessageEvent | CloseEvent) => void;
 
 // parameters.webSocket accepts two formats:
 //
@@ -144,6 +145,10 @@ export const withWebSocket = (
 					if (callback) {
 						if (entry.event === "message") {
 							callback({ data: entry.data });
+						} else if (entry.event === "close") {
+							// Browsers report 1006 when a connection drops without a
+							// close frame.
+							callback({ code: entry.code ?? 1006 });
 						} else {
 							callback();
 						}
