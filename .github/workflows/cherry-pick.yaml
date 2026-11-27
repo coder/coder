@@ -32,15 +32,16 @@ concurrency:
 jobs:
   cherry-pick:
     name: Cherry-pick to latest release
+    # Writes go through the backport GitHub App token below, so the job
+    # token only needs to read the repository for checkout.
     permissions:
-      contents: write
-      pull-requests: write
-      # Required to create the release-specific cherry-pick label if missing.
-      issues: write
+      contents: read
+      id-token: write # Cloud KMS signs the backporter App's JWT
     if: >
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'cherry-pick')
     runs-on: ubuntu-latest
+    environment: main
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_TITLE: ${{ github.event.pull_request.title }}
@@ -54,13 +55,37 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The org disables "Allow GitHub Actions to create and approve pull
+      # requests", so GITHUB_TOKEN can't open the cherry-pick PR. GITHUB_TOKEN
+      # can also never be granted the workflows permission, so GitHub rejects
+      # pushes of branches whose .github/workflows/ contents differ from main.
+      # The backport App token covers both, and lets the opened PRs trigger CI.
+      - name: Generate backport App token
+        id: app-token
+        # The App's key is a non-exportable Cloud KMS key; only this workflow, in this environment,
+        # may sign with it.
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.BACKPORT_APP_ID }}
+          kms-key: ${{ secrets.BACKPORT_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          # issues: write creates the release-specific cherry-pick label if it's missing.
+          permissions: |
+            contents: write
+            pull_requests: write
+            workflows: write
+            issues: write
+
       - name: Cherry-pick and open PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           set -euo pipefail
 
-          # Configure git to authenticate pushes with the job token
+          # Configure git to authenticate pushes with the App token
           # since persist-credentials is disabled on checkout.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
@@ -96,8 +121,10 @@ jobs:
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BOT_LOGIN="${APP_SLUG}[bot]"
+          BOT_ID=$(gh api "/users/${BOT_LOGIN}" --jq .id)
+          git config user.name "$BOT_LOGIN"
+          git config user.email "${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
 
           # Create the backport branch from the target release branch.
           git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_BRANCH}"
