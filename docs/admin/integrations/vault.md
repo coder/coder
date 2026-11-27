@@ -2,15 +2,6 @@
 title: Integrate HashiCorp Vault with Coder
 ---
 
-<div>
-  <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Muhammad Atif Ali</span>
-  </a>
-</div>
-August 05, 2024
-
----
-
 This guide describes the process of integrating [HashiCorp Vault](https://www.vaultproject.io/) into Coder workspaces.
 
 Coder makes it easy to integrate HashiCorp Vault with your workspaces by providing official Terraform modules to integrate Vault with Coder.

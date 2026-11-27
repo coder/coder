@@ -2,15 +2,6 @@
 title: Configure Coder to connect to PostgreSQL using SSL
 ---
 
-<div>
-  <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Eric Paulsen</span>
-  </a>
-</div>
-February 24, 2024
-
----
-
 Your organization might require connecting to the database instance over Secure Sockets Layer (SSL).
 To supply Coder with the appropriate certificates, and have it connect over SSL, follow the steps below:
 

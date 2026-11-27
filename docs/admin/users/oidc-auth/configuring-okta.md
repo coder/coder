@@ -2,16 +2,6 @@
 title: Configure custom claims/scopes with Okta for group/role
 ---
 
-<div style="pad: 0px; margin: 0px;">
-  <span style="vertical-align:middle;">Author: </span>
-  <a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
-    <span style="vertical-align:middle;">Steven Masley</span>
-  </a>
-</div>
-Updated: June, 2025
-
----
-
 Okta is an identity provider that can be used for OpenID Connect (OIDC) Single Sign On (SSO) on Coder.
 
 To configure custom claims in Okta to support syncing roles and groups with Coder, you must first have setup an Okta application with [OIDC working with Coder](index.md).

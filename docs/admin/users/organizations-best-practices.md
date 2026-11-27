@@ -2,8 +2,6 @@
 title: Organizations - best practices
 ---
 
----
-
 Coder [Organizations](organizations.md) allow administrators finer control over groups, templates, workspaces, and provisioners within their Coder deployment.
 
 Organizations allow multiple platform teams to offer templates and infrastructure to their users instead of having them entirely managed in a centralized fashion.

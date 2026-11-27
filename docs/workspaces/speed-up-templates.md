@@ -2,10 +2,6 @@
 title: Speed up your Coder templates and workspaces
 ---
 
-October 31, 2024
-
----
-
 If it takes your workspace a long time to start, find out why and make some changes to your Coder templates to help speed things up.
 
 To see these changes take a Kubernetes template from 98&nbsp;seconds to 1.8&nbsp;seconds, watch [Improving Coder Workspace Startup Times](https://www.youtube.com/watch?v=-xcVJQWVCxs&t=514s).
