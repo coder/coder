@@ -5,6 +5,7 @@ import {
 	firstRetainedDay,
 	formatSpendDaysLabel,
 	fromPickerValue,
+	isUnderADay,
 	parseSpendDays,
 	toPickerNow,
 	toPickerValue,
@@ -42,6 +43,21 @@ describe("firstRetainedDay", () => {
 
 	it("has no first day when data is never purged", () => {
 		expect(firstRetainedDay(now, 0)).toBeUndefined();
+	});
+});
+
+describe("isUnderADay", () => {
+	const hour = 60 * 60 * 1000;
+
+	it("is true for a retention shorter than a day", () => {
+		expect(isUnderADay(12 * hour)).toBe(true);
+	});
+
+	it.each([
+		["data is never purged", 0],
+		["the retention is a day", 24 * hour],
+	])("is false when %s", (_, retentionMs) => {
+		expect(isUnderADay(retentionMs)).toBe(false);
 	});
 });
 

@@ -33,7 +33,7 @@ const AISessionListPage: React.FC = () => {
 		permissions,
 	);
 
-	const canViewSessions = isEntitled && hasPermission;
+	const canViewSessions = isEntitled && isEnabled && hasPermission;
 
 	// The default time range lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount

@@ -13,6 +13,7 @@ type SpendDaysPickerProps = {
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	minDay: string | undefined;
+	disabled: boolean;
 };
 
 /**
@@ -24,6 +25,7 @@ export const SpendDaysPicker: React.FC<SpendDaysPickerProps> = ({
 	days,
 	onDaysChange,
 	minDay,
+	disabled,
 }) => (
 	<DateRangePicker
 		now={toPickerNow(now ?? new Date())}
@@ -32,5 +34,6 @@ export const SpendDaysPicker: React.FC<SpendDaysPickerProps> = ({
 		maxDays={MaxAISpendPeriodDays}
 		minDate={minDay === undefined ? undefined : dayjs(minDay).toDate()}
 		size="lg"
+		disabled={disabled}
 	/>
 );

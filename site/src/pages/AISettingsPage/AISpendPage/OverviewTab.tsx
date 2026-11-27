@@ -18,6 +18,7 @@ type OverviewTabProps = {
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	minDay: string | undefined;
+	isRetentionLoading: boolean;
 	overview: OrganizationAISpendOverview | undefined;
 	overviewError: Error | null;
 	unpricedModels: UnpricedAIModels | undefined;
@@ -34,6 +35,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 	days,
 	onDaysChange,
 	minDay,
+	isRetentionLoading,
 	overview,
 	overviewError,
 	unpricedModels,
@@ -52,6 +54,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 					days={days}
 					onDaysChange={onDaysChange}
 					minDay={minDay}
+					disabled={isRetentionLoading}
 				/>
 			</div>
 			{overviewError !== null && <ErrorAlert error={overviewError} />}

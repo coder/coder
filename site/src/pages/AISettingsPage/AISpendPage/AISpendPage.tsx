@@ -30,6 +30,7 @@ import { toReportFilter } from "./DetailedReportFilter";
 import {
 	defaultSpendDays,
 	firstRetainedDay,
+	isUnderADay,
 	parseSpendDays,
 	type SpendDays,
 	toSpendPeriod,
@@ -101,9 +102,15 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 		retentionQuery.data === undefined
 			? undefined
 			: firstRetainedDay(now ?? new Date(), retentionQuery.data.retention_ms);
+	const isRetentionUnderADay =
+		retentionQuery.data !== undefined &&
+		isUnderADay(retentionQuery.data.retention_ms);
 	// The spend waits for the retention, so it doesn't request purged days.
 	const isSpendReady =
-		isSpendAvailable && organization !== undefined && !retentionQuery.isPending;
+		isSpendAvailable &&
+		organization !== undefined &&
+		!retentionQuery.isPending &&
+		!isRetentionUnderADay;
 
 	// The default range stays out of the URL, so a shared link without dates
 	// resolves against the viewer's last 7 days.
@@ -257,7 +264,7 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("AI spend", "AI settings")}</title>
+			<title>{pageTitle("Spend", "AI settings")}</title>
 			<AISpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
@@ -286,6 +293,8 @@ const AISpendPage: React.FC<AISpendPageProps> = ({ now }) => {
 					})
 				}
 				minDay={minDay}
+				isRetentionLoading={retentionQuery.isPending}
+				isRetentionUnderADay={isRetentionUnderADay}
 				reportFilter={reportFilter.query}
 				onReportFilterChange={reportFilter.update}
 				reportQuery={reportQuery}
