@@ -51,6 +51,7 @@ const TerminalPage: React.FC = () => {
 	const appSlug = searchParams.get("app") || undefined;
 	const containerName = searchParams.get("container") || undefined;
 	const containerUser = searchParams.get("container_user") || undefined;
+	const [shellTitle, setShellTitle] = useState<string>();
 
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
@@ -75,6 +76,18 @@ const TerminalPage: React.FC = () => {
 		);
 	}, [appSlug, workspaceAgent]);
 	const appCommand = app?.command || undefined;
+
+	const terminalLabel = useMemo(() => {
+		if (shellTitle) {
+			return shellTitle;
+		}
+		const base = app?.display_name || "Terminal";
+		const contextParts = [workspaceAgent?.name, containerName].filter(Boolean);
+		if (contextParts.length === 0) {
+			return base;
+		}
+		return `${base} (${contextParts.join("/")})`;
+	}, [shellTitle, app?.display_name, workspaceAgent?.name, containerName]);
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
@@ -183,7 +196,7 @@ const TerminalPage: React.FC = () => {
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						app?.display_name || "Terminal",
+						terminalLabel,
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>
@@ -205,6 +218,7 @@ const TerminalPage: React.FC = () => {
 					containerName={containerName}
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
+					onTitleChange={setShellTitle}
 					onError={handleTerminalError}
 					reconnectionToken={reconnectionToken}
 					sessionId={sessionId}
