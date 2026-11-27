@@ -15,7 +15,7 @@ See the relevant page for runtime and permission requirements:
 - [nsjail on Kubernetes](./k8s.md)
 - [nsjail on ECS](./ecs.md)
 
-## Overview
+## How nsjail works
 
 nsjail leverages Linux namespace technology to isolate processes at the network level.
 When Agent Firewall runs with nsjail, it creates a separate network namespace for the isolated process, allowing Agent Firewall to intercept and filter all network traffic according to the configured policy.

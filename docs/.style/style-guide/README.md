@@ -22,8 +22,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 91 rules.
-Automated tooling checks 24 of them, and 1 of those 24 doesn't run on published pages.
+The guide documents 92 rules.
+Automated tooling checks 25 of them, and 1 of those 25 doesn't run on published pages.
 The other 67 are yours to apply by reading, 68 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
@@ -52,6 +52,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.AbbreviationFirstUse`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | Abbreviations with no earlier "Expanded Form (ABBR)" on the page                                                                                      |
 | `Coder.HeadingOrder`                         | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Heading level skips, counting raw HTML headings that `MD001` doesn't see                                                                              |
 | `Coder.EmptyHeading`                         | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings with no text, in Markdown and raw HTML                                                                                                       |
+| `Coder.VagueHeading`                         | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | H2 and H3 headings that are only a generic word, such as `Overview`                                                                                   |
 | `Coder.LinkName`                             | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Links with no text, including links around an image with empty alt text                                                                               |
 | `MD001`, `MD025`, `MD040`, `MD045`           | markdownlint              | `error`      | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text                                                                                       |
 | `scripts/check_emdash.sh`                    | `make lint/emdash`        | `error`      | Repository                                                                                                                                                                      | Em-dash, en-dash, and `--` as punctuation                                                                                                             |
@@ -75,11 +76,11 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 13    | 2            | 2       | 9                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 1            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 5            | 9       | 6                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 15    | 8            | 1       | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 16    | 9            | 1       | 6                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 4            | 6       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 91    | 24           | 22      | 45                 |
+| **Total**                                                             | 92    | 25           | 22      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.

@@ -1,0 +1,26 @@
+# Coder.VagueHeading - flag an H2 or H3 whose entire text is a generic word
+# such as "Overview" or "General".
+#
+# The "On this page" list and a screen reader's heading navigation show a
+# heading out of context, so a heading has to name its topic. The policy lives
+# in the style guide:
+# docs/.style/style-guide/accessibility-and-inclusion.md#descriptive-headings
+#
+# Implementation: a heading-scoped existence rule anchored to the whole heading
+# text, so "Overview of nsjail" and "Other clouds" pass. `nonword` turns off
+# Vale's word-boundary wrapping, which the anchors replace. H1 is out of scope:
+# the page title is not a section label.
+#
+# Level: warning. Whether a generic word is still a clear label is a judgment
+# call, and the corpus is clean.
+extends: existence
+message: "Heading '%s' is too generic to read out of context; name the topic it covers. Refer to accessibility-and-inclusion.md#descriptive-headings."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#descriptive-headings
+level: warning
+scope:
+  - heading.h2
+  - heading.h3
+ignorecase: true
+nonword: true
+tokens:
+  - '^(?:Overview|Details|Introduction|More|Notes|Miscellaneous|Other|General|Info|Information|Summary|Background)$'

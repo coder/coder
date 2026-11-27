@@ -23,7 +23,7 @@ Coder never writes those options to a YAML configuration file.
 
 Deprecated options are listed at the end of each section.
 
-## General
+## Core server options
 
 ### Cache directory
 

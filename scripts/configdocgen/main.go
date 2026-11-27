@@ -51,7 +51,7 @@ Deprecated options are listed at the end of each section.
 `
 
 // generalSection holds options that do not belong to a serpent group.
-const generalSection = "General"
+const generalSection = "Core server options"
 
 // option is the normalized data needed to render one deployment option.
 type option struct {

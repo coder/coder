@@ -39,7 +39,7 @@ Use the following guide to run Coder on an Azure VM:
 
 Alternatively, install the [CLI binary](https://coder.com/downloads) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing AKS cluster.
 
-## Other
+## Other clouds
 
 Is your cloud missing?
 Check [community](../community.md) install methods or install the [standalone binary](https://coder.com/downloads).

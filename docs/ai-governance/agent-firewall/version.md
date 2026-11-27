@@ -65,7 +65,7 @@ module "claude-code" {
 }
 ```
 
-## Summary
+## Version compatibility table
 
 | Coder Version | Claude Code Module Version | Configuration Required                                |
 |---------------|----------------------------|-------------------------------------------------------|

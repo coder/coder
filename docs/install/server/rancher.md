@@ -10,7 +10,7 @@ You can deploy Coder on Rancher as a [Workload](https://ranchermanager.docs.ranc
 - Helm 3.5+ installed
 - Workload Kubernetes cluster for Coder
 
-## Overview
+## Installation steps
 
 Installing Coder on Rancher involves four key steps:
 
