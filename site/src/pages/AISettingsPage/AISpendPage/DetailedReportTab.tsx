@@ -18,6 +18,7 @@ type DetailedReportTabProps = {
 	days: SpendDays;
 	onDaysChange: (days: SpendDays) => void;
 	minDay: string | undefined;
+	isRetentionLoading: boolean;
 	filter: string;
 	onFilterChange: (filter: string) => void;
 	/** The filter options and session logs need read access to every session. */
@@ -41,6 +42,7 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 	days,
 	onDaysChange,
 	minDay,
+	isRetentionLoading,
 	filter,
 	onFilterChange,
 	canViewSessions,
@@ -81,6 +83,7 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 					days={days}
 					onDaysChange={onDaysChange}
 					minDay={minDay}
+					disabled={isRetentionLoading}
 				/>
 				{isReportRunning ? (
 					<Button variant="outline" onClick={onCancelReport}>
@@ -88,7 +91,11 @@ export const DetailedReportTab: React.FC<DetailedReportTabProps> = ({
 						Cancel
 					</Button>
 				) : (
-					<Button variant={runReportVariant} onClick={onRunReport}>
+					<Button
+						variant={runReportVariant}
+						onClick={onRunReport}
+						disabled={isRetentionLoading}
+					>
 						<PlayIcon aria-hidden />
 						Run report
 					</Button>

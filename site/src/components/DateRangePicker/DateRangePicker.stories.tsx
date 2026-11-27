@@ -29,6 +29,14 @@ export const Closed: Story = {
 	},
 };
 
+export const Disabled: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+		disabled: true,
+	},
+};
+
 // A midnight end is the exclusive boundary the picker emits, so the label
 // shows the day before it.
 export const ClosedExclusiveEnd: Story = {
