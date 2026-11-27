@@ -1687,6 +1687,14 @@ type agentRequestOptions struct {
 	maxResponseBytes int64
 }
 
+// responseLimit returns the response body limit for the request.
+func (o agentRequestOptions) responseLimit() int64 {
+	if o.maxResponseBytes <= 0 {
+		return agentResponseMaxBytes
+	}
+	return o.maxResponseBytes
+}
+
 // apiRequestWithOptions makes a request to the workspace agent's HTTP API
 // server. Workspace code can impersonate the agent API, so reads of the
 // returned body fail past opts.maxResponseBytes. readAgentError reads
@@ -1739,11 +1747,7 @@ func (c *agentConn) apiRequestWithOptions(ctx context.Context, method, path stri
 	if err != nil {
 		return nil, err
 	}
-	limit := opts.maxResponseBytes
-	if limit <= 0 {
-		limit = agentResponseMaxBytes
-	}
-	res.Body = newLimitedResponseBody(res.Body, limit)
+	res.Body = newLimitedResponseBody(res.Body, opts.responseLimit())
 	return res, nil
 }
 
