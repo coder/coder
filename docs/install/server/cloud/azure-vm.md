@@ -3,6 +3,7 @@ title: Microsoft Azure
 ---
 
 This guide shows you how to set up the Coder control plane on Azure which will provision Azure-hosted Linux workspaces.
+To install Coder on an Azure Kubernetes Service (AKS) cluster instead, follow [Install Coder on Kubernetes](../kubernetes/index.md).
 
 ## Requirements
 

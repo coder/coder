@@ -3,6 +3,7 @@ title: Google Cloud Platform
 ---
 
 In this guide, you will learn how to deploy the Coder control plane instance and your first template.
+To install Coder on a Google Kubernetes Engine (GKE) cluster instead, follow [Install Coder on Kubernetes](../kubernetes/index.md).
 
 ## Requirements
 

@@ -168,7 +168,7 @@
 							"children": [
 								{
 									"title": "AWS Marketplace",
-									"description": "Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.",
+									"description": "Install Coder on Amazon EKS with Helm, or launch a proof of concept from the AWS Marketplace.",
 									"path": "./install/server/cloud/aws-marketplace.md"
 								},
 								{
