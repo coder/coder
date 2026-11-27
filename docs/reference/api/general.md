@@ -159,6 +159,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "host": "string",
       "port": "string"
     },
+    "agent_connect_concurrency": 0,
+    "agent_connect_queue_size": 0,
     "agent_fallback_troubleshooting_url": {
       "forceQuery": true,
       "fragment": "string",

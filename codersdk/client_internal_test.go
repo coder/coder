@@ -250,6 +250,7 @@ func Test_readBodyAsError(t *testing.T) {
 				assert.ErrorContains(t, err, sdkErr.url)
 
 				assert.Empty(t, sdkErr.Helper)
+				assert.Zero(t, sdkErr.RetryAfter())
 			},
 		},
 		{
@@ -327,6 +328,43 @@ func Test_readBodyAsError(t *testing.T) {
 				assert.Contains(t, sdkErr.Message, "unexpected status code")
 				assert.Contains(t, sdkErr.Message, "has no message")
 				assert.Equal(t, unexpectedJSON, sdkErr.Detail)
+			},
+		},
+		{
+			name: "RetryAfterSeconds",
+			req:  nil,
+			res:  withRetryAfter(newResponse(http.StatusServiceUnavailable, jsonCT, marshal(simpleResponse)), "7"),
+			assert: func(t *testing.T, err error) {
+				assert.Equal(t, 7*time.Second, assertSDKError(t, err).RetryAfter())
+			},
+		},
+		{
+			name: "RetryAfterDate",
+			req:  nil,
+			res: withRetryAfter(newResponse(http.StatusServiceUnavailable, jsonCT, marshal(simpleResponse)),
+				time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)),
+			assert: func(t *testing.T, err error) {
+				assert.InDelta(t, time.Hour, assertSDKError(t, err).RetryAfter(), float64(5*time.Minute))
+			},
+		},
+		{
+			// More seconds than a time.Duration can hold must stay a long
+			// delay rather than wrap around into a short or negative one.
+			name: "RetryAfterHuge",
+			req:  nil,
+			res:  withRetryAfter(newResponse(http.StatusServiceUnavailable, jsonCT, marshal(simpleResponse)), "10000000000"),
+			assert: func(t *testing.T, err error) {
+				assert.Greater(t, assertSDKError(t, err).RetryAfter(), 24*time.Hour)
+			},
+		},
+		{
+			// A delay that makes no sense must not reach callers, who would
+			// otherwise have to guard against it themselves.
+			name: "RetryAfterNegative",
+			req:  nil,
+			res:  withRetryAfter(newResponse(http.StatusServiceUnavailable, jsonCT, marshal(simpleResponse)), "-5"),
+			assert: func(t *testing.T, err error) {
+				assert.Zero(t, assertSDKError(t, err).RetryAfter())
 			},
 		},
 		{
@@ -668,6 +706,11 @@ func assertSDKError(t *testing.T, err error) *Error {
 	require.True(t, xerrors.As(err, &sdkErr))
 
 	return sdkErr
+}
+
+func withRetryAfter(res *http.Response, value string) *http.Response {
+	res.Header.Set("Retry-After", value)
+	return res
 }
 
 func newResponse(status int, contentType string, body interface{}) *http.Response {

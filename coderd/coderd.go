@@ -72,6 +72,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/admission"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/mcp"
@@ -1002,6 +1003,15 @@ func New(options *Options) *API {
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
 		api.workspaceAgentRPCMetrics = NewWorkspaceAgentRPCMetrics(options.PrometheusRegistry, options.Logger)
 	}
+	var agentAdmissionMetrics *admission.Metrics
+	if api.workspaceAgentRPCMetrics != nil {
+		agentAdmissionMetrics = api.workspaceAgentRPCMetrics.Admission
+	}
+	api.agentRPCAdmission = newConnectLimiter(
+		options.DeploymentValues.AgentConnectConcurrency.Value(),
+		options.DeploymentValues.AgentConnectQueueSize.Value(),
+		agentAdmissionMetrics,
+	)
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
 		api.NetworkTelemetryBatchFrequency,
@@ -1849,24 +1859,29 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(workspaceAgentInfo)
 				r.Group(func(r chi.Router) {
 					r.Use(
+						// Limits how many agents set up a connection at once.
+						api.agentRPCAdmission.Middleware,
+						workspaceAgentInfo,
 						// Override the request_type for agent rpc traffic.
 						httpmw.WithStaticProfilingLabels(pprof.Labels(pproflabel.RequestTypeTag, "agent-rpc")),
 					)
 					r.Get("/rpc", api.workspaceAgentRPC)
 				})
-				r.Patch("/logs", api.patchWorkspaceAgentLogs)
-				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
-				// Deprecated: Required to support legacy agents
-				r.Get("/gitauth", api.workspaceAgentsGitAuth)
-				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
-				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.Post("/log-source", api.workspaceAgentPostLogSource)
-				r.Get("/reinit", api.workspaceAgentReinit)
-				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
+				r.Group(func(r chi.Router) {
+					r.Use(workspaceAgentInfo)
+					r.Patch("/logs", api.patchWorkspaceAgentLogs)
+					r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
+					// Deprecated: Required to support legacy agents
+					r.Get("/gitauth", api.workspaceAgentsGitAuth)
+					r.Get("/external-auth", api.workspaceAgentsExternalAuth)
+					r.Get("/gitsshkey", api.agentGitSSHKey)
+					r.Post("/log-source", api.workspaceAgentPostLogSource)
+					r.Get("/reinit", api.workspaceAgentReinit)
+					r.Route("/experimental", func(r chi.Router) {
+						r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
+					})
 				})
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
@@ -2347,6 +2362,7 @@ type API struct {
 	metadataBatcher          *metadatabatcher.Batcher
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	agentRPCAdmission        *admission.Limiter
 	wsWatcher                *httpapi.WSWatcher
 
 	chatWorkspaceUploadsTotal *prometheus.CounterVec

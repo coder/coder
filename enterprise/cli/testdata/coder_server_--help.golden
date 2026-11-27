@@ -586,6 +586,17 @@ NETWORKING / HTTP OPTIONS:
           the CSP directive format, e.g. --additional-csp-policy="script-src
           https://example.com".
 
+      --agent-connect-concurrency int, $CODER_AGENT_CONNECT_CONCURRENCY (default: 64)
+          Maximum number of workspace agent connections that a replica sets up
+          at the same time. Connections over the limit wait in a queue. The
+          replica rejects a connection with HTTP 503 and a Retry-After header
+          when the queue is full or the connection waits too long. Set to 0 to
+          turn off the limit.
+
+      --agent-connect-queue-size int, $CODER_AGENT_CONNECT_QUEUE_SIZE (default: 2048)
+          Maximum number of workspace agent connections that wait for their
+          setup to begin. Has no effect when --agent-connect-concurrency is 0.
+
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.

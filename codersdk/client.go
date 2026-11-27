@@ -8,13 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"go.opentelemetry.io/otel"
@@ -487,8 +490,25 @@ func newResponseError(res *http.Response, response Response) *Error {
 		statusCode: res.StatusCode,
 		method:     requestMethod,
 		url:        requestURL,
+		retryAfter: parseRetryAfter(res.Header.Get("Retry-After")),
 		Helper:     helpMessage,
 	}
+}
+
+// parseRetryAfter returns the delay that a Retry-After header value asks
+// for. RFC 9110 allows either a number of seconds or an HTTP date. It returns
+// zero for a missing, malformed, or elapsed value.
+func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		// Clamp so that a huge value cannot overflow into a short delay.
+		seconds = min(max(seconds, 0), int64(math.MaxInt64/time.Second))
+		return time.Duration(seconds) * time.Second
+	}
+	if at, err := http.ParseTime(value); err == nil {
+		return max(0, time.Until(at))
+	}
+	return 0
 }
 
 // jsonBodySniffLen bounds how much of a response body is retained while
@@ -697,12 +717,22 @@ type Error struct {
 	// accepted but whose body was not the expected JSON. Error() then
 	// describes the body rather than an unexpected status code.
 	invalidBody bool
+	// retryAfter is the delay the server asked for in its Retry-After
+	// header, or zero if it did not ask for one.
+	retryAfter time.Duration
 
 	Helper string
 }
 
 func (e *Error) StatusCode() int {
 	return e.statusCode
+}
+
+// RetryAfter returns how long the server asked the client to wait before
+// trying again, taken from the Retry-After header of the response. It is zero
+// if the server did not ask the client to wait.
+func (e *Error) RetryAfter() time.Duration {
+	return e.retryAfter
 }
 
 func (e *Error) Method() string {

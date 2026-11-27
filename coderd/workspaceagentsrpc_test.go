@@ -4,17 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -411,6 +415,88 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	// existing tests like TestWorkspaceAgentReportStats which use
 	// ConnectRPC() (no role). The server defaults to monitoring when
 	// the role query parameter is omitted.
+}
+
+// TestWorkspaceAgentRPCAdmission verifies that agents beyond the admission
+// limit are turned away until an agent ahead of them has finished setting up.
+func TestWorkspaceAgentRPCAdmission(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.Prometheus.Enable = true
+	})
+	flags := dv.Options()
+	require.NoError(t, flags.FlagSet().Parse([]string{
+		"--agent-connect-concurrency=1",
+		"--agent-connect-queue-size=0",
+	}))
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: dv})
+	user := coderdtest.CreateFirstUser(t, client)
+	// connect dials the agent RPC endpoint as the agent of a new workspace.
+	connect := func(role string) (drpc.Conn, error) {
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		return agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken)).ConnectRPCWithRole(ctx, role)
+	}
+
+	// A client that is not the workspace agent never fetches a manifest, so
+	// it must not keep the only slot.
+	logStreamer, err := connect("logstream-kube")
+	require.NoError(t, err)
+	defer logStreamer.Close()
+
+	// The first agent keeps the only slot until it has its manifest.
+	first, err := connect("agent")
+	require.NoError(t, err)
+	defer first.Close()
+
+	// A connection over the limit is turned away.
+	_, err = agentsdk.New(client.URL, agentsdk.WithFixedToken(uuid.NewString())).ConnectRPCWithRole(ctx, "agent")
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusServiceUnavailable, sdkErr.StatusCode())
+	require.Positive(t, sdkErr.RetryAfter())
+	// With no queue, the connection is turned away without waiting.
+	require.Equal(t, 1, promhelp.CounterValue(t, api.PrometheusRegistry,
+		"coderd_agents_connect_admission_rejected_total", prometheus.Labels{"reason": "queue_full"}))
+
+	_, err = agentproto.NewDRPCAgentClient(first).GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+
+	second, err := connect("agent")
+	require.NoError(t, err)
+	defer second.Close()
+}
+
+// TestWorkspaceAgentRPCAdmission_Disabled verifies that a concurrency of zero
+// turns the limit off: a second agent connects while the first is still being
+// set up.
+func TestWorkspaceAgentRPCAdmission_Disabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dv := coderdtest.DeploymentValues(t)
+	flags := dv.Options()
+	require.NoError(t, flags.FlagSet().Parse([]string{
+		"--agent-connect-concurrency=0",
+		"--agent-connect-queue-size=0",
+	}))
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: dv})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Neither agent fetches its manifest, so neither finishes setting up.
+	for range 2 {
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		conn, err := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken)).ConnectRPCWithRole(ctx, "agent")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = conn.Close() })
+	}
 }
 
 func TestWorkspaceAgentRPCConnectionLog(t *testing.T) {
