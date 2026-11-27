@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type InfiniteData, QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
@@ -10,6 +16,7 @@ import { toast } from "#/components/Toaster/toast";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -368,6 +375,70 @@ describe("ProjectChatsList", () => {
 			);
 		},
 	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, from: "Chats", to: "Pinned" },
+		{ action: "Unpin agent", pinOrder: 1, from: "Pinned", to: "Chats" },
+	])(
+		"$action keeps focus on the row's actions as it moves to $to and back to $from on failure",
+		async ({ action, pinOrder, from, to }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...mockProjectChat, pin_order: pinOrder },
+			]);
+			const update = createDeferred<undefined>();
+			vi.spyOn(API.experimental, "updateChat").mockReturnValue(update.promise);
+			renderList();
+			const triggerName = `Open chat actions for ${MockChat.title}`;
+			await user.click(
+				await screen.findByRole("button", { name: triggerName }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			const movedTrigger = await within(
+				await screen.findByRole("region", { name: to }),
+			).findByRole("button", { name: triggerName });
+			await waitFor(() => expect(movedTrigger).toHaveFocus());
+
+			update.reject(new Error("Pin update rejected"));
+
+			const restoredTrigger = await within(
+				await screen.findByRole("region", { name: from }),
+			).findByRole("button", { name: triggerName });
+			await waitFor(() => expect(restoredTrigger).toHaveFocus());
+		},
+	);
+
+	it("leaves focus the user moved alone when a failed pin moves the row back", async () => {
+		const user = userEvent.setup();
+		const [chat, otherChat] = buildChats(2);
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat, otherChat]);
+		const update = createDeferred<undefined>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(update.promise);
+		const errorToast = vi.spyOn(toast, "error");
+		renderList();
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open chat actions for ${chat.title}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Pin agent" }),
+		);
+		await within(
+			await screen.findByRole("region", { name: "Pinned" }),
+		).findByRole("button", { name: `Open chat actions for ${chat.title}` });
+		const otherChatLink = screen.getByRole("link", {
+			name: new RegExp(otherChat.title),
+		});
+		otherChatLink.focus();
+
+		update.reject(new Error("Pin update rejected"));
+
+		await waitFor(() =>
+			expect(errorToast).toHaveBeenCalledWith("Pin update rejected"),
+		);
+		expect(otherChatLink).toHaveFocus();
+	});
 
 	it.each([
 		{ action: "Pin agent", pinOrder: 0 },

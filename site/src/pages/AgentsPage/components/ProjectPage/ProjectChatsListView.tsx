@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import type { Chat, User } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -28,6 +28,11 @@ type ProjectChatRowsProps = Pick<
 	"currentUser" | "actions" | "showCost"
 > & {
 	readonly chats: readonly Chat[];
+	readonly onPinChange: (chat: Chat, pinned: boolean) => void;
+	readonly onActionsTriggerRef: (
+		chat: Chat,
+		trigger: HTMLButtonElement | null,
+	) => void;
 };
 
 const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
@@ -35,6 +40,8 @@ const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
 	currentUser,
 	actions,
 	showCost,
+	onPinChange,
+	onActionsTriggerRef,
 }) => (
 	<ul className="m-0 flex list-none flex-col p-0">
 		{chats.map((chat) => (
@@ -44,6 +51,8 @@ const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
 				currentUser={currentUser}
 				actions={actions}
 				showCost={showCost}
+				onPinChange={(pinned) => onPinChange(chat, pinned)}
+				actionsTriggerRef={(trigger) => onActionsTriggerRef(chat, trigger)}
 			/>
 		))}
 	</ul>
@@ -99,7 +108,30 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 		unpinnedChats.length > 0 ||
 		hasNextPage ||
 		Boolean(error);
-	const rowProps = { currentUser, actions, showCost };
+	// Pinning remounts the row in the other section, removing the trigger its
+	// menu returns focus to. The ref callback also runs in the old section.
+	const movingChatRef = useRef<{ id: string; pinned: boolean }>(undefined);
+	const rowProps = {
+		currentUser,
+		actions,
+		showCost,
+		onPinChange: (chat: Chat, pinned: boolean) => {
+			movingChatRef.current = { id: chat.id, pinned };
+		},
+		onActionsTriggerRef: (chat: Chat, trigger: HTMLButtonElement | null) => {
+			const moving = movingChatRef.current;
+			if (
+				trigger &&
+				moving?.id === chat.id &&
+				pinnedChatIds.has(chat.id) === moving.pinned
+			) {
+				movingChatRef.current = undefined;
+				if (document.activeElement === document.body) {
+					trigger.focus();
+				}
+			}
+		},
+	};
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
