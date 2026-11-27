@@ -1876,6 +1876,29 @@ func TestAIGatewayRetention(t *testing.T) {
 			RetentionMillis: (14 * 24 * time.Hour).Milliseconds(),
 		}, retention)
 	})
+
+	// A retention of zero or less disables purging and is returned as zero.
+	for _, tc := range []struct {
+		name      string
+		retention time.Duration
+	}{
+		{name: "ZeroRetention", retention: 0},
+		{name: "NegativeRetention", retention: -time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := aibridgeOpts(t)
+			opts.DeploymentValues.AI.BridgeConfig.Retention = serpent.Duration(tc.retention)
+			adminClient, _ := coderdenttest.New(t, opts)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			//nolint:gocritic // Owner role is irrelevant here.
+			retention, err := codersdk.NewExperimentalClient(adminClient).AIGatewayRetention(ctx)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.AIGatewayRetention{RetentionMillis: 0}, retention)
+		})
+	}
 }
 
 func TestAIBridgeRouting(t *testing.T) {
@@ -5568,7 +5591,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			GroupName: "export-period-validation-group",
 			Clock:     clock,
 		})
-		start := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
 		// Older than the default 60d retention window relative to the clock.
 		beforeRetention := time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)
 
@@ -5593,24 +5615,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantMsgContains: "have invalid values",
 			},
 			{
-				name:            "InvalidFormat",
-				params:          map[string]string{"period_start": "not-a-date", "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
-			},
-			{
-				name:            "UnknownDefaultPeriod",
-				params:          map[string]string{"unknown": "value"},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
-			},
-			{
-				name:            "UnknownExplicitPeriod",
-				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano), "unknown": "value"},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
-			},
-			{
 				// The export is not paginated, so page parameters are unknown.
 				name:            "UnknownPaginationParameter",
 				params:          map[string]string{"limit": "10"},
@@ -5624,41 +5628,12 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				wantMsgContains: "have invalid values",
 			},
 			{
-				name:            "OnlyStart",
-				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "must be provided together",
-			},
-			{
-				name:            "OnlyEnd",
-				params:          map[string]string{"period_end": start.Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "must be provided together",
-			},
-			{
-				name:            "StartEqualsEnd",
-				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: `"period_start" must be before "period_end"`,
-			},
-			{
-				name:            "PeriodTooLong",
-				params:          map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 32).Format(time.RFC3339Nano)},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "must not exceed 31 days",
-			},
-			{
 				// period_start predates the retention window, so the raw
 				// token usage would be purged and results incomplete.
-				name:            "BeforeRetentionWindow",
+				name:            "ExplicitPeriodBeforeRetention",
 				params:          map[string]string{"period_start": beforeRetention.Format(time.RFC3339Nano), "period_end": beforeRetention.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
 				wantStatus:      http.StatusBadRequest,
 				wantMsgContains: "retention window",
-			},
-			{
-				name:       "MaxPeriodAllowed",
-				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
-				wantStatus: http.StatusOK,
 			},
 		}
 		for _, tc := range cases {
@@ -5732,67 +5707,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		}, records[1])
 	})
 
-	t.Run("DefaultPeriodClampedToRetention", func(t *testing.T) {
-		t.Parallel()
-
-		// Use fixed dates to keep the test deterministic.
-		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-
-		db, ps := dbtestutil.NewDB(t)
-		retention := 14 * 24 * time.Hour
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-retention-clamp-group",
-			Clock:     clock,
-			Database:  db,
-			Pubsub:    ps,
-			Retention: &retention,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// Retention starts on 6 March 2026 12:00 UTC.
-		retentionStart := now.Add(-retention)
-		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
-
-		// Usage before the retention start falls outside the narrowed period.
-		for _, seed := range []struct {
-			at           time.Time
-			inputTokens  int64
-			outputTokens int64
-			costMicros   int64
-		}{
-			{at: retentionStart.Add(-time.Hour), inputTokens: 999, outputTokens: 999, costMicros: 9999},
-			{at: retentionStart.Add(time.Hour), inputTokens: 100, outputTokens: 50, costMicros: 1000},
-		} {
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: seed.at,
-			}, nil)
-			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID: intc.ID, CreatedAt: seed.at, EffectiveGroupID: groupID,
-				InputTokens: seed.inputTokens, OutputTokens: seed.outputTokens,
-				CostMicros: sql.NullInt64{Int64: seed.costMicros, Valid: true},
-			})
-		}
-
-		// Start: 6 March 2026 12:00 UTC (inclusive).
-		// End:   1 April 2026 00:00 UTC (exclusive).
-		// Now:   20 March 2026 12:00 UTC.
-		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		records := readAISpendExportResponse(t, res)
-		require.Len(t, records, 2) // header + only the retained row
-		require.Equal(t, []string{
-			targetUser.ID.String(), targetUser.Username,
-			group.ID.String(), group.Name,
-			group.OrganizationID.String(), group.OrganizationName,
-			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
-			"2026-03-06T12:00:00Z", "2026-04-01T00:00:00Z",
-			"Unknown",
-		}, records[1])
-	})
-
 	t.Run("CustomPeriodHalfOpen", func(t *testing.T) {
 		t.Parallel()
 
@@ -5842,91 +5756,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
 			start.Format(time.RFC3339), end.Format(time.RFC3339),
-			"Unknown",
-		}, records[1])
-	})
-
-	t.Run("ExplicitPeriodBeforeRetentionRejected", func(t *testing.T) {
-		t.Parallel()
-
-		// Use fixed dates to keep the test deterministic.
-		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-
-		retention := 14 * 24 * time.Hour
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-retention-reject-group",
-			Clock:     clock,
-			Retention: &retention,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// The requested start is an hour before the retention window begins, so
-		// the request fails instead of being shortened like the default period.
-		start := now.Add(-retention).Add(-time.Hour)
-
-		_, err := adminClient.ExportOrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{
-			PeriodStart: start,
-			PeriodEnd:   now,
-		})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "retention window")
-		require.Contains(t, sdkErr.Message, retention.String())
-	})
-
-	t.Run("RetentionDisabledAllowsOldPeriod", func(t *testing.T) {
-		t.Parallel()
-
-		// Use fixed dates to keep the test deterministic.
-		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-
-		db, ps := dbtestutil.NewDB(t)
-		// A retention of zero disables purging, so no period is too old to
-		// export and neither the narrowing nor the rejection applies.
-		retention := time.Duration(0)
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-retention-disabled-group",
-			Clock:     clock,
-			Database:  db,
-			Pubsub:    ps,
-			Retention: &retention,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// Two years before the request, far outside any retention window.
-		at := time.Date(2024, time.March, 10, 8, 0, 0, 0, time.UTC)
-		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
-
-		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: at,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: intc.ID, CreatedAt: at, EffectiveGroupID: effectiveGroupID,
-			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
-		})
-
-		// Start: 10 March 2024 07:00 UTC (inclusive).
-		// End:   10 March 2024 09:00 UTC (exclusive).
-		// Now:   20 March 2026 12:00 UTC.
-		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
-			"period_start": at.Add(-time.Hour).Format(time.RFC3339Nano),
-			"period_end":   at.Add(time.Hour).Format(time.RFC3339Nano),
-		})
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		records := readAISpendExportResponse(t, res)
-		require.Len(t, records, 2) // header + the retained row
-		require.Equal(t, []string{
-			targetUser.ID.String(), targetUser.Username,
-			group.ID.String(), group.Name,
-			group.OrganizationID.String(), group.OrganizationName,
-			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
-			"2024-03-10T07:00:00Z", "2024-03-10T09:00:00Z",
 			"Unknown",
 		}, records[1])
 	})
@@ -6793,7 +6622,9 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		})
 	})
 
-	t.Run("RetentionNarrowsDefaultPeriod", func(t *testing.T) {
+	// The raw token usage is purged, so an explicit period before retention
+	// is rejected like the export.
+	t.Run("ExplicitPeriodBeforeRetention", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
 		clock.Set(now)
@@ -6806,35 +6637,13 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		retentionStart := now.Add(-retention)
 
-		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: retentionStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
-
-		// An explicit period before retention is rejected like the export.
-		_, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
+		_, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
 			PeriodStart: retentionStart.Add(-time.Hour), PeriodEnd: retentionStart.Add(time.Hour),
 		}, codersdk.OrganizationAISpendPage{})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "retention window")
-	})
-
-	t.Run("RetentionDisabled", func(t *testing.T) {
-		t.Parallel()
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-		retention := time.Duration(0)
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "spend-users-no-retention-group",
-			Clock:     clock,
-			Retention: &retention,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
 	})
 }
 
@@ -6879,7 +6688,6 @@ func TestOrganizationAISpend(t *testing.T) {
 			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
 			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
 			{name: "UnknownParameter", params: map[string]string{"provider_name": "openai"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
-			{name: "OnlyStart", params: map[string]string{"period_start": monthStart.Format(time.RFC3339)}, wantStatus: http.StatusBadRequest, wantMessage: "provided together"},
 			{
 				name:        "StartNotAtMidnight",
 				params:      map[string]string{"period_start": invalidStart, "period_end": monthEnd.Format(time.RFC3339)},
@@ -7078,9 +6886,9 @@ func TestOrganizationAISpend(t *testing.T) {
 		})
 	})
 
-	// The daily spend aggregate is not purged, so retention limits neither
-	// the default period nor an explicit one.
-	t.Run("IgnoresRetention", func(t *testing.T) {
+	// The daily spend aggregate is not purged, so retention does not limit
+	// an explicit period.
+	t.Run("ExplicitPeriodBeforeRetention", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
 		clock.Set(now)
@@ -7102,13 +6910,8 @@ func TestOrganizationAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{}, codersdk.OrganizationAISpendPage{})
-		require.NoError(t, err)
-		require.Equal(t, monthStart, overview.PeriodStart)
-		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
-
 		window := codersdk.AISpendPeriodWindow{PeriodStart: beforeRetention, PeriodEnd: beforeRetention.AddDate(0, 0, 1)}
-		overview, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, window, codersdk.OrganizationAISpendPage{})
+		overview, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpend(ctx, group.OrganizationID, window, codersdk.OrganizationAISpendPage{})
 		require.NoError(t, err)
 		require.EqualValues(t, 1000, overview.Totals.SpendMicros)
 	})
