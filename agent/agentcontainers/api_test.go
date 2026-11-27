@@ -229,12 +229,16 @@ func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, configPath stri
 }
 
 // fakeWatcher implements the watcher.Watcher interface for testing.
-// It allows controlling what events are sent and when.
+// It allows controlling what events are sent and when. Like the
+// fsnotify implementation, it only delivers events for files that
+// have been added, so tests fail if the API never watches a config
+// file.
 type fakeWatcher struct {
 	t           testing.TB
 	events      chan *fsnotify.Event
 	closeNotify chan struct{}
-	addedPaths  []string
+	mu          sync.Mutex
+	watched     map[string]bool
 	closed      bool
 	nextCalled  chan struct{}
 	nextErr     error
@@ -246,24 +250,29 @@ func newFakeWatcher(t testing.TB) *fakeWatcher {
 		t:           t,
 		events:      make(chan *fsnotify.Event, 10), // Buffered to avoid blocking tests.
 		closeNotify: make(chan struct{}),
-		addedPaths:  make([]string, 0),
+		watched:     make(map[string]bool),
 		nextCalled:  make(chan struct{}, 1),
 	}
 }
 
 func (w *fakeWatcher) Add(file string) error {
-	w.addedPaths = append(w.addedPaths, file)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.watched[file] = true
 	return nil
 }
 
 func (w *fakeWatcher) Remove(file string) error {
-	for i, path := range w.addedPaths {
-		if path == file {
-			w.addedPaths = append(w.addedPaths[:i], w.addedPaths[i+1:]...)
-			break
-		}
-	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.watched, file)
 	return nil
+}
+
+func (w *fakeWatcher) isWatched(file string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.watched[file]
 }
 
 func (w *fakeWatcher) clearNext() {
@@ -287,24 +296,29 @@ func (w *fakeWatcher) waitNext(ctx context.Context) bool {
 }
 
 func (w *fakeWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
-	select {
-	case w.nextCalled <- struct{}{}:
-	default:
-	}
+	for {
+		select {
+		case w.nextCalled <- struct{}{}:
+		default:
+		}
 
-	if w.nextErr != nil {
-		err := w.nextErr
-		w.nextErr = nil
-		return nil, err
-	}
+		if w.nextErr != nil {
+			err := w.nextErr
+			w.nextErr = nil
+			return nil, err
+		}
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-w.closeNotify:
-		return nil, watcher.ErrClosed
-	case event := <-w.events:
-		return event, nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-w.closeNotify:
+			return nil, watcher.ErrClosed
+		case event := <-w.events:
+			if !w.isWatched(event.Name) {
+				continue
+			}
+			return event, nil
+		}
 	}
 }
 
@@ -2113,7 +2127,7 @@ func TestAPI(t *testing.T) {
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
 
 		// Verify the watcher is watching the config file.
-		assert.Contains(t, fWatcher.addedPaths, configPath,
+		assert.True(t, fWatcher.isWatched(configPath),
 			"watcher should be watching the container's config file")
 
 		// Make sure the start loop has been called.
@@ -4710,6 +4724,99 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			require.Equal(t, tt.expected, got.Devcontainers)
 		})
 	}
+
+	// A project found on disk already has a config path when its
+	// container is adopted, so the config file must still be watched.
+	t.Run("ConfigChangeMarksAdoptedContainerDirty", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			logger     = testutil.Logger(t)
+			startTime  = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+			configPath = "/home/coder/.devcontainer/devcontainer.json"
+			mClock     = quartz.NewMock(t)
+			tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			fWatcher   = newFakeWatcher(t)
+			fCCLI      = &fakeContainerCLI{}
+
+			r = chi.NewRouter()
+		)
+		mClock.Set(startTime)
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithFileSystem(initFS(t, map[string]string{
+				"/home/coder/.git/HEAD": "",
+				configPath:              "",
+			})),
+			agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", "/home/coder"),
+			agentcontainers.WithContainerCLI(fCCLI),
+			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+			agentcontainers.WithProjectDiscovery(true),
+		)
+		api.Start()
+		defer api.Close()
+		r.Mount("/", api.Routes())
+
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		list := func() codersdk.WorkspaceAgentListContainersResponse {
+			req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var got codersdk.WorkspaceAgentListContainersResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&got))
+			return got
+		}
+
+		// Given: Discovery registers the project before any container
+		// exists for it.
+		require.Eventually(t, func() bool {
+			return len(list().Devcontainers) == 1
+		}, testutil.WaitShort, testutil.IntervalFast, "dev container project never discovered")
+
+		// And: A container for the project, created before the agent
+		// started, is adopted on the next update.
+		fCCLI.mu.Lock()
+		fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{{
+				ID:           "container-id",
+				FriendlyName: "container-name",
+				CreatedAt:    startTime.Add(-time.Hour),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder",
+					agentcontainers.DevcontainerConfigFileLabel:  configPath,
+				},
+			}},
+		}
+		fCCLI.mu.Unlock()
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		got := list()
+		require.Len(t, got.Devcontainers, 1)
+		require.NotNil(t, got.Devcontainers[0].Container, "container should be adopted")
+		require.False(t, got.Devcontainers[0].Dirty, "devcontainer should not be dirty before the config changes")
+
+		// When: The config file is modified.
+		fWatcher.waitNext(ctx)
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Then: The devcontainer is marked dirty.
+		got = list()
+		require.Len(t, got.Devcontainers, 1)
+		assert.True(t, got.Devcontainers[0].Dirty, "devcontainer should be dirty after its config file changed")
+	})
 
 	t.Run("NoErrorWhenAgentDirAbsent", func(t *testing.T) {
 		t.Parallel()
