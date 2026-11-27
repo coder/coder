@@ -3,6 +3,12 @@ import type { ChatDiffStatus } from "#/api/typesGenerated";
 const repoContentRoutePattern =
 	/\/(?:tree|blob|compare|commit|commits|branches|releases|tags|wiki)\//;
 
+// Gitea and Forgejo content routes name a ref type, e.g. /src/branch/main.
+// Matching the ref type keeps owners, repositories and path prefixes named
+// "src" parseable.
+const giteaRefRoutePattern =
+	/\/(?:src|raw|media|blame)\/(?:branch|commit|tag)\//;
+
 export const parsePullRequestUrl = (
 	url: string | null | undefined,
 ): { owner: string; repo: string; number: string } | null => {
@@ -18,7 +24,8 @@ export const parsePullRequestUrl = (
 		}
 
 		const pullSegmentIndex = segments.findIndex((segment, index) => {
-			if (segment !== "pull") {
+			// GitHub uses /pull/, Gitea and Forgejo use /pulls/.
+			if (segment !== "pull" && segment !== "pulls") {
 				return false;
 			}
 
@@ -28,7 +35,10 @@ export const parsePullRequestUrl = (
 			}
 
 			const leadingPath = `/${segments.slice(0, index).join("/")}/`;
-			return !repoContentRoutePattern.test(leadingPath);
+			return (
+				!repoContentRoutePattern.test(leadingPath) &&
+				!giteaRefRoutePattern.test(leadingPath)
+			);
 		});
 		if (pullSegmentIndex < 2) {
 			return null;
