@@ -1,0 +1,62 @@
+# Deploys Coder to Kubernetes using the Helm chart in this repository
+# (helm/coder), not the published chart from helm.coder.com.
+#
+# Required (Settings -> Secrets and variables -> Actions):
+#   secrets.KUBE_CONFIG_B64          base64-encoded kubeconfig for the cluster
+#   secrets.CODER_PG_CONNECTION_URL  postgres://user:pass@host:5432/coder?sslmode=disable
+name: Deploy Coder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - "helm/coder/**"
+      - "helm/libcoder/**"
+      - ".github/workflows/deploy-coder.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-coder
+  cancel-in-progress: false
+
+env:
+  # The in-repo chart is versioned 0.1.0, so the Coder image tag must be pinned.
+  CODER_IMAGE_TAG: "v2.38.7"
+  NAMESPACE: coder
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Create namespace and database secret
+        env:
+          PG_URL: ${{ secrets.CODER_PG_CONNECTION_URL }}
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret generic coder-db-url \
+            --from-literal=url="$PG_URL" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm (chart from this repo)
+        run: |
+          helm dependency build ./helm/coder
+          helm upgrade --install coder ./helm/coder \
+            --namespace "$NAMESPACE" \
+            -f deploy/values.yaml \
+            --set-string coder.image.tag="$CODER_IMAGE_TAG" \
+            --wait --timeout 10m
