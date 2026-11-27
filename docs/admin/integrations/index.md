@@ -3,8 +3,8 @@ title: Integrations
 ---
 
 Coder is highly extensible and is not limited to the platforms outlined in these docs.
-The control plane can be provisioned on any VM or container compute, and workspaces can include any Terraform resource.
-See our [architecture diagram](../../install/plan/architecture.md) for more details.
+You can run the control plane on any VM, container, or compute resource, and workspaces can include any Terraform resource.
+For how the components fit together, refer to the [architecture diagram](../../install/plan/architecture.md).
 
 You can host your deployment on almost any infrastructure.
 To learn how, read our [installation guides](../../install/index.md).

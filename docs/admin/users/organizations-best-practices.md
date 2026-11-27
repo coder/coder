@@ -101,6 +101,6 @@ We’re interested in identifying new use cases for custom roles.
 
 Using ClickOps to onboard new organizations, set quotas, and single sign-on (SSO) sync can be cumbersome, especially if you want to "seed" organizations with provisioners and starter templates.
 
-We suggest using the coderd Terraform provider to manage organizations at scale.
+We suggest using the `coderd` Terraform provider to manage organizations at scale.
 Documentation and examples for the Organization and Group Sync resources is available at https://registry.terraform.io/providers/coder/coderd/latest/docs.
 Feature requests for additional functionality can be created at https://github.com/coder/terraform-provider-coderd/issues.

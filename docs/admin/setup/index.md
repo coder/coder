@@ -2,12 +2,10 @@
 title: Configure control plane access
 ---
 
-The control plane's primary configuration is done via environment variables.
-For a full list of the options, run `coder server --help` or see our [CLI documentation](../../reference/cli/server/index.md).
-
-> [!TIP]
-> Need to look up an exact environment variable, CLI flag, or YAML key for a setting?
-> See the [configuration reference](./configuration-reference.md) for a searchable list of every option.
+You configure the control plane primarily with environment variables.
+This page covers access URLs, listen addresses, TLS, the database, and outbound proxies.
+To look up any other setting by its environment variable, CLI flag, or YAML key, refer to the [configuration reference](./configuration-reference.md).
+You can also run `coder server --help` or read the [`coder server` CLI reference](../../reference/cli/server/index.md).
 
 ## Access URL
 
@@ -153,7 +151,7 @@ External authentication can also be used to integrate with external services lik
 
 Refer to the [external authentication](../external-auth.md) section for more information.
 
-## Up Next
+## Next steps
 
-- [Setup and manage templates](../../templates/index.md)
-- [Setup external provisioners](../../install/operate/provisioners/index.md)
+- [Set up and manage templates](../../templates/index.md)
+- [Set up external provisioners](../../install/operate/provisioners/index.md)

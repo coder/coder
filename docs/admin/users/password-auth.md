@@ -14,8 +14,8 @@ Before you enable it, make sure at least one owner can sign in through your iden
 
 ## Restore the `Owner` user
 
-If you remove the admin user account (or forget the password), you can run the [`coder server create-admin-user`](../../reference/cli/server/create-admin-user.md)command on your server.
-If password authentication is disabled, unset `CODER_DISABLE_PASSWORD_AUTH` and restart the server first, or the new admin will not be able to sign in.
+If you remove the admin user account (or forget the password), you can run the [`coder server create-admin-user`](../../reference/cli/server/create-admin-user.md) command.
+If password authentication is disabled, unset `CODER_DISABLE_PASSWORD_AUTH` and restart the control plane first, or the new admin will not be able to sign in.
 
 > [!IMPORTANT]
 > You must run this command on the same machine running the control plane.

@@ -2,19 +2,15 @@
 title: Monitor Coder
 ---
 
-Learn about our the tools, techniques, and best practices to monitor your Coder deployment.
+Coder exposes logs, metrics, health checks, connection logs, and notifications so you can monitor the control plane, provisioners, and workspaces with the tools you already use.
+Start with the page that matches what you need to watch:
 
-## Quick Start: Observability Helm Chart
+<children></children>
 
-Deploy Prometheus, Grafana, Alert Manager, and pre-built dashboards on your Kubernetes cluster to monitor the Coder control plane, provisioners, and workspaces.
+## Observability Helm chart
+
+If you run Coder on Kubernetes, the Observability Helm chart deploys Prometheus, Grafana, Alertmanager, and pre-built dashboards that monitor the control plane, provisioners, and workspaces.
 
 ![Grafana Dashboard](../../images/admin/monitoring/grafana-dashboard.png)
 
-Learn how to install & read the docs on the [Observability Helm Chart GitHub](https://github.com/coder/observability)
-
-## Table of Contents
-
-- [Logs](./logs.md): Learn how to access `coderd` logs, agent logs, and even how to expose Kubernetes pod scheduling logs.
-- [Metrics](./metrics.md): Learn about the valuable metrics to measure on a Coder deployment, regardless of your monitoring stack.
-- [Health Check](./health-check.md): Learn about the periodic health check and error codes that run on Coder deployments.
-- [Connection Logs](./connection-logs.md): Monitor connections to workspaces.
+To install the chart and run its dashboards, visit the [Observability Helm chart repository](https://github.com/coder/observability) on GitHub.
