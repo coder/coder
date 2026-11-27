@@ -2128,7 +2128,12 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// sure we don't retry. If we update it too soon we may end up
 	// using an old subagent if e.g. delete failed previously.
 	proc.containerID = container.ID
+	previousAgentID := api.injectedSubAgentProcs[dc.WorkspaceFolder].agent.ID
 	api.injectedSubAgentProcs[dc.WorkspaceFolder] = proc
+	if previousAgentID != proc.agent.ID {
+		// The watch response includes the agent ID even when Docker state is unchanged.
+		api.broadcastUpdatesLocked()
+	}
 
 	// Start the subagent in the container in a new goroutine to avoid
 	// blocking. Note that we pass the api.ctx to the subagent process

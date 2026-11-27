@@ -2281,8 +2281,10 @@ func TestAPI(t *testing.T) {
 
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-		}, nil).Times(3) // 1 initial call + 2 updates.
-		expectSubAgentInjection(mCCLI, "test-container-id", runtime.GOARCH, coderBin)
+		}, nil).Times(4) // Initial list, attachment, and two idempotency checks.
+		// Delay attachment until after a subscriber sees the running container.
+		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return("<none>", nil)
+		expectSubAgentInjection(mCCLI, testContainer.ID, runtime.GOARCH, coderBin)
 
 		mClock.Set(time.Now()).MustWait(ctx)
 		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
@@ -2304,6 +2306,42 @@ func TestAPI(t *testing.T) {
 			_ = api.Close()
 		}()
 
+		// Make sure the ticker function has been registered
+		// before advancing the clock.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		srv := httptest.NewServer(api.Routes())
+		defer srv.Close()
+
+		wsConn, response, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
+		require.NoError(t, err)
+		if response != nil && response.Body != nil {
+			defer response.Body.Close()
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "")
+
+		_, msg, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+		var initial codersdk.WorkspaceAgentListContainersResponse
+		require.NoError(t, json.Unmarshal(msg, &initial))
+		require.Len(t, initial.Containers, 1)
+		require.Equal(t, testContainer.ID, initial.Containers[0].ID)
+		require.Len(t, initial.Devcontainers, 1)
+		require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, initial.Devcontainers[0].Status)
+		require.Nil(t, initial.Devcontainers[0].Agent)
+
+		refreshDone := make(chan error, 1)
+		go func() {
+			refreshDone <- api.RefreshContainers(ctx)
+		}()
+
+		// The retry checks whether the config is ignored before injecting.
+		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
+			assert.Empty(t, envs)
+			return nil
+		})
+
 		// Allow initial agent creation and injection to succeed.
 		allowSubAgentCreate(ctx, t, fakeSAC)
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
@@ -2316,10 +2354,17 @@ func TestAPI(t *testing.T) {
 			return nil
 		})
 
-		// Make sure the ticker function has been registered
-		// before advancing the clock.
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-		tickerTrap.Close()
+		require.NoError(t, testutil.RequireReceive(ctx, t, refreshDone))
+
+		// The existing watcher receives the attachment with unchanged Docker state.
+		_, msg, err = wsConn.Read(ctx)
+		require.NoError(t, err, "watch should publish the child agent ID after attachment")
+		var updated codersdk.WorkspaceAgentListContainersResponse
+		require.NoError(t, json.Unmarshal(msg, &updated))
+		require.Equal(t, initial.Containers, updated.Containers)
+		require.Len(t, updated.Devcontainers, 1)
+		require.NotNil(t, updated.Devcontainers[0].Agent)
+		require.NotEqual(t, uuid.Nil, updated.Devcontainers[0].Agent.ID)
 
 		// Refresh twice to ensure idempotency of agent creation.
 		err = api.RefreshContainers(ctx)
@@ -2332,6 +2377,7 @@ func TestAPI(t *testing.T) {
 
 		// Verify agent was created.
 		require.Len(t, fakeSAC.created, 1)
+		assert.Equal(t, fakeSAC.created[0].ID, updated.Devcontainers[0].Agent.ID)
 		assert.Equal(t, "coder", fakeSAC.created[0].Name)
 		assert.Equal(t, "/workspaces/coder", fakeSAC.created[0].Directory)
 		assert.Len(t, fakeSAC.deleted, 0)
