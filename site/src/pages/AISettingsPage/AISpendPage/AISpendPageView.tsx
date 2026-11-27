@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	getOrganizationLabel,
@@ -19,6 +20,7 @@ import {
 } from "#/components/Tabs/Tabs";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
+import { docs } from "#/utils/docs";
 import { DetailedReportTab } from "./DetailedReportTab";
 import type { DetailedReportQuery } from "./DetailedReportTable";
 import { OverviewTab } from "./OverviewTab";
@@ -152,7 +154,13 @@ export const AISpendPageView: React.FC<AISpendPageViewProps> = ({
 			) : isRetentionUnderADay ? (
 				<Alert severity="info">
 					The AI Gateway data retention is shorter than a day, so spend can't be
-					shown by day.
+					shown by day.{" "}
+					<Link
+						href={docs("/ai-governance/ai-gateway/setup#data-retention")}
+						target="_blank"
+					>
+						Learn more about data retention
+					</Link>
 				</Alert>
 			) : (
 				<Tabs

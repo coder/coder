@@ -50,10 +50,6 @@ export const firstRetainedDay = (
 	);
 };
 
-/**
- * Whether the retention is shorter than a day, so no UTC day is ever kept in
- * full.
- */
 export const isUnderADay = (retentionMs: number): boolean =>
 	retentionMs > 0 && durationInDays(retentionMs) < 1;
 
