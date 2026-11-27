@@ -7,8 +7,9 @@
 	},
 	"files": {
 		// static/*.html are Go templates with {{ }} directives that
-		// Biome's HTML parser does not support.
-		"includes": ["**", "!**/pnpm-lock.yaml", "!**/static/*.html"],
+		// Biome's HTML parser does not support. offlinedocs/ is formatted
+		// with oxfmt, as docs-engine is.
+		"includes": ["**", "!**/pnpm-lock.yaml", "!**/static/*.html", "!offlinedocs/**"],
 		"ignoreUnknown": true,
 		"maxSize": 2097152
 	},
