@@ -1,3 +1,7 @@
+---
+draft: true
+---
+
 # Provisioning with OpenTofu
 
 <!-- Keeping this in as a placeholder for supporting OpenTofu. We should fix support for custom terraform binaries ASAP. -->
