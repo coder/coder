@@ -14,7 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"
@@ -135,7 +136,15 @@ func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.Auth
 
 func (ja *Config) jwtToken() (string, error) {
 	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key:       ja.clientKey,
+	}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("x5t", ja.x5t))
+	if err != nil {
+		return "", xerrors.Errorf("new jwt assertion signer: %w", err)
+	}
+
+	signed, err := jwt.Signed(signer).Claims(map[string]any{
 		"iss": ja.clientID,
 		"sub": ja.clientID,
 		"aud": ja.tokenURL,
@@ -145,10 +154,7 @@ func (ja *Config) jwtToken() (string, error) {
 		"jti": uuid.New().String(),
 		"nbf": now.Unix(),
 		"iat": now.Unix(),
-	})
-	token.Header["x5t"] = ja.x5t
-
-	signed, err := token.SignedString(ja.clientKey)
+	}).Serialize()
 	if err != nil {
 		return "", xerrors.Errorf("sign jwt assertion: %w", err)
 	}

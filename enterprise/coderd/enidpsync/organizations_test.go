@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ type ExpectedUser struct {
 
 type Expectations struct {
 	Name   string
-	Claims jwt.MapClaims
+	Claims map[string]any
 	// Parse
 	ParseError      func(t *testing.T, httpErr *idpsync.HTTPError)
 	ExpectedParams  idpsync.OrganizationParams
@@ -97,7 +96,7 @@ func TestOrganizationSync(t *testing.T) {
 					Exps: []Expectations{
 						{
 							Name:   "NoOrganizations",
-							Claims: jwt.MapClaims{},
+							Claims: map[string]any{},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
 							},
@@ -108,7 +107,7 @@ func TestOrganizationSync(t *testing.T) {
 						},
 						{
 							Name:   "AlreadyInOrgs",
-							Claims: jwt.MapClaims{},
+							Claims: map[string]any{},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
 							},
@@ -162,7 +161,7 @@ func TestOrganizationSync(t *testing.T) {
 					Exps: []Expectations{
 						{
 							Name:   "NoOrganizations",
-							Claims: jwt.MapClaims{},
+							Claims: map[string]any{},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
 							},
@@ -173,7 +172,7 @@ func TestOrganizationSync(t *testing.T) {
 						},
 						{
 							Name: "AlreadyInOrgs",
-							Claims: jwt.MapClaims{
+							Claims: map[string]any{
 								"organizations": []string{"second", "extra", "deleted"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
@@ -196,7 +195,7 @@ func TestOrganizationSync(t *testing.T) {
 						},
 						{
 							Name: "ManyClaims",
-							Claims: jwt.MapClaims{
+							Claims: map[string]any{
 								// Add some repeats
 								"organizations": []string{"second", "extra", "first", "third", "second", "second", "deleted"},
 							},
@@ -251,7 +250,7 @@ func TestOrganizationSync(t *testing.T) {
 					Exps: []Expectations{
 						{
 							Name:   "NoOrganizations",
-							Claims: jwt.MapClaims{},
+							Claims: map[string]any{},
 							ExpectedParams: idpsync.OrganizationParams{
 								SyncEntitled: true,
 							},
@@ -262,7 +261,7 @@ func TestOrganizationSync(t *testing.T) {
 						},
 						{
 							Name: "AlreadyInOrgs",
-							Claims: jwt.MapClaims{
+							Claims: map[string]any{
 								"organizations": []string{"second", "extra"},
 								"dynamic":       []string{"third"},
 							},

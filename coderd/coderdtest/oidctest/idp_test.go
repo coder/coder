@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -51,7 +50,7 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 	})
 
 	//nolint:bodyclose
-	resp := fake.OIDCCallback(t, expectedState, jwt.MapClaims{})
+	resp := fake.OIDCCallback(t, expectedState, map[string]any{})
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Test the user info
@@ -81,7 +80,7 @@ func TestIDPIssuerMismatch(t *testing.T) {
 
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithIssuer(proxyURL),
-		oidctest.WithDefaultIDClaims(jwt.MapClaims{
+		oidctest.WithDefaultIDClaims(map[string]any{
 			"iss": primaryURL,
 		}),
 		oidctest.WithHookWellKnown(func(r *http.Request, j *oidctest.ProviderJSON) error {

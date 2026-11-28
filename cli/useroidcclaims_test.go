@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +39,7 @@ func TestUserOIDCClaims(t *testing.T) {
 		t.Parallel()
 
 		fake, ownerClient := newOIDCTest(t)
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "alice@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -68,7 +67,7 @@ func TestUserOIDCClaims(t *testing.T) {
 		t.Parallel()
 
 		fake, ownerClient := newOIDCTest(t)
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "bob@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -110,7 +109,7 @@ func TestUserOIDCClaims(t *testing.T) {
 		t.Parallel()
 
 		aliceFake, aliceOwnerClient := newOIDCTest(t)
-		aliceClaims := jwt.MapClaims{
+		aliceClaims := map[string]any{
 			"email":          "alice-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -119,7 +118,7 @@ func TestUserOIDCClaims(t *testing.T) {
 		defer aliceLoginResp.Body.Close()
 
 		bobFake, bobOwnerClient := newOIDCTest(t)
-		bobClaims := jwt.MapClaims{
+		bobClaims := map[string]any{
 			"email":          "bob-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -145,7 +144,7 @@ func TestUserOIDCClaims(t *testing.T) {
 
 		fake, ownerClient := newOIDCTest(t)
 		// Use minimal claims — just enough for OIDC login.
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "minimal@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),

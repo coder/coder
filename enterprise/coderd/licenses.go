@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -265,7 +264,7 @@ func (api *API) installLicense(
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
 		JWT:        rawLicense,
-		Exp:        claims.ExpiresAt.Time,
+		Exp:        claims.Expiry.Time(),
 		UUID:       id,
 	})
 	if err != nil {
@@ -479,7 +478,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
+func convertLicense(dl database.License, c map[string]any) codersdk.License {
 	return codersdk.License{
 		ID:         dl.ID,
 		UUID:       dl.UUID,
@@ -506,7 +505,7 @@ func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
 //
 // Also, we do not return the whole JWT itself because a signed JWT is a bearer token and we
 // want to limit the chance of it being accidentally leaked.
-func decodeClaims(l database.License) (jwt.MapClaims, error) {
+func decodeClaims(l database.License) (map[string]any, error) {
 	parts := strings.Split(l.JWT, ".")
 	if len(parts) != 3 {
 		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
@@ -515,7 +514,7 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
 	}
-	c := make(jwt.MapClaims)
+	c := make(map[string]any)
 	d := json.NewDecoder(bytes.NewBuffer(cb))
 	d.UseNumber()
 	err = d.Decode(&c)

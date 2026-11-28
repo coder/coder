@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -47,7 +46,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email": "alice@coder.com",
 				"sub":   uuid.NewString(),
 			}
@@ -80,7 +79,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email": "alice@coder.com",
 				"sub":   uuid.NewString(),
 			}
@@ -154,7 +153,7 @@ func TestUserOIDC(t *testing.T) {
 			require.Equal(t, expectedSettings.Field, settings.Field)
 
 			sub := uuid.NewString()
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email":        "alice@coder.com",
 				"organization": []string{"first", "second"},
 				"sub":          sub,
@@ -204,7 +203,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// Then: Log in again will resync the orgs to their updated
 			// claims.
-			runner.Login(t, jwt.MapClaims{
+			runner.Login(t, map[string]any{
 				"email":        "alice@coder.com",
 				"organization": []string{"second"},
 				"sub":          sub,
@@ -244,7 +243,7 @@ func TestUserOIDC(t *testing.T) {
 
 			sub := uuid.NewString()
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email":        "alice@coder.com",
 				"organization": []string{"second", "third"},
 				"sub":          sub,
@@ -268,7 +267,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// Then: Log in again will resync the orgs to their updated
 			// claims.
-			runner.Login(t, jwt.MapClaims{
+			runner.Login(t, map[string]any{
 				"email":        "alice@coder.com",
 				"organization": []string{"third"},
 				"sub":          sub,
@@ -294,7 +293,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email": "alice@coder.com",
 				"sub":   uuid.NewString(),
 			}
@@ -331,7 +330,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				// This is sent as a **string** intentionally instead
 				// of an array.
@@ -353,7 +352,7 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
+				Userinfo: map[string]any{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 				},
@@ -368,7 +367,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
-			client, resp := runner.Login(t, jwt.MapClaims{
+			client, resp := runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 			})
@@ -377,7 +376,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// Now refresh the oauth, and check the roles are removed.
 			// Force a refresh, and assert nothing has changes
-			runner.ForceRefresh(t, client, jwt.MapClaims{
+			runner.ForceRefresh(t, client, map[string]any{
 				"email": "alice@coder.com",
 				"roles": []string{"random"},
 			})
@@ -392,7 +391,7 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
+				Userinfo: map[string]any{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 				},
@@ -408,7 +407,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// User starts with the owner role
 			sub := uuid.NewString()
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 				"sub":   sub,
@@ -417,7 +416,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
 
 			// Now login with oauth again, and check the roles are removed.
-			_, resp = runner.Login(t, jwt.MapClaims{
+			_, resp = runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				"roles": []string{"random"},
 				"sub":   sub,
@@ -442,7 +441,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			sub := uuid.NewString()
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				"roles": []string{},
 				"sub":   sub,
@@ -487,7 +486,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 				"sub":      uuid.New(),
@@ -522,7 +521,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{oidcGroupName},
 				"sub":      uuid.New(),
@@ -559,7 +558,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			client, resp := runner.Login(t, jwt.MapClaims{
+			client, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 				"sub":      uuid.New(),
@@ -568,7 +567,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertGroups(t, "alice", []string{groupName})
 
 			// Refresh without the group claim
-			runner.ForceRefresh(t, client, jwt.MapClaims{
+			runner.ForceRefresh(t, client, map[string]any{
 				"email": "alice@coder.com",
 			})
 			runner.AssertGroups(t, "alice", []string{})
@@ -597,7 +596,7 @@ func TestUserOIDC(t *testing.T) {
 			require.Len(t, group.Members, 0)
 
 			sub := uuid.NewString()
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 				"sub":      sub,
@@ -606,7 +605,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertGroups(t, "alice", []string{groupName})
 
 			// Refresh without the group claim
-			_, resp = runner.Login(t, jwt.MapClaims{
+			_, resp = runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				"sub":   sub,
 			})
@@ -629,7 +628,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{"not-exists"},
 				"sub":      uuid.New(),
@@ -655,7 +654,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 				"sub":      uuid.New(),
@@ -682,7 +681,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
-			_, resp := runner.Login(t, jwt.MapClaims{
+			_, resp := runner.Login(t, map[string]any{
 				"email": "alice@coder.com",
 				// This is sent as a **string** intentionally instead
 				// of an array.
@@ -710,7 +709,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// Test forbidden
 			sub := uuid.NewString()
-			_, resp := runner.AttemptLogin(t, jwt.MapClaims{
+			_, resp := runner.AttemptLogin(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{"not-allowed"},
 				"sub":      sub,
@@ -718,7 +717,7 @@ func TestUserOIDC(t *testing.T) {
 			require.Equal(t, http.StatusForbidden, resp.StatusCode)
 
 			// Test allowed
-			client, _ := runner.Login(t, jwt.MapClaims{
+			client, _ := runner.Login(t, map[string]any{
 				"email":    "alice@coder.com",
 				groupClaim: []string{allowedGroup},
 				"sub":      sub,
@@ -743,7 +742,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email": "alice@coder.com",
 				"sub":   uuid.NewString(),
 			}
@@ -772,7 +771,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			claims := jwt.MapClaims{
+			claims := map[string]any{
 				"email": "alice@coder.com",
 				"sub":   uuid.NewString(),
 			}
@@ -810,7 +809,7 @@ func TestGroupSync(t *testing.T) {
 		expectedUserGroups []string
 		// expectedOrgGroups is expected all groups on the system
 		expectedOrgGroups []string
-		claims            jwt.MapClaims
+		claims            map[string]any
 	}{
 		{
 			name: "NoGroups",
@@ -819,7 +818,7 @@ func TestGroupSync(t *testing.T) {
 			initialOrgGroups:   []string{},
 			expectedUserGroups: []string{},
 			expectedOrgGroups:  []string{},
-			claims:             jwt.MapClaims{},
+			claims:             map[string]any{},
 		},
 		{
 			name: "GroupSyncDisabled",
@@ -832,7 +831,7 @@ func TestGroupSync(t *testing.T) {
 			initialUserGroups:  []string{"b", "c", "d"},
 			expectedUserGroups: []string{"b", "c", "d"},
 			expectedOrgGroups:  []string{"a", "b", "c", "d"},
-			claims:             jwt.MapClaims{},
+			claims:             map[string]any{},
 		},
 		{
 			// From a,c,b -> b,c,d
@@ -844,7 +843,7 @@ func TestGroupSync(t *testing.T) {
 			initialUserGroups:  []string{"a", "b", "c"},
 			expectedUserGroups: []string{"b", "c", "d"},
 			expectedOrgGroups:  []string{"a", "b", "c", "d"},
-			claims: jwt.MapClaims{
+			claims: map[string]any{
 				// D -> d mapped
 				"groups": []string{"b", "c", "D"},
 			},
@@ -859,7 +858,7 @@ func TestGroupSync(t *testing.T) {
 			initialUserGroups:  []string{"a", "b", "c"},
 			expectedUserGroups: []string{},
 			expectedOrgGroups:  []string{"a", "b", "c", "d"},
-			claims:             jwt.MapClaims{
+			claims:             map[string]any{
 				// No claim == no groups
 			},
 		},
@@ -873,7 +872,7 @@ func TestGroupSync(t *testing.T) {
 			initialUserGroups:  []string{"a", "b", "c"},
 			expectedUserGroups: []string{"b", "c", "d", "e", "f"},
 			expectedOrgGroups:  []string{"a", "b", "c", "d", "e", "f"},
-			claims: jwt.MapClaims{
+			claims: map[string]any{
 				"groups": []string{"b", "c", "d", "e", "f"},
 			},
 		},
@@ -890,7 +889,7 @@ func TestGroupSync(t *testing.T) {
 			initialUserGroups:  []string{"a", "b", "c"},
 			expectedUserGroups: []string{"b", "c", "d", "e", "f", "z"},
 			expectedOrgGroups:  []string{"a", "b", "c", "d", "e", "f", "z"},
-			claims: jwt.MapClaims{
+			claims: map[string]any{
 				"groups": []string{
 					"b", "c", "d", "e", "f",
 					// These groups are ignored
@@ -1093,17 +1092,17 @@ type oidcTestRunner struct {
 
 	// Login will call the OIDC flow with an unauthenticated client.
 	// The IDP will return the idToken claims.
-	Login        func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
-	AttemptLogin func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
+	Login        func(t *testing.T, idToken map[string]any) (*codersdk.Client, *http.Response)
+	AttemptLogin func(t *testing.T, idToken map[string]any) (*codersdk.Client, *http.Response)
 	// ForceRefresh will use an authenticated codersdk.Client, and force their
 	// OIDC token to be expired and require a refresh. The refresh will use the claims provided.
 	// It just calls the /users/me endpoint to trigger the refresh.
-	ForceRefresh     func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
+	ForceRefresh     func(t *testing.T, client *codersdk.Client, idToken map[string]any)
 	ExpireOauthToken func(t *testing.T, client *codersdk.Client)
 }
 
 type oidcTestConfig struct {
-	Userinfo jwt.MapClaims
+	Userinfo map[string]any
 
 	// Config allows modifying the Coderd OIDC configuration.
 	Config           func(cfg *coderd.OIDCConfig)
@@ -1218,7 +1217,7 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 		API:          api,
 		Login:        helper.Login,
 		AttemptLogin: helper.AttemptLogin,
-		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) {
+		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken map[string]any) {
 			helper.ForceRefresh(t, api.Database, client, idToken)
 		},
 		ExpireOauthToken: func(t *testing.T, client *codersdk.Client) {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -21,7 +20,7 @@ type OrganizationParams struct {
 	// SyncEntitled if false will skip syncing the user's organizations.
 	SyncEntitled bool
 	// MergedClaims are passed to the organization level for syncing
-	MergedClaims jwt.MapClaims
+	MergedClaims map[string]any
 }
 
 func (AGPLIDPSync) OrganizationSyncEntitled() bool {
@@ -63,7 +62,7 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 	return orgSettings, nil
 }
 
-func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, claims jwt.MapClaims) (OrganizationParams, *HTTPError) {
+func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, claims map[string]any) (OrganizationParams, *HTTPError) {
 	// For AGPL we only sync the default organization.
 	return OrganizationParams{
 		SyncEntitled: s.OrganizationSyncEntitled(),
@@ -246,7 +245,7 @@ func (s *OrganizationSyncSettings) MarshalJSON() ([]byte, error) {
 
 // ParseClaims will parse the claims and return the list of organizations the user
 // should sync to.
-func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.Store, mergedClaims jwt.MapClaims) ([]uuid.UUID, error) {
+func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.Store, mergedClaims map[string]any) ([]uuid.UUID, error) {
 	userOrganizations := make([]uuid.UUID, 0)
 
 	if s.AssignDefault {
