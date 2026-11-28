@@ -111,6 +111,7 @@ const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
+	"open_preview",
 	...CONTEXT_BOUNDARY_TOOLS,
 ]);
 

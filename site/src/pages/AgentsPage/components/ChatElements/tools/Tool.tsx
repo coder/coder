@@ -22,6 +22,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { OpenPreviewTool } from "./OpenPreviewTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -113,6 +114,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	providerExecuted?: boolean;
 	/** Pages a provider-executed web search returned. */
 	foundPages?: readonly SourceLink[];
+	toolCallId?: string;
 };
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -146,6 +148,7 @@ type ToolRendererProps = {
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 	providerExecuted?: boolean;
 	foundPages?: readonly SourceLink[];
+	toolCallId?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -1203,6 +1206,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 	web_search: WebSearchRenderer,
+	open_preview: OpenPreviewTool,
 };
 
 // Exported so tests can assert cross-cutting affordances across every
@@ -1244,6 +1248,7 @@ export const Tool = memo(
 		codeDiffDisplayMode,
 		providerExecuted,
 		foundPages,
+		toolCallId,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -1296,6 +1301,7 @@ export const Tool = memo(
 						codeDiffDisplayMode={codeDiffDisplayMode}
 						providerExecuted={providerExecuted}
 						foundPages={foundPages}
+						toolCallId={toolCallId}
 					/>
 				</ToolCall.PolicyProvider>
 			</div>

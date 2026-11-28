@@ -894,6 +894,7 @@ const AgentChatPage: React.FC = () => {
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
+					openPreviewEnabled={experiments.includes("open-preview")}
 					gitWatcher={gitWatcher}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}

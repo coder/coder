@@ -1,10 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { findWorkspaceAgent } from "#/utils/workspace";
+import { findWorkspaceAgent, getMatchingAgentOrFirst } from "#/utils/workspace";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { TerminalPanel } from "../TerminalPanel";
 import { AppPanel } from "./AppPanel";
 import { PortPreviewPanel } from "./PortPreviewPanel";
+import { PreviewPanel } from "./PreviewPanel";
 
 type UserTabPanelProps = {
 	tab: UserRightPanelTab;
@@ -13,12 +14,14 @@ type UserTabPanelProps = {
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
 	isPending: boolean;
+	/** For a preview tab, changing it loads the preview again. */
+	previewReloadCount: number;
 	onTerminalReady: (tabId: string) => void;
 };
 
 /**
- * Renders a terminal, workspace app, or port tab, or nothing until its
- * workspace and agent are available.
+ * Renders a terminal, workspace app, port, or preview tab, or nothing until
+ * its workspace and agent are available.
  */
 export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	tab,
@@ -27,6 +30,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	workspaceAgent,
 	wildcardHostname,
 	isPending,
+	previewReloadCount,
 	onTerminalReady,
 }) => {
 	switch (tab.kind) {
@@ -68,6 +72,22 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 					agent={agent}
 					host={wildcardHostname}
 					tab={tab}
+				/>
+			);
+		}
+		case "preview": {
+			const agent =
+				workspace && getMatchingAgentOrFirst(workspace, tab.agentName);
+
+			if (!workspace || !agent) {
+				return null;
+			}
+
+			return (
+				<PreviewPanel
+					agent={agent}
+					tab={tab}
+					reloadCount={previewReloadCount}
 				/>
 			);
 		}
