@@ -21,12 +21,21 @@ export const AISettingsSidebar: React.FC = () => {
 		{ enabled: !permissions.editDeploymentConfig },
 	);
 	const spendOrganizationsQuery = useQuery({
-		...aiSpendOrganizations(),
+		...aiSpendOrganizations(organizations),
 		enabled: entitlements.features.aibridge.enabled,
 	});
 
+	// Every item shows at once, so the sidebar waits for each query an item
+	// depends on.
+	const isLoading = [
+		accessibleOrgsQuery,
+		organizationMCPSharing,
+		spendOrganizationsQuery,
+	].some((query) => query.isLoading);
+
 	return (
 		<AISettingsSidebarView
+			isLoading={isLoading}
 			permissions={permissions}
 			canViewAISpend={canViewAISpend(
 				entitlements,

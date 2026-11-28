@@ -5,7 +5,7 @@ import {
 	MaxAISpendPeriodDays,
 } from "#/api/typesGenerated";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
-import { DATE_FORMAT } from "#/utils/time";
+import { DATE_FORMAT, durationInDays } from "#/utils/time";
 
 dayjs.extend(utc);
 
@@ -49,6 +49,9 @@ export const firstRetainedDay = (
 		DATE_FORMAT.ISO_DATE,
 	);
 };
+
+export const isUnderADay = (retentionMs: number): boolean =>
+	retentionMs > 0 && durationInDays(retentionMs) < 1;
 
 /**
  * DateRangePicker only knows local time, so this gives it a local "now" that

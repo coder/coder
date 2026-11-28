@@ -90,6 +90,7 @@ type DateRangePickerProps = {
 	maxDays?: number;
 	/** Earliest selectable day. Presets that would start before it are hidden. */
 	minDate?: Date;
+	disabled?: boolean;
 };
 
 /**
@@ -135,6 +136,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 	size = "sm",
 	maxDays,
 	minDate,
+	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -238,7 +240,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size}>
+				<Button variant="outline" size={size} disabled={disabled}>
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{dayjs(committed.from).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />

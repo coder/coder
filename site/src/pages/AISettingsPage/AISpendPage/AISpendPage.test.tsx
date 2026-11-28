@@ -4,6 +4,7 @@ import { saveAs } from "file-saver";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import type { AIGatewayRetention } from "#/api/typesGenerated";
 import * as authModule from "#/hooks/useAuthenticated";
 import {
 	MockEntitlements,
@@ -32,6 +33,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 				aibridge: { enabled: true, entitlement: "entitled" },
 			}),
 		},
+		organizations: [MockOrganization, MockOrganization2],
 	}),
 }));
 
@@ -48,7 +50,10 @@ const topSpenderIds = MockOrganizationAISpendOverview.users.map(
 
 function renderAISpendPage(
 	search = "",
-	{ canViewSessions = false, retentionMs = 0 } = {},
+	{
+		canViewSessions = false,
+		retention = Promise.resolve<AIGatewayRetention>({ retention_ms: 0 }),
+	} = {},
 ) {
 	vi.spyOn(authModule, "useAuthenticated").mockReturnValue({
 		user: MockUserMember,
@@ -69,16 +74,12 @@ function renderAISpendPage(
 		signIn: vi.fn(),
 		updateProfile: vi.fn(),
 	});
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([
-		MockOrganization,
-		MockOrganization2,
-	]);
 	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 	);
-	vi.spyOn(API.experimental, "getAIGatewayRetention").mockResolvedValue({
-		retention_ms: retentionMs,
-	});
+	vi.spyOn(API.experimental, "getAIGatewayRetention").mockReturnValue(
+		retention,
+	);
 	const overviewSpy = vi
 		.spyOn(API.experimental, "getOrganizationAISpendOverview")
 		.mockResolvedValue(MockOrganizationAISpendOverview);
@@ -129,7 +130,7 @@ it("requests the last 7 days as UTC days when the URL has no dates", async () =>
 it("ignores URL days outside the retention", async () => {
 	const { overviewSpy } = renderAISpendPage(
 		"startDate=2026-03-01&endDate=2026-03-03",
-		{ retentionMs: 3 * 24 * 60 * 60 * 1000 },
+		{ retention: Promise.resolve({ retention_ms: 3 * 24 * 60 * 60 * 1000 }) }, // 3 days
 	);
 	await waitFor(() =>
 		expect(overviewSpy).toHaveBeenCalledWith(
@@ -229,6 +230,15 @@ it("requests no spend for an organization the viewer cannot see", async () => {
 	expect(unpricedModelsSpy).not.toHaveBeenCalled();
 });
 
+it("requests no spend when the retention is shorter than a day", async () => {
+	const { overviewSpy, unpricedModelsSpy } = renderAISpendPage("", {
+		retention: Promise.resolve({ retention_ms: 12 * 60 * 60 * 1000 }), // 12h
+	});
+	await screen.findByText(/retention is shorter than a day/);
+	expect(overviewSpy).not.toHaveBeenCalled();
+	expect(unpricedModelsSpy).not.toHaveBeenCalled();
+});
+
 it("keeps the selected tab in the URL", async () => {
 	const user = userEvent.setup();
 	const { searchParam } = renderAISpendPage();
@@ -317,6 +327,28 @@ it("runs the report for the picked days and filter, resolving the user and group
 		"Front-End",
 		{ exclude_members: true },
 		expect.any(AbortSignal),
+	);
+});
+
+it("waits for the retention before running a report", async () => {
+	const user = userEvent.setup();
+	const retention = Promise.withResolvers<AIGatewayRetention>();
+	const { usersSpy } = renderAISpendPage("tab=detailed-report", {
+		retention: retention.promise,
+	});
+	const runReport = await screen.findByRole("button", { name: "Run report" });
+	await user.click(runReport);
+	expect(usersSpy).not.toHaveBeenCalled();
+
+	retention.resolve({ retention_ms: 0 });
+	await waitFor(() => expect(runReport).toBeEnabled());
+	await user.click(runReport);
+	await waitFor(() =>
+		expect(usersSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ limit: 10, offset: 0 }),
+			expect.any(AbortSignal),
+		),
 	);
 });
 

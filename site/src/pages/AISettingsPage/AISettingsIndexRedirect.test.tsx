@@ -75,9 +75,6 @@ it("redirects an organization group member reader to Spend", async () => {
 		isAxiosError: true,
 		response: { status: 403 },
 	});
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([
-		MockDefaultOrganization,
-	]);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[MockDefaultOrganization.id]: true,
 	});

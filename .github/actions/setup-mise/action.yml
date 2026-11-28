@@ -136,10 +136,15 @@ runs:
         } >> "$GITHUB_OUTPUT"
         printf 'MISE_DATA_DIR=%s\n' "${data_dir}" >> "$GITHUB_ENV"
 
+    # Depot caches are shared across branches, and a pull request can save
+    # any key from its own copy of this action. Only pull_request runs restore
+    # cached tools; trusted runs install fresh and only look the key up, so
+    # they still save on a miss.
     - name: Cache mise tools
       if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
+        lookup-only: true
         path: |
           ~/.cache/mise
           ${{ steps.mise-data-dir.outputs.path }}
@@ -148,7 +153,7 @@ runs:
           ${{ steps.cache-key.outputs.restore-key }}
 
     - name: Restore mise tools
-      if: ${{ inputs.use-cache == 'true' && github.ref != 'refs/heads/main' }}
+      if: ${{ inputs.use-cache == 'true' && github.event_name == 'pull_request' }}
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |

@@ -118,4 +118,34 @@ describe("permittedOrganizations", () => {
 
 		expect(result).toEqual([]);
 	});
+
+	it("checks the given orgs without fetching them", async () => {
+		const getOrgsMock = vi.mocked(API.getOrganizations);
+		const checkAuthMock = vi.mocked(API.checkAuthorization);
+
+		checkAuthMock.mockResolvedValue({ "org-2": true });
+
+		const config = permittedOrganizations(templateCreateCheck, [MockOrg2]);
+		const result = await config.queryFn!();
+
+		expect(config.queryKey).toEqual([
+			"organizations",
+			"permitted",
+			templateCreateCheck,
+			["org-2"],
+		]);
+		expect(result).toEqual([MockOrg2]);
+		expect(getOrgsMock).not.toHaveBeenCalled();
+		expect(checkAuthMock).toHaveBeenCalledWith({
+			checks: {
+				"org-2": {
+					...templateCreateCheck,
+					object: {
+						...templateCreateCheck.object,
+						organization_id: "org-2",
+					},
+				},
+			},
+		});
+	});
 });

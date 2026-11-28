@@ -302,14 +302,24 @@ export const permittedOrganizationsKey = (check: AuthorizationCheck) => [
 
 /**
  * Fetch organizations the current user is permitted to use for a given
- * action. Fetches all organizations, runs a per-org authorization
- * check, and returns only those that pass.
+ * action. Runs a per-org authorization check and returns only those that
+ * pass. It checks the given organizations, or fetches every organization when
+ * none are given.
  */
-export const permittedOrganizations = (check: AuthorizationCheck) => {
+export const permittedOrganizations = (
+	check: AuthorizationCheck,
+	organizations?: readonly Organization[],
+) => {
 	return {
-		queryKey: permittedOrganizationsKey(check),
+		queryKey:
+			organizations === undefined
+				? permittedOrganizationsKey(check)
+				: [
+						...permittedOrganizationsKey(check),
+						organizations.map((org) => org.id),
+					],
 		queryFn: async (): Promise<Organization[]> => {
-			const orgs = await API.getOrganizations();
+			const orgs = organizations ?? (await API.getOrganizations());
 			const checks = Object.fromEntries(
 				orgs.map((org) => [
 					org.id,
