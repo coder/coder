@@ -89,6 +89,14 @@ Specify a display name for the template. Takes precedence over display_name in R
 
 Specify an icon path or external URL for the template. Takes precedence over icon in README.md front matter, if present.
 
+### --private
+
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
+
+Disable the default behavior of granting template access to the 'everyone' group. For an existing template, this removes the 'everyone' group's access; omitting the flag never restores it. The template permissions must be updated to allow non-admin users to use this template.
+
 ### -y, --yes
 
 | Property | Value             |
