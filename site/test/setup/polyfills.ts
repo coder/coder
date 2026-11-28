@@ -1,4 +1,5 @@
 import { Blob as NativeBlob } from "node:buffer";
+import cssEscape from "css.escape";
 import ResizeObserver from "resize-observer-polyfill";
 
 // JSDom `Blob` is missing important methods[1] that have been standardized for
@@ -11,6 +12,10 @@ import ResizeObserver from "resize-observer-polyfill";
 globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = ResizeObserver;
+
+if (typeof globalThis.CSS === "undefined") {
+	globalThis.CSS = { escape: cssEscape } as typeof CSS;
+}
 
 // JSDOM does not implement the CSS Font Loading API. The web terminal listens
 // for document.fonts loadingdone events. document.fonts is read-only in the
