@@ -741,6 +741,56 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	}
 }
 
+// TestMCPServerConfigsACLGranted checks that acl_granted follows the
+// config's ACL, not the caller's role-wide read access, on every
+// response that returns a config.
+func TestMCPServerConfigsACLGranted(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+	// New configs are shared with Everyone, which includes the Owner.
+	created := createMCPServerConfig(t, ownerClient, firstUser.OrganizationID, "acl-granted", true)
+	require.True(t, created.ACLGranted)
+
+	// Share with the member only.
+	err := ownerClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			member.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	// The Owner still reads and manages the config, but it is not
+	// shared with them.
+	ownerConfigs, err := ownerClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, ownerConfigs, 1)
+	require.False(t, ownerConfigs[0].ACLGranted)
+	fetched, err := ownerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, created.ID)
+	require.NoError(t, err)
+	require.False(t, fetched.ACLGranted)
+	updated, err := ownerClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		Availability: ptr.Ref("force_on"),
+	})
+	require.NoError(t, err)
+	require.False(t, updated.ACLGranted)
+
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, memberConfigs, 1)
+	require.True(t, memberConfigs[0].ACLGranted)
+	fetched, err = memberClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, created.ID)
+	require.NoError(t, err)
+	require.True(t, fetched.ACLGranted)
+}
+
 func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
 	t.Parallel()
 
