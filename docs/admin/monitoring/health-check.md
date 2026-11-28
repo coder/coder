@@ -203,6 +203,47 @@ However, it does not mean that direct connections are impossible.
 **Solution:**
 Engage with your network administrator.
 
+## Network interfaces
+
+The network interface check runs at the two ends of a workspace connection: on the client, such as a developer's laptop, and in the workspace.
+It doesn't run on the control plane, and its results don't appear on the deployment health page.
+
+The check reads the maximum transmission unit (MTU) of each network interface on its own machine.
+It doesn't detect a low MTU on other devices along the network path, such as routers, load balancers, or firewalls.
+
+[`coder ping`](../../reference/cli/ping.md) checks both the client and the workspace.
+[`coder netcheck`](../../reference/cli/netcheck.md) and [`coder support bundle`](../../reference/cli/support/bundle.md) check only the machine that runs the command.
+
+### EIF01
+
+#### Network interface has a low MTU
+
+**Problem:**
+A network interface on the client or in the workspace has an MTU smaller than 1378.
+The check ignores interfaces that are down or that have only link-local addresses.
+Direct connections over this interface might have degraded quality or might hang entirely.
+This is a warning.
+Connections relayed through DERP are not affected.
+
+In `coder ping` output, a warning under `Possible client-side issues with direct connection` is about the client.
+A warning under `Possible agent-side issues with direct connections` is about the workspace.
+
+**Solution:**
+Increase the MTU of the affected interface to 1378 or higher, or use a different network interface.
+Who makes the change depends on where the interface is:
+
+- **Client**: The developer who uses that machine makes the change.
+  Virtual private network (VPN) clients often create tunnel interfaces with a low MTU.
+  If your organization manages the VPN, its network administrator might need to increase the MTU of the tunnel.
+- **Workspace**: The administrator who manages the workspace infrastructure makes the change in the network configuration of the workspace, such as its virtual machine or container network settings.
+
+If you can't change the MTU or use another interface, you can block direct connections so that traffic is relayed through DERP:
+
+- **For one client**: The developer sets the [`--disable-direct-connections`](../../reference/cli/index.md#--disable-direct-connections) flag or `CODER_DISABLE_DIRECT_CONNECTIONS` environment variable for the Coder CLI.
+- **For the whole deployment**: A Coder administrator sets the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
+
+For more information, refer to [Low MTU](../networking/troubleshooting.md#low-mtu) in the networking troubleshooting guide.
+
 ## Websocket
 
 Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/) for long-lived connections:
@@ -245,6 +286,22 @@ There are multiple possible causes of this problem:
 1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
 2. Validate that the network link between Coder and the workspace proxy is stable, for example, by using `ping`.
 3. Validate that any internal network infrastructure (for example, firewalls, proxies, virtual private networks (VPNs)) do not interfere with WebSocket connections.
+
+### EWS03
+
+#### Received an unexpected WebSocket message
+
+**Problem:**
+Coder established a WebSocket connection over its own Access URL and sent a text message, but the reply did not match.
+Either the reply was not a text message, or its contents differ from the message Coder sent.
+This can happen when something between Coder and its Access URL changes WebSocket traffic, or when the Access URL does not route to Coder.
+
+**Solution:**
+There are multiple possible causes of this problem:
+
+1. Make sure that Coder's configured Access URL routes to Coder and not to another service.
+2. Make sure that reverse proxies and load balancers pass WebSocket messages through unchanged.
+3. Make sure that firewalls and traffic inspection proxies don't change or inject WebSocket messages.
 
 ## Workspace Proxy
 
