@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/coderd/x/skills"
@@ -1532,6 +1533,12 @@ func (api *API) createChat(
 			if dt.Name == "" {
 				return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 					Message: "Dynamic tool name must not be empty.",
+				})
+			}
+			if strings.TrimSpace(dt.Name) == chattool.OpenPreviewToolName {
+				return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+					Message: "Dynamic tool name is reserved.",
+					Detail:  fmt.Sprintf("Tool name %q is reserved for a built-in tool.", dt.Name),
 				})
 			}
 			if _, exists := seenNames[dt.Name]; exists {

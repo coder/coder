@@ -19,6 +19,8 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -36,6 +38,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/safedial"
 )
@@ -802,7 +806,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
-	user := dbgen.User(t, db, database.User{})
+	user := dbgen.User(t, db, database.User{Username: "owner"})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
@@ -834,6 +838,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	unselectedMCP := mcpConfig(database.MCPServerConfig{Slug: "unselected", Url: echoURL})
 
 	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	// Short owner and workspace names keep the preview address within a DNS label.
+	_, err = db.UpdateWorkspace(ctx, database.UpdateWorkspaceParams{ID: workspace.ID, Name: "ws"})
+	require.NoError(t, err)
 	workspaceMCPBody, err := protojson.Marshal(&agentproto.MCPServerBody{
 		ServerName: "workspace",
 		Tools:      []*agentproto.MCPTool{{Name: "echo"}},
@@ -853,11 +860,19 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
-	)
-	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+	newServer := func(experiments ...codersdk.Experiment) *Server {
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}, experiments...)),
+		)
+		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+		return server
+	}
+	server := newServer(codersdk.ExperimentOpenPreview)
+	noExperimentServer := newServer()
+	unavailableServer := newServer(codersdk.ExperimentOpenPreview)
+	unavailableServer.previewsUnavailable = xerrors.New("no wildcard app hostname")
+	previewServer := newServer(codersdk.ExperimentOpenPreview)
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -883,6 +898,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
+		server     *Server
+		// preview is part of open_preview's answer for a directory.
+		preview string
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -893,17 +911,26 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:   "Root",
 			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
 		},
 		{
+			name:     "RootWithoutExperiment",
+			server:   noExperimentServer,
+			prompt:   []string{advisorGuidance, acpSubagentPromptBlock},
+			want:     []string{"create_workspace", chatadvisor.ToolName},
+			dontWant: []string{"open_preview"},
+		},
+		{name: "RootPreview", server: previewServer, preview: `"preview_slug":"preview--0123abcd"`, prompt: []string{advisorGuidance, acpSubagentPromptBlock}, want: []string{chatadvisor.ToolName}},
+		{name: "RootWithoutPreviews", server: unavailableServer, preview: "previews need a wildcard app hostname", prompt: []string{advisorGuidance, acpSubagentPromptBlock}, want: []string{chatadvisor.ToolName}},
+		{
 			name:     "GeneralChild",
 			child:    true,
 			want:     []string{"read_file", "write_file", "edit_files", "execute"},
-			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
+			dontWant: append([]string{"ask_user_question", "open_preview", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
 			name:     "PlanRoot",
@@ -915,7 +942,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
 			},
 			dontWant: []string{
-				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"open_preview", "blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -935,7 +962,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			prompt: []string{exploreOverlay},
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
 				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
@@ -1031,7 +1058,20 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				require.Len(t, messages, len(created.InitialMessages)+1)
 			}
 
-			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+			turnServer := server
+			if tt.server != nil {
+				turnServer = tt.server
+			}
+			if turnServer == previewServer {
+				conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+				conn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
+				conn.EXPECT().OpenPreview(gomock.Any(), gomock.Any()).Return(workspacesdk.OpenPreviewResponse{ID: "0123abcd", Path: "/home/coder/site"}, nil)
+				previewServer.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					return conn, func() {}, nil
+				}
+			}
+			env, err := turnServer.buildTurnEnvironment(ctx, generationPrepareInput{
 				Chat:     chat,
 				Messages: messages,
 			})
@@ -1088,6 +1128,13 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 
+			if tt.preview != "" {
+				tool := findToolByName(env.Tools, chattool.OpenPreviewToolName)
+				require.NotNil(t, tool)
+				response, err := tool.Run(ctx, fantasy.ToolCall{ID: uuid.NewString(), Name: chattool.OpenPreviewToolName, Input: `{"title":"App","path":"/site"}`})
+				require.NoError(t, err)
+				require.Contains(t, response.Content, tt.preview)
+			}
 			if tt.spawn {
 				tool := findToolByName(env.Tools, spawnAgentToolName)
 				require.NotNil(t, tool)

@@ -1405,6 +1405,63 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	require.Equal(t, currentAgent, gotAgent)
 }
 
+func TestTurnWorkspaceContextGetPreviewWorkspaceAgentClearedDuringDial(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	workspace := database.Workspace{ID: uuid.New(), Name: "dev", OwnerID: uuid.New(), OwnerUsername: "testuser"}
+	workspaceID := workspace.ID
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(workspace, nil).AnyTimes()
+	agent := database.WorkspaceAgent{ID: uuid.New(), Name: "main"}
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agent.ID).Return(agent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{agent}, nil).AnyTimes()
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: agent.ID, Valid: true},
+	}
+	currentChat := chat
+	workspaceCtx := &turnWorkspaceContext{
+		chatStateMu:      &sync.Mutex{},
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	workspaceCtx.server = &Server{
+		db:                             db,
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			workspaceCtx.clearCachedWorkspaceState()
+			return conn, func() {}, nil
+		},
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	preview, err := workspaceCtx.getPreviewWorkspace(ctx)
+	require.NoError(t, err)
+	require.Same(t, conn, preview.Conn)
+	require.Equal(t, agent, preview.Agent)
+	require.Equal(t, workspaceID, preview.WorkspaceID)
+	require.Equal(t, workspace.Name, preview.WorkspaceName)
+	require.Equal(t, workspace.OwnerID, preview.OwnerID)
+	require.Equal(t, workspace.OwnerUsername, preview.OwnerUsername)
+
+	// The second call hits the cache, which must hold the same agent.
+	preview, err = workspaceCtx.getPreviewWorkspace(ctx)
+	require.NoError(t, err)
+	require.Same(t, conn, preview.Conn)
+	require.Equal(t, agent, preview.Agent)
+	require.Equal(t, workspaceID, preview.WorkspaceID)
+}
+
 func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *testing.T) {
 	t.Parallel()
 

@@ -62,6 +62,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -19392,6 +19393,32 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Duplicate dynamic tool name.", sdkErr.Message)
+	})
+
+	t.Run("ReservedToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		// Chat turns read dynamic tool names trimmed.
+		for _, name := range []string{chattool.OpenPreviewToolName, " " + chattool.OpenPreviewToolName} {
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: user.OrganizationID,
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				}},
+				UnsafeDynamicTools: []codersdk.DynamicTool{
+					{Name: name},
+				},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Dynamic tool name is reserved.", sdkErr.Message, name)
+			require.Contains(t, sdkErr.Detail, chattool.OpenPreviewToolName, name)
+		}
 	})
 
 	t.Run("CallerSuppliedToolsDisabled", func(t *testing.T) {
