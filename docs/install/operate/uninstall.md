@@ -55,8 +55,18 @@ sudo rm /usr/local/bin/coder
 
 ## Windows
 
+To check which package you installed, run `winget list --name Coder` and check the `Id` column.
+
+If you installed Coder with the `Coder.Coder` package:
+
 ```ps1
-winget uninstall Coder.Coder
+winget uninstall --id Coder.Coder --exact
+```
+
+If you installed Coder with the `Coder.Coder.Stable` package:
+
+```ps1
+winget uninstall --id Coder.Coder.Stable --exact
 ```
 
 </div>

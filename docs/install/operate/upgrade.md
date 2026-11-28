@@ -70,8 +70,25 @@ See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-hel
 
 Download the latest Windows installer or binary from the [Coder downloads page](https://coder.com/downloads), or upgrade from Winget.
 
+To check which package you installed, run `winget list --name Coder` and check the `Id` column.
+
+If you installed `Coder.Coder` with `--version` to stay on a stable release, do not run the following `Coder.Coder` command, because it installs the latest mainline release.
+[Switch to `Coder.Coder.Stable`](../../reference/releases.md#install-stable) instead.
+
+If you installed Coder with the `Coder.Coder` package, upgrade to the latest mainline release:
+
 ```ps1
-winget install Coder.Coder
+winget install --id Coder.Coder --exact --source winget
 ```
+
+If you installed Coder with the `Coder.Coder.Stable` package, upgrade to the latest stable release:
+
+```ps1
+winget install --id Coder.Coder.Stable --exact --source winget
+```
+
+- To switch from `Coder.Coder` to `Coder.Coder.Stable`, follow [Install stable](../../reference/releases.md#install-stable).
+- To switch from `Coder.Coder.Stable` to `Coder.Coder`, first find any Windows service, scheduled task, or script that runs `coder.exe` by its full path or as another user, because the switch installs `coder.exe` in a different folder.
+  Then run `winget uninstall --id Coder.Coder.Stable --exact` and the `Coder.Coder` command, and update each service, task, or script you found to the new path.
 
 </div>
