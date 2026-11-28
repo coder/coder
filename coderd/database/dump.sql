@@ -1759,15 +1759,19 @@ CREATE TABLE ai_model_prices (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     source ai_model_price_source NOT NULL,
+    pricing_extras jsonb,
     CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
     CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
-    CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0))
+    CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0)),
+    CONSTRAINT ai_model_prices_pricing_extras_check CHECK ((jsonb_typeof(pricing_extras) = 'object'::text))
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
 COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
+
+COMMENT ON COLUMN ai_model_prices.pricing_extras IS 'Prices beyond the four base price columns, such as the 1-hour cache write price and long-context tiers, as a JSON object. NULL when the model has none.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1923,6 +1927,7 @@ CREATE TABLE aibridge_token_usages (
     cost_micros bigint,
     provider_model text,
     priced_model text,
+    pricing_usage jsonb,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1937,6 +1942,8 @@ COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the 
 COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
 
 COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
+
+COMMENT ON COLUMN aibridge_token_usages.pricing_usage IS 'How the row was billed beyond the four price columns, such as the prompt size, the long-context tier that applied, and extra billed units, as a JSON object. NULL when the row was not priced or was recorded before it was tracked.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
@@ -4673,6 +4680,9 @@ ALTER TABLE ONLY aibridge_interceptions
 
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_pricing_usage_check CHECK ((jsonb_typeof(pricing_usage) = 'object'::text)) NOT VALID;
 
 ALTER TABLE ONLY aibridge_tool_usages
     ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);

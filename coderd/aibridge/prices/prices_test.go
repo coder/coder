@@ -373,6 +373,21 @@ func TestSeedFromBytes(t *testing.T) {
 				initial: `"input_price": 100, "output_price": 200, "cache_read_price": 300, "cache_write_price": 400`,
 				updated: `"input_price": 100, "output_price": 200, "cache_read_price": 300, "cache_write_price": null`,
 			},
+			{
+				name:    "PricingExtrasChanged",
+				initial: `"input_price": 100, "pricing_extras": {"extra_prices": {"cache_write_1h": 500}}`,
+				updated: `"input_price": 100, "pricing_extras": {"extra_prices": {"cache_write_1h": 555}}`,
+			},
+			{
+				name:    "PricingExtrasSetFromAbsent",
+				initial: `"input_price": 100`,
+				updated: `"input_price": 100, "pricing_extras": {"extra_prices": {"cache_write_1h": 500}}`,
+			},
+			{
+				name:    "PricingExtrasClearedToNull",
+				initial: `"input_price": 100, "pricing_extras": {"extra_prices": {"cache_write_1h": 500}}`,
+				updated: `"input_price": 100, "pricing_extras": null`,
+			},
 		}
 
 		for _, tt := range tests {
