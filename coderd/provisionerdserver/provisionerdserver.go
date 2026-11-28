@@ -2161,6 +2161,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				JobID:               jobID,
 				UpdatedAt:           now,
 				CachedPlan:          plan,
+				CachedPlanKeyID:     sql.NullString{}, // dbcrypt will set as required
 				CachedModuleFiles:   fileID,
 				ProvisionerdVersion: s.apiVersion,
 			})

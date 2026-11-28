@@ -32957,7 +32957,7 @@ func (q *sqlQuerier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Co
 
 const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
 SELECT
-	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version, template_version_terraform_values.cached_plan_key_id
 FROM
 	template_version_terraform_values
 WHERE
@@ -32973,8 +32973,63 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 		&i.CachedPlan,
 		&i.CachedModuleFiles,
 		&i.ProvisionerdVersion,
+		&i.CachedPlanKeyID,
 	)
 	return i, err
+}
+
+const getTemplateVersionTerraformValuesCachedPlanKeyIDs = `-- name: GetTemplateVersionTerraformValuesCachedPlanKeyIDs :many
+SELECT
+	template_version_id,
+	cached_plan_key_id
+FROM
+	template_version_terraform_values
+WHERE
+	cached_plan IS NOT NULL
+	AND cached_plan != 'null'::jsonb
+	AND cached_plan != '{}'::jsonb
+	AND template_version_id > $1::uuid
+ORDER BY
+	template_version_id
+LIMIT
+	$2::int
+`
+
+type GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams struct {
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+type GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow struct {
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	CachedPlanKeyID   sql.NullString `db:"cached_plan_key_id" json:"cached_plan_key_id"`
+}
+
+// Returns a page of template versions that hold a cached plan across the
+// deployment, ordered by template version id, along with the key each plan
+// is stored with. Pass the last returned id as after_id to fetch the next
+// page. Used only by the dbcrypt key rotation utility.
+func (q *sqlQuerier) GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx context.Context, arg GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams) ([]GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionTerraformValuesCachedPlanKeyIDs, arg.AfterID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow
+	for rows.Next() {
+		var i GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow
+		if err := rows.Scan(&i.TemplateVersionID, &i.CachedPlanKeyID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasTemplateVersionsUsingCachedModuleFileInOrg = `-- name: HasTemplateVersionsUsingCachedModuleFileInOrg :one
@@ -33009,6 +33064,7 @@ INSERT INTO
 	template_version_terraform_values (
 		template_version_id,
 		cached_plan,
+		cached_plan_key_id,
 		cached_module_files,
 		updated_at,
 	    provisionerd_version
@@ -33019,13 +33075,15 @@ VALUES
 		$2,
 		$3,
 		$4,
-		$5
+		$5,
+		$6
 	)
 `
 
 type InsertTemplateVersionTerraformValuesByJobIDParams struct {
 	JobID               uuid.UUID       `db:"job_id" json:"job_id"`
 	CachedPlan          json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedPlanKeyID     sql.NullString  `db:"cached_plan_key_id" json:"cached_plan_key_id"`
 	CachedModuleFiles   uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
 	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
 	ProvisionerdVersion string          `db:"provisionerd_version" json:"provisionerd_version"`
@@ -33035,9 +33093,40 @@ func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Con
 	_, err := q.db.ExecContext(ctx, insertTemplateVersionTerraformValuesByJobID,
 		arg.JobID,
 		arg.CachedPlan,
+		arg.CachedPlanKeyID,
 		arg.CachedModuleFiles,
 		arg.UpdatedAt,
 		arg.ProvisionerdVersion,
+	)
+	return err
+}
+
+const updateTemplateVersionTerraformValuesCachedPlan = `-- name: UpdateTemplateVersionTerraformValuesCachedPlan :exec
+UPDATE
+	template_version_terraform_values
+SET
+	cached_plan = $1,
+	cached_plan_key_id = $2,
+	updated_at = $3
+WHERE
+	template_version_id = $4
+`
+
+type UpdateTemplateVersionTerraformValuesCachedPlanParams struct {
+	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedPlanKeyID   sql.NullString  `db:"cached_plan_key_id" json:"cached_plan_key_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+}
+
+// Rewrites a cached plan in place. Used by `coder server dbcrypt`
+// maintenance commands to re-encrypt or decrypt the plan at rest.
+func (q *sqlQuerier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg UpdateTemplateVersionTerraformValuesCachedPlanParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionTerraformValuesCachedPlan,
+		arg.CachedPlan,
+		arg.CachedPlanKeyID,
+		arg.UpdatedAt,
+		arg.TemplateVersionID,
 	)
 	return err
 }

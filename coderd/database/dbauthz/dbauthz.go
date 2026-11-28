@@ -5375,6 +5375,15 @@ func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, templat
 	return q.db.GetTemplateVersionTerraformValues(ctx, templateVersionID)
 }
 
+func (q *querier) GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx context.Context, arg database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsParams) ([]database.GetTemplateVersionTerraformValuesCachedPlanKeyIDsRow, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionTerraformValuesCachedPlanKeyIDs(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
@@ -8879,6 +8888,13 @@ func (q *querier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Conte
 		return err
 	}
 	return q.db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionTerraformValuesCachedPlan(ctx context.Context, arg database.UpdateTemplateVersionTerraformValuesCachedPlanParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionTerraformValuesCachedPlan(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
