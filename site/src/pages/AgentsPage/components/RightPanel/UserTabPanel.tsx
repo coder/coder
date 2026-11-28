@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 import { TerminalPanel } from "../TerminalPanel";
 import { AppPanel } from "./AppPanel";
 import { PortPreviewPanel } from "./PortPreviewPanel";
@@ -12,6 +13,10 @@ type UserTabPanelProps = {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	// Port tabs show the annotate control when the chat-ui-annotations
+	// experiment is on and the chat accepts messages from this user.
+	canAnnotate: boolean;
+	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
 };
@@ -26,6 +31,8 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
+	canAnnotate,
+	onSendToolMessage,
 	isPending,
 	onTerminalReady,
 }) => {
@@ -68,6 +75,8 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 					agent={agent}
 					host={wildcardHostname}
 					tab={tab}
+					canAnnotate={canAnnotate}
+					onSendToolMessage={onSendToolMessage}
 				/>
 			);
 		}

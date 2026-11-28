@@ -31,6 +31,9 @@ import {
 import { buildPendingContent } from "./pendingContent";
 import type { EditingTarget } from "./types";
 
+/** "busy" is retryable; "unavailable" requires content or model availability. */
+export type SubmitChatTurnResult = "sent" | "busy" | "unavailable";
+
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
@@ -191,9 +194,10 @@ const runBuiltInChatCommand = async ({
 	}
 };
 
+/** Submits a turn or built-in command, returning why no submission occurred; request failures still throw. */
 export async function submitChatTurn(
 	params: SubmitChatTurnParams,
-): Promise<void> {
+): Promise<SubmitChatTurnResult> {
 	const {
 		message,
 		attachments,
@@ -252,8 +256,11 @@ export async function submitChatTurn(
 		workspaceUploads,
 		composerParts,
 	});
-	if (!hasContent || isSubmissionPending || !hasModelOptions) {
-		return;
+	if (!hasContent || !hasModelOptions) {
+		return "unavailable";
+	}
+	if (isSubmissionPending) {
+		return "busy";
 	}
 
 	const builtInCommand = findBuiltInChatCommand(content, editingTarget);
@@ -281,7 +288,7 @@ export async function submitChatTurn(
 			compact,
 			clearChatContext,
 		});
-		return;
+		return "sent";
 	}
 
 	if (editingTarget?.kind === "queued") {
@@ -318,7 +325,7 @@ export async function submitChatTurn(
 			},
 			() => saveQueuedMessage(queuedMessageID, request),
 		);
-		return;
+		return "sent";
 	}
 
 	if (editingTarget?.kind === "history") {
@@ -349,7 +356,7 @@ export async function submitChatTurn(
 			},
 			() => editMessage({ messageId: editedMessageID, req: request }),
 		);
-		return;
+		return "sent";
 	}
 
 	const selectedModelConfigID = effectiveSelectedModel || undefined;
@@ -378,4 +385,5 @@ export async function submitChatTurn(
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
 	}
+	return "sent";
 }

@@ -175,14 +175,30 @@ describe("submitChatTurn", () => {
 		vi.clearAllMocks();
 	});
 
-	it("returns without sending when content, models, or a pending submit block it", async () => {
+	it("reports why content, models, or a pending submit block a send", async () => {
 		const sendMessage = vi.fn();
-		await submitChatTurn(buildParams({ message: "   ", sendMessage }));
-		await submitChatTurn(buildParams({ hasModelOptions: false, sendMessage }));
-		await submitChatTurn(
-			buildParams({ isSubmissionPending: true, sendMessage }),
-		);
+		const editMessage = vi.fn();
+		for (const { overrides, result } of [
+			{ overrides: { message: "   " }, result: "unavailable" },
+			{ overrides: { hasModelOptions: false }, result: "unavailable" },
+			{ overrides: { isSubmissionPending: true }, result: "busy" },
+			{
+				overrides: { hasModelOptions: false, isSubmissionPending: true },
+				result: "unavailable",
+			},
+			{
+				overrides: { message: "   ", isSubmissionPending: true },
+				result: "unavailable",
+			},
+		]) {
+			expect(
+				await submitChatTurn(
+					buildParams({ ...overrides, sendMessage, editMessage }),
+				),
+			).toBe(result);
+		}
 		expect(sendMessage).not.toHaveBeenCalled();
+		expect(editMessage).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -244,6 +260,19 @@ describe("submitChatTurn", () => {
 		);
 	});
 
+	it("runs a built-in command without sending a message", async () => {
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const sendMessage = vi.fn();
+
+		expect(
+			await submitChatTurn(
+				buildParams({ message: "/compact", compact, sendMessage }),
+			),
+		).toBe("sent");
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
 	it("reports a failed compaction without sending", async () => {
 		const store = createChatStore();
 		const compact = vi.fn().mockRejectedValue(new Error("compact failed"));
@@ -276,16 +305,18 @@ describe("submitChatTurn", () => {
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
-		await submitChatTurn(
-			buildParams({
-				message: "new text",
-				editingTarget: { kind: "history", id: 5 },
-				store: seededStore([originalMessage]),
-				editMessage,
-				scrollToEnd,
-				sendMessage,
-			}),
-		);
+		expect(
+			await submitChatTurn(
+				buildParams({
+					message: "new text",
+					editingTarget: { kind: "history", id: 5 },
+					store: seededStore([originalMessage]),
+					editMessage,
+					scrollToEnd,
+					sendMessage,
+				}),
+			),
+		).toBe("sent");
 
 		expect(editMessage).toHaveBeenCalledWith({
 			messageId: 5,
@@ -355,7 +386,7 @@ describe("submitChatTurn", () => {
 		const editMessage = vi.fn();
 		const sendMessage = vi.fn();
 
-		await submitChatTurn(
+		const submitted = await submitChatTurn(
 			buildParams({
 				message: "new text ",
 				composerParts: [
@@ -379,6 +410,7 @@ describe("submitChatTurn", () => {
 			}),
 		);
 
+		expect(submitted).toBe("sent");
 		expect(saveQueuedMessage).toHaveBeenCalledWith(7, {
 			content: [
 				{ type: "text", text: "new text " },
@@ -500,7 +532,7 @@ describe("submitChatTurn", () => {
 		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
 		edit.resolve(undefined);
-		await submitted;
+		await expect(submitted).resolves.toBe("sent");
 		// A status and a history reset do not end the pending edit.
 		store.batch(() => {
 			store.applyServerChatStatus("running");
@@ -555,7 +587,7 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
 		send.resolve({ queued: false });
-		await submitted;
+		await expect(submitted).resolves.toBe("sent");
 		expect(sendMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model_config_id: pickerModel.id,
@@ -584,7 +616,9 @@ describe("submitChatTurn", () => {
 			return { queued: false };
 		});
 
-		await submitChatTurn(buildParams({ store, sendMessage }));
+		expect(await submitChatTurn(buildParams({ store, sendMessage }))).toBe(
+			"sent",
+		);
 
 		expect(shown.length).toBeGreaterThan(1);
 		expect(shown).toEqual(shown.map(() => ["first", "hello"]));

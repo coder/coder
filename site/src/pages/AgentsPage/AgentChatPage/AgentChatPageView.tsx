@@ -9,6 +9,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getAgentBrowserApp } from "#/modules/apps/apps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import {
 	AgentChatInput,
@@ -27,6 +28,7 @@ import {
 } from "../components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
+import type { SubmitChatTurnResult } from "../components/ChatConversation/submitChatTurn";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import {
@@ -164,6 +166,7 @@ type AgentChatPageViewProps = {
 
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
+	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -224,6 +227,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	queuedMessageUnderEditID,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onSendToolMessage,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
@@ -235,6 +239,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
+	const { experiments } = useDashboard();
 	const { user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -880,6 +885,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										workspace={workspace}
 										workspaceAgent={workspaceAgent}
 										wildcardHostname={wildcardHostname}
+										canAnnotate={experiments.includes("chat-ui-annotations")}
+										onSendToolMessage={
+											!isInputDisabled && !isOtherUserReadOnly
+												? onSendToolMessage
+												: undefined
+										}
 										isPending={pendingTabId === tab.id}
 										onTerminalReady={handleTerminalTabReady}
 									/>

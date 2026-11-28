@@ -792,6 +792,15 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
+	// Right-panel tools (port preview annotations) send through here. The
+	// composer's own draft is left alone, and the caller learns whether a
+	// concurrent submission made this one a no-op.
+	const handleSendToolMessage = (message: string) =>
+		submitChatTurn({
+			...chatTurnDeps,
+			message,
+		});
+
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
 			...chatTurnDeps,
@@ -903,6 +912,7 @@ const AgentChatPage: React.FC = () => {
 					queuedMessageUnderEditID={markedID}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					onSendToolMessage={handleSendToolMessage}
 					urlTransform={urlTransform}
 					hasMoreMessages={hasMoreMessages}
 					isFetchingMoreMessages={isFetchingMoreMessages}
