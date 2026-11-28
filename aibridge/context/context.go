@@ -5,10 +5,13 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 type (
-	actorContextKey struct{}
+	actorContextKey          struct{}
+	interceptionIDContextKey struct{}
 )
 
 // ErrMissingAPIKeyID indicates that the context has no actor with an API-key ID.
@@ -56,4 +59,18 @@ func APIKeyIDFromContext(ctx context.Context) (string, error) {
 		return "", ErrMissingAPIKeyID
 	}
 	return actor.APIKeyID, nil
+}
+
+// WithInterceptionID returns a context with the interception_id
+// log field set.
+func WithInterceptionID(ctx context.Context, id string) context.Context {
+	ctx = slog.With(ctx, slog.F("interception_id", id))
+	return context.WithValue(ctx, interceptionIDContextKey{}, id)
+}
+
+// HasInterceptionID reports whether ctx already carries the
+// interception_id field.
+func HasInterceptionID(ctx context.Context) bool {
+	_, ok := ctx.Value(interceptionIDContextKey{}).(string)
+	return ok
 }
