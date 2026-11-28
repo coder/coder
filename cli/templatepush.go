@@ -221,10 +221,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintln(
-					inv.Stdout, "\n"+cliui.Wrap(
-						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
-							"Developers can provision a workspace with this template using:")+"\n")
+				printTemplateCreated(inv.Stdout, name, organization.Name, time.Now())
 
 			// Set the new template version as the active version for an existing template
 			case activate:
@@ -335,6 +332,29 @@ func (r *RootCmd) templatePush() *serpent.Command {
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	orgContext.AttachOptions(cmd)
 	return cmd
+}
+
+// printTemplateCreated reports that a template was created and shows the
+// command developers can run to create a workspace from it. Both
+// `templates push` and the deprecated `templates create` use it so their
+// output stays the same.
+func printTemplateCreated(w io.Writer, templateName, organizationName string, createdAt time.Time) {
+	message := fmt.Sprintf(
+		"The %s template has been created at %s! "+
+			"Developers can provision a workspace with this template using:",
+		cliui.Keyword(templateName),
+		cliui.Timestamp(createdAt),
+	)
+
+	command := fmt.Sprintf(
+		"coder create --template=%q --org=%q [workspace name]",
+		templateName, organizationName,
+	)
+
+	_, _ = fmt.Fprintf(w, "\n%s\n\n  %s\n\n",
+		cliui.Wrap(message),
+		cliui.Code(command),
+	)
 }
 
 type templateUploadFlags struct {
