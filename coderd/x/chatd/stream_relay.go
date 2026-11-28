@@ -104,7 +104,21 @@ func (f *streamRelayForwarder) loop() {
 		retryTimer   *quartz.Timer
 		retryC       <-chan time.Time
 		retryBackoff = streamRelayRetryInitialBackoff
+		// After a failed connection, backoffWorker is not dialed again before
+		// backoffUntil. Configurations arrive at the chat's snapshot rate, so
+		// one before backoffUntil only re-arms the retry timer for the rest of
+		// the wait.
+		backoffWorker uuid.NullUUID
+		backoffUntil  time.Time
 	)
+	startRetry := func(d time.Duration) {
+		retryTimer = f.clock.NewTimer(d, "chatd", "stream-relay-retry")
+		retryC = retryTimer.C
+	}
+	resetBackoff := func() {
+		retryBackoff = streamRelayRetryInitialBackoff
+		backoffWorker = uuid.NullUUID{}
+	}
 	stopRetry := func() {
 		if retryTimer != nil {
 			retryTimer.Stop()
@@ -122,12 +136,15 @@ func (f *streamRelayForwarder) loop() {
 		connected = streamRelayTarget{}
 	}
 	defer closeSession()
-	scheduleRetry := func() {
+	scheduleRetry := func(timed bool) {
 		if !target.needsRelay() || f.dialer == nil || retryTimer != nil {
 			return
 		}
-		retryTimer = f.clock.NewTimer(retryBackoff, "chatd", "stream-relay-retry")
-		retryC = retryTimer.C
+		backoffWorker = target.workerID
+		backoffUntil = f.clock.Now().Add(retryBackoff)
+		if timed {
+			startRetry(retryBackoff)
+		}
 		if retryBackoff < streamRelayRetryMaxBackoff {
 			retryBackoff *= 2
 			if retryBackoff > streamRelayRetryMaxBackoff {
@@ -158,11 +175,16 @@ func (f *streamRelayForwarder) loop() {
 					slog.Error(err),
 				)
 				closeSession()
-				scheduleRetry()
+				scheduleRetry(true)
 				return
 			}
 			connected = target
-			retryBackoff = streamRelayRetryInitialBackoff
+			return
+		}
+		if !sameNullUUID(backoffWorker, target.workerID) {
+			resetBackoff()
+		} else if wait := f.clock.Until(backoffUntil); wait > 0 {
+			startRetry(wait)
 			return
 		}
 		closeSession()
@@ -177,12 +199,11 @@ func (f *streamRelayForwarder) loop() {
 				slog.F("worker_id", target.workerID.UUID),
 				slog.Error(err),
 			)
-			// Unrecoverable dial errors (e.g. auth failures) will not
-			// succeed on retry with the same inputs, so wait for the next
-			// configuration instead of scheduling a retry.
-			if !streamPartsDialUnrecoverable(err) {
-				scheduleRetry()
-			}
+			// An unrecoverable error (e.g. an auth failure) arms no timer, so
+			// the forwarder does not redial on its own. A same-worker
+			// configuration during the backoff dials once it passes, so the
+			// last configured episode is still dialed.
+			scheduleRetry(!streamPartsDialUnrecoverable(err))
 			return
 		}
 		session = newSession
@@ -196,11 +217,10 @@ func (f *streamRelayForwarder) loop() {
 				slog.Error(err),
 			)
 			closeSession()
-			scheduleRetry()
+			scheduleRetry(true)
 			return
 		}
 		connected = target
-		retryBackoff = streamRelayRetryInitialBackoff
 	}
 
 	for {
@@ -217,9 +237,12 @@ func (f *streamRelayForwarder) loop() {
 		case part, ok := <-sessionParts:
 			if !ok {
 				closeSession()
-				scheduleRetry()
+				scheduleRetry(true)
 				continue
 			}
+			// A selection only writes a frame, so a worker that accepts and
+			// then closes keeps backing off until a part arrives.
+			resetBackoff()
 			if !connected.sameEpisode(target) ||
 				part.HistoryVersion != target.historyVersion ||
 				part.GenerationAttempt != target.generationAttempt {
