@@ -256,6 +256,48 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 	assert.Empty(t, childFiles)
 }
 
+// TestWaitAgentComputerUseRecordingRequiresWorkspaceAccess verifies that
+// wait_agent does not dial a computer_use child's agent to record the
+// desktop once the chat owner has lost access to the workspace.
+func TestWaitAgentComputerUseRecordingRequiresWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	user, org, model := seedInternalChatDeps(t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	parent, child := createComputerUseParentChild(
+		t, server, user, org, model, workspace, agent,
+		"parent-recording-denied", "computer-use-child-denied",
+	)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
+
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: workspace.OrganizationID,
+		UserID:         user.ID,
+	}))
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Error("wait_agent dialed the agent after the chat owner lost workspace access")
+		return nil, nil, xerrors.New("unexpected dial")
+	}
+
+	insertAssistantMessage(t, db, child.ID, model.ID, "I opened Firefox.")
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected successful response, got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	_, hasRecording := result["recording_file_id"]
+	assert.False(t, hasRecording, "denied workspace must not produce a recording")
+}
+
 // TestWaitAgentComputerUseRecordingWithThumbnail verifies the
 // recording flow when the agent produces both video and thumbnail:
 // both file IDs appear in the wait_agent tool response.

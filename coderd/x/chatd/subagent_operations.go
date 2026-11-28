@@ -51,7 +51,7 @@ func (p *Server) awaitSubagent(
 	// Recording a computer_use child is best-effort and never blocks the wait.
 	var recordingID string
 	var agentConn workspacesdk.AgentConn
-	if target := p.subagentTargetChatInfo(ctx, targetChatID, "recording"); target != nil && target.Mode.Valid && target.Mode.ChatMode == database.ChatModeComputerUse && target.AgentID.Valid && p.agentConnFn != nil {
+	if target := p.subagentTargetChatInfo(ctx, targetChatID, "recording"); target != nil && target.Mode.Valid && target.Mode.ChatMode == database.ChatModeComputerUse && target.AgentID.Valid && p.agentConnFn != nil && p.chatOwnerCanUseWorkspace(ctx, parent.OwnerID, target.WorkspaceID, "desktop recording") {
 		conn, closeFn, connErr := p.agentConnFn(ctx, target.AgentID.UUID)
 		if connErr == nil {
 			agentConn = conn
@@ -181,6 +181,30 @@ func (p *Server) listSubagents(ctx context.Context, parentChatID uuid.UUID) ([]d
 		return strings.Compare(b.ID.String(), a.ID.String())
 	})
 	return children, nil
+}
+
+// chatOwnerCanUseWorkspace reports whether ownerID may still use
+// workspaceID. Paths that dial a chat's agent outside turn preparation call
+// it first, so they stop once the chat owner loses access. purpose names the
+// skipped operation in logs.
+func (p *Server) chatOwnerCanUseWorkspace(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.NullUUID, purpose string) bool {
+	if !workspaceID.Valid {
+		return false
+	}
+	logger := p.logger.With(slog.F("owner_id", ownerID), slog.F("workspace_id", workspaceID.UUID))
+	workspace, err := p.db.GetWorkspaceByID(ctx, workspaceID.UUID)
+	if err != nil {
+		logger.Warn(ctx, "skipping "+purpose+": failed to load workspace", slog.Error(err))
+		return false
+	}
+	if workspace.Deleted {
+		return false
+	}
+	if err := p.authorizeChatWorkspace(ctx, ownerID, workspace); err != nil {
+		logger.Warn(ctx, "skipping "+purpose+": chat owner cannot use workspace", slog.Error(err))
+		return false
+	}
+	return true
 }
 
 func (p *Server) subagentTargetChatInfo(ctx context.Context, chatID uuid.UUID, operation string) *database.Chat {

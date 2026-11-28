@@ -291,8 +291,10 @@ The agent operates with the exact same permissions as the user who submitted the
 If a user cannot access a template, workspace, or API endpoint through the Coder dashboard or CLI, the agent cannot access it either.
 There is no privilege escalation.
 
-This extends to workspace isolation: the agent can only interact with workspaces owned by the user who started the chat.
-It cannot read files, execute commands, or connect to workspaces belonging to other users.
+This extends to workspace isolation: the agent can only interact with workspaces that the user who started the chat can connect to over SSH, such as their own workspaces and workspaces [shared with them](../workspaces/shared-workspaces.md).
+It cannot read files, execute commands, or connect to any other workspace.
+Coder checks this access again at the start of every turn.
+If the user loses access to the chat's workspace, for example because the owner stops sharing it or the user leaves the organization, the turn ends with an error and the agent does not use the workspace.
 
 Template visibility follows the same rule.
 When the agent lists available templates, it sees only the templates the user is authorized to access.

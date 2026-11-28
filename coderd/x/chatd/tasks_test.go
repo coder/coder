@@ -962,6 +962,42 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	}
 }
 
+// TestInterruptTask_SkipsAgentCancelWithoutWorkspaceAccess checks that an
+// interrupt does not dial the agent once the chat owner has lost access to
+// the chat's workspace, and still records the interrupted call's result.
+func TestInterruptTask_SkipsAgentCancelWithoutWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+
+	f := newWorkerTestFixture(t)
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_execute", ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+	_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: f.org.ID,
+		UserID:         f.user.ID,
+	}))
+	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Error("interrupt dialed the agent after the chat owner lost workspace access")
+		return nil, nil, xerrors.New("unexpected dial")
+	}
+
+	messages := batch.interrupt(t, f)
+	parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, "call_execute"))
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.True(t, parts[0].IsError)
+	require.Contains(t, string(parts[0].Result), interruptedToolResultErrorMessage)
+}
+
 func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 
