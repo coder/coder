@@ -2350,9 +2350,9 @@ func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	return q.db.DeleteChatModelConfigByID(ctx, id)
 }
 
-func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg database.DeleteChatOrganizationModelOverrideParams) error {
+func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg database.DeleteChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID)); err != nil {
-		return err
+		return database.ChatOrganizationModelOverride{}, err
 	}
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
 }
@@ -9677,9 +9677,9 @@ func (q *querier) UpsertChatMCPServer(ctx context.Context, arg database.UpsertCh
 	return q.db.UpsertChatMCPServer(ctx, arg)
 }
 
-func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {
+func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID)); err != nil {
-		return err
+		return database.ChatOrganizationModelOverride{}, err
 	}
 	return q.db.UpsertChatOrganizationModelOverride(ctx, arg)
 }
@@ -9726,13 +9726,13 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 	return q.db.UpsertChatSystemPrompt(ctx, value)
 }
 
-func (q *querier) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) error {
+func (q *querier) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return err
+		return database.ChatUserModelOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return err
+		return database.ChatUserModelOverride{}, err
 	}
 	return q.db.UpsertChatUserModelOverride(ctx, arg)
 }

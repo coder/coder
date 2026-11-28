@@ -33,19 +33,21 @@ LEFT JOIN ai_providers ap
 WHERE o.context = @context
 ORDER BY o.organization_id;
 
--- name: UpsertChatOrganizationModelOverride :exec
+-- name: UpsertChatOrganizationModelOverride :one
 INSERT INTO chat_organization_model_overrides
     (organization_id, context, model_config_id, reasoning_effort)
 VALUES (@organization_id, @context, @model_config_id, @reasoning_effort)
 ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
 DO UPDATE SET
     model_config_id = EXCLUDED.model_config_id,
-    reasoning_effort = EXCLUDED.reasoning_effort;
+    reasoning_effort = EXCLUDED.reasoning_effort
+RETURNING *;
 
--- name: DeleteChatOrganizationModelOverride :exec
+-- name: DeleteChatOrganizationModelOverride :one
 DELETE FROM chat_organization_model_overrides
 WHERE organization_id = @organization_id
-  AND context = @context;
+  AND context = @context
+RETURNING *;
 
 -- name: GetChatUserModelOverrides :many
 SELECT id, user_id, organization_id, context, mode, model_config_id, reasoning_effort
@@ -61,7 +63,7 @@ WHERE user_id = @user_id
   AND organization_id = @organization_id
   AND context = @context;
 
--- name: UpsertChatUserModelOverride :exec
+-- name: UpsertChatUserModelOverride :one
 INSERT INTO chat_user_model_overrides
     (user_id, organization_id, context, mode, model_config_id, reasoning_effort)
 VALUES (@user_id, @organization_id, @context, @mode, @model_config_id, @reasoning_effort)
@@ -69,4 +71,5 @@ ON CONFLICT ON CONSTRAINT chat_user_model_overrides_user_organization_context_ke
 DO UPDATE SET
     mode = EXCLUDED.mode,
     model_config_id = EXCLUDED.model_config_id,
-    reasoning_effort = EXCLUDED.reasoning_effort;
+    reasoning_effort = EXCLUDED.reasoning_effort
+RETURNING *;

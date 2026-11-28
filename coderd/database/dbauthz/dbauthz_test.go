@@ -1581,7 +1581,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("DeleteChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		arg := database.DeleteChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}
-		dbm.EXPECT().DeleteChatOrganizationModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteChatOrganizationModelOverride(gomock.Any(), arg).Return(database.ChatOrganizationModelOverride{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
 	s.Run("GetChatOrganizationSystemPrompt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -2121,7 +2121,7 @@ func (s *MethodTestSuite) TestChats() {
 			Context:        "general",
 			ModelConfigID:  uuid.New(),
 		}
-		dbm.EXPECT().UpsertChatOrganizationModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().UpsertChatOrganizationModelOverride(gomock.Any(), arg).Return(database.ChatOrganizationModelOverride{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -3652,7 +3652,7 @@ func (s *MethodTestSuite) TestUser() {
 			Mode:           "chat_default",
 		}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().UpsertChatUserModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().UpsertChatUserModelOverride(gomock.Any(), arg).Return(database.ChatUserModelOverride{}, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateUserChatCustomPrompt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

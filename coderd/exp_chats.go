@@ -5887,7 +5887,6 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	response := codersdk.ChatModelOverrideResponse{Context: overrideContext}
 	trimmedModelConfigID := strings.TrimSpace(req.ModelConfigID)
 	if trimmedModelConfigID == "" {
 		if req.ReasoningEffort != nil {
@@ -5896,18 +5895,26 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		err := api.Database.DeleteChatOrganizationModelOverride(ctx, database.DeleteChatOrganizationModelOverrideParams{
+		deleted, err := api.Database.DeleteChatOrganizationModelOverride(ctx, database.DeleteChatOrganizationModelOverrideParams{
 			OrganizationID: organization.ID,
 			Context:        string(overrideContext),
 		})
-		if err != nil {
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Internal error clearing %s model override.", overrideContext),
 				Detail:  err.Error(),
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusOK, response)
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatModelOverrideResponse{Context: overrideContext})
+		if err == nil {
+			aReq, commit := audit.InitRequest[database.ChatOrganizationModelOverride](rw, &audit.RequestParams{
+				Audit: *api.Auditor.Load(), Log: api.Logger, Request: r,
+				OrganizationID: organization.ID, Action: database.AuditActionDelete,
+			})
+			aReq.Old = deleted
+			commit()
+		}
 		return
 	}
 
@@ -5937,17 +5944,15 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	row := database.ChatOrganizationModelOverride{
+	//nolint:gocritic // Capture the audit baseline for update-only roles; the upsert checks the caller's permission.
+	old, baselineErr := api.Database.GetChatOrganizationModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetChatOrganizationModelOverrideParams{
+		OrganizationID: organization.ID, Context: string(overrideContext),
+	})
+	row, err := api.Database.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 		OrganizationID:  organization.ID,
 		Context:         string(overrideContext),
 		ModelConfigID:   modelConfigID,
 		ReasoningEffort: sql.NullString{String: derefOrEmpty(req.ReasoningEffort), Valid: req.ReasoningEffort != nil},
-	}
-	err = api.Database.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
-		OrganizationID:  row.OrganizationID,
-		Context:         row.Context,
-		ModelConfigID:   row.ModelConfigID,
-		ReasoningEffort: row.ReasoningEffort,
 	})
 	if database.IsForeignKeyViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid model_config_id."})
@@ -5960,8 +5965,30 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		})
 		return
 	}
-	response = chatOrganizationModelOverrideResponse(row)
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, chatOrganizationModelOverrideResponse(row))
+	auditChatModelOverrideUpsert(api, rw, r, organization.ID, old, row, baselineErr)
+}
+
+func auditChatModelOverrideUpsert[T interface {
+	database.ChatOrganizationModelOverride | database.ChatUserModelOverride
+}](api *API, rw http.ResponseWriter, r *http.Request, organizationID uuid.UUID, old, row T, baselineErr error) {
+	action := database.AuditActionWrite
+	switch {
+	case xerrors.Is(baselineErr, sql.ErrNoRows):
+		action = database.AuditActionCreate
+	case baselineErr != nil:
+		api.Logger.Warn(r.Context(), "read model override for audit", slog.Error(baselineErr))
+		// Record the write without claiming a diff against an unknown baseline.
+		old = row
+	case old == row:
+		return
+	}
+	aReq, commit := audit.InitRequest[T](rw, &audit.RequestParams{
+		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r,
+		OrganizationID: organizationID, Action: action,
+	})
+	aReq.Old, aReq.New = old, row
+	commit()
 }
 
 func readChatPersonalModelOverrideContext(
@@ -6371,7 +6398,11 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	err = api.Database.UpsertChatUserModelOverride(ctx, database.UpsertChatUserModelOverrideParams{
+	//nolint:gocritic // Only the audit log uses this baseline, and only after the caller-authorized upsert succeeds.
+	old, baselineErr := api.Database.GetChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetChatUserModelOverrideParams{
+		UserID: member.UserID, OrganizationID: organization.ID, Context: string(overrideContext),
+	})
+	row, err := api.Database.UpsertChatUserModelOverride(ctx, database.UpsertChatUserModelOverrideParams{
 		UserID:          member.UserID,
 		OrganizationID:  organization.ID,
 		Context:         string(overrideContext),
@@ -6397,6 +6428,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+	auditChatModelOverrideUpsert(api, rw, r, organization.ID, old, row, baselineErr)
 }
 
 func (api *API) deploymentChatDebugLoggingEnabled() bool {
@@ -6627,6 +6659,7 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	oldRaw, baselineErr := api.Database.GetChatAdvisorConfig(ctx)
 	if err := api.Database.UpsertChatAdvisorConfig(ctx, string(raw)); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating advisor configuration.",
@@ -6636,8 +6669,31 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventAdvisorConfig, uuid.Nil)
-
 	rw.WriteHeader(http.StatusNoContent)
+
+	var old codersdk.UpdateAdvisorConfigRequest
+	if baselineErr == nil {
+		baselineErr = json.Unmarshal([]byte(oldRaw), &old)
+	}
+	if baselineErr != nil {
+		api.Logger.Warn(ctx, "read advisor runtime settings for audit", slog.Error(baselineErr))
+		old = req
+	} else if old == req {
+		return
+	}
+	aReq, commit := audit.InitRequest[database.ChatOperationalSettings](rw, &audit.RequestParams{
+		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
+	})
+	aReq.Old = database.ChatOperationalSettings{
+		AdvisorMaxUsesPerRun:   old.MaxUsesPerRun,
+		AdvisorMaxOutputTokens: old.MaxOutputTokens,
+	}
+	aReq.New = database.ChatOperationalSettings{
+		ID:                     uuid.New(),
+		AdvisorMaxUsesPerRun:   req.MaxUsesPerRun,
+		AdvisorMaxOutputTokens: req.MaxOutputTokens,
+	}
+	commit()
 }
 
 // @Summary Get chat workspace time to live

@@ -79,6 +79,8 @@ type ChatOperationalSettings struct {
 	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
 	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
 	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
+	AdvisorMaxUsesPerRun          int       `db:"advisor_max_uses_per_run" json:"advisor_max_uses_per_run"`
+	AdvisorMaxOutputTokens        int64     `db:"advisor_max_output_tokens" json:"advisor_max_output_tokens"`
 }
 
 // ExperimentRule is the audited form of one runtime experiment rule. The

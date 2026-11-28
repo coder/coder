@@ -7792,11 +7792,12 @@ func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
 		Enabled:        true,
 		OrganizationID: availableOrg.ID,
 	})
-	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+	_, err := db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 		OrganizationID: availableOrg.ID,
 		Context:        "general",
 		ModelConfigID:  availableModel.ID,
-	}))
+	})
+	require.NoError(t, err)
 
 	// An override referencing a disabled model reports the model unavailable.
 	// dbgen coerces Enabled=false to true, so disable it after insertion.
@@ -7805,7 +7806,7 @@ func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
 		Model:          "bulk-disabled-" + uuid.NewString(),
 		OrganizationID: disabledOrg.ID,
 	})
-	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+	_, err = db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
 		ID:                   disabledModel.ID,
 		Model:                disabledModel.Model,
 		DisplayName:          disabledModel.DisplayName,
@@ -7817,11 +7818,12 @@ func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
 		AIProviderID:         disabledModel.AIProviderID,
 	})
 	require.NoError(t, err)
-	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+	_, err = db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 		OrganizationID: disabledOrg.ID,
 		Context:        "general",
 		ModelConfigID:  disabledModel.ID,
-	}))
+	})
+	require.NoError(t, err)
 
 	// Deleted organizations are excluded from the bulk read.
 	deletedOrg := dbgen.Organization(t, db, database.Organization{})
@@ -7830,11 +7832,12 @@ func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
 		Enabled:        true,
 		OrganizationID: deletedOrg.ID,
 	})
-	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+	_, err = db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
 		OrganizationID: deletedOrg.ID,
 		Context:        "general",
 		ModelConfigID:  deletedOrgModel.ID,
-	}))
+	})
+	require.NoError(t, err)
 	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 		ID:        deletedOrg.ID,
 		UpdatedAt: dbtime.Now(),

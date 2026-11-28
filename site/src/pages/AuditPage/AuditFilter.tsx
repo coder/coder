@@ -80,10 +80,12 @@ const resourceTypeLabels: Partial<Record<ResourceType, string>> = {
 	template_version: "Template version",
 	workspace_build: "Workspace build",
 	chat_instruction_settings: "Chat instruction settings",
+	chat_organization_model_override: "Chat organization model override",
 	chat_organization_system_prompt: "Chat organization system prompt",
 	chat_project_instructions: "Chat project instructions",
 	chat_project_skill: "Chat project skill",
 	chat_operational_settings: "Chat operational settings",
+	chat_user_model_override: "Chat user model override",
 	experiment_rule: "Experiment rule",
 };
 

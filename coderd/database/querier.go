@@ -168,7 +168,7 @@ type sqlcQuerier interface {
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
+	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error)
 	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
@@ -1878,7 +1878,7 @@ type sqlcQuerier interface {
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
 	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
-	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
+	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error)
 	UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error)
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
@@ -1889,7 +1889,7 @@ type sqlcQuerier interface {
 	UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
-	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
+	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
 	UpsertCodernautsEnabled(ctx context.Context, enabled bool) error
 	// The default proxy is implied and not actually stored in the database.

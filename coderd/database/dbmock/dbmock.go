@@ -937,11 +937,12 @@ func (mr *MockStoreMockRecorder) DeleteChatModelConfigByID(ctx, id any) *gomock.
 }
 
 // DeleteChatOrganizationModelOverride mocks base method.
-func (m *MockStore) DeleteChatOrganizationModelOverride(ctx context.Context, arg database.DeleteChatOrganizationModelOverrideParams) error {
+func (m *MockStore) DeleteChatOrganizationModelOverride(ctx context.Context, arg database.DeleteChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteChatOrganizationModelOverride", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.ChatOrganizationModelOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteChatOrganizationModelOverride indicates an expected call of DeleteChatOrganizationModelOverride.
@@ -12974,11 +12975,12 @@ func (mr *MockStoreMockRecorder) UpsertChatMCPServer(ctx, arg any) *gomock.Call 
 }
 
 // UpsertChatOrganizationModelOverride mocks base method.
-func (m *MockStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {
+func (m *MockStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatOrganizationModelOverride", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.ChatOrganizationModelOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpsertChatOrganizationModelOverride indicates an expected call of UpsertChatOrganizationModelOverride.
@@ -13074,11 +13076,12 @@ func (mr *MockStoreMockRecorder) UpsertChatSystemPrompt(ctx, value any) *gomock.
 }
 
 // UpsertChatUserModelOverride mocks base method.
-func (m *MockStore) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) error {
+func (m *MockStore) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatUserModelOverride", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.ChatUserModelOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpsertChatUserModelOverride indicates an expected call of UpsertChatUserModelOverride.

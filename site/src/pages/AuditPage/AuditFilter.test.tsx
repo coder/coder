@@ -91,6 +91,16 @@ describe("AuditFilter", () => {
 			"Chat operational settings",
 			"resource_type:chat_operational_settings",
 		],
+		[
+			"resource_type:",
+			"Chat organization model override",
+			"resource_type:chat_organization_model_override",
+		],
+		[
+			"resource_type:",
+			"Chat user model override",
+			"resource_type:chat_user_model_override",
+		],
 		["action:", "Create", "action:create"],
 		["build_reason:", "API", "build_reason:initiator"],
 	])("selects %s %s", async (prefix, label, query) => {

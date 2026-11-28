@@ -3868,54 +3868,56 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                 ResourceType = "organization"
-	ResourceTypeTemplate                     ResourceType = "template"
-	ResourceTypeTemplateVersion              ResourceType = "template_version"
-	ResourceTypeUser                         ResourceType = "user"
-	ResourceTypeWorkspace                    ResourceType = "workspace"
-	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                       ResourceType = "api_key"
-	ResourceTypeGroup                        ResourceType = "group"
-	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
-	ResourceTypeLicense                      ResourceType = "license"
-	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                 ResourceType = "convert_login"
-	ResourceTypeHealthSettings               ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                   ResourceType = "custom_role"
-	ResourceTypeOrganizationMember           ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
-	ResourceTypeTask                         ResourceType = "task"
-	ResourceTypeAISeat                       ResourceType = "ai_seat"
-	ResourceTypeChat                         ResourceType = "chat"
-	ResourceTypeUserSecret                   ResourceType = "user_secret"
-	ResourceTypeAIProvider                   ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                    ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
-	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
-	ResourceTypeChatProject                  ResourceType = "chat_project"
-	ResourceTypeChatAutomation               ResourceType = "chat_automation"
-	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
-	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
-	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
-	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
-	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
+	ResourceTypeOrganization                  ResourceType = "organization"
+	ResourceTypeTemplate                      ResourceType = "template"
+	ResourceTypeTemplateVersion               ResourceType = "template_version"
+	ResourceTypeUser                          ResourceType = "user"
+	ResourceTypeWorkspace                     ResourceType = "workspace"
+	ResourceTypeGitSshKey                     ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                        ResourceType = "api_key"
+	ResourceTypeGroup                         ResourceType = "group"
+	ResourceTypeWorkspaceBuild                ResourceType = "workspace_build"
+	ResourceTypeLicense                       ResourceType = "license"
+	ResourceTypeWorkspaceProxy                ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                  ResourceType = "convert_login"
+	ResourceTypeHealthSettings                ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp             ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret       ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                    ResourceType = "custom_role"
+	ResourceTypeOrganizationMember            ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings         ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate          ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization   ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup          ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole           ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent                ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                  ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings             ResourceType = "prebuilds_settings"
+	ResourceTypeTask                          ResourceType = "task"
+	ResourceTypeAISeat                        ResourceType = "ai_seat"
+	ResourceTypeChat                          ResourceType = "chat"
+	ResourceTypeUserSecret                    ResourceType = "user_secret"
+	ResourceTypeAIProvider                    ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                 ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                 ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                     ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                  ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride          ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings        ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings       ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig               ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig               ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings       ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule                ResourceType = "experiment_rule"
+	ResourceTypeChatProject                   ResourceType = "chat_project"
+	ResourceTypeChatAutomation                ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory             ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt  ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions       ResourceType = "chat_project_instructions"
+	ResourceTypeOrganizationSkill             ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill              ResourceType = "chat_project_skill"
+	ResourceTypeChatOrganizationModelOverride ResourceType = "chat_organization_model_override"
+	ResourceTypeChatUserModelOverride         ResourceType = "chat_user_model_override"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4002,7 +4004,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
-		ResourceTypeChatProjectSkill:
+		ResourceTypeChatProjectSkill,
+		ResourceTypeChatOrganizationModelOverride,
+		ResourceTypeChatUserModelOverride:
 		return true
 	}
 	return false
@@ -4058,6 +4062,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
+		ResourceTypeChatOrganizationModelOverride,
+		ResourceTypeChatUserModelOverride,
 	}
 }
 

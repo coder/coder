@@ -39,6 +39,8 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableChatProjectTemplates":    {codersdk.AuditActionWrite},
 	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatOrganizationModelOverride":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatUserModelOverride":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
 	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Skill":                            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -550,6 +552,22 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"project_name": ActionIgnore, // Conveyed by resource_target.
 		"template_ids": ActionTrack,
 	},
+	&database.ChatOrganizationModelOverride{}: {
+		"id":               ActionIgnore,
+		"organization_id":  ActionIgnore,
+		"context":          ActionIgnore,
+		"model_config_id":  ActionTrack,
+		"reasoning_effort": ActionTrack,
+	},
+	&database.ChatUserModelOverride{}: {
+		"id":               ActionIgnore,
+		"user_id":          ActionIgnore,
+		"organization_id":  ActionIgnore,
+		"context":          ActionIgnore,
+		"mode":             ActionTrack,
+		"model_config_id":  ActionTrack,
+		"reasoning_effort": ActionTrack,
+	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
 		"model":                 ActionTrack,
@@ -669,6 +687,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"workspace_ttl":                    ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+		"advisor_max_uses_per_run":         ActionTrack,
+		"advisor_max_output_tokens":        ActionTrack,
 	},
 	&database.ExperimentRule{}: {
 		"id":         ActionIgnore, // Derived from the experiment name.

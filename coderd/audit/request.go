@@ -163,6 +163,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.ProjectName
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
+	case database.ChatOrganizationModelOverride:
+		return typed.Context
+	case database.ChatUserModelOverride:
+		return fmt.Sprintf("%s/%s", typed.UserID, typed.Context)
 	case database.MCPServerConfig:
 		// Updates can persist an empty display name; fall back to the slug, or
 		// the ID if both are empty, so the audit entry stays identifiable.
@@ -289,6 +293,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ProjectID
 	case database.ChatModelConfig:
 		return typed.ID
+	case database.ChatOrganizationModelOverride:
+		return typed.ID
+	case database.ChatUserModelOverride:
+		return typed.ID
 	case database.MCPServerConfig:
 		return typed.ID
 	case database.UserSecret:
@@ -389,6 +397,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatProject
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
+	case database.ChatOrganizationModelOverride:
+		return database.ResourceTypeChatOrganizationModelOverride
+	case database.ChatUserModelOverride:
+		return database.ResourceTypeChatUserModelOverride
 	case database.MCPServerConfig:
 		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
@@ -497,7 +509,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.AuditableChatProjectTemplates:
 		return true
-	case database.ChatModelConfig:
+	case database.ChatModelConfig, database.ChatOrganizationModelOverride, database.ChatUserModelOverride:
 		return true
 	case database.MCPServerConfig:
 		// MCP server configs always carry a non-null organization_id.
