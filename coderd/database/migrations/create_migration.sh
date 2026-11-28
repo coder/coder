@@ -47,5 +47,9 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 	migrate create -ext sql -dir . -seq "$title"
 
+	# Point LATEST at the new migration so a concurrent migration PR
+	# conflicts with this one in git.
+	../../../scripts/check_migrations_latest.sh --write
+
 	echo "Run \"make gen\" to generate models."
 )
