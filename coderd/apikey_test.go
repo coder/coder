@@ -320,6 +320,9 @@ func TestTokenScopeCeiling(t *testing.T) {
 			wantAllow:    narrowAllow[:1],
 		},
 		{name: "wider allow list refused", callerScopes: narrow, callerAllow: narrowAllow, req: codersdk.CreateTokenRequest{AllowList: all}, wantErr: "*:*"},
+		{name: "scope without api_key refused", callerScopes: []codersdk.APIKeyScope{userRead}, wantErr: "unauthorized"},
+		{name: "session key scope without api_key refused", callerScopes: []codersdk.APIKeyScope{userRead}, sessionKey: true, wantErr: "unauthorized"},
+		{name: "allow list without api_key refused", callerScopes: narrow, callerAllow: narrowAllow[2:], wantErr: "unauthorized"},
 	}
 
 	for _, tc := range cases {

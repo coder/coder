@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -47,6 +48,13 @@ func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name r
 func writeExceedsCaller(ctx context.Context, rw http.ResponseWriter, err error) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "An API key cannot grant more than the API key creating it.",
+		Detail:  err.Error(),
+	})
+}
+
+func writeNotAuthorized(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "This API key is not permitted to create API keys.",
 		Detail:  err.Error(),
 	})
 }
@@ -178,6 +186,10 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 			writeExceedsCaller(ctx, rw, err)
 			return
 		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			writeNotAuthorized(ctx, rw, err)
+			return
+		}
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
@@ -239,6 +251,10 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, apikey.ErrExceedsCaller) {
 		writeExceedsCaller(ctx, rw, err)
+		return
+	}
+	if dbauthz.IsNotAuthorizedError(err) {
+		writeNotAuthorized(ctx, rw, err)
 		return
 	}
 	if err != nil {
