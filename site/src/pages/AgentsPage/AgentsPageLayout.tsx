@@ -75,7 +75,7 @@ import {
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { readDeepLinkState } from "./utils/deepLinkState";
+import { readDeepLinkPrompt } from "./utils/deepLinkState";
 import { useOpenNotificationChat } from "./utils/notificationWindow";
 
 export type AgentsPageOutletContext = {
@@ -282,12 +282,11 @@ const AgentsPageLayout: React.FC = () => {
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
 		// A composer prefilled from a prompt link shows the link's text,
-		// not the draft, so the draft is preserved there too. A debug link
-		// can fall back to the draft-backed composer, so it is not exempt.
+		// not the draft, so the draft is preserved there too.
 		// Other routes, such as a project composer, keep this draft too.
 		if (
 			isPlainComposerRoute &&
-			readDeepLinkState(location.state).prompt === undefined
+			readDeepLinkPrompt(location.state) === undefined
 		) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}

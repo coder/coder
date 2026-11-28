@@ -61,7 +61,6 @@ import {
 	MockSkill,
 } from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
-import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
 import {
 	AgentCreateForm,
@@ -818,7 +817,7 @@ describe("AgentCreateForm organization lock", () => {
 });
 
 describe("AgentCreateForm prefill", () => {
-	it("uploads the attachment once and sends it with the message, leaving the draft alone", async () => {
+	it("sends the prefilled message without restoring or changing the saved draft", async () => {
 		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
 			models: [MockDefaultChatModel],
 			providers: [MockChatModelProviderDescriptor],
@@ -832,9 +831,6 @@ describe("AgentCreateForm prefill", () => {
 		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 			MockUserPreferenceSettings,
 		);
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" });
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
@@ -854,13 +850,7 @@ describe("AgentCreateForm prefill", () => {
 							workspaceOptions={[]}
 							workspacesError={undefined}
 							isWorkspacesLoading={false}
-							prefill={{
-								message: "Why did this build fail?",
-								attachment: {
-									name: "workspace-build-logs.txt",
-									text: "Error: exit status 1\n",
-								},
-							}}
+							prefill={{ message: "Fix the flaky test" }}
 						/>
 					</MemoryRouter>
 				</AppProviders>
@@ -869,13 +859,6 @@ describe("AgentCreateForm prefill", () => {
 
 		const sendButton = await screen.findByRole("button", { name: "Send" });
 		await waitFor(() => expect(sendButton).toBeEnabled());
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		const [uploadedFile, uploadOrganizationId] = uploadChatFile.mock.calls[0];
-		expect(uploadedFile.name).toBe("workspace-build-logs.txt");
-		expect(await readAgentAttachmentText(uploadedFile)).toBe(
-			"Error: exit status 1\n",
-		);
-		expect(uploadOrganizationId).toBe(MockDefaultOrganization.id);
 		expect(onCreateChat).not.toHaveBeenCalled();
 
 		await user.click(sendButton);
@@ -883,8 +866,7 @@ describe("AgentCreateForm prefill", () => {
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(onCreateChat).toHaveBeenCalledWith(
 			expect.objectContaining({
-				message: "Why did this build fail?",
-				fileIDs: ["uploaded-logs"],
+				message: "Fix the flaky test",
 				organizationId: MockDefaultOrganization.id,
 			}),
 		);

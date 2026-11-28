@@ -5985,7 +5985,6 @@ export type Experiment =
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
-	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
 	| "no_nats_pubsub"
@@ -6066,7 +6065,6 @@ export const Experiments: Experiment[] = [
 	"chat-project-sharing",
 	"chat-stage-metrics",
 	"chat-virtual-desktop",
-	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
 	"no_nats_pubsub",
@@ -13547,19 +13545,6 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_external_agent?: boolean;
-}
-
-// From codersdk/workspacebuilds.go
-/**
- * WorkspaceBuildDebugEventRequest is the request body for
- * POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
- */
-export interface WorkspaceBuildDebugEventRequest {
-	/**
-	 * ID identifies this click so a later step of the funnel can be
-	 * attributed to it.
-	 */
-	readonly id: string;
 }
 
 // From codersdk/workspacebuilds.go

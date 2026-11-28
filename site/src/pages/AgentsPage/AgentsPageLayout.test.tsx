@@ -110,30 +110,22 @@ afterEach(() => {
 
 describe("AgentsPageLayout New chat", () => {
 	// A prompt link always replaces the draft in the composer, so New chat
-	// keeps it. A debug link can fall back to the draft-backed composer, so
-	// New chat clears the draft as it does on a plain composer.
-	it.each([
-		["prompt", { prompt: "hi" }, "draft the user typed earlier"],
-		["debug", { debugWorkspaceBuildId: "build-id" }, null],
-	])(
-		"handles the saved draft on New chat after a %s link",
-		async (_, linkState, expectedDraft) => {
-			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
-			localStorage.setItem(
-				emptyInputStorageKey,
-				"draft the user typed earlier",
-			);
-			const user = userEvent.setup();
+	// keeps it.
+	it("keeps the saved draft on New chat after a prompt link", async () => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		const user = userEvent.setup();
 
-			const { router } = renderLayout();
-			// AgentCreatePage leaves a deep link's value in history state.
-			await router.navigate("/agents", { state: linkState });
-			await user.click(await screen.findByRole("link", { name: "New chat" }));
+		const { router } = renderLayout();
+		// AgentCreatePage leaves a deep link's value in history state.
+		await router.navigate("/agents", { state: { prompt: "hi" } });
+		await user.click(await screen.findByRole("link", { name: "New chat" }));
 
-			await waitFor(() => expect(router.state.location.state).toBeNull());
-			expect(localStorage.getItem(emptyInputStorageKey)).toBe(expectedDraft);
-		},
-	);
+		await waitFor(() => expect(router.state.location.state).toBeNull());
+		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+			"draft the user typed earlier",
+		);
+	});
 
 	it.each(["/agents/chat-1", "/agents/projects/project-1"])(
 		"keeps the plain composer's draft when leaving %s",

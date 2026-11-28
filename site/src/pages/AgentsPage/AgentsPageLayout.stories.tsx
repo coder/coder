@@ -22,7 +22,6 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import {
 	MockAdvisorConfig,
 	MockChat,
@@ -32,7 +31,6 @@ import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModel
 import {
 	MockChatProject,
 	MockDefaultOrganization,
-	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
@@ -1099,15 +1097,6 @@ export const SettingsViewCoderAgentsLink: Story = {
 	},
 };
 
-const debugWorkspaceBuildRouter = (buildId: string) =>
-	reactRouterParameters({
-		location: {
-			path: "/agents",
-			searchParams: { [debugWorkspaceBuildSearchParam]: buildId },
-		},
-		routing: [agentsRouting, aiSettingsRouting],
-	});
-
 const projectPageParameters = {
 	reactRouter: reactRouterParameters({
 		location: { path: `/agents/projects/${MockChatProject.id}` },
@@ -1188,30 +1177,5 @@ export const PromptLinkEdited: Story = {
 			await canvas.findByRole("textbox", { name: "Chat message" }),
 		);
 		await userEvent.keyboard(" Keep it short.");
-	},
-};
-
-export const DebugWorkspaceBuildLoading: Story = {
-	parameters: {
-		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
-	},
-	beforeEach: () => {
-		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
-	},
-};
-
-export const DebugWorkspaceBuildLoadError: Story = {
-	parameters: {
-		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
-	},
-	beforeEach: () => {
-		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
-			mockApiError({
-				message:
-					"Resource not found or you do not have access to this resource",
-			}),
-		);
 	},
 };

@@ -16,10 +16,6 @@ import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import {
-	buildDebugWorkspaceBuildPath,
-	debugWorkspaceBuildSearchParam,
-} from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatModelProviderDescriptor,
@@ -29,12 +25,10 @@ import {
 import {
 	MockChatProject,
 	MockDefaultOrganization,
-	MockFailedWorkspaceBuild,
 	MockOrganization2,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	MockUserPreferenceSettings,
-	MockWorkspaceBuildLogs,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -47,11 +41,6 @@ import {
 } from "../components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 import { highlightComposerState } from "../utils/composerHighlight";
-import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
-import {
-	debugWorkspaceBuildPrompt,
-	formatWorkspaceBuildLogsForDebug,
-} from "../utils/workspaceBuildDebug";
 import AgentCreatePage from "./AgentCreatePage";
 
 const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
@@ -125,12 +114,6 @@ vi.mock("../components/AgentPageHeader", () => ({
 
 const projectPath = (projectId: string) => `/agents/projects/${projectId}`;
 
-const enableExperiments = (...experiments: TypesGen.Experiment[]) => {
-	server.use(
-		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
-	);
-};
-
 const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	server.use(
 		http.get("/api/experimental/chats/projects", () =>
@@ -159,15 +142,7 @@ const openProjectAction = async (
 	await user.click(await screen.findByRole("menuitem", { name: action }));
 };
 
-const failedBuild = MockFailedWorkspaceBuild();
-
-const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
-
 const mockPageQueries = () => {
-	vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
-	vi.spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
-		MockWorkspaceBuildLogs,
-	);
 	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
 		models: [MockDefaultChatModel],
 		providers: [MockChatModelProviderDescriptor],
@@ -185,14 +160,14 @@ const mockPageQueries = () => {
 	return {
 		uploadChatFile: vi
 			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" }),
+			.mockResolvedValue({ id: "uploaded-file" }),
 		createChat: vi
 			.spyOn(API.experimental, "createChat")
 			.mockResolvedValue({ ...MockChat, id: "new-chat-id" }),
 	};
 };
 
-const renderPage = (route = deepLink) =>
+const renderPage = (route: string) =>
 	renderWithAuth(<AgentCreatePage />, {
 		path: "/agents",
 		route,
@@ -462,41 +437,20 @@ describe("AgentCreatePage project assignment", () => {
 });
 
 describe("AgentCreatePage project frame", () => {
-	it("keeps the project route and organization after the debug prefill loads", async () => {
-		enableExperiments("enable-ai-workspace-debug");
-		serveProjects(MockChatProject);
-		const logs = Promise.withResolvers<TypesGen.ProvisionerJobLog[]>();
-		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
-		vi.spyOn(API, "getWorkspaceBuildLogs").mockReturnValue(logs.promise);
-
-		const { router } = renderAgentsRoutes(
-			`${projectPath(MockChatProject.id)}?${debugWorkspaceBuildSearchParam}=${failedBuild.id}`,
-		);
-
-		await screen.findByRole("status", { name: "Loading workspace build logs" });
-		expect(renderedProjects).toEqual([]);
-		act(() => logs.resolve(MockWorkspaceBuildLogs));
-
-		await waitFor(() =>
-			expect(formProps.prefill?.message).toBe(
-				debugWorkspaceBuildPrompt(failedBuild),
-			),
-		);
-		expect(renderedProjects).not.toContain(undefined);
-		expect(renderedProjects.at(-1)?.organization_id).toBe(
-			MockChatProject.organization_id,
-		);
-		expect(router.state.location.pathname).toBe(
-			projectPath(MockChatProject.id),
-		);
-	});
-
 	it("prefills the project composer from a prompt link", async () => {
 		serveProjects(MockChatProject);
 
-		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
+		const { router } = renderAgentsRoutes(
+			`${projectPath(MockChatProject.id)}?prompt=hi`,
+		);
 
 		await waitFor(() => expect(formProps.prefill?.message).toBe("hi"));
+		await waitFor(() =>
+			expect(router.state.location).toMatchObject({
+				pathname: projectPath(MockChatProject.id),
+				search: "",
+			}),
+		);
 		expect(renderedProjects).not.toContain(undefined);
 		expect(renderedProjects.at(-1)?.organization_id).toBe(
 			MockChatProject.organization_id,
@@ -760,108 +714,6 @@ describe("AgentCreatePage composer highlight", () => {
 	});
 });
 
-describe("AgentCreatePage debug deep link", () => {
-	beforeEach(() => {
-		realForm.enabled = true;
-	});
-
-	it("prefills the prompt and the build logs, and sends them on Send", async () => {
-		enableExperiments("enable-ai-workspace-debug");
-		const { uploadChatFile, createChat } = mockPageQueries();
-		const user = userEvent.setup();
-
-		const { router } = renderPage();
-
-		const sendButton = await findEnabledSendButton();
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		const [uploadedFile] = uploadChatFile.mock.calls[0];
-		expect(uploadedFile.name).toBe(
-			"workspace-build-logs-TestUser-test-workspace-1.txt",
-		);
-		expect(await readAgentAttachmentText(uploadedFile)).toBe(
-			formatWorkspaceBuildLogsForDebug(failedBuild, MockWorkspaceBuildLogs),
-		);
-		expect(createChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				model_config_id: MockDefaultChatModel.id,
-				content: [
-					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
-					{ type: "file", file_id: "uploaded-logs" },
-				],
-			}),
-		);
-		// The chat's URL does not carry the build ID.
-		await waitFor(() =>
-			expect(router.state.location).toMatchObject({
-				pathname: "/agents/new-chat-id",
-				search: "?archived=archived",
-			}),
-		);
-	});
-
-	it("moves the build ID out of the URL so New chat gets a plain composer", async () => {
-		enableExperiments("enable-ai-workspace-debug");
-		const { uploadChatFile, createChat } = mockPageQueries();
-		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
-		const user = userEvent.setup();
-
-		const { router } = renderPage();
-
-		await findEnabledSendButton();
-		expect(router.state.location).toMatchObject({
-			search: "?archived=archived",
-			state: { debugWorkspaceBuildId: failedBuild.id },
-		});
-		// The layout's links forward location.search to a new history entry.
-		await router.navigate({
-			pathname: "/agents",
-			search: router.state.location.search,
-		});
-		await waitFor(() =>
-			expect(
-				screen.getByRole("textbox", { name: "Chat message" }),
-			).toHaveTextContent("draft the user typed earlier"),
-		);
-
-		await user.click(await findEnabledSendButton());
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat.mock.calls[0][0].content).toEqual([
-			{ type: "text", text: "draft the user typed earlier" },
-		]);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-	});
-
-	it("leaves a plain composer when the build fails to load", async () => {
-		enableExperiments("enable-ai-workspace-debug");
-		const { uploadChatFile, createChat } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue(new Error("boom"));
-		const getWorkspaceBuildLogs = vi.spyOn(API, "getWorkspaceBuildLogs");
-		const user = userEvent.setup();
-
-		renderPage();
-
-		await screen.findByText("Could not load the workspace build or its logs");
-		await user.click(
-			await screen.findByRole("textbox", { name: "Chat message" }),
-		);
-		await user.paste("What happened?");
-		await user.click(await findEnabledSendButton());
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat.mock.calls[0][0].content).toEqual([
-			{ type: "text", text: "What happened?" },
-		]);
-		expect(getWorkspaceBuildLogs).not.toHaveBeenCalled();
-		expect(uploadChatFile).not.toHaveBeenCalled();
-	});
-});
-
 const mockUploadedFile: WorkspaceFileUpload = {
 	id: "upload-1",
 	file: new File(["PK"], "bundle.zip", { type: "application/zip" }),
@@ -1104,7 +956,9 @@ describe("AgentCreatePage prompt link", () => {
 		const prompt = "Fix the flaky test\nin a & b = c";
 		const user = userEvent.setup();
 
-		renderPage(`/agents?prompt=${encodeURIComponent(prompt)}`);
+		const { router } = renderPage(
+			`/agents?archived=archived&prompt=${encodeURIComponent(prompt)}`,
+		);
 
 		const sendButton = await findEnabledSendButton();
 		expect(createChat).not.toHaveBeenCalled();
@@ -1120,28 +974,13 @@ describe("AgentCreatePage prompt link", () => {
 		expect(createChat.mock.calls[0][0].content).toEqual([
 			{ type: "text", text: prompt },
 		]);
-	});
-
-	it("ignores the prompt when a debug link is also present", async () => {
-		enableExperiments("enable-ai-workspace-debug");
-		const { createChat } = mockPageQueries();
-		const user = userEvent.setup();
-
-		const { router } = renderPage(`${deepLink}&prompt=hi`);
-
-		const sendButton = await findEnabledSendButton();
-		expect(router.state.location.search).toBe("?archived=archived");
-		// Exact match: a prompt left in state would show the link alert.
-		expect(router.state.location.state).toEqual({
-			debugWorkspaceBuildId: failedBuild.id,
-		});
-		await user.click(sendButton);
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat.mock.calls[0][0].content).toEqual([
-			{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
-			{ type: "file", file_id: "uploaded-logs" },
-		]);
+		// The chat's URL keeps other parameters but not the prompt.
+		await waitFor(() =>
+			expect(router.state.location).toMatchObject({
+				pathname: "/agents/new-chat-id",
+				search: "?archived=archived",
+			}),
+		);
 	});
 
 	it("moves the prompt out of the URL so New chat gets a plain composer", async () => {

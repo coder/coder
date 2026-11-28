@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
@@ -100,16 +100,11 @@ export type CreateChatOptions = {
 
 /**
  * Prefilled content for a chat opened from a deep link. The form reads it on
- * mount (remount with a new `key` to change it), uploads any attachment
- * without sending, and neither reads nor writes the saved draft or
- * attachments.
+ * mount (remount with a new `key` to change it) and neither reads nor writes
+ * the saved draft or attachments.
  */
 export type AgentCreatePrefill = {
 	message: string;
-	attachment?: {
-		name: string;
-		text: string;
-	};
 	/** Shown in the composer until the user edits the message or sends it. */
 	warning?: string;
 };
@@ -900,32 +895,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		resetAttachments();
 		resetWorkspaceUploads();
 	};
-
-	const [prefillFile] = useState(() =>
-		prefill?.attachment
-			? new File([prefill.attachment.text], prefill.attachment.name, {
-					type: "text/plain",
-				})
-			: null,
-	);
-	// Attached once, after adoption, because adoption replaces the attachment
-	// list. An org change after that drops the logs, and they are not attached
-	// again.
-	const prefillAttachRequestedRef = useRef(false);
-	const attachPrefillFile = useEffectEvent((file: File) => {
-		handleAttach([file]);
-	});
-	const canAttachPrefillFile = organizationAdopted && !isForbidden;
-	useEffect(() => {
-		if (
-			prefillFile &&
-			canAttachPrefillFile &&
-			!prefillAttachRequestedRef.current
-		) {
-			prefillAttachRequestedRef.current = true;
-			attachPrefillFile(prefillFile);
-		}
-	}, [prefillFile, canAttachPrefillFile]);
 
 	const showOrgSelector =
 		showOrganizations && isUserOrgSelectionActive && permittedOrgs.length > 1;
