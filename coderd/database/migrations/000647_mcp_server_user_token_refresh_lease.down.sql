@@ -1,0 +1,2 @@
+DROP FUNCTION IF EXISTS acquire_mcp_server_user_token_refresh_lease;
+ALTER TABLE mcp_server_user_tokens DROP COLUMN IF EXISTS refresh_lease_expires_at;

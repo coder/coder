@@ -1862,3 +1862,46 @@ func TestToolCallCarriesToolCallID(t *testing.T) {
 	require.False(t, resp.IsError)
 	require.Equal(t, "<none>", resp.Content, "an empty tool call ID must not set the _meta key")
 }
+
+func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	cfg := mcpclient.Server{
+		ID:       uuid.New(),
+		Slug:     "revoked",
+		UserAuth: mcpclient.UserAuthOAuth2,
+	}
+
+	t.Run("FailureReasonSet", func(t *testing.T) {
+		t.Parallel()
+		headers := mcpclient.BuildAuthHeadersForTest(
+			context.Background(), logger, cfg,
+			map[uuid.UUID]database.MCPServerUserToken{
+				cfg.ID: {
+					MCPServerConfigID:         cfg.ID,
+					AccessToken:               "leftover",
+					OauthRefreshFailureReason: "invalid_grant",
+				},
+			},
+			uuid.New(), nil,
+		)
+		require.NotContains(t, headers, "Authorization")
+	})
+
+	t.Run("HealthyToken", func(t *testing.T) {
+		t.Parallel()
+		headers := mcpclient.BuildAuthHeadersForTest(
+			context.Background(), logger, cfg,
+			map[uuid.UUID]database.MCPServerUserToken{
+				cfg.ID: {
+					MCPServerConfigID: cfg.ID,
+					AccessToken:       "valid",
+					TokenType:         "Bearer",
+				},
+			},
+			uuid.New(), nil,
+		)
+		require.Equal(t, "Bearer valid", headers["Authorization"])
+	})
+}

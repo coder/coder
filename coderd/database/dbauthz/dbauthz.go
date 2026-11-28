@@ -1851,6 +1851,13 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
 
+func (q *querier) AcquireMCPServerUserTokenRefreshLease(ctx context.Context, arg database.AcquireMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+	fetch := func(ctx context.Context, arg database.AcquireMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
+	}
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.AcquireMCPServerUserTokenRefreshLease)(ctx, arg)
+}
+
 func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
@@ -7722,6 +7729,13 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseExternalAuthLinkRefreshLease)(ctx, arg)
+}
+
+func (q *querier) ReleaseMCPServerUserTokenRefreshLease(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshLeaseParams) error {
+	fetch := func(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshLeaseParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseMCPServerUserTokenRefreshLease)(ctx, arg)
 }
 
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {

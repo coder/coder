@@ -845,6 +845,56 @@ $$;
 
 COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
 
+CREATE TABLE mcp_server_user_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    mcp_server_config_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    access_token text NOT NULL,
+    access_token_key_id text,
+    refresh_token text DEFAULT ''::text NOT NULL,
+    refresh_token_key_id text,
+    token_type text DEFAULT 'Bearer'::text NOT NULL,
+    expiry timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
+    refresh_lease_expires_at timestamp with time zone
+);
+
+COMMENT ON COLUMN mcp_server_user_tokens.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+CREATE FUNCTION acquire_mcp_server_user_token_refresh_lease(arg_id uuid, timeout_ms bigint) RETURNS SETOF mcp_server_user_tokens
+    LANGUAGE plpgsql
+    AS $$
+DECLARE r mcp_server_user_tokens;
+BEGIN
+	-- The lease never touches updated_at, so callers can keep using
+	-- updated_at as the optimistic lock for the token material.
+	UPDATE mcp_server_user_tokens
+	SET
+		refresh_lease_expires_at = NOW() + (timeout_ms || ' ms')::interval
+	WHERE
+		id = arg_id
+		AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at < NOW())
+	RETURNING * INTO r;
+	-- Got the lease, return the one row.
+	IF FOUND THEN
+		RETURN NEXT r;
+		RETURN;
+	END IF;
+	-- Differentiate between unable to get the lease and the row being gone.
+	IF EXISTS (SELECT 1 FROM mcp_server_user_tokens WHERE id = arg_id) THEN
+		RAISE EXCEPTION 'row is currently leased by another replica'
+			USING ERRCODE = 'check_violation',
+				CONSTRAINT = 'mcp_server_user_token_active_lease';
+	END IF;
+	-- Row is gone, return nothing.
+	RETURN;
+END;
+$$;
+
+COMMENT ON FUNCTION acquire_mcp_server_user_token_refresh_lease(arg_id uuid, timeout_ms bigint) IS 'Acquire a lease on the MCP server user token and return the row. If there is already an active lease, an exception is raised.';
+
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2945,21 +2995,6 @@ CREATE TABLE mcp_server_configs (
     CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
-);
-
-CREATE TABLE mcp_server_user_tokens (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    mcp_server_config_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    access_token text NOT NULL,
-    access_token_key_id text,
-    refresh_token text DEFAULT ''::text NOT NULL,
-    refresh_token_key_id text,
-    token_type text DEFAULT 'Bearer'::text NOT NULL,
-    expiry timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE notification_messages (

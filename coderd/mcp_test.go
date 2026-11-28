@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -841,18 +842,22 @@ func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
 func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 	t.Parallel()
 
+	listAuthConnected := func(t *testing.T, ctx context.Context, client *codersdk.Client, organizationID, _ uuid.UUID) bool {
+		configs, err := client.MCPServerConfigs(ctx, organizationID)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		return configs[0].AuthConnected
+	}
 	tests := []struct {
 		name          string
 		authConnected func(*testing.T, context.Context, *codersdk.Client, uuid.UUID, uuid.UUID) bool
+		// refreshedAccess is the access token the token endpoint returns.
+		refreshedAccess string
 	}{
 		{
-			name: "List",
-			authConnected: func(t *testing.T, ctx context.Context, client *codersdk.Client, organizationID, _ uuid.UUID) bool {
-				configs, err := client.MCPServerConfigs(ctx, organizationID)
-				require.NoError(t, err)
-				require.Len(t, configs, 1)
-				return configs[0].AuthConnected
-			},
+			name:            "List",
+			authConnected:   listAuthConnected,
+			refreshedAccess: "fresh-access",
 		},
 		{
 			name: "Get",
@@ -861,6 +866,14 @@ func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 				require.NoError(t, err)
 				return config.AuthConnected
 			},
+			refreshedAccess: "fresh-access",
+		},
+		{
+			// The rotated refresh token is saved even though the access
+			// token comes back unchanged.
+			name:            "ListSameAccessToken",
+			authConnected:   listAuthConnected,
+			refreshedAccess: "expired-access",
 		},
 	}
 	for _, test := range tests {
@@ -872,7 +885,7 @@ func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 				require.NoError(t, r.ParseForm())
 				require.Equal(t, "old-refresh", r.Form.Get("refresh_token"))
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`))
+				_, _ = fmt.Fprintf(w, `{"access_token":%q,"refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`, test.refreshedAccess)
 			}))
 			t.Cleanup(tokenSrv.Close)
 
@@ -926,10 +939,66 @@ func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 				UserID:            firstUser.UserID,
 			})
 			require.NoError(t, err)
-			require.Equal(t, "fresh-access", row.AccessToken)
+			require.Equal(t, test.refreshedAccess, row.AccessToken)
 			require.Equal(t, "rotated-refresh", row.RefreshToken)
 		})
 	}
+}
+
+func TestMCPServerConfigsRefreshLeaseHeldReportsConnected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var tokenCalls atomic.Int64
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tokenCalls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           ps,
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "OAuth Lease Held",
+		Slug:           "oauth-lease-held",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/lease",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenSrv.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+
+	tok := dbgen.MCPServerUserToken(t, db, database.MCPServerUserToken{
+		MCPServerConfigID: created.ID,
+		UserID:            firstUser.UserID,
+		AccessToken:       "expired-access",
+		RefreshToken:      "old-refresh",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	// Another request, such as a chat turn, is refreshing the token.
+	_, err = db.AcquireMCPServerUserTokenRefreshLease(ctx, database.AcquireMCPServerUserTokenRefreshLeaseParams{
+		ID:        tok.ID,
+		TimeoutMs: testutil.WaitLong.Milliseconds(),
+	})
+	require.NoError(t, err)
+
+	configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.True(t, configs[0].AuthConnected)
+	require.EqualValues(t, 0, tokenCalls.Load())
 }
 
 func TestMCPServerConfigACL(t *testing.T) {
@@ -4541,12 +4610,20 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	require.False(t, single.AuthConnected)
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
 
-	// A stale optimistic-lock update must not clobber the row.
+	// A stale optimistic-lock update must not clobber the row, even under
+	// the refresh lease.
+	//nolint:gocritic // Exercising the queries requires system access.
+	leased, err := db.AcquireMCPServerUserTokenRefreshLease(dbauthz.AsSystemRestricted(ctx), database.AcquireMCPServerUserTokenRefreshLeaseParams{
+		ID:        seeded.ID,
+		TimeoutMs: time.Minute.Milliseconds(),
+	})
+	require.NoError(t, err)
 	//nolint:gocritic // Exercising the query requires system access.
 	_, err = db.MarkMCPServerUserTokenRefreshFailure(dbauthz.AsSystemRestricted(ctx), database.MarkMCPServerUserTokenRefreshFailureParams{
 		ID:                        seeded.ID,
 		UpdatedAt:                 seeded.UpdatedAt,
 		OauthRefreshFailureReason: "stale",
+		Lease:                     leased.RefreshLeaseExpiresAt.Time,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	//nolint:gocritic // Verifying persisted state requires system access.

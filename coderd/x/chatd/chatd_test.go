@@ -12349,6 +12349,112 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 		"rotated refresh token should be persisted in the database")
 }
 
+// TestMCPServerOAuth2TokenRefreshListDuringChatRefresh verifies that the
+// MCP server list neither waits for nor races a chat turn that is
+// refreshing the same token: while the turn holds the refresh lease, the
+// list reports the server as connected without calling the token
+// endpoint itself.
+func TestMCPServerOAuth2TokenRefreshListDuringChatRefresh(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	gate := chattest.NewGate()
+	defer gate.Open()
+	var tokenCalls atomic.Int32
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenCalls.Add(1)
+		if gate.Wait(r.Context()) != nil {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	mcpSrv := newTestMCPServer("overlap-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done!")...)
+	})
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t),
+	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+
+	mcpConfig := dbgen.MCPServerConfig(t, api.Database, database.MCPServerConfig{
+		OrganizationID: user.OrganizationID,
+		DisplayName:    "Overlap MCP",
+		Slug:           "overlap-mcp",
+		Url:            mcpTS.URL,
+		AuthType:       "oauth2",
+		OAuth2ClientID: "test-client-id",
+		OAuth2TokenURL: tokenSrv.URL,
+		Enabled:        true,
+		CreatedBy:      uuid.NullUUID{UUID: user.UserID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.UserID, Valid: true},
+	})
+	dbgen.MCPServerUserToken(t, api.Database, database.MCPServerUserToken{
+		MCPServerConfigID: mcpConfig.ID,
+		UserID:            user.UserID,
+		AccessToken:       "old-expired-access-token",
+		RefreshToken:      "old-refresh-token",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Echo something via the overlap MCP.",
+		}},
+		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
+	})
+	require.NoError(t, err)
+
+	// The chat turn holds the refresh lease while its token request
+	// waits at the gate.
+	select {
+	case <-gate.Arrived(1):
+	case <-ctx.Done():
+		t.Fatal("the chat turn never requested a token")
+	}
+	configs, err := client.MCPServerConfigs(ctx, user.OrganizationID)
+	require.NoError(t, err)
+	idx := slices.IndexFunc(configs, func(cfg codersdk.MCPServerConfig) bool { return cfg.ID == mcpConfig.ID })
+	require.NotEqual(t, -1, idx)
+	require.True(t, configs[idx].AuthConnected)
+	require.EqualValues(t, 1, tokenCalls.Load(), "the list must not call the token endpoint")
+	gate.Open()
+
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		return getErr == nil && (got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError)
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, api.ChatDaemon()))
+
+	//nolint:gocritic // Reading token state requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	row, err := api.Database.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: mcpConfig.ID,
+		UserID:            user.UserID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "fresh-access", row.AccessToken)
+	require.Equal(t, "rotated-refresh", row.RefreshToken)
+	require.EqualValues(t, 1, tokenCalls.Load())
+}
+
 // TestMCPServerOAuth2TokenRefreshFailureGraceful verifies that when
 // the OAuth2 token endpoint is down, the chat still proceeds without
 // the MCP server's tools. The expired token is preserved unchanged.
