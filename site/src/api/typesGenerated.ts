@@ -756,6 +756,31 @@ export const AIProviderTypes: AIProviderType[] = [
 
 // From codersdk/aibridge.go
 /**
+ * AISpendBudgetStatus is a user's effective budget and spend inside one
+ * organization, resolved the same way AI Gateway resolves a request made in
+ * that organization.
+ */
+export interface AISpendBudgetStatus {
+	/**
+	 * EffectiveGroupID is the group inside the organization that the user's
+	 * spend is attributed to, falling back to the organization's Everyone
+	 * group when no budget applies.
+	 */
+	readonly effective_group_id: string;
+	/**
+	 * EffectiveBudget is the spend limit that applies to the user in the
+	 * organization. Null when no budget applies in the organization.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
+	 * CurrentSpendMicros is the user's spend on EffectiveGroupID over the
+	 * current budget period, the same value the budget check compares.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
  * AISpendPeriodWindow is the [Start, End) window over which AI spend is
  * aggregated.
  */
@@ -8580,26 +8605,11 @@ export interface OrganizationMember {
  * single organization, resolved the same way AI Gateway resolves a request
  * made in that organization.
  */
-export interface OrganizationMemberAISpendStatus extends AISpendPeriodWindow {
+export interface OrganizationMemberAISpendStatus
+	extends AISpendBudgetStatus,
+		AISpendPeriodWindow {
 	readonly organization_id: string;
 	readonly user_id: string;
-	/**
-	 * EffectiveGroupID is the group inside this organization that the spend
-	 * is attributed to, falling back to the organization's Everyone group
-	 * when no budget applies.
-	 */
-	readonly effective_group_id: string;
-	/**
-	 * EffectiveBudget is the spend limit that applies to the user in this
-	 * organization. Null when no budget applies, leaving the user's spend
-	 * unlimited.
-	 */
-	readonly effective_budget: AIBudgetLimit | null;
-	/**
-	 * CurrentSpendMicros is the user's spend on their effective group over
-	 * the current budget period.
-	 */
-	readonly current_spend_micros: number;
 }
 
 // From codersdk/organizations.go
@@ -12601,22 +12611,8 @@ export interface UserLoginType {
  * UserOrganizationAISpend is a user's AI spend inside one organization in
  * the active budget period.
  */
-export interface UserOrganizationAISpend {
+export interface UserOrganizationAISpend extends AISpendBudgetStatus {
 	readonly organization: MinimalOrganization;
-	/**
-	 * EffectiveGroupID is the user's effective group inside Organization,
-	 * falling back to its Everyone group.
-	 */
-	readonly effective_group_id: string;
-	/**
-	 * EffectiveBudget is null when no budget applies in Organization.
-	 */
-	readonly effective_budget: AIBudgetLimit | null;
-	/**
-	 * CurrentSpendMicros is the spend on EffectiveGroupID over the current
-	 * budget period, the same value the budget check compares.
-	 */
-	readonly current_spend_micros: number;
 }
 
 // From codersdk/aibridge.go

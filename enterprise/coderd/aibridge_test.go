@@ -4790,10 +4790,12 @@ func TestUserOrganizationsAISpendStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &defaultOrg.ID, got.OrganizationID)
 		require.Equal(t, []codersdk.UserOrganizationAISpend{{
-			Organization:       defaultOrg.MinimalOrganization,
-			EffectiveGroupID:   group.ID,
-			EffectiveBudget:    groupLimit(1_000_000_000),
-			CurrentSpendMicros: 250_000_000,
+			Organization: defaultOrg.MinimalOrganization,
+			AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+				EffectiveGroupID:   group.ID,
+				EffectiveBudget:    groupLimit(1_000_000_000),
+				CurrentSpendMicros: 250_000_000,
+			},
 		}}, got.Organizations)
 
 		// The single entry agrees with the site-wide endpoint.
@@ -4824,16 +4826,20 @@ func TestUserOrganizationsAISpendStatus(t *testing.T) {
 
 		want := []codersdk.UserOrganizationAISpend{
 			{
-				Organization:       otherOrg.MinimalOrganization,
-				EffectiveGroupID:   otherGroup.ID,
-				EffectiveBudget:    groupLimit(5_000_000_000),
-				CurrentSpendMicros: 300_000_000,
+				Organization: otherOrg.MinimalOrganization,
+				AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+					EffectiveGroupID:   otherGroup.ID,
+					EffectiveBudget:    groupLimit(5_000_000_000),
+					CurrentSpendMicros: 300_000_000,
+				},
 			},
 			{
-				Organization:       defaultOrg.MinimalOrganization,
-				EffectiveGroupID:   defaultGroup.ID,
-				EffectiveBudget:    groupLimit(1_000_000_000),
-				CurrentSpendMicros: 100_000_000,
+				Organization: defaultOrg.MinimalOrganization,
+				AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+					EffectiveGroupID:   defaultGroup.ID,
+					EffectiveBudget:    groupLimit(1_000_000_000),
+					CurrentSpendMicros: 100_000_000,
+				},
 			},
 		}
 		readers := map[string]*codersdk.Client{
@@ -4886,10 +4892,12 @@ func TestUserOrganizationsAISpendStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, got.Organizations, 2)
 		require.Equal(t, codersdk.UserOrganizationAISpend{
-			Organization:       otherOrg.MinimalOrganization,
-			EffectiveGroupID:   otherOrg.ID,
-			EffectiveBudget:    nil,
-			CurrentSpendMicros: 40_000_000,
+			Organization: otherOrg.MinimalOrganization,
+			AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+				EffectiveGroupID:   otherOrg.ID,
+				EffectiveBudget:    nil,
+				CurrentSpendMicros: 40_000_000,
+			},
 		}, got.Organizations[0])
 	})
 
@@ -5055,22 +5063,26 @@ func TestOrganizationMemberAISpendStatus(t *testing.T) {
 	}
 
 	wantBudgeted := codersdk.OrganizationMemberAISpendStatus{
-		OrganizationID:   budgetedOrgID,
-		UserID:           target.ID,
-		EffectiveGroupID: group.ID,
-		EffectiveBudget: &codersdk.AIBudgetLimit{
-			SpendLimitMicros: 1_000_000_000,
-			LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+		OrganizationID: budgetedOrgID,
+		UserID:         target.ID,
+		AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+			EffectiveGroupID: group.ID,
+			EffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
+			CurrentSpendMicros: 250_000_000,
 		},
 		AISpendPeriodWindow: wantPeriod,
-		CurrentSpendMicros:  250_000_000,
 	}
 	wantUnbudgeted := codersdk.OrganizationMemberAISpendStatus{
-		OrganizationID:      unbudgetedOrg.ID,
-		UserID:              target.ID,
-		EffectiveGroupID:    unbudgetedEveryoneGroupID,
+		OrganizationID: unbudgetedOrg.ID,
+		UserID:         target.ID,
+		AISpendBudgetStatus: codersdk.AISpendBudgetStatus{
+			EffectiveGroupID:   unbudgetedEveryoneGroupID,
+			CurrentSpendMicros: 700_000_000,
+		},
 		AISpendPeriodWindow: wantPeriod,
-		CurrentSpendMicros:  700_000_000,
 	}
 
 	cases := []struct {

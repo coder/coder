@@ -13463,15 +13463,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                         |
-|------------------------|--------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                   |
-| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user in this organization. Null when no budget applies, leaving the user's spend unlimited.                 |
-| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group inside this organization that the spend is attributed to, falling back to the organization's Everyone group when no budget applies. |
-| `organization_id`      | string                                           | false    |              |                                                                                                                                                                     |
-| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                      |
-| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                    |
-| `user_id`              | string                                           | false    |              |                                                                                                                                                                     |
+| Name                   | Type                                             | Required | Restrictions | Description                                                                                                                                                               |
+|------------------------|--------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                          | false    |              | Current spend micros is the user's spend on EffectiveGroupID over the current budget period, the same value the budget check compares.                                    |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that applies to the user in the organization. Null when no budget applies in the organization.                                        |
+| `effective_group_id`   | string                                           | false    |              | Effective group ID is the group inside the organization that the user's spend is attributed to, falling back to the organization's Everyone group when no budget applies. |
+| `organization_id`      | string                                           | false    |              |                                                                                                                                                                           |
+| `period_end`           | string                                           | false    |              | Period end is the exclusive upper bound of the applied period.                                                                                                            |
+| `period_start`         | string                                           | false    |              | Period start is the inclusive lower bound of the applied period.                                                                                                          |
+| `user_id`              | string                                           | false    |              |                                                                                                                                                                           |
 
 ## codersdk.OrganizationMemberWithUserData
 
@@ -19211,12 +19211,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                     |
-|------------------------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the spend on EffectiveGroupID over the current budget period, the same value the budget check compares. |
-| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit)             | false    |              | Effective budget is null when no budget applies in Organization.                                                                |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the user's effective group inside Organization, falling back to its Everyone group.                       |
-| `organization`         | [codersdk.MinimalOrganization](#codersdkminimalorganization) | false    |              |                                                                                                                                 |
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                               |
+|------------------------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on EffectiveGroupID over the current budget period, the same value the budget check compares.                                    |
+| `effective_budget`     | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit)             | false    |              | Effective budget is the spend limit that applies to the user in the organization. Null when no budget applies in the organization.                                        |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group inside the organization that the user's spend is attributed to, falling back to the organization's Everyone group when no budget applies. |
+| `organization`         | [codersdk.MinimalOrganization](#codersdkminimalorganization) | false    |              |                                                                                                                                                                           |
 
 ## codersdk.UserOrganizationsAISpendStatus
 
