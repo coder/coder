@@ -5,11 +5,13 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockDropdownParameter,
 	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter4,
 	MockPreviewParameter7,
+	MockSwitchParameter,
 	MockTemplateVersion2,
 	MockWorkspace,
 	MockWorkspaceBuildParameter1,
@@ -79,6 +81,51 @@ describe("WorkspaceParametersPage", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
+	});
+
+	it("does not send an empty value for a newly revealed dropdown", async () => {
+		const mockAdvanced: TypesGen.PreviewParameter = {
+			...MockSwitchParameter,
+			form_type: "checkbox",
+			value: { valid: true, value: "false" },
+		};
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+		renderWorkspaceParametersPage();
+		await connectWithInitialParameters(mockPublisher, [mockAdvanced]);
+		await waitForLoaderToBeRemoved();
+
+		await act(async () => {
+			await userEvent.click(screen.getByRole("checkbox"));
+		});
+		await waitFor(() => {
+			expect(mockPublisher.clientSentData).toHaveLength(1);
+		});
+		await act(async () => {
+			mockPublisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [
+							{ ...mockAdvanced, value: { valid: true, value: "true" } },
+							{
+								...MockDropdownParameter,
+								value: MockDropdownParameter.default_value,
+							},
+						],
+						diagnostics: [],
+					}),
+				}),
+			);
+		});
+
+		expect(
+			mockPublisher.clientSentData.map((request) =>
+				JSON.parse(String(request)),
+			),
+		).toEqual([
+			expect.objectContaining({ inputs: { [mockAdvanced.name]: "true" } }),
+		]);
 	});
 
 	it("waits for and sends initial build parameters", async () => {
