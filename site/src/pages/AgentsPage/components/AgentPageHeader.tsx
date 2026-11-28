@@ -29,6 +29,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
+import { useDashboardHomePath } from "#/modules/dashboard/useDashboardHomePath";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
@@ -57,6 +58,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
+	const homePath = useDashboardHomePath();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
 		useState(getChimeEnabled);
@@ -138,7 +140,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 				</Button>
 			) : (
 				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
-					<NavLink to="/workspaces" className="inline-flex">
+					<NavLink to={homePath} className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
 				</div>

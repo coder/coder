@@ -8,6 +8,7 @@ import type {
 	Region,
 	User,
 	UserAppearanceSettings,
+	UserPreferenceSettings,
 } from "#/api/typesGenerated";
 import type { Permissions } from "#/modules/permissions";
 export const DEFAULT_METADATA_KEY = "property";
@@ -28,6 +29,7 @@ type AvailableMetadata = Readonly<{
 	experiments: Experiment[];
 	appearance: AppearanceConfig;
 	userAppearance: UserAppearanceSettings;
+	userPreferences: UserPreferenceSettings;
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
@@ -92,6 +94,8 @@ export class MetadataManager implements MetadataManagerApi {
 			appearance: this.registerValue<AppearanceConfig>("appearance"),
 			userAppearance:
 				this.registerValue<UserAppearanceSettings>("userAppearance"),
+			userPreferences:
+				this.registerValue<UserPreferenceSettings>("userPreferences"),
 			entitlements: this.registerValue<Entitlements>("entitlements"),
 			experiments: this.registerValue<Experiment[]>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),

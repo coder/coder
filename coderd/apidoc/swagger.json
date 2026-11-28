@@ -24054,6 +24054,14 @@
 				}
 			}
 		},
+		"codersdk.DefaultLandingPage": {
+			"type": "string",
+			"enum": ["workspaces", "agents"],
+			"x-enum-varnames": [
+				"DefaultLandingPageWorkspaces",
+				"DefaultLandingPageAgents"
+			]
+		},
 		"codersdk.DeleteExternalAuthByIDResponse": {
 			"type": "object",
 			"properties": {
@@ -31820,6 +31828,9 @@
 				"collapse_assistant_steps": {
 					"type": "boolean"
 				},
+				"default_landing_page": {
+					"$ref": "#/definitions/codersdk.DefaultLandingPage"
+				},
 				"shell_tool_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"
 				},
@@ -32512,6 +32523,9 @@
 				},
 				"collapse_assistant_steps": {
 					"type": "boolean"
+				},
+				"default_landing_page": {
+					"$ref": "#/definitions/codersdk.DefaultLandingPage"
 				},
 				"shell_tool_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"

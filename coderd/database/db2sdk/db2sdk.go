@@ -356,6 +356,41 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return convertedUser
 }
 
+// UserPreferenceSettings applies defaults to missing or invalid stored preferences.
+func UserPreferenceSettings(row database.GetUserPreferenceSettingsRow) codersdk.UserPreferenceSettings {
+	// Preserve the boolean spellings accepted by the previous SQL cast.
+	var collapseAssistantSteps bool
+	switch strings.ToLower(strings.TrimSpace(row.CollapseAssistantSteps)) {
+	// spellchecker:ignore-next-line
+	case "1", "t", "tr", "tru", "true", "y", "ye", "yes", "on":
+		collapseAssistantSteps = true
+	}
+	settings := codersdk.UserPreferenceSettings{
+		ThinkingDisplayMode:    codersdk.ThinkingDisplayMode(row.ThinkingDisplayMode),
+		ShellToolDisplayMode:   codersdk.AgentDisplayMode(row.ShellToolDisplayMode),
+		CodeDiffDisplayMode:    codersdk.AgentDisplayMode(row.CodeDiffDisplayMode),
+		CollapseAssistantSteps: collapseAssistantSteps,
+		AgentChatSendShortcut:  codersdk.AgentChatSendShortcut(row.AgentChatSendShortcut),
+		DefaultLandingPage:     codersdk.DefaultLandingPage(row.DefaultLandingPage),
+	}
+	if !slices.Contains(codersdk.ValidThinkingDisplayModes, settings.ThinkingDisplayMode) {
+		settings.ThinkingDisplayMode = codersdk.ThinkingDisplayModeAuto
+	}
+	if !slices.Contains(codersdk.ValidAgentDisplayModes, settings.ShellToolDisplayMode) {
+		settings.ShellToolDisplayMode = codersdk.AgentDisplayModeAlwaysCollapsed
+	}
+	if !slices.Contains(codersdk.ValidAgentDisplayModes, settings.CodeDiffDisplayMode) {
+		settings.CodeDiffDisplayMode = ""
+	}
+	if !slices.Contains(codersdk.ValidAgentChatSendShortcuts, settings.AgentChatSendShortcut) {
+		settings.AgentChatSendShortcut = codersdk.AgentChatSendShortcutEnter
+	}
+	if settings.DefaultLandingPage != codersdk.DefaultLandingPageAgents {
+		settings.DefaultLandingPage = codersdk.DefaultLandingPageWorkspaces
+	}
+	return settings
+}
+
 func Group(row database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
 		ID:                      row.Group.ID,

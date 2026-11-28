@@ -34917,23 +34917,6 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
-const getUserAgentChatSendShortcut = `-- name: GetUserAgentChatSendShortcut :one
-SELECT
-	value AS agent_chat_send_shortcut
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'preference_agent_chat_send_shortcut'
-`
-
-func (q *sqlQuerier) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserAgentChatSendShortcut, userID)
-	var agent_chat_send_shortcut string
-	err := row.Scan(&agent_chat_send_shortcut)
-	return agent_chat_send_shortcut, err
-}
-
 const getUserAppearanceSettings = `-- name: GetUserAppearanceSettings :one
 SELECT
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
@@ -35114,40 +35097,6 @@ func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID 
 	return debug_logging_enabled, err
 }
 
-const getUserCodeDiffDisplayMode = `-- name: GetUserCodeDiffDisplayMode :one
-SELECT
-	value AS code_diff_display_mode
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'preference_code_diff_display_mode'
-`
-
-func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserCodeDiffDisplayMode, userID)
-	var code_diff_display_mode string
-	err := row.Scan(&code_diff_display_mode)
-	return code_diff_display_mode, err
-}
-
-const getUserCollapseAssistantSteps = `-- name: GetUserCollapseAssistantSteps :one
-SELECT
-	value::boolean as collapse_assistant_steps
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'preference_collapse_assistant_steps'
-`
-
-func (q *sqlQuerier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getUserCollapseAssistantSteps, userID)
-	var collapse_assistant_steps bool
-	err := row.Scan(&collapse_assistant_steps)
-	return collapse_assistant_steps, err
-}
-
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -35199,38 +35148,49 @@ func (q *sqlQuerier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id u
 	return i, err
 }
 
-const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one
+const getUserPreferenceSettings = `-- name: GetUserPreferenceSettings :one
 SELECT
-	value AS shell_tool_display_mode
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_thinking_display_mode'), '')::text AS thinking_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_shell_tool_display_mode'), '')::text AS shell_tool_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_code_diff_display_mode'), '')::text AS code_diff_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_collapse_assistant_steps'), '')::text AS collapse_assistant_steps,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_agent_chat_send_shortcut'), '')::text AS agent_chat_send_shortcut,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_default_landing_page'), '')::text AS default_landing_page
 FROM
 	user_configs
 WHERE
 	user_id = $1
-	AND key = 'preference_shell_tool_display_mode'
+	AND key IN (
+		'preference_thinking_display_mode',
+		'preference_shell_tool_display_mode',
+		'preference_code_diff_display_mode',
+		'preference_collapse_assistant_steps',
+		'preference_agent_chat_send_shortcut',
+		'preference_default_landing_page'
+	)
 `
 
-func (q *sqlQuerier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserShellToolDisplayMode, userID)
-	var shell_tool_display_mode string
-	err := row.Scan(&shell_tool_display_mode)
-	return shell_tool_display_mode, err
+type GetUserPreferenceSettingsRow struct {
+	ThinkingDisplayMode    string `db:"thinking_display_mode" json:"thinking_display_mode"`
+	ShellToolDisplayMode   string `db:"shell_tool_display_mode" json:"shell_tool_display_mode"`
+	CodeDiffDisplayMode    string `db:"code_diff_display_mode" json:"code_diff_display_mode"`
+	CollapseAssistantSteps string `db:"collapse_assistant_steps" json:"collapse_assistant_steps"`
+	AgentChatSendShortcut  string `db:"agent_chat_send_shortcut" json:"agent_chat_send_shortcut"`
+	DefaultLandingPage     string `db:"default_landing_page" json:"default_landing_page"`
 }
 
-const getUserThinkingDisplayMode = `-- name: GetUserThinkingDisplayMode :one
-SELECT
-	value AS thinking_display_mode
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'preference_thinking_display_mode'
-`
-
-func (q *sqlQuerier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThinkingDisplayMode, userID)
-	var thinking_display_mode string
-	err := row.Scan(&thinking_display_mode)
-	return thinking_display_mode, err
+func (q *sqlQuerier) GetUserPreferenceSettings(ctx context.Context, userID uuid.UUID) (GetUserPreferenceSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserPreferenceSettings, userID)
+	var i GetUserPreferenceSettingsRow
+	err := row.Scan(
+		&i.ThinkingDisplayMode,
+		&i.ShellToolDisplayMode,
+		&i.CodeDiffDisplayMode,
+		&i.CollapseAssistantSteps,
+		&i.AgentChatSendShortcut,
+		&i.DefaultLandingPage,
+	)
+	return i, err
 }
 
 const getUsers = `-- name: GetUsers :many
@@ -35812,6 +35772,33 @@ func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg U
 	var collapse_assistant_steps bool
 	err := row.Scan(&collapse_assistant_steps)
 	return collapse_assistant_steps, err
+}
+
+const updateUserDefaultLandingPage = `-- name: UpdateUserDefaultLandingPage :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_default_landing_page', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_default_landing_page'
+RETURNING value AS default_landing_page
+`
+
+type UpdateUserDefaultLandingPageParams struct {
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	DefaultLandingPage string    `db:"default_landing_page" json:"default_landing_page"`
+}
+
+func (q *sqlQuerier) UpdateUserDefaultLandingPage(ctx context.Context, arg UpdateUserDefaultLandingPageParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserDefaultLandingPage, arg.UserID, arg.DefaultLandingPage)
+	var default_landing_page string
+	err := row.Scan(&default_landing_page)
+	return default_landing_page, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

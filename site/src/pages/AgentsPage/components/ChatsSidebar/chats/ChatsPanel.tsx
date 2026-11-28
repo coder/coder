@@ -38,6 +38,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDashboardHomePath } from "#/modules/dashboard/useDashboardHomePath";
 import { getOSKey, isMac } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
@@ -499,9 +500,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
-						<NavLink to="/workspaces" className="inline-flex">
-							<ProductLogo className="size-6" />
-						</NavLink>
+						<SidebarHomeLink />
 						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
@@ -814,5 +813,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			</div>
 			<UserSidebarFooter />
 		</div>
+	);
+};
+
+const SidebarHomeLink: React.FC = () => {
+	return (
+		<NavLink to={useDashboardHomePath()} className="inline-flex">
+			<ProductLogo className="size-6" />
+		</NavLink>
 	);
 };

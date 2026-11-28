@@ -8,6 +8,12 @@ Developers and agents in a team each work from their own workspace and can use [
 A developer creates a workspace from a [shared template](../templates/index.md).
 This lets an entire team work in environments that are identically configured and provisioned with the same resources.
 
+If **Agents** is available to your account, open **Settings** > **Account** > **Dashboard** and set **Default landing page** to **Workspaces** or **Agents**.
+Coder saves your choice automatically and uses it when you open the dashboard home page or select the dashboard logo.
+Links to specific pages still open those pages.
+**Workspaces** is the default and opens immediately if your preference isn't available, without changing your saved choice.
+If **Agents** isn't available to your account, Coder hides the setting and opens **Workspaces** without changing a saved **Agents** choice.
+
 <a id="creating-workspaces"></a>
 
 ## Create workspaces

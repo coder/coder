@@ -1,9 +1,17 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import type { UserPreferenceSettings } from "#/api/typesGenerated";
+import { defaultMetadataManager } from "#/hooks/useEmbeddedMetadata";
+import { DashboardIndexRedirect } from "#/modules/dashboard/DashboardIndexRedirect";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockEntitlements,
 	MockGroup,
+	MockPermissions,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -35,7 +43,7 @@ describe("AccountPage", () => {
 		});
 	});
 
-	it("nests the groups heading under the page heading", async () => {
+	it("nests dashboard and groups headings under the page heading", async () => {
 		vi.spyOn(API, "getEntitlements").mockResolvedValue({
 			...MockEntitlements,
 			features: withDefaultFeatures({
@@ -48,7 +56,232 @@ describe("AccountPage", () => {
 		await screen.findByText(MockGroup.display_name);
 		expect(
 			screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-		).toEqual(["Your groups"]);
+		).toEqual(["Dashboard", "Your groups"]);
+	});
+
+	describe("default landing page", () => {
+		afterEach(() => vi.restoreAllMocks());
+
+		it.each([
+			{ initial: "workspaces", next: "agents", label: "Agents" },
+			{ initial: "agents", next: "workspaces", label: "Workspaces" },
+		] as const)(
+			"uses saved $next instead of embedded preferences when reloading fails",
+			async ({ initial, next, label }) => {
+				const user = userEvent.setup();
+				const mockInitialPreferences = {
+					...MockUserPreferenceSettings,
+					default_landing_page: initial,
+				};
+				const mockUpdatedPreferences = {
+					...mockInitialPreferences,
+					default_landing_page: next,
+				};
+				const metadata = defaultMetadataManager.getMetadata();
+				vi.spyOn(defaultMetadataManager, "getMetadata").mockReturnValue({
+					...metadata,
+					userPreferences: { available: true, value: mockInitialPreferences },
+				});
+				const getPreference = vi
+					.spyOn(API, "getUserPreferenceSettings")
+					.mockResolvedValue(mockInitialPreferences);
+				const update = vi
+					.spyOn(API, "updateUserPreferenceSettings")
+					.mockResolvedValue(mockUpdatedPreferences);
+				const { queryClient, router } = renderWithAuth(<AccountPage />, {
+					path: "/settings/account",
+					route: "/settings/account",
+					extraRoutes: [
+						{ path: "/", element: <DashboardIndexRedirect /> },
+						{ path: "/agents", element: <div>Agents</div> },
+						{ path: "/workspaces", element: <div>Workspaces</div> },
+					],
+				});
+				await screen.findByText(initial === "agents" ? "Agents" : "Workspaces");
+				expect(getPreference).not.toHaveBeenCalled();
+				getPreference.mockRejectedValue(new Error("Preferences unavailable"));
+
+				await user.click(
+					screen.getByRole("combobox", { name: "Default landing page" }),
+				);
+				await user.click(await screen.findByRole("option", { name: label }));
+
+				await waitFor(() => {
+					expect(queryClient.getQueryState(preferenceSettingsKey)?.status).toBe(
+						"error",
+					);
+				});
+				expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+					mockUpdatedPreferences,
+				);
+				expect(update).toHaveBeenCalledExactlyOnceWith({
+					default_landing_page: next,
+				});
+
+				await act(() => router.navigate("/"));
+				await waitFor(() => {
+					expect(router.state.location.pathname).toBe(`/${next}`);
+				});
+				expect(getPreference).toHaveBeenCalledTimes(1);
+			},
+		);
+
+		it("keeps keyboard focus while saving and ignores repeated selections", async () => {
+			const user = userEvent.setup();
+			const saved = createDeferred<UserPreferenceSettings>();
+			const getPreference = vi
+				.spyOn(API, "getUserPreferenceSettings")
+				.mockResolvedValue(MockUserPreferenceSettings);
+			const update = vi
+				.spyOn(API, "updateUserPreferenceSettings")
+				.mockReturnValue(saved.promise);
+			const { queryClient } = renderWithAuth(<AccountPage />);
+			await screen.findByText("Workspaces");
+			const trigger = screen.getByRole("combobox", {
+				name: "Default landing page",
+			});
+			const status = screen.getByRole("status");
+			expect(status.textContent).toBe("");
+			await user.click(trigger);
+			await user.click(await screen.findByRole("option", { name: "Agents" }));
+			await waitFor(() =>
+				expect(status).toHaveTextContent("Saving default landing page"),
+			);
+			await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+			await user.keyboard("{Enter}{ArrowUp}{Enter}");
+			expect(document.activeElement).toBe(trigger);
+			expect(update).toHaveBeenCalledExactlyOnceWith({
+				default_landing_page: "agents",
+			});
+
+			const mockUpdatedPreferences: UserPreferenceSettings = {
+				...MockUserPreferenceSettings,
+				default_landing_page: "agents",
+			};
+			getPreference.mockResolvedValue(mockUpdatedPreferences);
+			saved.resolve(mockUpdatedPreferences);
+			await waitFor(() => {
+				expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+					mockUpdatedPreferences,
+				);
+			});
+			expect(document.activeElement).toBe(trigger);
+			await waitFor(() =>
+				expect(status).toHaveTextContent("Default landing page saved"),
+			);
+		});
+
+		it("keeps the saved preference after a failed update and allows retrying", async () => {
+			const user = userEvent.setup();
+			const mockUpdatedPreferences: UserPreferenceSettings = {
+				...MockUserPreferenceSettings,
+				default_landing_page: "agents",
+			};
+			vi.spyOn(API, "getUserPreferenceSettings")
+				.mockResolvedValueOnce(MockUserPreferenceSettings)
+				.mockResolvedValue(mockUpdatedPreferences);
+			const update = vi
+				.spyOn(API, "updateUserPreferenceSettings")
+				.mockRejectedValueOnce(
+					mockApiError({ message: "Preference could not be saved." }),
+				)
+				.mockResolvedValue(mockUpdatedPreferences);
+			const { queryClient } = renderWithAuth(<AccountPage />);
+			await screen.findByText("Workspaces");
+			const trigger = screen.getByRole("combobox", {
+				name: "Default landing page",
+			});
+			await user.click(trigger);
+			await user.click(await screen.findByRole("option", { name: "Agents" }));
+			await screen.findByText("Preference could not be saved.");
+			expect(trigger).toHaveAccessibleDescription(
+				/Choose your dashboard home page.*Preference could not be saved\./,
+			);
+
+			expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+				MockUserPreferenceSettings,
+			);
+			await user.click(trigger);
+			await user.click(await screen.findByRole("option", { name: "Agents" }));
+			await waitFor(() => {
+				expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+					mockUpdatedPreferences,
+				);
+			});
+			expect(trigger).toHaveAccessibleDescription(
+				"Choose your dashboard home page. This preference syncs across your devices.",
+			);
+			expect(update.mock.calls).toEqual([
+				[{ default_landing_page: "agents" }],
+				[{ default_landing_page: "agents" }],
+			]);
+		});
+
+		it("does not load or change preferences when Agents is unavailable", async () => {
+			vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+				...MockPermissions,
+				createChat: false,
+			});
+			const getPreference = vi
+				.spyOn(API, "getUserPreferenceSettings")
+				.mockReturnValue(createDeferred<UserPreferenceSettings>().promise);
+			const update = vi.spyOn(API, "updateUserPreferenceSettings");
+			renderWithAuth(<AccountPage />);
+
+			await screen.findByRole("textbox", { name: "Username" });
+			expect(getPreference).not.toHaveBeenCalled();
+			expect(update).not.toHaveBeenCalled();
+		});
+
+		it("defaults to Workspaces after a failed load and allows saving Agents", async () => {
+			const user = userEvent.setup();
+			const mockUpdatedPreferences: UserPreferenceSettings = {
+				...MockUserPreferenceSettings,
+				default_landing_page: "agents",
+			};
+			const initialLoad = createDeferred<UserPreferenceSettings>();
+			const getPreference = vi
+				.spyOn(API, "getUserPreferenceSettings")
+				.mockReturnValueOnce(initialLoad.promise)
+				.mockResolvedValue(mockUpdatedPreferences);
+			const update = vi
+				.spyOn(API, "updateUserPreferenceSettings")
+				.mockResolvedValue(mockUpdatedPreferences);
+			const { queryClient } = renderWithAuth(<AccountPage />);
+			await screen.findByText("Loading default landing page");
+			const status = screen.getByRole("status");
+			expect(status).toHaveTextContent("Loading default landing page");
+			await act(async () =>
+				initialLoad.reject(new Error("Preferences unavailable")),
+			);
+			await waitFor(() => {
+				expect(queryClient.getQueryState(preferenceSettingsKey)?.status).toBe(
+					"error",
+				);
+			});
+			expect(status.textContent).toBe("");
+			const trigger = screen.getByRole("combobox", {
+				name: "Default landing page",
+			});
+			await user.click(trigger);
+			await user.click(
+				await screen.findByRole("option", { name: "Workspaces" }),
+			);
+			expect(update).not.toHaveBeenCalled();
+			expect(getPreference).toHaveBeenCalledTimes(1);
+
+			await user.click(trigger);
+			await user.click(await screen.findByRole("option", { name: "Agents" }));
+			await waitFor(() => {
+				expect(queryClient.getQueryData(preferenceSettingsKey)).toEqual(
+					mockUpdatedPreferences,
+				);
+			});
+			expect(update).toHaveBeenCalledExactlyOnceWith({
+				default_landing_page: "agents",
+			});
+		});
 	});
 
 	describe("when it is a success", () => {

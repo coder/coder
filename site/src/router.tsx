@@ -11,6 +11,7 @@ import {
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
+import { DashboardIndexRedirect } from "./modules/dashboard/DashboardIndexRedirect";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import { openChatListFirst } from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
@@ -588,9 +589,9 @@ export const router = createBrowserRouter(
 
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>
+				{/* Nesting this under DashboardLayout would flash its shell before Agents. */}
+				<Route index element={<DashboardIndexRedirect />} />
 				<Route element={<DashboardLayout />}>
-					<Route index element={<Navigate to="/workspaces" replace />} />
-
 					<Route
 						path="/external-auth/:provider"
 						element={<ExternalAuthPage />}

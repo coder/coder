@@ -8411,6 +8411,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DefaultLandingPage
+
+```json
+"workspaces"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)               |
+|------------------------|
+| `agents`, `workspaces` |
+
 ## codersdk.DeleteExternalAuthByIDResponse
 
 ```json
@@ -18374,6 +18388,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
+  "default_landing_page": "workspaces",
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -18386,6 +18401,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `collapse_assistant_steps` | boolean                                                          | false    |              |             |
+| `default_landing_page`     | [codersdk.DefaultLandingPage](#codersdkdefaultlandingpage)       | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -19260,6 +19276,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
+  "default_landing_page": "workspaces",
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -19272,6 +19289,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `collapse_assistant_steps` | boolean                                                          | false    |              |             |
+| `default_landing_page`     | [codersdk.DefaultLandingPage](#codersdkdefaultlandingpage)       | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 

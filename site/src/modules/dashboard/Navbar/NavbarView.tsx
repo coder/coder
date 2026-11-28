@@ -19,6 +19,7 @@ import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 type NavbarViewProps = {
+	homePath: string;
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
@@ -37,6 +38,7 @@ const linkStyles = {
 };
 
 export const NavbarView: React.FC<NavbarViewProps> = ({
+	homePath,
 	user,
 	buildInfo,
 	supportLinks,
@@ -69,7 +71,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 							: undefined,
 			}}
 		>
-			<NavLink to="/workspaces">
+			<NavLink to={homePath}>
 				<ProductLogo className="h-7" />
 			</NavLink>
 

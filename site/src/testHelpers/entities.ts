@@ -537,6 +537,7 @@ export const MockSiteRoles = [
 ];
 
 export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	default_landing_page: "workspaces",
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",

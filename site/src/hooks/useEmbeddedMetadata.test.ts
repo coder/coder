@@ -10,6 +10,7 @@ import {
 	MockPermissions,
 	MockUserAppearanceSettings,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
 import {
 	DEFAULT_METADATA_KEY,
@@ -43,6 +44,7 @@ const mockDataForTags = {
 	experiments: MockExperiments,
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
+	userPreferences: MockUserPreferenceSettings,
 	regions: MockRegions,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
 	"user-secret-file-path-enabled": true,
@@ -76,6 +78,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	userAppearance: {
+		available: false,
+		value: undefined,
+	},
+	userPreferences: {
 		available: false,
 		value: undefined,
 	},
@@ -125,6 +131,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	userAppearance: {
 		available: true,
 		value: MockUserAppearanceSettings,
+	},
+	userPreferences: {
+		available: true,
+		value: MockUserPreferenceSettings,
 	},
 	"ai-gateway-enabled": {
 		available: true,

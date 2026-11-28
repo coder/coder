@@ -5577,6 +5577,14 @@ export const DefaultChatMaxStepsPerTurn = 1200;
  */
 export const DefaultChatWorkspaceTTL = 0;
 
+// From codersdk/users.go
+export type DefaultLandingPage = "agents" | "workspaces";
+
+export const DefaultLandingPages: DefaultLandingPage[] = [
+	"agents",
+	"workspaces",
+];
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
@@ -12085,6 +12093,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly code_diff_display_mode?: AgentDisplayMode;
 	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
+	readonly default_landing_page?: DefaultLandingPage;
 }
 
 // From codersdk/users.go
@@ -12645,6 +12654,7 @@ export interface UserPreferenceSettings {
 	readonly code_diff_display_mode: AgentDisplayMode;
 	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
+	readonly default_landing_page: DefaultLandingPage;
 }
 
 // From codersdk/deployment.go

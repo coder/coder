@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	type InfiniteData,
@@ -19,6 +19,7 @@ import {
 	chatListFamilyKey,
 	infiniteChats,
 } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -29,6 +30,7 @@ import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
@@ -43,6 +45,7 @@ import AgentsPageLayout, {
 	type AgentsPageOutletContext,
 } from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS } from "./utils/agentSidebarFilters";
 
@@ -106,6 +109,61 @@ beforeEach(() => {
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
+});
+
+describe("AgentsPageLayout dashboard logos", () => {
+	it.each([
+		{ surface: "sidebar", preference: "agents", destination: "/agents" },
+		{ surface: "header", preference: "agents", destination: "/agents" },
+		{
+			surface: "sidebar",
+			preference: "workspaces",
+			destination: "/workspaces",
+		},
+		{ surface: "header", preference: "workspaces", destination: "/workspaces" },
+	] as const)(
+		"navigates the $surface logo directly to $destination",
+		async ({ surface, preference, destination }) => {
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+			const getPreferences = vi.spyOn(API, "getUserPreferenceSettings");
+			const { router, queryClient } = renderWithAuth(<AgentsPageLayout />, {
+				path: "/agents",
+				route: "/agents/chat-1",
+				children: [
+					{ index: true, element: null },
+					{
+						path: ":agentId",
+						element: (
+							<section aria-label="Agent page">
+								<AgentPageHeader />
+							</section>
+						),
+					},
+				],
+				extraRoutes: [{ path: "/workspaces", element: null }],
+			});
+			queryClient.setQueryDefaults(preferenceSettingsKey, {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			queryClient.setQueryData(preferenceSettingsKey, {
+				...MockUserPreferenceSettings,
+				default_landing_page: preference,
+			});
+			const region =
+				surface === "sidebar"
+					? await screen.findByRole("navigation", { name: "Sidebar" })
+					: await screen.findByRole("region", { name: "Agent page" });
+			const user = userEvent.setup();
+			await user.click(
+				within(region).getByRole("link", { name: "Coder logo" }),
+			);
+
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe(destination),
+			);
+			expect(getPreferences).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("AgentsPageLayout New chat", () => {

@@ -352,6 +352,7 @@ export const logout = (queryClient: QueryClient): MutationOptions => {
 			// Experiments are decided per user, so the embedded list must not
 			// seed the next user's session.
 			defaultMetadataManager.clearMetadataByKey("experiments");
+			defaultMetadataManager.clearMetadataByKey("userPreferences");
 			queryClient.removeQueries();
 		},
 	};
@@ -431,13 +432,13 @@ export const updateAppearanceSettings = (
 
 export const preferenceSettingsKey = ["me", "preferences"] as const;
 
-export const preferenceSettings =
-	(): UseQueryOptions<UserPreferenceSettings> => {
-		return {
-			queryKey: preferenceSettingsKey,
-			queryFn: () => API.getUserPreferenceSettings(),
-		};
-	};
+export const preferenceSettings = () => {
+	return cachedQuery({
+		metadata: defaultMetadataManager.getMetadata().userPreferences,
+		queryKey: preferenceSettingsKey,
+		queryFn: () => API.getUserPreferenceSettings(),
+	});
+};
 
 export const updatePreferenceSettings = (
 	queryClient: QueryClient,
@@ -449,10 +450,12 @@ export const updatePreferenceSettings = (
 > => {
 	return {
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
-		onSuccess: async () =>
+		onSuccess: async (settings) => {
+			queryClient.setQueryData(preferenceSettingsKey, settings);
 			await queryClient.invalidateQueries({
 				queryKey: preferenceSettingsKey,
-			}),
+			});
+		},
 	};
 };
 

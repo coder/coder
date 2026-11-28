@@ -304,14 +304,26 @@ END
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
--- name: GetUserThinkingDisplayMode :one
+-- name: GetUserPreferenceSettings :one
 SELECT
-	value AS thinking_display_mode
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_thinking_display_mode'), '')::text AS thinking_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_shell_tool_display_mode'), '')::text AS shell_tool_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_code_diff_display_mode'), '')::text AS code_diff_display_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_collapse_assistant_steps'), '')::text AS collapse_assistant_steps,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_agent_chat_send_shortcut'), '')::text AS agent_chat_send_shortcut,
+	COALESCE(MAX(value) FILTER (WHERE key = 'preference_default_landing_page'), '')::text AS default_landing_page
 FROM
 	user_configs
 WHERE
 	user_id = @user_id
-	AND key = 'preference_thinking_display_mode';
+	AND key IN (
+		'preference_thinking_display_mode',
+		'preference_shell_tool_display_mode',
+		'preference_code_diff_display_mode',
+		'preference_collapse_assistant_steps',
+		'preference_agent_chat_send_shortcut',
+		'preference_default_landing_page'
+	);
 
 -- name: UpdateUserThinkingDisplayMode :one
 INSERT INTO
@@ -327,15 +339,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_thinking_display_mode'
 RETURNING value AS thinking_display_mode;
 
--- name: GetUserShellToolDisplayMode :one
-SELECT
-	value AS shell_tool_display_mode
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_shell_tool_display_mode';
-
 -- name: UpdateUserShellToolDisplayMode :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -349,15 +352,6 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_shell_tool_display_mode'
 RETURNING value AS shell_tool_display_mode;
-
--- name: GetUserCodeDiffDisplayMode :one
-SELECT
-	value AS code_diff_display_mode
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_code_diff_display_mode';
 
 -- name: UpdateUserCodeDiffDisplayMode :one
 INSERT INTO
@@ -373,15 +367,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_code_diff_display_mode'
 RETURNING value AS code_diff_display_mode;
 
--- name: GetUserAgentChatSendShortcut :one
-SELECT
-	value AS agent_chat_send_shortcut
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_agent_chat_send_shortcut';
-
 -- name: UpdateUserAgentChatSendShortcut :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -396,14 +381,19 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_agent_chat_send_shortcut'
 RETURNING value AS agent_chat_send_shortcut;
 
--- name: GetUserCollapseAssistantSteps :one
-SELECT
-	value::boolean as collapse_assistant_steps
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_collapse_assistant_steps';
+-- name: UpdateUserDefaultLandingPage :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_default_landing_page', @default_landing_page::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @default_landing_page
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_default_landing_page'
+RETURNING value AS default_landing_page;
 
 -- name: UpdateUserCollapseAssistantSteps :one
 INSERT INTO
