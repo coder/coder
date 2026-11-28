@@ -2593,6 +2593,9 @@ func (p *Server) appendRootChatTools(
 			Logger:        p.logger,
 		}),
 	)
+	if p.manageAutomationsAvailable(ctx, opts.chat) {
+		tools = append(tools, p.manageAutomationsTool(opts.chat))
+	}
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,

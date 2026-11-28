@@ -3,22 +3,29 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -27,9 +34,10 @@ func TestAutomationSchedule(t *testing.T) {
 	t.Parallel()
 
 	type fixture struct {
-		worker *workerTestFixture
-		model  database.ChatModelConfig
-		server *Server
+		worker  *workerTestFixture
+		model   database.ChatModelConfig
+		auditor *audit.MockAuditor
+		server  *Server
 	}
 	// The servers are not started, so a chat that a run starts stays busy.
 	newServer := func(t *testing.T, f fixture, hooks *dispatch.Dispatcher) *Server {
@@ -40,6 +48,7 @@ func TestAutomationSchedule(t *testing.T) {
 			Experiments:        codersdk.Experiments{codersdk.ExperimentAgentLifecycleHooks},
 			HookDispatcher:     hooks,
 			AutomationsEnabled: func(context.Context, uuid.UUID) bool { return true },
+			Auditor:            mockAuditorPtr(f.auditor),
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, server.Close()) })
@@ -48,7 +57,7 @@ func TestAutomationSchedule(t *testing.T) {
 	setup := func(t *testing.T, hooks *dispatch.Dispatcher) fixture {
 		db, ps := dbtestutil.NewDB(t)
 		user, org, model := seedInternalChatDeps(t, db)
-		f := fixture{worker: &workerTestFixture{db: db, pubsub: newRecordingPubsub(ps), user: user, org: org}, model: model}
+		f := fixture{worker: &workerTestFixture{db: db, pubsub: newRecordingPubsub(ps), user: user, org: org}, model: model, auditor: audit.NewMock()}
 		f.server = newServer(t, f, hooks)
 		return f
 	}
@@ -240,4 +249,99 @@ func TestAutomationSchedule(t *testing.T) {
 		f.server.tickSchedules(ctx, automation.ScheduleNextRunAt.Time.Add(time.Second))
 		requireLastRun(t, read(ctx, t, f, automation.ID), database.ChatAutomationRunOutcomeSkipped, string(runReasonOverlap), 2)
 	})
+
+	t.Run("HeartbeatTool", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f := setup(t, nil)
+		chatA, chatB := idleChat(t, f), idleChat(t, f)
+		call := func(t *testing.T, chat database.Chat, input string) fantasy.ToolResponse {
+			resp, err := f.server.manageAutomationsTool(chat).Run(ctx, fantasy.ToolCall{ID: "call", Name: chatautomation.ToolName, Input: input})
+			require.NoError(t, err)
+			return resp
+		}
+		resp := call(t, chatA, `{"action":"create","name":"done check","prompt":"Check /tmp/done.","schedule_cron":"*/5 * * * *","schedule_time_zone":"UTC"}`)
+		require.False(t, resp.IsError, resp.Content)
+		var created struct {
+			ID uuid.UUID `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &created))
+		automation := read(ctx, t, f, created.ID)
+		thisChat := uuid.NullUUID{UUID: chatA.ID, Valid: true}
+		require.Equal(t, thisChat, automation.TargetChatID)
+		require.Equal(t, thisChat, automation.CreatedByChatID)
+
+		f.server.tickSchedules(ctx, automation.ScheduleNextRunAt.Time.Add(time.Second))
+		requireLastRun(t, read(ctx, t, f, created.ID), database.ChatAutomationRunOutcomeAccepted, "", 0)
+		require.Equal(t, 1, sentBy(ctx, t, f, chatA.ID, created.ID))
+
+		// Chat B neither sees nor stops chat A's heartbeat; chat A does both.
+		byID := func(action string) string {
+			return fmt.Sprintf(`{"action":%q,"automation_id":%q}`, action, created.ID)
+		}
+		require.NotContains(t, call(t, chatB, `{"action":"list"}`).Content, created.ID.String())
+		require.True(t, call(t, chatB, byID("disable")).IsError)
+		require.True(t, call(t, chatB, byID("delete")).IsError)
+		require.True(t, read(ctx, t, f, created.ID).Enabled)
+		require.Contains(t, call(t, chatA, `{"action":"list"}`).Content, created.ID.String())
+		require.False(t, call(t, chatA, byID("disable")).IsError)
+		require.False(t, read(ctx, t, f, created.ID).Enabled)
+		require.False(t, call(t, chatA, byID("delete")).IsError)
+		_, err := f.worker.db.GetChatAutomationByID(ctx, created.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		var audited []database.AuditAction
+		for _, l := range f.auditor.AuditLogs() {
+			if l.ResourceType == database.ResourceTypeChatAutomation {
+				audited = append(audited, l.Action)
+			}
+		}
+		require.Equal(t, []database.AuditAction{database.AuditActionCreate, database.AuditActionWrite, database.AuditActionDelete}, audited)
+	})
+}
+
+func TestBuildTurnEnvironmentManageAutomations(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                           string
+		experiment, archived, fromAuto bool
+		want                           bool
+	}{
+		{name: "RootChat", experiment: true, want: true},
+		{name: "CreatedByAutomation", experiment: true, fromAuto: true},
+		{name: "Archived", experiment: true, archived: true},
+		{name: "ExperimentOff"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID, Title: "heartbeat", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "hi"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+			server.automationsEnabled = func(_ context.Context, ownerID uuid.UUID) bool { return tc.experiment && ownerID == user.ID }
+			chat := created.Chat
+			chat.Archived = tc.archived
+			if tc.fromAuto {
+				chat.AutomationID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+			}
+
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: chat, Messages: created.InitialMessages})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Close)
+			offered := false
+			for _, tool := range prepared.Tools {
+				offered = offered || tool.Info().Name == chatautomation.ToolName
+			}
+			require.Equal(t, tc.want, offered)
+		})
+	}
 }
