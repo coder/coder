@@ -3311,6 +3311,110 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 	},
 };
 
+const HISTORY_PAGE_SIZE = 50;
+// Five older pages behind the newest one; the oldest is partial.
+const longHistory = buildLongConversation(CHAT_ID, 5 * HISTORY_PAGE_SIZE + 10);
+
+/** The page of messages before beforeID, newest first, as the server sends. */
+const historyPageBefore = (beforeID: number): TypesGen.ChatMessagesResponse => {
+	const older = longHistory.filter((message) => message.id < beforeID);
+	const page = older.slice(-HISTORY_PAGE_SIZE).reverse();
+	return {
+		messages: page,
+		queued_messages: [],
+		has_more: older.length > page.length,
+	};
+};
+
+/**
+ * A reader who keeps wheeling up through a long chat, also while each older
+ * page is loading, loads every page once and reaches the first message.
+ */
+export const RapidWheelUpLoadsEveryOlderPage: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			historyPageBefore(longHistory.length + 1),
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const requestedBeforeIDs: (number | undefined)[] = [];
+		let inFlight = 0;
+		let maxInFlight = 0;
+		spyOn(API.experimental, "getChatMessages").mockImplementation(
+			async (_chatID, opts) => {
+				requestedBeforeIDs.push(opts?.before_id);
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				// Each page stays pending while the reader keeps wheeling.
+				await new Promise((resolve) => setTimeout(resolve, 300));
+				inFlight--;
+				return historyPageBefore(opts?.before_id ?? longHistory.length + 1);
+			},
+		);
+
+		const viewport = await canvas.findByRole("region", { name: "Messages" });
+		await waitFor(() => {
+			expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+		});
+
+		// Every frame, the wheel moves the view to the start, as a reader
+		// spinning the wheel hard does. Each page then lands with the view
+		// already at the start, so the next request must start without the
+		// view ever leaving it.
+		let wheeling = true;
+		const wheelUp = () => {
+			if (!wheeling) {
+				return;
+			}
+			const distance = viewport.scrollHeight;
+			viewport.dispatchEvent(
+				new WheelEvent("wheel", { deltaY: -distance, bubbles: true }),
+			);
+			viewport.scrollBy({ top: -distance, behavior: "instant" });
+			requestAnimationFrame(wheelUp);
+		};
+		requestAnimationFrame(wheelUp);
+		// Each page is requested before the oldest message loaded so far.
+		const pageBeforeIDs = [211, 161, 111, 61, 11];
+		try {
+			await waitFor(() => expect(requestedBeforeIDs).toEqual(pageBeforeIDs), {
+				timeout: 10_000,
+			});
+			await canvas.findAllByText(
+				"Question 1: Can you explain concept 1 in detail?",
+			);
+			// Keep wheeling at the start after the last page: nothing is left.
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		} finally {
+			wheeling = false;
+		}
+
+		expect(requestedBeforeIDs).toEqual(pageBeforeIDs);
+		expect(maxInFlight).toBe(1);
+	},
+};
+
 export const RemoveLastMCPServer: Story = {
 	parameters: {
 		queries: buildQueries(
