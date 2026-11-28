@@ -240,6 +240,35 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				}
 			}
 
+			var conflicts []string
+			for _, df := range dotfiles {
+				to := filepath.Join(symlinkDir, df)
+				fi, err := os.Lstat(to)
+				if err != nil {
+					if errors.Is(err, os.ErrNotExist) {
+						continue
+					}
+					return xerrors.Errorf("lstat %s: %w", to, err)
+				}
+				if fi.IsDir() {
+					ents, err := os.ReadDir(to)
+					if err != nil {
+						return xerrors.Errorf("reading dir %s: %w", to, err)
+					}
+					// Empty directories are removed and replaced below.
+					if len(ents) > 0 {
+						conflicts = append(conflicts, to)
+					}
+				}
+			}
+			if len(conflicts) > 0 {
+				return xerrors.Errorf(
+					"cannot symlink dotfiles, these paths already exist as non-empty directories:\n  %s\nAdd an install script to your dotfiles repository to install them instead. Recognized names: %s",
+					strings.Join(conflicts, "\n  "),
+					strings.Join(installScriptFiles(), ", "),
+				)
+			}
+
 			for _, df := range dotfiles {
 				from := filepath.Join(dotfilesDir, df)
 				to := filepath.Join(symlinkDir, df)
