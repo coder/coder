@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -167,6 +168,10 @@ func TestServerDBCrypt(t *testing.T) {
 		requireEncryptedWithCipher(ctx, t, db, cipherC[0], usr.ID)
 	}
 
+	webhookSecrets, err := db.GetChatAutomationWebhookSecrets(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, webhookSecrets)
+
 	// Now delete all the encrypted data.
 	t.Log("Deleting all encrypted data")
 	inv, _ = newCLI(t, "server", "dbcrypt", "delete",
@@ -200,6 +205,14 @@ func TestServerDBCrypt(t *testing.T) {
 		require.NoError(t, err, "failed to get chat MCP servers for user %s", usr.ID)
 		require.Empty(t, chatMCPServers)
 	}
+
+	// A subscription without its secret cannot verify deliveries, so it ends.
+	remaining, err := db.GetChatAutomationWebhookSecrets(ctx)
+	require.NoError(t, err)
+	require.Empty(t, remaining)
+	subs, err := db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{webhookSecrets[0].AutomationID})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatAutomationSubscriptionStateTerminated, subs[0].State)
 
 	// Validate that the key has been revoked in the database.
 	keys, err = db.GetDBCryptKeys(ctx)
@@ -270,8 +283,10 @@ func genData(t *testing.T, db database.Store) []database.User {
 				})
 				require.NoError(t, err)
 
-				// Deleted users cannot have user_links or user_secrets.
+				// Deleted users cannot have user_links, user_secrets or chat
+				// automations.
 				if !deleted {
+					genWebhookSecret(t, db, usr, chat)
 					// Fun fact: our schema allows _all_ login types to have
 					// a user_link. Even though I'm not sure how it could occur
 					// in practice, making sure to test all combinations here.
@@ -295,6 +310,28 @@ func genData(t *testing.T, db database.Store) []database.User {
 		}
 	}
 	return users
+}
+
+// genWebhookSecret gives usr a webhook subscription whose automation ID is
+// the chat ID, and its secret.
+func genWebhookSecret(t *testing.T, db database.Store, usr database.User, chat database.Chat) {
+	t.Helper()
+	cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{OrganizationID: chat.OrganizationID, CreatedBy: uuid.NullUUID{UUID: usr.ID, Valid: true}})
+	automation, err := db.InsertChatAutomation(context.Background(), database.InsertChatAutomationParams{
+		ID: uuid.NullUUID{UUID: chat.ID, Valid: true}, OrganizationID: chat.OrganizationID, OwnerID: usr.ID, Name: "webhook",
+		Kind: database.ChatAutomationKindMcpEvent, Enabled: true, Prompt: "Review the push.",
+		TargetMode: database.ChatAutomationTargetModeExistingChat, TargetChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatAutomationMCPSubscription(context.Background(), database.InsertChatAutomationMCPSubscriptionParams{
+		AutomationID: automation.ID, MCPServerConfigID: cfg.ID, EventName: "repo.push", Arguments: json.RawMessage(`{}`),
+		Delivery: database.ChatAutomationEventDeliveryWebhook, State: database.ChatAutomationSubscriptionStateActive,
+		RenewAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.InsertChatAutomationWebhookSecret(context.Background(), database.InsertChatAutomationWebhookSecretParams{
+		AutomationID: automation.ID, Secret: "webhook-secret-" + usr.ID.String(),
+	}))
 }
 
 func requireEncryptedEquals(t *testing.T, c dbcrypt.Cipher, expected, actual string) {
@@ -351,6 +388,12 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Len(t, chatMCPServers, 1)
 	requireEncryptedEquals(t, c, "headers-"+userID.String(), chatMCPServers[0].Headers)
 	require.Equal(t, c.HexDigest(), chatMCPServers[0].HeadersKeyID.String)
+
+	if secret, err := db.GetChatAutomationWebhookSecret(ctx, chatMCPServers[0].ChatID); !xerrors.Is(err, sql.ErrNoRows) {
+		require.NoError(t, err, "failed to get the webhook secret of user %s", userID)
+		requireEncryptedEquals(t, c, "webhook-secret-"+userID.String(), secret.Secret)
+		require.Equal(t, c.HexDigest(), secret.SecretKeyID.String)
+	}
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,

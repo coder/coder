@@ -77,7 +77,7 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, organizationID
 }
 
 // mcpDiscoveryServer is an MCP server whose authorization server supports
-// discovery and dynamic client registration (RFC 7591).
+// discovery and, by default, dynamic client registration (RFC 7591).
 type mcpDiscoveryServer struct {
 	url     string
 	authURL string
@@ -95,22 +95,33 @@ func (s *mcpDiscoveryServer) registrations() [][]string {
 
 // newMCPDiscoveryServer starts an mcpDiscoveryServer whose URL has the
 // path /mcp. When beforeRegister is not nil, it runs before each
-// registration response.
-func newMCPDiscoveryServer(t testing.TB, beforeRegister func()) *mcpDiscoveryServer {
+// registration response. methods lists the client registration methods
+// that the authorization server advertises; the default is dynamic only.
+func newMCPDiscoveryServer(t testing.TB, beforeRegister func(), methods ...codersdk.MCPServerOAuth2ClientRegistration) *mcpDiscoveryServer {
 	t.Helper()
 
+	if len(methods) == 0 {
+		methods = []codersdk.MCPServerOAuth2ClientRegistration{codersdk.MCPServerOAuth2ClientRegistrationDynamic}
+	}
 	s := &mcpDiscoveryServer{}
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/oauth-authorization-server":
+			origin := "http://" + r.Host
+			metadata := map[string]any{
+				"issuer":                   origin,
+				"authorization_endpoint":   origin + "/authorize",
+				"token_endpoint":           origin + "/token",
+				"response_types_supported": []string{"code"},
+			}
+			if slices.Contains(methods, codersdk.MCPServerOAuth2ClientRegistrationDynamic) {
+				metadata["registration_endpoint"] = origin + "/register"
+			}
+			if slices.Contains(methods, codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument) {
+				metadata["client_id_metadata_document_supported"] = true
+			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{
-				"issuer": "` + "http://" + r.Host + `",
-				"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
-				"token_endpoint": "` + "http://" + r.Host + `/token",
-				"registration_endpoint": "` + "http://" + r.Host + `/register",
-				"response_types_supported": ["code"]
-			}`))
+			_ = json.NewEncoder(w).Encode(metadata)
 		case "/register":
 			var body struct {
 				RedirectURIs []string `json:"redirect_uris"`
@@ -1801,6 +1812,54 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	})
 }
 
+// A config change that can reach another server or principal, or a
+// re-enable, restarts the event subscriptions on the config from now.
+func TestMCPServerConfigsUpdateResetsEventSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	// The raw store seeds the subscription that no API creates yet.
+	db, ps := dbtestutil.NewDB(t)
+	adminClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t), Database: db, Pubsub: ps})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	off, on := false, true
+	for _, tc := range []struct {
+		name    string
+		updates []codersdk.UpdateMCPServerConfigRequest
+		reset   bool
+	}{
+		{"URLChange", []codersdk.UpdateMCPServerConfigRequest{{URL: ptr.Ref("https://mcp.example.com/moved")}}, true},
+		{"APIKeyChange", []codersdk.UpdateMCPServerConfigRequest{{APIKeyValue: ptr.Ref("key-2")}}, true},
+		{"APIKeyHeaderChange", []codersdk.UpdateMCPServerConfigRequest{{APIKeyHeader: ptr.Ref("X-Other-Key")}}, true},
+		{"CustomHeadersChange", []codersdk.UpdateMCPServerConfigRequest{{CustomHeaders: &map[string]string{"X-Team": "a"}}}, true},
+		{"ReEnable", []codersdk.UpdateMCPServerConfigRequest{{Enabled: &off}, {Enabled: &on}}, true},
+		{"Rename", []codersdk.UpdateMCPServerConfigRequest{{DisplayName: ptr.Ref("Renamed")}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			config, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName: "Events", Slug: "events-" + strings.ToLower(tc.name), Transport: "streamable_http", URL: "https://mcp.example.com/events",
+				AuthType: "api_key", APIKeyHeader: "X-API-Key", APIKeyValue: "key-1", Availability: "default_on", Enabled: true,
+			})
+			require.NoError(t, err)
+			automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: firstUser.OrganizationID, OwnerID: firstUser.UserID})
+			_, err = db.InsertChatAutomationMCPSubscription(ctx, database.InsertChatAutomationMCPSubscriptionParams{
+				AutomationID: automation.ID, MCPServerConfigID: config.ID, EventName: "repo.push", Arguments: json.RawMessage(`{}`),
+				Delivery: database.ChatAutomationEventDeliveryPoll, State: database.ChatAutomationSubscriptionStateActive,
+				Cursor: sql.NullString{String: "seq:5", Valid: true}, NextPollAt: sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+			for _, update := range tc.updates {
+				_, err = adminClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID, update)
+				require.NoError(t, err)
+			}
+			subs, err := db.GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, []uuid.UUID{automation.ID})
+			require.NoError(t, err)
+			require.Equal(t, tc.reset, !subs[0].Cursor.Valid, "the subscription kept its cursor: %v", subs[0].Cursor)
+		})
+	}
+}
+
 func TestMCPServerConfigsOAuth2ScopedKeyAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -3394,6 +3453,95 @@ func TestMCPServerConfigsUpdateOAuth2Registration(t *testing.T) {
 	})
 }
 
+func TestMCPServerConfigsOAuth2ClientMetadataDocument(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dynamic          = codersdk.MCPServerOAuth2ClientRegistrationDynamic
+		metadataDocument = codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument
+	)
+	cases := []struct {
+		name      string
+		accessURL string
+		supports  []codersdk.MCPServerOAuth2ClientRegistration
+		// want is the stored method, or "" when the create must fail.
+		want codersdk.MCPServerOAuth2ClientRegistration
+	}{
+		// The access URL may be private behind its DNS name, so DCR wins.
+		{name: "PrefersDynamic", accessURL: "https://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{dynamic, metadataDocument}, want: dynamic},
+		{name: "MetadataDocumentOnly", accessURL: "https://coder.example.com/", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}, want: metadataDocument},
+		{name: "MetadataDocumentNeedsPublicAccessURL", accessURL: "http://coder.example.com", supports: []codersdk.MCPServerOAuth2ClientRegistration{metadataDocument}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			accessURL, err := url.Parse(tc.accessURL)
+			require.NoError(t, err)
+			client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t), AccessURL: accessURL})
+			firstUser := coderdtest.CreateFirstUser(t, client)
+			discovery := newMCPDiscoveryServer(t, nil, tc.supports...)
+
+			config, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName: "Metadata Document",
+				Slug:        "metadata-document",
+				Transport:   "streamable_http",
+				URL:         discovery.url,
+				AuthType:    "oauth2",
+				// Selects automatic registration; discovery picks the method.
+				OAuth2ClientRegistration: metadataDocument,
+				Availability:             "default_on",
+				Enabled:                  true,
+			})
+			if tc.want == "" {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, "access URL")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, config.OAuth2ClientRegistration)
+
+			documentPath := "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/client-metadata.json"
+			callbackURL := tc.accessURL + "/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/callback"
+			if tc.want == metadataDocument {
+				// A switch to manual keeps the client, so its document must stay.
+				_, err = client.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+					OAuth2ClientRegistration: ptr.Ref(codersdk.MCPServerOAuth2ClientRegistrationManual),
+				})
+				require.NoError(t, err)
+			}
+			// Authorization servers fetch the document without a session.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+documentPath, nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			if tc.want == dynamic {
+				require.Equal(t, [][]string{{callbackURL}}, discovery.registrations())
+				require.Equal(t, http.StatusNotFound, resp.StatusCode)
+				return
+			}
+
+			require.Empty(t, discovery.registrations())
+			require.Equal(t, strings.TrimSuffix(tc.accessURL, "/")+documentPath, config.OAuth2ClientID)
+			require.False(t, config.HasOAuth2Secret)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			var document struct {
+				ClientID                string   `json:"client_id"`
+				RedirectURIs            []string `json:"redirect_uris"`
+				TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&document))
+			require.Equal(t, config.OAuth2ClientID, document.ClientID)
+			require.Equal(t, []string{callbackURL}, document.RedirectURIs)
+			require.Equal(t, "none", document.TokenEndpointAuthMethod)
+		})
+	}
+}
+
 func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	t.Parallel()
 
@@ -3488,6 +3636,8 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 			redirect.RawQuery = q.Encode()
 			http.Redirect(w, r, redirect.String(), http.StatusFound)
 		case "/token":
+			// A public client sends client_id in the body, not Basic auth.
+			assert.Empty(t, r.Header.Get("Authorization"))
 			if err := r.ParseForm(); err != nil {
 				invalidTarget(w)
 				return

@@ -146,6 +146,14 @@ type SubscribeResult struct {
 	RefreshBefore *time.Time `json:"refreshBefore"`
 	Cursor        *string    `json:"cursor"`
 	Truncated     bool       `json:"truncated"`
+	// DeliveryStatus may come with a refresh of an existing subscription.
+	DeliveryStatus *WebhookDeliveryStatus `json:"deliveryStatus,omitempty"`
+}
+
+// WebhookDeliveryStatus says how the deliveries of a webhook subscription
+// fare. LastError is a category such as "timeout" or "http_4xx".
+type WebhookDeliveryStatus struct {
+	LastError *string `json:"lastError"`
 }
 
 type listEventsParams struct {
@@ -337,6 +345,10 @@ func (s *EventsSession) Subscribe(ctx context.Context, p SubscribeParams) (Subsc
 	res, err := callNamed[*SubscribeResult](ctx, s, "events/subscribe", p.Name, p.Arguments, &p)
 	if err != nil {
 		return SubscribeResult{}, err
+	}
+	// Every delivery carries the id, so a result without one cannot route.
+	if res.ID == "" {
+		return SubscribeResult{}, xerrors.New("events/subscribe returned no subscription id")
 	}
 	return *res, nil
 }

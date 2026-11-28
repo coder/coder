@@ -492,6 +492,8 @@ func TestPlanMCPServerConfigWrite(t *testing.T) {
 	dynamicOAuth2 := manualOAuth2
 	dynamicOAuth2.OAuth2ClientID = "dynamic-client"
 	dynamicOAuth2.OAuth2ClientRegistration = dynamic
+	metadataDocumentOAuth2 := dynamicOAuth2
+	metadataDocumentOAuth2.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument)
 	// A row that an update saved as oauth2 without a client before
 	// updates could register one.
 	brokenOAuth2 := noAuth
@@ -590,6 +592,19 @@ func TestPlanMCPServerConfigWrite(t *testing.T) {
 			req:          codersdk.UpdateMCPServerConfigRequest{OAuth2ClientID: ptr.Ref("")},
 			wantMode:     dynamic,
 			wantClientID: dynamicOAuth2.OAuth2ClientID,
+		},
+		{
+			name:     "AutomaticRequestKeepsMetadataDocument",
+			prev:     metadataDocumentOAuth2,
+			req:      codersdk.UpdateMCPServerConfigRequest{OAuth2ClientRegistration: ptr.Ref(codersdk.MCPServerOAuth2ClientRegistrationDynamic)},
+			wantMode: metadataDocumentOAuth2.OAuth2ClientRegistration,
+		},
+		{
+			name:            "MetadataDocumentURLChangeRegisters",
+			prev:            metadataDocumentOAuth2,
+			req:             codersdk.UpdateMCPServerConfigRequest{URL: ptr.Ref(otherURL)},
+			wantMode:        metadataDocumentOAuth2.OAuth2ClientRegistration,
+			wantRegisterFor: otherURL,
 		},
 		{
 			name:     "DynamicToManualKeepsClient",

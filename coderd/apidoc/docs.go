@@ -182,6 +182,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/automations/{automation}/mcp-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Receive chat automation MCP event webhook",
+                "operationId": "receive-chat-automation-mcp-event-webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -380,6 +413,36 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/mcp/servers/{mcpServer}/oauth2/client-metadata.json": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server OAuth2 client metadata document",
+                "operationId": "get-mcp-server-oauth2-client-metadata-document",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -22912,7 +22975,8 @@ const docTemplate = `{
                 "delivery": {
                     "type": "string",
                     "enum": [
-                        "poll"
+                        "poll",
+                        "webhook"
                     ]
                 },
                 "event_name": {
@@ -22924,9 +22988,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "state": {
-                    "description": "State is terminated after the server ends the subscription. A\nterminated subscription receives no more events.",
+                    "description": "State is pending while a webhook subscribe runs, and terminated after\nthe server ends the subscription. A terminated subscription receives\nno more events.",
                     "type": "string",
                     "enum": [
+                        "pending",
                         "active",
                         "terminated"
                     ]
@@ -26062,10 +26127,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_registration": {
-                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both register automatically, so\nthe client ID, client secret, auth URL, and token URL must be empty;\nthe stored value names the method Coder used. With \"manual\", the\nclient ID, auth URL, and token URL are required. When empty, Coder\nregisters automatically if those three fields are empty, and uses\n\"manual\" otherwise.",
                     "enum": [
                         "manual",
-                        "dynamic"
+                        "dynamic",
+                        "metadata_document"
                     ],
                     "allOf": [
                         {
@@ -28968,11 +29034,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "manual",
-                "dynamic"
+                "dynamic",
+                "metadata_document"
             ],
             "x-enum-varnames": [
                 "MCPServerOAuth2ClientRegistrationManual",
-                "MCPServerOAuth2ClientRegistrationDynamic"
+                "MCPServerOAuth2ClientRegistrationDynamic",
+                "MCPServerOAuth2ClientRegistrationMetadataDocument"
             ]
         },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
@@ -34596,10 +34664,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_registration": {
-                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both select automatic\nregistration; an automatic config keeps its stored method. When a\nrequest that sets the URL or an auth field omits it, Coder registers\nautomatically if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. A new client,\nmade when the config becomes automatic or the URL of an automatic\nconfig changes, deletes the stored user tokens. An automatic config\nignores empty and unchanged client fields; other values fail unless\nthe request also sets \"manual\".",
                     "enum": [
                         "manual",
-                        "dynamic"
+                        "dynamic",
+                        "metadata_document"
                     ],
                     "allOf": [
                         {

@@ -863,6 +863,8 @@ TODO(human): describe the automation loop. Every 30 seconds each worker claims t
 
 TODO(human): describe the MCP event work kinds of the automation loop. `event_poll` leases due poll subscriptions with `FOR UPDATE SKIP LOCKED`, polls each with one events session per owner and MCP server, and appends the events, a gap row for a truncated result or for events that it cannot store, and the cursor to `chat_automation_event_inbox` under the automation lock. `event_drain` sends up to 50 pending rows to an idle target chat in one message, inside `<untrusted-event-data>`, and marks them delivered in the send transaction (chat row lock, then the automation lock); a busy chat keeps them pending. A terminating error ends the subscription with a `terminated` inbox row. Turning the automation on again clears the cursor and makes the poll due, and a poll that was in flight then changes nothing.
 
+TODO(human): describe webhook delivery. `webhook_renew` leases webhook subscriptions whose `renew_at` has passed and calls `events/subscribe` again with the stored cursor and secret before the server's grant ends. The receiver at `/api/experimental/chats/automations/{automation}/mcp-events` verifies the Standard Webhooks signature with the subscription's secret and appends events, gaps and terminations through the same `appendInbox`, so `event_drain` sends them as it sends polled events. A change of an MCP server config's server, credentials or enabled state resets its subscriptions: each resumes from now in a new generation, which scopes event ID deduplication, a poll in flight changes nothing, and an enabled poll subscription that had a cursor gets a gap row.
+
 ## Organization-local model selection and fallback
 
 A chat may use model configs only from its own organization. Chat creation, message sends, and message edits reject an explicit config that is disabled, unavailable to the caller, or belongs to another organization.
@@ -1200,6 +1202,7 @@ The generation goroutine supports:
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - TODO(human): `manage_automations` (`create`, `list`, `disable`, `delete`) in root chats that are not archived, that no automation created, and that are not in plan mode, while the chat-automations experiment is on for the owner. It acts as the chat owner and reaches only the schedules that target its chat; its changes are audited as the owner with the chat ID.
 - TODO(human): `manage_automations` also has `list_event_types`, `subscribe` and `unsubscribe`. They reach the chat's MCP servers as the owner; `subscribe` polls once from now, then creates an `mcp_event` automation and its poll subscription in one transaction.
+- TODO(human): on a deployment with a public https access URL, `subscribe` prefers webhook delivery when the event type offers it: it creates the automation with a pending subscription and its secret, then calls `events/subscribe`, and falls back to poll on `CallbackEndpointError`. Delete and disable unsubscribe a webhook subscription.
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
 - workspace binding

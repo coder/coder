@@ -955,6 +955,7 @@ func New(options *Options) *API {
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				AutomationsEnabled:             api.chatAutomationsEnabled,
+				AccessURL:                      options.AccessURL,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -1424,6 +1425,9 @@ func New(options *Options) *API {
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
 			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			// Authorization servers fetch this client ID metadata document
+			// without a session; the URL is the stored client ID.
+			r.Get("/servers/{mcpServer}/oauth2/client-metadata.json", api.mcpServerOAuth2ClientMetadata)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {

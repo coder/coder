@@ -366,7 +366,8 @@ CREATE TYPE build_reason AS ENUM (
 );
 
 CREATE TYPE chat_automation_event_delivery AS ENUM (
-    'poll'
+    'poll',
+    'webhook'
 );
 
 CREATE TYPE chat_automation_inbox_kind AS ENUM (
@@ -388,7 +389,8 @@ CREATE TYPE chat_automation_run_outcome AS ENUM (
 
 CREATE TYPE chat_automation_subscription_state AS ENUM (
     'active',
-    'terminated'
+    'terminated',
+    'pending'
 );
 
 CREATE TYPE chat_automation_target_mode AS ENUM (
@@ -2171,12 +2173,15 @@ CREATE TABLE chat_automation_event_inbox (
     detail text,
     received_at timestamp with time zone DEFAULT now() NOT NULL,
     delivered_at timestamp with time zone,
+    generation integer DEFAULT 0 NOT NULL,
     CONSTRAINT chat_automation_event_inbox_shape CHECK (((kind = 'event'::chat_automation_inbox_kind) = ((event_id IS NOT NULL) AND (occurred_at IS NOT NULL) AND (data IS NOT NULL))))
 );
 
 COMMENT ON TABLE chat_automation_event_inbox IS 'Events and notices that every delivery mode appends, in arrival order, until a run sends them to the chat.';
 
 COMMENT ON COLUMN chat_automation_event_inbox.detail IS 'The note of a gap row or the reason of a terminated row.';
+
+COMMENT ON COLUMN chat_automation_event_inbox.generation IS 'The subscription generation that received the row.';
 
 CREATE SEQUENCE chat_automation_event_inbox_id_seq
     START WITH 1
@@ -2200,7 +2205,12 @@ CREATE TABLE chat_automation_mcp_subscriptions (
     last_error text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_automation_mcp_subscriptions_poll_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) = (next_poll_at IS NOT NULL)))
+    webhook_subscription_id text,
+    refresh_before timestamp with time zone,
+    renew_at timestamp with time zone,
+    generation integer DEFAULT 0 NOT NULL,
+    CONSTRAINT chat_automation_mcp_subscriptions_poll_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) = (next_poll_at IS NOT NULL))),
+    CONSTRAINT chat_automation_mcp_subscriptions_webhook_shape CHECK (((delivery = 'poll'::chat_automation_event_delivery) OR (state <> 'active'::chat_automation_subscription_state) OR (renew_at IS NOT NULL)))
 );
 
 COMMENT ON TABLE chat_automation_mcp_subscriptions IS 'The MCP event that an mcp_event chat automation subscribes to.';
@@ -2212,6 +2222,24 @@ COMMENT ON COLUMN chat_automation_mcp_subscriptions.cursor IS 'Opaque server cur
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.next_poll_at IS 'When the next poll is due. A claim moves it ahead as a lease.';
 
 COMMENT ON COLUMN chat_automation_mcp_subscriptions.drain_after IS 'When pending inbox rows may next be sent to the chat. A claim moves it ahead as a lease.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.webhook_subscription_id IS 'The id that the MCP server derived for a webhook subscription and sends in X-MCP-Subscription-Id.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.refresh_before IS 'When the MCP server''s grant of a webhook subscription expires.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.renew_at IS 'When a webhook subscription is next subscribed again. A claim moves it ahead as a lease.';
+
+COMMENT ON COLUMN chat_automation_mcp_subscriptions.generation IS 'Counts the resets of the subscription, as when its MCP server config points at another server. Event IDs deduplicate within one generation.';
+
+CREATE TABLE chat_automation_webhook_secrets (
+    automation_id uuid NOT NULL,
+    secret text NOT NULL,
+    secret_key_id text
+);
+
+COMMENT ON TABLE chat_automation_webhook_secrets IS 'The Standard Webhooks secret that signs the deliveries of a webhook subscription.';
+
+COMMENT ON COLUMN chat_automation_webhook_secrets.secret_key_id IS 'The ID of the key used to encrypt the secret. If this is NULL, the secret is not encrypted.';
 
 CREATE TABLE chat_automations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3108,7 +3136,7 @@ CREATE TABLE mcp_server_configs (
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
-    CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text]))),
+    CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text, 'metadata_document'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
@@ -4869,6 +4897,9 @@ ALTER TABLE ONLY chat_automation_event_inbox
 ALTER TABLE ONLY chat_automation_mcp_subscriptions
     ADD CONSTRAINT chat_automation_mcp_subscriptions_pkey PRIMARY KEY (automation_id);
 
+ALTER TABLE ONLY chat_automation_webhook_secrets
+    ADD CONSTRAINT chat_automation_webhook_secrets_pkey PRIMARY KEY (automation_id);
+
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
 
@@ -5302,7 +5333,7 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_automation_event_inbox_delivered_at_idx ON chat_automation_event_inbox USING btree (delivered_at) WHERE (delivered_at IS NOT NULL);
 
-CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox USING btree (automation_id, event_id) WHERE (event_id IS NOT NULL);
+CREATE UNIQUE INDEX chat_automation_event_inbox_event_id_idx ON chat_automation_event_inbox USING btree (automation_id, generation, event_id) WHERE (event_id IS NOT NULL);
 
 CREATE INDEX chat_automation_event_inbox_pending_idx ON chat_automation_event_inbox USING btree (automation_id, id) WHERE (delivered_at IS NULL);
 
@@ -5311,6 +5342,8 @@ CREATE INDEX chat_automation_mcp_subscriptions_config_idx ON chat_automation_mcp
 CREATE INDEX chat_automation_mcp_subscriptions_drain_after_idx ON chat_automation_mcp_subscriptions USING btree (drain_after);
 
 CREATE INDEX chat_automation_mcp_subscriptions_next_poll_at_idx ON chat_automation_mcp_subscriptions USING btree (next_poll_at) WHERE (state = 'active'::chat_automation_subscription_state);
+
+CREATE INDEX chat_automation_mcp_subscriptions_renew_at_idx ON chat_automation_mcp_subscriptions USING btree (renew_at) WHERE (renew_at IS NOT NULL);
 
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
 
@@ -5842,6 +5875,12 @@ ALTER TABLE ONLY chat_automation_mcp_subscriptions
 
 ALTER TABLE ONLY chat_automation_mcp_subscriptions
     ADD CONSTRAINT chat_automation_mcp_subscriptions_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_webhook_secrets
+    ADD CONSTRAINT chat_automation_webhook_secrets_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automation_mcp_subscriptions(automation_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_webhook_secrets
+    ADD CONSTRAINT chat_automation_webhook_secrets_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_created_by_chat_id_fkey FOREIGN KEY (created_by_chat_id) REFERENCES chats(id) ON DELETE SET NULL;

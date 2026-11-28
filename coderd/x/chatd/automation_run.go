@@ -63,6 +63,7 @@ const (
 	runReasonMCPInvalidArguments  runReason = "mcp_invalid_arguments"
 	runReasonMCPAuthRequired      runReason = "mcp_auth_required"
 	runReasonMCPServerUnavailable runReason = "mcp_server_unavailable"
+	runReasonMCPTerminated        runReason = "mcp_terminated"
 )
 
 // runReasonOutcome is skipped when a later run can succeed without a change,
@@ -86,6 +87,7 @@ var runReasonOutcome = map[runReason]database.ChatAutomationRunOutcome{
 	runReasonMCPInvalidArguments:  database.ChatAutomationRunOutcomeRefused,
 	runReasonMCPAuthRequired:      database.ChatAutomationRunOutcomeRefused,
 	runReasonMCPServerUnavailable: database.ChatAutomationRunOutcomeRefused,
+	runReasonMCPTerminated:        database.ChatAutomationRunOutcomeRefused,
 }
 
 // ErrAutomationChanged means that the automation was deleted, disabled or
@@ -442,7 +444,11 @@ func automationMessageContent(automation database.ChatAutomation, ownerUsername 
 	}
 	rows := make([]eventRow, len(run.inbox))
 	for i, r := range run.inbox {
-		rows[i] = eventRow{Kind: r.Kind, EventID: r.EventID.String, EventName: r.EventName.String, Data: r.Data.RawMessage, Detail: r.Detail.String}
+		rows[i] = eventRow{Kind: r.Kind, EventName: r.EventName.String, Data: r.Data.RawMessage, Detail: r.Detail.String}
+		// A notice's event_id is only its delivery's deduplication key.
+		if r.Kind == database.ChatAutomationInboxKindEvent {
+			rows[i].EventID = r.EventID.String
+		}
 		if r.OccurredAt.Valid {
 			rows[i].OccurredAt = &r.OccurredAt.Time
 		}

@@ -1,8 +1,9 @@
 -- name: InsertChatAutomationMCPSubscription :one
-INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, renew_at)
 VALUES (
     @automation_id::uuid, @mcp_server_config_id::uuid, @event_name::text, @arguments::jsonb,
-    @delivery::chat_automation_event_delivery, sqlc.narg('cursor')::text, sqlc.narg('next_poll_at')::timestamptz
+    @delivery::chat_automation_event_delivery, @state::chat_automation_subscription_state,
+    sqlc.narg('cursor')::text, sqlc.narg('next_poll_at')::timestamptz, sqlc.narg('renew_at')::timestamptz
 )
 RETURNING *;
 
@@ -74,49 +75,63 @@ SET drain_after = @drain_after::timestamptz
 WHERE automation_id = @automation_id::uuid;
 
 -- name: UpdateChatAutomationMCPCursor :execrows
--- Records a delivery or a failed poll of an active subscription: the cursor
--- to resume from, the next poll and the error. A NULL cursor or next poll
--- keeps the stored one; a NULL error clears it. A poll's delivery passes its
--- lease, and updates nothing once the subscription no longer holds it.
-UPDATE chat_automation_mcp_subscriptions
+-- Records a delivery or a failed poll of an active subscription of an enabled
+-- automation: the cursor to resume from, the next poll and the error. A NULL
+-- cursor or next poll keeps the stored one; a NULL error clears it. A poll's
+-- delivery passes its lease, and updates nothing once the subscription no
+-- longer holds it.
+UPDATE chat_automation_mcp_subscriptions s
 SET
-    cursor = COALESCE(sqlc.narg('cursor')::text, cursor),
-    next_poll_at = COALESCE(sqlc.narg('next_poll_at')::timestamptz, next_poll_at),
+    cursor = COALESCE(sqlc.narg('cursor')::text, s.cursor),
+    next_poll_at = COALESCE(sqlc.narg('next_poll_at')::timestamptz, s.next_poll_at),
     last_error = sqlc.narg('last_error')::text,
     updated_at = @now::timestamptz
+FROM chat_automations a
 WHERE
-    automation_id = @automation_id::uuid
-    AND state = 'active'
-    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
+    s.automation_id = @automation_id::uuid
+    AND s.state = 'active'
+    AND a.id = s.automation_id
+    AND a.enabled
+    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR s.next_poll_at = sqlc.narg('lease_until')::timestamptz);
 
 -- name: TerminateChatAutomationMCPSubscription :execrows
--- Ends an active subscription. A poll passes its lease, and ends nothing once
--- the subscription no longer holds it.
+-- Ends a pending or active subscription. A poll or a webhook renewal passes
+-- its lease, and ends nothing once the subscription no longer holds it.
 UPDATE chat_automation_mcp_subscriptions
 SET state = 'terminated', last_error = @reason::text, updated_at = @now::timestamptz
 WHERE
     automation_id = @automation_id::uuid
-    AND state = 'active'
-    AND (sqlc.narg('lease_until')::timestamptz IS NULL OR next_poll_at = sqlc.narg('lease_until')::timestamptz);
+    AND state <> 'terminated'
+    AND (sqlc.narg('lease_until')::timestamptz IS NULL
+        OR CASE WHEN delivery = 'poll' THEN next_poll_at ELSE renew_at END = sqlc.narg('lease_until')::timestamptz);
 
 -- name: InsertChatAutomationInboxEvents :execrows
--- Appends @events, a JSON array of MCP event occurrences, in their order. An
--- eventId that the subscription already received inserts nothing.
-INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
+-- Appends @events, a JSON array of MCP event occurrences, in their order, to
+-- the subscription's generation. An eventId that the generation already
+-- received inserts nothing.
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, event_name, occurred_at, data)
 SELECT
-    @automation_id::uuid,
+    s.automation_id,
+    s.generation,
     'event',
     e.value->>'eventId',
     e.value->>'name',
     (e.value->>'timestamp')::timestamptz,
     COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
-FROM jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
+FROM chat_automation_mcp_subscriptions s
+CROSS JOIN jsonb_array_elements(@events::jsonb) WITH ORDINALITY AS e(value, ord)
+WHERE s.automation_id = @automation_id::uuid
 ORDER BY e.ord
-ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: InsertChatAutomationInboxNotice :exec
-INSERT INTO chat_automation_event_inbox (automation_id, kind, detail)
-VALUES (@automation_id::uuid, @kind::chat_automation_inbox_kind, @detail::text);
+-- A non-NULL @event_id deduplicates a retried delivery of the notice within
+-- the subscription's generation.
+INSERT INTO chat_automation_event_inbox (automation_id, generation, kind, event_id, detail)
+SELECT s.automation_id, s.generation, @kind::chat_automation_inbox_kind, sqlc.narg('event_id')::text, @detail::text
+FROM chat_automation_mcp_subscriptions s
+WHERE s.automation_id = @automation_id::uuid
+ON CONFLICT (automation_id, generation, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 -- name: GetPendingChatAutomationInboxRows :many
 SELECT *

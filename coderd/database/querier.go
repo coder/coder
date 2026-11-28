@@ -98,6 +98,9 @@ type sqlcQuerier interface {
 	// Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
 	// a different set; the caller advances each row in the same transaction.
 	ClaimDueChatAutomationSchedules(ctx context.Context, arg ClaimDueChatAutomationSchedulesParams) ([]ChatAutomation, error)
+	// Leases the pending and active webhook subscriptions of enabled automations
+	// whose renew_at has passed by moving renew_at to @lease_until.
+	ClaimDueChatAutomationWebhookRenewals(ctx context.Context, arg ClaimDueChatAutomationWebhookRenewalsParams) ([]ChatAutomationMCPSubscription, error)
 	// Claims the right to refresh a token for @lease_seconds by moving
 	// updated_at that far into the future. It matches only the version the
 	// caller read, and never a live claim (updated_at still ahead of NOW()),
@@ -148,6 +151,8 @@ type sqlcQuerier interface {
 	// with an empty issuer_prefix. Used for analysis before resetting
 	// mismatched links.
 	CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]CountOIDCLinkedIDsByIssuerRow, error)
+	// Counts the undelivered inbox rows of a subscription, up to @max_pending.
+	CountPendingChatAutomationInboxRows(ctx context.Context, arg CountPendingChatAutomationInboxRowsParams) (int32, error)
 	// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
 	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -498,6 +503,8 @@ type sqlcQuerier interface {
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
 	GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]ChatAutomationMCPSubscription, error)
+	GetChatAutomationWebhookSecret(ctx context.Context, automationID uuid.UUID) (ChatAutomationWebhookSecret, error)
+	GetChatAutomationWebhookSecrets(ctx context.Context) ([]ChatAutomationWebhookSecret, error)
 	// The all-zero owner_id means every owner.
 	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -1319,11 +1326,15 @@ type sqlcQuerier interface {
 	// wait for this transaction, so its cleanup trigger then deletes the new row.
 	// The insert trigger refuses an owner that is already deleted.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
-	// Appends @events, a JSON array of MCP event occurrences, in their order. An
-	// eventId that the subscription already received inserts nothing.
+	// Appends @events, a JSON array of MCP event occurrences, in their order, to
+	// the subscription's generation. An eventId that the generation already
+	// received inserts nothing.
 	InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error)
+	// A non-NULL @event_id deduplicates a retried delivery of the notice within
+	// the subscription's generation.
 	InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error
 	InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error)
+	InsertChatAutomationWebhookSecret(ctx context.Context, arg InsertChatAutomationWebhookSecretParams) error
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
@@ -1610,6 +1621,14 @@ type sqlcQuerier interface {
 	// granted, so a lease that a committed admission counted as stale cannot
 	// be renewed afterwards.
 	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
+	// Restarts the subscriptions to an MCP server config whose server, principal
+	// or enabled state changed. Each resumes from now in a new generation, so
+	// that another server's event IDs cannot match the old server's, and a poll
+	// in flight changes nothing. An enabled poll subscription that had a cursor
+	// gets a gap row for the events since its last poll. Each webhook grant
+	// ends, so the receiver refuses the old server and the next tick subscribes
+	// again. Rows lock in automation_id order.
+	ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1617,6 +1636,9 @@ type sqlcQuerier interface {
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
 	SetChatAutomationMCPDrainAfter(ctx context.Context, arg SetChatAutomationMCPDrainAfterParams) error
+	// Schedules the next subscribe of a webhook subscription, after an error or
+	// to subscribe again at once. A NULL error clears it.
+	SetChatAutomationWebhookRenewAt(ctx context.Context, arg SetChatAutomationWebhookRenewAtParams) error
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the
 	// refresh endpoint. Does not bump updated_at: context pinning is
@@ -1652,8 +1674,8 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
-	// Ends an active subscription. A poll passes its lease, and ends nothing once
-	// the subscription no longer holds it.
+	// Ends a pending or active subscription. A poll or a webhook renewal passes
+	// its lease, and ends nothing once the subscription no longer holds it.
 	TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
@@ -1689,11 +1711,16 @@ type sqlcQuerier interface {
 	// unchanged since the run read it, so a disable or change that commits first
 	// wins. An accepted run sent its message, so it is always recorded.
 	UpdateChatAutomationLastRun(ctx context.Context, arg UpdateChatAutomationLastRunParams) (int64, error)
-	// Records a delivery or a failed poll of an active subscription: the cursor
-	// to resume from, the next poll and the error. A NULL cursor or next poll
-	// keeps the stored one; a NULL error clears it. A poll's delivery passes its
-	// lease, and updates nothing once the subscription no longer holds it.
+	// Records a delivery or a failed poll of an active subscription of an enabled
+	// automation: the cursor to resume from, the next poll and the error. A NULL
+	// cursor or next poll keeps the stored one; a NULL error clears it. A poll's
+	// delivery passes its lease, and updates nothing once the subscription no
+	// longer holds it.
 	UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error)
+	// Stores what an events/subscribe call returned and activates the
+	// subscription, unless renew_at moved off @lease during the call, as a reset
+	// or a re-enable does. A NULL cursor keeps the stored one.
+	UpdateChatAutomationWebhookGrant(ctx context.Context, arg UpdateChatAutomationWebhookGrantParams) (int64, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a
@@ -1787,6 +1814,7 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg UpdateEncryptedChatAutomationWebhookSecretParams) error
 	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// Updates only the encrypted columns on a row. Used by the dbcrypt key

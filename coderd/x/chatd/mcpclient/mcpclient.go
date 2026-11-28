@@ -1671,6 +1671,11 @@ func RefreshOAuth2Token(
 		TokenURL:       cfg.OAuth2TokenURL,
 		EndpointParams: params,
 	}
+	// A public client authenticates with client_id alone (method "none"),
+	// so do not probe with an empty Basic password first.
+	if cfg.OAuth2ClientSecret == "" {
+		refreshCfg.AuthStyle = oauth2.AuthStyleInParams
+	}
 
 	// Cap the refresh HTTP call so a stalled token endpoint
 	// cannot block the entire MCP connection phase. The timeout

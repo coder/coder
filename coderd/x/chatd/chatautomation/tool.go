@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -62,8 +63,18 @@ type ToolOptions struct {
 	// Events reaches the chat's MCP servers. The event actions are
 	// unavailable without it.
 	Events EventSource
-	Logger slog.Logger
-	Clock  quartz.Clock
+	// AccessURL is where MCP servers send webhook deliveries. Without a
+	// public https one, subscriptions poll.
+	AccessURL *url.URL
+	Logger    slog.Logger
+	Clock     quartz.Clock
+}
+
+func (o ToolOptions) unsubscriber() Unsubscriber {
+	if o.Events == nil {
+		return nil
+	}
+	return o.Events.Unsubscribe
 }
 
 type toolArgs struct {
@@ -141,7 +152,7 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now)
+		before, after, err := Update(ctx, options.DB, options.Chat.OrganizationID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: false}, now, options.unsubscriber())
 		if err != nil {
 			return nil, notInThisChatIfGone(err)
 		}
@@ -158,7 +169,7 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		deleted, err := Delete(ctx, options.DB, options.Chat.OrganizationID, automation.ID)
+		deleted, err := Delete(ctx, options.DB, options.Chat.OrganizationID, automation.ID, options.unsubscriber())
 		if err != nil {
 			return nil, notInThisChatIfGone(err)
 		}
@@ -289,7 +300,8 @@ func toolErrorText(err error) (string, bool) {
 	var invalid *InvalidRequestError
 	switch {
 	case errors.Is(err, errUnknownAction), errors.Is(err, errNotInThisChat),
-		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent):
+		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent),
+		errors.Is(err, errSubscribeInterrupted):
 		return err.Error(), true
 	case errors.Is(err, ErrMCPAuthRequired):
 		return "The chat owner must connect to this MCP server first.", true

@@ -30,9 +30,14 @@ func LockID(id uuid.UUID) int64 {
 // gets ErrDeleteForbidden.
 //
 // It takes only the automation lock and no chat row, so it cannot form a
-// cycle with a run, which locks the chat first.
-func Delete(ctx context.Context, db database.Store, organizationID, id uuid.UUID) (database.ChatAutomation, error) {
-	var deleted database.ChatAutomation
+// cycle with a run, which locks the chat first. After the commit it passes a
+// webhook subscription to unsubscribe, when that is set.
+func Delete(ctx context.Context, db database.Store, organizationID, id uuid.UUID, unsubscribe Unsubscriber) (database.ChatAutomation, error) {
+	var (
+		deleted database.ChatAutomation
+		webhook database.ChatAutomationMCPSubscription
+		found   bool
+	)
 	err := db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, LockID(id)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -44,6 +49,10 @@ func Delete(ctx context.Context, db database.Store, organizationID, id uuid.UUID
 		if automation.OrganizationID != organizationID {
 			return sql.ErrNoRows
 		}
+		webhook, found, err = webhookSubscription(ctx, tx, automation)
+		if err != nil {
+			return err
+		}
 		err = tx.DeleteChatAutomationByID(ctx, id)
 		if dbauthz.IsNotAuthorizedError(err) {
 			return ErrDeleteForbidden
@@ -54,5 +63,8 @@ func Delete(ctx context.Context, db database.Store, organizationID, id uuid.UUID
 		deleted = automation
 		return nil
 	}, nil)
+	if err == nil && found && unsubscribe != nil {
+		unsubscribe(ctx, deleted.OwnerID, webhook)
+	}
 	return deleted, err
 }

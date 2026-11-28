@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -205,6 +206,7 @@ type Server struct {
 	// automationsEnabled reports whether chat automations run for an
 	// owner. Nil means that no automation runs.
 	automationsEnabled func(ctx context.Context, ownerID uuid.UUID) bool
+	accessURL          *url.URL
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -1268,6 +1270,9 @@ type Config struct {
 	// owner, the user-scoped chat-automations experiment. Nil starts no
 	// automation loop.
 	AutomationsEnabled func(ctx context.Context, ownerID uuid.UUID) bool
+	// AccessURL is where MCP servers send the webhook deliveries of event
+	// subscriptions. Without a public https one, subscriptions poll.
+	AccessURL          *url.URL
 	PrometheusRegistry prometheus.Registerer
 	TracerProvider     trace.TracerProvider
 
@@ -1391,6 +1396,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		automationsEnabled:       cfg.AutomationsEnabled,
+		accessURL:                cfg.AccessURL,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,

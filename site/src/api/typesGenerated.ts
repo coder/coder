@@ -2461,8 +2461,9 @@ export interface ChatAutomationEvent {
 	readonly arguments: Record<string, unknown>;
 	readonly delivery: string;
 	/**
-	 * State is terminated after the server ends the subscription. A
-	 * terminated subscription receives no more events.
+	 * State is pending while a webhook subscribe runs, and terminated after
+	 * the server ends the subscription. A terminated subscription receives
+	 * no more events.
 	 */
 	readonly state: string;
 }
@@ -4982,11 +4983,12 @@ export interface CreateMCPServerConfigRequest {
 	readonly custom_headers?: Record<string, string>;
 	/**
 	 * OAuth2ClientRegistration selects how Coder gets the OAuth2 client.
-	 * With "dynamic", Coder discovers the authorization server of URL and
-	 * registers a client (RFC 7591), so the client ID, client secret, auth
-	 * URL, and token URL must be empty. With "manual", the client ID, auth
-	 * URL, and token URL are required. When empty, Coder uses "dynamic" if
-	 * those three fields are empty, and "manual" otherwise.
+	 * "dynamic" and "metadata_document" both register automatically, so
+	 * the client ID, client secret, auth URL, and token URL must be empty;
+	 * the stored value names the method Coder used. With "manual", the
+	 * client ID, auth URL, and token URL are required. When empty, Coder
+	 * registers automatically if those three fields are empty, and uses
+	 * "manual" otherwise.
 	 */
 	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: readonly string[];
@@ -7343,10 +7345,13 @@ export interface MCPServerConfigUser extends MinimalUser {
 }
 
 // From codersdk/mcp.go
-export type MCPServerOAuth2ClientRegistration = "dynamic" | "manual";
+export type MCPServerOAuth2ClientRegistration =
+	| "dynamic"
+	| "manual"
+	| "metadata_document";
 
 export const MCPServerOAuth2ClientRegistrations: MCPServerOAuth2ClientRegistration[] =
-	["dynamic", "manual"];
+	["dynamic", "manual", "metadata_document"];
 
 // From codersdk/mcp.go
 /**
@@ -11948,14 +11953,15 @@ export interface UpdateMCPServerConfigRequest {
 	readonly custom_headers?: Record<string, string>;
 	/**
 	 * OAuth2ClientRegistration changes how Coder gets the OAuth2 client.
-	 * When a request that sets the URL or an auth field omits it, Coder
-	 * uses "dynamic" if the resulting config has no client ID, auth URL,
-	 * and token URL, and keeps the stored value otherwise. Coder registers
-	 * a new client when the config becomes "dynamic" or when the URL of a
-	 * "dynamic" config changes. A new client deletes the stored user
-	 * tokens. A "dynamic" config ignores empty and unchanged values for
-	 * the client ID, client secret, auth URL, and token URL. Other values
-	 * fail unless the request also sets "manual".
+	 * "dynamic" and "metadata_document" both select automatic
+	 * registration; an automatic config keeps its stored method. When a
+	 * request that sets the URL or an auth field omits it, Coder registers
+	 * automatically if the resulting config has no client ID, auth URL,
+	 * and token URL, and keeps the stored value otherwise. A new client,
+	 * made when the config becomes automatic or the URL of an automatic
+	 * config changes, deletes the stored user tokens. An automatic config
+	 * ignores empty and unchanged client fields; other values fail unless
+	 * the request also sets "manual".
 	 */
 	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: string[];

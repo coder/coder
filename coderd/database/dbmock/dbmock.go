@@ -396,6 +396,21 @@ func (mr *MockStoreMockRecorder) ClaimDueChatAutomationSchedules(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimDueChatAutomationSchedules", reflect.TypeOf((*MockStore)(nil).ClaimDueChatAutomationSchedules), ctx, arg)
 }
 
+// ClaimDueChatAutomationWebhookRenewals mocks base method.
+func (m *MockStore) ClaimDueChatAutomationWebhookRenewals(ctx context.Context, arg database.ClaimDueChatAutomationWebhookRenewalsParams) ([]database.ChatAutomationMCPSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimDueChatAutomationWebhookRenewals", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatAutomationMCPSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimDueChatAutomationWebhookRenewals indicates an expected call of ClaimDueChatAutomationWebhookRenewals.
+func (mr *MockStoreMockRecorder) ClaimDueChatAutomationWebhookRenewals(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimDueChatAutomationWebhookRenewals", reflect.TypeOf((*MockStore)(nil).ClaimDueChatAutomationWebhookRenewals), ctx, arg)
+}
+
 // ClaimMCPServerUserTokenRefresh mocks base method.
 func (m *MockStore) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
 	m.ctrl.T.Helper()
@@ -747,6 +762,21 @@ func (m *MockStore) CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]database.
 func (mr *MockStoreMockRecorder) CountOIDCLinkedIDsByIssuer(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOIDCLinkedIDsByIssuer", reflect.TypeOf((*MockStore)(nil).CountOIDCLinkedIDsByIssuer), ctx)
+}
+
+// CountPendingChatAutomationInboxRows mocks base method.
+func (m *MockStore) CountPendingChatAutomationInboxRows(ctx context.Context, arg database.CountPendingChatAutomationInboxRowsParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPendingChatAutomationInboxRows", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPendingChatAutomationInboxRows indicates an expected call of CountPendingChatAutomationInboxRows.
+func (mr *MockStoreMockRecorder) CountPendingChatAutomationInboxRows(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingChatAutomationInboxRows", reflect.TypeOf((*MockStore)(nil).CountPendingChatAutomationInboxRows), ctx, arg)
 }
 
 // CountPendingNonActivePrebuilds mocks base method.
@@ -3096,6 +3126,36 @@ func (m *MockStore) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context
 func (mr *MockStoreMockRecorder) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx, automationIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationMCPSubscriptionsByAutomationIDs", reflect.TypeOf((*MockStore)(nil).GetChatAutomationMCPSubscriptionsByAutomationIDs), ctx, automationIds)
+}
+
+// GetChatAutomationWebhookSecret mocks base method.
+func (m *MockStore) GetChatAutomationWebhookSecret(ctx context.Context, automationID uuid.UUID) (database.ChatAutomationWebhookSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationWebhookSecret", ctx, automationID)
+	ret0, _ := ret[0].(database.ChatAutomationWebhookSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationWebhookSecret indicates an expected call of GetChatAutomationWebhookSecret.
+func (mr *MockStoreMockRecorder) GetChatAutomationWebhookSecret(ctx, automationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationWebhookSecret", reflect.TypeOf((*MockStore)(nil).GetChatAutomationWebhookSecret), ctx, automationID)
+}
+
+// GetChatAutomationWebhookSecrets mocks base method.
+func (m *MockStore) GetChatAutomationWebhookSecrets(ctx context.Context) ([]database.ChatAutomationWebhookSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationWebhookSecrets", ctx)
+	ret0, _ := ret[0].([]database.ChatAutomationWebhookSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationWebhookSecrets indicates an expected call of GetChatAutomationWebhookSecrets.
+func (mr *MockStoreMockRecorder) GetChatAutomationWebhookSecrets(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationWebhookSecrets", reflect.TypeOf((*MockStore)(nil).GetChatAutomationWebhookSecrets), ctx)
 }
 
 // GetChatAutomationsByOrganizationID mocks base method.
@@ -8795,6 +8855,20 @@ func (mr *MockStoreMockRecorder) InsertChatAutomationMCPSubscription(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomationMCPSubscription", reflect.TypeOf((*MockStore)(nil).InsertChatAutomationMCPSubscription), ctx, arg)
 }
 
+// InsertChatAutomationWebhookSecret mocks base method.
+func (m *MockStore) InsertChatAutomationWebhookSecret(ctx context.Context, arg database.InsertChatAutomationWebhookSecretParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatAutomationWebhookSecret", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatAutomationWebhookSecret indicates an expected call of InsertChatAutomationWebhookSecret.
+func (mr *MockStoreMockRecorder) InsertChatAutomationWebhookSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomationWebhookSecret", reflect.TypeOf((*MockStore)(nil).InsertChatAutomationWebhookSecret), ctx, arg)
+}
+
 // InsertChatDebugRun mocks base method.
 func (m *MockStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()
@@ -10754,6 +10828,20 @@ func (mr *MockStoreMockRecorder) RenewChatHeartbeats(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewChatHeartbeats", reflect.TypeOf((*MockStore)(nil).RenewChatHeartbeats), ctx, arg)
 }
 
+// ResetChatAutomationMCPSubscriptions mocks base method.
+func (m *MockStore) ResetChatAutomationMCPSubscriptions(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetChatAutomationMCPSubscriptions", ctx, mcpServerConfigID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetChatAutomationMCPSubscriptions indicates an expected call of ResetChatAutomationMCPSubscriptions.
+func (mr *MockStoreMockRecorder) ResetChatAutomationMCPSubscriptions(ctx, mcpServerConfigID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetChatAutomationMCPSubscriptions", reflect.TypeOf((*MockStore)(nil).ResetChatAutomationMCPSubscriptions), ctx, mcpServerConfigID)
+}
+
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	m.ctrl.T.Helper()
@@ -10795,6 +10883,20 @@ func (m *MockStore) SetChatAutomationMCPDrainAfter(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) SetChatAutomationMCPDrainAfter(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatAutomationMCPDrainAfter", reflect.TypeOf((*MockStore)(nil).SetChatAutomationMCPDrainAfter), ctx, arg)
+}
+
+// SetChatAutomationWebhookRenewAt mocks base method.
+func (m *MockStore) SetChatAutomationWebhookRenewAt(ctx context.Context, arg database.SetChatAutomationWebhookRenewAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChatAutomationWebhookRenewAt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetChatAutomationWebhookRenewAt indicates an expected call of SetChatAutomationWebhookRenewAt.
+func (mr *MockStoreMockRecorder) SetChatAutomationWebhookRenewAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatAutomationWebhookRenewAt", reflect.TypeOf((*MockStore)(nil).SetChatAutomationWebhookRenewAt), ctx, arg)
 }
 
 // SetChatContextSnapshot mocks base method.
@@ -11129,6 +11231,21 @@ func (m *MockStore) UpdateChatAutomationMCPCursor(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateChatAutomationMCPCursor(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationMCPCursor", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationMCPCursor), ctx, arg)
+}
+
+// UpdateChatAutomationWebhookGrant mocks base method.
+func (m *MockStore) UpdateChatAutomationWebhookGrant(ctx context.Context, arg database.UpdateChatAutomationWebhookGrantParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAutomationWebhookGrant", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAutomationWebhookGrant indicates an expected call of UpdateChatAutomationWebhookGrant.
+func (mr *MockStoreMockRecorder) UpdateChatAutomationWebhookGrant(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationWebhookGrant", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationWebhookGrant), ctx, arg)
 }
 
 // UpdateChatBuildAgentBinding mocks base method.
@@ -11559,6 +11676,20 @@ func (m *MockStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
+}
+
+// UpdateEncryptedChatAutomationWebhookSecret mocks base method.
+func (m *MockStore) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedChatAutomationWebhookSecret", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateEncryptedChatAutomationWebhookSecret indicates an expected call of UpdateEncryptedChatAutomationWebhookSecret.
+func (mr *MockStoreMockRecorder) UpdateEncryptedChatAutomationWebhookSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedChatAutomationWebhookSecret", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedChatAutomationWebhookSecret), ctx, arg)
 }
 
 // UpdateEncryptedChatMCPServerHeaders mocks base method.

@@ -79,19 +79,24 @@ var eventErrorActions = map[int64]eventErrorAction{
 	-32602: {terminate: runReasonMCPInvalidArguments},
 	-32025: {backoff: 5 * time.Minute},
 	-32020: {backoff: time.Minute},
+	-32027: {backoff: 5 * time.Minute},
 }
 
 // inboxAppend is what one delivery adds to a subscription's inbox. A nil
 // Cursor and an invalid NextPollAt keep the stored ones. Truncated with a
-// Cursor adds a gap row: the server dropped events before these. A poll
-// passes its lease as LeaseUntil, so that a re-enable during the poll, which
-// replaces the lease, drops the append.
+// Cursor adds a gap row: the server dropped events before these. GapKey
+// deduplicates a retried gap delivery. A positive MaxPending refuses the
+// delivery while that many rows are pending. A poll passes its lease as
+// LeaseUntil, so that a re-enable during the poll, which replaces the lease,
+// drops the append.
 type inboxAppend struct {
 	AutomationID uuid.UUID
 	Events       []mcpclient.EventOccurrence
 	Cursor       *string
 	Truncated    bool
+	GapKey       string
 	NextPollAt   sql.NullTime
+	MaxPending   int32
 	LeaseUntil   sql.NullTime
 }
 
@@ -99,12 +104,15 @@ type inboxAppend struct {
 // request URL, and wrapping can turn its *url.Error into plain text.
 var urlInText = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"]+`)
 
-// errSubscriptionInactive means that the subscription was deleted or
-// terminated, or that a re-enable voided the poll, so the delivery is
-// dropped.
-var errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
+var (
+	// errSubscriptionInactive means that the subscription was deleted or
+	// terminated, or that a re-enable voided the poll, so the delivery is
+	// dropped.
+	errSubscriptionInactive = xerrors.New("the MCP event subscription is not active")
+	errInboxFull            = xerrors.New("the MCP event inbox is full")
+)
 
-// appendInbox is the only writer of the event inbox. Every delivery mode
+// appendInbox writes each delivery to the event inbox. Every delivery mode
 // calls it. It holds the automation lock and no chat row, so it cannot form a
 // cycle with a drain, which locks the chat first. Events that it cannot store
 // become a gap, so that one bad event cannot stall the subscription.
@@ -136,6 +144,18 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(in.AutomationID)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
 		}
+		if in.MaxPending > 0 {
+			pending, err := tx.CountPendingChatAutomationInboxRows(ctx, database.CountPendingChatAutomationInboxRowsParams{
+				AutomationID: in.AutomationID,
+				MaxPending:   in.MaxPending,
+			})
+			if err != nil {
+				return xerrors.Errorf("count pending inbox rows: %w", err)
+			}
+			if pending >= in.MaxPending {
+				return errInboxFull
+			}
+		}
 		updated, err := tx.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
 			AutomationID: in.AutomationID,
 			Cursor:       sql.NullString{String: ptr.NilToEmpty(in.Cursor), Valid: in.Cursor != nil},
@@ -154,6 +174,7 @@ func (p *Server) appendInbox(ctx context.Context, in inboxAppend) error {
 			if err := tx.InsertChatAutomationInboxNotice(ctx, database.InsertChatAutomationInboxNoticeParams{
 				AutomationID: in.AutomationID,
 				Kind:         database.ChatAutomationInboxKindGap,
+				EventID:      sql.NullString{String: in.GapKey, Valid: in.GapKey != ""},
 				Detail:       "Some events are missing. " + strings.Join(gaps, " "),
 			}); err != nil {
 				return xerrors.Errorf("insert gap: %w", err)
@@ -239,12 +260,18 @@ func jsonbGrowth(value any) (int64, bool) {
 	return total, true
 }
 
-// terminateSubscription ends the subscription of a claimed poll for good,
-// tells the chat in its inbox and records the reason as a refused run.
-// Terminating an inactive subscription, or one whose poll a re-enable voided,
-// changes nothing.
-func (p *Server) terminateSubscription(ctx context.Context, sub database.ClaimDueChatAutomationMCPPollsRow, reason runReason) {
-	automationID := sub.AutomationID
+// terminateSubscription ends a subscription for good, tells the chat in its
+// inbox and records the reason as a refused run. A poll or a webhook renewal
+// passes its lease. Terminating an inactive subscription, or one whose lease
+// a re-enable or a rebind replaced, changes nothing.
+func (p *Server) terminateSubscription(ctx context.Context, automationID uuid.UUID, lease sql.NullTime, reason runReason) {
+	if err := p.endSubscription(ctx, automationID, lease, reason); err != nil && ctx.Err() == nil {
+		p.logger.Warn(ctx, "terminate chat automation subscription", slog.F("automation_id", automationID), slog.Error(err))
+	}
+}
+
+// endSubscription is terminateSubscription with the error returned.
+func (p *Server) endSubscription(ctx context.Context, automationID uuid.UUID, lease sql.NullTime, reason runReason) error {
 	err := p.db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, chatautomation.LockID(automationID)); err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -253,7 +280,7 @@ func (p *Server) terminateSubscription(ctx context.Context, sub database.ClaimDu
 			AutomationID: automationID,
 			Reason:       string(reason),
 			Now:          p.clock.Now("chatd", "automation-events"),
-			LeaseUntil:   sub.NextPollAt,
+			LeaseUntil:   lease,
 		})
 		if err != nil {
 			return xerrors.Errorf("terminate subscription: %w", err)
@@ -265,15 +292,17 @@ func (p *Server) terminateSubscription(ctx context.Context, sub database.ClaimDu
 			AutomationID: automationID,
 			Kind:         database.ChatAutomationInboxKindTerminated,
 			Detail:       "The subscription ended and receives no more events: " + string(reason),
+			EventID:      sql.NullString{},
 		})
 	}, nil)
+	if errors.Is(err, errSubscriptionInactive) {
+		return nil
+	}
 	if err != nil {
-		if !errors.Is(err, errSubscriptionInactive) && ctx.Err() == nil {
-			p.logger.Warn(ctx, "terminate chat automation subscription", slog.F("automation_id", automationID), slog.Error(err))
-		}
-		return
+		return err
 	}
 	p.recordEventRefusal(ctx, automationID, reason)
+	return nil
 }
 
 // recordEventRefusal records reason as the last run unless it already is.
@@ -310,7 +339,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 	groups := make(map[group][]database.ClaimDueChatAutomationMCPPollsRow)
 	for _, sub := range claimed {
 		if !sub.MCPServerConfigID.Valid {
-			p.terminateSubscription(ctx, sub, runReasonMCPServerUnavailable)
+			p.terminateSubscription(ctx, sub.AutomationID, sub.NextPollAt, runReasonMCPServerUnavailable)
 			continue
 		}
 		key := group{owner: sub.OwnerID, config: sub.MCPServerConfigID.UUID}
@@ -343,8 +372,7 @@ func (p *Server) tickEventPolls(ctx context.Context, now time.Time) {
 // pollEventGroup polls the subscriptions of one owner on one MCP server. It
 // polls nothing for an owner whose runs are refused; the lease retries.
 func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, subs []database.ClaimDueChatAutomationMCPPollsRow) {
-	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
-	if err != nil || status != database.UserStatusActive || p.automationsEnabled == nil || !p.automationsEnabled(ctx, owner) {
+	if !p.eventOwnerActive(ctx, owner) {
 		return
 	}
 	cfg, err := p.db.GetMCPServerConfigByID(ctx, configID)
@@ -365,11 +393,17 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 	defer conn.close()
 	for _, sub := range subs {
 		if !conn.session.Supported() {
-			p.terminateSubscription(ctx, sub, runReasonMCPEventUnsupported)
+			p.terminateSubscription(ctx, sub.AutomationID, sub.NextPollAt, runReasonMCPEventUnsupported)
 			continue
 		}
 		p.pollSubscription(ctx, conn, sub)
 	}
+}
+
+// eventOwnerActive reports whether the loop may reach MCP servers as owner.
+func (p *Server) eventOwnerActive(ctx context.Context, owner uuid.UUID) bool {
+	_, status, err := httpmw.UserRBACSubject(ctx, p.db, owner, rbac.ScopeAll)
+	return err == nil && status == database.UserStatusActive && p.automationsEnabled != nil && p.automationsEnabled(ctx, owner)
 }
 
 // pollSubscription polls one subscription and appends what it returns. It
@@ -377,7 +411,7 @@ func (p *Server) pollEventGroup(ctx context.Context, owner, configID uuid.UUID, 
 func (p *Server) pollSubscription(ctx context.Context, conn *eventsConn, sub database.ClaimDueChatAutomationMCPPollsRow) {
 	var args map[string]any
 	if err := json.Unmarshal(sub.Arguments, &args); err != nil {
-		p.terminateSubscription(ctx, sub, runReasonMCPInvalidArguments)
+		p.terminateSubscription(ctx, sub.AutomationID, sub.NextPollAt, runReasonMCPInvalidArguments)
 		return
 	}
 	var cursor *string
@@ -428,10 +462,26 @@ func nextPollAt(now time.Time, nextPollMs int64) time.Time {
 }
 
 // handlePollError terminates the subscription or schedules a retry, as
-// eventErrorActions says. The backoff starts now, not at the tick, whose
-// polls can take up to eventPollBudget. Neither happens once a re-enable
-// voided the poll.
+// eventErrorActions says. Neither happens once a re-enable voided the poll.
 func (p *Server) handlePollError(ctx context.Context, sub database.ClaimDueChatAutomationMCPPollsRow, err error, conn *eventsConn) {
+	p.handleEventError(ctx, sub.AutomationID, sub.NextPollAt, err, conn, func(now time.Time, backoff time.Duration, message string) error {
+		_, err := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
+			AutomationID: sub.AutomationID,
+			Cursor:       sql.NullString{},
+			NextPollAt:   sql.NullTime{Time: now.Add(backoff), Valid: true},
+			LastError:    sql.NullString{String: message, Valid: true},
+			Now:          now,
+			LeaseUntil:   sub.NextPollAt,
+		})
+		return err
+	})
+}
+
+// handleEventError terminates the subscription, or records the error and
+// retries after the backoff that eventErrorActions gives, through retry. A
+// poll or a webhook renewal passes its lease. The backoff starts now, not at
+// the tick, whose calls can take up to eventPollBudget.
+func (p *Server) handleEventError(ctx context.Context, automationID uuid.UUID, lease sql.NullTime, err error, conn *eventsConn, retry func(now time.Time, backoff time.Duration, message string) error) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -448,7 +498,7 @@ func (p *Server) handlePollError(ctx context.Context, sub database.ClaimDueChatA
 		}
 	}
 	if action.terminate != "" {
-		p.terminateSubscription(ctx, sub, action.terminate)
+		p.terminateSubscription(ctx, automationID, lease, action.terminate)
 		return
 	}
 	// The error can quote the server and name its URL with credentials, and
@@ -456,18 +506,11 @@ func (p *Server) handlePollError(ctx context.Context, sub database.ClaimDueChatA
 	message := urlInText.ReplaceAllStringFunc(err.Error(), mcpclient.RedactURL)
 	message = strings.ReplaceAll(message, "\x00", "")
 	message = strings.ToValidUTF8(message[:min(len(message), maxLastErrorBytes)], "")
-	if _, uerr := p.db.UpdateChatAutomationMCPCursor(ctx, database.UpdateChatAutomationMCPCursorParams{
-		AutomationID: sub.AutomationID,
-		Cursor:       sql.NullString{},
-		NextPollAt:   sql.NullTime{Time: now.Add(action.backoff), Valid: true},
-		LastError:    sql.NullString{String: message, Valid: true},
-		Now:          now,
-		LeaseUntil:   sub.NextPollAt,
-	}); uerr != nil {
-		p.logger.Warn(ctx, "record chat automation poll error", slog.F("automation_id", sub.AutomationID), slog.Error(uerr))
+	if rerr := retry(now, action.backoff, message); rerr != nil {
+		p.logger.Warn(ctx, "record chat automation event error", slog.F("automation_id", automationID), slog.Error(rerr))
 	}
 	if authFailed {
-		p.recordEventRefusal(ctx, sub.AutomationID, runReasonMCPAuthRequired)
+		p.recordEventRefusal(ctx, automationID, runReasonMCPAuthRequired)
 	}
 }
 

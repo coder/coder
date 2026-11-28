@@ -235,6 +235,24 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	webhookSecrets, err := cryptDB.GetChatAutomationWebhookSecrets(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat automation webhook secrets: %w", err)
+	}
+	log.Info(ctx, "encrypting chat automation webhook secrets", slog.F("secret_count", len(webhookSecrets)))
+	for _, secret := range webhookSecrets {
+		if secret.SecretKeyID.Valid && secret.SecretKeyID.String == ciphers[0].HexDigest() {
+			continue
+		}
+		if err := cryptDB.UpdateEncryptedChatAutomationWebhookSecret(ctx, database.UpdateEncryptedChatAutomationWebhookSecretParams{
+			AutomationID: secret.AutomationID,
+			Secret:       secret.Secret,
+			SecretKeyID:  sql.NullString{}, // dbcrypt will update as required
+		}); err != nil {
+			return xerrors.Errorf("update chat automation webhook secret automation_id=%s: %w", secret.AutomationID, err)
+		}
+	}
+
 	log.Info(ctx, "encrypting workspace secrets")
 	err = forEachWorkspaceSecret(ctx, cryptDB, func(secret database.WorkspaceSecret) error {
 		if secret.ValueKeyID.Valid && secret.ValueKeyID.String == ciphers[0].HexDigest() {
@@ -480,6 +498,24 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 	}
 
+	webhookSecrets, err := cryptDB.GetChatAutomationWebhookSecrets(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat automation webhook secrets: %w", err)
+	}
+	log.Info(ctx, "decrypting chat automation webhook secrets", slog.F("secret_count", len(webhookSecrets)))
+	for _, secret := range webhookSecrets {
+		if !secret.SecretKeyID.Valid {
+			continue
+		}
+		if err := cryptDB.UpdateEncryptedChatAutomationWebhookSecret(ctx, database.UpdateEncryptedChatAutomationWebhookSecretParams{
+			AutomationID: secret.AutomationID,
+			Secret:       secret.Secret,
+			SecretKeyID:  sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt chat automation webhook secret automation_id=%s: %w", secret.AutomationID, err)
+		}
+	}
+
 	log.Info(ctx, "decrypting workspace secrets")
 	err = forEachWorkspaceSecret(ctx, cryptDB, func(secret database.WorkspaceSecret) error {
 		if !secret.ValueKeyID.Valid {
@@ -580,6 +616,18 @@ UPDATE ai_providers
 	WHERE settings_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+-- A webhook subscription cannot verify deliveries without its secret, so it
+-- ends; the agent can subscribe again.
+UPDATE chat_automation_mcp_subscriptions
+	SET state = 'terminated',
+		last_error = 'dbcrypt delete removed the webhook secret',
+		updated_at = CURRENT_TIMESTAMP
+	WHERE automation_id IN (
+		SELECT automation_id FROM chat_automation_webhook_secrets
+		WHERE secret_key_id IS NOT NULL
+	);
+DELETE FROM chat_automation_webhook_secrets
+	WHERE secret_key_id IS NOT NULL;
 COMMIT;
 `
 
