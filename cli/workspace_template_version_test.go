@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -408,9 +409,9 @@ func TestUpdateStopTemplateVersionFailedStop(t *testing.T) {
 func TestTemplateVersionNameOrID(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, client)
-	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	createVersion := func(mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, mutators...)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -429,11 +430,11 @@ func TestTemplateVersionNameOrID(t *testing.T) {
 	otherVersion := createVersion()
 	coderdtest.CreateTemplate(t, client, owner.OrganizationID, otherVersion.ID)
 	// A file whose body decodes as a version of this template that points at
-	// the other template's version.
+	// the other template's version. Uploads reject anything that is not a
+	// tar archive, so the file is inserted directly.
 	forged, err := json.Marshal(codersdk.TemplateVersion{ID: otherVersion.ID, TemplateID: &template.ID})
 	require.NoError(t, err)
-	forgedFile, err := member.Upload(testutil.Context(t, testutil.WaitShort), codersdk.ContentTypeTar, bytes.NewReader(forged))
-	require.NoError(t, err)
+	forgedFile := dbgen.File(t, db, database.File{CreatedBy: memberUser.ID, Data: forged})
 	// Error formats take the --template-version input and the template name.
 	const (
 		notFound = "template version %q not found for template %q"
