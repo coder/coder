@@ -3943,7 +3943,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
-// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
+// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of events. The server closes the connection if you send a message.
+// @Description After 15 seconds without another message, the server sends an empty batch, which you can skip.
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4124,10 +4125,24 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Browsers hide WebSocket pings from page code, and a close sent over a
+	// network path that has stopped delivering data never reaches the client.
+	// With the empty batches, each message starts at most keepaliveInterval
+	// after the previous one, so a client can treat a long silence as a dead
+	// connection.
+	keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
+	keepalive := api.Clock.NewTicker(keepaliveInterval, "chatStream", "keepalive")
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-keepalive.C:
+			if err := encoder.Encode([]codersdk.ChatStreamEvent{}); err != nil {
+				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
+				return
+			}
 		case firstEvent, ok := <-events:
 			if !ok {
 				return
@@ -4140,6 +4155,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
+			keepalive.Reset(keepaliveInterval, "chatStream", "keepalive")
 			if streamClosed {
 				return
 			}

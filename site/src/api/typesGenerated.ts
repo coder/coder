@@ -4063,6 +4063,13 @@ export interface ChatStreamHistoryReset {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamKeepaliveIntervalSeconds is how long the chat stream can go
+ * without a write before the server writes an empty batch.
+ */
+export const ChatStreamKeepaliveIntervalSeconds = 15;
+
+// From codersdk/chats.go
+/**
  * ChatStreamMessagePart is a streamed message part update.
  */
 export interface ChatStreamMessagePart {

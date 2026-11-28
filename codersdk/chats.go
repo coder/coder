@@ -56,6 +56,10 @@ const (
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// ChatStreamKeepaliveIntervalSeconds is how long the chat stream can go
+// without a write before the server writes an empty batch.
+const ChatStreamKeepaliveIntervalSeconds = 15
+
 // Inline MCP server declaration caps. Clients can validate before sending.
 const (
 	MaxInlineMCPServers                = 5
