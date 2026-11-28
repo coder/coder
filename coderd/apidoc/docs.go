@@ -16120,7 +16120,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything. Refer to [Related data](#related-data).",
                         "name": "include_related",
                         "in": "query"
                     }
@@ -18118,7 +18118,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything. Refer to [Related data](#related-data).",
                         "name": "include_related",
                         "in": "query"
                     }

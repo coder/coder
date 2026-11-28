@@ -42,5 +42,5 @@ pnpm exec -- widdershins \
 	--summary "${SWAG_OUTPUT_DIR}/swagger.json" \
 	--outfile "${API_MD_TMP_FILE}"
 # Perform the postprocessing
-go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}" -docs-directory "${APIDOCGEN_DOCS_DIR:-../../docs}"
+go run ./postprocess -in-md-file-single "${API_MD_TMP_FILE}" -docs-directory "${APIDOCGEN_DOCS_DIR:-../../docs}"
 popd

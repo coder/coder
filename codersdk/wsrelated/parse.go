@@ -152,6 +152,21 @@ func Parse(includeRelated string) (Config, error) {
 	return result, nil
 }
 
+// Paths returns every include_related path, without wildcards, in depth-first
+// order of the hierarchy, e.g. "template", "latest_build", "latest_build.job".
+func Paths() []string {
+	var paths []string
+	var walk func(nodes []relatedNode, prefix string)
+	walk = func(nodes []relatedNode, prefix string) {
+		for _, n := range nodes {
+			paths = append(paths, prefix+n.name)
+			walk(n.children, prefix+n.name+".")
+		}
+	}
+	walk(schema, "")
+	return paths
+}
+
 // findRelatedNode walks the schema following the dotted path segments, returning
 // the matching node.
 func findRelatedNode(nodes []relatedNode, segments []string) (relatedNode, bool) {
