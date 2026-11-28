@@ -1,6 +1,10 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AppFamilyName, SessionCountApp } from "#/api/typesGenerated";
+import type {
+	AppFamilyName,
+	DeploymentStats,
+	SessionCountApp,
+} from "#/api/typesGenerated";
 import { MockDeploymentStats } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { DeploymentBannerView, groupSessionApps } from "./DeploymentBannerView";
@@ -90,5 +94,27 @@ describe("DeploymentBannerView", () => {
 				/^Activity in the last ~\d+ minutes$/,
 			),
 		);
+	});
+
+	it("lets keyboard users reach the active connections list", async () => {
+		const user = userEvent.setup();
+		const mockCursorOnlyStats: DeploymentStats = {
+			...MockDeploymentStats,
+			session_count: {
+				...MockDeploymentStats.session_count,
+				apps: { cursor: app(2, "Cursor", "vscode") },
+			},
+		};
+		render(<DeploymentBannerView stats={mockCursorOnlyStats} />);
+
+		const trigger = screen.getByRole("button", {
+			name: "VS Code Family: 2 active connections",
+		});
+		act(() => trigger.focus());
+		await user.tab();
+
+		expect(
+			screen.getByRole("list", { name: "VS Code Family connections" }),
+		).toHaveFocus();
 	});
 });

@@ -358,8 +358,10 @@ const ActiveConnections = memo(
 						return (
 							<Fragment key={key}>
 								{index > 0 && <ValueSeparator />}
-								<Tooltip>
-									<TooltipTrigger asChild>
+								{/* Interactive so keyboard users can Tab into the list and scroll
+								    it. `rounded-md` keeps the Button's radius over the trigger's. */}
+								<Tooltip interactive>
+									<TooltipTrigger asChild className="rounded-md">
 										<Button
 											variant="subtle"
 											size="xs"
@@ -383,7 +385,15 @@ const ActiveConnections = memo(
 										) : apps.length === 0 ? (
 											<div>No active connections</div>
 										) : (
-											<ul className="m-0 grid max-h-64 list-none gap-2 overflow-y-auto p-0">
+											<ul
+												aria-label={`${name} connections`}
+												// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the capped list from here.
+												tabIndex={0}
+												className={cn(
+													"-m-1 grid max-h-66 list-none gap-2 overflow-y-auto p-1",
+													"rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+												)}
+											>
 												{apps.map((app) => (
 													<li key={app.id} className="flex items-center gap-2">
 														<AppLabel icon={app.icon} name={app.display_name} />

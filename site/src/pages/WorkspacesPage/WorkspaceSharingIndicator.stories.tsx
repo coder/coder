@@ -105,6 +105,22 @@ export const TriggerFocused: Story = {
 	},
 };
 
+// Tab from the trigger focuses the capped list so keyboard users can scroll it.
+export const ListFocused: Story = {
+	args: {
+		sharedWith: [
+			mockUser("alice", ["admin"]),
+			mockUser("bob"),
+			mockGroup("Engineering"),
+		],
+	},
+	play: async () => {
+		await userEvent.tab();
+		await screen.findByRole("dialog");
+		await userEvent.tab();
+	},
+};
+
 export const UsersAndGroups: Story = {
 	args: {
 		sharedWith: [

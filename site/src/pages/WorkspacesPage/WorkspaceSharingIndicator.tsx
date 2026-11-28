@@ -1,4 +1,6 @@
+import { cn } from "cn";
 import { UsersIcon } from "lucide-react";
+import { useId } from "react";
 import type { SharedWorkspaceActor } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Link } from "#/components/Link/Link";
@@ -16,6 +18,7 @@ type WorkspaceSharingIndicatorProps = {
 export const WorkspaceSharingIndicator: React.FC<
 	WorkspaceSharingIndicatorProps
 > = ({ sharedWith, settingsPath }) => {
+	const headingId = useId();
 	// Sort by type (users then groups) and then alphabetically by name.
 	const sortedActors = [...sharedWith].sort((a, b) => {
 		if (a.actor_type !== b.actor_type) {
@@ -37,17 +40,28 @@ export const WorkspaceSharingIndicator: React.FC<
 			</TooltipTrigger>
 			<TooltipContent className="flex w-56 flex-col p-0">
 				<div className="px-3 py-2">
-					<h2 className="m-0 text-sm font-semibold text-content-primary">
+					<h2
+						id={headingId}
+						className="m-0 text-sm font-semibold text-content-primary"
+					>
 						Workspace permissions
 					</h2>
 				</div>
-				<ul className="flex flex-col gap-1 m-0 p-0 list-none max-h-48 overflow-y-auto">
+				<ul
+					aria-labelledby={headingId}
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the capped list from here.
+					tabIndex={0}
+					className={cn(
+						"flex flex-col gap-1 mx-1 my-0 p-0 list-none max-h-48 overflow-y-auto",
+						"rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+					)}
+				>
 					{sortedActors.map((actor) => {
 						const isAdmin = actor.roles.includes("admin");
 						return (
 							<li
 								key={actor.id}
-								className="flex items-center px-3 gap-2 text-sm text-content-secondary"
+								className="flex items-center px-2 gap-2 text-sm text-content-secondary"
 							>
 								<span className="text-sm truncate">{actor.name}</span>
 								{isAdmin && (

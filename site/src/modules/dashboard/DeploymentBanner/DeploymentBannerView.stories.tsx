@@ -76,7 +76,7 @@ export const Loading: Story = {
 				name: "VS Code Family: - loading active connections",
 			})
 			.focus();
-		await waitFor(() => screen.getByRole("tooltip"));
+		await screen.findByRole("dialog");
 	},
 };
 
@@ -88,7 +88,7 @@ export const NoActiveConnections: Story = {
 				name: "VS Code Family: 0 active connections",
 			}),
 		);
-		await waitFor(() => screen.getByRole("tooltip"));
+		await screen.findByRole("dialog");
 	},
 };
 
@@ -112,7 +112,7 @@ export const VSCodeForks: Story = {
 				name: "VS Code Family: 173 active connections",
 			}),
 		);
-		await waitFor(() => screen.getByRole("tooltip"));
+		await screen.findByRole("dialog");
 	},
 };
 
@@ -125,7 +125,19 @@ export const OtherApps: Story = {
 				name: "Other: 27 active connections",
 			}),
 		);
-		await waitFor(() => screen.getByRole("tooltip"));
+		await screen.findByRole("dialog");
+	},
+};
+
+/** Tab from the trigger focuses the capped list so keyboard users can scroll it. */
+export const OtherAppsListFocused: Story = {
+	args: { stats: otherApps },
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: "Other: 27 active connections" })
+			.focus();
+		await screen.findByRole("dialog");
+		await userEvent.tab();
 	},
 };
 
