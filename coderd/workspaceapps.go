@@ -100,22 +100,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Create the application_connect-scoped API key with the same lifetime as
-	// the current session.
-	exp := apiKey.ExpiresAt
-	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.Sessions.DefaultDuration.Value() {
-		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
-		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
-	}
-	cookie, _, err := api.createAPIKey(ctx, apiKey, apikey.CreateParams{
-		UserID:          apiKey.UserID,
-		LoginType:       database.LoginTypePassword,
-		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
-		ExpiresAt:       exp,
-		LifetimeSeconds: lifetimeSeconds,
-		Scopes:          database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
-	})
+	key, err := api.createAppConnectKey(ctx, apiKey)
 	if errors.Is(err, apikey.ErrExceedsCaller) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -129,7 +114,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	}
 
 	payload := workspaceapps.EncryptedAPIKeyPayload{
-		APIKey: cookie.Value,
+		APIKey: key,
 	}
 	payload.Fill(api.Clock.Now())
 	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.AppEncryptionKeyCache, payload)
@@ -147,6 +132,30 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	q.Set(workspaceapps.SubdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// createAppConnectKey creates an application_connect-scoped API key for the
+// user of apiKey that expires with apiKey, but no later than the default
+// session duration from now.
+func (api *API) createAppConnectKey(ctx context.Context, apiKey database.APIKey) (string, error) {
+	exp := apiKey.ExpiresAt
+	lifetimeSeconds := apiKey.LifetimeSeconds
+	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.Sessions.DefaultDuration.Value() {
+		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
+	}
+	cookie, _, err := api.createAPIKey(ctx, apiKey, apikey.CreateParams{
+		UserID:          apiKey.UserID,
+		LoginType:       database.LoginTypePassword,
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
+		ExpiresAt:       exp,
+		LifetimeSeconds: lifetimeSeconds,
+		Scopes:          database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
+	})
+	if err != nil {
+		return "", err
+	}
+	return cookie.Value, nil
 }
 
 type ValidWorkspaceAppHostnameOpts struct {

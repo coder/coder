@@ -2166,6 +2166,90 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/previews/address": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get a workspace preview's address",
+                "operationId": "get-a-workspace-preview-address",
+                "parameters": [
+                    {
+                        "description": "Preview request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PreviewSignInRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PreviewSignInResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/previews/sign-in": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Sign in to a workspace preview",
+                "operationId": "sign-in-to-a-workspace-preview",
+                "parameters": [
+                    {
+                        "description": "Preview sign-in request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PreviewSignInRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PreviewSignInResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/email": {
             "put": {
                 "consumes": [
@@ -30813,6 +30897,48 @@ const docTemplate = `{
                 },
                 "validation_regex": {
                     "description": "All validation attributes are optional.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PreviewSignInRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "preview_slug": {
+                    "description": "PreviewSlug is the preview's app slug, such as \"preview--0123abcd\" or\n\"preview--8080\".",
+                    "type": "string"
+                },
+                "region_id": {
+                    "description": "RegionID picks the primary or a workspace proxy. Empty picks the\nprimary.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url_path": {
+                    "description": "URLPath is the path and query the preview opens at. Empty opens the\nroot.",
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.PreviewSignInResponse": {
+            "type": "object",
+            "properties": {
+                "origin": {
+                    "description": "Origin is the preview's origin. Clients should allow their frame to\nload only this origin.",
+                    "type": "string"
+                },
+                "sandbox": {
+                    "description": "Sandbox is the iframe sandbox to frame the preview with.",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "URL is the preview URL. From sign-in, it also carries a sign-in token\nfor the preview's host, valid for one minute, plus up to one minute of\nclock leeway between coderd and the server that checks it.",
                     "type": "string"
                 }
             }

@@ -36,7 +36,7 @@ import (
 type fakeSignedTokenProvider struct {
 	token *workspaceapps.SignedToken
 	// issue writes the error page Issue answers with.
-	issue            func(rw http.ResponseWriter)
+	issue            func(rw http.ResponseWriter, req workspaceapps.IssueTokenRequest)
 	fromRequestCalls int
 	issueCalls       int
 }
@@ -46,10 +46,10 @@ func (s *fakeSignedTokenProvider) FromRequest(_ *http.Request) (*workspaceapps.S
 	return s.token, s.token != nil
 }
 
-func (s *fakeSignedTokenProvider) Issue(_ context.Context, rw http.ResponseWriter, _ *http.Request, _ workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
+func (s *fakeSignedTokenProvider) Issue(_ context.Context, rw http.ResponseWriter, _ *http.Request, req workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	s.issueCalls++
 	if s.issue != nil {
-		s.issue(rw)
+		s.issue(rw, req)
 	}
 	return nil, "", false
 }

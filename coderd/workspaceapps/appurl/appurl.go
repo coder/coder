@@ -11,6 +11,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// SubdomainProxyAPIKeyParam carries the encrypted API key that signs a browser
+// in to a subdomain app. This needs to be a super unique query parameter
+// because we don't want to conflict with query parameters that users may use.
+//
+//nolint:gosec // A query parameter name, not a credential.
+const SubdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
+
 var (
 	// nameRegex is the same as our UsernameRegex without the ^ and $.
 	nameRegex = "[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*"

@@ -16,11 +16,10 @@ import (
 func TestHostingURL(t *testing.T) {
 	t.Parallel()
 
-	accessURL, err := url.Parse("https://coder.example.com:8443")
-	require.NoError(t, err)
 	app := appurl.ApplicationURL{AppSlugOrPort: "preview--8080", AgentName: "main", Username: "alice"}
 	for _, tc := range []struct {
 		name          string
+		accessURL     string
 		wildcard      string
 		workspaceName string
 		urlPath       string
@@ -30,13 +29,26 @@ func TestHostingURL(t *testing.T) {
 		{name: "Root", wildcard: "*.apps.example.com", workspaceName: "dev", want: "https://preview--8080--main--dev--alice.apps.example.com:8443/"},
 		{name: "PathAndQuery", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "/docs/a%20b.html?page=2", want: "https://preview--8080--main--dev--alice.apps.example.com:8443/docs/a%20b.html?page=2"},
 		{name: "Suffix", wildcard: "*--apps.example.com", workspaceName: "dev", want: "https://preview--8080--main--dev--alice--apps.example.com:8443/"},
+		// Browsers send no port in the Host header for the scheme's default.
+		{name: "DefaultPort", accessURL: "https://coder.example.com:443", wildcard: "*.apps.example.com", workspaceName: "dev", want: "https://preview--8080--main--dev--alice.apps.example.com/"},
 		{name: "DNSLimit", wildcard: "*.apps.example.com", workspaceName: strings.Repeat("w", 35), want: "https://preview--8080--main--" + strings.Repeat("w", 35) + "--alice.apps.example.com:8443/"},
 		{name: "OverDNSLimit", wildcard: "*.apps.example.com", workspaceName: strings.Repeat("w", 36), wantErr: "over the DNS limit of 63"},
 		{name: "OverDNSLimitWithSuffix", wildcard: "*--apps.example.com", workspaceName: strings.Repeat("w", 30), wantErr: "over the DNS limit of 63"},
+		{name: "OtherHost", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "//evil.example.com/", wantErr: "must start with a single /"},
+		{name: "Fragment", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "/docs#top", wantErr: "must start with a single /"},
+		{name: "BadEscape", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "/a%2", wantErr: "valid percent-encoding"},
+		{name: "SignInParam", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "/?page=2&" + previewhost.SignInParam + "=x", wantErr: previewhost.SignInParam},
+		{name: "AppAPIKeyParam", wildcard: "*.apps.example.com", workspaceName: "dev", urlPath: "/?" + appurl.SubdomainProxyAPIKeyParam + "=x", wantErr: appurl.SubdomainProxyAPIKeyParam},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			rawAccessURL := tc.accessURL
+			if rawAccessURL == "" {
+				rawAccessURL = "https://coder.example.com:8443"
+			}
+			accessURL, err := url.Parse(rawAccessURL)
+			require.NoError(t, err)
 			hosting, err := previewhost.Strict(tc.wildcard, accessURL, accessURL)
 			require.NoError(t, err)
 			app := app
@@ -48,6 +60,46 @@ func TestHostingURL(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+// A name that leaves its own "--" segment of the hostname label would make
+// the preview URL name another app or another host.
+func TestHostingURLRefusesAppsThatDoNotParseBack(t *testing.T) {
+	t.Parallel()
+
+	// With no port in the access URL, a ":" in a name could pass for one.
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+	hosting, err := previewhost.Strict("*.apps.example.com", accessURL, accessURL)
+	require.NoError(t, err)
+	valid := appurl.ApplicationURL{AppSlugOrPort: "preview--0123abcd", AgentName: "main", WorkspaceName: "dev", Username: "alice"}
+	_, err = hosting.URL(valid, "/")
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name   string
+		mutate func(*appurl.ApplicationURL)
+	}{
+		{name: "AgentNameEndsInOtherHost", mutate: func(a *appurl.ApplicationURL) { a.AgentName = "main--dev--bob.apps.example.com:1" }},
+		{name: "DotInAgentName", mutate: func(a *appurl.ApplicationURL) { a.AgentName = "main.apps" }},
+		{name: "ColonInWorkspaceName", mutate: func(a *appurl.ApplicationURL) { a.WorkspaceName = "dev:1" }},
+		{name: "DotInUsername", mutate: func(a *appurl.ApplicationURL) { a.Username = "alice.example" }},
+		{name: "SeparatorInAgentName", mutate: func(a *appurl.ApplicationURL) { a.AgentName = "main--dev" }},
+		{name: "PrefixSeparatorInAgentName", mutate: func(a *appurl.ApplicationURL) { a.AgentName = "x---main" }},
+		{name: "NoAgent", mutate: func(a *appurl.ApplicationURL) { a.AgentName = "" }},
+		{name: "Prefix", mutate: func(a *appurl.ApplicationURL) { a.Prefix = "x---" }},
+		// A port app's hostname parses back unchanged but is not a preview.
+		{name: "PortSlug", mutate: func(a *appurl.ApplicationURL) { a.AppSlugOrPort = "8080" }},
+		{name: "PortWithLeadingZero", mutate: func(a *appurl.ApplicationURL) { a.AppSlugOrPort = "preview--08080" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := valid
+			tc.mutate(&app)
+			_, err := hosting.URL(app, "/")
+			require.ErrorContains(t, err, "is not a valid preview hostname")
 		})
 	}
 }
