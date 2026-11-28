@@ -44,8 +44,11 @@ type DateTimeRangePickerProps = {
 	size?: ButtonProps["size"];
 	/** Accessible name of the picker. Defaults to "Time range". */
 	label?: string;
-	/** Visible text before the value, e.g. `Active:`. */
-	valuePrefix?: string;
+	/**
+	 * Shows `label` in the trigger: just the label while a placeholder preset is
+	 * active, `label: value` otherwise. The accessible name always has the value.
+	 */
+	showLabel?: boolean;
 	/** Which trigger edge the menu lines up with. Defaults to `end`. */
 	align?: "start" | "end";
 	/**
@@ -125,7 +128,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	presets,
 	size = "sm",
 	label = "Time range",
-	valuePrefix,
+	showLabel = false,
 	align = "end",
 	minDate,
 	maxDays,
@@ -273,6 +276,11 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 		activePreset?.placeholder ??
 		activePreset?.label ??
 		formatCustomLabel(value.start, value.end);
+	const labelledValue = `${label}: ${triggerLabel}`;
+	let triggerText = triggerLabel;
+	if (showLabel) {
+		triggerText = isPlaceholder ? label : labelledValue;
+	}
 
 	const selectedQuickPickIndex = customExpanded
 		? quickPresets.length
@@ -288,9 +296,9 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					variant="outline"
 					size={size}
 					className="group gap-2 pr-1.5"
-					// The visible text is the combobox value, not its name.
+					// Without showLabel, the visible text is the combobox value, not its name.
 					role="combobox"
-					aria-label={label}
+					aria-label={showLabel ? labelledValue : label}
 					aria-expanded={open}
 					aria-controls={open ? contentId : undefined}
 					onKeyDown={handleTriggerKeyDown}
@@ -304,8 +312,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
-						{valuePrefix && `${valuePrefix} `}
-						{triggerLabel}
+						{triggerText}
 					</span>
 					<ChevronDownIcon
 						className={cn(

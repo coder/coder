@@ -171,7 +171,9 @@ export const MemberSelected: Story = {
 	play: async ({ canvasElement }) => {
 		await openSharing(canvasElement);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Search for user or group" }),
+			screen.getByRole("button", {
+				name: "User or group Search for user or group",
+			}),
 		);
 		await userEvent.click(
 			await screen.findByRole("option", {

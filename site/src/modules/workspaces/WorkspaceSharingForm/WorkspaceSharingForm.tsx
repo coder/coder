@@ -129,7 +129,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 				}
 			}}
 		>
-			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
 				{children}
 				{/* aria-disabled, unlike disabled, keeps focus here while pending. */}
 				<Button
@@ -150,12 +150,14 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 };
 
 type RoleSelectFieldProps = {
+	id?: string;
 	value: WorkspaceRole;
 	onChange: (value: WorkspaceRole) => void;
 	disabled?: boolean;
 };
 
 export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
+	id,
 	value,
 	onChange,
 	disabled,
@@ -167,6 +169,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			disabled={disabled}
 		>
 			<SelectTrigger
+				id={id}
 				className="w-full sm:w-40"
 				aria-label={getRoleSelectLabel("Role", value)}
 			>

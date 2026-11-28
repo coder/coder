@@ -115,3 +115,44 @@ it("opens with ArrowUp", async () => {
 		await screen.findByRole("radio", { name: "Last 24 hours" }),
 	).toHaveFocus();
 });
+
+const lastSeenNow = new Date(2026, 3, 16, 10, 30);
+const lastSeenPresets = [
+	{
+		id: "all_time",
+		label: "All time",
+		placeholder: "All time",
+		range: () => ({ start: new Date(0), end: lastSeenNow }),
+	},
+	{
+		id: "last_7d",
+		label: "Last 7 days",
+		range: () => ({ start: new Date(2026, 3, 9, 10, 30), end: lastSeenNow }),
+	},
+];
+
+const renderLastSeenPicker = (preset: string) =>
+	render(
+		<DateTimeRangePicker
+			now={lastSeenNow}
+			presets={lastSeenPresets}
+			label="Last seen"
+			showLabel
+			value={{ ...lastSeenPresets[0].range(), preset }}
+			onChange={vi.fn()}
+		/>,
+	);
+
+it("names the labelled trigger with its placeholder value", () => {
+	renderLastSeenPicker("all_time");
+	expect(screen.getByRole("combobox")).toHaveAccessibleName(
+		"Last seen: All time",
+	);
+});
+
+it("names the labelled trigger with its picked value", () => {
+	renderLastSeenPicker("last_7d");
+	expect(screen.getByRole("combobox")).toHaveAccessibleName(
+		"Last seen: Last 7 days",
+	);
+});

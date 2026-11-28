@@ -57,7 +57,7 @@ describe("UsersPage", () => {
 		});
 
 		await user.click(
-			await screen.findByRole("combobox", { name: "Last seen" }),
+			await screen.findByRole("combobox", { name: /^Last seen:/ }),
 		);
 		await user.click(
 			await screen.findByRole("radio", { name: "Over 30 days" }),
@@ -72,7 +72,7 @@ describe("UsersPage", () => {
 		);
 		await waitFor(() =>
 			expect(
-				screen.getByRole("combobox", { name: "Last seen" }),
+				screen.getByRole("combobox", { name: /^Last seen:/ }),
 			).toHaveTextContent("Over 30 days"),
 		);
 	});
