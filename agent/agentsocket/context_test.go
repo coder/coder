@@ -22,13 +22,13 @@ type fakeContextManager struct {
 
 func (f *fakeContextManager) Sources() []agentcontext.Source { return f.sources }
 
-func (f *fakeContextManager) HasSource(path string) (string, bool) {
+func (f *fakeContextManager) GetSource(path string) (agentcontext.Source, bool) {
 	for _, s := range f.sources {
 		if s.Path == path {
-			return s.Path, true
+			return s, true
 		}
 	}
-	return "", false
+	return agentcontext.Source{}, false
 }
 
 func (f *fakeContextManager) AddSource(s agentcontext.Source) (agentcontext.Source, error) {
@@ -135,6 +135,15 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 		err = client.RemoveContextSource(ctx, sourcePath)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not found")
+
+		const excludedPath = "/home/coder/excluded"
+		cm.sources = append(cm.sources, agentcontext.Source{Path: excludedPath, Excluded: true})
+		sources, err = client.ContextSources(ctx)
+		require.NoError(t, err)
+		require.Contains(t, sources, agentsocket.ContextSource{Path: excludedPath, Excluded: true})
+		got, err = client.GetContextSource(ctx, excludedPath)
+		require.NoError(t, err)
+		require.True(t, got.Excluded)
 	})
 
 	t.Run("Resync", func(t *testing.T) {
