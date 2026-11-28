@@ -524,16 +524,30 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			// control the process name.  The -D here is just to mimic how Java options
 			// are set but is not necessary as the agent looks only for the magic
 			// string itself anywhere in the command.
+			//
+			// We build the server and run the binary directly instead of using
+			// `go run`.  Killing `go run` does not kill the compiled child, which
+			// would be left running after the test.  The stdin pipe is never written
+			// to; the server exits when it closes, which covers a test process that
+			// dies before cleanup runs.
 			_, b, _, ok := runtime.Caller(0)
 			require.True(t, ok)
 			dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
-			echoServerCmd := exec.Command("go", "run", dir,
-				"-D", agentssh.MagicProcessCmdlineJetBrains)
+			echoServerBin := filepath.Join(t.TempDir(), "echoserver")
+			buildOut, err := exec.CommandContext(ctx, "go", "build", "-o", echoServerBin, dir).CombinedOutput()
+			require.NoError(t, err, "build echo server: %s", buildOut)
+			echoServerCmd := exec.Command(echoServerBin, "-D", agentssh.MagicProcessCmdlineJetBrains)
+			echoServerStdin, err := echoServerCmd.StdinPipe()
+			require.NoError(t, err)
 			stdout, err := echoServerCmd.StdoutPipe()
 			require.NoError(t, err)
 			err = echoServerCmd.Start()
 			require.NoError(t, err)
-			defer echoServerCmd.Process.Kill()
+			t.Cleanup(func() {
+				_ = echoServerStdin.Close()
+				_ = echoServerCmd.Process.Kill()
+				_ = echoServerCmd.Wait()
+			})
 
 			// The echo server prints its port as the first line.
 			sc := bufio.NewScanner(stdout)
