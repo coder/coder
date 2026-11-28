@@ -217,13 +217,30 @@ func (h *reloadTestHarness) sendRequest(t *testing.T, targetURL string) requestR
 	return requestResult{status: resp.StatusCode, body: string(body)}
 }
 
+// maxRoutedAttempts bounds how often expectRoutedTo retries a request that
+// failed with a bare EOF before reaching aibridged.
+const maxRoutedAttempts = 3
+
 // expectRoutedTo asserts the proxy MITM'd the request and forwarded it
 // to aibridged with the expected /<name>/<path>.
+//
+// A bare EOF from the client, with aibridged never having seen the
+// request, is a transient loopback connection drop (seen on Windows CI,
+// see AIGOV-430), not a routing result. It is retried on a fresh
+// connection. Any other error, or a request that reached aibridged, is
+// asserted on as usual.
 func (h *reloadTestHarness) expectRoutedTo(t *testing.T, targetURL, expectedPath string) {
 	t.Helper()
 
-	h.recorder.reset()
-	res := h.sendRequest(t, targetURL)
+	var res requestResult
+	for attempt := 1; attempt <= maxRoutedAttempts; attempt++ {
+		h.recorder.reset()
+		res = h.sendRequest(t, targetURL)
+		if !xerrors.Is(res.err, io.EOF) || h.recorder.load() != "" {
+			break
+		}
+		t.Logf("attempt %d/%d: request to %s ended with EOF before reaching aibridged, retrying", attempt, maxRoutedAttempts, targetURL)
+	}
 	require.NoError(t, res.err, "request to routed host must succeed")
 	require.Equal(t, http.StatusOK, res.status)
 	require.Equal(t, "aibridged", res.body)
