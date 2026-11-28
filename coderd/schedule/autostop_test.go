@@ -49,8 +49,10 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("fridayEveningSydney", fridayEveningSydney)
 	t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
 
-	dstIn := time.Date(2023, 10, 1, 2, 0, 0, 0, sydneyLoc)   // 1 hour backward
-	dstInQuietHours := "CRON_TZ=Australia/Sydney 30 2 * * *" // never
+	// In Sydney, clocks jump from 02:00 to 03:00 on October 1, 2023,
+	// skipping that day's 02:30 quiet-hours start.
+	dstIn := time.Date(2023, 10, 1, 2, 0, 0, 0, sydneyLoc)
+	dstInQuietHours := "CRON_TZ=Australia/Sydney 30 2 * * *"
 	// The expected behavior is that we will pick the next time that falls on
 	// quiet hours after the DST transition. In this case, it will be the same
 	// time the next day.
@@ -78,6 +80,7 @@ func TestCalculateAutoStop(t *testing.T) {
 	cases := []struct {
 		name             string
 		buildCompletedAt time.Time
+		notBefore        time.Time
 
 		wsAutostart       string
 		templateAutoStart schedule.TemplateAutostartRequirement
@@ -171,6 +174,18 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
+			// The build completes before Friday's quiet hours. The
+			// Saturday-only rule requires Saturday's 23:50 start.
+			name:                   "TemplateAutostopRequirement/SkipsPreviousDayQuietHours",
+			buildCompletedAt:       time.Date(2023, 1, 20, 12, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=UTC 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			expectedMaxDeadline: time.Date(2023, 1, 21, 23, 50, 0, 0, time.UTC),
+		},
+		{
 			name:                   "TemplateAutostopRequirement1HourSkip",
 			buildCompletedAt:       saturdayMidnightSydney.Add(-59 * time.Minute),
 			templateAllowAutostop:  true,
@@ -227,6 +242,18 @@ func TestCalculateAutoStop(t *testing.T) {
 			workspaceTTL: 0,
 			// expectedDeadline is copied from expectedMaxDeadline.
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
+		},
+		{
+			// January 21 is in an eligible week, after its Friday stop.
+			// January 27 falls in an off week.
+			name:                   "TemplateAutostopRequirementFortnightly/AfterLastRequiredDay",
+			buildCompletedAt:       time.Date(2023, 1, 21, 12, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=UTC 0 0 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00010000, // Friday
+				Weeks:      2,          // every 2 weeks
+			},
+			expectedMaxDeadline: time.Date(2023, 2, 3, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name:                   "TemplateAutostopRequirementTriweekly/Skip",
@@ -361,6 +388,35 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: dstInQuietHoursExpectedTime,
 		},
 		{
+			// The save cutoff moves the search from the previous Sunday to
+			// the spring-forward Sunday. The clock jump skips 02:30 that day,
+			// so the deadline is Monday at 02:30.
+			name:                   "DaylightSavings/TemplateSaveOnSpringForward",
+			buildCompletedAt:       beforeDstIn.AddDate(0, 0, -7),
+			notBefore:              beforeDstIn,
+			templateAllowAutostop:  true,
+			userQuietHoursSchedule: dstInQuietHours,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			expectedMaxDeadline: dstInQuietHoursExpectedTime,
+		},
+		{
+			// Saving at 04:00 in Chatham (UTC+13:45) is after the clock
+			// jump skipped that Sunday's 02:45 quiet-hours start.
+			name:                   "DaylightSavings/ChathamSaveAfterSpringForwardUsesNextWeek",
+			buildCompletedAt:       time.Date(2025, time.September, 27, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.September, 27, 14, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 2 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// October 5 at 02:45 in Chatham (UTC+13:45).
+			expectedMaxDeadline: time.Date(2025, time.October, 4, 13, 0, 0, 0, time.UTC),
+		},
+		{
 			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/Out",
 			buildCompletedAt:       beforeDstOut.Add(-24 * time.Hour),
 			templateAllowAutostop:  true,
@@ -373,6 +429,116 @@ func TestCalculateAutoStop(t *testing.T) {
 			workspaceTTL: 0,
 			// expectedDeadline is copied from expectedMaxDeadline.
 			expectedMaxDeadline: dstOutQuietHoursExpectedTime,
+		},
+		{
+			// In Seattle, 01:30 occurs twice on this Sunday. The cutoff at
+			// 01:45 PDT falls between the two quiet-hours starts.
+			name:                   "DaylightSavings/UsesSecondOccurrenceAfterCutoff",
+			buildCompletedAt:       time.Date(2025, time.November, 1, 19, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.November, 2, 8, 45, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Los_Angeles 30 1 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// Sunday 01:30 PST.
+			expectedMaxDeadline: time.Date(2025, time.November, 2, 9, 30, 0, 0, time.UTC),
+		},
+		{
+			// The build completes Sunday at 04:00 in Chatham (UTC+12:45),
+			// after the real 03:45 quiet-hours start on the rollback day.
+			name:                   "DaylightSavings/ChathamBuildAfterQuietHoursUsesNextWeek",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 15, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 13 at 03:45 in Chatham.
+			expectedMaxDeadline: time.Date(2025, time.April, 12, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Saving at the second 03:15 in Chatham still leaves today's
+			// 03:45 quiet-hours start available.
+			name:                   "DaylightSavings/RecoversQuietHoursOnSameDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 14, 30, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 03:45 in Chatham (UTC+12:45).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Saving at the first 03:15 in Chatham (UTC+13:45) precedes
+			// the rollback. Cron can then report an early 02:45 start.
+			name:                   "DaylightSavings/ChathamSaveBeforeRollbackUsesSameDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 13, 30, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Pacific/Chatham 45 3 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 03:45 in Chatham (UTC+12:45).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			// Lord Howe rolls back from 02:00 to 01:30. Saving at the
+			// second 01:45 still leaves that Sunday's 02:00 available.
+			name:                   "DaylightSavings/LordHoweUsesQuietHoursOnRollbackDay",
+			buildCompletedAt:       time.Date(2025, time.April, 5, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(2025, time.April, 5, 15, 15, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Australia/Lord_Howe 0 2 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// April 6 at 02:00 in Lord Howe (UTC+10:30).
+			expectedMaxDeadline: time.Date(2025, time.April, 5, 15, 30, 0, 0, time.UTC),
+		},
+		{
+			// Goose Bay rolled back from Sunday 00:01 to Saturday 22:01,
+			// so Saturday 23:50 occurs twice.
+			name:                   "DaylightSavings/SkipsBothPreviousDayOccurrences",
+			buildCompletedAt:       time.Date(1988, time.October, 30, 0, 0, 0, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Goose_Bay 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			// October 30 at 23:50 in Goose Bay.
+			expectedMaxDeadline: time.Date(1988, time.October, 31, 3, 50, 0, 0, time.UTC),
+		},
+		{
+			// The cutoff is the first Sunday 00:00:30 in Goose Bay
+			// (UTC-02:00). The rollback makes Saturday 23:50 recur later.
+			name:                   "DaylightSavings/UsesRepeatedPreviousDayAfterCutoff",
+			buildCompletedAt:       time.Date(1988, time.October, 30, 0, 0, 0, 0, time.UTC),
+			notBefore:              time.Date(1988, time.October, 30, 2, 0, 30, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=America/Goose_Bay 50 23 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			// October 29 at 23:50 in Goose Bay (UTC-04:00).
+			expectedMaxDeadline: time.Date(1988, time.October, 30, 3, 50, 0, 0, time.UTC),
+		},
+		{
+			// Manila skipped Tuesday, December 31, 1844. The first eligible
+			// Tuesday after the December 24 build is January 7, 14 days later.
+			name: "SkippedCalendarDay",
+			// December 24 at 08:00 in Manila, when the local offset was UTC-15:56:08.
+			buildCompletedAt:       time.Date(1844, time.December, 24, 23, 56, 8, 0, time.UTC),
+			userQuietHoursSchedule: "CRON_TZ=Asia/Manila 0 0 * * *",
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b00000010, // Tuesday
+				Weeks:      1,
+			},
+			// January 7 at 00:00 in Manila, after the offset advanced to UTC+08:03:52.
+			expectedMaxDeadline: time.Date(1845, time.January, 6, 15, 56, 8, 0, time.UTC),
 		},
 		{
 			// A user expects this workspace to be online from 9am -> 9pm.
@@ -568,12 +734,13 @@ func TestCalculateAutoStop(t *testing.T) {
 			})
 
 			autostop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
-				Database:                    db,
-				TemplateScheduleStore:       templateScheduleStore,
-				UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
-				WorkspaceBuildCompletedAt:   c.buildCompletedAt,
-				Workspace:                   workspace,
-				WorkspaceAutostart:          c.wsAutostart,
+				Database:                     db,
+				TemplateScheduleStore:        templateScheduleStore,
+				UserQuietHoursScheduleStore:  userQuietHoursScheduleStore,
+				WorkspaceBuildCompletedAt:    c.buildCompletedAt,
+				Workspace:                    workspace,
+				WorkspaceAutostart:           c.wsAutostart,
+				AutostopRequirementNotBefore: c.notBefore,
 			})
 			if c.errContains != "" {
 				require.Error(t, err)
@@ -626,58 +793,27 @@ func TestFindWeek(t *testing.T) {
 			loc, err := time.LoadLocation(tz)
 			require.NoError(t, err)
 
-			now := time.Now().In(loc)
-			currentWeek, err := schedule.WeeksSinceEpoch(now)
-			require.NoError(t, err)
+			epoch := time.Date(2023, time.January, 2, 0, 0, 0, 0, loc)
+			for expectedWeek := range int64(52 * 100) {
+				msg := fmt.Sprintf("week %d", expectedWeek)
 
-			diffMonday := now.Weekday() - time.Monday
-			if now.Weekday() == time.Sunday {
-				// Sunday is 0, but Monday is the first day of the week in the
-				// code.
-				diffMonday = 6
-			}
-			currentWeekMondayExpected := now.AddDate(0, 0, -int(diffMonday))
-			require.Equal(t, time.Monday, currentWeekMondayExpected.Weekday())
-			y, m, d := currentWeekMondayExpected.Date()
-			// Change to midnight.
-			currentWeekMondayExpected = time.Date(y, m, d, 0, 0, 0, 0, loc)
-
-			currentWeekMonday, err := schedule.GetMondayOfWeek(now.Location(), currentWeek)
-			require.NoError(t, err)
-			require.Equal(t, time.Monday, currentWeekMonday.Weekday())
-			require.Equal(t, currentWeekMondayExpected, currentWeekMonday)
-
-			t.Log("now", now)
-			t.Log("currentWeek", currentWeek)
-			t.Log("currentMonday", currentWeekMonday)
-
-			// Loop through every single Monday and Sunday for the next 100
-			// years and make sure the week calculations are correct.
-			for i := int64(1); i < 52*100; i++ {
-				msg := fmt.Sprintf("week %d", i)
-
-				monday := currentWeekMonday.AddDate(0, 0, int(i*7))
-				y, m, d := monday.Date()
-				monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
-				require.Equal(t, monday.Weekday(), time.Monday, msg)
+				monday := epoch.AddDate(0, 0, int(expectedWeek*7))
+				require.Equal(t, time.Monday, monday.Weekday(), msg)
 				t.Log(msg, "monday", monday)
 
 				week, err := schedule.WeeksSinceEpoch(monday)
 				require.NoError(t, err, msg)
-				require.Equal(t, currentWeek+i, week, msg)
-
-				gotMonday, err := schedule.GetMondayOfWeek(monday.Location(), week)
-				require.NoError(t, err, msg)
-				require.Equal(t, monday, gotMonday, msg)
+				require.Equal(t, expectedWeek, week, msg)
 
 				// Check that we get the same week number for late Sunday.
+				y, m, d := monday.Date()
 				sunday := time.Date(y, m, d+6, 23, 59, 59, 0, loc)
-				require.Equal(t, sunday.Weekday(), time.Sunday, msg)
+				require.Equal(t, time.Sunday, sunday.Weekday(), msg)
 				t.Log(msg, "sunday", sunday)
 
 				week, err = schedule.WeeksSinceEpoch(sunday)
 				require.NoError(t, err, msg)
-				require.Equal(t, currentWeek+i, week, msg)
+				require.Equal(t, expectedWeek, week, msg)
 			}
 		})
 	}

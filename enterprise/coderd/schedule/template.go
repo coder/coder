@@ -317,7 +317,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	}
 
 	for _, build := range builds {
-		err := s.updateWorkspaceBuild(ctx, db, build)
+		err := s.updateWorkspaceBuild(ctx, db, build, template.UpdatedAt)
 		if err != nil {
 			return xerrors.Errorf("update workspace build %q: %w", build.ID, err)
 		}
@@ -326,7 +326,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	return nil
 }
 
-func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
+func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, build database.WorkspaceBuild, scheduleUpdatedAt time.Time) error {
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithAttributes(attribute.String("coder.workspace_id", build.WorkspaceID.String())),
 		trace.WithAttributes(attribute.String("coder.workspace_build_id", build.ID.String())),
@@ -357,29 +357,27 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		return nil
 	}
 
-	// If the job completed before the autostop epoch, then it must be skipped
-	// to avoid failures below. Add a week to account for timezones.
-	if job.CompletedAt.Time.Before(agpl.TemplateAutostopRequirementEpoch(time.UTC).Add(time.Hour * 7 * 24)) {
-		return nil
-	}
-
 	// Calculate the new autostop max_deadline from the workspace. Since
-	// autostop is always calculated from the build completion time, we don't
+	// the TTL deadline is calculated from the build completion time, we don't
 	// want to use the returned autostop.Deadline property as it will likely be
 	// in the distant past.
 	//
-	// The only exception is if the newly calculated workspace TTL is now zero,
+	// The only exception is if the newly calculated deadline is zero,
 	// which means the workspace can now stay on indefinitely.
 	//
 	// This also matches the behavior of updating a workspace's TTL, where we
 	// don't apply the changes until the workspace is rebuilt.
+	//
+	// Apply the minimum lead time after the template save so owners have
+	// time to see the new stop time.
 	autostop, err := agpl.CalculateAutostop(ctx, agpl.CalculateAutostopParams{
-		Database:                    db,
-		TemplateScheduleStore:       s,
-		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
-		WorkspaceBuildCompletedAt:   job.CompletedAt.Time,
-		Workspace:                   workspace.WorkspaceTable(),
-		WorkspaceAutostart:          workspace.AutostartSchedule.String,
+		Database:                     db,
+		TemplateScheduleStore:        s,
+		UserQuietHoursScheduleStore:  *s.UserQuietHoursScheduleStore.Load(),
+		WorkspaceBuildCompletedAt:    job.CompletedAt.Time,
+		AutostopRequirementNotBefore: scheduleUpdatedAt.Add(agpl.AutostopRequirementLeeway),
+		Workspace:                    workspace.WorkspaceTable(),
+		WorkspaceAutostart:           workspace.AutostartSchedule.String,
 	})
 	if err != nil {
 		return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)
@@ -400,15 +398,6 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		if err != nil {
 			return xerrors.Errorf("update workspace next start at: %w", err)
 		}
-	}
-
-	// If max deadline is before now()+2h, then set it to that.
-	// This is intended to give ample warning to this workspace about an upcoming auto-stop.
-	// If we were to omit this "grace" period, then this workspace could be set to be stopped "now".
-	// The "2 hours" was an arbitrary decision for this window.
-	now := s.now()
-	if !autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now.Add(2*time.Hour)) {
-		autostop.MaxDeadline = now.Add(time.Hour * 2)
 	}
 
 	// If the new deadline is zero, the workspace can now stay on indefinitely.
@@ -442,7 +431,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	// Update the workspace build deadline.
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 		ID:          build.ID,
-		UpdatedAt:   now,
+		UpdatedAt:   s.now(),
 		Deadline:    autostop.Deadline,
 		MaxDeadline: autostop.MaxDeadline,
 	})

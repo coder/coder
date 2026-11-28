@@ -78,6 +78,12 @@ It cannot be changed from the default of 1 if you have selected "Daily" for "Day
 When using a value greater than 1, workspaces will be automatically stopped every N weeks on the day specified by "Days" and the user's quiet hours.
 The autostop week is synchronized for all workspaces on the same template.
 
+Saving a change to a template's schedule can change the required stop for running workspaces.
+When Coder schedules a new required stop, it selects the first eligible start of the workspace owner's quiet hours at least two hours after the save.
+
+If a clock change skips the start of quiet hours on a required day, Coder can use the next quiet-hours start.
+That start can fall on a weekday or in a week outside the template's schedule.
+
 ## User quiet hours
 
 > [!NOTE]

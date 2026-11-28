@@ -75,12 +75,14 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	nowY, nowM, nowD := realNow.Date()
 	buildTime := time.Date(nowY, nowM, nowD, 12, 0, 0, 0, time.UTC)       // noon today UTC
 	nextQuietHours := time.Date(nowY, nowM, nowD+1, 0, 0, 0, 0, time.UTC) // midnight tomorrow UTC
+	nextBiweeklyStop := time.Date(2023, time.February, 5, 0, 0, 0, 0, time.UTC)
 
 	defaultTTL := 8 * time.Hour
 
 	cases := []struct {
-		name string
-		now  time.Time
+		name             string
+		now              time.Time
+		buildCompletedAt time.Time
 		// Before:
 		deadline    time.Time
 		maxDeadline time.Time
@@ -105,30 +107,28 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			ttl:            defaultTTL, // no effect
 		},
 		{
-			name: "NewWorkspaceMaxDeadlineBeforeNow",
-			// After the new max deadline...
-			now:      nextQuietHours.Add(6 * time.Hour),
-			deadline: buildTime,
-			// Far into the future...
-			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: buildTime,
-			// We will use now() + 2 hours if the newly calculated max deadline
-			// from the workspace build time is before now.
-			newMaxDeadline: nextQuietHours.Add(8 * time.Hour),
-			ttl:            defaultTTL, // no effect
+			name: "SaveUsesNextBiweeklyStop",
+			// The January 22 stop has passed. January 29 is an off week.
+			now:              time.Date(2023, time.January, 22, 12, 0, 0, 0, time.UTC),
+			buildCompletedAt: time.Date(2023, time.January, 18, 12, 0, 0, 0, time.UTC),
+			newDeadline:      nextBiweeklyStop,
+			newMaxDeadline:   nextBiweeklyStop,
+			autostopReq: &agplschedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      2,
+			},
 		},
 		{
-			name: "NewWorkspaceMaxDeadlineSoon",
-			// Right before the new max deadline...
-			now:      nextQuietHours.Add(-1 * time.Hour),
-			deadline: buildTime,
-			// Far into the future...
-			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: buildTime,
-			// We will use now() + 2 hours if the newly calculated max deadline
-			// from the workspace build time is within the next 2 hours.
-			newMaxDeadline: nextQuietHours.Add(1 * time.Hour),
-			ttl:            defaultTTL, // no effect
+			name:           "SaveSkipsImminentQuietHours",
+			now:            nextQuietHours.Add(-30 * time.Second),
+			newDeadline:    nextQuietHours.Add(24 * time.Hour),
+			newMaxDeadline: nextQuietHours.Add(24 * time.Hour),
+		},
+		{
+			name:           "SaveUsesQuietHoursAtCutoff",
+			now:            nextQuietHours.Add(-2 * time.Hour),
+			newDeadline:    nextQuietHours,
+			newMaxDeadline: nextQuietHours,
 		},
 		{
 			name: "NewWorkspaceMaxDeadlineFuture",
@@ -233,7 +233,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				user = noQuietUser
 			}
 
-			t.Log("buildTime", buildTime)
+			buildCompletedAt := c.buildCompletedAt
+			if buildCompletedAt.IsZero() {
+				buildCompletedAt = buildTime
+			}
+			t.Log("buildCompletedAt", buildCompletedAt)
 			t.Log("nextQuietHours", nextQuietHours)
 			t.Log("now", c.now)
 			t.Log("deadline", c.deadline)
@@ -253,7 +257,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				TemplateID:     template.ID,
 			}).Seed(database.WorkspaceBuild{
 				TemplateVersionID: templateVersion.ID,
-			}).ProvisionerState([]byte(must(cryptorand.String(64)))).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
+			}).ProvisionerState([]byte(must(cryptorand.String(64)))).Succeeded(dbfake.WithJobCompletedAt(buildCompletedAt)).Do()
 
 			// Assert test invariant: workspace build state must not be empty
 			var buildProvisionerState []byte
@@ -264,7 +268,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 				ID:          buildResp.Build.ID,
-				UpdatedAt:   buildTime,
+				UpdatedAt:   buildCompletedAt,
 				Deadline:    c.deadline,
 				MaxDeadline: c.maxDeadline,
 			})
