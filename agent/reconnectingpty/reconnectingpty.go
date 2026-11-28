@@ -175,6 +175,9 @@ type ReconnectingPTY interface {
 	Wait() error
 	// Close kills the reconnecting pty process.
 	Close(err error)
+	// ExitError returns why the process exited on its own, or nil if it is
+	// still running or was closed for another reason.
+	ExitError() *ExitError
 }
 
 // New sets up a new reconnecting pty that wraps the provided command.  Any
@@ -286,6 +289,17 @@ func (s *ptyState) setState(state State, err error) {
 	s.error = err
 	s.state = state
 	s.cond.Broadcast()
+}
+
+// exitError returns the reason the process exited on its own, if it did.
+func (s *ptyState) exitError() *ExitError {
+	s.cond.L.Lock()
+	defer s.cond.L.Unlock()
+	var exitErr *ExitError
+	if !errors.As(s.error, &exitErr) {
+		return nil
+	}
+	return exitErr
 }
 
 // waitForState blocks until the state or a greater one is reached.

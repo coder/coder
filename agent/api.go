@@ -71,6 +71,7 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 
 	r.Get("/api/v0/listening-ports", a.listeningPortsHandler.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
+	r.Get("/api/v0/reconnecting-pty/{id}", a.handleReconnectingPTYStatus)
 	r.Get("/api/v0/tcp/{port}", upgradeListener.handler)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
@@ -120,4 +121,26 @@ func (lp *listeningPortsHandler) handler(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceAgentListeningPortsResponse{
 		Ports: filteredPorts,
 	})
+}
+
+// handleReconnectingPTYStatus reports whether a reconnecting PTY session has
+// exited, so callers can tell a finished session from a dropped connection.
+func (a *agent) handleReconnectingPTYStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid reconnecting PTY ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	status, ok := a.reconnectingPTYServer.Status(id)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Reconnecting PTY session not found.",
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, status)
 }
