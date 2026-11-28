@@ -23,9 +23,9 @@ AI Gateway uses the first source that applies to the request:
 | 2     | A [Coder Agents](../../coder-agents/index.md) chat                   | The chat's organization                                                                                                           |
 | 3     | Any other client, such as one that uses a token you created yourself | The organization of the user's [effective group](./cost-controls.md#effective-group-resolution) across all of their organizations |
 
-A workspace session token is the token a template injects with `data.coder_workspace_owner.me.session_token`, as the [client setup examples](./clients/index.md) do.
+A workspace session token is the token that a template reads from `data.coder_workspace_owner.me.session_token`.
 A token that you create with `coder tokens create` or in **Account settings** > **Tokens** isn't a workspace session token.
-Neither is the token that `coder login token` prints.
+Neither is the token that `coder login token` prints, nor a [scoped token](./clients/index.md#use-a-scoped-token) that a template creates during the build.
 Requests that use these tokens take the organization of the user's effective group, even when the client runs inside a workspace.
 
 A chat request takes the chat's organization, even when the chat uses a workspace.
@@ -44,6 +44,8 @@ When no budget applies to the user in any organization, the fallback picks the `
 If the user isn't a member of the default organization, it picks the organization they joined first.
 
 To keep a user's AI Gateway spend in a predictable organization, have their clients authenticate with a workspace session token.
+A workspace session token has the owner's full access to the Coder API, so any process in the workspace can use it.
+If an agent in the workspace must not have that access, use a [scoped token](./clients/index.md#use-a-scoped-token) and accept the fallback.
 
 ## Rejected requests
 

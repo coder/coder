@@ -58,19 +58,18 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic
 
 ## Run Xum in a Coder workspace
 
-To run Xum inside a Coder workspace (for example, as a Coder app), you can install it with the [`mux` module](https://registry.coder.com/modules/coder/mux) (still published under its pre-rename name) and pre-configure AI Gateway via environment variables on the workspace agent:
+To run Xum inside a Coder workspace (for example, as a Coder app), you can install it with the [`mux` module](https://registry.coder.com/modules/coder/mux) (still published under its pre-rename name) and pre-configure AI Gateway via environment variables on the workspace agent.
+To create `local.ai_gateway_token`, follow [Use a scoped token](./index.md#use-a-scoped-token).
 
 ```tf
 data "coder_workspace" "me" {}
 
-data "coder_workspace_owner" "me" {}
-
 resource "coder_agent" "main" {
   # ... other agent configuration
   env = {
-    OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
+    OPENAI_API_KEY     = local.ai_gateway_token
     OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1"
-    ANTHROPIC_API_KEY  = data.coder_workspace_owner.me.session_token
+    ANTHROPIC_API_KEY  = local.ai_gateway_token
     ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
   }
 }
