@@ -17,6 +17,7 @@ import {
 	createChatProject,
 	deleteChatProject,
 	joinChatProjectSummaries,
+	pinChatProject,
 	reorderChatProjectPins,
 	setChatProjectRole,
 	unpinChatProject,
@@ -85,7 +86,11 @@ describe("chat project mutations", () => {
 	});
 
 	it("refreshes only the summaries after a pin change", async () => {
-		for (const factory of [reorderChatProjectPins, unpinChatProject]) {
+		for (const factory of [
+			pinChatProject,
+			reorderChatProjectPins,
+			unpinChatProject,
+		]) {
 			const queryClient = seed();
 			queryClient.setQueryData(chatProjectSummariesKey, []);
 			await settle(factory(queryClient));

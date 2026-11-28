@@ -3355,6 +3355,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	pinChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/pin`,
+		);
+	};
+
 	reorderChatProjectPins = async (
 		req: TypesGen.ReorderChatProjectPinsRequest,
 	): Promise<void> => {
