@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/pretty"
@@ -36,19 +37,22 @@ type MiddlewareNext = func(*http.Request) (*http.Response, error)
 // Middleware is an HTTP middleware function compatible with SDK WithMiddleware options.
 type Middleware = func(*http.Request, MiddlewareNext) (*http.Response, error)
 
-// NewBridgeMiddleware returns a middleware function that dumps requests and responses to files.
-// If baseDir is empty, returns nil (no middleware).
+// NewBridgeMiddleware returns a middleware that dumps each upstream request and
+// response to its own numbered files, so key failover attempts and agentic loop
+// iterations within one interception do not overwrite each other. Callers must
+// build one middleware per interception. If baseDir is empty, it returns nil.
 func NewBridgeMiddleware(baseDir string, provider string, model string, interceptionID uuid.UUID, logger slog.Logger, clk quartz.Clock) Middleware {
 	if baseDir == "" {
 		return nil
 	}
 
-	d := &Dumper{
-		dumpPath: interceptDumpPath(baseDir, provider, model, interceptionID, clk),
-		logger:   logger,
-	}
-
+	var seq atomic.Int64
 	return func(req *http.Request, next MiddlewareNext) (*http.Response, error) {
+		d := &Dumper{
+			dumpPath: interceptDumpPath(baseDir, provider, model, interceptionID, seq.Add(1), clk),
+			logger:   logger,
+		}
+
 		if err := d.DumpRequest(req); err != nil {
 			logger.Named("apidump").Warn(req.Context(), "failed to dump request", slog.Error(err))
 		}
@@ -227,10 +231,11 @@ func (*Dumper) writeRedactedHeaders(w io.Writer, headers http.Header, sensitive 
 	return nil
 }
 
-// interceptDumpPath returns the base file path (without req/resp suffix) for an interception dump.
-func interceptDumpPath(baseDir string, provider string, model string, interceptionID uuid.UUID, clk quartz.Clock) string {
+// interceptDumpPath returns the base file path (without req/resp suffix) for
+// one upstream call of an interception.
+func interceptDumpPath(baseDir string, provider string, model string, interceptionID uuid.UUID, seq int64, clk quartz.Clock) string {
 	safeModel := strings.ReplaceAll(model, "/", "-")
-	return filepath.Join(baseDir, provider, safeModel, fmt.Sprintf("%d-%s", clk.Now().UTC().UnixMilli(), interceptionID))
+	return filepath.Join(baseDir, provider, safeModel, fmt.Sprintf("%d-%s-%03d", clk.Now().UTC().UnixMilli(), interceptionID, seq))
 }
 
 // passthroughDumpPath returns the base file path (without req/resp suffix) for a passthrough dump.

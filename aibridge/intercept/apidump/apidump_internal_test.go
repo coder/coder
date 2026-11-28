@@ -251,6 +251,68 @@ func TestBridgedMiddleware_ModelWithSlash(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestBridgedMiddleware_SeparateFilesPerCall verifies that upstream calls in
+// one interception, such as key failover attempts, do not overwrite each
+// other's dumps, even at the same clock instant.
+func TestBridgedMiddleware_SeparateFilesPerCall(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	clk := quartz.NewMock(t)
+	interceptionID := uuid.New()
+	middleware := NewBridgeMiddleware(tmpDir, "openai", "gpt-4", interceptionID, logger, clk)
+	require.NotNil(t, middleware)
+
+	calls := []struct {
+		reqBody  string
+		status   int
+		respBody string
+	}{
+		{reqBody: `{"attempt":1}`, status: http.StatusTooManyRequests, respBody: `{"error":"rate limited"}`},
+		{reqBody: `{"attempt":2}`, status: http.StatusOK, respBody: `{"ok":true}`},
+	}
+	for _, c := range calls {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.openai.com/v1/chat/completions", strings.NewReader(c.reqBody))
+		require.NoError(t, err)
+
+		resp, err := middleware(req, func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: c.status,
+				Status:     http.StatusText(c.status),
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader(c.respBody)),
+			}, nil
+		})
+		require.NoError(t, err)
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	modelDir := filepath.Join(tmpDir, "openai", "gpt-4")
+	reqFiles, err := filepath.Glob(filepath.Join(modelDir, "*"+SuffixRequest))
+	require.NoError(t, err)
+	respFiles, err := filepath.Glob(filepath.Join(modelDir, "*"+SuffixResponse))
+	require.NoError(t, err)
+	require.Len(t, reqFiles, len(calls))
+	require.Len(t, respFiles, len(calls))
+
+	// Glob returns sorted names, and the zero-padded sequence number keeps
+	// them in call order.
+	for i, c := range calls {
+		require.Contains(t, reqFiles[i], interceptionID.String())
+		reqContent, err := os.ReadFile(reqFiles[i])
+		require.NoError(t, err)
+		require.Contains(t, string(reqContent), string(prettyPrintJSON([]byte(c.reqBody))))
+
+		respContent, err := os.ReadFile(respFiles[i])
+		require.NoError(t, err)
+		require.Contains(t, string(respContent), c.respBody)
+	}
+}
+
 func TestPrettyPrintJSON(t *testing.T) {
 	t.Parallel()
 
