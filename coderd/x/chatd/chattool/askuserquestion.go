@@ -22,7 +22,7 @@ var (
 
 type askUserQuestionOption struct {
 	Label       string `json:"label"`
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
 }
 
 type askUserQuestion struct {
@@ -86,10 +86,10 @@ func (*askUserQuestionTool) Info() fantasy.ToolInfo {
 									},
 									"description": map[string]any{
 										"type":        "string",
-										"description": "More detail about what this option means.",
+										"description": "More detail about what this option means. Omit it when the label needs no explanation.",
 									},
 								},
-								"required": []string{"label", "description"},
+								"required": []string{"label"},
 							},
 						},
 					},
@@ -143,9 +143,6 @@ func validateAskUserQuestionArgs(args askUserQuestionArgs) error {
 		for j, option := range question.Options {
 			if strings.TrimSpace(option.Label) == "" {
 				return xerrors.Errorf("questions[%d].options[%d].label is required", i, j)
-			}
-			if strings.TrimSpace(option.Description) == "" {
-				return xerrors.Errorf("questions[%d].options[%d].description is required", i, j)
 			}
 		}
 	}
